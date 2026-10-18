@@ -20,6 +20,44 @@ use omega::language::core::filesystem_authority;
 use omega::language::core::external_binding;
 use posix_filesystem_host;
 use filesystem_host;
+use omega::language::core::layout;
+use omega::language::core::numeric_conversion;
+
+// Unlike the raw Linux syscall, libc consumes an aligned timespec[2] object.
+// Caller byte views need not have that alignment. Materialize only this native
+// 32-byte record, keeping required ABI marshaling separate from payload staging.
+data DarwinTimestampRecord {
+    accessed_seconds: i64;
+    accessed_nanoseconds: i64;
+    modified_seconds: i64;
+    modified_nanoseconds: i64;
+}
+data DarwinTimestampAlignment { }
+macos_arm64 machine DarwinTimestampAlignment::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
+    entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::At { offset: 16 } };
+    entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 24 } };
+    Plan { entries: entries, entry_count: 4, size_fixed: 32, size_is_dynamic: false, align: 8 }
+}
+
+// Decode the caller's packed little-endian bytes without forming an aligned
+// native reference to them. All signed bit patterns, including UTIME sentinels,
+// survive unchanged; semantic timestamp validation remains the OS's operation.
+macos_arm64 machine darwin_timestamp_word(bytes: &[u8]) -> i64
+requires bytes.len == 8;
+{
+    let word: u64 in Wrapping = (widen_u8_to_u64(bytes[0]) as u64 in Wrapping)
+        | ((widen_u8_to_u64(bytes[1]) as u64 in Wrapping) << 8)
+        | ((widen_u8_to_u64(bytes[2]) as u64 in Wrapping) << 16)
+        | ((widen_u8_to_u64(bytes[3]) as u64 in Wrapping) << 24)
+        | ((widen_u8_to_u64(bytes[4]) as u64 in Wrapping) << 32)
+        | ((widen_u8_to_u64(bytes[5]) as u64 in Wrapping) << 40)
+        | ((widen_u8_to_u64(bytes[6]) as u64 in Wrapping) << 48)
+        | ((widen_u8_to_u64(bytes[7]) as u64 in Wrapping) << 56);
+    narrow_u64_to_i64_wrapping(word as u64)
+}
 
 macos_arm64 machine posix_darwin_open_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport {
@@ -210,15 +248,6 @@ macos_arm64 machine posix_darwin_getdirentries64_private_binding() -> ForeignBin
     }
 }
 
-macos_arm64 machine posix_darwin_stat_binding() -> ForeignBinding<26, 5, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_stat",
-        },
-    }
-}
-
 macos_arm64 machine posix_darwin_fstatat_binding() -> ForeignBinding<26, 8, 0> {
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
@@ -232,15 +261,6 @@ macos_arm64 machine posix_darwin_fstat_binding() -> ForeignBinding<26, 6, 0> {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_fstat",
-        },
-    }
-}
-
-macos_arm64 machine posix_darwin_lstat_binding() -> ForeignBinding<26, 6, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_lstat",
         },
     }
 }
@@ -392,17 +412,13 @@ boundary requirement PosixFilesystemDarwin::c_remove_name(path: &u8) -> i32
 reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_remove_dir_name(path: &u8) -> i32
 reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_read_metadata(path: &u8, buffer: &mut u8) -> i32
-reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_read_file_metadata(fd: i32, buffer: &mut u8) -> i32
 reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_read_metadata_at(directory_descriptor: i32, name: &u8, buffer: &mut u8, flags: i32) -> i32
 reaches FilesystemMetadataQuery;
-boundary requirement PosixFilesystemDarwin::c_read_symlink_metadata(path: &u8, buffer: &mut u8) -> i32
-reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_set_len(fd: i32, length: i64) -> i32
 reaches FilesystemContentWrite + FilesystemMetadataMutation;
-boundary requirement PosixFilesystemDarwin::c_set_file_times(fd: i32, times: &u8) -> i32
+boundary requirement PosixFilesystemDarwin::c_set_file_times(fd: i32, times: &DarwinTimestampAlignment<DarwinTimestampRecord>) -> i32
 reaches FilesystemMetadataMutation;
 boundary requirement PosixFilesystemDarwin::c_sync(fd: i32) -> i32
 ;
@@ -474,17 +490,13 @@ macos_arm64 machine PosixFilesystemDarwinImports::c_remove_name(path: &u8) -> i3
     satisfies PosixFilesystemDarwin::c_remove_name via posix_darwin_unlink_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_remove_dir_name(path: &u8) -> i32
     satisfies PosixFilesystemDarwin::c_remove_dir_name via posix_darwin_rmdir_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_read_metadata(path: &u8, buffer: &mut u8) -> i32
-    satisfies PosixFilesystemDarwin::c_read_metadata via posix_darwin_stat_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_read_file_metadata(fd: i32, buffer: &mut u8) -> i32
     satisfies PosixFilesystemDarwin::c_read_file_metadata via posix_darwin_fstat_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_read_metadata_at(directory_descriptor: i32, name: &u8, buffer: &mut u8, flags: i32) -> i32
     satisfies PosixFilesystemDarwin::c_read_metadata_at via posix_darwin_fstatat_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_read_symlink_metadata(path: &u8, buffer: &mut u8) -> i32
-    satisfies PosixFilesystemDarwin::c_read_symlink_metadata via posix_darwin_lstat_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_set_len(fd: i32, length: i64) -> i32
     satisfies PosixFilesystemDarwin::c_set_len via posix_darwin_ftruncate_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_set_file_times(fd: i32, times: &u8) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_set_file_times(fd: i32, times: &DarwinTimestampAlignment<DarwinTimestampRecord>) -> i32
     satisfies PosixFilesystemDarwin::c_set_file_times via posix_darwin_futimens_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_sync(fd: i32) -> i32
     satisfies PosixFilesystemDarwin::c_sync via posix_darwin_fsync_binding();
@@ -1024,34 +1036,17 @@ macos_arm64 machine PosixFilesystemNativeProvider::read_metadata(path: &[u8] in 
     satisfies PosixFilesystemHost::read_metadata
 reaches FilesystemMetadataQuery
 {
-    let mut terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path, &mut terminated);
-    let mut chunk: [u8; 4096];
-    let outcome: i32 = PosixFilesystemDarwin::c_read_metadata(&terminated[0], &mut chunk[0]);
-    posix_drain_chunk(&chunk, buffer, 4096);
-    transition fits {
-        true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
-    }
-
-    state settle(outcome: i32) -> i32 {
-        transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
-            _ -> (outcome)
-        }
-    }
+    PosixFilesystemNativeProvider::read_metadata_at(-2, path, buffer, 0)
 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32
     satisfies PosixFilesystemHost::read_file_metadata
 reaches FilesystemMetadataQuery
 {
-    let mut chunk: [u8; 4096];
-    let outcome: i32 = PosixFilesystemDarwin::c_read_file_metadata(fd, &mut chunk[0]);
-    posix_drain_chunk(&chunk, buffer, 4096);
-    transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i32())
-        _ -> (outcome)
+    transition buffer.len >= 144 { true -> query(fd, buffer) _ -> -22 }
+    state query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 144; {
+        let outcome: i32 = PosixFilesystemDarwin::c_read_file_metadata(fd, &mut buffer[0]);
+        transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i32() _ -> outcome }
     }
 }
 
@@ -1059,22 +1054,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::read_symlink_metadata(path: &
     satisfies PosixFilesystemHost::read_symlink_metadata
 reaches FilesystemMetadataQuery
 {
-    let mut terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path, &mut terminated);
-    let mut chunk: [u8; 4096];
-    let outcome: i32 = PosixFilesystemDarwin::c_read_symlink_metadata(&terminated[0], &mut chunk[0]);
-    posix_drain_chunk(&chunk, buffer, 4096);
-    transition fits {
-        true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i32())
-    }
-
-    state settle(outcome: i32) -> i32 {
-        transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i32())
-            _ -> (outcome)
-        }
-    }
+    PosixFilesystemNativeProvider::read_metadata_at(-2, path, buffer, 32)
 }
 
 // The kernel writes one complete native record into caller-owned storage.
@@ -1114,12 +1094,15 @@ macos_arm64 machine PosixFilesystemNativeProvider::set_file_times(fd: i32, times
     satisfies PosixFilesystemHost::set_file_times
 reaches FilesystemMetadataMutation
 {
-    let mut chunk: [u8; 4096];
-    let count: u64 = posix_fill_chunk(times, &mut chunk);
-    let outcome: i32 = PosixFilesystemDarwin::c_set_file_times(fd, &chunk[0]);
-    transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i32())
-        _ -> (outcome)
+    transition times.len >= 32 { true -> update(fd, times) _ -> -22 }
+    state update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32; {
+        let mut native: DarwinTimestampAlignment<DarwinTimestampRecord>;
+        native.accessed_seconds = darwin_timestamp_word(times[0..8]);
+        native.accessed_nanoseconds = darwin_timestamp_word(times[8..16]);
+        native.modified_seconds = darwin_timestamp_word(times[16..24]);
+        native.modified_nanoseconds = darwin_timestamp_word(times[24..32]);
+        let outcome: i32 = PosixFilesystemDarwin::c_set_file_times(fd, &native);
+        transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i32() _ -> outcome }
     }
 }
 
@@ -1244,10 +1227,8 @@ macos_arm64 machine PosixFilesystemNativeProvider::provider_defaults(defaults: &
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_dir, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_remove_name, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_remove_dir_name, PosixFilesystemDarwinImports>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_metadata, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_file_metadata, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_metadata_at, PosixFilesystemDarwinImports>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_symlink_metadata, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_set_len, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_set_file_times, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_sync, PosixFilesystemDarwinImports>(defaults);

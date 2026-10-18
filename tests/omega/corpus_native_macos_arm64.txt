@@ -1287,6 +1287,7 @@ pass/filesystem/runtime_portable_metadata_exit built 12954ms exit:0 @7e6a01265b4
 pass/filesystem/runtime_portable_unknown_directory_kinds_exit built 20827ms exit:0 @85e6bb9c494b+wt
 pass/filesystem/runtime_portable_zero_descriptor_exit built 9697ms exit:0 @cc43b6679d2a+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit built 3171ms exit:0 stdout:match @d1ebe54629b8
+pass/filesystem/runtime_posix_native_storage_bounds_exit built 9410ms exit:0 @2f33bd96e5f4
 pass/filesystem/runtime_posix_read_runtime_range_view_exit built 7147ms exit:0 stdout:match @2375f5327b1a+wt
 pass/filesystem/windows_canonicalize_exit rejected 17869ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`

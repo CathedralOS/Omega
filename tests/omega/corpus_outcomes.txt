@@ -8475,6 +8475,7 @@ pass/filesystem/runtime_portable_metadata_exit checked 12499ms check-target:maco
 pass/filesystem/runtime_portable_unknown_directory_kinds_exit checked 20208ms check-target:macos_arm64 @85e6bb9c494b+wt
 pass/filesystem/runtime_portable_zero_descriptor_exit checked 12120ms check-target:macos_arm64 @cc43b6679d2a+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit checked 9462ms check-target:macos_arm64 @aebe0714a499+wt
+pass/filesystem/runtime_posix_native_storage_bounds_exit checked 9150ms check-target:macos_arm64 @2f33bd96e5f4
 pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 9450ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/windows_canonicalize_exit checked 24908ms check-target:linux_x86_64 @c9eefa9130a0+wt
 pass/filesystem/windows_native_create_write_close_exit checked 10616ms check-target:windows_x86_64 @aebe0714a499+wt

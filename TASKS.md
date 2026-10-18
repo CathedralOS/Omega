@@ -5491,8 +5491,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     x86-64 (exit 70). Foreign artifact production does not establish those
     outcomes. Preserve oversized-read, asynchronous-handle, invalid UTF-8 and
     failed-time-query controls.
-  - Remove unnecessary 4096-byte staging in raw read-link, directory,
-    metadata and timestamp adapters while preserving native layout, alignment,
+  - Remove unnecessary 4096-byte staging in raw read-link and directory
+    adapters while preserving native layout, alignment,
     minimum storage and separate NUL-terminated path construction.
   - `native_metadata_ino` still reaches the proof-search budget
     (`proof_search_result_guarantee_work`);

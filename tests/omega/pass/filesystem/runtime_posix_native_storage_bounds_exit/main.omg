@@ -1,0 +1,125 @@
+// Expected exit: 0. Native records require their complete target extent before
+// the OS is called. Failure must not copy scratch bytes over caller canaries.
+use omega_language_std::posix_filesystem_host;
+use omega_language_std::console;
+
+data Main { bytes: [u8; 8]; record: [u8; 146]; timestamps: [u8; 34]; descriptor: i32; }
+machine Main::main(main: &mut Main) reaches Console + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemContentRead + FilesystemContentWrite + FilesystemNamespaceMutation {
+    main.bytes[0] = 91;
+    main.bytes[7] = 92;
+    let result: i32 = PosixFilesystemHost::read_file_metadata(-1, &mut main.bytes);
+    transition result == -22 && main.bytes[0] == 91 && main.bytes[7] == 92 {
+        true -> path(main) _ -> bad(10)
+    }
+    state path(main: &mut Main) {
+        let result: i32 = PosixFilesystemHost::read_metadata(".", &mut main.bytes);
+        transition result == -22 && main.bytes[0] == 91 && main.bytes[7] == 92 {
+            true -> symlink(main) _ -> bad(11)
+        }
+    }
+    state symlink(main: &mut Main) {
+        let result: i32 = PosixFilesystemHost::read_symlink_metadata(".", &mut main.bytes);
+        transition result == -22 && main.bytes[0] == 91 && main.bytes[7] == 92 {
+            true -> relative(main) _ -> bad(12)
+        }
+    }
+    state relative(main: &mut Main) {
+        let result: i32 = PosixFilesystemHost::read_metadata_at(-1, ".", &mut main.bytes, 0);
+        transition result == -22 && main.bytes[0] == 91 && main.bytes[7] == 92 {
+            true -> times(main) _ -> bad(13)
+        }
+    }
+    state times(main: &mut Main) {
+        let result: i32 = PosixFilesystemHost::set_file_times(-1, &main.bytes);
+        transition result == -22 && main.bytes[0] == 91 && main.bytes[7] == 92 {
+            true -> exact_record(main) _ -> bad(14)
+        }
+    }
+    state exact_record(main: &mut Main) {
+        main.record[0] = 93;
+        let end: u64[129..=145] = native_record_end();
+        main.record[end] = 94;
+        let result: i32 = PosixFilesystemHost::read_metadata(".", &mut main.record[1..end]);
+        transition result == 0 && main.record[0] == 93 && main.record[end] == 94 {
+            true -> exact_times(main) _ -> bad(15)
+        }
+    }
+    state exact_times(main: &mut Main) {
+        main.timestamps[0] = 95;
+        main.timestamps[33] = 96;
+        // Full valid storage must reach the OS: EBADF, not fabricated EINVAL.
+        let result: i32 = PosixFilesystemHost::set_file_times(-1, main.timestamps[1..33]);
+        transition result == -9 && main.timestamps[0] == 95 && main.timestamps[33] == 96 {
+            true -> create_file(main) _ -> bad(16)
+        }
+    }
+    state create_file(main: &mut Main) {
+        main.descriptor = PosixFilesystemHost::create("native-record-times", 384);
+        transition main.descriptor >= 0 { true -> update_times(main) _ -> bad(17) }
+    }
+    state update_times(main: &mut Main) {
+        // atime = {-1, 100}, mtime = {2, 200}. Negative seconds challenge
+        // signed bit preservation rather than only accepting the all-zero pair.
+        main.timestamps[1] = 255;
+        main.timestamps[2] = 255;
+        main.timestamps[3] = 255;
+        main.timestamps[4] = 255;
+        main.timestamps[5] = 255;
+        main.timestamps[6] = 255;
+        main.timestamps[7] = 255;
+        main.timestamps[8] = 255;
+        main.timestamps[9] = 100;
+        main.timestamps[17] = 2;
+        main.timestamps[25] = 200;
+        let result: i32 = PosixFilesystemHost::set_file_times(main.descriptor, main.timestamps[1..33]);
+        transition result == 0 && main.timestamps[0] == 95 && main.timestamps[33] == 96 {
+            true -> read_times(main) _ -> finish(main, 18)
+        }
+    }
+    state read_times(main: &mut Main) {
+        main.record[145] = 97;
+        let result: i32 = PosixFilesystemHost::read_file_metadata(main.descriptor, &mut main.record);
+        transition result == 0 && main.record[145] == 97 { true -> compare_times(main) _ -> finish(main, 19) }
+    }
+    state compare_times(main: &mut Main) {
+        let matches: bool = native_times_match(&main.record);
+        transition matches { true -> finish(main, 0) _ -> finish(main, 20) }
+    }
+    state finish(main: &mut Main, code: i32) {
+        let closed: i32 = PosixFilesystemHost::close(main.descriptor);
+        let removed: i32 = PosixFilesystemHost::remove("native-record-times");
+        transition closed == 0 && removed == 0 { true -> bad(code) _ -> bad(21) }
+    }
+    state good() { Console::exit_process(0); }
+    state bad(code: i32) { Console::exit_process(code); }
+}
+
+linux_arm64 machine native_record_end() -> u64[129..=145] { 129 }
+linux_x86_64 machine native_record_end() -> u64[129..=145] { 145 }
+macos_arm64 machine native_record_end() -> u64[129..=145] { 145 }
+
+linux_arm64 machine native_times_match(record: &[u8; 146]) -> bool {
+    native_word_matches(record[72..80], 255, 255)
+        && native_word_matches(record[80..88], 100, 0)
+        && native_word_matches(record[88..96], 2, 0)
+        && native_word_matches(record[96..104], 200, 0)
+}
+linux_x86_64 machine native_times_match(record: &[u8; 146]) -> bool {
+    native_word_matches(record[72..80], 255, 255)
+        && native_word_matches(record[80..88], 100, 0)
+        && native_word_matches(record[88..96], 2, 0)
+        && native_word_matches(record[96..104], 200, 0)
+}
+macos_arm64 machine native_times_match(record: &[u8; 146]) -> bool {
+    native_word_matches(record[32..40], 255, 255)
+        && native_word_matches(record[40..48], 100, 0)
+        && native_word_matches(record[48..56], 2, 0)
+        && native_word_matches(record[56..64], 200, 0)
+}
+
+machine native_word_matches(bytes: &[u8], first: u8, rest: u8) -> bool
+requires bytes.len == 8;
+{
+    bytes[0] == first && bytes[1] == rest && bytes[2] == rest && bytes[3] == rest
+        && bytes[4] == rest && bytes[5] == rest && bytes[6] == rest && bytes[7] == rest
+}

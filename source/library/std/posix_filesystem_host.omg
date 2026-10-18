@@ -95,7 +95,8 @@ pub boundary trait PosixFilesystemHost {
     machine remove_dir_name(path: &[u8]) -> i32 reaches FilesystemNamespaceMutation;
     // `stat`: fill `buffer` (at least the target's `struct stat`, 144 bytes on
     // Darwin and x86-64 Linux, 128 on arm64 Linux) with the target record that
-    // `StatLayout` decodes.
+    // `StatLayout` decodes. Undersized output returns EINVAL before the OS call;
+    // only the native record is written, not the rest of a larger caller view.
     machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 reaches FilesystemMetadataQuery;
     // `fstat`, the same record for an open descriptor.
     machine read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32 reaches FilesystemMetadataQuery;
@@ -108,7 +109,8 @@ pub boundary trait PosixFilesystemHost {
     // `ftruncate`.
     machine set_len(fd: i32, length: i64) -> i32 reaches FilesystemContentWrite + FilesystemMetadataMutation;
     // `futimens`: `times` holds two packed `struct timespec` values (access, then
-    // modification).
+    // modification), 32 bytes on the supported POSIX targets. Undersized input
+    // returns EINVAL before the OS call. The byte view itself need not be aligned.
     machine set_file_times(fd: i32, times: &[u8]) -> i32 reaches FilesystemMetadataMutation;
     // `fsync`.
     machine sync(fd: i32) -> i32;
@@ -349,9 +351,9 @@ machine posix_put_path_byte(path: &[u8], out: &mut [u8], index: u64) {
     state done() { }
 }
 
-// Fixed scratch storage remains for target-layout metadata, timestamp records,
-// and the directory/link adapters. Ordinary read/write operations lend the
-// caller's byte-view backing directly and do not use these chunk helpers.
+// Directory/link adapters still use fixed payload scratch. Metadata lends the
+// complete native record directly; timestamps marshal only their native pair.
+// Ordinary read/write operations also lend caller backing directly.
 
 // How many bytes one transfer may move into `buffer`: at most `count`, the
 // slice's length and the chunk's size.
@@ -370,46 +372,6 @@ pub machine posix_shorter(first: u64, second: u64) -> u64 {
         true -> (first)
         _ -> (second)
     }
-}
-
-// Copy a prefix of `bytes` into `chunk`; the result counts the bytes copied.
-pub machine posix_fill_chunk(bytes: &[u8], chunk: &mut [u8]) -> u64 {
-    let limit: u64 = posix_shorter(bytes.len, chunk.len);
-    posix_fill_chunk_from(bytes, chunk, 0, limit);
-    limit
-}
-
-machine posix_fill_chunk_from(bytes: &[u8], chunk: &mut [u8], index: u64, limit: u64)
-terminates by (index, limit) -> Nat::BoundedDistance;
-{
-    posix_put_chunk_byte(bytes, chunk, index);
-    transition index < limit {
-        true -> posix_fill_chunk_from(bytes, chunk, index + 1, limit)
-        _ -> done()
-    }
-
-    state done() { }
-}
-
-machine posix_put_chunk_byte(bytes: &[u8], chunk: &mut [u8], index: u64) {
-    transition index < bytes.len {
-        true -> bounded(bytes, chunk, index)
-        _ -> done()
-    }
-
-    state bounded(bytes: &[u8], chunk: &mut [u8], index: u64) {
-        transition index < chunk.len {
-            true -> write(bytes, chunk, index)
-            _ -> done()
-        }
-    }
-
-    state write(bytes: &[u8], chunk: &mut [u8], index: u64) {
-        chunk[index] = bytes[index];
-        transition { _ -> done() }
-    }
-
-    state done() { }
 }
 
 // Copy the first `count` chunk bytes (no more than `buffer.len`) into

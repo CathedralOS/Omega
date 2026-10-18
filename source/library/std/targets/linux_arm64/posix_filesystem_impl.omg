@@ -496,48 +496,24 @@ linux_arm64 machine PosixFilesystemNativeProvider::read_metadata(path: &[u8] in 
     satisfies PosixFilesystemHost::read_metadata
 reaches FilesystemMetadataQuery
 {
-    let mut terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path, &mut terminated);
-    let mut chunk: [u8; 4096];
-    let outcome: i32 = PosixFilesystemLinux::newfstatat(-100, &terminated[0], &mut chunk[0], 0);
-    posix_drain_chunk(&chunk, buffer, 4096);
-    transition fits {
-        true -> settle(outcome)
-        _ -> (-36)
-    }
-
-    state settle(outcome: i32) -> i32 {
-        outcome
-    }
+    PosixFilesystemNativeProvider::read_metadata_at(-100, path, buffer, 0)
 }
 
 linux_arm64 machine PosixFilesystemNativeProvider::read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32
     satisfies PosixFilesystemHost::read_file_metadata
 reaches FilesystemMetadataQuery
 {
-    let mut chunk: [u8; 4096];
-    let outcome: i32 = PosixFilesystemLinux::fstat(fd, &mut chunk[0]);
-    posix_drain_chunk(&chunk, buffer, 4096);
-    outcome
+    transition buffer.len >= 128 { true -> query(fd, buffer) _ -> -22 }
+    state query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 128; {
+        PosixFilesystemLinux::fstat(fd, &mut buffer[0])
+    }
 }
 
 linux_arm64 machine PosixFilesystemNativeProvider::read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
     satisfies PosixFilesystemHost::read_symlink_metadata
 reaches FilesystemMetadataQuery
 {
-    let mut terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path, &mut terminated);
-    let mut chunk: [u8; 4096];
-    let outcome: i32 = PosixFilesystemLinux::newfstatat(-100, &terminated[0], &mut chunk[0], 256);
-    posix_drain_chunk(&chunk, buffer, 4096);
-    transition fits {
-        true -> settle(outcome)
-        _ -> (-36)
-    }
-
-    state settle(outcome: i32) -> i32 {
-        outcome
-    }
+    PosixFilesystemNativeProvider::read_metadata_at(-100, path, buffer, 256)
 }
 
 linux_arm64 machine PosixFilesystemNativeProvider::read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
@@ -571,10 +547,11 @@ linux_arm64 machine PosixFilesystemNativeProvider::set_file_times(fd: i32, times
     satisfies PosixFilesystemHost::set_file_times
 reaches FilesystemMetadataMutation
 {
-    let mut chunk: [u8; 4096];
-    let count: u64 = posix_fill_chunk(times, &mut chunk);
-    let outcome: i32 = PosixFilesystemLinux::utimensat(fd, 0, &chunk[0], 0);
-    outcome
+    transition times.len >= 32 { true -> update(fd, times) _ -> -22 }
+    state update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32; {
+        // The raw syscall copies bytes from user storage, without a libc object.
+        PosixFilesystemLinux::utimensat(fd, 0, &times[0], 0)
+    }
 }
 
 linux_arm64 machine PosixFilesystemNativeProvider::sync(fd: i32) -> i32
