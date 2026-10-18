@@ -1,4 +1,4 @@
-cannot prove transition argument `reading.value` satisfies bounded parameter `changed` in `mutating_guard.entry`
-cannot prove transition argument `current` satisfies bounded parameter `stale` in `stale_guard.entry`
-cannot prove transition argument `value` satisfies bounded parameter `reassigned` in `reassigned_guard.entry`
-cannot prove transition argument `values[selected]` satisfies bounded parameter `selected` in `changed_selector.entry`
+cannot prove requires contract for call bounded from mutating_guard: reading >= 0.0 && reading <= 1.0
+cannot prove requires contract for call bounded from stale_guard: current >= 0.0 && current <= 1.0
+cannot prove requires contract for call bounded from reassigned_guard: value >= 0.0 && value <= 1.0
+cannot prove requires contract for call bounded from changed_selector: values[selected] >= 0.0 && values[selected] <= 1.0

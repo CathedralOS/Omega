@@ -7,7 +7,14 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
 
-data Ratio [copy] { value: f32[0.0..0.5]; wide: f64[-1.0..=1.0]; }
+data Ratio [copy]
+where
+    value >= 0.0 && value < 0.5,
+    wide >= -1.0 && wide <= 1.0,
+{
+    value: f32;
+    wide: f64;
+}
 
 machine half(ratio: Ratio) -> f32 { ratio.value }
 

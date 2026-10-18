@@ -1,4 +1,8 @@
-machine accept(value: f64[0.0..1.5]) -> f64 { value }
+machine accept(value: f64) -> f64
+    requires value >= 0.0 && value < 1.5
+{
+    value
+}
 
 data Main {}
 

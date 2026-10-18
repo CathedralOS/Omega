@@ -1,2 +1,2 @@
-cannot prove initializer `20.0` satisfies the bounded value of machine `literal` state `entry` local `bounded`
-cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`
+cannot prove ensures contract for exit from literal at statement 1: result >= 0.0 && result <= 0.5
+cannot prove ensures contract for exit from forwarded at statement 1: result >= 0.0 && result <= 0.5

@@ -1,4 +1,4 @@
-// `difference >= 0.5` does not prove `difference <= 8`. The declared
+// difference >= 0.5 does not prove difference <= 8. The declared
 // parameter range stays refused.
 machine open_upper(start_distance: f64, end_distance: f64) -> f64 {
     let difference: f64 = start_distance - end_distance;
@@ -6,7 +6,11 @@ machine open_upper(start_distance: f64, end_distance: f64) -> f64 {
         true -> admit(difference)
         _ -> 0.0
     }
-    state admit(difference: f64 [0.5..=8.0]) -> f64 { difference }
+    state admit(difference: f64) -> f64
+        requires difference >= 0.5 && difference <= 8.0
+    {
+        difference
+    }
 }
 
 machine main() {

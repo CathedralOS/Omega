@@ -1,2 +1,1 @@
-machine `lookalike` state `entry`
-stores a value not provably within its declared range
+cannot prove ensures contract for exit from lookalike at statement 1: result >= 3 && result <= 3

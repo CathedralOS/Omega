@@ -2,10 +2,18 @@
 // The true upper comparison excludes NaN even after the negated lower bound.
 use omega::language::core::float_operations;
 
-machine select(values: &[f64; 2], index: u64 [0..2]) -> f64 {
+machine select(values: &[f64; 2], index: u64) -> f64
+requires
+    index < 2,
+{
     let accepted: bool = !(values[index] < 0.0) && values[index] <= 1.0;
     transition accepted { true -> bounded(values[index]) _ -> 0.0 }
-    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+    state bounded(value: f64) -> f64
+    requires
+        !(value < 0.0) && value <= 1.0,
+    {
+        value
+    }
 }
 machine main() crashes Trap {
     let zero: f64 = 0.0;

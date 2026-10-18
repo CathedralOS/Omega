@@ -1,1 +1,2 @@
-parameter `value` declares a `f64` range whose bound is not a float literal or closed integer constant
+cannot prove requires contract for call scale from main: 20.0 >= 0.0 && 20.0 <= 1.0
+cannot prove ensures contract for exit from settle at statement 1: result >= 0.0 && result <= 1.0
