@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 import worktree_testkit as kit
 
@@ -100,6 +101,68 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(len({r['candidate']['item'] for r in records}), 2)
         self.assertEqual(len({r['session']['session_id'] for r in records}), 2)
         self.assertEqual(len(self.registry()['claims']), 2)
+
+    def test_fresh_uuid_is_durable_before_registry_write_without_history_search(self):
+        packet = self.packet(sessions=('one',))
+        attempt = self.root / 'fresh-attempt.json'
+        client = self.module.claims.Claims
+        original = client.prepare_claim
+        observed = []
+        def prepare(registry, options, snapshot, live):
+            saved = json.loads(attempt.read_text())
+            self.assertEqual(saved['ticket'], options.ticket)
+            self.assertEqual(saved['phase'], 'reserving')
+            self.assertEqual(saved['candidate']['item'], options.item)
+            self.assertEqual(saved['session']['session_id'], options.provenance['session_id'])
+            self.assertTrue(options.fresh_ticket)
+            def forbidden_history(*arguments, **keywords):
+                raise AssertionError('fresh reservation searched history')
+            with mock.patch.object(registry, 'git', side_effect=forbidden_history):
+                result = original(registry, options, snapshot, live)
+            observed.append(options.ticket)
+            return result
+        with mock.patch.object(client, 'prepare_claim', prepare):
+            record = self.module.reserve(self.a, packet, attempt, 'parent / fresh')
+        self.assertEqual(record['phase'], 'reserved')
+        self.assertEqual(observed, [record['ticket']])
+
+    def test_lost_reservation_response_preserves_written_ticket_for_reconciliation(self):
+        attempt = self.root / 'lost-response-attempt.json'
+        original = self.module.claims.Claims.coordinate
+        def lose_response(registry, options):
+            code = original(registry, options)
+            self.assertEqual(code, 0)
+            raise self.module.claims.ClaimsError('simulated lost response after publication')
+        with mock.patch.object(self.module.claims.Claims, 'coordinate', lose_response):
+            with self.assertRaisesRegex(self.module.RecoveryError, 'uncertain'):
+                self.module.reserve(self.a, self.packet(sessions=('one',)), attempt, 'parent / lost')
+        record = json.loads(attempt.read_text())
+        self.assertEqual(record['phase'], 'uncertain')
+        owned = [row for row in self.registry()['claims'] if row['ticket'] == record['ticket']]
+        self.assertEqual(len(owned), 1)
+        self.assertEqual(owned[0]['provenance']['dispatch_id'], record['ticket'])
+        with self.assertRaisesRegex(self.module.RecoveryError, 'uncertain'):
+            self.module.transition(self.a, attempt, 'arm')
+
+    def test_process_interruption_after_publication_preserves_unsettled_identity(self):
+        class Interrupted(BaseException):
+            pass
+        attempt = self.root / 'interrupted-attempt.json'
+        original = self.module.claims.Claims.publish
+        def interrupt(registry, expected, updated):
+            self.assertTrue(original(registry, expected, updated))
+            raise Interrupted()
+        with mock.patch.object(self.module.claims.Claims, 'publish', interrupt):
+            with self.assertRaises(Interrupted):
+                self.module.reserve(self.a, self.packet(sessions=('one',)), attempt, 'parent / interrupted')
+        record = json.loads(attempt.read_text())
+        self.assertEqual(record['phase'], 'reserving')
+        self.assertEqual([row['ticket'] for row in self.registry()['claims']], [record['ticket']])
+        self.assertEqual(record['tries'], [])
+        with self.assertRaisesRegex(self.module.RecoveryError, 'reconcile'):
+            self.module.transition(self.a, attempt, 'arm')
+        self.call(self.a, 'reserve', '--packet', self.root / 'unused-packet.json',
+                  '--attempt', attempt, '--owner', 'parent / retry', expected=1)
 
     def test_definitely_unsent_failure_releases_own_reservation(self):
         attempt, record = self.reserve()

@@ -693,7 +693,7 @@ class Parser(argparse.ArgumentParser):
     def error(self, message):
         raise ClaimsError(message)
 
-def main(argv=None):
+def main(argv=None, *, record_new_ticket=None):
     parser = Parser(description=__doc__)
     parser.add_argument("--repository", default=".")
     parser.add_argument("--remote", default="origin")
@@ -753,6 +753,9 @@ def main(argv=None):
     audit.add_argument("--base", default="origin/main")
     try:
         options = parser.parse_args(argv)
+        if record_new_ticket is not None and (
+                options.command != "reserve" or options.ticket is not None):
+            raise ClaimsError("Durable ticket recording requires a newly allocated reservation.")
         if options.timeout_seconds is not None and not 0 < options.timeout_seconds <= 300:
             raise ClaimsError("--timeout-seconds must be greater than zero and at most 300.")
         if options.command in ("claim", "reserve", "renew"):
@@ -776,6 +779,11 @@ def main(argv=None):
             options.fresh_ticket = options.ticket is None
             options.ticket = options.ticket or uuid.uuid4().hex
             ticket_id(options.ticket)
+            if record_new_ticket is not None:
+                # The allocator owns freshness. Dispatch records this identity
+                # before coordination starts; accepting a caller's freshness
+                # assertion would let a removed explicit ticket resurrect.
+                options.provenance["dispatch_id"] = options.ticket
             options.paths = [normalize_path(piece)
                              for piece in split_path_values(options.paths)]
             if options.board and options.item not in board_items(options.repository,
@@ -798,6 +806,8 @@ def main(argv=None):
                 raise ClaimsError(f"Note text must be at most {NOTE_TEXT_LIMIT} characters.")
         if options.command == "audit":
             return Claims(options.repository, options.remote, options.timeout_seconds).audit(options)
+        if record_new_ticket is not None:
+            record_new_ticket(options.ticket)
         return Claims(options.repository, options.remote, options.timeout_seconds).coordinate(options)
     except coordination.CoordinationTimeout as error:
         report = {"state": "unavailable", "error": str(error),

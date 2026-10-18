@@ -6,8 +6,10 @@ single-send receipt, not a queue or compiler acceptance. Runtime observations
 and human gap reviews are checked reports, not authenticated identities.
 """
 import argparse
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -140,14 +142,25 @@ def session_options(packet):
     return sorted(result, key=lambda row: not row['cache_continuity'])
 
 
-def claim_call(repository, *arguments):
-    result = subprocess.run([sys.executable, str(Path(claims.__file__)), '--repository',
-                             str(repository), *arguments], capture_output=True, text=True)
+def claim_call(repository, *arguments, record_new_ticket=None):
+    if record_new_ticket is None:
+        result = subprocess.run([sys.executable, str(Path(claims.__file__)), '--repository',
+                                 str(repository), *arguments], capture_output=True, text=True)
+        code, output, error = result.returncode, result.stdout, result.stderr
+    else:
+        # Claims allocates the fresh UUID and invokes the durable recorder
+        # before registry coordination. Passing a preallocated --ticket would
+        # instead require the legacy full-history removed-ticket replay check.
+        output_stream, error_stream = io.StringIO(), io.StringIO()
+        with redirect_stdout(output_stream), redirect_stderr(error_stream):
+            code = claims.main(['--repository', str(repository), *arguments],
+                               record_new_ticket=record_new_ticket)
+        output, error = output_stream.getvalue(), error_stream.getvalue()
     try:
-        record = json.loads(result.stdout)
+        record = json.loads(output)
     except ValueError:
-        record = dict(error=result.stderr)
-    return result.returncode, record
+        record = dict(error=error)
+    return code, record
 
 
 def reserve(repository, packet, attempt, owner, allow_create=False):
@@ -158,18 +171,20 @@ def reserve(repository, packet, attempt, owner, allow_create=False):
     if allow_create:
         sessions.append(dict(action='create', cache_continuity=False))
     require(sessions, 'no available completed session; inspect runtime or explicitly authorize creation')
-    ticket = uuid.uuid4().hex
-    record = dict(base=base, ticket=ticket, owner=owner, phase='selecting', tries=[])
+    record = dict(base=base, ticket=None, owner=owner, phase='selecting', tries=[])
     atomic_json(attempt, record)
     for row in packet['candidates']:
         gap = unfinished(repository, base, row)
         if gap is None:
             continue
         for session in sessions:
-            record.update(candidate=row, gap=gap, session=session, phase='reserving')
-            atomic_json(attempt, record)  # Persist identity before a possibly uncertain registry write.
-            arguments = ['reserve', '--ticket', ticket, '--owner', owner, '--item', row['item'],
-                         '--dispatch-id', ticket, '--note', row['remaining']]
+            record.update(candidate=row, gap=gap, session=session, ticket=None, phase='reserving')
+            atomic_json(attempt, record)
+            def record_ticket(ticket):
+                record['ticket'] = ticket
+                atomic_json(attempt, record)
+            arguments = ['reserve', '--owner', owner, '--item', row['item'],
+                         '--note', row['remaining']]
             if row.get('board'):
                 arguments += ['--board', row['board']]
             for path in row.get('paths', [row['item']]):
@@ -183,8 +198,9 @@ def reserve(repository, packet, attempt, owner, allow_create=False):
                                      ('workspace-id', current.get('workspace_token'))]:
                     if value:
                         arguments += ['--' + field, str(value)]
-            code, receipt = claim_call(repository, *arguments)
-            record['tries'].append(dict(item=row['item'], session=session, code=code, receipt=receipt))
+            code, receipt = claim_call(repository, *arguments, record_new_ticket=record_ticket)
+            record['tries'].append(dict(ticket=record['ticket'], item=row['item'], session=session,
+                                        code=code, receipt=receipt))
             record['phase'] = 'reserved' if code == 0 else 'occupied' if code == 2 else 'uncertain'
             if code == 0:
                 record['reserved_utc'] = datetime.now(timezone.utc).isoformat()

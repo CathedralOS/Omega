@@ -7,6 +7,12 @@ compiler-file estimates do not prevent distinct outcomes. All coordinators must
 refresh these tools. Older clients and direct external APIs cannot be fenced by
 repository code. This is cooperative coordination, not authentication.
 
+For a new automatic reservation, claims allocates the UUID and calls dispatch's
+durable recorder before registry coordination starts. Explicit caller-supplied
+tickets retain the historical removed-ticket replay check; dispatch does not
+mark an externally supplied ticket as fresh. An interrupted attempt retains its
+recorded identity for reconciliation rather than allocating a replacement.
+
 ## Parent procedure
 
 1. Fetch main successfully and prepare an isolated selection checkout at that

@@ -116,6 +116,39 @@ class NoteRetentionTests(unittest.TestCase):
 
 
 class RegistrationBudgetTests(unittest.TestCase):
+    def test_internal_allocator_records_fresh_identity_before_coordination(self):
+        module = load_claims()
+        recorded = []
+        def coordinate(options):
+            self.assertEqual(recorded, [options.ticket])
+            self.assertTrue(options.fresh_ticket)
+            self.assertEqual(options.provenance["dispatch_id"], options.ticket)
+            return 0
+        with mock.patch.object(module, "Claims") as client:
+            client.return_value.coordinate.side_effect = coordinate
+            self.assertEqual(module.main(["reserve", "--item", "ITEM", "--owner", "worker"],
+                                         record_new_ticket=recorded.append), 0)
+        self.assertEqual(len(recorded), 1)
+
+    def test_failed_durable_recording_never_starts_coordination(self):
+        module = load_claims()
+        with mock.patch.object(module, "Claims") as client:
+            with mock.patch("sys.stderr"):
+                code = module.main(["reserve", "--item", "ITEM", "--owner", "worker"],
+                                   record_new_ticket=mock.Mock(side_effect=OSError("disk full")))
+        self.assertEqual(code, 1)
+        client.assert_not_called()
+
+    def test_internal_recorder_cannot_mark_an_explicit_ticket_fresh(self):
+        module = load_claims()
+        recorder = mock.Mock()
+        with mock.patch.object(module, "Claims") as client, mock.patch("sys.stderr"):
+            code = module.main(["reserve", "--item", "ITEM", "--owner", "worker",
+                                "--ticket", "a" * 32], record_new_ticket=recorder)
+        self.assertEqual(code, 1)
+        recorder.assert_not_called()
+        client.assert_not_called()
+
     def registry(self):
         module = load_claims()
         registry = module.Claims.__new__(module.Claims)
