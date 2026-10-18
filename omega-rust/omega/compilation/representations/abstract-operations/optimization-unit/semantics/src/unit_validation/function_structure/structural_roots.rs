@@ -920,6 +920,98 @@ pub(crate) fn validate_structural_root_operations(
                         return Err(catalog_mismatch(function));
                     }
                 }
+                O::MoveStructuralValue {
+                    psi_operation,
+                    result,
+                    source,
+                } => {
+                    // A refinement moves an existing owned occurrence. It is
+                    // neither borrowed-window extraction nor a new loan or
+                    // claim. Live ownership checks the exact residual frontier;
+                    // this boundary authenticates its static carrier contract.
+                    let invalid =
+                        |reason| OptimizationUnitValidationError::InvalidOwnedValueTransfer {
+                            machine: function.machine,
+                            operation: *psi_operation,
+                            reason,
+                        };
+                    let signature =
+                        crate::unit_validation::operation_contracts::structural_source_contract(
+                            function,
+                            source.place,
+                        )
+                        .ok_or_else(|| invalid("source contract is absent"))?;
+                    let selected = terminal_semantics::canonical_static_projection(
+                        structural_types.values().copied(),
+                        signature.structural_type,
+                        &source.path,
+                    );
+                    if source.access != terminal_psi::StructuralAccess::Owned
+                        || signature.access != terminal_psi::StructuralAccess::Owned
+                        || source.place == result.place
+                        || selected
+                            .is_none_or(|(_, declaration)| declaration.id != result.structural_type)
+                        || !result.qualification_establishments.is_empty()
+                        || (source.path.is_empty() && signature.multiplicity != result.multiplicity)
+                        || result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                        || signature.multiplicity
+                            == terminal_psi::StructuralMultiplicity::Unrestricted
+                        || (!source.path.is_empty()
+                            && result.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                            && result.claims.iter().any(|claim| claim.path.is_empty()))
+                        || !matches!(place_kinds.get(&result.place),
+                            Some(StructuralPlaceKind::OperationResult { producer, structural_type })
+                                if *producer == *psi_operation && *structural_type == result.structural_type)
+                    {
+                        return Err(invalid(
+                            "transfer requires the same owned carrier, multiplicity and fresh result without issuance",
+                        ));
+                    }
+                    let graph = crate::descriptor_results::optimized_graph(unit)
+                        .ok_or_else(|| invalid("descriptor flow graph is malformed"))?;
+                    let contract = terminal_semantics::descriptor_results::current_selected_payload_contract(
+                        &unit.structural_types, &unit.structural_domains, &graph,
+                        function.machine, (block.id, node_index), source.place, &source.path,
+                        &|place| crate::unit_validation::operation_contracts::structural_source_contract(function, place)
+                            .map(|contract| contract.payload_contract()),
+                    ).map_err(invalid)?;
+                    if contract.carrier != result.structural_type
+                        || contract
+                            .qualifications
+                            .iter()
+                            .any(|domain| !result.qualifications.contains(domain))
+                        || contract
+                            .projected_qualifications
+                            .iter()
+                            .any(|row| !result.projected_qualifications.contains(row))
+                    {
+                        return Err(invalid("transfer loses the selected source memberships"));
+                    }
+                    // Predicate establishment was checked by Psi. The native
+                    // contract still rejects direct routed issuance here;
+                    // absence of direct routes does not re-prove source admission.
+                    for domain in result
+                        .qualifications
+                        .iter()
+                        .filter(|domain| !contract.qualifications.contains(domain))
+                        .chain(
+                            result
+                                .projected_qualifications
+                                .iter()
+                                .filter(|row| !contract.projected_qualifications.contains(row))
+                                .map(|row| &row.domain),
+                        )
+                    {
+                        if structural_domains
+                            .get(domain)
+                            .is_none_or(|declaration| !declaration.establishment_routes.is_empty())
+                        {
+                            return Err(invalid(
+                                "transfer adds an unknown or directly routed membership",
+                            ));
+                        }
+                    }
+                }
                 O::StructuralLeafCopy {
                     psi_operation,
                     result,

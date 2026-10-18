@@ -21,7 +21,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             bytes.id(*machine);
             encode_structural_operation_result(bytes, result);
-        },
+        }
         O::StorageAddress {
             psi_operation,
             result,
@@ -396,6 +396,16 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.slice(path, encode_structural_path_segment);
             super::encode_optional_field(bytes, *field);
             encode_structural_argument(bytes, value);
+        }
+        O::MoveStructuralValue {
+            psi_operation,
+            result,
+            source,
+        } => {
+            bytes.u8(123);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            encode_structural_argument(bytes, source);
         }
         O::StructuralLeafCopy {
             psi_operation,

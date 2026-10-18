@@ -19,6 +19,9 @@ mod storage_operations;
 mod terminator_wire;
 mod value_operations;
 
+#[cfg(test)]
+mod owned_value_tests;
+
 use semantic_vocabulary::CanonicalStructuralPathSegment;
 use terminal_psi::{Block, Operation, OperationKind, OperationResult};
 
@@ -130,6 +133,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         }
         OperationKind::StructuralLeafCopy { source, path } => {
             storage_operations::encode_structural_leaf_copy(writer, source, path)?
+        }
+        OperationKind::MoveStructuralValue { source } => {
+            storage_operations::encode_move_structural_value(writer, source)?
         }
         OperationKind::StructuralCaseLeafCopy { source, path } => {
             storage_operations::encode_structural_case_leaf_copy(writer, source, &path)?
@@ -844,6 +850,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::STRUCTURAL_LEAF_COPY => {
             storage_operations::decode_structural_leaf_copy(reader)?
+        }
+        operation_tags::MOVE_STRUCTURAL_VALUE => {
+            storage_operations::decode_move_structural_value(reader)?
         }
         operation_tags::STRUCTURAL_CASE_LEAF_COPY => {
             storage_operations::decode_structural_case_leaf_copy(reader)?

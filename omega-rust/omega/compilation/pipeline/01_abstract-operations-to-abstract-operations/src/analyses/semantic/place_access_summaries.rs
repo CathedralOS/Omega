@@ -625,6 +625,9 @@ fn scan_operation(
             };
             pending.attribute(context, *source, view, AccessKind::Read);
         }
+        O::MoveStructuralValue { source, .. } => {
+            pending.attribute_argument(context, source, true, true);
+        }
         O::ByteSequenceRead { source, .. } => {
             pending.attribute(context, *source, Vec::new(), AccessKind::Read);
         }

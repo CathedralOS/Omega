@@ -98,6 +98,7 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::StructuralByteViewFieldStore { psi_operation, .. }
     | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
     | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
+    | AbstractOperation::MoveStructuralValue { psi_operation, .. }
     | AbstractOperation::MoveStructuralField { psi_operation, .. }
     | AbstractOperation::StoreStructuralField { psi_operation, .. }
     | AbstractOperation::EstablishZeroedStructural { psi_operation, .. }
@@ -768,6 +769,7 @@ pub(super) fn validate(
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishCase { .. }
                 | AbstractOperation::StructuralLeafCopy { .. }
+                | AbstractOperation::MoveStructuralValue { .. }
                 | abstract_operations::move_or_store_structural_field_pattern!()
                 | AbstractOperation::EstablishTrivialAffineLocal { .. }
                 | AbstractOperation::EstablishZeroedStructural { .. }

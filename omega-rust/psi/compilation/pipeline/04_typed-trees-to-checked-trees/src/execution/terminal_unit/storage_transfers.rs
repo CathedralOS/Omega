@@ -47,6 +47,36 @@ pub(in crate::execution::terminal_unit) enum Destination {
     Unknown,
 }
 
+/// A completed value can enter a named holder, an anonymous backing, or a
+/// consuming call. Traversal must not invent a local binding for the latter two.
+#[derive(Clone, Copy)]
+enum ValueReceiver<'a> {
+    Holder(&'a CheckedUnitStructuralResultBindingPlan),
+    Backing(CheckedStructuralValueHandle),
+    Call {
+        statement_index: u32,
+        structural_result: bool,
+    },
+    Unbound,
+}
+
+impl ValueReceiver<'_> {
+    fn destination(self, path: &[OwnerSegment]) -> Destination {
+        match self {
+            Self::Holder(result) => Destination::Holder(result.clone(), path.to_vec()),
+            Self::Backing(value) => Destination::Backing(value, path.to_vec()),
+            Self::Call {
+                statement_index,
+                structural_result,
+            } => Destination::Call {
+                statement_index,
+                structural_result,
+            },
+            Self::Unbound => Destination::Unknown,
+        }
+    }
+}
+
 #[derive(Default)]
 pub(in crate::execution::terminal_unit) struct Transfers {
     pub(in crate::execution::terminal_unit) possible: Vec<Transfer>,
@@ -309,7 +339,7 @@ impl Query<'_> {
         // A checked store names its receiving storage independently of the
         // producer. External storage has no retiring holder in this activation.
         if let Some(call) = operation.call() {
-            output.append(self.call(call));
+            output.append(self.call(call, active)?);
         }
         // A window extraction transfers the selected value to its detached
         // holder just like an explicit operand. Its old aggregate keeps only
@@ -343,7 +373,14 @@ impl Query<'_> {
             checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
         ) = operation
         {
-            output.append(self.value(*value, &[], true, result, &[], active)?);
+            output.append(self.value(
+                *value,
+                &[],
+                true,
+                ValueReceiver::Holder(result),
+                &[],
+                active,
+            )?);
         }
         Some(output)
     }
@@ -406,20 +443,60 @@ impl Query<'_> {
         }
     }
 
-    fn call(&self, call: &checked_trees::CheckedUnitCallPlan) -> Transfers {
+    fn call(
+        &self,
+        call: &checked_trees::CheckedUnitCallPlan,
+        active: &mut Vec<CheckedStructuralValueHandle>,
+    ) -> Option<Transfers> {
         let mut output = Transfers::default();
         for argument in &call.structural_arguments {
-            if self.belongs(argument) {
-                output.append(self.leaf(
-                    argument.path.clone(),
-                    Destination::Call {
-                        statement_index: call.coordinate.statement_index,
-                        structural_result: call.structural_result().is_some(),
-                    },
-                ));
-            }
+            output.append(self.argument_transfers(
+                argument,
+                ValueReceiver::Call {
+                    statement_index: call.coordinate.statement_index,
+                    structural_result: call.structural_result().is_some(),
+                },
+                active,
+            )?);
         }
-        output
+        Some(output)
+    }
+
+    /// Evaluating an anonymous operand constructs its value before the call
+    /// consumes or lends it. Moves into that construction retire their original
+    /// homes exactly as moves into a named local do.
+    fn argument_transfers(
+        &self,
+        argument: &CheckedUnitStructuralArgumentPlan,
+        receiver: ValueReceiver<'_>,
+        active: &mut Vec<CheckedStructuralValueHandle>,
+    ) -> Option<Transfers> {
+        if self.belongs(argument) {
+            return Some(self.leaf(argument.path.clone(), receiver.destination(&[])));
+        }
+        let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
+            argument.source
+        else {
+            return Some(Transfers::default());
+        };
+        let values = &self.facts.values.structural_values;
+        let mut roots = values
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .filter(|root| root.expression == expression);
+        let root = roots.next()?;
+        if roots.next().is_some() {
+            return None;
+        }
+        self.value(
+            root.root,
+            &argument.path,
+            argument.access == CheckedStructuralAccess::Owned,
+            receiver,
+            &[],
+            active,
+        )
     }
 
     fn value(
@@ -427,7 +504,7 @@ impl Query<'_> {
         value: CheckedStructuralValueHandle,
         selection: &[CheckedUnitStructuralPathSegment],
         consumes_selection: bool,
-        result: &CheckedUnitStructuralResultBindingPlan,
+        receiver: ValueReceiver<'_>,
         destination: &[OwnerSegment],
         active: &mut Vec<CheckedStructuralValueHandle>,
     ) -> Option<Transfers> {
@@ -436,26 +513,19 @@ impl Query<'_> {
             return None;
         }
         active.push(value);
-        let mut output = self.value_kind(
+        let output = self.value_kind(
             &values.nodes.get(value).kind,
             selection,
             consumes_selection,
-            result,
+            if consumes_selection {
+                receiver
+            } else {
+                ValueReceiver::Unbound
+            },
             destination,
             active,
         );
         active.pop();
-        if !consumes_selection {
-            // Constructing an observed temporary still consumes its inputs,
-            // but a copy does not make its receiver their owning destination.
-            // Keep actual call/store consumption; an unbound intermediate
-            // construction cannot acquire a fabricated result holder.
-            for transfer in &mut output.as_mut()?.possible {
-                if matches!(transfer.destination, Destination::Holder(..)) {
-                    transfer.destination = Destination::Unknown;
-                }
-            }
-        }
         output
     }
 
@@ -464,7 +534,7 @@ impl Query<'_> {
         kind: &CheckedStructuralValueKind,
         selection: &[CheckedUnitStructuralPathSegment],
         consumes_selection: bool,
-        result: &CheckedUnitStructuralResultBindingPlan,
+        receiver: ValueReceiver<'_>,
         destination: &[OwnerSegment],
         active: &mut Vec<CheckedStructuralValueHandle>,
     ) -> Option<Transfers> {
@@ -476,10 +546,7 @@ impl Query<'_> {
             {
                 let mut path = argument.path.clone();
                 path.extend_from_slice(selection);
-                return Some(self.leaf(
-                    path,
-                    Destination::Holder(result.clone(), destination.to_vec()),
-                ));
+                return Some(self.leaf(path, receiver.destination(destination)));
             }
             CheckedStructuralValueKind::Call { source_call } => {
                 let mut matching = self
@@ -514,10 +581,7 @@ impl Query<'_> {
                             binding_ordinal: call.structural_result().binding_ordinal,
                         })
                 {
-                    return Some(self.leaf(
-                        selection.to_vec(),
-                        Destination::Holder(result.clone(), destination.to_vec()),
-                    ));
+                    return Some(self.leaf(selection.to_vec(), receiver.destination(destination)));
                 }
                 // The graph's dispatch intersects definite moves across its
                 // arms. Flattening operand calls here instead would assert a
@@ -525,7 +589,7 @@ impl Query<'_> {
                 for operand in call.operands().iter() {
                     output.append(self.operation(operand, active)?);
                 }
-                output.append(self.call(call.operation().call()?));
+                output.append(self.call(call.operation().call()?, active)?);
                 return Some(output);
             }
             CheckedStructuralValueKind::Projection {
@@ -540,7 +604,7 @@ impl Query<'_> {
                     *source,
                     &selected,
                     consumes_selection && !copies_selected_value,
-                    result,
+                    receiver,
                     destination,
                     active,
                 );
@@ -612,7 +676,7 @@ impl Query<'_> {
                         // whole child move that established each of its fields.
                         // The enclosing observation removes only the invented
                         // final holder, not genuine input consumption.
-                        output.append(self.value(child, &[], true, result, &[], active)?);
+                        output.append(self.value(child, &[], true, receiver, &[], active)?);
                     } else if selection.starts_with(&relative) {
                         // The result selects within this field: its container
                         // prefix no longer belongs to the receiving value.
@@ -620,7 +684,7 @@ impl Query<'_> {
                             child,
                             &selection[relative.len()..],
                             true,
-                            result,
+                            receiver,
                             destination,
                             active,
                         )?);
@@ -629,12 +693,12 @@ impl Query<'_> {
                         // the remaining field path inside the receiving value.
                         let mut path = destination.to_vec();
                         path.extend_from_slice(&owner_path[selection.len()..]);
-                        output.append(self.value(child, &[], true, result, &path, active)?);
+                        output.append(self.value(child, &[], true, receiver, &path, active)?);
                     } else {
                         // Construction consumed the unselected sibling too;
                         // its custody is absent from the surviving projection.
                         output.append(
-                            self.value(child, &[], true, result, &[], active)?
+                            self.value(child, &[], true, receiver, &[], active)?
                                 .without_receiver(),
                         );
                     }
@@ -643,7 +707,7 @@ impl Query<'_> {
             CheckedStructuralValueKind::FixedArray { elements } => {
                 if !consumes_selection {
                     for child in elements {
-                        output.append(self.value(*child, &[], true, result, &[], active)?);
+                        output.append(self.value(*child, &[], true, receiver, &[], active)?);
                     }
                     return Some(output);
                 }
@@ -654,9 +718,9 @@ impl Query<'_> {
                     elements.get(selected)?;
                     for (index, child) in elements.iter().enumerate() {
                         let transferred = if index == selected {
-                            self.value(*child, suffix, true, result, destination, active)?
+                            self.value(*child, suffix, true, receiver, destination, active)?
                         } else {
-                            self.value(*child, &[], true, result, &[], active)?
+                            self.value(*child, &[], true, receiver, &[], active)?
                                 .without_receiver()
                         };
                         output.append(transferred);
@@ -669,7 +733,7 @@ impl Query<'_> {
                 for (index, child) in elements.iter().enumerate() {
                     let mut path = destination.to_vec();
                     path.push(OwnerSegment::FixedIndex(index));
-                    output.append(self.value(*child, &[], true, result, &path, active)?);
+                    output.append(self.value(*child, &[], true, receiver, &path, active)?);
                 }
             }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
@@ -683,7 +747,7 @@ impl Query<'_> {
                             arm.value,
                             selection,
                             consumes_selection,
-                            result,
+                            receiver,
                             destination,
                             active,
                         )
@@ -734,17 +798,14 @@ impl Query<'_> {
                     // selecting the borrowed path. Preserve each child's true
                     // receiving home rather than projecting ownership through
                     // the resulting reference shell.
-                    let mut transfers =
-                        self.value(*source_value, &[], true, result, &[], active)?;
-                    for transfer in &mut transfers.possible {
-                        if let Destination::Holder(receiver, path) = &transfer.destination
-                            && receiver == result
-                        {
-                            transfer.destination =
-                                Destination::Backing(*source_value, path.clone());
-                        }
-                    }
-                    output.append(transfers);
+                    output.append(self.value(
+                        *source_value,
+                        &[],
+                        true,
+                        ValueReceiver::Backing(*source_value),
+                        &[],
+                        active,
+                    )?);
                 }
                 output.append(self.argument_computations(source)?);
             }

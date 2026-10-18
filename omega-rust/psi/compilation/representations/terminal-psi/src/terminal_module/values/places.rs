@@ -247,6 +247,7 @@ impl OperationKind {
         match self {
             Self::EstablishNativeCodeLayout { .. } => {}
             Self::StorageAddress { source }
+            | Self::MoveStructuralValue { source }
             | Self::EstablishPlacedReference { source }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
@@ -384,6 +385,7 @@ impl OperationKind {
                 projections.push(argument_projection(operand.argument()));
             }
             Self::StorageAddress { source }
+            | Self::MoveStructuralValue { source }
             | Self::EstablishPlacedReference { source }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
@@ -498,6 +500,7 @@ impl OperationKind {
                 paths.push(&mut operand.argument_mut().path);
             }
             Self::StorageAddress { source }
+            | Self::MoveStructuralValue { source }
             | Self::EstablishPlacedReference { source }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
@@ -603,6 +606,29 @@ mod tests {
             path: vec![runtime()],
             access: StructuralAccess::SharedBorrow,
         }
+    }
+
+    #[test]
+    fn owned_value_move_preserves_access_and_projected_source() {
+        let path = vec![StructuralPathSegment::FixedIndex(3)];
+        let mut operation = OperationKind::MoveStructuralValue {
+            source: StructuralArgument {
+                place: place(1),
+                path: path.clone(),
+                access: StructuralAccess::Owned,
+            },
+        };
+        let mut uses = Vec::new();
+        operation.map_structural_uses_with_access(&mut |source, access| {
+            uses.push((source, access));
+            place(2)
+        });
+        assert_eq!(uses, vec![(place(1), StructuralAccess::Owned)]);
+        let projections = operation.structural_projections();
+        assert_eq!(projections.len(), 1);
+        assert_eq!(projections[0].root, place(2));
+        assert_eq!(projections[0].path, path.as_slice());
+        assert_eq!(operation.structural_projection_paths_mut().len(), 1);
     }
 
     #[test]

@@ -19,7 +19,7 @@ pub(super) fn record(program: &dyn validation::CheckingInput, facts: &mut CheckF
         {
             continue;
         }
-        for (_, semantic_domain) in
+        for (domain_symbol, semantic_domain) in
             validation::field_domains::domain_constraint_identities(program, value.type_reference)
         {
             facts
@@ -31,6 +31,7 @@ pub(super) fn record(program: &dyn validation::CheckingInput, facts: &mut CheckF
                     statement_index: value.statement_index,
                     expression: value.expression,
                     semantic_domain,
+                    domain_symbol,
                     structural_value: handle,
                 });
         }

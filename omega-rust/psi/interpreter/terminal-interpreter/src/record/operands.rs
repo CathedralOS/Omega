@@ -11,7 +11,99 @@ use terminal_psi::{
     StructuralPathSegment,
 };
 
+/// A new value may own an authored establishment; transporting a value must
+/// continue the original identities, including case-guarded descendants.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ResultClaimOrigin {
+    Construction,
+    Transfer,
+}
+
 impl TerminalExecution<'_> {
+    /// Compare an owned transfer's actual affine complement with its declared
+    /// result, without reconstructing missing source children. The source
+    /// classifier decides the selected multiplicity; this ordered check keeps
+    /// that declaration from erasing debt or reviving a partially moved value.
+    pub(crate) fn validate_transferred_affine_complement(
+        &self,
+        source: &StructuralArgument,
+        result: &StructuralOperationResult,
+        result_frontier: &BTreeSet<StructuralAffineDiscard>,
+        result_case: &impl Fn(&StructuralAffineDiscard) -> Option<semantic_vocabulary::StructuralCaseId>,
+    ) -> Result<(), TerminalInterpretError> {
+        let types = self.program.structural_types();
+        // A nominal linear claim cannot be divided by projecting its fields.
+        for (_, claim) in crate::custody::projected_ownership_claims(&self.live_claims, source)? {
+            if claim.path.is_empty() && claim.multiplicity != Some(result.multiplicity) {
+                return Err(TerminalInterpretError::ClaimTransferMismatch);
+            }
+        }
+        let mut actual = self.live_affine_frontier.clone();
+        if let Some(containing) = actual
+            .iter()
+            .find(|entry| {
+                entry.place == source.place
+                    && source.path.starts_with(&entry.path)
+                    && entry.path != source.path
+            })
+            .cloned()
+        {
+            actual.remove(&containing);
+            crate::custody::split_affine_frontier_at_projection(
+                &types,
+                &mut actual,
+                containing,
+                &source.path,
+                &|current| {
+                    crate::structural_inputs::case_membership::stored_case_at_projection(
+                        &types,
+                        self.structural_values.get(&current.place)?,
+                        &self.structural_cases,
+                        &current.path,
+                    )
+                },
+            )?;
+            actual.insert(StructuralAffineDiscard {
+                place: source.place,
+                path: source.path.clone(),
+                structural_type: result.structural_type,
+            });
+        }
+        let mut remaining = result_frontier
+            .iter()
+            .filter(|entry| entry.place == result.place)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        for entry in actual
+            .iter()
+            .filter(|entry| entry.place == source.place && entry.path.starts_with(&source.path))
+        {
+            let path = &entry.path[source.path.len()..];
+            let containing = remaining
+                .iter()
+                .find(|expected| path.starts_with(&expected.path))
+                .cloned()
+                .ok_or(TerminalInterpretError::AffineFrontierMismatch)?;
+            let selected =
+                crate::custody::resolve_structural_path_type(&types, result.structural_type, path)?;
+            if selected != entry.structural_type {
+                return Err(TerminalInterpretError::AffineFrontierMismatch);
+            }
+            remaining.remove(&containing);
+            crate::custody::split_affine_frontier_at_projection(
+                &types,
+                &mut remaining,
+                containing,
+                path,
+                result_case,
+            )?;
+        }
+        if !remaining.is_empty() {
+            return Err(TerminalInterpretError::AffineFrontierMismatch);
+        }
+        Ok(())
+    }
+
     pub(crate) fn stage_constructor_operand(
         &self,
         argument: &StructuralArgument,
@@ -72,6 +164,7 @@ impl TerminalExecution<'_> {
     /// projected claims must already belong to an exact consumed operand.
     pub(crate) fn stage_constructor_claims(
         &self,
+        origin: ResultClaimOrigin,
         result: &StructuralOperationResult,
         operands: &[(&StructuralArgument, Vec<StructuralPathSegment>)],
         frontier: &mut BTreeSet<StructuralAffineDiscard>,
@@ -112,7 +205,8 @@ impl TerminalExecution<'_> {
             }
             match transported.remove(&binding.claim) {
                 Some(path) if path == binding.path => {}
-                None if result.multiplicity == StructuralMultiplicity::Linear
+                None if origin == ResultClaimOrigin::Construction
+                    && result.multiplicity == StructuralMultiplicity::Linear
                     && result.claims.len() == 1
                     && binding.path.is_empty()
                     && !self.live_claims.contains_key(&binding.claim) => {}
@@ -124,7 +218,11 @@ impl TerminalExecution<'_> {
                     LiveClaim {
                         place: Some(result.place),
                         path: binding.path.clone(),
-                        multiplicity: Some(StructuralMultiplicity::Linear),
+                        multiplicity: Some(if binding.path.is_empty() {
+                            result.multiplicity
+                        } else {
+                            StructuralMultiplicity::Linear
+                        }),
                     },
                 )
                 .is_some()

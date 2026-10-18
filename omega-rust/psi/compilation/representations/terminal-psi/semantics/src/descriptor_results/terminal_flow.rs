@@ -496,11 +496,15 @@ pub(super) fn adapt(
                         Projection::window(*start, *end, position),
                     );
                 }
-                terminal_psi::structural_leaf_copy_pair_pattern!() => {
+                terminal_psi::structural_leaf_copy_pair_pattern!()
+                | OperationKind::MoveStructuralValue { .. } => {
                     let destination = DescriptorLocation::whole(result?.place);
                     let source = match &operation.kind {
                         OperationKind::StructuralLeafCopy { source, path } => {
                             location(*source, path, None)
+                        }
+                        OperationKind::MoveStructuralValue { source } => {
+                            location(source.place, &source.path, None)
                         }
                         OperationKind::StructuralCaseLeafCopy { source, path } => {
                             crate::descriptor_lifetimes::canonical_descriptor_location(
@@ -510,7 +514,7 @@ pub(super) fn adapt(
                                 path,
                             )
                         }
-                        _ => unreachable!("selected structural copy"),
+                        _ => unreachable!("selected structural value transport"),
                     };
                     if let Some(source) = source {
                         step.inputs = vec![source.clone()];

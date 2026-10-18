@@ -61,6 +61,7 @@ pub(crate) fn reconstruct_declared_places(
             // The copy's fresh owned storage is a declared operation
             // result place like any establishment's.
             | O::StructuralLeafCopy { result, .. }
+            | O::MoveStructuralValue { result, .. }
             | O::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -162,6 +163,7 @@ pub(crate) fn validate_operation_places(
         O::EstablishReference { source, .. } | O::EstablishPlacedReference { source, .. } => {
             require(source.place, known)?
         }
+        O::MoveStructuralValue { source, .. } => require(source.place, known)?,
         O::ReleaseReference { source, .. } => require(*source, known)?,
         O::WriteOnlyPrimitiveStore { destination, .. } => {
             require(destination.place(), known)?;

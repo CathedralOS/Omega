@@ -41,6 +41,9 @@ pub struct CheckedValueQualification {
     pub statement_index: u32,
     pub expression: ExpressionHandle,
     pub semantic_domain: SemanticDomainId,
+    /// Resolved declaration owns inherited and aliased establishment routes;
+    /// the normalized instance identity alone cannot recover that authority.
+    pub domain_symbol: SymbolHandle,
     /// Exact constructed value when the producer has no authored operand.
     /// Omitted fields share their parent's diagnostic expression, but never
     /// its membership judgment. Zero means an authored expression occurrence.
@@ -104,6 +107,7 @@ impl QualificationFacts {
                     statement_index: use_.statement_index,
                     expression: use_.expression,
                     semantic_domain: use_.semantic_domain,
+                    domain_symbol: use_.domain,
                     structural_value: crate::CheckedStructuralValueHandle::invalid(),
                 }),
         );

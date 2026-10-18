@@ -39,6 +39,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
                         | AbstractOperation::ReleaseReference { .. }
                         | AbstractOperation::EstablishCase { .. }
                         | AbstractOperation::StructuralLeafCopy { .. }
+                        | AbstractOperation::MoveStructuralValue { .. }
                         | abstract_operations::move_or_store_structural_field_pattern!()
                         | AbstractOperation::EstablishTrivialAffineLocal { .. }
                         | AbstractOperation::EstablishZeroedStructural { .. }

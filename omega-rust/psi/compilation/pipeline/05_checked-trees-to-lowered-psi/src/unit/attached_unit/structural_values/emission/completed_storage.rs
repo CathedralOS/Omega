@@ -198,12 +198,16 @@ impl Emission<'_, '_, '_> {
 
     /// Publish checked operand facts without relabeling its producer's ABI
     /// contract or an existing home. An unrestricted capture retains additional
-    /// facts through the ordinary value-copy operation. Already qualified values
-    /// need no second copy. A membership judgment never authorizes affine copying.
+    /// facts through the ordinary value-copy operation. An owned affine or
+    /// linear value instead transfers its original custody to a fresh occurrence.
+    /// Already qualified values need neither operation. This is not an issuer.
     pub(super) fn retain_checked_memberships(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source: StructuralArgument,
         decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
+        expression: typed_trees::expression::ExpressionHandle,
+        first_new_place: u64,
     ) -> Result<StructuralArgument, LoweringError> {
         let memberships = self
             .checked
@@ -241,20 +245,91 @@ impl Emission<'_, '_, '_> {
             projected_qualifications,
             &membership_path,
         );
-        let mut missing = false;
+        let mut established = Vec::new();
         for decision in memberships {
             let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
                 self.domain_ids,
                 decision.semantic_domain,
                 membership_carrier,
             )?;
-            missing |= !qualifications.contains(&domain);
+            if !qualifications.contains(&domain) {
+                // Direct Terminal routes do not include every inherited or
+                // aliased restriction. Consult the resolved source declaration,
+                // never its spelling or an empty route roster in the catalog.
+                if validation::field_domains::domain_requires_provenance(
+                    &self.checked.typed,
+                    decision.domain_symbol,
+                ) {
+                    return unsupported(
+                        "owned membership transport cannot establish routed authority",
+                    );
+                }
+                established.push(domain);
+            }
         }
-        if !missing {
+        if established.is_empty() {
             return Ok(source);
         }
         if self.multiplicity != StructuralMultiplicity::Unrestricted {
-            return unsupported("affine operand must retain its checked membership roster");
+            if source.access != StructuralAccess::Owned {
+                return unsupported("membership transfer requires owned value custody");
+            }
+            let completed =
+                self.capture_operand(identities, source, expression, first_new_place)?;
+            let source = completed.argument;
+            let (whole, projected) =
+                self.completed_memberships(source.place)
+                    .ok_or(LoweringError::Unsupported(
+                        "owned membership source disappeared",
+                    ))?;
+            let (mut qualifications, mut projected_qualifications) =
+                terminal_psi::StructuralPathQualification::select(whole, projected, &source.path);
+            let relative = &membership_path[source.path.len()..];
+            if relative.is_empty() {
+                qualifications.extend(established);
+                qualifications.sort();
+                qualifications.dedup();
+            } else {
+                terminal_psi::StructuralPathQualification::append_under(
+                    &established,
+                    &[],
+                    relative,
+                    &mut projected_qualifications,
+                );
+                projected_qualifications.sort();
+                projected_qualifications.dedup();
+            }
+            let place = super::place_id(super::allocate_dense(self.environment.next_place)?);
+            let operation = self.operations.allocate();
+            self.operations.push(terminal_psi::Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation,
+                result: terminal_psi::OperationResult::Structural(
+                    terminal_psi::StructuralOperationResult {
+                        place,
+                        structural_type: self.structural_type,
+                        multiplicity: self.multiplicity,
+                        qualifications,
+                        projected_qualifications,
+                        qualification_establishments: Vec::new(),
+                        claims: completed.claims,
+                    },
+                ),
+                kind: terminal_psi::OperationKind::MoveStructuralValue { source },
+            });
+            self.environment
+                .private_places
+                .push(super::operation_result_declaration(
+                    place,
+                    operation,
+                    self.structural_type,
+                ));
+            return Ok(StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            });
         }
         self.copied_leaf_place(&source, decisions, None)
             .map(|place| StructuralArgument {

@@ -532,6 +532,25 @@ pub(super) fn lower(
         terminal_psi::move_or_store_structural_field_pattern!() => {
             borrowed_windows::lower(operation, machine, structural_types)
         }
+        OperationKind::MoveStructuralValue { source } => {
+            let result =
+                operation
+                    .result
+                    .structural()
+                    .ok_or(LoweringError::InvalidOwnedValueTransfer {
+                        machine: machine.id,
+                        operation: operation.id,
+                        reason: "owned transfer has no structural result",
+                    })?;
+            // Psi has checked the occurrence's qualification. Keep the transfer
+            // explicit: native ownership consumes the source, and realization
+            // transports its bytes without constructing a second owner.
+            Ok(AbstractOperation::MoveStructuralValue {
+                psi_operation: operation.id,
+                result: result.clone(),
+                source: source.clone(),
+            })
+        }
         OperationKind::StructuralLeafCopy { source, path } => structural_leaf_copy::lower(
             operation,
             machine,

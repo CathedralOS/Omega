@@ -1,6 +1,7 @@
 //! Read-only leaf copies retain their root, resolved extent, and result home.
 //!
-//! The same row also realizes a borrowed-window move (`borrowed_windows.rs`):
+//! The same row also realizes an owned transfer and a borrowed-window move
+//! (`borrowed_windows.rs`):
 //! both copy one resolved extent of a root into a fresh home, and differ only
 //! in the custody the abstract operation already verified.
 use super::LiveDefinitions;
@@ -14,11 +15,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{StructuralOperationResult, StructuralPathSegment, StructuralTypeShape};
 
-/// A leaf copy reads one currently observable structural root. The view stays
-/// the source identity; selection separately resolves its backing pointer
-/// rather than copying its descriptor. Owned homes retain their additional
-/// claim and qualification obligations below.
-pub(super) fn copy(
+/// Transport a selected value into its fresh physical home. Read-only copies
+/// preserve source custody; owned moves relocate descriptor identities. The
+/// abstract operation keeps that distinction after the bytes share one route.
+pub(super) fn transport(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
@@ -26,28 +26,61 @@ pub(super) fn copy(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let AbstractOperation::StructuralLeafCopy {
-        psi_operation,
-        result,
-        source,
-        path,
-    } = operation
-    else {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
+    let owned_path;
+    let (psi_operation, result, source, path, transfer) = match operation {
+        AbstractOperation::StructuralLeafCopy {
+            psi_operation,
+            result,
+            source,
+            path,
+        } => (*psi_operation, result, *source, path, None),
+        AbstractOperation::MoveStructuralValue {
+            psi_operation,
+            result,
+            source,
+        } => {
+            owned_path = source.path.clone().into();
+            (
+                *psi_operation,
+                result,
+                source.place,
+                &owned_path,
+                Some(source),
+            )
+        }
+        _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     };
     let root_type = live
-        .structural_observation_type(function, *source)
+        .structural_observation_type(function, source)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    if let Some(home) = live.structural_homes.get(source)
+    if transfer.is_none()
+        && let Some(home) = live.structural_homes.get(&source)
         && home.has_claims()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let copied = super::references::copied_leaves(function, types, live, result, *source, path)?;
+    let mut relocations = Vec::new();
+    let mut moved_leaves = BTreeSet::new();
+    let copied = if let Some(argument) = transfer {
+        super::references::subtree_leaves(
+            function,
+            types,
+            live,
+            &[],
+            result.structural_type,
+            argument,
+            true,
+            &mut relocations,
+            &mut moved_leaves,
+        )?;
+        BTreeMap::new()
+    } else {
+        super::references::copied_leaves(function, types, live, result, source, path)?
+    };
     copy_extent(
-        *psi_operation,
+        psi_operation,
         result,
-        *source,
+        source,
         path,
         root_type,
         function,
@@ -57,6 +90,7 @@ pub(super) fn copy(
         provenance,
     )?;
     live.references.extend(copied);
+    super::references::relocate_leaves(live, result.place, relocations, moved_leaves);
     Ok(())
 }
 

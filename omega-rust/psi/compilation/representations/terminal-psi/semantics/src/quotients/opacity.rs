@@ -120,6 +120,7 @@ pub(super) fn validate_quotient_opacity(module: &TerminalModule) -> Result<(), &
                 let transport = matches!(
                     &operation.kind,
                     OperationKind::StructuralLeafCopy { .. }
+                        | OperationKind::MoveStructuralValue { .. }
                         | OperationKind::StructuralCaseLeafCopy { .. }
                         | OperationKind::CallStructural { .. }
                         | OperationKind::CallStructuralWithScalarArguments { .. }
@@ -144,6 +145,19 @@ pub(super) fn validate_quotient_opacity(module: &TerminalModule) -> Result<(), &
                     && quotient_copy_adaptation(module, machine, operation).is_none()
                 {
                     return Err("unlicensed nominal quotient copy");
+                }
+            }
+            if let OperationKind::MoveStructuralValue { source } = &operation.kind {
+                let root = quotient_place_type(machine, source.place)
+                    .ok_or("quotient move source is absent")?;
+                let tip = quotient_path_tip(module, root, &source.path)?;
+                if operation
+                    .result
+                    .structural()
+                    .map(|result| result.structural_type)
+                    != tip
+                {
+                    return Err("owned transfer cannot change nominal quotient identity");
                 }
             }
             if let OperationKind::StructuralCaseLeafCopy { source, path } = &operation.kind {
@@ -173,6 +187,7 @@ pub(super) fn validate_quotient_opacity(module: &TerminalModule) -> Result<(), &
                 let transport = matches!(
                     &operation.kind,
                     OperationKind::StructuralLeafCopy { .. }
+                        | OperationKind::MoveStructuralValue { .. }
                         | OperationKind::EstablishRecord { .. }
                         | OperationKind::EstablishStructuralCase { .. }
                         | OperationKind::EstablishStructuralArray { .. }

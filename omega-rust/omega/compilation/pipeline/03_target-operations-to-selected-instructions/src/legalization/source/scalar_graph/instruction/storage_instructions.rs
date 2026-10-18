@@ -58,33 +58,43 @@ pub(super) fn project_structural_leaf_copy(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::StructuralLeafCopy {
-        psi_operation,
-        result,
-        source,
-        path,
-    } = &node.operation
-    else {
-        unreachable!("dispatched project_structural_leaf_copy")
+    let owned_path;
+    let (psi_operation, result, source, path) = match &node.operation {
+        AbstractOperation::StructuralLeafCopy {
+            psi_operation,
+            result,
+            source,
+            path,
+        } => (*psi_operation, result, *source, path),
+        AbstractOperation::MoveStructuralValue {
+            psi_operation,
+            result,
+            source,
+        } => {
+            owned_path = source.path.clone().into();
+            (*psi_operation, result, source.place, &owned_path)
+        }
+        _ => return Err(Error::custody()),
     };
     let kind = {
-        let (byte_offset, shape, elements) = scalar_graph_input::structural_case::leaf_copy_layout(
-            optimized,
-            *psi_operation,
-            *source,
-            path,
-            result,
-            plan,
-        )?;
+        let (byte_offset, shape, elements) =
+            scalar_graph_input::structural_case::structural_transport_layout(
+                optimized,
+                psi_operation,
+                source,
+                path,
+                result,
+                plan,
+            )?;
         let indices = crate::legalization::runtime_indices::operands(
             optimized,
             unit,
-            *psi_operation,
+            psi_operation,
             &elements,
         )?;
         LegalizedScalarInstructionKind::StructuralLeafCopy {
             result: result.clone(),
-            source: *source,
+            source,
             path: path.clone(),
             byte_offset,
             shape,

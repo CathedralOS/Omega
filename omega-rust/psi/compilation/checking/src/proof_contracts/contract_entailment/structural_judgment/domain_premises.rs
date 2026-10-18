@@ -64,7 +64,7 @@ impl StructuralJudge<'_> {
         }
     }
 
-    pub(super) fn intake_entry_domain_predicates(
+    pub(in crate::proof_contracts::contract_entailment) fn intake_entry_domain_predicates(
         &mut self,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,

@@ -258,7 +258,7 @@ pub(in crate::legalization) fn membership_layout(
 /// wider than the address model — an incoming parameter, a block parameter,
 /// or a computed definition — the operand contract target lowering applies
 /// to leaf copies.
-pub(in crate::legalization) fn leaf_copy_layout(
+pub(in crate::legalization) fn structural_transport_layout(
     function: &PsiOptimizationFunction,
     operation: OperationId,
     source: PlaceId,
@@ -307,23 +307,9 @@ pub(in crate::legalization) fn leaf_copy_layout(
             (geometry.selected, geometry.byte_offset, geometry.elements)
         }
     };
-    // A case-qualified path also carries the verifier's owned-copy shape: an
-    // `Affine` non-reference leaf is copied out of the proven-active payload
-    // into fresh storage the successor takes custody of.
-    let owned_case_copy = matches!(path, abstract_operations::StructuralCopyPath::Case(_))
-        && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
-    let shared_descriptor = terminal_semantics::is_shared_reference_carrier(
-        plan.structural_types.iter(),
-        result.structural_type,
-    );
-    if (result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        && !owned_case_copy
-        && !(result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            && shared_descriptor))
-        || !result.claims.is_empty()
-    {
-        return Err(LegalizationError::custody());
-    }
+    // The retained abstract operation distinguishes copying from consuming
+    // ownership. Both transport the same selected bytes. Disposal multiplicity
+    // and claim custody belong to that operation, not its physical layout.
     // A byte-carrier copy projects a `u8` array element into the overlaid
     // record the verifier's recast window admitted; the legalized extent is
     // the record's own layout, not the element's scalar shape.
@@ -381,12 +367,8 @@ pub(in crate::legalization) fn leaf_copy_layout(
     {
         return Err(LegalizationError::custody());
     }
-    // Geometry copies descriptor bytes; the independent custody replay joins
-    // their exact shared leaves and preserves the original live source roster.
-    // This never authorizes duplication of an exclusive reference or claims.
-    if !super::reference_custody::shared_copy_type(&plan.structural_types, copy_type) {
-        return Err(LegalizationError::custody());
-    }
+    // Descriptor custody separately distinguishes a fresh shared copy from
+    // relocation of the existing occurrence; geometry grants neither.
     for element in &indices {
         crate::legalization::runtime_indices::defined_type(function, element.index)
             .filter(|scalar| {

@@ -306,6 +306,7 @@ fn operation_effect(
         // a fresh owned value: structural state, unobservable from scalar
         // consumers but never erasable, duplicable, or reorderable.
         | O::StructuralLeafCopy { .. }
+        | O::MoveStructuralValue { .. }
         | O::EstablishScalarArray { .. } | abstract_operations::structural_array_or_case_pattern!(..)
         | abstract_operations::establish_byte_literal_triple_pattern!(..)
         | abstract_operations::structural_establish_triple_pattern!(..)

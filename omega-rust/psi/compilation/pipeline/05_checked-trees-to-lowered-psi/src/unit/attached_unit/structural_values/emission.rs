@@ -557,6 +557,17 @@ pub(crate) fn emit<'source>(
         } else {
             source
         };
+        // Binding publication consumes the same checked occurrence as a
+        // constructor operand. Retain its established facts before forming
+        // the receiving declaration, without changing the source contract.
+        let node = structural_values(checked).nodes.get(*value);
+        let source = emission.retain_checked_memberships(
+            identities,
+            source,
+            node.qualification_decisions,
+            node.expression,
+            first_new_place,
+        )?;
         // Existing storage needs an arrival owned by this binding; fresh
         // producers already published one. Use the same allocation frontier
         // as constructor capture, independent of the source expression shape.
@@ -1528,16 +1539,18 @@ impl Emission<'_, '_, '_> {
             let projected = self.projection_source(identities, source, path)?;
             let lowered =
                 projected.lowered_path(identities, self.type_ids, self.structural_types)?;
-            return self.capture_operand(
+            let argument = self.retain_checked_memberships(
                 identities,
                 StructuralArgument {
                     place: projected.root,
                     path: lowered,
                     access: StructuralAccess::Owned,
                 },
+                node.qualification_decisions,
                 node.expression,
                 first_new_place,
-            );
+            )?;
+            return self.capture_operand(identities, argument, node.expression, first_new_place);
         }
         // A fresh operand has its own continuation, not the enclosing
         // selection's result/residual slots. Incoming owners remain live
@@ -1568,7 +1581,13 @@ impl Emission<'_, '_, '_> {
                 Ok(argument)
             })
             .and_then(|argument| {
-                self.retain_checked_memberships(argument, node.qualification_decisions)
+                self.retain_checked_memberships(
+                    identities,
+                    argument,
+                    node.qualification_decisions,
+                    node.expression,
+                    first_new_place,
+                )
             });
         self.type_reference = parent_reference;
         self.sources = sources;
@@ -1793,9 +1812,15 @@ impl Emission<'_, '_, '_> {
                     // passing the continuation into the operand would seal its
                     // jump with the unqualified source, stranding the checked
                     // membership copy after that edge.
+                    let first_new_place = *self.environment.next_place;
                     let argument = self.value(identities, source, None)?;
-                    let mut argument =
-                        self.retain_checked_memberships(argument, node.qualification_decisions)?;
+                    let mut argument = self.retain_checked_memberships(
+                        identities,
+                        argument,
+                        node.qualification_decisions,
+                        node.expression,
+                        first_new_place,
+                    )?;
                     // The operand publishes storage; the checked projected
                     // value retains its own access at the continuation.
                     // Owning descriptor storage does not own its backing.
@@ -2100,67 +2125,25 @@ impl Emission<'_, '_, '_> {
                         access: StructuralAccess::Owned,
                     });
                 }
-                if self.sources.is_empty() && continuation.is_none() {
-                    // Ordinary uses consume the source's exact storage coordinate,
-                    // including a previously bound projected alias. Only a selected
-                    // value needs the receipt and continuation handled below.
-                    if let Some(place) = self.parameter_source(&argument)? {
-                        return Ok(StructuralArgument {
-                            place,
-                            path: Vec::new(),
-                            access: StructuralAccess::Owned,
-                        });
-                    }
-                    return self
-                        .structural_bindings()
-                        .owned_argument(identities, &argument);
-                }
-                if !argument.path.is_empty()
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                {
-                    return unsupported("owned selection requires whole owned sources");
-                }
-                let selected = match &argument.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                        symbol,
-                    } => crate::expression_preparation::bindings::structural_local_by_root(
-                        &self.evaluation.structural_locals,
-                        facts::PlaceRoot::Symbol(*symbol),
-                    )
-                    .map(|local| local.argument.clone())
-                    .or(self
-                        .parameter_source(&argument)?
-                        .map(|place| StructuralArgument {
-                            place,
-                            path: Vec::new(),
-                            access: StructuralAccess::Owned,
-                        }))
-                    .ok_or(LoweringError::Unsupported(
-                        "owned selection local place missing",
-                    ))?,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        ..
-                    } => StructuralArgument {
-                        place: self.parameter_source(&argument)?.ok_or(
-                            LoweringError::Unsupported("owned selection parameter place missing"),
-                        )?,
+                // Ownership is attached to the checked argument, independent
+                // of whether its consumer is a local, constructor or join.
+                // A continuation receives that same selected coordinate.
+                let selected = if let Some(place) = self.parameter_source(&argument)? {
+                    StructuralArgument {
+                        place,
                         path: Vec::new(),
                         access: StructuralAccess::Owned,
-                    },
-                    _ => {
-                        return unsupported(
-                            "owned selection requires an established structural local or parameter",
-                        );
                     }
+                } else {
+                    self.structural_bindings()
+                        .owned_argument(identities, &argument)?
                 };
-                if !self.source_at(selected.place).is_some() {
-                    return unsupported("owned selection place is absent from its receipt sources");
+                if let Some(continuation) = continuation {
+                    self.complete_value(selected, continuation)?;
+                    Ok(continuation.place)
+                } else {
+                    return Ok(selected);
                 }
-                let continuation = continuation.ok_or(LoweringError::Unsupported(
-                    "direct owned place requires a structural continuation",
-                ))?;
-                self.complete_value(selected, continuation)?;
-                Ok(continuation.place)
             }
             CheckedStructuralValueKind::Case(construction) => {
                 let source = validation::scalar_case_constructor(

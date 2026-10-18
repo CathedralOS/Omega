@@ -157,6 +157,7 @@ pub(crate) fn validate_function_structural_catalog(
                                 // A leaf copy's fresh owned value is a
                                 // structural operation result like any
                                 // establishment's.
+                                | O::MoveStructuralValue { psi_operation, result, .. }
                                 | O::StructuralLeafCopy {
                                     psi_operation,
                                     result,
@@ -232,6 +233,7 @@ pub(crate) fn validate_function_structural_catalog(
             | O::EstablishZeroedStructural { result, .. }
             | O::MoveStructuralField { result, .. }
             | O::StructuralLeafCopy { result, .. }
+            | O::MoveStructuralValue { result, .. }
             | O::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -280,6 +282,11 @@ pub(crate) fn validate_function_structural_catalog(
                 ..
             }
             | O::MoveStructuralField {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::MoveStructuralValue {
                 psi_operation,
                 result,
                 ..

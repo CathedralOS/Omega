@@ -263,8 +263,12 @@ impl Builder<'_, '_> {
                     })
                 }),
             )?;
-        if self.program.normalized_type_identity(projected)
-            != self.program.normalized_type_identity(expected)
+        // A checked qualification changes the receiving occurrence, not the
+        // selected storage carrier. Keep projections in the same carrier
+        // namespace as whole owned values; their exact membership decisions
+        // are retained on the value node and consumed during emission.
+        if validation::stored_structural_type_identity(self.program, projected, &[], &[])
+            != validation::stored_structural_type_identity(self.program, expected, &[], &[])
         {
             return None;
         }

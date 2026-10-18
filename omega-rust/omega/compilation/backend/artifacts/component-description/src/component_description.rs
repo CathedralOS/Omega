@@ -734,6 +734,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::EstablishZeroedStructural { .. }
                     | OperationKind::EstablishStructuralLocal { .. }
                     | OperationKind::EstablishRecord { .. }
+                    | OperationKind::MoveStructuralValue { .. }
                     | OperationKind::EstablishScalarCase { .. }
                     | OperationKind::EstablishStructuralCase { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }

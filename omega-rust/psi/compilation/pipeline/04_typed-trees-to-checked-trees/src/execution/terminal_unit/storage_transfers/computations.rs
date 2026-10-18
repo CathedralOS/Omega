@@ -3,7 +3,7 @@
 //! sequential operands accumulate moves, selected alternatives intersect the
 //! definite moves, and neither path grants a move from an observation.
 
-use super::{Destination, Query, Transfers};
+use super::{Query, Transfers, ValueReceiver};
 use checked_trees::{
     CheckedByteSequenceValue, CheckedByteSequenceValuePlan, CheckedCallScalarArgument,
     CheckedScalarComputationHandle, CheckedScalarComputationKind,
@@ -161,16 +161,15 @@ impl Query<'_> {
                 let call = self.facts.flow.control.calls.get(*source_call);
                 for operand in plans.structural_arguments.span(*structural_arguments)? {
                     output.append(self.structural_operand_computations(operand)?);
-                    if let CheckedScalarComputationStructuralArgument::Place(argument) = operand
-                        && self.belongs(argument)
-                    {
-                        output.append(self.leaf(
-                            argument.path.clone(),
-                            Destination::Call {
+                    if let CheckedScalarComputationStructuralArgument::Place(argument) = operand {
+                        output.append(self.argument_transfers(
+                            argument,
+                            ValueReceiver::Call {
                                 statement_index: u32::try_from(call.statement_index).ok()?,
                                 structural_result: false,
                             },
-                        ));
+                            &mut Vec::new(),
+                        )?);
                     }
                 }
             }

@@ -778,6 +778,9 @@ fn validate_operation_foundation(
         terminal_psi::structural_leaf_copy_pair_pattern!() => {
             storage_foundations::validate_structural_leaf_copy(module, machine, operation)?
         }
+        OperationKind::MoveStructuralValue { .. } => {
+            storage_foundations::validate_move_structural_value(module, machine, operation)?
+        }
         OperationKind::ByteSequenceRead { .. } => {
             storage_foundations::validate_byte_sequence_read(operation)?
         }

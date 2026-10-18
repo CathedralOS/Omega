@@ -516,6 +516,22 @@ pub enum OperationKind {
         path: Vec<StructuralPathSegment>,
         case: StructuralCaseId,
     },
+    /// Transfer one owned value or subtree into a fresh occurrence of the same
+    /// carrier. The selected source becomes unavailable, while its claim
+    /// identities, nested memberships, backing and cleanup obligations continue
+    /// on the result. This is neither a copy nor extraction through a loan:
+    /// `source.access` must be `Owned`, and no restoration window is opened.
+    /// Source root and selected result have restricted multiplicity (affine
+    /// or linear). Unrestricted values use the ordinary copy operation; this
+    /// operation's retirement is represented by the existing owned frontier.
+    ///
+    /// The result may retain predicate-only memberships checked at this
+    /// occurrence. It cannot establish routed authority or replace claims;
+    /// existing routed memberships travel with their original custody. A
+    /// receiving annotation alone supplies no evidence for a new membership.
+    MoveStructuralValue {
+        source: StructuralArgument,
+    },
     /// Establish one owned copy of an `Unrestricted` leaf projected out of a
     /// live root the machine may only read. The source stays fully intact:
     /// copying observes contents like a scalar field read, so shared loans
@@ -1312,6 +1328,7 @@ impl OperationKind {
             | Self::ReleaseReference { .. }
             | Self::PrimitiveScalarRead { .. }
             | Self::MoveStructuralField { .. }
+            | Self::MoveStructuralValue { .. }
             | Self::StoreStructuralField { .. }
             | Self::StructuralCaseMembership { .. }
             | Self::StructuralLeafCopy { .. }

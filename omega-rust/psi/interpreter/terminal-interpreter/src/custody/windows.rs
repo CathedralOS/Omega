@@ -240,6 +240,7 @@ impl TerminalExecution<'_> {
             }
             self.stage_constructor_operand(&argument, frontier, &mut Vec::new())?;
             return self.stage_constructor_claims(
+                crate::record::ResultClaimOrigin::Transfer,
                 result,
                 &[(&argument, Vec::new())],
                 frontier,

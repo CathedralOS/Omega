@@ -191,6 +191,28 @@ pub(super) fn encode_structural_leaf_copy(
     Ok(())
 }
 
+pub(super) fn encode_move_structural_value(
+    writer: &mut Writer,
+    source: StructuralArgument,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::MOVE_STRUCTURAL_VALUE);
+    writer.id(source.place);
+    super::super::structural_signature_wire::encode_structural_access(writer, source.access);
+    encode_structural_path(writer, "owned value transfer path", &source.path)
+}
+
+pub(super) fn decode_move_structural_value(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::MoveStructuralValue {
+        source: StructuralArgument {
+            place: reader.id("PlaceId")?,
+            access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+            path: decode_structural_path(reader)?,
+        },
+    })
+}
+
 pub(super) fn decode_structural_leaf_copy(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {

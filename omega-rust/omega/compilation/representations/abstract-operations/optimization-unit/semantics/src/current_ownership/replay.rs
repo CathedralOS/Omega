@@ -501,7 +501,8 @@ pub(super) fn validate_current_ownership_cfg(
                 ) => structural_arguments.as_slice(),
                 // A window repair consumes its value exactly like one owned
                 // whole call argument: live-owned custody in, once.
-                O::StoreStructuralField { value, .. } => std::slice::from_ref(value),
+                O::StoreStructuralField { value, .. }
+                | O::MoveStructuralValue { source: value, .. } => std::slice::from_ref(value),
                 _ => &[],
             };
             let parameter_multiplicities = match &node.operation {
@@ -525,7 +526,8 @@ pub(super) fn validate_current_ownership_cfg(
                     )?,
                 // The repair's consumed operand carries its own declared
                 // signature; there is no callee parameter row to read.
-                O::StoreStructuralField { value, .. } => {
+                O::StoreStructuralField { value, .. }
+                | O::MoveStructuralValue { source: value, .. } => {
                     vec![
                         crate::unit_validation::operation_contracts::structural_source_contract(
                             function,
@@ -997,6 +999,71 @@ pub(super) fn validate_current_ownership_cfg(
                 .as_ref()
                 .and_then(|contract| contract.operation_result());
             if let Some(result) = structural_result {
+                // A value transfer relocates the original active claims; it
+                // cannot take the fresh-establishment route below. Authenticate
+                // the entire selected roster before removing any identity.
+                let transferred_claims =
+                    if let O::MoveStructuralValue { source, .. } = &node.operation {
+                        let invalid = || OptimizationUnitValidationError::CurrentCleanupMismatch {
+                            machine: function.machine,
+                            block: block_id,
+                        };
+                        let mut selected = BTreeMap::new();
+                        for (identity, claim) in &frontier.claims {
+                            if claim.input != Some(source.place) {
+                                continue;
+                            }
+                            if claim.path.starts_with(&source.path) {
+                                selected.insert(*identity, claim.clone());
+                            } else if source.path.starts_with(&claim.path) {
+                                // A containing nominal claim is indivisible.
+                                return Err(invalid());
+                            }
+                        }
+                        let mut transferred = BTreeMap::new();
+                        for binding in &result.claims {
+                            if claim_path_is_inactive(
+                                function,
+                                structural_types,
+                                predecessors,
+                                block_id,
+                                node_index as usize,
+                                source,
+                                &binding.path,
+                            ) {
+                                if selected.contains_key(&binding.claim) {
+                                    return Err(invalid());
+                                }
+                                continue;
+                            }
+                            let mut claim = selected.remove(&binding.claim).ok_or_else(invalid)?;
+                            let expected_multiplicity = if binding.path.is_empty() {
+                                result.multiplicity
+                            } else {
+                                StructuralMultiplicity::Linear
+                            };
+                            if claim.path[source.path.len()..] != binding.path
+                                || claim.multiplicity != Some(expected_multiplicity)
+                                || result.multiplicity == StructuralMultiplicity::Unrestricted
+                            {
+                                return Err(invalid());
+                            }
+                            claim.input = Some(result.place);
+                            claim.path = binding.path.clone();
+                            if transferred.insert(binding.claim, claim).is_some() {
+                                return Err(invalid());
+                            }
+                        }
+                        if !selected.is_empty() {
+                            return Err(invalid());
+                        }
+                        for identity in transferred.keys() {
+                            frontier.claims.remove(identity);
+                        }
+                        Some(transferred)
+                    } else {
+                        None
+                    };
                 insert_owned_result(
                     function,
                     block_id,
@@ -1006,14 +1073,22 @@ pub(super) fn validate_current_ownership_cfg(
                     result.multiplicity,
                 )?;
                 for binding in &result.claims {
-                    let claim = LiveClaim {
-                        input: Some(result.place),
-                        path: binding.path.clone(),
-                        multiplicity: Some(if binding.path.is_empty() {
-                            result.multiplicity
-                        } else {
-                            StructuralMultiplicity::Linear
-                        }),
+                    let claim = if let Some(transferred) = &transferred_claims {
+                        let Some(claim) = transferred.get(&binding.claim) else {
+                            // An inactive case contributes no live claim.
+                            continue;
+                        };
+                        claim.clone()
+                    } else {
+                        LiveClaim {
+                            input: Some(result.place),
+                            path: binding.path.clone(),
+                            multiplicity: Some(if binding.path.is_empty() {
+                                result.multiplicity
+                            } else {
+                                StructuralMultiplicity::Linear
+                            }),
+                        }
                     };
                     if frontier.claims.insert(binding.claim, claim).is_some() {
                         return Err(OptimizationUnitValidationError::CurrentClaimAlreadyLive {

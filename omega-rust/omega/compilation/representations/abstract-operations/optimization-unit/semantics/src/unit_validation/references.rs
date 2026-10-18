@@ -651,6 +651,7 @@ fn operation_structural_result(operation: &O) -> Option<&terminal_psi::Structura
         // joins the reference-bearing result contract like every other
         // producer's.
         | O::MoveStructuralField { result, .. }
+        | O::MoveStructuralValue { result, .. }
         | O::CallStructural {
             result: AbstractStructuralCallResult::Structural { result, .. },
             ..
@@ -686,6 +687,26 @@ pub(crate) fn validate_function_references(
         let Some(result) = operation_structural_result(&node.operation) else {
             continue;
         };
+        if let O::MoveStructuralValue { source, .. } = &node.operation {
+            // This producer moves existing carrier leaves; it does not create
+            // references under constructor permission. The root validator
+            // checks memberships, multiplicity and the fresh result place;
+            // ordered custody relocates the exact existing loan identities.
+            let signature =
+                structural_source_contract(function, source.place).ok_or_else(invalid)?;
+            if source.access != StructuralAccess::Owned
+                || signature.access != StructuralAccess::Owned
+                || terminal_semantics::canonical_static_projection(
+                    types.values().copied(),
+                    signature.structural_type,
+                    &source.path,
+                )
+                .is_none_or(|(_, selected)| selected.id != result.structural_type)
+            {
+                return Err(invalid());
+            }
+            continue;
+        }
         if contains_reference(types, result.structural_type)
             && !is_reference(result.structural_type)
             && (!matches!(

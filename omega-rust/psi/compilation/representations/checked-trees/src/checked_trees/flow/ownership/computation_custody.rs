@@ -373,15 +373,19 @@ impl<'facts> CallTransfers<'facts> {
                 .call_schedule(root.root)
                 .map(|(_, calls)| calls)
                 .unwrap_or(&[]),
+            argument.access == CheckedStructuralAccess::Owned && argument.path.is_empty(),
         )
     }
 
     /// Whole owners a completed construction takes as its members, plus the
-    /// transfers evaluating its children performs.
+    /// transfers evaluating its children performs. Observing or projecting an
+    /// existing place never consumes its whole owner; constructing a temporary
+    /// still consumes its inputs before that temporary is observed or projected.
     fn constructed(
         &self,
         root: CheckedStructuralValueHandle,
         calls: &[CheckedStructuralValueCall],
+        consumes_whole: bool,
     ) -> usize {
         let plans = &self.values.structural_values;
         match &plans.nodes.get(root).kind {
@@ -389,7 +393,13 @@ impl<'facts> CallTransfers<'facts> {
                 .iter()
                 .map(|argument| self.structural(*argument, calls))
                 .sum(),
-            CheckedStructuralValueKind::Place(source) => self.argument(source),
+            CheckedStructuralValueKind::Place(source) => {
+                if consumes_whole {
+                    self.argument(source)
+                } else {
+                    self.argument_evaluation(source)
+                }
+            }
             crate::record_or_structural_case_pattern!(fields, ..) => plans
                 .record_fields
                 .span_or_empty(*fields)
@@ -397,14 +407,44 @@ impl<'facts> CallTransfers<'facts> {
                 .map(|field| match field.value {
                     CheckedStructuralRecordFieldValue::Scalar(value) => self.computation(value),
                     CheckedStructuralRecordFieldValue::Structural(value) => {
-                        self.constructed(value, calls)
+                        self.constructed(value, calls, true)
                     }
                 })
                 .sum(),
             CheckedStructuralValueKind::FixedArray { elements } => elements
                 .iter()
-                .map(|element| self.constructed(*element, calls))
+                .map(|element| self.constructed(*element, calls, true))
                 .sum(),
+            CheckedStructuralValueKind::Projection {
+                source,
+                path,
+                copies_selected_value,
+                ..
+            } => self.constructed(
+                *source,
+                calls,
+                consumes_whole && path.is_empty() && !copies_selected_value,
+            ),
+            CheckedStructuralValueKind::Dispatch { subject, arms } => {
+                let mut prefix = 0;
+                let alternatives = plans.dispatch_arms.span_or_empty(*arms).iter().map(|arm| {
+                    prefix += self.pattern(&arm.pattern);
+                    prefix + self.constructed(arm.value, calls, consumes_whole)
+                });
+                self.computation(*subject) + alternatives.min().unwrap_or(0)
+            }
+            CheckedStructuralValueKind::Reference {
+                source,
+                source_value,
+                ..
+            } => {
+                self.argument_evaluation(source)
+                    + if source_value.is_valid() {
+                        self.constructed(*source_value, calls, true)
+                    } else {
+                        0
+                    }
+            }
             _ => self.structural(root, calls),
         }
     }
@@ -580,7 +620,20 @@ impl<'facts> CallTransfers<'facts> {
                 .map_or(0, |call| {
                     call.operands()
                         .iter()
-                        .map(|operation| self.operation(operation))
+                        .map(|operation| match operation {
+                            // Operand preparation owns the anonymous value's
+                            // construction as well as calls inside its fields.
+                            // The enclosing state's constructor inventory does
+                            // not enter this selected invocation schedule.
+                            CheckedUnitEffectOperationPlan::EstablishLocal(
+                                crate::CheckedUnitLocalBindingPlan::StructuralValue {
+                                    value,
+                                    calls,
+                                    ..
+                                },
+                            ) => self.constructed(*value, calls, true),
+                            _ => self.operation(operation),
+                        })
                         .sum::<usize>()
                         + self.operation(call.operation())
                 }),

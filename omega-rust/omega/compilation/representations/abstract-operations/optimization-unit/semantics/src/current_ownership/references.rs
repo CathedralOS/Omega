@@ -987,7 +987,9 @@ fn establish_record(
             return None;
         };
         Some((
-            terminal_psi::StructuralPathSegment::Field(declaration.identity.clone()),
+            vec![terminal_psi::StructuralPathSegment::Field(
+                declaration.identity.clone(),
+            )],
             argument,
         ))
     });
@@ -1008,7 +1010,12 @@ fn establish_constructor<'a>(
     block: BlockId,
     node: u32,
     result: &terminal_psi::StructuralOperationResult,
-    operands: impl Iterator<Item = (terminal_psi::StructuralPathSegment, &'a StructuralArgument)>,
+    operands: impl Iterator<
+        Item = (
+            Vec<terminal_psi::StructuralPathSegment>,
+            &'a StructuralArgument,
+        ),
+    >,
     live: &mut [LiveReference],
 ) -> Result<(), OptimizationUnitValidationError> {
     if live.iter().any(|reference| {
@@ -1073,7 +1080,7 @@ fn establish_constructor<'a>(
                     "record cannot duplicate reference custody",
                 ));
             }
-            let mut destination = vec![destination.clone()];
+            let mut destination = destination.clone();
             destination.extend(path);
             relocations.push((position, destination));
         }
@@ -1217,10 +1224,23 @@ pub(super) fn apply_operation(
                 result,
                 elements.iter().enumerate().map(|(index, argument)| {
                     (
-                        terminal_psi::StructuralPathSegment::FixedIndex(index as u64),
+                        vec![terminal_psi::StructuralPathSegment::FixedIndex(
+                            index as u64,
+                        )],
                         argument,
                     )
                 }),
+                live,
+            );
+        }
+        O::MoveStructuralValue { result, source, .. } => {
+            return establish_constructor(
+                function,
+                structural_types,
+                block,
+                node,
+                result,
+                std::iter::once((Vec::new(), source)),
                 live,
             );
         }

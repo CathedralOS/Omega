@@ -170,7 +170,14 @@ pub(super) fn check_constructor_membership(
         })
     };
     if proven {
-        record_qualification(decisions, state, statement_index, value, semantic_domain);
+        record_qualification(
+            decisions,
+            state,
+            statement_index,
+            value,
+            semantic_domain,
+            domain_symbol,
+        );
     } else {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} is not proven in domain `{}` in {} state `{}` at statement {statement_index}; a construction value must establish the domain's predicates and any required provenance",

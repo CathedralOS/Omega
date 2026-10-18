@@ -248,6 +248,7 @@ pub(crate) fn map_obligations(
         | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::MoveStructuralField { .. }
+        | OperationKind::MoveStructuralValue { .. }
         | OperationKind::StoreStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::StructuralLeafCopy { .. }

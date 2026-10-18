@@ -1209,6 +1209,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
                 // the readable root's custody.
                 | O::EstablishByteSequenceConcatenation { result, .. }
                 | O::StructuralLeafCopy { result, .. }
+                | O::MoveStructuralValue { result, .. }
                 | O::CallStructural {
                     result: AbstractStructuralCallResult::Structural { result, .. },
                     ..

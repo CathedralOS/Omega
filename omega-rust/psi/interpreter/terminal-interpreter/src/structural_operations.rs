@@ -285,10 +285,13 @@ impl TerminalExecution<'_> {
         value.projected_qualifications.sort();
         value.projected_qualifications.dedup();
         storage.validate_projected_memberships(self, &value, &result.projected_qualifications)?;
-        let claims =
-            self.stage_constructor_claims(result, &claim_operands, &mut frontier, &|current| {
-                storage.case_at_projection(self, &value, &current.path)
-            })?;
+        let claims = self.stage_constructor_claims(
+            crate::record::ResultClaimOrigin::Construction,
+            result,
+            &claim_operands,
+            &mut frontier,
+            &|current| storage.case_at_projection(self, &value, &current.path),
+        )?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged_scalars);
         storage.publish(self)?;
@@ -814,6 +817,95 @@ impl TerminalExecution<'_> {
             return Ok(OperationFlow::Advance);
         }
         self.structural_scalar_fields.insert(cell, source);
+        Ok(OperationFlow::Advance)
+    }
+
+    /// Relocate an owned value using the same staged payload and custody
+    /// transaction as owned constructor operands. Claims retain their original
+    /// identities; unlike construction, a move has no establishment alternative.
+    pub(crate) fn execute_move_structural_value(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let OperationKind::MoveStructuralValue { source } = &operation.kind else {
+            return Err(malformed());
+        };
+        let result = operation.result.structural().ok_or_else(malformed)?;
+        let machine = self.program.verified_machine(self.current_machine)?;
+        let whole_multiplicity = machine
+            .structural_parameter(source.place)
+            .map(|parameter| parameter.multiplicity)
+            .or_else(|| {
+                machine
+                    .producing_operation(source.place)
+                    .and_then(|(producer, _)| producer.result.structural())
+                    .map(|result| result.multiplicity)
+            });
+        if source.access != StructuralAccess::Owned
+            || self.result_place_in_use(result.place)
+            || result.multiplicity == StructuralMultiplicity::Unrestricted
+            || whole_multiplicity == Some(StructuralMultiplicity::Unrestricted)
+            || (!source.path.is_empty()
+                && result.multiplicity != StructuralMultiplicity::Linear
+                && result.claims.iter().any(|claim| claim.path.is_empty()))
+            || !result.qualification_establishments.is_empty()
+            || machine
+                .structural_parameter(source.place)
+                .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
+            || (source.path.is_empty() && whole_multiplicity != Some(result.multiplicity))
+        {
+            return Err(malformed());
+        }
+        let opaque_identity = self.local_structural_identities.allocate()?;
+        let child = ConstructorValue::resolve(self, source)?;
+        if child.structural_type() != result.structural_type {
+            return Err(malformed());
+        }
+        let (whole, projected) = child.memberships();
+        if whole
+            .iter()
+            .any(|domain| !result.qualifications.contains(domain))
+            || projected
+                .iter()
+                .any(|row| !result.projected_qualifications.contains(row))
+        {
+            return Err(malformed());
+        }
+        let value = TerminalStructuralValue {
+            opaque_identity,
+            structural_type: result.structural_type,
+            qualifications: result.qualifications.clone(),
+            projected_qualifications: result.projected_qualifications.clone(),
+            path: Vec::new(),
+        };
+        let mut storage = ConstructorStorage::default();
+        let mut frontier = self.live_affine_frontier.clone();
+        let mut consumed = Vec::new();
+        let transfers_custody =
+            self.stage_constructor_operand(source, &mut frontier, &mut consumed)?;
+        if !transfers_custody {
+            return Err(TerminalInterpretError::AffineFrontierMismatch);
+        }
+        storage.stage(
+            self,
+            source,
+            &child,
+            &StructuralRuntimePlace::from(&value),
+            transfers_custody,
+        )?;
+        let claims = self.stage_constructor_claims(
+            crate::record::ResultClaimOrigin::Transfer,
+            result,
+            &[(source, Vec::new())],
+            &mut frontier,
+            &|current| storage.case_at_projection(self, &value, &current.path),
+        )?;
+        self.validate_transferred_affine_complement(source, result, &frontier, &|current| {
+            storage.case_at_projection(self, &value, &current.path)
+        })?;
+        self.commit_constructor_operands(frontier, &consumed, claims)?;
+        storage.publish(self)?;
+        self.structural_values.insert(result.place, value);
         Ok(OperationFlow::Advance)
     }
 

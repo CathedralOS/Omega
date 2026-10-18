@@ -322,7 +322,8 @@ pub(super) fn project(
                     node, optimized, plan, unit,
                 )?
             }
-            AbstractOperation::StructuralLeafCopy { .. } => {
+            AbstractOperation::StructuralLeafCopy { .. }
+            | AbstractOperation::MoveStructuralValue { .. } => {
                 storage_instructions::project_structural_leaf_copy(node, optimized, plan, unit)?
             }
             abstract_operations::move_or_store_structural_field_pattern!() => {

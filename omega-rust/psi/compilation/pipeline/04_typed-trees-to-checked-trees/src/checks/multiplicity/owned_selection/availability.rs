@@ -28,27 +28,6 @@ pub(in crate::checks::multiplicity) fn record_statement(
     statement: &StatementNode,
     places: &mut [LinearPlace],
 ) -> Result<bool, Diagnostic> {
-    let expressions = statement_expressions(program, statement);
-    let selected = expressions
-        .iter()
-        .copied()
-        .filter(|expression| {
-            matches!(
-                program.expression_table.expression(*expression),
-                ExpressionNode::Match(_)
-            ) && has_owned_leaf(
-                program,
-                places,
-                machine,
-                state,
-                statement_index,
-                *expression,
-            )
-        })
-        .collect::<Vec<_>>();
-    if selected.is_empty() {
-        return Ok(false);
-    }
     let statements = program.statement_table.statements(state.statement_nodes);
     let (expression, destination, type_reference) = match statement {
         StatementNode::LocalData(local) if !local.is_mutable => {
@@ -57,8 +36,21 @@ pub(in crate::checks::multiplicity) fn record_statement(
         StatementNode::Expression(expression) if statement_index + 1 == statements.len() => {
             (*expression, SymbolHandle::invalid(), state.return_type)
         }
-        _ => return Err(unsupported()),
+        _ => return Ok(false),
     };
+    // This receipt binds the receiving owner's result selection. Operand
+    // selections belong to the shared occurrence schedule: treating a nested
+    // match as this destination would give it the enclosing call's result
+    // type and skip that call's other ownership events.
+    if !expression.is_valid()
+        || !matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Match(_)
+        )
+        || !has_owned_leaf(program, places, machine, state, statement_index, expression)
+    {
+        return Ok(false);
+    }
     let linear_result = program.type_multiplicity(type_reference) == Multiplicity::Linear;
     // An affine destination may carry linear claims: the join then settles the
     // consumed source claims at the exact destination frontier paths rather
@@ -69,7 +61,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
         validation::reference_result_custody::binding_multiplicity(program, type_reference),
         Multiplicity::Affine | Multiplicity::Linear
     ) && stored_contents(program, type_reference);
-    if !selected.contains(&expression) || !destination_ok {
+    if !destination_ok {
         return Err(unsupported());
     }
     // The source destination owns one carrier on every selected path. Nested

@@ -10891,3 +10891,28 @@ run/traits/static_implementation_method_arguments checked 5547ms check-target:ma
 run/traits/target_scoped_map_method_arguments checked 11040ms check-target:macos_arm64 terminal-inspections:match @a68c584655e1+wt
 run/variant_decimal_runtime_division checked 6787ms check-target:linux_x86_64 @7c1edd43e7e4+wt
 run/variant_record_normalization_repeats checked 7433ms check-target:linux_x86_64 @7c1edd43e7e4+wt
+fail/drops/selected_argument_retains_cleanup_prerequisite rejected 735ms expected @ab16f19fe1b1+wt
+	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 2: missing retained.ready == true required by Token::drop clause `token.ready`
+fail/facts/domain_geometry_conserved_result_wrong_partition rejected 762ms expected @ab16f19fe1b1+wt
+	cannot prove ensures contract for exit from split at statement 3: Bounded.content(old(&whole)) == separate(Bounded.content(&result.left), Bounded.content(&result.right))
+fail/facts/entry_domain_return_after_write rejected 730ms expected @ab16f19fe1b1+wt
+	cannot prove ensures contract for exit from invalid at statement 1: result == 1
+fail/facts/entry_domain_return_other_state_binding rejected 720ms expected @ab16f19fe1b1+wt
+	cannot prove ensures contract for exit from invalid at statement 0: result == 1
+fail/facts/owned_qualified_reference_carrier_reuse rejected 369ms expected @ab16f19fe1b1+wt
+	cannot use `carrier.reference` in machine `inspect` state `entry` (statement 1) after `carrier` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `carrier` first
+fail/facts/owned_qualified_reference_field_reuse rejected 1316ms expected @ab16f19fe1b1+wt
+	cannot use `holder.carrier.reference` in machine `inspect` state `entry` (statement 1) after `holder.carrier` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `holder.carrier` first
+fail/facts/owned_qualified_reference_result_reuse rejected 1305ms expected @ab16f19fe1b1+wt
+	cannot use `raw.reference` in machine `main` state `entry` (statement 3) after `raw` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `raw` first
+fail/facts/owned_qualified_reference_selection_reuse rejected 1288ms expected @ab16f19fe1b1+wt
+	cannot use `raw.reference` in machine `exercise` state `entry` (statement 3) after `raw` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `raw` first
+fail/facts/qualified_linear_value_reused_after_transfer rejected 391ms expected @ab16f19fe1b1+wt
+	cannot use `left` in machine `split` state `entry` (statement 4) after `left` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `left` first
+pass/facts/domain_geometry_conserved_result_exit checked 3884ms check-target:macos_arm64 @ab16f19fe1b1+wt
+pass/facts/domain_geometry_projected_conserved_result_exit checked 3905ms check-target:macos_arm64 @ab16f19fe1b1+wt
+pass/facts/entry_domain_return_snapshot_exit checked 3813ms check-target:macos_arm64 @ab16f19fe1b1+wt
+pass/facts/owned_qualified_reference_carrier_exit checked 3812ms check-target:macos_arm64 @ab16f19fe1b1+wt
+pass/facts/owned_qualified_reference_field_exit checked 3796ms check-target:macos_arm64 @ab16f19fe1b1+wt
+pass/facts/owned_qualified_reference_result_exit checked 3797ms check-target:macos_arm64 @ab16f19fe1b1+wt
+pass/facts/owned_qualified_reference_selection_exit checked 3821ms check-target:macos_arm64 @ab16f19fe1b1+wt

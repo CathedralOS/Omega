@@ -30,6 +30,7 @@ use terminal_psi::StructuralTypeShape;
 
 mod byte_fields;
 mod operands;
+pub(crate) use operands::ResultClaimOrigin;
 pub(crate) mod storage;
 mod structural_array;
 use storage::{ConstructorStorage, ConstructorValue};
@@ -150,10 +151,13 @@ impl TerminalExecution<'_> {
         value.projected_qualifications.sort();
         value.projected_qualifications.dedup();
         storage.validate_projected_memberships(self, &value, &result.projected_qualifications)?;
-        let claims =
-            self.stage_constructor_claims(result, &claim_operands, &mut frontier, &|current| {
-                storage.case_at_projection(self, &value, &current.path)
-            })?;
+        let claims = self.stage_constructor_claims(
+            ResultClaimOrigin::Construction,
+            result,
+            &claim_operands,
+            &mut frontier,
+            &|current| storage.case_at_projection(self, &value, &current.path),
+        )?;
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged);
         storage.publish(self)?;

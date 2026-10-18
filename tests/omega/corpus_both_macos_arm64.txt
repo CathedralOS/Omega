@@ -560,6 +560,9 @@ pass/facts/bound_through_other_state_exit built 3824ms exit:0 interpreter-exit:0
 pass/facts/bound_through_parameter_exit built 3868ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/bound_through_target_body_exit built 3875ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/computed_record_window_original_exit built 8596ms exit:0 interpreter-exit:0 interpreter:agrees @408e4fc23fbc
+pass/facts/domain_geometry_conserved_result_exit built 3779ms exit:0 interpreter-exit:0 interpreter:agrees @ab16f19fe1b1+wt
+pass/facts/domain_geometry_projected_conserved_result_exit built 3773ms exit:0 interpreter-exit:0 interpreter:agrees @ab16f19fe1b1+wt
+pass/facts/entry_domain_return_snapshot_exit built 3711ms exit:0 interpreter-exit:0 interpreter:agrees @ab16f19fe1b1+wt
 pass/facts/nested_result_extent_after_disjoint_write_exit built 4218ms exit:0 interpreter-exit:0 interpreter:agrees @cbdcc23565fb
 pass/facts/nested_result_extent_captured_scalar_exit built 3640ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_call_result_exit built 3543ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
@@ -580,6 +583,10 @@ pass/facts/nominal_reference_cleanup_through_other_machine_exit built 3782ms exi
 pass/facts/nominal_reference_cleanup_through_other_state_exit built 3731ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
 pass/facts/nominal_reference_cleanup_through_parameter_exit built 3732ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
 pass/facts/nominal_reference_cleanup_through_target_body_exit built 3638ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
+pass/facts/owned_qualified_reference_carrier_exit built 3708ms exit:0 interpreter-exit:0 interpreter:agrees @ab16f19fe1b1+wt
+pass/facts/owned_qualified_reference_field_exit built 3713ms exit:0 interpreter-exit:0 interpreter:agrees @ab16f19fe1b1+wt
+pass/facts/owned_qualified_reference_result_exit built 3713ms exit:0 interpreter-exit:0 interpreter:agrees @ab16f19fe1b1+wt
+pass/facts/owned_qualified_reference_selection_exit built 3772ms exit:0 interpreter-exit:0 interpreter:agrees @ab16f19fe1b1+wt
 pass/facts/qualified_borrowed_join_exit built 3982ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/qualified_owned_join_exit built 4711ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/reference_arrival_handoff_cleanup_receiver_exit built 3543ms exit:0 interpreter-exit:0 interpreter:agrees @4030174fbc4e

@@ -101,6 +101,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(result.place);
         }
         O::EstablishReference { result, source, .. }
+        | O::MoveStructuralValue { result, source, .. }
         | O::EstablishPlacedReference { result, source, .. } => {
             places.insert(result.place);
             places.insert(source.place);
@@ -188,6 +189,7 @@ pub(super) fn collect_operation_structural_places(
             result,
             ..
         }
+        | AbstractOperation::MoveStructuralValue { psi_operation, result, .. }
         | AbstractOperation::BoundaryCall {
             psi_operation,
             result: abstract_operations::AbstractBoundaryResult::Structural(result),

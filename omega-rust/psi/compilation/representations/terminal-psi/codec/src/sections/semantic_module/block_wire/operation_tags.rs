@@ -251,3 +251,6 @@ pub(super) const REGISTER_ACCESS: u8 = 121;
 pub(super) const ESTABLISH_NATIVE_CODE_LAYOUT: u8 = 122;
 /// Numeric exposure of one checked storage referent.
 pub(super) const STORAGE_ADDRESS: u8 = 123;
+
+/// Identity-preserving owned transfer with occurrence-bound memberships.
+pub(super) const MOVE_STRUCTURAL_VALUE: u8 = 124;

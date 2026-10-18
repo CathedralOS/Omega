@@ -1,5 +1,135 @@
 use super::*;
 
+/// The source checker owns predicate establishment; decoding owns the typed
+/// transfer shape and cannot reinterpret a receiving roster as routed issuance.
+/// Exact live claim transfer is checked by ordered ownership, as for aggregate
+/// construction. This operation never changes the selected carrier.
+pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_move_structural_value(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::MoveStructuralValue { source } = &operation.kind else {
+        return malformed("owned value transfer dispatch differs");
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("owned value transfer has no structural result");
+    };
+    let whole_multiplicity = machine
+        .structural_parameter(source.place)
+        .map(|parameter| parameter.multiplicity)
+        .or_else(|| {
+            machine
+                .producing_operation(source.place)
+                .and_then(|(producer, _)| producer.result.structural())
+                .map(|result| result.multiplicity)
+        });
+    if source.access != terminal_psi::StructuralAccess::Owned
+        || result.multiplicity == StructuralMultiplicity::Unrestricted
+        || whole_multiplicity == Some(StructuralMultiplicity::Unrestricted)
+        || (!source.path.is_empty()
+            && result.multiplicity != StructuralMultiplicity::Linear
+            && result.claims.iter().any(|claim| claim.path.is_empty()))
+        || !result.qualification_establishments.is_empty()
+        || source.place == result.place
+        || (source.path.is_empty() && whole_multiplicity != Some(result.multiplicity))
+        || machine
+            .structural_parameter(source.place)
+            .is_some_and(|parameter| parameter.access != terminal_psi::StructuralAccess::Owned)
+    {
+        return malformed("owned value transfer requires owned custody and cannot issue authority");
+    }
+    let root = structural_place_type(machine, source.place).ok_or(
+        CodecError::MalformedStructuralFoundation("owned transfer source is absent"),
+    )?;
+    let selected = terminal_semantics::canonical_static_projection(
+        module.structural_types.iter(),
+        root,
+        &source.path,
+    )
+    .map(|(_, selected)| selected)
+    .ok_or(CodecError::MalformedStructuralFoundation(
+        "owned transfer requires a finite owned path",
+    ))?;
+    if selected.id != result.structural_type {
+        return malformed("owned value transfer changes its carrier");
+    }
+    if !matches!(machine.structural_place(result.place).map(|place| place.kind),
+        Some(StructuralPlaceKind::OperationResult { producer, structural_type })
+            if producer == operation.id && structural_type == result.structural_type)
+    {
+        return malformed("owned value transfer result is not a fresh occurrence");
+    }
+    let position = machine
+        .blocks
+        .iter()
+        .find_map(|block| {
+            block
+                .operations
+                .iter()
+                .position(|candidate| candidate.id == operation.id)
+                .and_then(|ordinal| {
+                    u32::try_from(ordinal)
+                        .ok()
+                        .map(|ordinal| (block.id, ordinal))
+                })
+        })
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "owned transfer position is absent",
+        ))?;
+    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
+    let contract = terminal_semantics::descriptor_results::current_selected_payload_contract(
+        &module.structural_types,
+        &module.structural_domains,
+        &graph,
+        machine.id,
+        position,
+        source.place,
+        &source.path,
+        &|place| terminal_semantics::descriptor_results::terminal_payload_contract(machine, place),
+    )
+    .map_err(CodecError::MalformedStructuralFoundation)?;
+    if contract.carrier != result.structural_type
+        || contract
+            .qualifications
+            .iter()
+            .any(|domain| !result.qualifications.contains(domain))
+        || contract
+            .projected_qualifications
+            .iter()
+            .any(|row| !result.projected_qualifications.contains(row))
+    {
+        return malformed("owned value transfer loses source memberships");
+    }
+    // Source checking already follows aliases and inherited restrictions.
+    // This foundation check catches direct issuance; an empty direct route
+    // roster alone is not a second proof of predicate-only establishment.
+    let added = result
+        .qualifications
+        .iter()
+        .filter(|domain| !contract.qualifications.contains(domain))
+        .chain(
+            result
+                .projected_qualifications
+                .iter()
+                .filter(|row| !contract.projected_qualifications.contains(row))
+                .map(|row| &row.domain),
+        );
+    for domain in added {
+        let declaration = module
+            .structural_domains
+            .iter()
+            .find(|row| row.id == *domain)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "owned transfer domain is absent",
+            ))?;
+        if !declaration.establishment_routes.is_empty() {
+            return malformed("owned value transfer cannot establish a routed domain");
+        }
+    }
+    Ok(())
+}
+
 pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_structural_case_membership(
     operation: &Operation,
 ) -> Result<(), CodecError> {

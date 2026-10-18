@@ -196,7 +196,8 @@ pub(super) fn check_call_requires(
                 && let Some(expression) = membership
                     .as_ref()
                     .and_then(|evidence| evidence.whole_argument)
-                && let Some((_, _, _, semantic_domain)) = fact.payload.domain_membership()
+                && let Some((_, _, domain_symbol, semantic_domain)) =
+                    fact.payload.domain_membership()
                 && let Ok(statement_index) = u32::try_from(call_flow.statement_index)
             {
                 value_qualifications.append(checked_trees::CheckedValueQualification {
@@ -205,6 +206,7 @@ pub(super) fn check_call_requires(
                     statement_index,
                     expression,
                     semantic_domain,
+                    domain_symbol,
                     structural_value: checked_trees::CheckedStructuralValueHandle::invalid(),
                 });
             }

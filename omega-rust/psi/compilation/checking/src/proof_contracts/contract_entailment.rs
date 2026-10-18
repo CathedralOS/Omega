@@ -338,6 +338,14 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         StructuralJudge::from_runtime_requires(program, machine, &requires)
     };
     if let Some(entry) = program.machine_states(machine).first() {
+        // A return proof starts at the same admitted entry as a prefix proof.
+        // Import the input's domain predicates before observing the body so
+        // subsequent effects invalidate them through ordinary capture rules.
+        // Keep this out of the prefix-free runtime judge: closed-call
+        // refutation deliberately has no license to assume entry facts.
+        if structural.has_runtime_body_values() {
+            structural.intake_entry_domain_predicates(machine, entry);
+        }
         transparent_applications::intake_transparent_requires(
             program,
             machine,

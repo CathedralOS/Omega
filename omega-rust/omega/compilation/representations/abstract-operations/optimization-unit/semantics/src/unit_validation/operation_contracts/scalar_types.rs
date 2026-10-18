@@ -170,6 +170,7 @@ pub(crate) fn operation_scalar_types_match(
         | abstract_operations::move_or_store_structural_field_pattern!()
         | O::StructuralByteViewFieldStore { .. }
         | O::StructuralLeafCopy { .. }
+        | O::MoveStructuralValue { .. }
         | O::PortWrite { .. }
         | O::StructuralCase { .. }
         | O::ReturnUnit { .. }

@@ -199,9 +199,9 @@ pub(crate) fn apply_statement_permission_production(
                     continue;
                 }
                 let path = facts.flow.ownership.segments.span_or_empty(event.segments);
-                // Admission covers every source move, including unmatched and
-                // arm-local occurrences that cannot publish unconditional
-                // permission events below. Borrowed extraction keeps its
+                // Admission covers every source move, including unmatched
+                // occurrences that cannot publish ordered permission events
+                // below. Borrowed extraction keeps its
                 // separate window contract rather than acquiring ownership.
                 if !path.is_empty()
                     && !super::super::linear_obligations::move_event_is_production_target(
@@ -223,9 +223,14 @@ pub(crate) fn apply_statement_permission_production(
                 {
                     return Err(diagnostic);
                 }
-                if !ordered || event.source_arm.is_valid() {
+                if !ordered {
                     continue;
                 }
+                // Arm-local moves follow the same retained decision route as
+                // their completions. Skipping them leaves the source live at
+                // the join even when every arm transfers it. The route joins
+                // custody without publishing an unconditional move or losing
+                // the cleanup owed by an arm that did not transfer it.
                 selected.enter(&occurrence.route, &mut custody, join)?;
                 let (places, remaining) = &mut custody;
                 // Moving a subtree out of an anonymous owner is that owner's

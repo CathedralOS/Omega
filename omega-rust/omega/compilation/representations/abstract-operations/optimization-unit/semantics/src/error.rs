@@ -10,6 +10,11 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {
+    InvalidOwnedValueTransfer {
+        machine: MachineId,
+        operation: OperationId,
+        reason: &'static str,
+    },
     InvalidQuotientCatalog(&'static str),
     ContentIdentityMismatch {
         stored: OptimizationUnitIdentity,

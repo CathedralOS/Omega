@@ -358,6 +358,7 @@ pub(super) fn match_input(
             return Err(LegalizationError::custody());
         }
         if let AbstractOperation::StructuralLeafCopy { result, .. }
+        | AbstractOperation::MoveStructuralValue { result, .. }
         | AbstractOperation::MoveStructuralField { result, .. } = &node.operation
             && (!terminal_psi::find_structural_type(&plan.structural_types, result.structural_type)
                 .is_some()

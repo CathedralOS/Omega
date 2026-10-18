@@ -76,12 +76,18 @@ fn whole(machine: &TerminalMachine, place: PlaceId, active: &mut Vec<PlaceId>) -
             }
             return origin;
         }
-        if let Some((operation, ty)) = machine.producing_operation(place)
-            && let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
-            && path.is_empty()
-            && quotient_place_type(machine, *source) == Some(ty)
-        {
-            return whole(machine, *source, active);
+        if let Some((operation, ty)) = machine.producing_operation(place) {
+            let selected = match &operation.kind {
+                OperationKind::StructuralLeafCopy { source, path } => Some((*source, path)),
+                OperationKind::MoveStructuralValue { source } => Some((source.place, &source.path)),
+                _ => None,
+            };
+            if let Some((source, path)) = selected
+                && path.is_empty()
+                && quotient_place_type(machine, source) == Some(ty)
+            {
+                return whole(machine, source, active);
+            }
         }
         Some(place)
     })();

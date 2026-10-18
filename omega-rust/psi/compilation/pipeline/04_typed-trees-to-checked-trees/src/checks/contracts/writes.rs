@@ -180,6 +180,7 @@ pub(super) fn check_domain_field_writes(
                         statement_index,
                         local.initial_value,
                         semantic_domain,
+                        domain_symbol,
                     );
                     continue;
                 }
@@ -214,6 +215,7 @@ pub(super) fn check_domain_field_writes(
                         statement_index,
                         local.initial_value,
                         semantic_domain,
+                        domain_symbol,
                     );
                 }
             }
@@ -279,6 +281,7 @@ pub(super) fn check_domain_field_writes(
                         statement_index,
                         assignment.value,
                         domain.semantic_id,
+                        domain_symbol,
                     );
                 }
             }
@@ -979,6 +982,7 @@ fn judge_value_qualification_cast(
             statement_index,
             expression,
             semantic_domain,
+            domain_symbol,
         );
         return;
     }
@@ -1041,6 +1045,7 @@ fn record_qualification(
     statement_index: usize,
     expression: ExpressionHandle,
     semantic_domain: language_semantics::SemanticDomainId,
+    domain_symbol: symbols::SymbolHandle,
 ) {
     let Ok(statement_index) = u32::try_from(statement_index) else {
         return;
@@ -1051,6 +1056,7 @@ fn record_qualification(
         statement_index,
         expression,
         semantic_domain,
+        domain_symbol,
         structural_value: checked_trees::CheckedStructuralValueHandle::invalid(),
     });
 }

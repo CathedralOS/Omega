@@ -536,6 +536,7 @@ pub(super) fn validate_operation(
             | AbstractOperation::EstablishNativeCodeLayout { .. }
             | AbstractOperation::EstablishRecord { .. }
             | AbstractOperation::StructuralLeafCopy { .. }
+            | AbstractOperation::MoveStructuralValue { .. }
             | AbstractOperation::EstablishCase { .. },
         ) => {
             aggregate_results::validate(target, abstracted, sources, optimized, plan, unit)?;

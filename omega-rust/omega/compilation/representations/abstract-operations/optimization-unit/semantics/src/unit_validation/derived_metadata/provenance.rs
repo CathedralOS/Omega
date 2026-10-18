@@ -48,6 +48,7 @@ pub(crate) fn expected_provenance(
         | O::MoveStructuralField { psi_operation, .. }
         | O::StoreStructuralField { psi_operation, .. }
         | O::StructuralLeafCopy { psi_operation, .. }
+        | O::MoveStructuralValue { psi_operation, .. }
         | O::EstablishNativeCodeLayout { psi_operation, .. }
         | O::EstablishRecord { psi_operation, .. }
         | abstract_operations::boundary_or_structural_call_pair_pattern!(psi_operation, ..)

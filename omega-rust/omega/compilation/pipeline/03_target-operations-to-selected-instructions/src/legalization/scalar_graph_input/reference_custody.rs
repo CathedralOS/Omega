@@ -1735,6 +1735,14 @@ fn discard_residual(
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+enum OwnedOperandUse {
+    /// Ordinary by-value operands copy unrestricted carriers.
+    CopyUnrestricted,
+    /// An explicit move consumes even an unrestricted carrier occurrence.
+    Transfer,
+}
+
 /// Stage every selected reference leaf before committing a storage transfer.
 /// Projection prefixes select source storage; destination prefixes relocate
 /// its leaves without moving a sibling. Owned unrestricted operands retain
@@ -1745,6 +1753,7 @@ fn relocate_subtree_leaves<'a>(
     types: &[StructuralTypeDeclaration],
     destination: PlaceId,
     operation: OperationId,
+    operand_use: OwnedOperandUse,
     operands: impl IntoIterator<
         Item = (
             &'a StructuralArgument,
@@ -1770,17 +1779,18 @@ fn relocate_subtree_leaves<'a>(
                 .block_structural_parameters()
                 .find(|parameter| parameter.place == argument.place)
         });
-        let copies_storage = parameter.map_or_else(
-            || {
-                super::structural_case::source_result(function, argument.place).is_ok_and(
-                    |(_, result)| result.multiplicity == StructuralMultiplicity::Unrestricted,
-                )
-            },
-            |parameter| {
-                parameter.access == StructuralAccess::Owned
-                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-            },
-        );
+        let copies_storage = matches!(operand_use, OwnedOperandUse::CopyUnrestricted)
+            && parameter.map_or_else(
+                || {
+                    super::structural_case::source_result(function, argument.place).is_ok_and(
+                        |(_, result)| result.multiplicity == StructuralMultiplicity::Unrestricted,
+                    )
+                },
+                |parameter| {
+                    parameter.access == StructuralAccess::Owned
+                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                },
+            );
         if argument.access != StructuralAccess::Owned
             || argument.place == destination
             || leaf_type(types, contract, &argument.path) != Some(nested)
@@ -2244,6 +2254,21 @@ pub(in crate::legalization) fn apply(
             };
             custody.retire(leaf, retirements::DisposalEvent::Operation(*psi_operation))?;
         }
+        AbstractOperation::MoveStructuralValue {
+            psi_operation,
+            result,
+            source,
+        } => {
+            relocate_subtree_leaves(
+                custody,
+                function,
+                types,
+                result.place,
+                *psi_operation,
+                OwnedOperandUse::Transfer,
+                std::iter::once((source, result.structural_type, Vec::new())),
+            )?;
+        }
         AbstractOperation::EstablishRecord { result, fields, .. }
         | AbstractOperation::EstablishCase { result, fields, .. } => {
             if custody.leaves.keys().any(|(carrier, path)| {
@@ -2301,6 +2326,7 @@ pub(in crate::legalization) fn apply(
                 types,
                 result.place,
                 operation.psi_operation().ok_or_else(|| invalid())?,
+                OwnedOperandUse::CopyUnrestricted,
                 operands,
             )?;
         }
@@ -2328,6 +2354,7 @@ pub(in crate::legalization) fn apply(
                 types,
                 result.place,
                 operation.psi_operation().ok_or_else(|| invalid())?,
+                OwnedOperandUse::CopyUnrestricted,
                 elements.iter().enumerate().map(|(index, argument)| {
                     (
                         argument,
@@ -2369,6 +2396,7 @@ pub(in crate::legalization) fn apply(
                 types,
                 result.place,
                 operation.psi_operation().ok_or_else(|| invalid())?,
+                OwnedOperandUse::Transfer,
                 [(&argument, result.structural_type, Vec::new())],
             )?;
         }
@@ -2420,6 +2448,7 @@ pub(in crate::legalization) fn apply(
                 types,
                 place,
                 operation.psi_operation().ok_or_else(|| invalid())?,
+                OwnedOperandUse::CopyUnrestricted,
                 [(value, extent.field_type, path)],
             )?;
         }

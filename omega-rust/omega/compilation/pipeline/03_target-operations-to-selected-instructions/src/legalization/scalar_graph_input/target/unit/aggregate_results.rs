@@ -199,15 +199,29 @@ pub(super) fn validate(
                 byte_offset,
                 indices,
             },
-            AbstractOperation::StructuralLeafCopy {
-                psi_operation: expected_operation,
-                result,
-                source: expected_source,
-                path: expected_path,
-            },
+            abstracted @ (AbstractOperation::StructuralLeafCopy { .. }
+            | AbstractOperation::MoveStructuralValue { .. }),
         ) => {
+            let owned_path;
+            let (expected_operation, result, expected_source, expected_path) = match abstracted {
+                AbstractOperation::StructuralLeafCopy {
+                    psi_operation,
+                    result,
+                    source,
+                    path,
+                } => (psi_operation, result, source, path),
+                AbstractOperation::MoveStructuralValue {
+                    psi_operation,
+                    result,
+                    source,
+                } => {
+                    owned_path = source.path.clone().into();
+                    (psi_operation, result, &source.place, &owned_path)
+                }
+                _ => return Err(LegalizationError::custody()),
+            };
             let (expected_offset, expected_shape, expected_indices) =
-                scalar_graph_input::structural_case::leaf_copy_layout(
+                scalar_graph_input::structural_case::structural_transport_layout(
                     optimized,
                     *expected_operation,
                     *expected_source,

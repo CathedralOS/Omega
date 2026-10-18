@@ -410,7 +410,8 @@ pub(crate) fn partitioned_roots(
 
 pub(crate) fn operands(kind: &OperationKind) -> impl Iterator<Item = &StructuralArgument> {
     let stored = match kind {
-        OperationKind::StoreStructuralField { value, .. } => Some(value),
+        OperationKind::StoreStructuralField { value, .. }
+        | OperationKind::MoveStructuralValue { source: value } => Some(value),
         _ => None,
     };
     kind.constructor_arguments()
