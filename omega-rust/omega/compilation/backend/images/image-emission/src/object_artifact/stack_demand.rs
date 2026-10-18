@@ -20,12 +20,7 @@ pub fn derive_stack_demand(
     artifact: &ObjectArtifact,
     entry: MachineId,
 ) -> Result<StackDemand, ObjectError> {
-    let mut demand = derive_namespace_stack_demand(
-        artifact,
-        entry,
-        &artifact.private_functions,
-        &mut Vec::new(),
-    )?;
+    let mut demand = derive_body_stack_demand(artifact, entry)?;
     if let Some(binding) = artifact.physical_entry_binding()
         && binding.entry() == entry
     {
@@ -35,6 +30,19 @@ pub fn derive_stack_demand(
             .ok_or(ObjectError::PhysicalEntryStackArithmeticOverflow(entry))?;
     }
     Ok(demand)
+}
+
+/// Demand of the ordinary body closure, before an image-entry bridge is bound.
+pub(crate) fn derive_body_stack_demand(
+    artifact: &ObjectArtifact,
+    entry: MachineId,
+) -> Result<StackDemand, ObjectError> {
+    derive_namespace_stack_demand(
+        artifact,
+        entry,
+        &artifact.private_functions,
+        &mut Vec::new(),
+    )
 }
 
 fn derive_namespace_stack_demand(

@@ -282,7 +282,13 @@ fn validate_terminal_image_with_import_count(
         match shim {
             super::hosted_unit_entry::EntryShim::Physical { symbol, offset } => {
                 super::physical_entry::validate_image(
-                    artifact, object, text_bytes, symbol, offset, output,
+                    artifact,
+                    object,
+                    text_bytes,
+                    relocations,
+                    symbol,
+                    offset,
+                    output,
                 )?;
             }
             shim @ (super::hosted_unit_entry::EntryShim::DarwinReceiver { .. }

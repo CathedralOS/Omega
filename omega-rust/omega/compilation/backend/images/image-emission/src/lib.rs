@@ -37,7 +37,7 @@ mod codec_bytes;
 mod private_entry_transport;
 pub use private_entry_transport::create_private_function_object;
 mod physical_entry;
-pub use physical_entry::{PhysicalEntryBinding, bind_physical_entry};
+pub use physical_entry::{PhysicalEntryBinding, PhysicalEntryPartitions, bind_physical_entry};
 mod dynamic_elf;
 mod final_image_validation;
 mod function_fragments;

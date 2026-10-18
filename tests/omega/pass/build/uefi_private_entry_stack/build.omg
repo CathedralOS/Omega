@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "uefi_private_entry_stack");
+    Build::depend_as(builder, "std", Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<std::UefiPhysicalEntry, FirmwareBootstrap>(builder);
+    Build::select_representation<std::EfiSystemTable, SystemTableRepresentation>(builder);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, kernel_entry);
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
+}

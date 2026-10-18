@@ -4810,8 +4810,10 @@ wait for Cathedral's instruction coverage. The interpreter is
   The target package owns firmware layouts, integrity, calling policies and
   bootstrap bodies; the compiler supplies the physical shell and generic
   ABI/entry primitives. The selected checked physical adapter now receives
-  firmware arguments and returns its authored status; selection alone grants
-  neither semantic root. Connect source-owned LoadedImage discovery, initial
+  firmware arguments and returns its authored status on an image-backed private
+  stack sized from the emitted call closure and target reserve. The exact saved
+  continuation and stack residences remain retained, not semantic roots.
+  Connect source-owned LoadedImage discovery, initial
   storage/stack custody and scoped providers to the selected semantic
   continuation through ordinary calling and installed-root contracts.
   Implement provider-owned reference outputs under the existing
@@ -4826,7 +4828,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   Cathedral's `source/kernel/boot/uefi` is the source customer;
   `tools/boot-harness/run.py` there builds a fresh image and checks the greeting
   followed by the owned-memory report under QEMU/OVMF. Its ordinary boot
-  machine is not yet connected to this physical-to-semantic adapter. Repair
+  machine now reaches the greeting and post-exit ownership report under OVMF;
+  the two-root semantic continuation is not yet connected. Repair
   general capabilities in their owners; no firmware-protocol intrinsics.
 
   Acceptance: authored integrity/projections/calls lead from physical arrival

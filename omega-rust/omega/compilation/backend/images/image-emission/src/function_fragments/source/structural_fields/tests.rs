@@ -1162,7 +1162,9 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         match corruption {
             0 => {
                 structural_call_reference_results_mut(&mut changed_target.graph, 0)[0].origins[0]
-                    .root = PlaceId::new(9).unwrap();
+                    .base = target_operations::TargetReferenceOriginBase::Storage {
+                    root: PlaceId::new(9).unwrap(),
+                };
             }
             1 => {
                 structural_call_reference_results_mut(&mut changed_target.graph, 0)[0].origins[0]

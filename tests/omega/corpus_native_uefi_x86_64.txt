@@ -1,0 +1,14 @@
+# Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
+# One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
+# `expected` or `unexpected` when its expected.txt fragments were weighed,
+# then any execution facts such as exit:70 or stdout:match, then
+# `regressed-from:<status>[+fact]*` when the row has lost a success it used
+# to record, then `@<revision>` recording which commit measured the row
+# (`+wt` = dirty tree; rows measured before stamping have no token).
+# Tab-indented lines under a fixture are its diagnostics, in order.
+# A `# context: {...}` line records the conditions of the --record run.
+# context: {"cpus": 14, "jobs": "2", "load1_end": 3.44, "load1_start": 3.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/build/uefi_entry_schema_same_leaf rejected 5343ms expected native-rejection:match @7f2341031b3c+wt
+	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
+pass/build/uefi_private_entry_stack built 5354ms @7f2341031b3c+wt
+pass/build/uefi_selected_physical_entry built 2401ms @7f2341031b3c+wt

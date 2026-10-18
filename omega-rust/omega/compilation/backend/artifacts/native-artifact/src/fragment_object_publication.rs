@@ -146,12 +146,6 @@ pub fn publish_fragment_object(
                     "missing physical calling plan",
                 )
             })?;
-            image_emission::bind_physical_entry(
-                &mut object,
-                physical.plan(),
-                adapter.parameter_formals(),
-            )
-            .map_err(|diagnostic| vec![diagnostic])?;
             let guarantee = entry
                 .storage_entry()
                 .and_then(|storage| storage.physical_contract())
@@ -162,22 +156,13 @@ pub fn publish_fragment_object(
                         "missing target entry stack guarantee",
                     )
                 })?;
-            let demand = image_emission::derive_stack_demand(&object, object.entry())
-                .map_err(|error| crate::native_artifact_error("physical entry stack", error))?;
-            if !guarantee.admits_demand(demand.ceiling_bytes(), u64::from(demand.stack_alignment()))
-            {
-                return Err(crate::native_artifact_error(
-                    "physical entry stack",
-                    format!(
-                        "source bootstrap exceeds the target's arrival stack guarantee: demand {} bytes aligned to {}, reserve {} bytes, available {} bytes aligned to {}",
-                        demand.ceiling_bytes(),
-                        demand.stack_alignment(),
-                        guarantee.admission_reserve_bytes(),
-                        guarantee.guaranteed_available_bytes(),
-                        guarantee.required_alignment(),
-                    ),
-                ));
-            }
+            image_emission::bind_physical_entry(
+                &mut object,
+                physical.plan(),
+                adapter.parameter_formals(),
+                guarantee,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
         } else {
             let contract = entry
                 .storage_entry()
@@ -300,10 +285,16 @@ fn validate_emitted_receiver_binding(
     };
     if settlement.source().target_slot().owner == target::TargetProfile::UefiX64 {
         // Source owns firmware bootstrap and calls the semantic continuation
-        // with already established arguments. The image owns only ABI transport.
+        // with already established arguments. The image owns ABI transport and
+        // the retained private stack, not firmware policy or root authority.
         return if binding.is_none()
             && object.physical_entry_binding().is_some_and(|binding| {
                 settlement.physical_calling_plan().map(|plan| plan.plan()) == Some(binding.plan())
+                    && settlement
+                        .storage_entry()
+                        .and_then(|storage| storage.physical_contract())
+                        .and_then(|contract| contract.guaranteed_entry_stack())
+                        == Some(binding.arrival_stack())
             })
             && settlement
                 .physical_adapter()
