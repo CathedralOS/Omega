@@ -8,51 +8,6 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 32, "jobs": "8", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
-	`Loader::run` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: jump successor: loan transfer); in state `Loader::run::run`, statement 0
-	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site); in state `Main::main::main`, statement 0
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state); in state `Main::main::main`, statement 0
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 1
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::observe`, statement 0
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::observe`, statement 1
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::again`, statement 0
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 2
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
-	call to `entry` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	generic data `Box` retains unsolved type equations; its application requires closed instance specialization
-	generic data `Inferred` retains unsolved type equations; its application requires closed instance specialization
-	generic data `Recovered` retains unsolved type equations; its application requires closed instance specialization
-	machine `FailedOpen::main` declares unknown boundary service `FilesystemHost`
-	machine `LabelMessage::decode` state `field_1_view_validate` statement 0: call stores a borrowed value without a complete destination/backing relation
-	machine `Main::main` state `main` statement 2 cannot lower structural value: computed owned operand requires an existing parameter
-	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `converges_together_at_symmetric` cites `rat_close_symmetric`, but the callee's requires fact `rat_close(p, q, precision) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `converges_together_at_symmetric` ensures contract proof fact `converges_together_at<Right, Left, Modulus>(precision, right_index, left_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `doubled_nat_max_threshold` ensures contract proof fact `saturating_sub(doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision), index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	native artifact physical program entry failed: semantic entry requires a source bootstrap and installed-root physical bridge before executable publication
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Task::finish$specialized$f1a34b3b312b5f65$0),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,generic\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Task\\\\\\)\\\\\\)\\)\\,named\\(name\\(i32\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(c_strnlen),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(u8\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(external_absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
-	retained machine declaration differs from its indexed root child
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-	selected ProgramEntry Binding field `Main::host` requires a selected Fused provider for boundary `TimeHost`
-	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_dir", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_dir` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, statement 3)") })
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "consume_envelope", reason: "ordinary sequence return has no unique source cleanup coordinate", gap: None })
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "extract", reason: "ordinary sequence return has no unique source cleanup coordinate", gap: None })
-	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
-	terminal-artifact production failed: Lowering(Unsupported("constructed operand names another completed owner"))
-	terminal-artifact production failed: Lowering(Unsupported("suspension frontier source position has no storage binding"))
 	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("mutable element-view establishment requires its exact borrowed result place")))
 pass/arithmetic/addr_algebra checked 8379ms @91bbf3e29aa9
 pass/arithmetic/anonymous_integer_arith checked 8328ms @91bbf3e29aa9
