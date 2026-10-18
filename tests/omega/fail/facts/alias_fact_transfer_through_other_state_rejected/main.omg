@@ -1,4 +1,5 @@
-// Another state's Alive requires stays unproved when the arrival has no fact.
+// Another state's declared Alive qualification stays unproved when the
+// arrival has no fact.
 
 data Player [copy] {
     health: i32;
@@ -21,9 +22,7 @@ requires
 machine Main::main(main: &mut Main) {
     let mut copy: Player = main.player;
     transition { _ -> arrived(copy) }
-    state arrived(player: Player)
-    requires
-        player in Player::Alive
+    state arrived(player: Player in Player::Alive)
     {
         Main::inspect(player);
     }

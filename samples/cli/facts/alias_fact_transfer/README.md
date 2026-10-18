@@ -5,7 +5,9 @@ provider. An entry `requires` on `main.player` transfers through a bare
 `Player` alias, and that alias carries `Alive` into `inspect`'s `requires`.
 
 The fact is checked at nine places. Each place is its own project. The
-oracle is `omega check`; these programs do not declare an exit code.
+oracle is `omega check` plus a native compile: every place binds
+`ProgramEntry` for the host targets and must compile, though these
+programs declare no exit code.
 
 - `local/` — `let mut copy: Player` carries the entry fact into `inspect`.
 - `field/` — the alias stored in a field still carries `Alive`.

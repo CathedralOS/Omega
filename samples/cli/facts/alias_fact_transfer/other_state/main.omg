@@ -1,4 +1,7 @@
 // Another state receives the Alive alias and uses that fact in its requires.
+// The state declares the fact on its parameter: a state's requires clause
+// only restates declared qualifications, so `player: Player in Player::Alive`
+// is the arrival contract.
 // Compile-checked only: no ProcessExit provider.
 
 data Player [copy] {
@@ -25,10 +28,7 @@ requires
 {
     let mut copy: Player = main.player;
     transition { _ -> arrived(copy) }
-    state arrived(player: Player)
-    requires
-        player in Player::Alive
-    {
+    state arrived(player: Player in Player::Alive) {
         Main::inspect(player);
     }
 }

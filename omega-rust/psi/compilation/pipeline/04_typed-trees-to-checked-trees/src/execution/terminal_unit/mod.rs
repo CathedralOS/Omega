@@ -906,6 +906,46 @@ pub(crate) fn build_checked_unit_effect_plans(
             retained_type_identities.insert(identity);
         }
     }
+    // A checked formation membership is a catalog dependency wherever the
+    // value lands: lowering selects each node's `qualification_decisions` and
+    // needs the carrier theory even when no signature, local declaration or
+    // boundary requirement spelled that domain. Register every decided
+    // domain against the value's own checked carrier, as the scalar-array and
+    // completion binders already do for their own initializers, and retain
+    // the carrier beside the other produced types.
+    let mut formation_binders = BTreeMap::new();
+    for (_, node) in facts.values.structural_values.nodes.iter() {
+        if !node.type_reference.is_valid() {
+            continue;
+        }
+        let Some(decisions) = facts
+            .qualifications
+            .value_formations
+            .span(node.qualification_decisions)
+        else {
+            continue;
+        };
+        if decisions.is_empty() {
+            continue;
+        }
+        let binders = formation_binders
+            .entry(symbol_key(node.machine))
+            .or_insert_with(|| {
+                program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == node.machine)
+                    .map(|machine| types::machine_binders(program, machine))
+                    .unwrap_or_default()
+            });
+        for decision in decisions {
+            if let Some(identity) =
+                shapes.add_domain(decision.semantic_domain, node.type_reference, binders)
+            {
+                retained_type_identities.insert(identity);
+            }
+        }
+    }
     let stored_operand_identities = candidates
         .iter()
         .flat_map(|plan| {
