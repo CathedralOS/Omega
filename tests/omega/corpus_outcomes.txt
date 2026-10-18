@@ -1293,6 +1293,8 @@ fail/borrows/shared_reference_carrier_writable_call rejected 968ms expected @c4c
 	mutable argument `selection` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/state_argument_borrows_forwarded_reference rejected 2484ms expected @00748f0a5289+wt
 	state `take_call` receives `main` as mutable more than once
+fail/borrows/state_arrival_recast_keeps_backing_loan rejected 2535ms expected @d3af6d5ca3c5
+	statement 2 mutates `bytes[0]` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/state_index_bound rejected 5677ms expected @a9ae30e1c334+wt
 	cannot prove index `index` is within length 2 in update::entry
 fail/borrows/state_loan_shared_ancestor_exclusive_descendant rejected 687ms expected @753e7ce7a36e+wt
@@ -7586,6 +7588,7 @@ pass/borrows/runtime_shared_scalar_local_capture_exit checked 11024ms check-targ
 pass/borrows/runtime_shared_temporary_call_exit checked 11052ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_shared_view_record_presentation_exit checked 6328ms check-target:macos_arm64 @6355da1b3395+wt
 pass/borrows/runtime_slice_reference_result_exit checked 8877ms check-target:macos_arm64 @adb7b6ab515b+wt
+pass/borrows/runtime_state_arrival_recast_footprint_exit checked 12193ms check-target:macos_arm64 @be8ac6b1a122
 pass/borrows/runtime_state_boolean_reference_exit checked 11101ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_state_fixed_element_reference_exit checked 11125ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_state_mut_formal_borrow_exit checked 11173ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -9150,7 +9153,7 @@ pass/filesystem/runtime_portable_copy_errors_exit checked 13694ms check-target:m
 pass/filesystem/runtime_portable_directory_failure_exit checked 15138ms check-target:macos_arm64 @7e6a01265b4b+wt
 pass/filesystem/runtime_portable_directory_names_exit checked 13411ms check-target:macos_arm64 @7e6a01265b4b+wt
 pass/filesystem/runtime_portable_metadata_exit checked 12499ms check-target:macos_arm64 @7e6a01265b4b+wt
-pass/filesystem/runtime_portable_unknown_directory_kinds_exit checked 20208ms check-target:macos_arm64 @85e6bb9c494b+wt
+pass/filesystem/runtime_portable_unknown_directory_kinds_exit checked 35978ms check-target:macos_arm64 @d3af6d5ca3c5
 pass/filesystem/runtime_portable_zero_descriptor_exit checked 12120ms check-target:macos_arm64 @cc43b6679d2a+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit checked 9462ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/runtime_posix_native_storage_bounds_exit checked 9150ms check-target:macos_arm64 @2f33bd96e5f4

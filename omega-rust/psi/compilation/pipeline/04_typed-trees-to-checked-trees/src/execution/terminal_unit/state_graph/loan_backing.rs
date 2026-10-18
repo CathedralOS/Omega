@@ -54,8 +54,9 @@ pub(super) fn retained_backing(
     arguments: &[ExpressionHandle],
     argument_position: usize,
     operations: &[CheckedUnitEffectOperationPlan],
-) -> Option<Option<u32>> {
-    let call_handle = selected_call(facts, machine, state, statement, target, arguments)?;
+) -> Result<Option<u32>, &'static str> {
+    let call_handle = selected_call(facts, machine, state, statement, target, arguments)
+        .ok_or("state loan: exact captured call")?;
     let operand = facts
         .flow
         .control
@@ -63,7 +64,8 @@ pub(super) fn retained_backing(
         .get(call_handle)
         .argument_operands()
         .handles()
-        .nth(argument_position)?;
+        .nth(argument_position)
+        .ok_or("state loan: captured operand position")?;
     let mut roots = facts
         .borrow
         .call_loan_resources
@@ -83,16 +85,18 @@ pub(super) fn retained_backing(
         {
             // A completed descriptor requires its whole invocation resource.
             // Missing resolution is not evidence of caller-owned storage.
-            return None;
+            return Err("state loan: descriptor resource is absent");
         }
-        return Some(None);
+        return Ok(None);
     };
     // One home may have several supplying permissions. Distinct alternatives
     // cannot be collapsed to whichever resource happened to be encountered first.
     if roots.any(|candidate| candidate != root) {
-        return None;
+        return Err("state loan: distinct backing alternatives");
     }
-    let typed_state = program.state_by_symbol(state)?;
+    let typed_state = program
+        .state_by_symbol(state)
+        .ok_or("state loan: source state")?;
     let root_type = validation::canonical_place_type_reference(
         program,
         state,
@@ -101,17 +105,18 @@ pub(super) fn retained_backing(
             root,
             segments: Vec::new(),
         },
-    )?;
+    )
+    .ok_or("state loan: backing root type")?;
     if validation::reference_result_custody::stored_loan_parts(program, root_type).is_some() {
         // Owning a descriptor is not owning provider/caller storage it denotes.
-        return Some(None);
+        return Ok(None);
     }
     if let Some(symbol) = root.as_symbol() {
         if program
             .state_parameter_by_symbol(typed_state, symbol)
             .is_some()
         {
-            return Some(None);
+            return Ok(None);
         }
         let source = super::super::local_storage::source(program, typed_state, operations, symbol);
         // A named root whose occurrence is absent from the operation prefix is
@@ -122,20 +127,28 @@ pub(super) fn retained_backing(
         // to find, exactly as the producer search below concludes when it finds
         // no producer for its root.
         return match source {
-            Some(source) => source.current_result_binding(operations).map(Some),
-            None => Some(None),
+            Some(source) => source
+                .current_result_binding(operations)
+                .map(Some)
+                .ok_or("state loan: backing occurrence is not a production result"),
+            None => Ok(None),
         };
     }
     let mut producers = operations.iter().filter(|operation| {
         super::super::cleanup::normal_edges::producer_root(facts, state, operation) == Some(root)
     });
     let Some(producer) = producers.next() else {
-        return Some(None);
+        return Ok(None);
     };
     if producers.next().is_some() {
-        return None;
+        return Err("state loan: duplicate backing producers");
     }
-    Some(Some(producer.structural_result_binding()?.binding_ordinal))
+    Ok(Some(
+        producer
+            .structural_result_binding()
+            .ok_or("state loan: backing producer has no structural result")?
+            .binding_ordinal,
+    ))
 }
 
 pub(super) fn retired_carrier_backing(

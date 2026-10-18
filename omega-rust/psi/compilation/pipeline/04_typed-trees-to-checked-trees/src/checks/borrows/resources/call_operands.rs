@@ -346,13 +346,27 @@ fn retained_places(
             );
         }
         if !crossed {
+            // A captured range is storage geometry, not a nominal value type.
+            // Classify its collection namespace without erasing the complete
+            // footprint retained below. An unresolved descriptor still fails;
+            // this query only distinguishes it from its caller-owned backing.
+            let namespace_end = place
+                .segments
+                .iter()
+                .position(|segment| {
+                    matches!(
+                        segment,
+                        facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange
+                    )
+                })
+                .unwrap_or(place.segments.len());
             let selected_type = validation::canonical_place_type_reference(
                 program,
                 state.state_symbol,
                 typed_state.statement_nodes.count() as usize,
                 &validation::CanonicalPlace {
                     root: place.root,
-                    segments: place.segments.clone(),
+                    segments: place.segments[..namespace_end].to_vec(),
                 },
             )?;
             let incoming_parameter = place.root.as_symbol().is_some_and(|symbol| {

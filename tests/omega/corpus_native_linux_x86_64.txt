@@ -413,6 +413,7 @@ pass/borrows/runtime_shared_scalar_local_capture_exit built 14759ms exit:70 @6c4
 pass/borrows/runtime_shared_temporary_call_exit built 14773ms exit:42 @6c49683ce714
 pass/borrows/runtime_shared_view_record_presentation_exit built 6306ms exit:0 @6355da1b3395+wt
 pass/borrows/runtime_slice_reference_result_exit built 8821ms exit:0 @adb7b6ab515b+wt
+pass/borrows/runtime_state_arrival_recast_footprint_exit built 9526ms exit:0 @f8bf1f903b0f+wt
 pass/borrows/runtime_state_boolean_reference_exit built 14882ms exit:70 @6c49683ce714
 pass/borrows/runtime_state_fixed_element_reference_exit built 14962ms exit:70 @6c49683ce714
 pass/borrows/runtime_state_mut_formal_borrow_exit built 14767ms exit:70 @6c49683ce714
@@ -1686,6 +1687,7 @@ pass/filesystem/native_read_dir_iter built 10738ms exit:0 stdout:match @aebe0714
 pass/filesystem/native_wrapper_write_all_result built 19865ms exit:0 stdout:match @c9eefa9130a0+wt
 pass/filesystem/runtime_local_host_result_dispatch_exit built 10042ms exit:70 @aebe0714a499+wt
 pass/filesystem/runtime_portable_copy_errors_exit built 22366ms exit:0 @aebe0714a499+wt
+pass/filesystem/runtime_portable_unknown_directory_kinds_exit built 38870ms exit:0 @f8bf1f903b0f+wt
 pass/filesystem/runtime_portable_zero_descriptor_exit built 20279ms exit:0 @aebe0714a499+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit built 9599ms exit:0 stdout:match @aebe0714a499+wt
 pass/filesystem/runtime_posix_read_runtime_range_view_exit built 13858ms exit:0 stdout:match @aebe0714a499+wt

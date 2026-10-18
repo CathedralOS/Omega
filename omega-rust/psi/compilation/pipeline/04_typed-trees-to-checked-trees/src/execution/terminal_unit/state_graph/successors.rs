@@ -914,7 +914,12 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 arguments,
                 parameter.position as usize,
                 operations,
-            )?;
+            )
+            .map_err(|reason| {
+                trace.phase(reason);
+                trace.statement(Some(ordinal));
+            })
+            .ok()?;
         }
     }
     mark(SuccessorGuard::ScalarArguments);
