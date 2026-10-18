@@ -422,6 +422,22 @@ fail/data/constructor_case_payload_call_result_window rejected 519ms expected @4
 	data `Outcome` case `Some` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/data/constructor_distinct_field_versions rejected 183ms expected @408e4fc23fbc
 	data `Snapshot` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/data/qualified_record_pattern_duplicate_binding rejected 230ms expected @4e9f61cedcd7+wt
+	machine `inspect` state `entry` has duplicate local data `horizontal`
+fail/data/qualified_record_pattern_field_weakening rejected 237ms expected @4e9f61cedcd7+wt
+	implicit domain weakening in machine `inspect` state `entry` local `unqualified` drops `Screen`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/data/qualified_record_pattern_linear_debt rejected 707ms expected @4e9f61cedcd7+wt
+	linear value `point` reaches scope exit without being consumed or transferred
+fail/data/qualified_record_pattern_missing_field rejected 232ms expected @4e9f61cedcd7+wt
+	record pattern in machine `inspect` state `entry` does not mention field `vertical` of `Point` -- record patterns are exhaustive by law: bind it, rename it with `as`, or waive it with `as _`
+fail/data/qualified_record_pattern_unit_store rejected 234ms expected @4e9f61cedcd7+wt
+	machine `inspect` state `entry` local `discarded` has an explicit Unit type and cannot bind an initializer value; use the value's type or explicitly discard the result
+	implicit domain weakening in machine `inspect` state `entry` local `discarded` drops `Screen`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/data/qualified_record_pattern_unknown_field rejected 229ms expected @4e9f61cedcd7+wt
+	record pattern in machine `inspect` state `entry` names `depth`, which is not a field of `Point`
+fail/data/qualified_record_pattern_unrouted rejected 707ms expected @4e9f61cedcd7+wt
+	cannot prove default-domain field requirement for return from rebuild at statement 3: Point requires Point::Screen
+	construction value is not proven in domain `Point::Screen` in rebuild state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 fail/dependent/inactive_payload_cannot_supply_common_fact rejected 623ms expected @408e4fc23fbc
 	cannot prove requires contract for call need from inspect: item.value <= 5 (needs fact `value <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `selected`
 fail/facts/checked_asm_countdown_call_result_wrong_fallthrough rejected 3591ms expected @a0c34fdba779+wt
@@ -7351,6 +7367,7 @@ pass/build/uefi_selected_context_target_entry checked 3463ms check-target:uefi_x
 pass/core/content_counted_partition_exit checked 3956ms check-target:macos_arm64 @b794c35ad5f8+wt
 pass/core/interval_content_length_partition_exit checked 3960ms check-target:macos_arm64 @b794c35ad5f8+wt
 pass/core/interval_content_partition_exit checked 4124ms check-target:macos_arm64 @b794c35ad5f8+wt
+pass/data/qualified_record_pattern_exit checked 3896ms check-target:macos_arm64 @4e9f61cedcd7+wt
 pass/data/runtime_case_payload_call_result_window_exit checked 8218ms check-target:macos_arm64 @408e4fc23fbc
 pass/facts/checked_asm_countdown_call_result_exit checked 14392ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_const_name_exit checked 12105ms check-target:linux_x86_64 @a0c34fdba779+wt

@@ -19,6 +19,14 @@ pub(super) fn validate(
     let Some(local_data) = statement.as_local_data() else {
         unreachable!("dispatched local_data_statements")
     };
+    // Pattern markers describe field coverage, not storage. Their subject is
+    // not assigned to the marker's Unit sentinel: doing so invents a whole-value
+    // move and rejects qualified subjects as implicit domain weakening. The
+    // destructure checker validates coverage; actual field bindings retain the
+    // Value role and all ordinary store, access, and qualification obligations.
+    if local_data.role != language_core::LocalBindingRole::Value {
+        return;
+    }
     let StatementScope {
         program,
         machine,

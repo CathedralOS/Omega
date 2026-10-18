@@ -222,6 +222,11 @@ pub(crate) fn validate_local_data_names(
         let Some(local_data) = statement.as_local_data() else {
             continue;
         };
+        // Coverage markers name field sets, not bindings. Two patterns may
+        // cover the same fields while introducing distinct authored locals.
+        if local_data.role != language_core::LocalBindingRole::Value {
+            continue;
+        }
 
         if machine_symbols.has_member(local_data.name.as_str())
             || parameters
@@ -238,7 +243,9 @@ pub(crate) fn validate_local_data_names(
         if statements[..statement_index].iter().any(|previous| {
             matches!(
                 previous,
-                StatementNode::LocalData(previous) if previous.name == local_data.name
+                StatementNode::LocalData(previous)
+                    if previous.role == language_core::LocalBindingRole::Value
+                        && previous.name == local_data.name
             )
         }) {
             diagnostics.push(Diagnostic::error(format!(
