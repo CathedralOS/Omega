@@ -1,7 +1,7 @@
 // A returned reference transfers into the record; exit must not release its former home.
 use omega_language_std::console;
 
-data Cell { value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0, value <= 100 { value: i32; ready: bool; }
 data Message { body: &mut Cell; stamp: i32; }
 data Main { cell: Cell; }
 
@@ -12,7 +12,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.cell.ready = true;
     let borrowed: &mut Cell = borrow(&mut main.cell);
     let message: Message = Message { body: borrowed, stamp: 11 };
-    let observed: i32 [0..=100] = message.body.value;
+    let observed: i32 = message.body.value;
     let ready: bool = message.body.ready;
     main.cell.value = 81;
     let stamp: i32 = message.stamp;

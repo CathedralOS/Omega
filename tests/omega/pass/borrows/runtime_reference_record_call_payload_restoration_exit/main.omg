@@ -1,7 +1,7 @@
 // Borrowed calls end the reference before a later scalar-sibling observation.
 use omega_language_std::console;
 
-data Cell { value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0, value <= 100 { value: i32; ready: bool; }
 data Message { body: &mut Cell; stamp: i32; }
 data Main { cell: Cell; }
 

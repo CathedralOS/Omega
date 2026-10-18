@@ -1,7 +1,7 @@
 // Every selected constructor transports the same child into its result leaf.
 use omega_language_std::console;
 
-data Cell { value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0, value <= 100 { value: i32; ready: bool; }
 data Message { body: &mut Cell; stamp: i32; }
 data Held { target: &Cell; stamp: i32; }
 data Main { cell: Cell; }
@@ -15,7 +15,7 @@ machine verify(cell: &mut Cell, selected: bool) -> bool {
         true -> Held { target: child, stamp: 12 },
         false -> Held { target: child, stamp: 13 }
     };
-    let observed: i32 [0..=100] = held.target.value;
+    let observed: i32 = held.target.value;
     let ready: bool = held.target.ready;
     cell.value = 81;
     let stamp: i32 = message.stamp;

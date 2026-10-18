@@ -1,7 +1,7 @@
 // Read through a shared descriptor and referent with nonzero field offsets.
 use omega_language_std::console;
 
-data Cell { prefix: i32; value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0, value <= 100 { prefix: i32; value: i32; ready: bool; }
 data Message { stamp: i32; body: &Cell; }
 data Main { cell: Cell; }
 
@@ -10,7 +10,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.cell.value = 70;
     main.cell.ready = true;
     let message: Message = Message { stamp: 11, body: &main.cell };
-    let observed: i32 [0..=100] = message.body.value;
+    let observed: i32 = message.body.value;
     let ready: bool = message.body.ready;
     let stamp: i32 = message.stamp;
     main.cell.value = 81;

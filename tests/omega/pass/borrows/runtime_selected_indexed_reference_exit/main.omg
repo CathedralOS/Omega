@@ -1,9 +1,11 @@
 // Expected exit: 0. A selected loan retains its captured element after the
 // selector changes, and only the selected match arm lends writable storage.
 data Cell { value: u32; stamp: u32; }
-data Grid { cells: [Cell; 3]; cursor: u64[0..3]; selections: u32 in Wrapping; }
-machine next(grid: &mut Grid) -> u64[0..3] {
-    let saved: u64[0..3] = grid.cursor;
+data Grid where cursor < 3 { cells: [Cell; 3]; cursor: u64; selections: u32 in Wrapping; }
+machine next(grid: &mut Grid) -> u64
+ensures result < 3
+{
+    let saved: u64 = grid.cursor;
     grid.selections = grid.selections + 1;
     grid.cursor = 2;
     saved
@@ -15,11 +17,11 @@ machine choose(grid: &mut Grid, flag: bool) -> &mut Cell {
     }
 }
 machine fixed(grid: &mut Grid) -> &mut Cell {
-    let index: u64[0..3] = 1;
+    let index: u64 = 1;
     &mut grid.cells[index]
 }
 machine captured(grid: &mut Grid) -> &mut Cell {
-    let mut index: u64[0..3] = 1;
+    let mut index: u64 = 1;
     let selected: &mut Cell = &mut grid.cells[index];
     index = 2;
     selected

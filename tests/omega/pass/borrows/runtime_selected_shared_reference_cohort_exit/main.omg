@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-data Cell { value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0, value <= 100 { value: i32; ready: bool; }
 data Message { body: &mut Cell; stamp: i32; }
 data Held { target: &Cell; stamp: i32; }
 data Main { cell: Cell; }
@@ -14,9 +14,9 @@ machine verify(cell: &mut Cell, selected: bool) -> bool {
         true -> Held { target: child, stamp: 12 },
         false -> Held { target: child, stamp: 13 }
     };
-    let observed: i32 [0..=100] = held.target.value;
+    let observed: i32 = held.target.value;
     let ready: bool = held.target.ready;
-    let original: i32 [0..=100] = child.value;
+    let original: i32 = child.value;
     cell.value = 81;
     let stamp: i32 = message.stamp;
     let held_stamp: i32 = held.stamp;
@@ -34,10 +34,10 @@ machine verify_original_first(cell: &mut Cell, selected: bool) -> bool {
         true -> Held { target: child, stamp: 12 },
         false -> Held { target: child, stamp: 13 }
     };
-    let original: i32 [0..=100] = child.value;
-    let observed: i32 [0..=100] = held.target.value;
+    let original: i32 = child.value;
+    let observed: i32 = held.target.value;
     let ready: bool = held.target.ready;
-    let copied_observed: i32 [0..=100] = duplicate.value;
+    let copied_observed: i32 = duplicate.value;
     cell.value = 81;
     let stamp: i32 = message.stamp;
     let held_stamp: i32 = held.stamp;

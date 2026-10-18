@@ -1,7 +1,7 @@
 // Retire one fixed-array reference leaf while the other leaf and scalar sibling remain.
 use omega_language_std::console;
 
-data Cell { stamp: i32; value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Pack { prefix: i32; cells: [&Cell; 2]; }
 data Main { first: Cell; second: Cell; }
 
@@ -13,10 +13,10 @@ machine Main::main(main: &mut Main) reaches Console {
     main.second.value = 11;
     main.second.ready = false;
     let pack: Pack = Pack { prefix: 29, cells: [&main.first, &main.second] };
-    let observed: i32 [0..=100] = pack.cells[0].value;
+    let observed: i32 = pack.cells[0].value;
     let ready: bool = pack.cells[0].ready;
     main.first.value = 81;
-    let other: i32 [0..=100] = pack.cells[1].value;
+    let other: i32 = pack.cells[1].value;
     let other_ready: bool = pack.cells[1].ready;
     main.second.value = 82;
     let prefix: i32 = pack.prefix;

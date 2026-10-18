@@ -1,7 +1,7 @@
 // Scalar sibling storage survives the match join after its reference leaf ends.
 use omega_language_std::console;
 
-data Cell { value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0, value <= 100 { value: i32; ready: bool; }
 data Message { body: &mut Cell; stamp: i32; }
 data Main { cell: Cell; }
 
@@ -9,7 +9,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.cell.value = 70;
     main.cell.ready = true;
     let message: Message = Message { body: &mut main.cell, stamp: 11 };
-    let observed: i32 [0..=100] = message.body.value;
+    let observed: i32 = message.body.value;
     let ready: bool = message.body.ready;
     main.cell.value = 81;
     let selected: i32 = match main.cell.value == 81 {

@@ -1,7 +1,7 @@
 // The first leaf ends in the body; the second remains live until the transition.
 use omega_language_std::console;
 
-data Cell { value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0, value <= 100 { value: i32; ready: bool; }
 data Pair { first: &Cell; second: &Cell; stamp: i32; }
 data Main { first: Cell; second: Cell; }
 
@@ -11,7 +11,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.second.value = 11;
     main.second.ready = true;
     let pair: Pair = Pair { first: &main.first, second: &main.second, stamp: 29 };
-    let observed: i32 [0..=100] = pair.first.value;
+    let observed: i32 = pair.first.value;
     main.first.value = 81;
     let stamp: i32 = pair.stamp;
     transition observed == 70 && stamp == 29 && main.first.value == 81 && pair.second.ready && pair.second.value == 11 {

@@ -1,8 +1,12 @@
 data Cell { value: i32; spare: i32; }
 machine set(value: &write i32) { value = 83; }
-machine update<'storage>(targets: [&'storage write Cell; 2], index: u64 [0..=1]) {
+machine update<'storage>(targets: [&'storage write Cell; 2], index: u64)
+requires index <= 1
+{
     transition { _ -> write(targets, index) }
-    state write(targets: [&'storage write Cell; 2], index: u64 [0..=1]) {
+    state write(targets: [&'storage write Cell; 2], index: u64)
+    requires index <= 1
+    {
         targets[index].value = 71;
         set(&write targets[1].value);
     }

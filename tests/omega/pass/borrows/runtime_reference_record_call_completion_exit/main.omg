@@ -1,7 +1,7 @@
 // Whole cleanup is accounted once on both Unit completion and named successors.
 use omega_language_std::console;
 
-data Cell { value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0, value <= 100 { value: i32; ready: bool; }
 data Message { body: &mut Cell; stamp: i32; }
 data Main { cell: Cell; }
 
@@ -21,7 +21,7 @@ machine exercise(cell: &mut Cell, stop: bool) {
 
 machine Main::main(main: &mut Main) reaches Console {
     exercise(&mut main.cell, true);
-    let completed: i32 [0..=100] = main.cell.value;
+    let completed: i32 = main.cell.value;
     exercise(&mut main.cell, false);
     transition completed == 81 && main.cell.value == 82 {
         true -> good(main)
