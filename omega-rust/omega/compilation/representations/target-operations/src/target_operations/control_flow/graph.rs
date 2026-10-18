@@ -59,7 +59,7 @@ pub enum TargetControlTerminator {
         psi_edge: EdgeId,
         boundary: semantic_vocabulary::BoundaryMachineId,
         kind: semantic_vocabulary::ExternalCompletionKind,
-        binding: crate::BoundarySettlementBinding,
+        binding: crate::ExternalCompletionBinding,
         arguments: Vec<crate::TargetUnitScalarCallArgument>,
         structural_arguments: Vec<terminal_psi::StructuralArgument>,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,

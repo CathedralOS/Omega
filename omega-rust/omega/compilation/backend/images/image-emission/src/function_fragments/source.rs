@@ -50,6 +50,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
         matches!(
             operation,
             AbstractOperation::SelectImplementation { .. }
+                | AbstractOperation::ExternalCompletion { .. }
                 | AbstractOperation::CallStructural {
                     callee: abstract_operations::AbstractCallTarget::Dynamic { .. },
                     ..
@@ -493,7 +494,12 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::ExternalCompletion { psi_edge, boundary, .. } => {
                     let site = semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge);
                     (selected.boundary_settlements.iter().filter(|row| row.settlement.invocation_site() == site).count()
-                        + selected.normalized_foreign_calls.iter().filter(|row| row.invocation_site == site && row.call.boundary == *boundary).count()) == 1
+                        + selected.normalized_foreign_calls.iter().filter(|row| row.invocation_site == site && row.call.boundary == *boundary).count()
+                        + selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::ExternalCompletion(*psi_edge)
+                            && matches!(&row.call.source,
+                                legalized_operations::NativeCallOrigin::InstalledProvider { boundary: required, .. }
+                                | legalized_operations::NativeCallOrigin::TargetFamily { boundary: required, .. }
+                                if required == boundary)).count()) == 1
                         && control_flow::retained(operation, targeted)
                 },
                 AbstractOperation::Return {

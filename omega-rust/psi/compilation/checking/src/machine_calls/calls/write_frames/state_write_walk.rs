@@ -612,7 +612,7 @@ fn walk_state_write_prefix_inner(
         // frozen-binding opacity fence does not apply to it.
         let wire_codec_call = matches!(statement, StatementNode::Call(call)
             if wire_codecs::is_wire_codec_call(program, call));
-        let stored_call_effects = super::stored_calls::statement_effects(
+        let stored_call_transfer = super::stored_calls::statement_effects(
             program,
             machine,
             state,
@@ -626,6 +626,10 @@ fn walk_state_write_prefix_inner(
             symbols,
             inference,
         );
+        let relation_complete = stored_call_transfer
+            .as_ref()
+            .is_some_and(|transfer| transfer.is_complete());
+        let stored_call_effects = stored_call_transfer.map(|transfer| transfer.effects);
         if !wire_codec_call && let Some(call) = statement.as_call() {
             stored_origins::retire_private_call_argument_cases(
                 program,
@@ -649,7 +653,7 @@ fn walk_state_write_prefix_inner(
                 &local_alias_origins,
                 symbols,
                 inference,
-                stored_call_effects.is_some(),
+                relation_complete,
             )
         {
             return None;

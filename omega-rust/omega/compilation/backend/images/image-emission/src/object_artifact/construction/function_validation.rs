@@ -311,8 +311,9 @@ fn validate_call_stacks(
             CallSiteOwner::Operation(operation) => {
                 function.provenance.operations.contains(&operation)
             }
-            CallSiteOwner::ExternalCompletion(_) => false,
-            CallSiteOwner::CleanupAction { edge, .. } => function.provenance.edges.contains(&edge),
+            CallSiteOwner::ExternalCompletion(edge) | CallSiteOwner::CleanupAction { edge, .. } => {
+                function.provenance.edges.contains(&edge)
+            }
         };
         if !owner_in_provenance {
             return Err(ObjectError::InternalCallOperationNotInProvenance {

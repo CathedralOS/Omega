@@ -1,0 +1,12 @@
+pub boundary trait Console {
+    machine exit_process(return_code: i32) reaches Console;
+}
+pub data ConsoleNativeProvider { }
+macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+pub NativeConsole satisfies Console {
+    machine exit_process(return_code: i32) reaches Console { Console::exit_process(return_code); }
+}
+macos_arm64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
+    ConsoleNativeProvider::select_provider<Console, NativeConsole>(defaults);
+}

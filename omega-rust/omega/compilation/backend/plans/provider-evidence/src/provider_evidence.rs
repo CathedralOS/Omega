@@ -346,10 +346,10 @@ impl SelectedProviderPlanFacts {
         &self.plans
     }
 
-    /// Extend an invocation's selection with exact demanded foreign callables.
+    /// Extend an invocation's selection with exact demanded boundary callables.
     /// The caller projects already-derived candidates through executable scope;
     /// this does not classify mechanisms or grant package/runtime authority.
-    pub fn with_direct_foreign_plans(mut self, plans: Vec<ProviderPlan>) -> Result<Self, String> {
+    pub fn with_direct_boundary_plans(mut self, plans: Vec<ProviderPlan>) -> Result<Self, String> {
         let checked = Self::from_selected_plans(plans)?;
         for plan in &checked.plans {
             if self.plans.iter().any(|existing| {
@@ -360,7 +360,7 @@ impl SelectedProviderPlanFacts {
                             == plan.schema.identity_text(plan.schema.trait_name))
             }) {
                 return Err(format!(
-                    "direct foreign callable `{}` collides with an existing selected plan",
+                    "direct boundary callable `{}` collides with an existing selected plan",
                     plan.name
                 ));
             }

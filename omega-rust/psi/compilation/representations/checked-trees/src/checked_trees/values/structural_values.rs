@@ -21,6 +21,8 @@ pub struct CheckedStructuralValuePlans {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct StructuralCallSchedule {
     value: CheckedStructuralValueHandle,
+    /// Exact predecessor namespace of this independently checked value root.
+    preceding_bindings: u32,
     calls: HandleSpan<crate::CheckedStructuralValueCall>,
 }
 
@@ -186,14 +188,17 @@ pub enum CheckedStructuralValueKind {
         /// unit's structural catalog so the leaf's `type_identity` resolves.
         leaf: TypeReferenceHandle,
     },
-    /// An owned child projected out of `source` (a `Place` or `Call` node)
-    /// along an exact field/fixed-index path. The untouched residual siblings
-    /// die on the selected edge; `type_identity` is the normalized projected
-    /// (leaf) type, matching the enclosing result expectation.
+    /// A child selected from resident storage or an evaluated value along an
+    /// exact field/fixed-index path. The checked use copies or transfers that
+    /// child; a transfer settles its source's residual on the selected edge.
+    /// `type_identity` is the projected carrier, not its containing owner's.
     Projection {
         source: CheckedStructuralValueHandle,
         path: Vec<crate::CheckedUnitStructuralPathSegment>,
         type_identity: TypeIdentityId,
+        /// A selected copy leaves its source's independent disposal debt live.
+        /// Whole-value forwarding has no selection and does not copy here.
+        copies_selected_value: bool,
     },
     Dispatch {
         subject: CheckedScalarComputationHandle,
@@ -322,10 +327,10 @@ impl CheckedStructuralValuePlans {
 
     /// Executable calls belong to the exact value DAG, not its eventual local,
     /// argument or observation consumer. Catalog order is not evaluation order.
-    pub fn calls_for_root(
+    pub fn call_schedule(
         &self,
         value: CheckedStructuralValueHandle,
-    ) -> Option<&[crate::CheckedStructuralValueCall]> {
+    ) -> Option<(u32, &[crate::CheckedStructuralValueCall])> {
         let mut schedules = self
             .call_schedules
             .iter()
@@ -335,12 +340,16 @@ impl CheckedStructuralValuePlans {
         if schedules.next().is_some() || !self.nodes.is_valid(value) {
             return None;
         }
-        Some(self.calls.span_or_empty(schedule.calls))
+        Some((
+            schedule.preceding_bindings,
+            self.calls.span_or_empty(schedule.calls),
+        ))
     }
 
     pub fn retain_calls_for_root(
         &mut self,
         value: CheckedStructuralValueHandle,
+        preceding_bindings: u32,
         calls: Vec<crate::CheckedStructuralValueCall>,
     ) {
         assert!(self.nodes.is_valid(value));
@@ -351,8 +360,35 @@ impl CheckedStructuralValuePlans {
                 .any(|(_, row)| row.value == value)
         );
         let calls = self.calls.insert_many(calls);
-        self.call_schedules
-            .insert(StructuralCallSchedule { value, calls });
+        self.call_schedules.insert(StructuralCallSchedule {
+            value,
+            preceding_bindings,
+            calls,
+        });
+    }
+
+    /// Retained invocation occurrences, including their normal-return schedules.
+    /// Typed identities let final planning complete rows without rebuilding the
+    /// value-to-call ownership index or cloning executable bodies.
+    pub fn scheduled_calls(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            Handle<crate::CheckedStructuralValueCall>,
+            &crate::CheckedStructuralValueCall,
+        ),
+    > {
+        self.calls.iter()
+    }
+
+    pub fn scheduled_call_mut(
+        &mut self,
+        call: Handle<crate::CheckedStructuralValueCall>,
+    ) -> Option<&mut crate::CheckedStructuralValueCall> {
+        if !self.calls.is_valid(call) {
+            return None;
+        }
+        Some(self.calls.get_mut(call))
     }
 
     /// Continuation and primary returns may share a statement, but never an

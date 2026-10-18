@@ -47,24 +47,39 @@ pub(in crate::checks::multiplicity) fn append_borrow(
         )
         .is_none()
         {
-            let PermissionEventSource::Call {
-                target_symbol,
-                statement_index,
-                ..
-            } = owner.consumer
-            else {
-                continue;
+            let boundary = match owner.consumer {
+                PermissionEventSource::Call {
+                    target_symbol,
+                    statement_index,
+                    ..
+                } => format!(
+                    "call `{}` at statement {}",
+                    program.symbols.name(target_symbol),
+                    statement_index
+                ),
+                PermissionEventSource::Statement { statement_index } => {
+                    format!("value completion at statement {}", statement_index)
+                }
+                _ => continue,
             };
             diagnostics.push(Diagnostic::error(format!(
-                "cannot automatically dispose borrowed temporary `{}` after call `{}` at statement {}: every contained linear obligation needs its owner-authorized terminal disposition",
-                program.normalized_type_identity_text(owner.type_reference),
-                program.symbols.name(target_symbol), statement_index,
+                "cannot automatically dispose borrowed temporary `{}` after {}: every contained linear obligation needs its owner-authorized terminal disposition",
+                program.normalized_type_identity_text(owner.type_reference), boundary,
             )));
             continue;
         }
         if validation::reference_result_custody::binding_multiplicity(program, owner.type_reference)
             == Multiplicity::Unrestricted
         {
+            continue;
+        }
+        if !places
+            .iter()
+            .any(|place| place.root == root && place.ever_established)
+        {
+            diagnostics.push(Diagnostic::error(
+                "unimplemented: conditional temporary owner cleanup needs selected establishment custody",
+            ));
             continue;
         }
         // Every owned temporary needs its exact normal disposition, including
@@ -80,13 +95,14 @@ pub(in crate::checks::multiplicity) fn append_borrow(
                 state,
                 source: owner.consumer,
                 exit: checked_trees::FlowClaimJoinExit::default(),
+                completion: owner.completion,
                 root,
                 disposed_type: owner.type_reference,
                 path: HandleSpan::empty(),
                 exclusions: HandleSpan::empty(),
             });
         permissions.push(FlowPermissionEventFact {
-            expression: Default::default(),
+            expression: owner.completion,
             evaluation,
             machine_symbol: machine,
             state_symbol: state,
@@ -113,7 +129,7 @@ pub(in crate::checks::multiplicity) fn append_borrow(
             .filter(|place| place.root == root && place.live)
         {
             permissions.push(FlowPermissionEventFact {
-                expression: Default::default(),
+                expression: owner.completion,
                 evaluation,
                 machine_symbol: machine,
                 state_symbol: state,

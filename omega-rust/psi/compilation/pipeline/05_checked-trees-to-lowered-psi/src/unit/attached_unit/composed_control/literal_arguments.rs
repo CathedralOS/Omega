@@ -36,6 +36,9 @@ pub(super) fn evaluate(
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
+    parameters: &[crate::unit::StructuralParameterDeclaration],
+    erased_parameters: &[ValueDeclaration],
+    sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
 ) -> Result<(Option<Vec<ValueDeclaration>>, Vec<PlaceId>), LoweringError> {
     let state_plan = state;
     let state = state.state;
@@ -46,12 +49,45 @@ pub(super) fn evaluate(
         if let Some(staged) = staged {
             return Ok((Some(staged.scalars.to_vec()), Vec::new()));
         }
-        let mut calls = catalogs.scalar_calls.emission_context();
-        let values = evaluation.arguments(
-            identities, checked, machine, state, operation, values, next_value, next_block,
-            next_edge, operations, &mut calls,
-        )?;
-        catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+        let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
+        let mut calls = scalar_calls.emission_context();
+        let values = {
+            let (mut environment, emission) = operation_catalogs
+                .operation_frame(
+                    checked,
+                    machine,
+                    state_plan,
+                    parameters,
+                    erased_parameters,
+                    sequence,
+                    crate::unit::attached_unit::operation_frame::OperationEmission {
+                        source_value_count: values.len(),
+                        evaluation,
+                        values,
+                        next_value,
+                        next_block,
+                        next_edge,
+                        calls: &mut calls,
+                        operations,
+                    },
+                )
+                .split();
+            emission.evaluation.arguments(
+                identities,
+                checked,
+                machine,
+                state,
+                operation,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )
+        }?;
+        scalar_calls.next_call_obligation = calls.next_obligation_identity;
         return Ok((values, Vec::new()));
     }
     let Some(call) = operation.call() else {
@@ -137,6 +173,10 @@ pub(super) fn evaluate(
                         next_block,
                         next_edge,
                         operations,
+                        machine,
+                        parameters,
+                        erased_parameters,
+                        sequence,
                     )?
                 };
                 byte_places.push(place);
@@ -145,23 +185,47 @@ pub(super) fn evaluate(
         } else if staged.is_none()
             && scalar_positions.get(scalar_slots.len()) == Some(&argument_position)
         {
-            let mut calls = catalogs.scalar_calls.emission_context();
-            let value = evaluation.argument_at(
-                identities,
-                checked,
-                machine,
-                state,
-                operation,
-                scalar_slots.len(),
-                source_value_count,
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-                &mut calls,
-            )?;
-            catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
+            let mut calls = scalar_calls.emission_context();
+            let value = {
+                let (mut environment, emission) = operation_catalogs
+                    .operation_frame(
+                        checked,
+                        machine,
+                        state_plan,
+                        parameters,
+                        erased_parameters,
+                        sequence,
+                        crate::unit::attached_unit::operation_frame::OperationEmission {
+                            source_value_count: values.len(),
+                            evaluation,
+                            values,
+                            next_value,
+                            next_block,
+                            next_edge,
+                            calls: &mut calls,
+                            operations,
+                        },
+                    )
+                    .split();
+                emission.evaluation.argument_at(
+                    identities,
+                    checked,
+                    machine,
+                    state,
+                    operation,
+                    scalar_slots.len(),
+                    source_value_count,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?;
+            scalar_calls.next_call_obligation = calls.next_obligation_identity;
             scalar_slots.push(values.len());
             values.push(value);
         }
@@ -206,6 +270,10 @@ pub(super) fn stage_range(
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
+    machine: symbols::SymbolHandle,
+    parameters: &[crate::unit::StructuralParameterDeclaration],
+    erased_parameters: &[ValueDeclaration],
+    sequence: &mut super::emission::OperationSequence,
 ) -> Result<PlaceId, LoweringError> {
     let bindings = evaluation
         .scalar_bindings
@@ -219,31 +287,53 @@ pub(super) fn stage_range(
         .with_structural_locals(&evaluation.structural_locals)
         .with_view_locals(&evaluation.view_locals)
         .with_element_views(&evaluation.element_views);
-    let context = byte_subslices::StagingContext {
-        state: state.state,
-        structural_types: &catalogs.structural_types,
-        type_ids: &catalogs.type_ids,
-        bindings: &bindings,
+    let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
+    let mut calls = scalar_calls.emission_context();
+    let result = {
+        let (mut environment, emission) = operation_catalogs
+            .operation_frame(
+                checked,
+                machine,
+                state,
+                parameters,
+                erased_parameters,
+                sequence,
+                crate::unit::attached_unit::operation_frame::OperationEmission {
+                    source_value_count,
+                    evaluation,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    calls: &mut calls,
+                    operations,
+                },
+            )
+            .split();
+        let context = byte_subslices::StagingContext {
+            state: state.state,
+            structural_types: environment.structural_types,
+            type_ids: environment.type_ids,
+            bindings: &bindings,
+        };
+        byte_subslices::emit(
+            identities,
+            checked,
+            &context,
+            operation,
+            ordinal,
+            emission.evaluation,
+            source_value_count,
+            emission.values,
+            emission.next_value,
+            emission.next_block,
+            emission.next_edge,
+            emission.operations,
+            emission.calls,
+            &mut environment,
+        )
     };
-    let mut calls = catalogs.scalar_calls.emission_context();
-    let result = byte_subslices::emit(
-        identities,
-        checked,
-        &context,
-        operation,
-        ordinal,
-        evaluation,
-        source_value_count,
-        values,
-        &mut catalogs.temporary_places,
-        &mut catalogs.next_place,
-        next_value,
-        next_block,
-        next_edge,
-        operations,
-        &mut calls,
-    );
-    catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+    scalar_calls.next_call_obligation = calls.next_obligation_identity;
     result
 }
 

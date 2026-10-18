@@ -31,6 +31,7 @@ pub struct PreparedNativeExecution {
     selection: effects::SelectedProviderPlanFacts,
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     demands: BTreeSet<String>,
+    compiler_builtins: Vec<crate::provider_admission::TerminalCompilerBuiltinProposal>,
 }
 
 /// Invocation-owned preparation, not provider or publication authority.
@@ -122,8 +123,8 @@ impl TerminalNativeRealizationProposal {
         let semantic_call = crate::SelectedProgramEntryCall::bind(
             artifact,
             self.program_entry(),
-            &self.providers().compiler_builtins,
-            self.providers().selection.plans(),
+            &self.providers().selection,
+            &self.providers().intrinsic_executions,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let input = crate::VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
@@ -194,19 +195,21 @@ impl TerminalNativeRealizationProposal {
         }
         let mut direct = Vec::new();
         let mut external_bindings = self.providers().external_bindings.clone();
-        for leaf in &self.providers().direct_foreign_leaves {
+        for leaf in &self.providers().direct_boundary_leaves {
             if leaf.plan.rows.iter().any(|row| {
                 direct_demands.contains(leaf.plan.identities.text(row.requirement_identity))
             }) {
                 direct.push(leaf.plan.clone());
-                external_bindings.push(leaf.external_binding.clone()?);
+                if let backend_plan::DirectBoundaryExecution::Foreign(binding) = &leaf.execution {
+                    external_bindings.push(binding.clone()?);
+                }
             }
         }
         let mut selection = self
             .providers()
             .selection
             .clone()
-            .with_direct_foreign_plans(direct)
+            .with_direct_boundary_plans(direct)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let mut family_rows = selection.family_realization_rows().to_vec();
         let mut identities = selection.identities().clone().into_builder();
@@ -233,6 +236,66 @@ impl TerminalNativeRealizationProposal {
         let input = input
             .bind_selected_provider_coordinates(artifact, &selection)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        // Selection may reorder plans when executable direct dependencies
+        // join. Rejoin complete plans, then derive every builtin in that one
+        // namespace; no saved plan ordinal crosses this selection boundary.
+        let executions = selection
+            .plans()
+            .iter()
+            .map(|plan| {
+                if let Some(position) = self
+                    .providers()
+                    .selection
+                    .plans()
+                    .iter()
+                    .position(|original| original == plan)
+                {
+                    return self
+                        .providers()
+                        .intrinsic_executions
+                        .get(position)
+                        .cloned()
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "native execution lost original intrinsic row custody",
+                            )]
+                        });
+                }
+                let leaf = self
+                    .providers()
+                    .direct_boundary_leaves
+                    .iter()
+                    .find(|leaf| leaf.plan == *plan)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "native execution has an unowned direct plan",
+                        )]
+                    })?;
+                Ok(vec![match leaf.execution {
+                    backend_plan::DirectBoundaryExecution::Intrinsic(identity) => identity,
+                    backend_plan::DirectBoundaryExecution::Foreign(_) => None,
+                }])
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let compiler_builtins =
+            crate::provider_admission::derive_selected_intrinsic_settlement_proposals(
+                &selection,
+                selection
+                    .plans()
+                    .iter()
+                    .zip(&executions)
+                    .map(|(plan, row_executions)| {
+                        crate::provider_admission::CompilerIntrinsicPlanProvenance {
+                            plan,
+                            row_executions,
+                        }
+                    }),
+                &demands,
+                &module.boundary_machines,
+                &module.identities,
+            )?;
+        // Builtin occurrences bind the actual boundary IDs, including family
+        // heads. Only provider settlement demand uses normalized row identity.
         let demands = demands
             .into_iter()
             .map(|identity| {
@@ -247,6 +310,7 @@ impl TerminalNativeRealizationProposal {
                 selection,
                 external_bindings,
                 demands,
+                compiler_builtins,
             },
         ))
     }
@@ -300,8 +364,8 @@ impl TerminalNativeRealizationProposal {
         )?;
 
         let compiler_builtins = crate::provider_admission::prepare_retained_compiler_builtins(
-            self.providers().compiler_builtins.as_slice(),
-            self.providers().selection.plans(),
+            inputs.execution.compiler_builtins.as_slice(),
+            inputs.execution.selection.plans(),
         )?;
 
         Ok(PreparedRetainedNativeProviders {

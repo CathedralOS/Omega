@@ -83,6 +83,7 @@ pub(crate) fn emit_assignment(
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
+    environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
 ) -> Result<OperationKind, LoweringError> {
     // Capture the exact call-result slot before selector evaluation creates
     // private staging slots. Selector continuations preserve this scalar
@@ -117,6 +118,7 @@ pub(crate) fn emit_assignment(
         next_edge,
         operations,
         calls,
+        environment,
     )?;
     let value = if let Some(position) = call_result {
         let value = *values.get(position).ok_or(LoweringError::Unsupported(
@@ -155,6 +157,7 @@ pub(crate) fn emit_assignment(
             next_edge,
             operations,
             calls,
+            environment,
         )?
     };
     let path =

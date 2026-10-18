@@ -77,6 +77,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         );
         let statement_fact = build.control.statements.append(FlowStatementFact {
             statement_index,
+            value_observations: HandleSpan::empty(),
             stored_value: Handle::invalid(),
             store_target: Handle::invalid(),
             stored_destination: Handle::invalid(),
@@ -137,6 +138,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 machine,
                 state,
                 statement_index,
+                statement_fact,
                 transition,
                 statement_calls,
                 &mut state_calls,
@@ -160,6 +162,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 machine,
                 state,
                 statement_index,
+                statement_fact,
                 statement,
                 statement_calls,
                 &mut state_calls,
@@ -419,7 +422,13 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                     // whole footprint, as an unknown-source origin is retired,
                     // and keep facts held under every other name.
                     .unwrap_or_else(|| {
-                        unknown_alias_footprints(program, state, statement_index, places)
+                        unknown_alias_footprints(
+                            program,
+                            build.call_frames,
+                            state,
+                            statement_index,
+                            places,
+                        )
                     })
             })
         } else {
@@ -646,15 +655,21 @@ fn append_proof_output_ensures(
 }
 
 /// The physical writes plus every local declared before `statement_index`
-/// that may hold a reference. Primitive locals hold no reference and stay
-/// disjoint from the store; aggregates may embed one, so they are retired.
+/// that may hold a reference. Missing origin evidence does not make an owned,
+/// reference-free value an alias: use the frame owner's complete structural
+/// classification, not a primitive-versus-aggregate approximation. Opaque,
+/// recursive and unresolved types remain conservative. This excludes aliases;
+/// it grants no domain facts or exemption from the physical write footprint.
 fn unknown_alias_footprints(
     program: &dyn ::validation::CheckingInput,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     state: &typed_trees::state::State,
     statement_index: usize,
     places: &[validation::CanonicalPlace],
 ) -> Vec<validation::CanonicalPlace> {
     let mut footprints = places.to_vec();
+    let mut owned_frames = None;
+    let frames = super::shared_call_frames_or(call_frames, program, &mut owned_frames);
     for statement in program
         .statement_table
         .statements(state.statement_nodes)
@@ -664,10 +679,7 @@ fn unknown_alias_footprints(
         let StatementNode::LocalData(local) = statement else {
             continue;
         };
-        if program
-            .primitive_type_reference(local.type_reference)
-            .is_some()
-        {
+        if frames.is_some_and(|frames| frames.value_is_reference_free(local.type_reference)) {
             continue;
         }
         if let Some(alias) = super::canonical_place_from_symbol(local.symbol)

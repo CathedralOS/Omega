@@ -237,10 +237,23 @@ impl Builder<'_, '_> {
         role: CheckedScalarExpressionRole,
         root: CheckedScalarComputationHandle,
     ) -> Option<()> {
+        let statement_ordinal = u32::try_from(self.statement_index).ok()?;
+        let mut published =
+            self.plans
+                .roots_for_statement_role(self.state, statement_ordinal, role);
+        if let Some(existing) = published.next() {
+            // Reusing one completed operand may publish its identity again;
+            // it cannot replace that occurrence with another computation.
+            return (published.next().is_none()
+                && existing.machine == self.machine
+                && existing.root == root)
+                .then_some(());
+        }
+        drop(published);
         self.plans.roots.append(CheckedScalarComputationRoot {
             machine: self.machine,
             state: self.state,
-            statement_ordinal: u32::try_from(self.statement_index).ok()?,
+            statement_ordinal,
             role,
             root,
         });
@@ -761,7 +774,12 @@ impl Builder<'_, '_> {
                     structural_arguments,
                     temporary_cleanups,
                     claim_transfers,
-                } = self.call_operands(source_call, &arguments, target_parameters)?;
+                } = self.call_operands(
+                    source_call,
+                    self.flow.control.calls.get(source_call).argument_operands(),
+                    &arguments,
+                    target_parameters,
+                )?;
                 Some(self.insert(
                     expected_type,
                     CheckedScalarComputationKind::Call {

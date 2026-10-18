@@ -27,8 +27,7 @@ pub(super) fn actions(
     machine: SymbolHandle,
     state: SymbolHandle,
     parameters: &[CheckedUnitStructuralParameterPlan],
-    operations: &[CheckedUnitEffectOperationPlan],
-    operation_index: usize,
+    operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<super::temporary_actions::SelectedActions> {
     let CheckedUnitEffectOperationPlan::ContinuationCleanup {
         boundary:
@@ -39,7 +38,7 @@ pub(super) fn actions(
                 ..
             },
         ..
-    } = operations.get(operation_index)?
+    } = operation
     else {
         return None;
     };

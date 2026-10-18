@@ -13,13 +13,170 @@ use super::super::super::StructuralParameterDeclaration;
 use super::super::argument_schedule::{self, Step};
 use super::super::bodies::UnitPlans;
 use super::super::operation_frame::{
-    CallInputs, Callees, CallerCustody, OperationFrame, StructuralResults, StructuralTypeRoster,
+    CallInputs, Callees, CallerCustody, OperationEmission, OperationFrame, StructuralResults,
+    StructuralTypeRoster,
 };
 use super::super::primitive_locals::PrimitiveLocal;
 use super::super::{CheckedUnitEffectOperationPlan, ValueDeclaration, unsupported};
 use super::{CheckedTrees, LoweringError, catalogs, literal_arguments};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use std::borrow::Cow;
+
+/// Storage established by one selected operation sequence. Scalar operands,
+/// ordinary operations and its final guard share this custody frontier.
+pub(super) struct OperationSequence {
+    windows: crate::emission::borrowed_window::BorrowedWindowLedger,
+    primitive_locals: Vec<PrimitiveLocal>,
+}
+
+impl OperationSequence {
+    pub(super) fn new(evaluation: &super::super::argument_evaluation::Evaluation) -> Self {
+        Self {
+            windows: Default::default(),
+            primitive_locals: evaluation.parameter_storage.clone(),
+        }
+    }
+
+    /// Sibling paths inherit storage, never each other's later establishments.
+    /// Forking does not depart: checked crash-only branches may abandon debt.
+    pub(super) fn branch(&self) -> Self {
+        Self {
+            windows: self.windows.clone(),
+            primitive_locals: self.primitive_locals.clone(),
+        }
+    }
+
+    pub(super) fn require_closed(&self) -> Result<(), LoweringError> {
+        self.windows.require_closed()
+    }
+
+    pub(super) fn finish_state(
+        &self,
+        checked: &CheckedTrees,
+        state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    ) -> Result<(), LoweringError> {
+        match state
+            .terminator
+            .abandons_custody(&checked.facts.flow.guarded_exits)
+        {
+            Some(true) => Ok(()),
+            Some(false) => self.require_closed(),
+            None => unsupported("composed abandonment roster is stale"),
+        }
+    }
+}
+
+/// The operation half of the catalog borrows independently of scalar call
+/// context construction. Both still use the catalog's one identity namespace.
+pub(super) struct ComposedOperationCatalogs<'frame, 'catalogs> {
+    pub(super) structural_types:
+        &'frame mut Cow<'catalogs, [crate::unit::StructuralTypeDeclaration]>,
+    type_ids: &'frame [(
+        typed_trees::type_identity::TypeIdentityId,
+        crate::unit::StructuralTypeId,
+    )],
+    service_ids: &'frame [(crate::unit::ServiceReachId, crate::unit::ServiceId)],
+    signatures: &'frame [super::super::signatures::MachineSignature],
+    boundary_parameters: &'frame [super::super::operation_frame::BoundaryParameters],
+    domain_ids: &'frame [crate::terminal_identities::StructuralDomainBinding],
+    domain_declarations: &'frame [terminal_psi::StructuralDomainDeclaration],
+    closure: &'frame [symbols::SymbolHandle],
+    temporary_places: &'frame mut Vec<crate::unit::StructuralPlaceDeclaration>,
+    result_places: &'frame mut Vec<crate::unit::StructuralPlaceDeclaration>,
+    next_place: &'frame mut u64,
+}
+
+impl<'catalogs> catalogs::ComposedCatalogs<'catalogs> {
+    pub(super) fn operation_catalogs(
+        &mut self,
+    ) -> (
+        ComposedOperationCatalogs<'_, 'catalogs>,
+        &mut super::scalar_calls::ComposedScalarCalls,
+    ) {
+        (
+            ComposedOperationCatalogs {
+                structural_types: &mut self.structural_types,
+                type_ids: &self.type_ids,
+                service_ids: &self.service_ids,
+                signatures: &self.signatures,
+                boundary_parameters: &self.boundary_parameters,
+                domain_ids: &self.domain_ids,
+                domain_declarations: self.domain_declarations,
+                closure: self.closure,
+                temporary_places: &mut self.temporary_places,
+                result_places: &mut self.result_places,
+                next_place: &mut self.next_place,
+            },
+            &mut self.scalar_calls,
+        )
+    }
+}
+
+impl ComposedOperationCatalogs<'_, '_> {
+    /// Bind the state's actual source owner and transported parameters to the
+    /// same catalog, private allocator and sequence frontier for every value.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn operation_frame<'frame, 'calls>(
+        &'frame mut self,
+        checked: &'frame CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: &'frame checked_trees::CheckedComposedUnitControlStatePlan,
+        parameters: &'frame [StructuralParameterDeclaration],
+        erased_parameters: &'frame [ValueDeclaration],
+        sequence: &'frame mut OperationSequence,
+        emission: OperationEmission<'frame, 'calls>,
+    ) -> OperationFrame<'frame, 'calls> {
+        let scalar_result = match &state.terminator {
+            checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
+            } => Some(binding),
+            _ => None,
+        };
+        OperationFrame {
+            checked,
+            machine,
+            state: state.state,
+            scalar_result,
+            scalar_parameter_count: state.scalar_parameters.len(),
+            source_value_count: emission.source_value_count,
+            parameters: emission.evaluation.current_parameters(parameters),
+            structural_types: match &mut *self.structural_types {
+                Cow::Owned(types) => StructuralTypeRoster::Owned(types),
+                Cow::Borrowed(types) => StructuralTypeRoster::Published(types),
+            },
+            type_ids: &self.type_ids,
+            service_ids: &self.service_ids,
+            primitive_locals: &sequence.primitive_locals,
+            results: StructuralResults::StateGraph {
+                state,
+                places: &mut self.result_places,
+            },
+            private_places: &mut self.temporary_places,
+            windows: &mut sequence.windows,
+            evaluation: emission.evaluation,
+            values: emission.values,
+            next_place: &mut self.next_place,
+            next_value: emission.next_value,
+            next_block: emission.next_block,
+            next_edge: emission.next_edge,
+            calls: emission.calls,
+            operations: emission.operations,
+            callees: Callees {
+                plans: UnitPlans::published(&checked.facts.flow),
+                signatures: &self.signatures,
+                boundaries: &self.boundary_parameters,
+                domain_ids: &self.domain_ids,
+                domain_declarations: self.domain_declarations,
+                closure: self.closure,
+            },
+            caller: CallerCustody {
+                erased_scalar_parameters: erased_parameters,
+                erased_proof_parameters: &state.erased_proof_parameters,
+                local_places: &[],
+            },
+        }
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_call_operations(
@@ -40,6 +197,7 @@ pub(super) fn emit_call_operations(
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
+    sequence: &mut OperationSequence,
 ) -> Result<(), LoweringError> {
     // Borrowed-storage windows open and close within one straight-line
     // operation sequence. Every normal exit follows the last operation and
@@ -48,20 +206,10 @@ pub(super) fn emit_call_operations(
     // roster still requires restoration; no state-graph join receives a hole.
     // Blocks split off by argument evaluation rejoin with the one frontier
     // this sequence carries.
-    let mut windows = crate::emission::borrowed_window::BorrowedWindowLedger::default();
-    let plans = UnitPlans::published(&checked.facts.flow);
     // The state's `mut` formal storage and the mutable primitive locals this
     // sequence establishes. Their places live in the shared private roster;
     // this roster keys later stores to them by authored symbol, as the
     // ordinary machine's roster does.
-    let mut primitive_locals: Vec<PrimitiveLocal> = evaluation.parameter_storage.clone();
-    // A returned final expression evaluates in the `Return` role.
-    let scalar_result = match &state.terminator {
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-            completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
-        } => Some(binding),
-        _ => None,
-    };
     let schedule =
         argument_schedule::build_operations(checked, machine, state.state, planned_operations)?;
     let mut schedule = schedule.iter().peekable();
@@ -105,23 +253,47 @@ pub(super) fn emit_call_operations(
                 if staged_scalar_slots[operation].len() != ordinal {
                     return unsupported("composed scalar operand ordinals are not dense");
                 }
-                let mut calls = catalogs.scalar_calls.emission_context();
-                let value = evaluation.argument_at(
-                    identities,
-                    checked,
-                    machine,
-                    state.state,
-                    &planned_operations[operation],
-                    ordinal,
-                    source_value_count,
-                    values,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    operations,
-                    &mut calls,
-                )?;
-                catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
+                let mut calls = scalar_calls.emission_context();
+                let value = {
+                    let (mut environment, emission) = operation_catalogs
+                        .operation_frame(
+                            checked,
+                            machine,
+                            state,
+                            parameters,
+                            erased_parameters,
+                            sequence,
+                            OperationEmission {
+                                source_value_count,
+                                evaluation,
+                                values,
+                                next_value,
+                                next_block,
+                                next_edge,
+                                calls: &mut calls,
+                                operations,
+                            },
+                        )
+                        .split();
+                    emission.evaluation.argument_at(
+                        identities,
+                        checked,
+                        machine,
+                        state.state,
+                        &planned_operations[operation],
+                        ordinal,
+                        source_value_count,
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                }?;
+                scalar_calls.next_call_obligation = calls.next_obligation_identity;
                 staged_scalar_slots[operation].push(values.len());
                 values.push(value);
                 continue;
@@ -134,24 +306,48 @@ pub(super) fn emit_call_operations(
                 let source_value_count = retained_source_count.ok_or(
                     LoweringError::Unsupported("composed selector has no source prefix"),
                 )?;
-                let mut calls = catalogs.scalar_calls.emission_context();
-                let value = evaluation.call_selector(
-                    identities,
-                    checked,
-                    machine,
-                    state.state,
-                    &planned_operations[operation],
-                    argument,
-                    segment,
-                    source_value_count,
-                    values,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    operations,
-                    &mut calls,
-                )?;
-                catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
+                let mut calls = scalar_calls.emission_context();
+                let value = {
+                    let (mut environment, emission) = operation_catalogs
+                        .operation_frame(
+                            checked,
+                            machine,
+                            state,
+                            parameters,
+                            erased_parameters,
+                            sequence,
+                            OperationEmission {
+                                source_value_count,
+                                evaluation,
+                                values,
+                                next_value,
+                                next_block,
+                                next_edge,
+                                calls: &mut calls,
+                                operations,
+                            },
+                        )
+                        .split();
+                    emission.evaluation.call_selector(
+                        identities,
+                        checked,
+                        machine,
+                        state.state,
+                        &planned_operations[operation],
+                        argument,
+                        segment,
+                        source_value_count,
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                }?;
+                scalar_calls.next_call_obligation = calls.next_obligation_identity;
                 staged_selector_slots[operation].push(values.len());
                 values.push(value);
                 continue;
@@ -163,23 +359,47 @@ pub(super) fn emit_call_operations(
                 let source_value_count = retained_source_count.ok_or(
                     LoweringError::Unsupported("composed endpoint operand has no source prefix"),
                 )?;
-                let mut calls = catalogs.scalar_calls.emission_context();
-                evaluation.window_endpoints(
-                    identities,
-                    checked,
-                    machine,
-                    state.state,
-                    &planned_operations[operation],
-                    argument,
-                    source_value_count,
-                    values,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    operations,
-                    &mut calls,
-                )?;
-                catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
+                let mut calls = scalar_calls.emission_context();
+                {
+                    let (mut environment, emission) = operation_catalogs
+                        .operation_frame(
+                            checked,
+                            machine,
+                            state,
+                            parameters,
+                            erased_parameters,
+                            sequence,
+                            OperationEmission {
+                                source_value_count,
+                                evaluation,
+                                values,
+                                next_value,
+                                next_block,
+                                next_edge,
+                                calls: &mut calls,
+                                operations,
+                            },
+                        )
+                        .split();
+                    emission.evaluation.window_endpoints(
+                        identities,
+                        checked,
+                        machine,
+                        state.state,
+                        &planned_operations[operation],
+                        argument,
+                        source_value_count,
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                }?;
+                scalar_calls.next_call_obligation = calls.next_obligation_identity;
                 continue;
             }
             Step::Subslice { operation, ordinal } => {
@@ -206,11 +426,15 @@ pub(super) fn emit_call_operations(
                     next_block,
                     next_edge,
                     operations,
+                    machine,
+                    parameters,
+                    erased_parameters,
+                    sequence,
                 )?;
                 staged_ranges[operation].push((ordinal, place));
                 continue;
             }
-            Step::Call(index) | Step::Produce(index) if retained_source_count.is_some() => {
+            Step::Call(index) | Step::Operation(index) if retained_source_count.is_some() => {
                 (index, true)
             }
             Step::Ordinary(index) if retained_source_count.is_none() => (index, false),
@@ -272,6 +496,9 @@ pub(super) fn emit_call_operations(
                 next_block,
                 next_edge,
                 operations,
+                parameters,
+                erased_parameters,
+                sequence,
             )?)
         };
         // The final call publishes into the state's ordinary scalar binding
@@ -280,58 +507,32 @@ pub(super) fn emit_call_operations(
         if matches!(step, Step::Call(_)) && matches!(schedule.peek(), Some(Step::End)) {
             values.truncate(source_value_count);
         }
-        let mut calls = catalogs.scalar_calls.emission_context();
+        let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
+        let mut calls = scalar_calls.emission_context();
         calls.claims = crate::emission::claim_bindings::ClaimBindings::Fixed(claim_bindings);
-        let frame = OperationFrame {
+        let frame = operation_catalogs.operation_frame(
             checked,
             machine,
-            state: state.state,
-            scalar_result,
-            scalar_parameter_count: state.scalar_parameters.len(),
-            source_value_count,
-            parameters: evaluation.current_parameters(parameters),
-            structural_types: match &mut catalogs.structural_types {
-                Cow::Owned(types) => StructuralTypeRoster::Owned(types),
-                Cow::Borrowed(types) => StructuralTypeRoster::Published(types),
+            state,
+            parameters,
+            erased_parameters,
+            sequence,
+            OperationEmission {
+                source_value_count,
+                evaluation,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                calls: &mut calls,
+                operations,
             },
-            type_ids: &catalogs.type_ids,
-            service_ids: &catalogs.service_ids,
-            primitive_locals: &primitive_locals,
-            results: StructuralResults::StateGraph {
-                state,
-                places: &mut catalogs.result_places,
-            },
-            // A composed body keeps literals, construction and join places
-            // in its one private temporary roster.
-            private_places: &mut catalogs.temporary_places,
-            windows: &mut windows,
-            evaluation,
-            values,
-            next_place: &mut catalogs.next_place,
-            next_value,
-            next_block,
-            next_edge,
-            calls: &mut calls,
-            operations,
-            callees: Callees {
-                plans,
-                signatures: &catalogs.signatures,
-                boundaries: &catalogs.boundary_parameters,
-                domain_ids: &catalogs.domain_ids,
-                domain_declarations: catalogs.domain_declarations,
-                closure: catalogs.closure,
-            },
-            caller: CallerCustody {
-                erased_scalar_parameters: erased_parameters,
-                erased_proof_parameters: &state.erased_proof_parameters,
-                local_places: &[],
-            },
-        };
+        );
+        let mut established_local = None;
         match &call_operands {
             None if establishes_local => {
                 let local = frame.establish_primitive_local(identities, operation)?;
-                catalogs.temporary_places.push(local.declaration);
-                primitive_locals.push(local);
+                established_local = Some(local);
             }
             None => frame.emit(identities, operation)?,
             Some((arguments, byte_places)) => frame.emit_call(
@@ -344,20 +545,14 @@ pub(super) fn emit_call_operations(
                 },
             )?,
         }
-        catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+        scalar_calls.next_call_obligation = calls.next_obligation_identity;
+        if let Some(local) = established_local {
+            catalogs.temporary_places.push(local.declaration);
+            sequence.primitive_locals.push(local);
+        }
         if operations.external_completion.is_some() {
             break;
         }
     }
-    if state
-        .terminator
-        .abandons_custody(&checked.facts.flow.guarded_exits)
-        .ok_or(LoweringError::Unsupported(
-            "composed abandonment roster is stale",
-        ))?
-    {
-        Ok(())
-    } else {
-        windows.require_closed()
-    }
+    sequence.finish_state(checked, state)
 }

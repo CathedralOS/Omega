@@ -16,15 +16,23 @@ pub(in crate::legalization) fn scalar_store_destination(
     abstract_operations::StructuralScalarStoreDestination,
     Vec<terminal_psi::StructuralPathSegment>,
 )> {
-    if !field_write_preserves_memberships(
-        function,
-        types,
-        domains,
-        identities,
-        destination.place(),
+    let selected = terminal_semantics::projected_field_declaration(
+        types.iter(),
         destination.structural_type(),
         path,
         field,
+    )?;
+    let mut written = path.to_vec();
+    written.push(terminal_psi::StructuralPathSegment::Field(
+        selected.identity,
+    ));
+    if !optimization_unit_semantics::structural_write_preserves_content(
+        function,
+        destination.place(),
+        &written,
+        types,
+        domains,
+        identities,
     ) {
         return None;
     }

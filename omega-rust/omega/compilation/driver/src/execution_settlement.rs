@@ -249,7 +249,7 @@ fn prepare_target_provider_selection(
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
     provider_planning::settle_checked_providers(
-        typed,
+        &source.program,
         settled_target_machines,
         selected_target_profile,
         package_inputs,
@@ -309,7 +309,7 @@ pub(crate) fn install_selected_target(
     let source_map = selection.checked.program.typed.symbols.source_map();
     let SelectedProviderCustody {
         checked,
-        settlement,
+        mut settlement,
         selected_provider_provenance,
         selected_program_entry,
         selected_target_profile,
@@ -333,6 +333,7 @@ pub(crate) fn install_selected_target(
                 x86_scalar_fma_provider,
                 permit_unsettled_fused_service_fields,
                 selected_provider_provenance,
+                direct_boundary_candidates: &mut settlement.direct_boundary_leaves,
                 opaque_representation_selections: &build.config.opaque_representation_selections,
             },
         )

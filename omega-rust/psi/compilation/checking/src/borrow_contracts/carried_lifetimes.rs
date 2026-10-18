@@ -51,6 +51,8 @@ struct TemplateFrontier<'a> {
     parameters: &'a [SymbolHandle],
     authority_parameters: &'a [typed_trees::data::TypeParameter],
     dependent: bool,
+    /// Declaration inventory retains registered binders without granting leaves.
+    declaration_inventory: bool,
     scoped_regions: bool,
     frontier: LifetimeFrontier,
 }
@@ -85,6 +87,7 @@ pub fn declaration_lifetime_frontier(
         scoped_regions: false,
         frontier: LifetimeFrontier::Value,
         authority_parameters: &[],
+        declaration_inventory: false,
     };
     let mut leaves = Vec::new();
     let complete = collect_type(
@@ -116,16 +119,6 @@ pub(super) fn carried_lifetimes(
     reference: TypeReferenceHandle,
 ) -> Option<Vec<CarriedLifetime>> {
     storage_lifetimes(program, reference, LifetimeFrontier::Value)
-}
-
-/// A borrowed storage frontier may have a runtime extent. Its element type
-/// determines whether it contains descriptors; the extent alone does not make
-/// scalar storage incomplete. Descriptor-bearing slices retain dynamic paths.
-pub(super) fn borrowed_storage_lifetimes(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<Vec<CarriedLifetime>> {
-    storage_lifetimes(program, reference, LifetimeFrontier::BorrowedStorage)
 }
 
 fn storage_lifetimes(
@@ -337,6 +330,41 @@ pub(super) fn symbolic_input_lifetimes(
     )
 }
 
+/// Known declaration leaves and the obligation to close remaining binders.
+/// A dependent inventory supplies no complete relation or reference-free proof.
+pub(super) struct CarriedLifetimeInventory {
+    pub(super) leaves: Vec<CarriedLifetime>,
+    pub(super) template_dependent: bool,
+}
+
+pub(super) fn declaration_lifetime_inventory(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    frontier: LifetimeFrontier,
+) -> Option<CarriedLifetimeInventory> {
+    let mut leaves = Vec::new();
+    let mut template = TemplateFrontier {
+        frontier,
+        declaration_inventory: true,
+        ..TemplateFrontier::default()
+    };
+    collect_type(
+        program,
+        reference,
+        &[],
+        TypeScope::default(),
+        &[],
+        &mut Vec::new(),
+        &mut leaves,
+        false,
+        &mut template,
+    )
+    .then_some(CarriedLifetimeInventory {
+        leaves,
+        template_dependent: template.dependent,
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn scoped_carried_lifetimes(
     program: &dyn crate::CheckingInput,
@@ -374,6 +402,7 @@ pub(super) fn scoped_carried_lifetimes(
             scoped_regions,
             frontier,
             authority_parameters: &[],
+            declaration_inventory: false,
         },
     )
     .then_some(output)
@@ -793,7 +822,8 @@ fn collect_type(
             }
             let Some(definition) = data_definition(program, *symbol) else {
                 if template.parameters.contains(symbol)
-                    || (template.frontier == LifetimeFrontier::BorrowedStorage
+                    || ((template.frontier == LifetimeFrontier::BorrowedStorage
+                        || template.declaration_inventory)
                         && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter)
                 {
                     // The input reference still lends its declared region
@@ -865,6 +895,7 @@ fn collect_family(
         .filter(|parameter| !pack.iter().any(|binder| binder.symbol == *parameter))
         .collect::<Vec<_>>();
     let mut family_template = TemplateFrontier {
+        declaration_inventory: false,
         parameters: &comparison_parameters,
         dependent: false,
         scoped_regions: template.scoped_regions,

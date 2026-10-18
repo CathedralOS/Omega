@@ -89,8 +89,8 @@ pub use self::terminal::{
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
     CheckedUnitStructuralReturnPlan, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
-    checked_structural_type_by_identity, is_borrowed_view, is_bounded_nominal_cleanup_record,
-    is_partial_affine_field_type,
+    CheckedValueCompletionPlan, checked_structural_type_by_identity, is_borrowed_view,
+    is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
 };
 pub use borrow_lifetimes::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,
@@ -105,7 +105,7 @@ pub use control::{
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
 pub use operand::{
     FlowAtomicExecutionFact, FlowCaseAccessFact, FlowOperandChild, FlowOperandFact,
-    FlowOperandReferent,
+    FlowOperandReferent, FlowOperandRetainedLeaf, FlowOperandRetention, FlowValueObservationFact,
 };
 pub use ownership::{
     FlowBorrowClaimFact, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource,

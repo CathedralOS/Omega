@@ -38,17 +38,35 @@ impl Builder<'_, '_> {
     /// Retain runtime children independently of the canonical endpoint's ordinal.
     pub(in crate::execution::scalar_computations) fn projection_selector_evaluations(
         &mut self,
-        expression: ExpressionHandle,
+        owner: ExpressionHandle,
+        source: ExpressionHandle,
     ) -> Option<
         Vec<(
             ExpressionHandle,
             checked_trees::CheckedScalarComputationHandle,
         )>,
     > {
-        validation::assignment_target_selectors(self.program, expression)
+        validation::assignment_target_selectors(self.program, source)
             .into_iter()
             .rev()
-            .map(|expression| Some((expression, self.index_selector(expression)?)))
+            .enumerate()
+            .map(|(ordinal, selector)| {
+                // Different consumers of one captured projection share its
+                // selector evaluation, not merely an equal-looking index.
+                let role = CheckedScalarExpressionRole::StructuralValueSelector {
+                    expression: owner,
+                    selector_ordinal: u32::try_from(ordinal).ok()?,
+                };
+                let value = if let Some(root) =
+                    self.plans
+                        .root_at(self.state, u32::try_from(self.statement_index).ok()?, role)
+                {
+                    root.root
+                } else {
+                    self.index_selector(selector)?
+                };
+                Some((selector, value))
+            })
             .collect()
     }
 
@@ -231,12 +249,9 @@ impl Builder<'_, '_> {
                     expression,
                 ) =>
             {
-                validation::checked_argument_matches_type_reference(
-                    self.program,
-                    expression,
-                    expected,
-                )
-                .then_some(())?;
+                // Source admission already checked this actual against its
+                // formal in the caller's telescope. Retain the produced
+                // carrier; replaying correspondence here loses that scope.
                 (expression, actual)
             }
             TypeReferenceNode::Reference { .. }
@@ -477,6 +492,7 @@ impl Builder<'_, '_> {
             CheckedStructuralValueKind::Projection {
                 source,
                 path: Vec::new(),
+                copies_selected_value: false,
                 type_identity: validation::stored_structural_type_identity(
                     self.program,
                     expected,
@@ -610,7 +626,7 @@ impl Builder<'_, '_> {
                 }
                 // Geometry can already know an ordinal from a call's result
                 // contract. Its authored evaluation remains a child even then.
-                selectors = self.projection_selector_evaluations(formation.source)?;
+                selectors = self.projection_selector_evaluations(expression, formation.source)?;
             }
             let selector = |expression| {
                 selectors.iter().find_map(|(selector, value)| {

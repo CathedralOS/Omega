@@ -31,6 +31,9 @@ pub(crate) struct TemporaryOwner {
     pub(crate) evaluation: checked_trees::FlowPermissionEvaluation,
     pub(crate) producer: PermissionEventSource,
     pub(crate) consumer: PermissionEventSource,
+    /// A noncall observation can be the last user of returned backing. Zero
+    /// retains the exact call continuation named by `consumer`.
+    pub(crate) completion: typed_trees::expression::ExpressionHandle,
     completion_ordinal: usize,
 }
 
@@ -95,19 +98,28 @@ pub(crate) fn temporary_owners(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     calls: &[checked_trees::FlowCallFact],
-) -> Vec<TemporaryOwner> {
+) -> Result<Vec<TemporaryOwner>, diagnostics::Diagnostic> {
     let completed = program
         .statement_table
         .indexed_statements(state.statement_nodes)
         .map(|(statement_index, statement)| {
-            crate::checks::ownership_occurrences::completed_expressions(
+            crate::checks::ownership_occurrences::statement_steps(
                 program,
                 machine,
                 state,
                 statement_index,
                 statement,
+                &[],
                 &facts.operators,
             )
+            .into_iter()
+            .filter_map(|occurrence| match occurrence.step {
+                crate::checks::ownership_occurrences::StatementStep::Complete(expression) => {
+                    Some((expression, occurrence.route))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
     let mut owners = Vec::new();
@@ -116,7 +128,11 @@ pub(crate) fn temporary_owners(
             || (consumer.authored_expression.is_valid()
                 && !completed
                     .get(consumer.statement_index)
-                    .is_some_and(|expressions| expressions.contains(&consumer.authored_expression)))
+                    .is_some_and(|expressions| {
+                        expressions
+                            .iter()
+                            .any(|(expression, _)| *expression == consumer.authored_expression)
+                    }))
         {
             continue;
         }
@@ -263,7 +279,7 @@ pub(crate) fn temporary_owners(
                 .into_iter()
                 .flatten()
                 .enumerate()
-                .filter(|(_, completed)| **completed == expression);
+                .filter(|(_, (completed, _))| *completed == expression);
             let Some((completion_ordinal, _)) = completions.next() else {
                 continue;
             };
@@ -282,13 +298,154 @@ pub(crate) fn temporary_owners(
                     target_symbol: consumer.target_symbol,
                 },
                 completion_ordinal,
+                completion: typed_trees::expression::ExpressionHandle::invalid(),
             });
+        }
+    }
+    // A returned descriptor can lend the original anonymous owner to a later
+    // call in this evaluation. Operand capture already retains its actual
+    // lifetime dependencies, independently of returned address precision. Keep the original
+    // establishment and borrowed region, but give its normal death to the
+    // last completing consumer that still holds that exact backing.
+    for owner in &mut owners {
+        if !matches!(owner.consumption, TemporaryConsumption::Borrow { .. }) {
+            continue;
+        }
+        let PermissionEventSource::Call {
+            statement_index, ..
+        } = owner.consumer
+        else {
+            continue;
+        };
+        let Some(completions) = completed.get(statement_index) else {
+            continue;
+        };
+        let completion_at = |call: &checked_trees::FlowCallFact| {
+            if !call.authored_expression.is_valid() {
+                return Some((completions.len(), &[][..]));
+            }
+            let mut matching = completions
+                .iter()
+                .enumerate()
+                .filter(|(_, (expression, _))| *expression == call.authored_expression);
+            let (ordinal, (_, route)) = matching.next()?;
+            matching
+                .next()
+                .is_none()
+                .then_some((ordinal, route.as_slice()))
+        };
+        let mut original = calls.iter().filter(|call| {
+            owner.consumer
+                == PermissionEventSource::Call {
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                    target_symbol: call.target_symbol,
+                }
+        });
+        let Some(original_call) = original.next() else {
+            continue;
+        };
+        if original.next().is_some() {
+            continue;
+        }
+        let Some((mut last_completion, original_route)) = completion_at(original_call) else {
+            continue;
+        };
+        for consumer in calls
+            .iter()
+            .filter(|call| call.statement_index == statement_index)
+        {
+            if facts.flow.control.is_retired(state.symbol, consumer) {
+                continue;
+            }
+            if crate::flow::call_permission_evaluation(
+                program,
+                machine,
+                state,
+                statement_index,
+                consumer.call_ordinal,
+            ) != owner.evaluation
+            {
+                continue;
+            }
+            let Some((completion, route)) = completion_at(consumer) else {
+                continue;
+            };
+            // The later completion must execute whenever the original did.
+            // A joined enclosing call is valid; a sibling or newly conditional
+            // call cannot take unconditional responsibility for this death.
+            if completion < last_completion
+                || !route
+                    .iter()
+                    .all(|decision| original_route.contains(decision))
+            {
+                continue;
+            }
+            let mut retains_owner = false;
+            for operand in consumer.argument_operands().handles() {
+                let capture = facts.flow.control.operands.get(operand);
+                let roots = crate::flow::captured_lifetime_roots(program, &facts.flow.control, capture)
+                    .ok_or_else(|| diagnostics::Diagnostic::error(format!(
+                        "temporary backing lifetime coverage is unavailable for an operand of `{}` in state `{}` at statement {}",
+                        program.symbols.name(consumer.target_symbol), state.name, statement_index,
+                        )).with_source_span(program.expression_table.source_span(capture.expression)))?;
+                retains_owner |= roots.contains(&facts::PlaceRoot::Expression(owner.expression));
+            }
+            if retains_owner {
+                owner.consumer = PermissionEventSource::Call {
+                    statement_index,
+                    call_ordinal: consumer.call_ordinal,
+                    target_symbol: consumer.target_symbol,
+                };
+                last_completion = completion;
+            }
+        }
+        let Some(flow_state) = facts.flow.control.state(machine.symbol, state.symbol) else {
+            continue;
+        };
+        let Some(statement) = facts.flow.state_statement(flow_state, statement_index) else {
+            continue;
+        };
+        for observation in facts
+            .flow
+            .control
+            .value_observations
+            .span_or_empty(statement.value_observations)
+            .iter()
+            .filter(|observation| observation.evaluation == owner.evaluation)
+        {
+            let mut matching = completions
+                .iter()
+                .enumerate()
+                .filter(|(_, (expression, _))| *expression == observation.expression);
+            let Some((completion, (_, route))) = matching.next() else {
+                continue;
+            };
+            if matching.next().is_some()
+                || completion < last_completion
+                || !route
+                    .iter()
+                    .all(|decision| original_route.contains(decision))
+            {
+                continue;
+            }
+            let capture = facts.flow.control.operands.get(observation.receiver);
+            let roots = crate::flow::captured_lifetime_roots(program, &facts.flow.control, capture)
+                .ok_or_else(|| diagnostics::Diagnostic::error(format!(
+                    "temporary backing lifetime coverage is unavailable for an observed receiver in state `{}` at statement {}",
+                    state.name, statement_index,
+                )).with_source_span(program.expression_table.source_span(observation.expression)))?;
+            if roots.contains(&facts::PlaceRoot::Expression(owner.expression)) {
+                owner.consumer = PermissionEventSource::Statement { statement_index };
+                owner.completion = observation.expression;
+                last_completion = completion;
+            }
         }
     }
     // Cleanup later filters one exact consumer and reverses this shared
     // completion order, without grouping borrowed and projected owners.
     owners.sort_by_key(|owner| owner.completion_ordinal);
-    owners
+    Ok(owners)
 }
 
 fn owned_projection(
@@ -360,7 +517,9 @@ pub(in crate::checks::multiplicity) fn projectable_owner(
             segments: Vec::new(),
         },
     )?;
-    (program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
-        && !type_carries_linear_obligation(program, reference))
-    .then_some(reference)
+    // The selected subtree may carry linear claims into its consumer. The
+    // partial-move check rejects unselected claims, and continuation checking
+    // selects only the untouched affine complement for disposal.
+    (program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine)
+        .then_some(reference)
 }

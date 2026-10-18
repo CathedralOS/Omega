@@ -5,10 +5,8 @@
 
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::lowering_error::LoweringError;
-use crate::scalar_lowering::branch_states;
 use crate::scalar_lowering::computations;
 use crate::scalar_lowering::contracts::LoweredProofTerm;
 use checked_trees::CheckedBooleanExpression;
@@ -280,29 +278,28 @@ pub(crate) fn scalar_state_emission_order(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarEffect {
-    QuotientCall {
+    /// Observe a completed value using its real place, projection and access.
+    ObserveStructuralValue {
         value: checked_trees::CheckedStructuralValueHandle,
-        arguments: Vec<(terminal_psi::StructuralArgument, StructuralTypeId)>,
-        place: PlaceId,
-        structural_type: StructuralTypeId,
+        observation: checked_trees::CheckedScalarComputationHandle,
     },
-    QuotientAdaptation {
-        value: checked_trees::CheckedStructuralValueHandle,
-        source: PlaceId,
-        source_type: StructuralTypeId,
-        place: PlaceId,
-        structural_type: StructuralTypeId,
+    /// The checker owns which argument descriptors and backing homes die on
+    /// normal call completion. Resolve their physical homes only after emission.
+    CompleteTemporaryOperands {
+        cleanups: arena::HandleSpan<checked_trees::CheckedScalarComputationTemporaryCleanup>,
     },
-    EstablishReference {
-        storage: checked_trees::CheckedReferenceStorage,
-        backing_type: typed_trees::types::TypeReferenceHandle,
-        qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
+    /// Intrinsic receiver retirement follows its scalar snapshot, before any
+    /// nominal backing death. The source checker selected these exact actions.
+    CompleteObservationReceiver {
+        actions: arena::HandleSpan<checked_trees::CheckedNormalCleanupAction>,
+    },
+    /// Resolve checked disposal against the homes published by value emission,
+    /// after the observing load or copy has handed off its result.
+    CompleteValueObservation {
+        machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
         statement: u32,
-        expression: checked_trees::expression::ExpressionHandle,
-        place: PlaceId,
-        structural_type: StructuralTypeId,
-        source: crate::emission::operation_emission::calls::PreparedStructuralArgument,
+        expression: typed_trees::expression::ExpressionHandle,
     },
     /// Snapshot a copyable value while retaining its checked carrier custody.
     CopyStructuralValue {
@@ -311,32 +308,12 @@ pub(crate) enum LoweredScalarEffect {
         structural_type: StructuralTypeId,
         multiplicity: StructuralMultiplicity,
     },
-    EstablishAggregate(branch_states::structural_values::Construction),
-    /// A declared-only local's zeroed whole-shape establishment: a fresh home
-    /// with no field operands, realized by the dedicated zeroed operation.
-    EstablishZeroedStructural {
-        memberships: Vec<language_semantics::SemanticDomainId>,
-        projected_qualifications: Vec<checked_trees::CheckedStructuralPathQualification>,
-        place: PlaceId,
+    ProduceStructuralValue {
+        value: checked_trees::CheckedStructuralValueHandle,
         structural_type: StructuralTypeId,
-        multiplicity: StructuralMultiplicity,
-        claims: Vec<crate::emission::claim_bindings::PreparedClaim>,
-    },
-    EstablishScalarArray(LoweredScalarArrayConstruction),
-    EstablishScalarHome {
-        place: PlaceId,
-        structural_type: StructuralTypeId,
-        value: LoweredDirectExpression,
     },
     EstablishElementView(crate::unit::attached_unit::view_ranges::CollectionView),
     EstablishScalarCase(computations::cases::Construction),
-    /// Establish a literal's reserved image descriptor or fresh owned backing
-    /// at its authored operand position, before later arguments evaluate.
-    EstablishNativeCodeLayout {
-        place: PlaceId,
-        structural_type: StructuralTypeId,
-        selected_state: symbols::SymbolHandle,
-    },
     EstablishByteSequenceLiteral {
         literal: crate::emission::structural_byte_sequence_store::ByteLiteral,
         memberships: Vec<language_semantics::SemanticDomainId>,
@@ -349,44 +326,4 @@ pub(crate) enum LoweredScalarEffect {
         place: PlaceId,
         structural_type: StructuralTypeId,
     },
-    Call(LoweredEffectCall),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LoweredEffectCall {
-    pub(crate) result: Option<crate::unit::attached_unit::call_results::Prepared>,
-    pub(crate) endpoint: EffectCallTarget,
-    pub(crate) claim_transfers: Vec<crate::emission::claim_bindings::PreparedClaimTransfer>,
-    pub(crate) checked_coordinate: checked_trees::CheckedUnitCallCoordinate,
-    pub(crate) source_coordinate: SourceCallCoordinate,
-    pub(crate) source_site: Option<checked_trees::NominalMachineUseSite>,
-    pub(crate) loan_completions: Vec<crate::emission::loan_completions::PreparedLoanCompletion>,
-    pub(crate) target_machine: symbols::SymbolHandle,
-    pub(crate) target_state: symbols::SymbolHandle,
-    pub(crate) arguments: Vec<LoweredDirectExpression>,
-    pub(crate) structural_arguments:
-        Vec<crate::emission::operation_emission::calls::PreparedStructuralArgument>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum EffectCallTarget {
-    Dynamic {
-        interface_identity: typed_trees::type_identity::TypeIdentityId,
-        requirement_identity: typed_trees::type_identity::CallableIdentityId,
-        family_actuals: Vec<LoweredDirectExpression>,
-        family_results: Vec<PlaceId>,
-    },
-    Module {
-        erased_proof_arguments: Vec<LoweredProofTerm>,
-        crash_routes: Vec<checked_trees::CrashRouteBucket>,
-    },
-    Boundary,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LoweredScalarArrayConstruction {
-    pub(crate) memberships: Vec<language_semantics::SemanticDomainId>,
-    pub(crate) place: PlaceId,
-    pub(crate) structural_type: StructuralTypeId,
-    pub(crate) elements: Vec<LoweredDirectExpression>,
 }

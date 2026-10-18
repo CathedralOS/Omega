@@ -306,39 +306,6 @@ pub(crate) struct PreparedClaim {
     direct_establishment: bool,
 }
 
-pub(crate) struct PreparedClaimDisposition {
-    pub(crate) identity: PermissionClaimIdentity,
-    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
-}
-
-/// Translate the selected occurrence once; hooks later select their exact
-/// owned path without rescanning permissions or consuming a containing owner.
-pub(crate) fn prepare_claim_dispositions(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &checked_trees::CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    source: language_semantics::PermissionEventSource,
-    root: facts::PlaceRoot,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-    structural_type: semantic_vocabulary::StructuralTypeId,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Result<Vec<PreparedClaimDisposition>, LoweringError> {
-    checked.facts.flow.ownership.permissions.iter().map(|(_, event)| event)
-        .filter(|event| event.machine_symbol == machine && event.state_symbol == state && event.root == root
-            && event.source == source && event.kind == language_semantics::PermissionEventKind::Consume
-            && event.access == language_semantics::PermissionAccess::Owned)
-        .map(|event| {
-            let path = validation::structural_claim_path(&checked.typed, type_reference,
-                checked.facts.flow.ownership.segments.span_or_empty(event.segments))
-                .map_err(
-            LoweringError::Unsupported)?;
-            Ok(PreparedClaimDisposition { identity: event.claim_identity,
-                path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(identities, &path, structural_type, structural_types)?,
-            })
-        }).collect()
-}
-
 /// A completed operand can be authenticated at the place receiving it. The
 /// checked flow graph retains both that exact destination and each constructed
 /// child's relative path; no authored assignment or neighboring store is read.
@@ -463,23 +430,6 @@ pub(crate) fn prepare_establishment_claims(
                         if machine_symbol == machine && state_symbol == state && source == event.source),
             })
         }).collect()
-}
-
-pub(crate) fn claims_below_path(
-    claims: &[PreparedClaim],
-    path: &[terminal_psi::StructuralPathSegment],
-) -> Vec<PreparedClaim> {
-    claims
-        .iter()
-        .filter_map(|claim| {
-            claim.path.strip_prefix(path).map(|suffix| PreparedClaim {
-                identity: claim.identity,
-                fresh: claim.fresh,
-                direct_establishment: claim.direct_establishment,
-                path: suffix.to_vec(),
-            })
-        })
-        .collect()
 }
 
 pub(crate) fn emit_establishment_claims(

@@ -29,9 +29,19 @@ pub(crate) fn call_reference_sources(
     state_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
-    let contract = call_view_return_contract(program, state_symbol, call)?;
-    let fields = contract.reference_sources(program)?;
+    let fields = call_reference_lifetime_sources(program, state_symbol, call)?;
     Some(completed_sources(program, call.target_symbol, fields))
+}
+
+/// The complete declared lifetime relation, without optional body geometry.
+/// Captured values compose this relation with their actual input lifetimes;
+/// no signature fallback establishes an exact returned address.
+pub(crate) fn call_reference_lifetime_sources(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    call: &checked_trees::expression::TableCallExpression,
+) -> Option<Vec<ViewReturnFieldSource>> {
+    call_view_return_contract(program, state_symbol, call)?.reference_sources(program)
 }
 
 pub(super) fn completed_sources(
@@ -669,7 +679,7 @@ pub(super) fn argument_loans(
         .collect()
 }
 
-pub(super) fn place_segments(path: &[BorrowOwnerSegment]) -> Vec<facts::PlaceSegment> {
+pub(crate) fn place_segments(path: &[BorrowOwnerSegment]) -> Vec<facts::PlaceSegment> {
     path.iter()
         .map(|segment| match segment {
             BorrowOwnerSegment::Field(symbol) => facts::PlaceSegment::Field { symbol: *symbol },

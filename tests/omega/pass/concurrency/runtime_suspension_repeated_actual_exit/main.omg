@@ -5,11 +5,10 @@ pub boundary trait Scheduler {
 
 pub data Marker [copy] { value: i32; }
 
-data InlineScheduler {}
-
-machine InlineScheduler::advance(first: i32, second: i32, left: Marker, right: Marker) -> i32
-    satisfies Scheduler::advance {
-    first
+InlineSchedulerImplementation satisfies Scheduler {
+    machine advance(first: i32, second: i32, left: Marker, right: Marker) -> i32 {
+        first
+    }
 }
 
 data Main {
@@ -25,8 +24,4 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     }
     state done() {}
     state bad() { crash Trap; }
-}
-
-InlineSchedulerImplementation satisfies Scheduler {
-    Scheduler::advance = InlineScheduler::advance;
 }

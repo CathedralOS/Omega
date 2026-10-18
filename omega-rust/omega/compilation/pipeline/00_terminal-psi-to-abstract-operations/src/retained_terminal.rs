@@ -26,13 +26,14 @@ pub use boundary_applications::{
 /// authority. Package permissions remain a separate independently joined input.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeProviders {
-    pub direct_foreign_leaves: Vec<backend_plan::DirectForeignLeaf>,
+    pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     pub selection: effects::SelectedProviderPlanFacts,
     /// Declaration-qualified complete row projection, including closed
     /// requirements and family aliases. This is policy, not installation.
     pub checked_adapters: Vec<crate::SelectedProviderAdapter>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
-    pub compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
+    /// Original selected-plan order; direct leaves join only at execution.
+    pub intrinsic_executions: Vec<Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>>,
     /// Build-admitted AVX+FMA3 provider, joined to x86 FMA demand by planning.
     pub x86_scalar_fma: Option<target::AdmittedX86ScalarFmaProvider>,
 }

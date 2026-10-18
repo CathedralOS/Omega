@@ -141,6 +141,7 @@ pub(crate) fn evaluate_selectors(
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
+    environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
 ) -> Result<Vec<EvaluatedSelector>, LoweringError> {
     let mut indexes = Vec::new();
     for step in steps {
@@ -173,6 +174,7 @@ pub(crate) fn evaluate_selectors(
                     next_edge,
                     operations,
                     calls,
+                    environment,
                 )?;
                 (index.id, index.scalar_type)
             }

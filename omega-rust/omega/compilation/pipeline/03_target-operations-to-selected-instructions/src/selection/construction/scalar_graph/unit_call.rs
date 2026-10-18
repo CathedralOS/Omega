@@ -46,7 +46,7 @@ pub(super) fn emit(
         function,
         source,
         call,
-        operation.operation,
+        target_operations::CallSiteOwner::Operation(operation.operation),
         key,
         row(builder.catalog, key)?,
         environment,

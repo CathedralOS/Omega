@@ -159,13 +159,26 @@ fn select(
             }
         }
         CheckedStructuralValueKind::FixedArray { elements } => {
-            let (CheckedUnitStructuralPathSegment::FixedIndex(element_index), suffix) =
-                selection.split_first()?
-            else {
-                return None;
-            };
-            let child = elements.get(usize::try_from(*element_index).ok()?)?;
-            select(program, facts, *child, suffix, active, output)?;
+            let (index, suffix) = selection.split_first()?;
+            match index {
+                CheckedUnitStructuralPathSegment::FixedIndex(element_index) => {
+                    let child = elements.get(usize::try_from(*element_index).ok()?)?;
+                    select(program, facts, *child, suffix, active, output)?;
+                }
+                CheckedUnitStructuralPathSegment::ComputedIndex(_)
+                | CheckedUnitStructuralPathSegment::RuntimeIndex(_) => {
+                    // This is lifetime provenance, not an evaluated element
+                    // or move receipt. Retain every possible supplier while
+                    // the runtime operation owns its exact bounds and path.
+                    if elements.is_empty() {
+                        return None;
+                    }
+                    for child in elements {
+                        select(program, facts, *child, suffix, active, output)?;
+                    }
+                }
+                _ => return None,
+            }
         }
         checked_trees::record_or_structural_case_pattern!(data_symbol, fields, ..) => {
             let data = program.data_definition_by_symbol(*data_symbol)?;

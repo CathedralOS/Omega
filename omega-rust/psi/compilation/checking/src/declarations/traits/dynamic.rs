@@ -519,6 +519,7 @@ pub fn resolve_selected_dynamic_call_targets(
                     .and_then(|scope| {
                         resolved_dynamic_requirement_symbol(
                             program,
+                            machine.symbol,
                             scope,
                             program
                                 .trait_definition_by_symbol(call.receiver_symbol)
@@ -689,6 +690,7 @@ fn collect_dynamic_expression_call_updates(
             if let Some(scope) = scope
                 && let Some(requirement) = resolved_dynamic_requirement_symbol(
                     program,
+                    machine.symbol,
                     scope,
                     program.trait_definition_by_symbol(namespace).is_some(),
                     call.target.as_str(),
@@ -729,6 +731,7 @@ fn collect_dynamic_expression_call_updates(
 
 fn resolved_dynamic_requirement_symbol(
     program: &dyn crate::CheckingInput,
+    lexical_owner: symbols::SymbolHandle,
     receiver_scope: typed_trees::trait_definition::AppliedTraitScope<'_>,
     static_namespace: bool,
     target: &str,
@@ -743,6 +746,31 @@ fn resolved_dynamic_requirement_symbol(
     // selectors retain the applied ancestor lookup used by dynamic dispatch.
     if static_namespace {
         matches.retain(|(scope, _)| scope.declaration.symbol == trait_definition.symbol);
+    }
+    // Resolution routes a member's calls to its own implementation rows.
+    // The authored trait qualifier still names the public requirement; it must
+    // not erase that exact lexical selection or mistake it for another trait.
+    // Only an owned row in the caller's selecting declaration supplies this
+    // relation, never an ambient machine with the same spelling.
+    if static_namespace
+        && retained_target.is_valid()
+        && let Some(selecting) =
+            program.conformance_by_symbol(program.declaration_scope_parent(lexical_owner))
+        && selecting.rows.iter().any(|row| {
+            row.source.owns_realization()
+                && row.realization_machine == program.lifetime_declaration_owner(lexical_owner)
+        })
+    {
+        let mut routes = selecting.rows.iter().filter(|row| {
+            row.realization_state == retained_target
+                && matches.iter().any(|(scope, requirement)| {
+                    row.declaring_trait == scope.declaration.symbol
+                        && row.requirement == requirement.symbol
+                })
+        });
+        if routes.next().is_some() && routes.next().is_none() {
+            return Some(retained_target);
+        }
     }
     // A retained requirement may select an overload in this exact family,
     // but cannot be silently overwritten by an unrelated requirement member.

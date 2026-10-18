@@ -4,7 +4,6 @@
 //! The fixed point computes storage metadata, not a second ownership judgment.
 use super::unit::known_integers::KnownUnitInteger;
 use crate::LoweringError;
-use crate::lowering::selected_boundary_calls::SelectedBoundaryCall;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
@@ -206,7 +205,7 @@ pub(super) fn lower(
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    selected_calls: &BTreeMap<(MachineId, OperationId, BoundaryMachineId), SelectedBoundaryCall>,
+    selected_calls: &crate::lowering::selected_boundary_calls::SelectedCallsByCall,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
 ) -> Result<TargetFunction, LoweringError> {
@@ -692,6 +691,7 @@ pub(super) fn lower(
                 target,
                 boundary_machines,
                 settlements,
+                selected_calls,
                 provenance,
             )?;
             lowered[position] = Some(TargetControlBlock {

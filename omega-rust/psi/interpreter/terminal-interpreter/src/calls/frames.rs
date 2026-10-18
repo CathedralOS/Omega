@@ -347,16 +347,23 @@ impl TerminalExecution<'_> {
                 self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
             }
         }
-        let caller = self.program.verified_machine(self.current_machine)?;
-        let operation = caller
-            .block(&self.current)
-            .and_then(|block| block.operations.get(self.next_operation))
-            .ok_or_else(malformed)?
-            .id;
-        let loan_completions = self
-            .loan_completions_for_operation(operation)
-            .map_err(|error| error.in_argument_preparation("retain call loan completions"))?;
-        self.next_operation += 1;
+        let loan_completions = if matches!(result, SuspendedCallResult::ExternalCompletion { .. }) {
+            // There is no normal completion of this invocation, hence no
+            // operation continuation or returned-loan retirement.
+            Vec::new()
+        } else {
+            let caller = self.program.verified_machine(self.current_machine)?;
+            let operation = caller
+                .block(&self.current)
+                .and_then(|block| block.operations.get(self.next_operation))
+                .ok_or_else(malformed)?
+                .id;
+            let completions = self
+                .loan_completions_for_operation(operation)
+                .map_err(|error| error.in_argument_preparation("retain call loan completions"))?;
+            self.next_operation += 1;
+            completions
+        };
         self.live_claims = remaining_claims;
         let mut caller_structural_values = std::mem::take(&mut self.structural_values);
         retire_transferred_call_sources(
@@ -424,6 +431,31 @@ impl TerminalExecution<'_> {
             prepared_arguments,
             claim_transfers,
             SuspendedCallResult::Unit,
+        )
+    }
+
+    pub(crate) fn begin_external_completion_call(
+        &mut self,
+        callee_id: MachineId,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        edge: semantic_vocabulary::EdgeId,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[StructuralArgument],
+    ) -> Result<(), TerminalInterpretError> {
+        let program = std::sync::Arc::clone(&self.program);
+        let callee = program.verified_machine(callee_id)?;
+        if callee.result != TerminalMachineResult::Unit {
+            return Err(malformed());
+        }
+        let prepared = self.prepare_structural_call_arguments(callee_id, structural_arguments)?;
+        self.enter_call(
+            callee_id,
+            callee,
+            scalar_arguments,
+            structural_arguments,
+            prepared,
+            &[],
+            SuspendedCallResult::ExternalCompletion { boundary, edge },
         )
     }
 

@@ -97,6 +97,7 @@ mod locals;
 mod register_access;
 mod selection_retirement;
 mod stores;
+mod values;
 pub(super) use calls::CallInputs;
 
 /// One lowered boundary declaration a call can name.
@@ -172,6 +173,7 @@ pub(super) struct Callees<'f> {
 }
 
 /// What the calling body itself contributes to a call's custody.
+#[derive(Clone, Copy)]
 pub(super) struct CallerCustody<'f> {
     /// The caller's erased scalar formals; erased actuals lower over them.
     pub(super) erased_scalar_parameters: &'f [ValueDeclaration],
@@ -179,6 +181,241 @@ pub(super) struct CallerCustody<'f> {
     pub(super) erased_proof_parameters: &'f [checked_trees::CheckedErasedProofParameterPlan],
     /// The ordinary machine's trivial affine locals; a composed state has none.
     pub(super) local_places: &'f [StructuralPlaceDeclaration],
+}
+
+/// Borrowed production resources survive nested operand evaluation. The
+/// current scalar/structural frame is supplied at each actual occurrence;
+/// calls keep this one result namespace, storage allocator and window ledger.
+/// A nested value cannot replace these with empty call or custody rosters.
+pub(crate) struct OperationEnvironment<'f> {
+    pub(crate) checked: &'f CheckedTrees,
+    pub(crate) machine: symbols::SymbolHandle,
+    pub(crate) state: symbols::SymbolHandle,
+    pub(super) scalar_result: Option<&'f checked_trees::CheckedUnitScalarResultBindingPlan>,
+    pub(super) scalar_parameter_count: usize,
+    pub(crate) parameters: std::borrow::Cow<'f, [StructuralParameterDeclaration]>,
+    pub(crate) structural_types: &'f [StructuralTypeDeclaration],
+    pub(crate) type_ids: &'f [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+    pub(super) service_ids: &'f [(ServiceReachId, ServiceId)],
+    pub(super) primitive_locals: &'f [PrimitiveLocal],
+    pub(super) results: StructuralResults<'f>,
+    pub(crate) private_places: &'f mut Vec<StructuralPlaceDeclaration>,
+    pub(crate) windows: &'f mut BorrowedWindowLedger,
+    pub(crate) next_place: &'f mut u64,
+    pub(super) callees: Callees<'f>,
+    pub(super) caller: CallerCustody<'f>,
+}
+
+/// Active emission is distinct from the resources it may recursively borrow.
+/// Splitting the ordinary frame keeps those mutable borrows disjoint instead
+/// of reconstructing a second caller around a nested scalar computation.
+pub(super) struct OperationEmission<'f, 'c> {
+    pub(super) source_value_count: usize,
+    pub(super) evaluation: &'f mut Evaluation,
+    pub(super) values: &'f mut Vec<ValueDeclaration>,
+    pub(super) next_value: &'f mut u64,
+    pub(super) next_block: &'f mut u64,
+    pub(super) next_edge: &'f mut u64,
+    pub(super) calls: &'f mut CallEmissionContext<'c>,
+    pub(super) operations: &'f mut OperationBuffer,
+}
+
+impl<'f, 'c> OperationFrame<'f, 'c> {
+    pub(super) fn reborrow(&mut self) -> OperationFrame<'_, 'c> {
+        OperationFrame {
+            checked: self.checked,
+            machine: self.machine,
+            state: self.state,
+            scalar_result: self.scalar_result,
+            scalar_parameter_count: self.scalar_parameter_count,
+            source_value_count: self.source_value_count,
+            parameters: std::borrow::Cow::Borrowed(&self.parameters),
+            structural_types: match &mut self.structural_types {
+                StructuralTypeRoster::Owned(types) => StructuralTypeRoster::Owned(types),
+                StructuralTypeRoster::Published(types) => StructuralTypeRoster::Published(types),
+            },
+            type_ids: self.type_ids,
+            service_ids: self.service_ids,
+            primitive_locals: self.primitive_locals,
+            results: match &mut self.results {
+                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
+                StructuralResults::StateGraph { state, places } => {
+                    StructuralResults::StateGraph { state, places }
+                }
+            },
+            private_places: self.private_places,
+            windows: self.windows,
+            evaluation: self.evaluation,
+            values: self.values,
+            next_place: self.next_place,
+            next_value: self.next_value,
+            next_block: self.next_block,
+            next_edge: self.next_edge,
+            calls: self.calls,
+            operations: self.operations,
+            callees: self.callees,
+            caller: self.caller,
+        }
+    }
+
+    pub(super) fn split(self) -> (OperationEnvironment<'f>, OperationEmission<'f, 'c>) {
+        let structural_types = match self.structural_types {
+            StructuralTypeRoster::Owned(types) => &types[..],
+            StructuralTypeRoster::Published(types) => types,
+        };
+        (
+            OperationEnvironment {
+                checked: self.checked,
+                machine: self.machine,
+                state: self.state,
+                scalar_result: self.scalar_result,
+                scalar_parameter_count: self.scalar_parameter_count,
+                parameters: self.parameters,
+                structural_types,
+                type_ids: self.type_ids,
+                service_ids: self.service_ids,
+                primitive_locals: self.primitive_locals,
+                results: self.results,
+                private_places: self.private_places,
+                windows: self.windows,
+                next_place: self.next_place,
+                callees: self.callees,
+                caller: self.caller,
+            },
+            OperationEmission {
+                source_value_count: self.source_value_count,
+                evaluation: self.evaluation,
+                values: self.values,
+                next_value: self.next_value,
+                next_block: self.next_block,
+                next_edge: self.next_edge,
+                calls: self.calls,
+                operations: self.operations,
+            },
+        )
+    }
+}
+
+impl OperationEnvironment<'_> {
+    pub(super) fn reborrow(&mut self) -> OperationEnvironment<'_> {
+        OperationEnvironment {
+            checked: self.checked,
+            machine: self.machine,
+            state: self.state,
+            scalar_result: self.scalar_result,
+            scalar_parameter_count: self.scalar_parameter_count,
+            parameters: std::borrow::Cow::Borrowed(&self.parameters),
+            structural_types: self.structural_types,
+            type_ids: self.type_ids,
+            service_ids: self.service_ids,
+            primitive_locals: self.primitive_locals,
+            results: match &mut self.results {
+                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
+                StructuralResults::StateGraph { state, places } => {
+                    StructuralResults::StateGraph { state, places }
+                }
+            },
+            private_places: self.private_places,
+            windows: self.windows,
+            next_place: self.next_place,
+            callees: self.callees,
+            caller: self.caller,
+        }
+    }
+
+    /// Emit one checked operand through the ordinary operation owner. The
+    /// evaluation supplies its current ingress and scalar prefix, including
+    /// private joins reached while evaluating earlier operands.
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::unit::attached_unit) fn emit_operand(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operand: &CheckedUnitEffectOperationPlan,
+        evaluated: Option<&[ValueDeclaration]>,
+        evaluated_selectors: Option<&[ValueDeclaration]>,
+        byte_places: &[PlaceId],
+        source_value_count: usize,
+        evaluation: &mut Evaluation,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        calls: &mut CallEmissionContext<'_>,
+        operations: &mut OperationBuffer,
+    ) -> Result<Option<StructuralPlaceDeclaration>, LoweringError> {
+        let result = operand.structural_result_binding();
+        let frame = OperationFrame {
+            checked: self.checked,
+            machine: self.machine,
+            state: self.state,
+            scalar_result: self.scalar_result,
+            scalar_parameter_count: self.scalar_parameter_count,
+            source_value_count,
+            parameters: evaluation.current_parameters(&self.parameters),
+            structural_types: StructuralTypeRoster::Published(self.structural_types),
+            type_ids: self.type_ids,
+            service_ids: self.service_ids,
+            primitive_locals: self.primitive_locals,
+            results: match &mut self.results {
+                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
+                StructuralResults::StateGraph { state, places } => {
+                    StructuralResults::StateGraph { state, places }
+                }
+            },
+            private_places: self.private_places,
+            windows: self.windows,
+            evaluation,
+            values,
+            next_place: self.next_place,
+            next_value,
+            next_block,
+            next_edge,
+            calls,
+            operations,
+            callees: self.callees,
+            caller: self.caller,
+        };
+        if OperationFrame::lowers(operand) {
+            frame.emit(identities, operand)?;
+            return Ok(None);
+        }
+        let result = result.ok_or(LoweringError::Unsupported(
+            "structural operand call has no result",
+        ))?;
+        // A local's nested producers publish before the local's own binding.
+        // Only a completed invocation result must be next at this point;
+        // establish_structural_value checks its ordinal after evaluating children.
+        frame
+            .results
+            .require_next(result, "structural operand result binding is not dense")?;
+        frame.emit_call(
+            identities,
+            operand,
+            CallInputs {
+                evaluated_scalar_arguments: evaluated,
+                byte_places,
+                evaluated_selectors,
+            },
+        )?;
+        // Publication observes the completed home; it does not consume the
+        // preparatory result's possibly still-outstanding return disposal.
+        let (place, _) = self
+            .results
+            .completed_value(result.binding_ordinal, operations)?;
+        let declaration = match &self.results {
+            StructuralResults::Dense(roster) => roster.iter().find_map(|(declaration, _)| {
+                declaration.filter(|declaration| declaration.id == place)
+            }),
+            StructuralResults::StateGraph { places, .. } => places
+                .iter()
+                .find(|declaration| declaration.id == place)
+                .copied(),
+        }
+        .ok_or(LoweringError::Unsupported(
+            "structural operand result has no declaration",
+        ))?;
+        Ok(Some(declaration))
+    }
 }
 
 pub(crate) use crate::emission::claim_bindings::claim_established_here;
@@ -241,29 +478,30 @@ impl OperationFrame<'_, '_> {
                 statement_index,
                 destination_expression,
                 destination,
-            } => self.windows.capture_assignment_destination(
-                identities,
-                destination,
-                *destination_expression,
-                &self.parameters,
-                self.structural_types.declarations(),
-                &mut crate::emission::borrowed_window::WindowEvaluation {
-                    checked: self.checked,
-                    machine: self.machine,
-                    state: self.state,
+            } => {
+                let (mut environment, emission) = self.split();
+                let mut evaluation = crate::emission::borrowed_window::WindowEvaluation {
+                    checked: environment.checked,
+                    machine: environment.machine,
+                    state: environment.state,
                     statement_index: *statement_index,
-                    evaluation: self.evaluation,
-                    source_value_count: self.source_value_count,
-                    calls: self.calls,
-                },
-                self.values,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.next_place,
-                self.private_places,
-                self.operations,
-            ),
+                    evaluation: emission.evaluation,
+                    source_value_count: emission.source_value_count,
+                    calls: emission.calls,
+                };
+                BorrowedWindowLedger::capture_assignment_destination(
+                    &mut environment,
+                    identities,
+                    destination,
+                    *destination_expression,
+                    &mut evaluation,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                )
+            }
             CheckedUnitEffectOperationPlan::RegisterAccess {
                 coordinate,
                 operation,

@@ -252,6 +252,7 @@ pub(super) fn lower_terminator(
         semantic_vocabulary::BoundaryMachineId,
         target_operations::BoundarySettlementBinding,
     >,
+    selected_calls: &crate::lowering::selected_boundary_calls::SelectedCallsByCall,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetControlTerminator, LoweringError> {
     // Plain aggregate homes need no executable destructor, but their exact
@@ -301,10 +302,6 @@ pub(super) fn lower_terminator(
                 .get(boundary)
                 .copied()
                 .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
-            let binding = settlements
-                .get(boundary)
-                .cloned()
-                .ok_or(LoweringError::MissingBoundarySettlement(*boundary))?;
             if declaration.completion != semantic_vocabulary::BoundaryCompletion::External(*kind)
                 || !declaration.result.is_unit()
                 || declaration.scalar_parameters.len() != arguments.len()
@@ -327,22 +324,50 @@ pub(super) fn lower_terminator(
             // An external completion still uses its selected counterparty's
             // exact ABI. Native defaults cannot replace the admitted entry plan
             // (notably supervisor entries and explicitly selected foreign ABIs).
-            let call_plan = match &binding.realization {
-                target_operations::BoundarySettlementRealization::NormalizedForeignCall(
-                    foreign,
-                ) => calling_conventions::validate_boundary_entry_plan(
-                    foreign.boundary_entry_plan.clone(),
-                    &signature,
-                )
-                .map_err(LoweringError::AbiPlan)?
-                .plan()
-                .call
-                .clone(),
-                _ => calling_conventions::evaluate_call_plan(
+            let native_plan = || {
+                calling_conventions::evaluate_call_plan(
                     calling_conventions::CallingPolicy::native_for_target(target),
                     &signature,
                 )
-                .map_err(LoweringError::AbiPlan)?,
+                .map_err(LoweringError::AbiPlan)
+            };
+            let key = (
+                function.machine,
+                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                *boundary,
+            );
+            let (binding, call_plan) = if let Some(selected) = selected_calls.get(&key) {
+                let call_plan = native_plan()?;
+                (
+                    target_operations::ExternalCompletionBinding::Checked {
+                        callee: selected.callee,
+                        origin: selected.origin.clone(),
+                        call_plan: call_plan.clone(),
+                    },
+                    call_plan,
+                )
+            } else {
+                let binding = settlements
+                    .get(boundary)
+                    .cloned()
+                    .ok_or(LoweringError::MissingBoundarySettlement(*boundary))?;
+                let call_plan = match &binding.realization {
+                    target_operations::BoundarySettlementRealization::NormalizedForeignCall(
+                        foreign,
+                    ) => calling_conventions::validate_boundary_entry_plan(
+                        foreign.boundary_entry_plan.clone(),
+                        &signature,
+                    )
+                    .map_err(LoweringError::AbiPlan)?
+                    .plan()
+                    .call
+                    .clone(),
+                    _ => native_plan()?,
+                };
+                (
+                    target_operations::ExternalCompletionBinding::Boundary(binding),
+                    call_plan,
+                )
             };
             let arguments = arguments
                 .iter()

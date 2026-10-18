@@ -145,7 +145,7 @@ pub(in crate::lowering) fn catalog(
         dynamic_dispatch,
             |function, node| {
                 if let AbstractOperation::BoundaryCall { psi_operation, boundary, .. } = &node.operation
-                    && let Some(selected) = selected_calls.get(&(function.machine, *psi_operation, *boundary))
+                    && let Some(selected) = selected_calls.get(&(function.machine, (*psi_operation).into(), *boundary))
                 {
                     return super::super::selected_boundary_calls::resolve(&node.operation, selected, functions)
                         .ok().map(|(operation, _)| Cow::Owned(operation));
@@ -157,7 +157,7 @@ pub(in crate::lowering) fn catalog(
                     psi_operation, boundary, arguments, structural_arguments,
                     completion_claim_sources, completion_receipts, ..
                 } = &node.operation else { return false; };
-                if selected_calls.contains_key(&(function.machine, *psi_operation, *boundary))
+                if selected_calls.contains_key(&(function.machine, (*psi_operation).into(), *boundary))
                     || !completion_claim_sources.is_empty() || !completion_receipts.is_empty() {
                     return false;
                 }

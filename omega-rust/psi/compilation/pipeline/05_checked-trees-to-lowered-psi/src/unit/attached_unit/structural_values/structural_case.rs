@@ -206,8 +206,8 @@ impl emission::Emission<'_, '_, '_> {
         }
         self.remap_saved_scalar_fields(scalar_positions, &mut initialized, source_count);
         initialized.sort_by_key(|(position, _)| *position);
-        let place = place_id(allocate_dense(self.next_place)?);
-        self.temporary_places.push(emit_completed(
+        let place = place_id(allocate_dense(self.environment.next_place)?);
+        self.environment.private_places.push(emit_completed(
             place,
             self.structural_type,
             self.multiplicity,

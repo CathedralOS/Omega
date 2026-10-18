@@ -37,7 +37,9 @@ pub(crate) enum Step {
         argument: usize,
         segment: usize,
     },
-    Produce(usize),
+    /// A produced structural value or its following checked completion.
+    /// Both execute inside the enclosing argument's captured value namespace.
+    Operation(usize),
     Call(usize),
     End,
 }
@@ -167,38 +169,6 @@ pub(super) fn build_operations(
     Ok(steps)
 }
 
-/// The same checked operand schedule is consumed by statement and expression bodies.
-pub(crate) fn operand_preparation(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    operands: &checked_trees::CheckedOperandSequence,
-    consumer: &CheckedUnitEffectOperationPlan,
-) -> Result<Vec<Step>, LoweringError> {
-    let operations = operands
-        .iter()
-        .cloned()
-        .chain(std::iter::once(consumer.clone()))
-        .collect::<Vec<_>>();
-    let mut emitted = Vec::new();
-    let mut steps = Vec::new();
-    append(
-        checked,
-        machine,
-        state,
-        &operations,
-        0..operations.len(),
-        operations.len() - 1,
-        &mut Vec::new(),
-        &mut emitted,
-        &mut steps,
-    )?;
-    if !emitted.iter().copied().eq(0..operations.len()) {
-        return unsupported("call preparation contains an unrelated or reordered producer");
-    }
-    Ok(steps)
-}
-
 /// Source ordinals identify occurrences, not an execution stream's root. A
 /// state arrival, return arm, or ordinary statement may retain a different
 /// portion of that occurrence tree. Exact produced binding uses identify the
@@ -250,7 +220,8 @@ fn append(
     if operations[index].call().is_none() && operations[index].structural_result_binding().is_some()
     {
         emitted.push(index);
-        steps.push(Step::Produce(index));
+        steps.push(Step::Operation(index));
+        append_completions(operations, group, index, emitted, steps)?;
         return Ok(());
     }
     let Some(call) = operations[index].call() else {
@@ -360,6 +331,34 @@ fn append(
     active.pop();
     emitted.push(index);
     steps.push(Step::Call(index));
+    append_completions(operations, group, index, emitted, steps)?;
+    Ok(())
+}
+
+/// A producer's normal continuation is part of that operand's evaluation,
+/// before a later operand or its enclosing call. These are already ordered
+/// checked operations, not new source effects inferred by the scheduler.
+/// Keep the full contiguous transaction; the enclosing exact-order check
+/// still rejects any unrelated or reordered operation in the group.
+fn append_completions(
+    operations: &[CheckedUnitEffectOperationPlan],
+    group: std::ops::Range<usize>,
+    producer: usize,
+    emitted: &mut Vec<usize>,
+    steps: &mut Vec<Step>,
+) -> Result<(), LoweringError> {
+    for index in producer + 1..group.end {
+        if operations[index].call().is_some()
+            || operations[index].structural_result_binding().is_some()
+        {
+            break;
+        }
+        if emitted.contains(&index) {
+            return unsupported("argument completion repeats a checked operation");
+        }
+        emitted.push(index);
+        steps.push(Step::Operation(index));
+    }
     Ok(())
 }
 

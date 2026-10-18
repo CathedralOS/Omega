@@ -112,7 +112,7 @@ impl Emission<'_, '_, '_> {
             let bindings = self.structural_bindings();
             let whole = storage
                 .requires_establishment()
-                .then(|| allocate_dense(self.next_place).map(place_id))
+                .then(|| allocate_dense(self.environment.next_place).map(place_id))
                 .transpose()?;
             let (bound, establishment) = storage.bind(
                 identities,
@@ -123,15 +123,15 @@ impl Emission<'_, '_, '_> {
                 self.structural_types,
             )?;
             if let Some(establishment) = establishment {
-                self.temporary_places.push(view_ranges::establish(
+                self.environment.private_places.push(view_ranges::establish(
                     &establishment,
                     self.values,
                     self.next_value,
                     self.operations,
                 )?);
             }
-            let place = place_id(allocate_dense(self.next_place)?);
-            self.temporary_places.push(view_ranges::emit(
+            let place = place_id(allocate_dense(self.environment.next_place)?);
+            let declaration = view_ranges::emit(
                 identities,
                 self.checked,
                 view_ranges::ViewRangeSite {
@@ -150,7 +150,9 @@ impl Emission<'_, '_, '_> {
                 self.next_edge,
                 self.operations,
                 self.calls,
-            )?);
+                self.environment,
+            )?;
+            self.environment.private_places.push(declaration);
             return Ok(place);
         }
         let element = super::super::super::view_ranges::element_type(
@@ -224,8 +226,9 @@ impl Emission<'_, '_, '_> {
                 ),
             },
         };
-        let place = place_id(allocate_dense(self.next_place)?);
-        self.temporary_places
+        let place = place_id(allocate_dense(self.environment.next_place)?);
+        self.environment
+            .private_places
             .push(super::super::super::view_ranges::emit_view(
                 place,
                 self.structural_type,

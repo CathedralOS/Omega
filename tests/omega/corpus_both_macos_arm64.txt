@@ -444,6 +444,7 @@ pass/domains/zero_value_membership_occurrences_exit built 3526ms exit:0 interpre
 pass/drops/borrowed_projection_captures_before_sibling_write_exit built 3849ms exit:0 interpreter-exit:0 interpreter:agrees @dec223be05fb
 pass/drops/borrowed_projection_earlier_call_capture_exit built 3965ms exit:0 interpreter-exit:0 interpreter:agrees @dec223be05fb
 pass/drops/borrowed_projection_moved_aggregate_capture_exit built 3885ms exit:0 interpreter-exit:0 interpreter:agrees @dec223be05fb
+pass/drops/borrowed_temporary_normal_completion_exit built 5245ms exit:0 interpreter-exit:0 interpreter:agrees @c3f6e1b1295c+wt
 pass/drops/conditional_structural_return_cleanup_exit built 1549ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
 pass/drops/contextual_cleanup_exit built 1075ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @db0816c5dcd4+wt
 pass/drops/contextual_core_drop_exit built 1453ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @bf12cd0f89bb+wt
@@ -451,6 +452,7 @@ pass/drops/core_drop_explicit_consume built 701ms exit:0 interpreter-exit:0 inte
 pass/drops/core_drop_owner_hook built 622ms exit:0 interpreter-exit:0 interpreter:agrees @302faee005ee
 pass/drops/core_drop_owner_hook_body built 831ms exit:0 interpreter-exit:0 interpreter:agrees @302faee005ee
 pass/drops/erased_record_initializer_exit built 1121ms exit:70 interpreter-exit:70 interpreter:agrees @302faee005ee
+pass/drops/owned_qualified_contextual_cleanup_exit built 6884ms exit:70 interpreter-exit:70 interpreter:agrees @960d94935ad7+wt
 pass/drops/projected_case_subject_root_cleanup_exit built 1570ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @e06e59f77bec+wt
 pass/drops/reference_rebinding_preserves_pointee_exit built 2513ms exit:0 interpreter-exit:0 interpreter:agrees @c1d3bd9711c2+wt
 pass/drops/result_cleanup_implicit_boolean_exit built 3986ms exit:0 interpreter-exit:0 interpreter:agrees @76ea4b8c7c50

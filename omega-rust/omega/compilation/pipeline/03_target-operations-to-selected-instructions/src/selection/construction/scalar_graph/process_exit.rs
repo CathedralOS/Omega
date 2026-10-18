@@ -41,7 +41,107 @@ pub(super) fn build(
         .resolve(source)
         .ok_or(SelectedInstructionError::custody())?;
     if *kind != semantic_vocabulary::ExternalCompletionKind::ProcessExit
-        || binding.boundary != *boundary
+        || !structural_arguments.is_empty()
+        || !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
+    {
+        return Err(SelectedInstructionError::custody());
+    }
+    if let Some(call) = block.terminator.checked_completion_call() {
+        let owner = target_operations::CallSiteOwner::ExternalCompletion(*psi_edge);
+        call.validate_source(&[])
+            .map_err(|_| SelectedInstructionError::custody())?;
+        let key = crate::selection::scalar_call_abi::unit_key(&call, environment)
+            .ok_or_else(SelectedInstructionError::custody)?;
+        crate::selection::scalar_call_abi::validate(
+            function,
+            source_function,
+            &call,
+            owner,
+            key,
+            super::row(builder.catalog, key)?,
+            environment,
+        )?;
+        let mut operands = Vec::new();
+        for (argument_position, argument) in call.arguments.iter().enumerate() {
+            let legalized_operations::LegalizedScalarArgument::Scalar { source, placement } =
+                argument
+            else {
+                return Err(SelectedInstructionError::custody());
+            };
+            if let Some(register) = super::call_arguments::scalar_argument(
+                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                argument_position,
+                *source,
+                placement,
+                builder,
+            )? {
+                operands.push((argument_position, register));
+            }
+        }
+        let operands = crate::selection::scalar_call_abi::register_argument_order(&call)
+            .into_iter()
+            .flat_map(|index| {
+                operands
+                    .iter()
+                    .filter(move |(position, _)| *position == index)
+                    .map(|(_, register)| *register)
+            })
+            .collect::<Vec<_>>();
+        builder
+            .transport
+            .calls
+            .push(selected_instructions::SelectedCallContract {
+                instruction: selected_instructions::SelectedInstructionId(
+                    builder
+                        .instructions
+                        .len()
+                        .try_into()
+                        .map_err(|_| SelectedInstructionError::custody())?,
+                ),
+                owner,
+                call: call.clone(),
+                effect: *effect,
+                ownership: ownership.clone(),
+            });
+        builder.emit(
+            SelectedInstructionKind::CallUnit {
+                target: selected_instructions::SelectedCallTarget::from_native(call.target),
+            },
+            key,
+            &operands,
+            SelectedInstructionProvenance {
+                edges: vec![*psi_edge],
+                values: vec![source],
+                obligations: call.requirement_obligations.clone(),
+                fuel: fuel.clone(),
+                ..Default::default()
+            },
+        )?;
+        // A checked completion has no normal successor even if a malformed
+        // installed body returns. Keep the same physical fail-stop used for
+        // an admitted non-returning foreign call.
+        builder.emit(
+            SelectedInstructionKind::Crash,
+            builder.constraints.keys.crash,
+            &[],
+            SelectedInstructionProvenance {
+                edges: vec![*psi_edge],
+                ..Default::default()
+            },
+        )?;
+        return Ok(Some(SelectedTerminator::HostedExitProcess {
+            instruction: builder
+                .instructions
+                .last()
+                .cloned()
+                .ok_or_else(SelectedInstructionError::custody)?,
+            completion_edge: *psi_edge,
+        }));
+    }
+    let target_operations::ExternalCompletionBinding::Boundary(binding) = binding else {
+        return Err(SelectedInstructionError::custody());
+    };
+    if binding.boundary != *boundary
         || !matches!(
             binding.execution,
             target_operations::BoundaryExecutionBinding::AdmittedProvider(_)
@@ -49,8 +149,6 @@ pub(super) fn build(
                     target_operations::CompilerBuiltinExecution::HostedExitProcessI32
                 )
         )
-        || !structural_arguments.is_empty()
-        || !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
     {
         return Err(SelectedInstructionError::custody());
     }

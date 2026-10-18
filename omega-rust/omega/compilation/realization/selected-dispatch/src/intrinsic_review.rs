@@ -135,6 +135,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             || retained.provider.row_requirements.len() != plan.rows.len()
             || retained.provider.row_realizations.len() != plan.rows.len()
             || retained.provider.row_placed_accessors.len() != plan.rows.len()
+            || retained.row_external_completion_leaves.len() != plan.rows.len()
             || !retained.row_compiler_intrinsic_executions.is_empty()
         {
             diagnostics.push(Diagnostic::error(format!(
@@ -183,11 +184,12 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             continue;
         }
         let mut rows = Vec::with_capacity(plan.rows.len());
-        for ((row, requirement_symbol), realization_symbol) in plan
+        for (((row, requirement_symbol), realization_symbol), completion_leaves) in plan
             .rows
             .iter()
             .zip(&retained.provider.row_requirements)
             .zip(&retained.provider.row_realizations)
+            .zip(&retained.row_external_completion_leaves)
         {
             if !matches!(
                 row.binding,
@@ -205,6 +207,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                     retained.provider.schema.symbol(),
                     *requirement_symbol,
                     *realization_symbol,
+                    !completion_leaves.is_empty(),
                     accepted_console_binding,
                     accepted_process_exit_binding,
                     &mut console_accepted_matches,
@@ -217,6 +220,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
             let unresolved = |accepted| crate::compiler_intrinsic::AcceptedRowBinding {
                 accepted,
                 declaration_symbol: None,
+                public_plan: None,
             };
             match crate::compiler_intrinsic::row_execution_identity(
                 checked,
@@ -239,6 +243,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                             retained.provider.schema.symbol(),
                             *requirement_symbol,
                             *realization_symbol,
+                            !completion_leaves.is_empty(),
                             accepted_console_binding,
                             accepted_process_exit_binding,
                             &mut console_accepted_matches,
@@ -256,6 +261,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
                         retained.provider.schema.symbol(),
                         *requirement_symbol,
                         *realization_symbol,
+                        !completion_leaves.is_empty(),
                         accepted_console_binding,
                         accepted_process_exit_binding,
                         &mut console_accepted_matches,
@@ -321,6 +327,60 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
 }
 
 /// Consume one hosted-exit row against each supplied consumer binding. The
+/// Close leaf execution under its original satisfaction row and the separately
+/// accepted public selection. No leaf plan pretends to have the public digest.
+pub(crate) fn close_direct_boundary_candidates(
+    checked: &CheckedTrees,
+    selected: &[SelectedProviderReviewProvenance],
+    candidates: &mut [provider_planning::DirectBoundaryCandidate],
+    target: Option<&str>,
+    bindings: &[ResolvedAcceptedSemanticBinding],
+) -> Result<(), Vec<Diagnostic>> {
+    for candidate in candidates {
+        let backend_plan::DirectBoundaryExecution::Intrinsic(execution) =
+            &mut candidate.leaf.execution
+        else {
+            continue;
+        };
+        let source = &candidate.source;
+        let [row] = source.plan.rows.as_slice() else {
+            return Err(vec![Diagnostic::error(
+                "direct boundary candidate lost its single original row",
+            )]);
+        };
+        let accepted = |role| {
+            let binding = bindings.iter().find(|binding| binding.role() == role)?;
+            let public = selected.iter().find(|provider| {
+                provider.provider.schema.symbol() == binding.declaration_symbol()
+                    && Some(provider.plan.identity_digest())
+                        == binding.accepted().selected_provider_plan_digest()
+            })?;
+            Some(crate::compiler_intrinsic::AcceptedRowBinding {
+                accepted: binding.accepted(),
+                declaration_symbol: Some(binding.declaration_symbol()),
+                public_plan: Some(&public.plan),
+            })
+        };
+        *execution = match crate::compiler_intrinsic::row_execution_identity(
+            checked,
+            &source.plan,
+            source.provenance.schema,
+            row,
+            source.provenance.row_requirements[0],
+            source.provenance.row_realizations[0],
+            target,
+            accepted(package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32),
+            accepted(package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?
+        {
+            Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity)) => Some(identity),
+            _ => None,
+        };
+    }
+    Ok(())
+}
+
 /// Console and canonical ProcessExit roles are independent: a row can consume
 /// at most one of them, and each binding must be consumed by exactly one
 /// declaration below.
@@ -332,6 +392,7 @@ fn accumulate_accepted_row_match(
     schema_symbol: SymbolHandle,
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
+    checked_external_completion: bool,
     accepted_console_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     accepted_process_exit_binding: Option<&package_compilation::AcceptedSemanticBinding>,
     console_matches: &mut Vec<SymbolHandle>,
@@ -347,6 +408,7 @@ fn accumulate_accepted_row_match(
             schema_symbol,
             requirement_symbol,
             realization_symbol,
+            checked_external_completion,
             binding,
         ) {
             Ok(true) => console_matches.push(schema_symbol),
@@ -363,6 +425,7 @@ fn accumulate_accepted_row_match(
             schema_symbol,
             requirement_symbol,
             realization_symbol,
+            checked_external_completion,
             binding,
         ) {
             Ok(true) => process_exit_matches.push(schema_symbol),

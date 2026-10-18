@@ -7,7 +7,6 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::scalar_call_abi::{scalar_shape, scalar_stack_placement};
 use calling_conventions::ValuePlacement;
-use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
     FrameStorageSlotId, OutgoingArgumentSlotId, SelectedOutgoingArgumentSlot,
 };
@@ -145,22 +144,6 @@ pub(super) fn entry(
         ));
     }
     Ok(())
-}
-
-pub(super) fn argument(
-    builder: &mut Builder<'_>,
-    operation: &LegalizedScalarInstruction,
-    argument_index: usize,
-    value: ValueId,
-    placement: &ValuePlacement,
-) -> Result<bool, SelectedInstructionError> {
-    invocation_argument(
-        builder,
-        operation.operation.into(),
-        argument_index,
-        value,
-        placement,
-    )
 }
 
 pub(super) fn invocation_argument(

@@ -1259,7 +1259,22 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             match kind {
                 semantic_vocabulary::ExternalCompletionKind::ProcessExit => bytes.push(1),
             }
-            super::boundary_invocations::encode_binding(bytes, binding);
+            match binding {
+                target_operations::ExternalCompletionBinding::Boundary(binding) => {
+                    bytes.push(0);
+                    super::boundary_invocations::encode_binding(bytes, binding);
+                }
+                target_operations::ExternalCompletionBinding::Checked {
+                    callee,
+                    origin,
+                    call_plan,
+                } => {
+                    bytes.push(1);
+                    crate::codec_bytes::push_encoded(bytes, callee.get().to_le_bytes());
+                    super::structural::encode_call_source(bytes, origin);
+                    encode_call_plan(bytes, call_plan);
+                }
+            }
             encode_len(bytes, arguments.len());
             for argument in arguments {
                 crate::codec_bytes::push_encoded(bytes, argument.parameter_index.to_le_bytes());

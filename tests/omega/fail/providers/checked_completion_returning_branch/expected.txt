@@ -1,0 +1,1 @@
+selected external-completion provider has a normal return path

@@ -1,6 +1,8 @@
 //! Result and source consumption: structural result bindings are appended
 //! per operation, retained results feed a call argument, and value-call
 //! sources place the operation their operand evaluates into.
+//! Producers and prior retirement receipts share the retained value-call
+//! inventory: nesting cannot hide a completed release or authorize a second one.
 
 use super::super::super::{CheckedUnitStructuralArgumentSourcePlan, PermissionProvenance};
 use super::super::{
@@ -385,7 +387,9 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     statement_index: u32,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    trace: &super::super::super::LocalConstructionTrace,
 ) -> Option<()> {
+    trace.phase("reference retirement: transport");
     let authored_state = program.state_by_symbol(state)?;
     let order = program
         .statement_table
@@ -408,6 +412,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         .rev()
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
+        trace.phase("reference retirement: selected complements");
         let complements = super::reference_retirement::selections::closed_complements(
             &super::reference_retirement::Retirement {
                 program,
@@ -426,6 +431,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             },
         )?;
         if !complements.is_empty() {
+            trace.phase("reference retirement: complement receiver");
             let release = pending.iter_mut().rev().find_map(|operation| {
                 if let CheckedUnitEffectOperationPlan::ReleaseReference {
                     selection_complements,
@@ -439,6 +445,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             })?;
             release.extend(complements);
         }
+        trace.phase("reference retirement: stored occurrences");
         let stored_releases = super::reference_retirement::stores::releases(
             &super::reference_retirement::Retirement {
                 program,
@@ -466,6 +473,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 operations
                     .iter()
                     .chain(&pending)
+                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                     .any(|operation| whole_result_discarded(operation, result))
             })
         {
@@ -480,6 +488,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             if replacement_owns_release(&order, facts, machine, state, loans) {
                 continue;
             }
+            trace.phase("reference retirement: captured custody transfer");
             if custody_transferred(program, facts, results, result.binding_ordinal, operations)? {
                 // The receiving constructor or call owns the descriptor now.
                 // Its former holder cannot release that transferred custody.
@@ -489,11 +498,13 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             // A descriptor retires once, after every alternative source and
             // every descendant can end. Never release an arbitrary candidate
             // early or emit one destructive operation per possible referent.
+            trace.phase("reference retirement: captured loan boundary");
             let boundary = latest_loan_release_boundary(&order, facts, loans, |loan| {
                 super::super::super::reference_results::release_boundary(
                     program, facts, machine, state, loan,
                 )
             })?;
+            trace.phase("reference retirement: captured storage boundary");
             let boundary = order.latest(
                 boundary as usize,
                 order.successor(result.statement_index as usize)?,
@@ -516,6 +527,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 returned: None,
                 transported_loans: &transported_loans,
             };
+            trace.phase("reference retirement: captured loan group");
             if order.at_or_before(boundary as usize, statement_index as usize)
                 && retirement.carrier_children_retired(result)
                 && captured
@@ -528,6 +540,8 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                     .all(|(loan, _)| retirement.children_retired(loan))
                 && !operations
                     .iter()
+                    .chain(&pending)
+                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                     .any(|operation| release_matches(operation, result, loans))
             {
                 pending.push(CheckedUnitEffectOperationPlan::ReleaseReference {
@@ -555,6 +569,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 || operations
                     .iter()
                     .chain(&pending)
+                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                     .any(|operation| release_matches(operation, result, loans))
             {
                 continue;
@@ -585,6 +600,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         // Transfers remove only their selected subtree. Other stored leaves
         // may still end at their own checked boundary; a whole-value transfer
         // leaves no initializer custody here at all.
+        trace.phase("reference retirement: local custody transfer");
         let transferred_paths = super::reference_retirement::transferred_paths(
             program,
             facts,
@@ -642,6 +658,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             returned: None,
             transported_loans: &transported_loans,
         };
+        trace.phase("reference retirement: local loan leaves");
         let local_loans = validation::reference_result_custody::local_record_loans(
             program,
             facts,
@@ -665,13 +682,12 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         {
             continue;
         }
-        let leaf_releases =
-            if retains_siblings {
-                local_loans
-                    .into_iter()
-                    .rev()
-                    .filter(|(source, group)| {
-                        facts.borrow.loan_group(*group).is_some_and(|mut loans| {
+        let leaf_releases = if retains_siblings {
+            local_loans
+                .into_iter()
+                .rev()
+                .filter(|(source, group)| {
+                    facts.borrow.loan_group(*group).is_some_and(|mut loans| {
                             loans.all(|(loan, _)| retirement.children_retired(loan))
                         }) && !transferred_paths.iter().any(|path| {
                             path.starts_with(&source.path) || source.path.starts_with(path)
@@ -682,16 +698,18 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                         })
                         .is_some_and(|boundary| {
                             order.at_or_before(boundary as usize, statement_index as usize)
-                        }) && !operations.iter().chain(&pending).any(|operation| {
+                        }) && !operations.iter().chain(&pending)
+                        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                        .any(|operation| {
                             matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
                             loans: released, ..
                         } if *released == *group)
                         })
-                    })
-                    .collect::<Vec<_>>()
-            } else {
-                Vec::new()
-            };
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
         if retains_siblings && leaf_releases.is_empty() {
             continue;
         }
@@ -700,6 +718,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         // reverse producer walk makes pending cleanups available to older
         // owners here, so the same join also orders transitive dependencies.
         // A deferred owner is retried after its earliest permitted boundary.
+        trace.phase("reference retirement: local storage loans");
         let storage_loans = validation::reference_result_custody::local_storage_loans(
             facts,
             machine,
@@ -753,6 +772,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     // Each emitted release closes an actual holder; repeat until this finite
     // storage dependency frontier stops changing, without re-evaluating values.
     loop {
+        trace.phase("reference retirement: backing occurrences");
         let releases = super::reference_retirement::Retirement {
             program,
             facts,
@@ -775,11 +795,13 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         pending.extend(releases);
     }
     for binding in retired {
+        trace.phase("reference retirement: producer disposal");
         let (_, discard_on_return) = operations.iter_mut().find_map(|operation| {
             operation.discardable_structural_result_by_ordinal_mut(binding)
         })?;
         *discard_on_return = false;
     }
+    trace.phase("reference retirement: case conditions");
     super::reference_retirement::prepare_case_conditions(
         program,
         facts,
@@ -846,6 +868,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             trace.statement(Some(result.statement_index));
             if operations
                 .iter()
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                 .any(|operation| whole_result_discarded(operation, result))
             {
                 continue;
@@ -899,6 +922,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                     .ok()?;
             if !operations
                 .iter()
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                 .any(|operation| release_matches(operation, result, loans))
                 && !pending
                     .iter()

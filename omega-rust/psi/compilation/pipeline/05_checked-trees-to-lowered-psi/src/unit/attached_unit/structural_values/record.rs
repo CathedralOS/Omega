@@ -163,7 +163,7 @@ impl emission::Emission<'_, '_, '_> {
         // brings the claims it already holds, rebased under its field. A
         // linear record's whole-root claim is minted at its binding instead.
         claims.sort();
-        let place = place_id(allocate_dense(self.next_place)?);
+        let place = place_id(allocate_dense(self.environment.next_place)?);
         let declaration = emit_completed(
             place,
             self.structural_type,
@@ -180,7 +180,7 @@ impl emission::Emission<'_, '_, '_> {
             self.operations
                 .set_structural_result_claims(place, claims)?;
         }
-        self.temporary_places.push(declaration);
+        self.environment.private_places.push(declaration);
         Ok(place)
     }
 

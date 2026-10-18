@@ -1277,7 +1277,7 @@ pub enum LegalizedScalarTerminator {
         boundary: BoundaryMachineId,
         kind: semantic_vocabulary::ExternalCompletionKind,
         arguments: Vec<target_operations::TargetUnitScalarCallArgument>,
-        binding: target_operations::BoundarySettlementBinding,
+        binding: target_operations::ExternalCompletionBinding,
         structural_arguments: Vec<terminal_psi::StructuralArgument>,
         requirement_obligations: Vec<ObligationId>,
         frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
@@ -1326,6 +1326,43 @@ pub enum LegalizedScalarTerminator {
 }
 
 impl LegalizedScalarTerminator {
+    /// Checked external completion uses the ordinary scalar call ABI but owns
+    /// an edge, not a fabricated result operation or normal continuation.
+    pub fn checked_completion_call(&self) -> Option<LegalizedScalarCall> {
+        let Self::ExternalCompletion {
+            binding:
+                target_operations::ExternalCompletionBinding::Checked {
+                    callee,
+                    origin,
+                    call_plan,
+                },
+            arguments,
+            requirement_obligations,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        Some(LegalizedScalarCall {
+            descriptor_origins: Vec::new(),
+            placed_bindings: Vec::new(),
+            source: origin.clone(),
+            target: target_operations::NativeCallTarget::Machine(*callee),
+            call_plan: call_plan.clone(),
+            arguments: arguments
+                .iter()
+                .map(|argument| LegalizedScalarArgument::Scalar {
+                    source: argument.source.source_value(),
+                    placement: argument.placement.clone(),
+                })
+                .collect(),
+            result_placement: None,
+            structural_result: None,
+            claim_transfers: Vec::new(),
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: Vec::new(),
+        })
+    }
     /// Cleanup receiver uses count on every normal edge, including selected arms.
     pub fn cleanup_calls(
         &self,

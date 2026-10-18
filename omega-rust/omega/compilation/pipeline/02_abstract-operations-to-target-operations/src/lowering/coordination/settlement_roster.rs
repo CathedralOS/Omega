@@ -63,12 +63,7 @@ pub(super) fn validate_settlement_roster(
     }
     if let Some((machine, operation, boundary)) = boundary_calls
         .keys()
-        .find(|key| {
-            installed_boundaries.contains(&key.2)
-                && !key.1.operation().is_some_and(|operation| {
-                    installed_by_call.contains_key(&(key.0, operation, key.2))
-                })
-        })
+        .find(|key| installed_boundaries.contains(&key.2) && !installed_by_call.contains_key(key))
         .copied()
     {
         return Err(LoweringError::PartialInstalledProviderBoundary {
@@ -79,12 +74,7 @@ pub(super) fn validate_settlement_roster(
     }
     let required_settlements = boundary_calls
         .keys()
-        .filter_map(|key| {
-            (!key.1.operation().is_some_and(|operation| {
-                installed_by_call.contains_key(&(key.0, operation, key.2))
-            }))
-            .then_some(key.2)
-        })
+        .filter_map(|key| (!installed_by_call.contains_key(key)).then_some(key.2))
         .collect::<BTreeSet<_>>();
     for boundary in &required_settlements {
         if !settlements_by_boundary.contains_key(boundary) {

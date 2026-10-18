@@ -49,8 +49,10 @@ impl StateGraphEmission<'_, '_> {
             bindings,
             current_rank,
             inherited_lengths,
+            sequence,
         } = *frame;
         let state = &plan.states[position];
+        let mut sequence = sequence.branch();
         let arrival_decided = checked.facts.call_requires_decided(
             state.state,
             edge.statement_ordinal,
@@ -229,7 +231,7 @@ impl StateGraphEmission<'_, '_> {
                             let emitted = super::super::super::emission::emit_call_operations(
                                 identities,
                                 checked,
-                                plan.machine,
+                                owner,
                                 state,
                                 &selected_operations,
                                 self.catalogs,
@@ -242,6 +244,7 @@ impl StateGraphEmission<'_, '_> {
                                 next_block,
                                 next_edge,
                                 operations,
+                                &mut sequence,
                             )
                             .and_then(|()| {
                                 case_emission::result(state, result.binding_ordinal, operations)
@@ -305,7 +308,9 @@ impl StateGraphEmission<'_, '_> {
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ViewSubslice(_) => {
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                            let emitted = subslices::emit(identities, checked, state, edge.statement_ordinal, &transfer.source, state_parameters, &mut edge_evaluation, destination, bindings, &mut edge_values, next_value, next_block, next_edge, operations, self.catalogs, &mut self.structural_places)?;
+                            let emitted = subslices::emit(identities, checked, state, edge.statement_ordinal, &transfer.source, state_parameters, &mut edge_evaluation, destination, bindings, &mut edge_values, next_value, next_block, next_edge, operations, self.catalogs, &mut self.structural_places,
+                                owner, &self.state_erased[position], &mut sequence,
+                            )?;
                             self.structural_places.push(emitted);
                             destination
                         }
@@ -326,7 +331,8 @@ impl StateGraphEmission<'_, '_> {
                             // case step selects geometry, not authority: the
                             // receiving verifier still requires live membership
                             // on the edge that borrows its payload.
-                            let mut calls = self.catalogs.scalar_calls.emission_context();
+                            let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
+                let mut calls = scalar_calls.emission_context();
                             let mut selectors = Vec::new();
                             let source_value_count = edge_values.len();
                             for segment in &subject.path {
@@ -350,7 +356,15 @@ impl StateGraphEmission<'_, '_> {
                                         .ok_or(LoweringError::Unsupported(
                                             "state loan selector lost its exact source occurrence",
                                         ))?;
-                                    let value = edge_evaluation.source_value(
+                                    let value = {
+                                        let (mut environment, emission) = operation_catalogs.operation_frame(
+                    checked, owner, state, state_parameters, &self.state_erased[position],
+                    &mut sequence,
+                    crate::unit::attached_unit::operation_frame::OperationEmission { source_value_count: edge_values.len(),
+                        evaluation: &mut edge_evaluation, values: &mut edge_values,
+                        next_value, next_block, next_edge, calls: &mut calls, operations },
+                ).split();
+                                        emission.evaluation.source_value(
                                         identities,
                                         checked,
                                         owner,
@@ -359,13 +373,15 @@ impl StateGraphEmission<'_, '_> {
                                         root.role,
                                         &checked_trees::CheckedCallScalarArgument::Computation(*handle),
                                         source_value_count,
-                                        &mut edge_values,
-                                        next_value,
-                                        next_block,
-                                        next_edge,
-                                        operations,
-                                        &mut calls,
-                                    )?;
+                                        emission.values,
+                                        emission.next_value,
+                                        emission.next_block,
+                                        emission.next_edge,
+                                        emission.operations,
+                                        emission.calls,
+                                        &mut environment,
+                                    )
+                                    }?;
                                     selectors.push(value.id);
                                 }
                             }
@@ -374,7 +390,7 @@ impl StateGraphEmission<'_, '_> {
                                     identities,
                                     &subject.path,
                                     storage.selected_type,
-                                    &self.catalogs.structural_types,
+                                    operation_catalogs.structural_types,
                                 )?;
                             let root = storage.place;
                             // The selected edge owns the operand frame. Keep
@@ -388,7 +404,7 @@ impl StateGraphEmission<'_, '_> {
                                 &prepared, root, Some(&edge_values), &mut selectors.into_iter(),
                                 Some(&mut calls), Some((next_value, operations)),
                             )?;
-                            self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                            scalar_calls.next_call_obligation = calls.next_obligation_identity;
                             // A captured header has one descriptor slot on every
                             // incoming edge. Existing local descriptors participate
                             // in that same typed formation; whole parameter
@@ -934,25 +950,49 @@ impl StateGraphEmission<'_, '_> {
                 }
                 checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
                     let value = scalars::successor_value(checked, state, edge, transfer)?;
-                    let mut calls = self.catalogs.scalar_calls.emission_context();
-                    let value = edge_evaluation.source_value(
-                        identities,
-                        checked,
-                        owner,
-                        state.state,
-                        edge.statement_ordinal,
-                        CheckedScalarExpressionRole::TransitionArgument {
-                            argument_ordinal: transfer.argument_ordinal,
-                        },
-                        &value,
-                        edge_values.len(),
-                        &mut edge_values,
-                        next_value,
-                        next_block,
-                        next_edge,
-                        operations,
-                        &mut calls,
-                    )?;
+                    let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
+                    let mut calls = scalar_calls.emission_context();
+                    let value = {
+                        let (mut environment, emission) = operation_catalogs
+                            .operation_frame(
+                                checked,
+                                owner,
+                                state,
+                                state_parameters,
+                                &self.state_erased[position],
+                                &mut sequence,
+                                crate::unit::attached_unit::operation_frame::OperationEmission {
+                                    source_value_count: edge_values.len(),
+                                    evaluation: &mut edge_evaluation,
+                                    values: &mut edge_values,
+                                    next_value,
+                                    next_block,
+                                    next_edge,
+                                    calls: &mut calls,
+                                    operations,
+                                },
+                            )
+                            .split();
+                        emission.evaluation.source_value(
+                            identities,
+                            checked,
+                            owner,
+                            state.state,
+                            edge.statement_ordinal,
+                            CheckedScalarExpressionRole::TransitionArgument {
+                                argument_ordinal: transfer.argument_ordinal,
+                            },
+                            &value,
+                            emission.source_value_count,
+                            emission.values,
+                            emission.next_value,
+                            emission.next_block,
+                            emission.next_edge,
+                            emission.operations,
+                            emission.calls,
+                            &mut environment,
+                        )
+                    }?;
                     self.catalogs.scalar_calls.next_call_obligation =
                         calls.next_obligation_identity;
                     if value.scalar_type != terminal_scalar_type(transfer.primitive_type)? {
@@ -1127,20 +1167,44 @@ impl StateGraphEmission<'_, '_> {
                 &scalar_slots,
                 &structural_actuals,
             )?;
-            let mut calls = self.catalogs.scalar_calls.emission_context();
-            let observed = edge_evaluation.retained_observation(
-                identities,
-                checked,
-                root,
-                &bindings,
-                &mut edge_values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-                &mut calls,
-            )?;
-            self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
+            let mut calls = scalar_calls.emission_context();
+            let observed = {
+                let (mut environment, emission) = operation_catalogs
+                    .operation_frame(
+                        checked,
+                        owner,
+                        state,
+                        state_parameters,
+                        &self.state_erased[position],
+                        &mut sequence,
+                        crate::unit::attached_unit::operation_frame::OperationEmission {
+                            source_value_count: edge_values.len(),
+                            evaluation: &mut edge_evaluation,
+                            values: &mut edge_values,
+                            next_value,
+                            next_block,
+                            next_edge,
+                            calls: &mut calls,
+                            operations,
+                        },
+                    )
+                    .split();
+                emission.evaluation.retained_observation(
+                    identities,
+                    checked,
+                    root,
+                    &bindings,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?;
+            scalar_calls.next_call_obligation = calls.next_obligation_identity;
             if observed.scalar_type.as_integer().is_none() {
                 return unsupported("Unit graph rank observation lost its integer carrier");
             }
@@ -1148,6 +1212,7 @@ impl StateGraphEmission<'_, '_> {
         } else {
             None
         };
+        sequence.require_closed()?;
         let owner_arguments =
             self.captured_loans
                 .arrivals(position, target, edge, &captured_loans)?;
@@ -1322,6 +1387,8 @@ pub(super) struct SuccessorFrame<'f> {
     pub(super) bindings: &'f ScalarBindings,
     pub(super) current_rank: Option<ValueId>,
     pub(super) inherited_lengths: &'f CollectionLengthObservations,
+    pub(super) sequence:
+        &'f crate::unit::attached_unit::composed_control::emission::OperationSequence,
 }
 
 /// The state's emission in flight that each successor edge extends.

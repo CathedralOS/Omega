@@ -78,7 +78,7 @@ impl InstalledAssumedBindingEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledProviderCallEvidence {
     pub caller: semantic_vocabulary::MachineId,
-    pub psi_operation: semantic_vocabulary::OperationId,
+    pub invocation_site: semantic_vocabulary::BoundaryInvocationSite,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub provider: terminal_psi::ProviderCandidateConformance,
     pub assumption: Option<InstalledAssumedBindingEvidence>,

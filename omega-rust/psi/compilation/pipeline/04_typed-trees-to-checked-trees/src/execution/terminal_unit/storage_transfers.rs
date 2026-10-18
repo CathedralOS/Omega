@@ -339,7 +339,7 @@ impl Query<'_> {
             checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
         ) = operation
         {
-            output.append(self.value(*value, &[], result, &[], active)?);
+            output.append(self.value(*value, &[], true, result, &[], active)?);
         }
         Some(output)
     }
@@ -422,6 +422,7 @@ impl Query<'_> {
         &self,
         value: CheckedStructuralValueHandle,
         selection: &[CheckedUnitStructuralPathSegment],
+        consumes_selection: bool,
         result: &CheckedUnitStructuralResultBindingPlan,
         destination: &[OwnerSegment],
         active: &mut Vec<CheckedStructuralValueHandle>,
@@ -431,14 +432,26 @@ impl Query<'_> {
             return None;
         }
         active.push(value);
-        let output = self.value_kind(
+        let mut output = self.value_kind(
             &values.nodes.get(value).kind,
             selection,
+            consumes_selection,
             result,
             destination,
             active,
         );
         active.pop();
+        if !consumes_selection {
+            // Constructing an observed temporary still consumes its inputs,
+            // but a copy does not make its receiver their owning destination.
+            // Keep actual call/store consumption; an unbound intermediate
+            // construction cannot acquire a fabricated result holder.
+            for transfer in &mut output.as_mut()?.possible {
+                if matches!(transfer.destination, Destination::Holder(..)) {
+                    transfer.destination = Destination::Unknown;
+                }
+            }
+        }
         output
     }
 
@@ -446,6 +459,7 @@ impl Query<'_> {
         &self,
         kind: &CheckedStructuralValueKind,
         selection: &[CheckedUnitStructuralPathSegment],
+        consumes_selection: bool,
         result: &CheckedUnitStructuralResultBindingPlan,
         destination: &[OwnerSegment],
         active: &mut Vec<CheckedStructuralValueHandle>,
@@ -453,7 +467,9 @@ impl Query<'_> {
         let values = &self.facts.values.structural_values;
         let mut output = Transfers::default();
         match kind {
-            CheckedStructuralValueKind::Place(argument) if self.belongs(argument) => {
+            CheckedStructuralValueKind::Place(argument)
+                if consumes_selection && self.belongs(argument) =>
+            {
                 let mut path = argument.path.clone();
                 path.extend_from_slice(selection);
                 return Some(self.leaf(
@@ -488,10 +504,11 @@ impl Query<'_> {
                 // A call product transfers into the graph's receiving value
                 // just like a stored place. Its anonymous output holder is
                 // distinct from both the call's inputs and the final local.
-                if self.source
-                    == (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: call.structural_result().binding_ordinal,
-                    })
+                if consumes_selection
+                    && self.source
+                        == (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: call.structural_result().binding_ordinal,
+                        })
                 {
                     return Some(self.leaf(
                         selection.to_vec(),
@@ -507,10 +524,22 @@ impl Query<'_> {
                 output.append(self.call(call.operation().call()?));
                 return Some(output);
             }
-            CheckedStructuralValueKind::Projection { source, path, .. } => {
+            CheckedStructuralValueKind::Projection {
+                source,
+                path,
+                copies_selected_value,
+                ..
+            } => {
                 let mut selected = path.clone();
                 selected.extend_from_slice(selection);
-                return self.value(*source, &selected, result, destination, active);
+                return self.value(
+                    *source,
+                    &selected,
+                    consumes_selection && !copies_selected_value,
+                    result,
+                    destination,
+                    active,
+                );
             }
             checked_trees::record_or_structural_case_pattern!(data_symbol, fields, ..) => {
                 let data = self.program.data_definition_by_symbol(*data_symbol)?;
@@ -574,12 +603,19 @@ impl Query<'_> {
                             continue;
                         }
                     };
-                    if selection.starts_with(&relative) {
+                    if !consumes_selection {
+                        // Observing a fresh container does not shorten the
+                        // whole child move that established each of its fields.
+                        // The enclosing observation removes only the invented
+                        // final holder, not genuine input consumption.
+                        output.append(self.value(child, &[], true, result, &[], active)?);
+                    } else if selection.starts_with(&relative) {
                         // The result selects within this field: its container
                         // prefix no longer belongs to the receiving value.
                         output.append(self.value(
                             child,
                             &selection[relative.len()..],
+                            true,
                             result,
                             destination,
                             active,
@@ -589,18 +625,24 @@ impl Query<'_> {
                         // the remaining field path inside the receiving value.
                         let mut path = destination.to_vec();
                         path.extend_from_slice(&owner_path[selection.len()..]);
-                        output.append(self.value(child, &[], result, &path, active)?);
+                        output.append(self.value(child, &[], true, result, &path, active)?);
                     } else {
                         // Construction consumed the unselected sibling too;
                         // its custody is absent from the surviving projection.
                         output.append(
-                            self.value(child, &[], result, &[], active)?
+                            self.value(child, &[], true, result, &[], active)?
                                 .without_receiver(),
                         );
                     }
                 }
             }
             CheckedStructuralValueKind::FixedArray { elements } => {
+                if !consumes_selection {
+                    for child in elements {
+                        output.append(self.value(*child, &[], true, result, &[], active)?);
+                    }
+                    return Some(output);
+                }
                 if let Some((CheckedUnitStructuralPathSegment::FixedIndex(selected), suffix)) =
                     selection.split_first()
                 {
@@ -608,9 +650,9 @@ impl Query<'_> {
                     elements.get(selected)?;
                     for (index, child) in elements.iter().enumerate() {
                         let transferred = if index == selected {
-                            self.value(*child, suffix, result, destination, active)?
+                            self.value(*child, suffix, true, result, destination, active)?
                         } else {
-                            self.value(*child, &[], result, &[], active)?
+                            self.value(*child, &[], true, result, &[], active)?
                                 .without_receiver()
                         };
                         output.append(transferred);
@@ -623,7 +665,7 @@ impl Query<'_> {
                 for (index, child) in elements.iter().enumerate() {
                     let mut path = destination.to_vec();
                     path.push(OwnerSegment::FixedIndex(index));
-                    output.append(self.value(*child, &[], result, &path, active)?);
+                    output.append(self.value(*child, &[], true, result, &path, active)?);
                 }
             }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
@@ -632,7 +674,16 @@ impl Query<'_> {
                     .dispatch_arms
                     .span(*arms)?
                     .iter()
-                    .map(|arm| self.value(arm.value, selection, result, destination, active))
+                    .map(|arm| {
+                        self.value(
+                            arm.value,
+                            selection,
+                            consumes_selection,
+                            result,
+                            destination,
+                            active,
+                        )
+                    })
                     .collect::<Option<Vec<_>>>()?;
                 // Keep only source regions transferred on every arm. Taking
                 // the union here would end a parent on an unselected move.

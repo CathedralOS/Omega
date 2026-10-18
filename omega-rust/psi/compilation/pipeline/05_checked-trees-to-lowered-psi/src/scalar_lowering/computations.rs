@@ -21,7 +21,7 @@ use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::computation_graph::reachable_nodes;
 use crate::scalar_lowering::branch_states::lower_scalar_call;
 use crate::scalar_lowering::branch_states::prepared::{
-    LoweredScalarBranchState, LoweredScalarBranchTerminator,
+    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
 use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
@@ -36,7 +36,6 @@ pub(crate) mod copies;
 mod dispatch;
 pub(crate) mod fields;
 pub(crate) mod literals;
-mod normal_cleanup;
 pub(crate) mod observations;
 pub(crate) mod operand_types;
 pub(crate) mod produced_values;
@@ -63,8 +62,6 @@ struct Site<'a> {
 enum EstablishedValue {
     Produced {
         root: checked_trees::CheckedStructuralValueHandle,
-        place: semantic_vocabulary::PlaceId,
-        structural_type: semantic_vocabulary::StructuralTypeId,
     },
     Copied {
         expression: typed_trees::expression::ExpressionHandle,
@@ -74,12 +71,10 @@ enum EstablishedValue {
     },
 }
 
-/// Prepared control and its established storage identities form one result.
-/// Storage bindings locate homes; operation and control frontiers still prove
-/// that a particular consumer can use those homes on its execution path.
+/// Prepared scalar control retains value dependencies, not established storage.
+/// Only the common producer publishes physical bindings during emission.
 pub(crate) struct PreparedExpansion {
     pub(crate) states: Vec<LoweredScalarBranchState>,
-    pub(crate) storage: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
 }
 
 pub(crate) struct Expansion<'a> {
@@ -95,7 +90,6 @@ pub(crate) struct Expansion<'a> {
     /// edge terms stay in scope on the emitted block.
     erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     states: Vec<LoweredScalarBranchState>,
-    pub(crate) storage: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
     calls: Vec<SourceCallCoordinate>,
     produced_values: Vec<produced_values::Slot>,
     subslices: Vec<subslices::Slot>,
@@ -131,7 +125,6 @@ impl<'a> Expansion<'a> {
             base,
             erased_proof_formals: Vec::new(),
             states: Vec::new(),
-            storage: Vec::new(),
             calls: Vec::new(),
             produced_values: Vec::new(),
             subslices: Vec::new(),
@@ -173,7 +166,6 @@ impl<'a> Expansion<'a> {
     pub(crate) fn finish(self) -> PreparedExpansion {
         PreparedExpansion {
             states: self.states,
-            storage: self.storage,
         }
     }
 
@@ -591,6 +583,36 @@ impl<'a> Expansion<'a> {
         active.push(*handle);
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
+        let completion = self
+            .checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .cleanup_control
+            .value_completion(
+                self.machine,
+                site.state,
+                site.statement,
+                node.evaluated_expression(),
+            )
+            .cloned();
+        let completion_state = completion.as_ref().map(|_| {
+            let mut completed_types = input_types.to_vec();
+            completed_types.push(result_type);
+            self.push(LoweredScalarBranchState::jumping(
+                target,
+                Vec::new(),
+                completed_types.clone(),
+                &completed_types,
+                vec![LoweredScalarEffect::CompleteValueObservation {
+                    machine: self.machine,
+                    state: site.state,
+                    statement: site.statement,
+                    expression: node.evaluated_expression(),
+                }],
+            ))
+        });
+        let target = completion_state.unwrap_or(target);
         let entry = match node.kind {
             CheckedScalarComputationKind::StorageAddress { subject, .. } => {
                 let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
@@ -609,7 +631,7 @@ impl<'a> Expansion<'a> {
                     target,
                     LoweredScalarBinding::StorageAddress(
                         crate::emission::operation_emission::calls::PreparedStructuralArgument {
-                            place: source.place,
+                            source: source.place.into(),
                             root_type: Some(root_type),
                             access: source.access,
                             path,
@@ -655,7 +677,7 @@ impl<'a> Expansion<'a> {
                 field,
                 ..
             } => self.structural_field(
-                identities,
+                *handle,
                 receiver_expression,
                 receiver_value,
                 &subject,
@@ -673,6 +695,7 @@ impl<'a> Expansion<'a> {
                 ..
             } => self.case_membership(
                 identities,
+                *handle,
                 &subject,
                 receiver_value,
                 case,

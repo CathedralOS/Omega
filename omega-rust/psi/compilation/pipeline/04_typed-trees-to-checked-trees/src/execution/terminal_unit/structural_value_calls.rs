@@ -19,15 +19,24 @@ pub(crate) fn retain(
     let mut shapes = ShapeCollector::new(program);
     let mut schedules = Vec::new();
     for (_, root) in facts.values.structural_values.roots.iter() {
-        if schedules.iter().any(|(_, _, value, _)| *value == root.root) {
+        if schedules
+            .iter()
+            .any(|(_, _, value, _, _)| *value == root.root)
+        {
             continue;
         }
-        if let Some(calls) = schedule(program, facts, &mut shapes, root) {
-            schedules.push((root.machine, root.state, root.root, calls));
+        if let Some((preceding_bindings, calls)) = schedule(program, facts, &mut shapes, root) {
+            schedules.push((
+                root.machine,
+                root.state,
+                root.root,
+                preceding_bindings,
+                calls,
+            ));
         }
     }
     let mut completed = Vec::new();
-    for (machine, state, _, _) in &schedules {
+    for (machine, state, _, _, _) in &schedules {
         if completed.contains(&(*machine, *state)) {
             continue;
         }
@@ -38,13 +47,13 @@ pub(crate) fn retain(
         let mut updated = operations.clone();
         let state_schedules = schedules
             .iter()
-            .filter(|(owner, source, _, _)| owner == machine && source == state);
+            .filter(|(owner, source, _, _, _)| owner == machine && source == state);
         if consume_caller_results(
             program,
             *machine,
             *state,
             &mut updated,
-            state_schedules.map(|(_, _, _, calls)| calls.as_slice()),
+            state_schedules.map(|(_, _, _, _, calls)| calls.as_slice()),
         )
         .is_none()
         {
@@ -53,14 +62,15 @@ pub(crate) fn retain(
             continue;
         }
         *operations = updated;
-        for (_, _, value, calls) in schedules
+        for (_, _, value, preceding_bindings, calls) in schedules
             .iter()
-            .filter(|(owner, source, _, _)| owner == machine && source == state)
+            .filter(|(owner, source, _, _, _)| owner == machine && source == state)
         {
-            facts
-                .values
-                .structural_values
-                .retain_calls_for_root(*value, calls.clone());
+            facts.values.structural_values.retain_calls_for_root(
+                *value,
+                *preceding_bindings,
+                calls.clone(),
+            );
         }
     }
     // A temporary's result type need not occur in its caller's signature.
@@ -235,7 +245,7 @@ fn schedule(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     root: &CheckedStructuralValueRoot,
-) -> Option<Vec<checked_trees::CheckedStructuralValueCall>> {
+) -> Option<(u32, Vec<checked_trees::CheckedStructuralValueCall>)> {
     let (machine, state) = validation::find_state(program, root.state)?;
     if machine.symbol != root.machine {
         return None;
@@ -341,7 +351,8 @@ fn schedule(
             }
         })
         .collect::<Vec<_>>();
-    structural_operands::value_calls(
+    let preceding_bindings = u32::try_from(count).ok()?;
+    let calls = structural_operands::value_calls(
         program,
         facts,
         ScalarCalleeClosure,
@@ -357,5 +368,6 @@ fn schedule(
         root.root,
         &LocalConstructionTrace::default(),
         &mut crate::execution::terminal_unit::borrowed_windows::OpenWindows::default(),
-    )
+    )?;
+    Some((preceding_bindings, calls))
 }

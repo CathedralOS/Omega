@@ -32,7 +32,8 @@ use crate::values::{
     TerminalScalarValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ClaimId, IntegerType, IntegerValue, MachineId, PlaceId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, PlaceId,
+    ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
@@ -246,6 +247,12 @@ impl ResultClaimOrigin {
 pub(crate) enum SuspendedCallResult {
     Scalar(ValueId),
     Unit,
+    /// A selected checked body entered from a domain-ending edge has no
+    /// return continuation. Its eventual leaf, not this frame, ends the domain.
+    ExternalCompletion {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        edge: EdgeId,
+    },
     Structural {
         result: StructuralOperationResult,
         claim_origin: ResultClaimOrigin,

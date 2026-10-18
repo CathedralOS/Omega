@@ -35,29 +35,26 @@ pub enum ProviderOutputDestination {
     Parameter(usize),
 }
 
+/// Open declarations retain their obligations; only complete relations publish
+/// concrete effects or Terminal output rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowRelationReadiness {
+    Complete,
+    TemplateDependent,
+}
+
+pub struct ProviderOutputRelation {
+    pub outputs: Vec<ProviderOutput>,
+    pub readiness: BorrowRelationReadiness,
+}
+
 /// Resolve every writable output leaf using the complete applied type frontier.
 /// This relation retains lifetimes only; provider admission separately supplies
 /// the reference's backing, access and stability promise.
 pub fn resolve_provider_outputs(
     program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
-) -> Result<Vec<ProviderOutput>, ViewReturnAmbiguity> {
-    let mut inputs = Vec::new();
-    for (parameter_index, parameter) in parameters.iter().enumerate() {
-        let leaves = carried_lifetimes::symbolic_input_lifetimes(
-            program,
-            parameter.type_reference,
-            &[],
-            &[],
-            &[],
-        )
-        .ok_or_else(|| ViewReturnAmbiguity::IncompleteStructure {
-            subject: format!("input `{}`", parameter.name),
-        })?;
-        for leaf in leaves {
-            inputs.push((parameter_index, parameter, leaf));
-        }
-    }
+) -> Result<ProviderOutputRelation, ViewReturnAmbiguity> {
     let mut destinations = Vec::new();
     for (parameter_index, parameter) in parameters.iter().enumerate() {
         let Some(shell) = crate::reference_shell(program, parameter.type_reference) else {
@@ -72,11 +69,47 @@ pub fn resolve_provider_outputs(
             format!("output `{}`", parameter.name),
         ));
     }
+    if destinations.is_empty() {
+        let readiness = crate::machine_calls::calls::provider_completion_covers_writable_slots(
+            program,
+            parameters,
+            &[],
+        )
+        .ok_or_else(|| ViewReturnAmbiguity::IncompleteStructure {
+            subject: "provider writable reference frontier".to_owned(),
+        })?;
+        return Ok(ProviderOutputRelation {
+            outputs: Vec::new(),
+            readiness,
+        });
+    }
+    let mut inputs = Vec::new();
+    let mut template_dependent = false;
+    for (parameter_index, parameter) in parameters.iter().enumerate() {
+        let leaves = carried_lifetimes::declaration_lifetime_inventory(
+            program,
+            parameter.type_reference,
+            carried_lifetimes::LifetimeFrontier::Input,
+        )
+        .ok_or_else(|| ViewReturnAmbiguity::IncompleteStructure {
+            subject: format!("input `{}`", parameter.name),
+        })?;
+        template_dependent |= leaves.template_dependent;
+        for leaf in leaves.leaves {
+            inputs.push((parameter_index, parameter, leaf));
+        }
+    }
+    let inputs_dependent = template_dependent;
     let mut outputs = Vec::new();
     for (destination, reference, subject) in destinations {
-        let leaves = carried_lifetimes::borrowed_storage_lifetimes(program, reference)
-            .ok_or_else(|| ViewReturnAmbiguity::IncompleteStructure { subject })?;
-        for leaf in leaves {
+        let leaves = carried_lifetimes::declaration_lifetime_inventory(
+            program,
+            reference,
+            carried_lifetimes::LifetimeFrontier::BorrowedStorage,
+        )
+        .ok_or_else(|| ViewReturnAmbiguity::IncompleteStructure { subject })?;
+        template_dependent |= leaves.template_dependent;
+        for leaf in leaves.leaves {
             let matching: Vec<_> = inputs
                 .iter()
                 .filter(|(_, _, input)| {
@@ -85,7 +118,7 @@ pub fn resolve_provider_outputs(
                         .is_none_or(|region| input.lifetime.as_ref() == Some(region))
                 })
                 .collect();
-            if matching.is_empty() {
+            if matching.is_empty() && !inputs_dependent {
                 return Err(ViewReturnAmbiguity::LifetimeMatchesNoInput {
                     lifetime: match leaf.lifetime {
                         Some(RegionIdentity::Declared(name)) => name,
@@ -94,7 +127,7 @@ pub fn resolve_provider_outputs(
                     },
                 });
             }
-            if leaf.lifetime.is_none() && matching.len() != 1 {
+            if leaf.lifetime.is_none() && matching.len() > 1 {
                 return Err(ViewReturnAmbiguity::ElidedMultipleInputs {
                     candidates: matching
                         .iter()
@@ -123,12 +156,17 @@ pub fn resolve_provider_outputs(
             });
         }
     }
-    if !crate::machine_calls::calls::provider_completion_covers_writable_slots(
+    let writable = crate::machine_calls::calls::provider_completion_covers_writable_slots(
         program, parameters, &outputs,
-    ) {
-        return Err(ViewReturnAmbiguity::IncompleteStructure {
-            subject: "provider writable reference frontier".to_owned(),
-        });
-    }
-    Ok(outputs)
+    )
+    .ok_or_else(|| ViewReturnAmbiguity::IncompleteStructure {
+        subject: "provider writable reference frontier".to_owned(),
+    })?;
+    let readiness = if template_dependent || writable == BorrowRelationReadiness::TemplateDependent
+    {
+        BorrowRelationReadiness::TemplateDependent
+    } else {
+        BorrowRelationReadiness::Complete
+    };
+    Ok(ProviderOutputRelation { outputs, readiness })
 }

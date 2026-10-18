@@ -398,21 +398,6 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let demand = crate::capabilities::TerminalExternalCompletionDemand {
-            boundary: *boundary,
-            kind: *kind,
-        };
-        if !self
-            .external_bindings
-            .get(boundary)
-            .is_some_and(|admission| {
-                admission.answers(self.program.identity, self.process_domain.as_ref(), demand)
-            })
-        {
-            return Err(TerminalInterpretError::UnboundExternalCompletions {
-                missing: vec![demand],
-            });
-        }
         let declaration = self.program.verified_boundary_machine(boundary)?;
         if declaration.completion != terminal_psi::BoundaryCompletion::External(*kind)
             || arguments.len() != 1
@@ -429,6 +414,39 @@ impl TerminalExecution<'_> {
         let actual = self.scalar_value(arguments[0])?;
         crate::custody::bind_boundary_arguments(&declaration.scalar_parameters, &[actual])?;
         crate::custody::validate_boundary_requirements(declaration, |_| None)?;
+        if let Some(callee) = crate::calls::target_families::completion_callee(
+            &self.program,
+            self.target_machines.as_ref(),
+            self.boundary_supplies.get(boundary).copied(),
+            *boundary,
+        )? {
+            if let Err(error) = meter.charge_terminator(terminator) {
+                return meter_status(error).map(TerminatorFlow::Yield);
+            }
+            self.begin_external_completion_call(
+                callee,
+                *boundary,
+                *edge,
+                &[actual],
+                structural_arguments,
+            )?;
+            return Ok(TerminatorFlow::Continue);
+        }
+        let demand = crate::capabilities::TerminalExternalCompletionDemand {
+            boundary: *boundary,
+            kind: *kind,
+        };
+        if !self
+            .external_bindings
+            .get(boundary)
+            .is_some_and(|admission| {
+                admission.answers(self.program.identity, self.process_domain.as_ref(), demand)
+            })
+        {
+            return Err(TerminalInterpretError::UnboundExternalCompletions {
+                missing: vec![demand],
+            });
+        }
         let TerminalScalarValue::Integer {
             scalar_type,
             value: semantic_vocabulary::IntegerValue::Signed(value),

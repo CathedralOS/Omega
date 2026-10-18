@@ -101,40 +101,6 @@ pub(super) fn validate_completed_arrival(
 }
 
 impl StructuralResults<'_> {
-    /// The place a call continuation discards for `binding_ordinal`.
-    pub(super) fn continuation_place(
-        &self,
-        binding_ordinal: u32,
-        operations: &OperationBuffer,
-    ) -> Result<PlaceId, LoweringError> {
-        match self {
-            Self::Dense(roster) => {
-                let (place, discard_on_return) =
-                    roster
-                        .get(binding_ordinal as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "call continuation result has not been produced",
-                        ))?;
-                place.as_ref().ok_or(LoweringError::Unsupported(
-                    "call continuation result is a projected alias",
-                ))?;
-                if *discard_on_return {
-                    return unsupported("call continuation cleanup has conflicting custody");
-                }
-                self.completed_value(binding_ordinal, operations)
-                    .map(|(place, _)| place)
-            }
-            Self::StateGraph { state, .. } => {
-                let binding = super::super::composed_control::state_graph_result(
-                    state,
-                    binding_ordinal,
-                    operations,
-                )?;
-                Ok(binding.operation_result()?.place)
-            }
-        }
-    }
-
     /// Cleanup consumes a selected carrier, so an alias retains its original
     /// home and captured path. Whole-value repair keeps its separate fence.
     pub(in crate::unit::attached_unit) fn value_storage(
@@ -216,7 +182,7 @@ impl StructuralResults<'_> {
     /// Cleanup and restoration consume the completed binding, not the last
     /// operation in its producer. Selection owns one join parameter; requiring
     /// an operation result would recreate the value or omit its disposal.
-    fn completed_value(
+    pub(super) fn completed_value(
         &self,
         binding_ordinal: u32,
         operations: &OperationBuffer,
@@ -282,7 +248,12 @@ impl StructuralResults<'_> {
     ) -> Result<(), LoweringError> {
         match self {
             Self::Dense(roster) if result.binding_ordinal as usize != roster.len() => {
-                unsupported(refusal)
+                Err(LoweringError::NonDenseStructuralResult {
+                    reason: refusal,
+                    completed_bindings: roster.len(),
+                    requested_binding: result.binding_ordinal,
+                    statement_index: result.statement_index,
+                })
             }
             _ => Ok(()),
         }
@@ -365,44 +336,53 @@ impl StructuralResults<'_> {
         operations: &OperationBuffer,
         evaluation: &Evaluation,
     ) -> Result<Cow<'_, [(Option<StructuralPlaceDeclaration>, bool)]>, LoweringError> {
-        let places = match self {
-            Self::Dense(roster) => {
-                for (ordinal, (declaration, _)) in roster.iter().enumerate() {
-                    let Some(declaration) = declaration else {
-                        continue;
-                    };
-                    if matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. })
-                        && arguments.iter().any(|argument| {
-                            argument
-                                .source_structural_result_binding_ordinal()
-                                .is_some_and(|binding| binding as usize == ordinal)
-                        })
-                    {
-                        let mut bindings = operations
-                            .structural_values
-                            .iter()
-                            .filter(|(binding, _)| *binding as usize == ordinal);
-                        let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
-                            "completed arrival has no exact binding",
-                        ))?;
-                        if bindings.next().is_some() {
-                            return unsupported("completed arrival repeats its binding");
-                        }
-                        binding.operation_result()?;
-                        validate_completed_arrival(declaration, evaluation)?;
-                    }
-                }
-                return Ok(Cow::Borrowed(roster.as_slice()));
-            }
-            Self::StateGraph { places, .. } => places,
-        };
-        if !arguments.iter().any(|argument| {
-            argument
-                .source_structural_result_binding_ordinal()
-                .is_some()
-        }) {
+        if matches!(self, Self::StateGraph { .. })
+            && !arguments.iter().any(|argument| {
+                argument
+                    .source_structural_result_binding_ordinal()
+                    .is_some()
+            })
+        {
             return Ok(Cow::Owned(Vec::new()));
         }
+        let roster = self.completed_namespace(operations)?;
+        for (ordinal, (declaration, _)) in roster.iter().enumerate() {
+            let Some(declaration) = declaration else {
+                continue;
+            };
+            if matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. })
+                && arguments.iter().any(|argument| {
+                    argument.source_structural_result_binding_ordinal() == Some(ordinal as u32)
+                })
+            {
+                let mut bindings = operations
+                    .structural_values
+                    .iter()
+                    .filter(|(binding, _)| *binding as usize == ordinal);
+                let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+                    "completed arrival has no exact binding",
+                ))?;
+                if bindings.next().is_some() {
+                    return unsupported("completed arrival repeats its binding");
+                }
+                binding.operation_result()?;
+                validate_completed_arrival(declaration, evaluation)?;
+            }
+        }
+        Ok(roster)
+    }
+
+    /// Fork the actual completed ordinal namespace for a value invocation.
+    /// Retained schedules include their preceding caller bindings; private
+    /// results extend that prefix without publishing into the caller roster.
+    pub(super) fn completed_namespace(
+        &self,
+        operations: &OperationBuffer,
+    ) -> Result<Cow<'_, [(Option<StructuralPlaceDeclaration>, bool)]>, LoweringError> {
+        let places = match self {
+            Self::Dense(roster) => return Ok(Cow::Borrowed(roster.as_slice())),
+            Self::StateGraph { places, .. } => places,
+        };
         operations
             .structural_values
             .iter()
@@ -434,14 +414,6 @@ impl StructuralResults<'_> {
                         ))?;
                         if declarations.next().is_some() {
                             return unsupported("composed call result repeats its declaration");
-                        }
-                        if let StructuralPlaceKind::BlockParameter { .. } = declaration.kind
-                            && arguments.iter().any(|argument| {
-                                argument.source_structural_result_binding_ordinal()
-                                    == Some(*ordinal)
-                            })
-                        {
-                            validate_completed_arrival(declaration, evaluation)?;
                         }
                         Ok((Some(*declaration), false))
                     }

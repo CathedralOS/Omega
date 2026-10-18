@@ -10,7 +10,10 @@ pub(crate) fn descriptor_retirement(
     source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<Vec<checked_trees::CheckedNormalCleanupAction>> {
-    validation::reference_result_custody::stored_loan_parts(program, reference)?;
+    // This is the actual completed carrier's declaration, not its formal or
+    // borrowed contents. Stored pointers and formed slice views have the same
+    // intrinsic lifetime boundary even though their runtime layouts differ.
+    validation::reference_shell(program, reference)?;
     match validation::reference_result_custody::result_multiplicity(program, reference) {
         language_semantics::Multiplicity::Unrestricted => Some(Vec::new()),
         language_semantics::Multiplicity::Affine => {

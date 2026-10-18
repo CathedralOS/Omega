@@ -22,6 +22,7 @@ pub use realizations::{
 mod arguments;
 pub use arguments::{
     BoundaryByteSequenceArgument, BoundaryScalarArgument, BoundarySettlementBinding,
+    ExternalCompletionBinding,
 };
 mod fma;
 pub use fma::TargetIeeeFloatFmaOperand;

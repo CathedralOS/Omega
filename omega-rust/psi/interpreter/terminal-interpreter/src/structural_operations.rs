@@ -675,7 +675,7 @@ impl TerminalExecution<'_> {
         let machine = self.program.verified_machine(self.current_machine)?;
         let module = &self.program.catalogs;
         let preserves = |root, whole: &[_], projected: &[_]| {
-            terminal_semantics::scalar_field_store_preserves_qualifications(
+            terminal_semantics::scalar_field_store_preserves_domain_content(
                 self.program.structural_types().values(),
                 module.structural_domains.iter(),
                 &module.identities,

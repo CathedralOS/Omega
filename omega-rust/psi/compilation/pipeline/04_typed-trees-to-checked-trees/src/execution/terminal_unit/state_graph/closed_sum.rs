@@ -809,6 +809,7 @@ fn subject_call(
         coordinate,
         &structural_results,
         operations,
+        trace,
     )?;
     Some((result, return_type))
 }

@@ -36,6 +36,8 @@ impl StateGraphEmission<'_, '_> {
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
+        state_parameters: &[StructuralParameterDeclaration],
+        sequence: &crate::unit::attached_unit::composed_control::emission::OperationSequence,
     ) -> Result<(Vec<BlockId>, Vec<GuardedDraft>, Vec<ValueDeclaration>), LoweringError> {
         let checked = self.checked;
         let plan = self.plan;
@@ -55,6 +57,7 @@ impl StateGraphEmission<'_, '_> {
         );
         for (index, arm) in arms.iter().enumerate().skip(1) {
             let decision = guarded_decisions[index - 1];
+            let mut sequence = sequence.branch();
             evaluation.current = decision;
             evaluation.operation_start = operations.len();
             evaluation.parameters = Vec::new();
@@ -80,23 +83,48 @@ impl StateGraphEmission<'_, '_> {
                     reads_payloads,
                 )?)
             } else {
-                let mut calls = self.catalogs.scalar_calls.emission_context();
-                let guard = evaluation.guard_value(
-                    identities,
-                    checked,
-                    owner,
-                    state.state,
-                    arm.statement_ordinal(),
-                    values,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    operations,
-                    &mut calls,
-                )?;
-                self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
+                let mut calls = scalar_calls.emission_context();
+                let guard = {
+                    let (mut environment, emission) = operation_catalogs
+                        .operation_frame(
+                            checked,
+                            owner,
+                            state,
+                            state_parameters,
+                            &self.state_erased[position],
+                            &mut sequence,
+                            crate::unit::attached_unit::operation_frame::OperationEmission {
+                                source_value_count: values.len(),
+                                evaluation,
+                                values,
+                                next_value,
+                                next_block,
+                                next_edge,
+                                calls: &mut calls,
+                                operations,
+                            },
+                        )
+                        .split();
+                    emission.evaluation.guard_value(
+                        identities,
+                        checked,
+                        owner,
+                        state.state,
+                        arm.statement_ordinal(),
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                }?;
+                scalar_calls.next_call_obligation = calls.next_obligation_identity;
                 ChainGuard::Value(guard.id)
             };
+            sequence.finish_state(checked, state)?;
             let expanded = evaluation.current != decision;
             guarded_drafts.push((
                 evaluation.current,

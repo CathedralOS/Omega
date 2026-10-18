@@ -1,4 +1,4 @@
-//! Project direct foreign dependencies from the same derived satisfaction rows.
+//! Project direct boundary dependencies from the same derived satisfaction rows.
 //!
 //! The original row owns its evaluated locator, complete requirement contract
 //! and calling policy. Projection changes the callable demand coordinate, never
@@ -9,6 +9,14 @@ use crate::DerivedProviderPlan;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 
+/// Source custody is discarded only after intrinsic execution is closed.
+/// The projected native plan never replaces the original satisfied schema.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectBoundaryCandidate {
+    pub leaf: backend_plan::DirectBoundaryLeaf,
+    pub source: DerivedProviderPlan,
+}
+
 pub(crate) fn derive(
     typed: &checked_trees::typed_trees::TypedTrees,
     candidates: &[DerivedProviderPlan],
@@ -16,13 +24,14 @@ pub(crate) fn derive(
     native_target: target::NativeTarget,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     opaque: &[representation_planning::OpaqueRepresentationSelection],
-) -> Result<Vec<backend_plan::DirectForeignLeaf>, Vec<Diagnostic>> {
-    let mut leaves = Vec::<backend_plan::DirectForeignLeaf>::new();
+) -> Result<Vec<DirectBoundaryCandidate>, Vec<Diagnostic>> {
+    let mut leaves = Vec::<DirectBoundaryCandidate>::new();
     for candidate in candidates {
         for (position, row) in candidate.plan.rows.iter().enumerate() {
             if !matches!(
                 row.binding,
-                ProviderBinding::Import { .. }
+                ProviderBinding::CompilerIntrinsic { .. }
+                    | ProviderBinding::Import { .. }
                     | ProviderBinding::Syscall { .. }
                     | ProviderBinding::VtableField { .. }
                     | ProviderBinding::TableFunction { .. }
@@ -42,7 +51,7 @@ pub(crate) fn derive(
             }
             let Some(identity) = typed.machine_callable_identity_text(machine) else {
                 return Err(vec![Diagnostic::error(
-                    "foreign leaf has no exact callable identity",
+                    "boundary leaf has no exact callable identity",
                 )]);
             };
             let requirement = candidate
@@ -66,31 +75,13 @@ pub(crate) fn derive(
                 vec![candidate.provenance.row_target_machine_origins[position].clone()];
             original.provenance.row_placed_accessors =
                 vec![candidate.provenance.row_placed_accessors[position].clone()];
-            // ABI extraction consumes original exact requirement provenance,
-            // including table layout and evaluated calling-policy identity.
-            let external = super::external_binding_rows::extract_native_external_binding_rows(
-                target,
-                native_target,
-                std::slice::from_ref(&original.plan),
-                std::slice::from_ref(&original),
-                calling_plans,
-                typed,
-                opaque,
-            );
-            let mut external_binding = external.and_then(|mut rows| {
-                rows.pop().ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "foreign leaf lost its normalized external binding",
-                    )]
-                })
-            });
-            let mut plan = original.plan;
+            let mut plan = original.plan.clone();
             let satisfied_schema = plan.schema.clone();
             // A callable dependency has one method contract, not a selected
             // whole-trait receiver map. Retain that original schema beside the
             // projection; its instantiated method claims and ABI stay intact.
             plan.schema.receiver_applications.clear();
-            plan.name = format!("direct-foreign:{}:{identity}", plan.target);
+            plan.name = format!("direct-boundary:{}:{identity}", plan.target);
             plan.provider_type = typed.symbols.display_path(machine.symbol, "::");
             plan.provider_type_package_identity =
                 typed.symbols.symbol_package_identity(machine.symbol);
@@ -100,15 +91,44 @@ pub(crate) fn derive(
             plan.rows[0].requirement_identity = plan.identities.intern(&identity);
             let [method] = plan.schema.methods.as_mut_slice() else {
                 return Err(vec![Diagnostic::error(
-                    "foreign leaf does not bind one exact requirement contract",
+                    "boundary leaf does not bind one exact requirement contract",
                 )]);
             };
             method.requirement_identity = plan.schema.identities.intern(&identity);
-            if let Ok(binding) = &mut external_binding {
-                binding.trait_name = identity.clone();
-                binding.requirement_identity = identity.clone();
-            }
-            let leaf = backend_plan::DirectForeignLeaf {
+            let execution = if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
+                backend_plan::DirectBoundaryExecution::Intrinsic(None)
+            } else {
+                // Only foreign leaves consume ABI extraction. Intrinsics close
+                // against their original semantic schema during admission.
+                let mut external_binding =
+                    super::external_binding_rows::extract_native_external_binding_rows(
+                        target,
+                        native_target,
+                        std::slice::from_ref(&original.plan),
+                        std::slice::from_ref(&original),
+                        calling_plans,
+                        typed,
+                        opaque,
+                    )
+                    .and_then(|mut rows| {
+                        if rows.len() != 1 {
+                            return Err(vec![Diagnostic::error(
+                                "foreign leaf does not retain one normalized external binding",
+                            )]);
+                        }
+                        rows.pop().ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "foreign leaf lost its normalized external binding",
+                            )]
+                        })
+                    });
+                if let Ok(binding) = &mut external_binding {
+                    binding.trait_name = identity.clone();
+                    binding.requirement_identity = identity.clone();
+                }
+                backend_plan::DirectBoundaryExecution::Foreign(external_binding)
+            };
+            let leaf = backend_plan::DirectBoundaryLeaf {
                 declaration_identity: typed
                     .normalized_hermetic_symbol_identity(machine.symbol)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?,
@@ -116,10 +136,17 @@ pub(crate) fn derive(
                 satisfied_schema,
                 plan,
                 satisfied_requirement_identity: requirement,
-                external_binding,
+                execution,
             };
-            if !leaves.contains(&leaf) {
-                leaves.push(leaf);
+            // Intrinsic shape closure consumes the complete original service
+            // schema, not the projected one-method callable contract.
+            original.plan.schema = candidate.plan.schema.clone();
+            let retained = DirectBoundaryCandidate {
+                leaf,
+                source: original,
+            };
+            if !leaves.contains(&retained) {
+                leaves.push(retained);
             }
         }
     }

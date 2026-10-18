@@ -209,7 +209,7 @@ fn collect_scope<'plans>(
                 })
                 .collect::<Vec<_>>();
             collector.value(root, &prefix)?;
-            if let Some(calls) = values.calls_for_root(root) {
+            if let Some((_, calls)) = values.call_schedule(root) {
                 collector.calls(calls, &mut prefix)?;
             }
         }

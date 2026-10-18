@@ -394,7 +394,7 @@ pub(super) fn subslice_view_matches_reference(
         indexed.collection,
         &mut substitutions,
         None,
-        &mut ProjectionAccess::default(),
+        &mut ProjectionContext::default(),
     ) else {
         return false;
     };
@@ -415,13 +415,23 @@ pub(super) fn subslice_view_matches_reference(
 
 pub(super) fn projected_matches_reference(
     program: &dyn crate::CheckingInput,
+    scope: symbols::SymbolHandle,
     expression: ExpressionHandle,
     required: TypeReferenceHandle,
     correspondence: ReferenceCorrespondence,
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
     let mut substitutions = Vec::new();
-    let Some(actual) = declared_value_type(program, expression, &mut substitutions) else {
+    let Some(actual) = selected_value_type(
+        program,
+        expression,
+        &mut substitutions,
+        None,
+        &mut ProjectionContext {
+            owner_symbol: scope,
+            ..ProjectionContext::default()
+        },
+    ) else {
         return false;
     };
     let Some(actual) = substituted_reference(program, actual, &substitutions) else {
@@ -713,7 +723,7 @@ pub(super) fn declared_value_type(
         expression,
         substitutions,
         None,
-        &mut ProjectionAccess::default(),
+        &mut ProjectionContext::default(),
     )
 }
 
@@ -736,7 +746,7 @@ pub(crate) fn owned_rvalue_exclusive_reference_access(
         expression,
         &mut substitutions,
         None,
-        &mut ProjectionAccess::requiring(ReferenceAccess::Mutable),
+        &mut ProjectionContext::requiring(ReferenceAccess::Mutable),
     )?;
     let mut selected = substituted_reference(program, selected, &substitutions)?;
     selected = program
@@ -788,7 +798,7 @@ pub(crate) fn place_forwarded_exclusive_reference_access(
         expression,
         &mut substitutions,
         Some((root, root_type)),
-        &mut ProjectionAccess::requiring(ReferenceAccess::Mutable),
+        &mut ProjectionContext::requiring(ReferenceAccess::Mutable),
     ) else {
         return None;
     };
@@ -837,7 +847,7 @@ pub(crate) fn place_permits_reference_borrow(
         expression = indexed.collection;
     }
     let mut substitutions = Vec::new();
-    let mut projection = ProjectionAccess::requiring(access);
+    let mut projection = ProjectionContext::requiring(access);
     let Some(selected) = selected_value_type(
         program,
         expression,
@@ -890,7 +900,7 @@ pub(crate) fn place_storage_write_access(
     root: symbols::SymbolHandle,
     root_type: TypeReferenceHandle,
 ) -> Option<StorageWriteAccess> {
-    let mut projection = ProjectionAccess::requiring(ReferenceAccess::WriteOnly);
+    let mut projection = ProjectionContext::requiring(ReferenceAccess::WriteOnly);
     selected_value_type(
         program,
         expression,
@@ -909,14 +919,18 @@ pub(crate) fn place_storage_write_access(
 /// borrowed storage. The endpoint stays unpeeled: replacing a descriptor slot
 /// is different from writing through the reference stored there.
 #[derive(Default)]
-struct ProjectionAccess {
+struct ProjectionContext {
+    /// The querying caller owns operator selection, independently of whether
+    /// the projected value has a source-local place root.
+    owner_symbol: symbols::SymbolHandle,
     required: Option<ReferenceAccess>,
     crossed_reference: bool,
 }
 
-impl ProjectionAccess {
+impl ProjectionContext {
     fn requiring(access: ReferenceAccess) -> Self {
         Self {
+            owner_symbol: symbols::SymbolHandle::invalid(),
             required: Some(access),
             crossed_reference: false,
         }
@@ -927,7 +941,7 @@ fn projection_receiver_type(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
-    projection: &mut ProjectionAccess,
+    projection: &mut ProjectionContext,
 ) -> Option<TypeReferenceHandle> {
     for _ in 0..128 {
         reference = substituted_reference(program, reference, substitutions)?;
@@ -969,7 +983,7 @@ fn selected_value_type(
     expression: ExpressionHandle,
     substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
     forwarding_root: Option<(symbols::SymbolHandle, TypeReferenceHandle)>,
-    projection: &mut ProjectionAccess,
+    projection: &mut ProjectionContext,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(name) => {
@@ -1167,36 +1181,24 @@ fn selected_value_type(
                 return None;
             }
             let index_type = declared_value_type(program, indexed.index, &mut Vec::new());
-            let meaning_is_builtin =
-                if let Some(machine) = place_machine_symbol(program, indexed.collection) {
-                    typed_trees::operator::has_builtin_spelled_expression_meaning(
-                        program,
-                        machine,
-                        expression,
-                        language_core::OperatorSpelling::Index,
-                        &[Some(collection), index_type],
-                    )
-                } else {
-                    crate::value_custody::places::has_retained_builtin_index_meaning(
-                        program, expression,
-                    ) || {
-                        // A substituted `const` collection has no place root,
-                        // so no selecting machine is recoverable; its `[]`
-                        // occurrence is still in checked custody during
-                        // validation. With no specialization in the program no
-                        // machine can supply a selected trait meaning, making
-                        // the machine argument vacuous and the builtin check
-                        // exact rather than an approximation.
-                        program.machine_specializations.is_empty()
-                            && typed_trees::operator::has_builtin_spelled_expression_meaning(
-                                program,
-                                symbols::SymbolHandle::invalid(),
-                                expression,
-                                language_core::OperatorSpelling::Index,
-                                &[Some(collection), index_type],
-                            )
-                    }
-                };
+            let owner = projection
+                .owner_symbol
+                .is_valid()
+                .then_some(projection.owner_symbol)
+                .or_else(|| place_machine_symbol(program, indexed.collection));
+            let meaning_is_builtin = if let Some(machine) = owner {
+                typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    machine,
+                    expression,
+                    language_core::OperatorSpelling::Index,
+                    &[Some(collection), index_type],
+                )
+            } else {
+                crate::value_custody::places::has_retained_builtin_index_meaning(
+                    program, expression,
+                )
+            };
             if !meaning_is_builtin
                 || !typed_trees::operator::resolve_indexed_spelling_for_operands(
                     program,

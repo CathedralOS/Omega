@@ -11,11 +11,67 @@ use crate::terminal_identities::value_id;
 use semantic_vocabulary::{MachineId, ObligationId, QualifiedScalarType, ValueId};
 use terminal_psi::{StructuralArgument, ValueDeclaration};
 
-/// The source place is known during preparation; runtime path values and their
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StructuralValueSource {
+    Place(semantic_vocabulary::PlaceId),
+    Computed(checked_trees::CheckedStructuralValueHandle),
+}
+
+impl StructuralValueSource {
+    pub(crate) fn known_place(self) -> Result<semantic_vocabulary::PlaceId, LoweringError> {
+        match self {
+            Self::Place(place) => Ok(place),
+            Self::Computed(_) => unsupported("structural value has not completed physical binding"),
+        }
+    }
+
+    pub(crate) fn resolve(
+        self,
+        access: terminal_psi::StructuralAccess,
+        operations: &OperationBuffer,
+    ) -> Result<StructuralArgument, LoweringError> {
+        match self {
+            Self::Place(place) => Ok(StructuralArgument::whole(place, access)),
+            Self::Computed(value) => {
+                let binding = operations
+                    .computed_values
+                    .iter()
+                    .rev()
+                    .find(|(candidate, _)| *candidate == value)
+                    .map(|(_, binding)| binding)
+                    .ok_or(LoweringError::Unsupported(
+                        "computed operand has no completed binding",
+                    ))?;
+                let compatible = match access {
+                    terminal_psi::StructuralAccess::Owned => {
+                        binding.argument.access == terminal_psi::StructuralAccess::Owned
+                    }
+                    access => access.admits(binding.argument.access),
+                };
+                if !compatible {
+                    return unsupported("computed operand cannot strengthen completed access");
+                }
+                Ok(StructuralArgument {
+                    place: binding.argument.place,
+                    path: binding.argument.path.clone(),
+                    access,
+                })
+            }
+        }
+    }
+}
+
+impl From<semantic_vocabulary::PlaceId> for StructuralValueSource {
+    fn from(place: semantic_vocabulary::PlaceId) -> Self {
+        Self::Place(place)
+    }
+}
+
+/// Preparation names an established place or a checked value dependency; path values and their
 /// bounds obligations belong to the emitting call's actual scalar frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PreparedStructuralArgument {
-    pub(crate) place: semantic_vocabulary::PlaceId,
+    pub(crate) source: StructuralValueSource,
     /// Physical root carrier, distinct from a selected projected alias.
     pub(crate) root_type: Option<semantic_vocabulary::StructuralTypeId>,
     pub(crate) access: terminal_psi::StructuralAccess,
@@ -39,7 +95,7 @@ impl PreparedStructuralArgument {
         }).collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             root_type,
-            place: argument.place,
+            source: argument.place.into(),
             access: argument.access,
             path,
             selector_positions: Vec::new(),
@@ -53,6 +109,7 @@ impl PreparedStructuralArgument {
         next_value: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<StructuralArgument, LoweringError> {
+        let source = self.source.resolve(self.access, operations)?;
         let selectors = self
             .selector_positions
             .iter()
@@ -70,10 +127,14 @@ impl PreparedStructuralArgument {
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         let mut selectors = selectors.into_iter();
+        let mut prepared_path = source.path.iter().cloned()
+            .map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static)
+            .collect::<Vec<_>>();
+        prepared_path.extend_from_slice(&self.path);
         let path =
             crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
-                &self.path,
-                self.place,
+                &prepared_path,
+                source.place,
                 Some(values),
                 &mut selectors,
                 Some(calls),
@@ -84,7 +145,7 @@ impl PreparedStructuralArgument {
         }
         Ok(
             crate::expression_preparation::bindings::structural_paths::structural_argument(
-                self.place,
+                source.place,
                 path,
                 self.access,
             ),

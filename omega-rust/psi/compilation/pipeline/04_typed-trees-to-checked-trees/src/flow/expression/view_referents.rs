@@ -122,12 +122,21 @@ impl Execution<'_, '_, '_> {
         start: &FlowOperandFact,
         end: Option<&FlowOperandFact>,
     ) -> HandleSpan<FlowOperandReferent> {
-        if !validation::place_has_builtin_coordinates(
+        if !validation::indexed_operation_has_builtin_meaning(
             self.program,
             self.machine,
             Some(self.state),
             expression,
-        ) {
+            Some(collection.type_reference),
+        ) || [Some(start), end].into_iter().flatten().any(|bound| {
+            bound.expression.is_valid()
+                && !validation::has_builtin_bound_expression_meaning(
+                    self.program,
+                    self.machine,
+                    Some(self.state),
+                    bound.expression,
+                )
+        }) {
             return HandleSpan::empty();
         }
         let indexed = self.program.expression_table.indexed_node(expression);
@@ -202,7 +211,7 @@ impl Execution<'_, '_, '_> {
         self.append_referent_places(&places)
     }
 
-    fn captured_coordinate(&self, operand: &FlowOperandFact) -> Option<usize> {
+    pub(super) fn captured_coordinate(&self, operand: &FlowOperandFact) -> Option<usize> {
         validation::captured_integer_value(
             self.program,
             self.machine,
@@ -247,7 +256,7 @@ impl Execution<'_, '_, '_> {
         self.captured_referent_places(operand.referents)
     }
 
-    fn captured_referent_places(
+    pub(super) fn captured_referent_places(
         &self,
         referents: HandleSpan<FlowOperandReferent>,
     ) -> Vec<CanonicalPlace> {

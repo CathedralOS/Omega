@@ -108,12 +108,8 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
                 argument,
             ) =>
         {
-            validation::checked_argument_matches_type_reference(
-                program,
-                argument,
-                parameter.type_reference,
-            )
-            .then_some(())?;
+            // Admission checked the formal in the caller's scope. Preparation
+            // joins its actual carrier, without repeating a scopeless check.
             (argument, actual)
         }
         typed_trees::types::TypeReferenceNode::Reference { .. }
@@ -198,6 +194,9 @@ fn evaluated_value_root<'a>(
         argument,
         parameter,
     )?;
+    // The retained reference formation borrows its existing home and owns
+    // every authored selector evaluation, even when its coordinate is known.
+    // Replacing it with a place-only path would erase those evaluations.
     // Every projection selects from its original producer's home. Prepare
     // that producer once for borrowed and owned operands alike; the argument
     // plan retains the path and the continuation owns the residual cleanup.
@@ -344,12 +343,19 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 *discard_result_on_return = false;
                 let mut preparation = preparation.split_off(predecessor_count);
                 super::statement_sequence::consume_retained_results(&mut preparation, &operation)?;
-                let completions =
-                    crate::execution::terminal_unit::calls::temporary_descriptor_completions(
-                        operation.call()?,
-                        &preparation,
+                let completions = checked_trees::CheckedOperandSequence::new(
+                    super::super::cleanup::anonymous::normal_call_completion(
+                        program,
+                        facts,
                         shapes,
-                    )?;
+                        machine,
+                        state,
+                        &scoped_results,
+                        &mut preparation,
+                        &operation,
+                        trace,
+                    )?,
+                );
                 output.push(checked_trees::CheckedStructuralValueCall::with_operands(
                     value,
                     checked_trees::CheckedOperandSequence::new(preparation),
@@ -890,7 +896,22 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
             result.clone(),
         )?;
         super::statement_sequence::consume_results(&mut *operations, &operation)?;
+        // An ordinary operand call has the same normal-return transaction as
+        // a call retained inside a constructed value. Its descriptor inputs
+        // must retire here, before an enclosing call can dispose their backing.
+        let completions = super::super::cleanup::anonymous::normal_call_completion(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            structural_results,
+            operations,
+            &operation,
+            trace,
+        )?;
         operations.push(operation);
+        operations.extend(completions);
         structural_results.push((
             result,
             facts::PlaceRoot::Expression(nested.authored_expression),

@@ -320,11 +320,13 @@ pub(super) fn plan(
             coordinate,
             structural_results,
             operations,
+            trace,
         )?;
         *structural_count = structural_count.checked_add(1)?;
         return Some(());
     }
     if let Some(result) = structural_result {
+        call_phase("statement sequence: call: structural result binding");
         operation = bind_structural_call_result(
             program,
             facts,
@@ -353,7 +355,9 @@ pub(super) fn plan(
         }
         *structural_count = structural_count.checked_add(1)?;
     }
+    call_phase("statement sequence: call: argument consumption");
     consume_results(&mut *operations, &operation)?;
+    call_phase("statement sequence: call: scalar result binding");
     operations.push(match result {
         // Returning the value directly uses the same call completion as a
         // local binding. Only the following return consumes that result;
@@ -377,6 +381,7 @@ pub(super) fn plan(
         operations.extend(replacement.into_operations());
     }
     *structural_count = structural_count.checked_add(structural_store_bindings)?;
+    call_phase("statement sequence: call: normal completion");
     super::super::super::cleanup::anonymous::append_continuation(
         program,
         facts,
@@ -386,6 +391,7 @@ pub(super) fn plan(
         coordinate,
         structural_results,
         operations,
+        trace,
     )?;
     Some(())
 }

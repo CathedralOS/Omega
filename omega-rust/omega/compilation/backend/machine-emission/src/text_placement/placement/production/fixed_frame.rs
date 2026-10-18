@@ -85,6 +85,15 @@ pub(in crate::text_placement::placement) fn place(
                         target_operations::CallSiteOwner::Operation(operation)
                             if exact_operation(&instruction.provenance.operations)?
                                 == operation => {}
+                        target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+                            super::super::conversion::validate_boundary_invocation_site(
+                                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
+                                    edge,
+                                ),
+                                &instruction.provenance.operations,
+                                &instruction.provenance.edges,
+                            )?;
+                        }
                         target_operations::CallSiteOwner::CleanupAction { edge, .. }
                             if instruction.provenance.operations.is_empty()
                                 && instruction.provenance.edges.as_slice() == [edge]

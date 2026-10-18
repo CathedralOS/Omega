@@ -214,10 +214,7 @@ pub(crate) fn for_exit_regions(
         identities,
         checked,
         crate::unit::unit_cleanup::outstanding_actions(
-            catalog
-                .control
-                .normal_exit_actions
-                .span_or_empty(selected_exit.actions),
+            catalog.control.actions.span_or_empty(selected_exit.actions),
             source.operations,
             source.parameters,
         ),

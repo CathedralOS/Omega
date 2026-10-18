@@ -23,6 +23,32 @@ pub struct FlowOperandReferent {
     pub segments: HandleSpan<facts::PlaceSegment>,
 }
 
+/// Storage lifetimes retained by one completed view. This is a dependency
+/// frontier, not an address or extent proof and not disposition authority.
+/// A valid view row with no roots is known empty. An aggregate has no own
+/// view dependency; its declared leaves still require independent coverage.
+/// An invalid retention handle means that dependency was unavailable.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlowOperandRetention {
+    pub roots: HandleSpan<facts::PlaceRoot>,
+    /// Lifetime relations at declared output paths. These are not evaluated
+    /// child values and carry no expression, type or predicate observation.
+    pub leaves: HandleSpan<FlowOperandRetainedLeaf>,
+    /// Completed carrier lent through this view, when its stored reference
+    /// leaves were available at address formation. Later operands cannot
+    /// replace this observation with newer descriptor contents.
+    pub stored_value: Handle<FlowOperandFact>,
+    /// A selected subtree of that captured value. Selection retains lifetime
+    /// evidence without inventing an evaluated child or address observation.
+    pub stored_projection: HandleSpan<facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlowOperandRetainedLeaf {
+    pub path: HandleSpan<facts::PlaceSegment>,
+    pub retention: Handle<FlowOperandRetention>,
+}
+
 /// Facts at completion of one evaluated operand or stored value. Scalar copies and
 /// by-value carriers with stable observable contents keep this value's facts
 /// even if a later operand changes its former source storage — the bound
@@ -56,6 +82,9 @@ pub struct FlowOperandFact {
     /// Exact referent storage when the operand is a view carrier. Empty for
     /// detached carriers and for referents the resolver cannot place exactly.
     pub referents: HandleSpan<FlowOperandReferent>,
+    /// Complete backing lifetime frontier, independently of exact geometry.
+    /// Aggregate reference leaves retain this relation in their child captures.
+    pub retention: Handle<FlowOperandRetention>,
 }
 
 /// One authored child installed at its resolved destination in a completed
@@ -72,6 +101,18 @@ pub struct FlowOperandChild {
     /// Declared destination type, including reference access/qualification.
     /// An unresolved type remains the invalid handle, never the source type.
     pub type_reference: typed_trees::types::TypeReferenceHandle,
+}
+
+/// One completed storage observation and the receiver actually evaluated for
+/// it. A scalar result retains no loan, but its read still needs the receiver's
+/// backing until completion. These contexts exclude later statement effects.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlowValueObservationFact {
+    pub expression: ExpressionHandle,
+    pub evaluation: super::FlowPermissionEvaluation,
+    pub receiver: Handle<FlowOperandFact>,
+    pub semantic_contexts: HandleSpan<super::FlowSemanticContextRef>,
+    pub constraints: HandleSpan<FlowConstraintRef>,
 }
 
 /// Actual source operands of one performed atomic expression. The generated

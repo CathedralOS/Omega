@@ -105,6 +105,15 @@ pub(super) fn check(
                     match owner {
                         target_operations::CallSiteOwner::Operation(operation)
                             if source_row.provenance.operations.last() == Some(&operation) => {}
+                        target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+                            super::super::conversion::validate_boundary_invocation_site(
+                                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(
+                                    edge,
+                                ),
+                                &source_row.provenance.operations,
+                                &source_row.provenance.edges,
+                            )?;
+                        }
                         target_operations::CallSiteOwner::CleanupAction { edge, .. }
                             if source_row.provenance.operations.is_empty()
                                 && source_row.provenance.edges.as_slice() == [edge]

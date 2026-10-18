@@ -6,7 +6,8 @@ impl Builder<'_, '_> {
     /// Index operands have mathematical carriers, not necessarily stored type
     /// references: a binary result owns no declaration identity. Reuse the
     /// integer evaluator so computed selectors preserve signedness and policy;
-    /// only an anonymous integer needs the ordinary u64 index context.
+    /// only an anonymous integer needs the ordinary u64 index context. Choose
+    /// that context before materialization, which requires a landed carrier.
     pub(super) fn index_selector(
         &mut self,
         expression: ExpressionHandle,
@@ -199,10 +200,12 @@ impl Builder<'_, '_> {
     pub(super) fn call_operands(
         &mut self,
         source_call: arena::Handle<checked_trees::FlowCallFact>,
+        captures: arena::HandleSpan<checked_trees::FlowOperandFact>,
         arguments: &[ExpressionHandle],
         parameters: &[typed_trees::signature::StateParameter],
     ) -> Option<ComputedCallOperands> {
         if arguments.len() != parameters.len()
+            || captures.len() != arguments.len()
             || parameters.iter().any(|parameter| {
                 parameter.is_const
                     || (parameter.is_mutable
@@ -220,7 +223,12 @@ impl Builder<'_, '_> {
         let mut structural_arguments = Vec::new();
         let mut structural_actuals = Vec::new();
         let mut temporary_cleanups = Vec::new();
-        for (argument, parameter) in arguments.iter().zip(parameters) {
+        for ((argument, parameter), operand) in
+            arguments.iter().zip(parameters).zip(captures.handles())
+        {
+            if self.flow.control.operands.get(operand).expression != *argument {
+                return None;
+            }
             // An erased parameter position consumes its authored
             // argument as proof material only: no scalar operand and
             // no structural argument, matching the callee's stripped
@@ -246,6 +254,7 @@ impl Builder<'_, '_> {
                 let argument_plan = if let Some(value) = retained {
                     self.retained_call_argument(
                         source_call,
+                        operand,
                         *argument,
                         parameter,
                         value,
@@ -360,6 +369,7 @@ impl Builder<'_, '_> {
     fn retained_call_argument(
         &mut self,
         source_call: arena::Handle<checked_trees::FlowCallFact>,
+        operand: arena::Handle<checked_trees::FlowOperandFact>,
         argument: ExpressionHandle,
         parameter: &typed_trees::signature::StateParameter,
         value: checked_trees::CheckedStructuralValueHandle,
@@ -380,12 +390,9 @@ impl Builder<'_, '_> {
             validation::reference_result_custody::stored_loan_parts(self.program, producer_type)
                 .map(|_| producer_type);
         let (access, referent) = if let Some(actual) = stored {
-            validation::checked_argument_matches_type_reference(
-                self.program,
-                argument,
-                parameter.type_reference,
-            )
-            .then_some(())?;
+            // The source checker admitted the actual/formal relation. This
+            // join preserves the established carrier and its access instead
+            // of trying to reconstruct source admission without its caller.
             let (_, supplied) =
                 validation::reference_result_custody::stored_loan_parts(self.program, actual)?;
             let required =
@@ -493,39 +500,28 @@ impl Builder<'_, '_> {
                     owner_type,
                 )?;
             }
-            if stored.is_some() {
-                let actions = crate::execution::terminal_unit::cleanup::descriptor_retirement(
-                    self.program,
-                    argument_plan.source.clone(),
-                    owner_type,
-                )?;
-                if !actions.is_empty() {
-                    discards = Some(actions);
+            // This is a request for the containing owner's normal completion,
+            // not descriptor-disposal authority inferred from the selected leaf.
+            // Finalization binds its exact intrinsic or contextual disposition.
+            match validation::reference_result_custody::result_multiplicity(
+                self.program,
+                owner_type,
+            ) {
+                language_semantics::Multiplicity::Affine
+                | language_semantics::Multiplicity::Linear => {
+                    discards = Some(vec![
+                        checked_trees::CheckedNormalCleanupAction::RetireHome {
+                            source: argument_plan.source.clone(),
+                            type_identity: self.program.normalized_type_identity(owner_type),
+                        },
+                    ]);
                 }
-            } else {
-                match self.program.type_multiplicity(owner_type) {
-                    language_semantics::Multiplicity::Affine
-                    | language_semantics::Multiplicity::Linear => {
-                        discards = Some(vec![checked_trees::CheckedNormalCleanupAction::Discard(
-                            checked_trees::CheckedUnitPartialAffineDiscardPlan {
-                                source: argument_plan.source.clone(),
-                                path: Vec::new(),
-                                type_identity: self.program.normalized_type_identity(owner_type),
-                                case_conditions: Default::default(),
-                            },
-                        )]);
-                    }
-                    language_semantics::Multiplicity::Unrestricted => {}
-                }
+                language_semantics::Multiplicity::Unrestricted => {}
             }
         } else if !argument_plan.path.is_empty() {
             discards = Some(
                 crate::execution::terminal_unit::cleanup::projected_temporary_cleanup(
                     self.program,
-                    self.flow,
-                    self.machine,
-                    self.state,
-                    self.flow.control.calls.get(source_call),
                     owner_type,
                     &argument_plan,
                 )?,
@@ -534,6 +530,7 @@ impl Builder<'_, '_> {
         if let Some(discards) = discards {
             temporary_cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {
                 argument_ordinal: Some(argument_ordinal),
+                operand,
                 owner: Default::default(),
                 actions: self.plans.temporary_cleanup_actions.insert_many(discards),
             });

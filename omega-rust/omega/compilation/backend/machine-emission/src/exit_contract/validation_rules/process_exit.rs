@@ -22,31 +22,55 @@ pub(in crate::exit_contract) fn validate_process_exit(
     encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), Error> {
     if instruction.kind == SelectedInstructionKind::Crash {
-        // The explicit completion owns an admitted foreign invocation, not a
-        // source crash. If that provider returns, only this uncharged terminal
-        // trap may execute; no result, normal return or restoration is admitted.
+        // The explicit completion owns an exact invocation, not a source
+        // crash. If its checked or opaque provider returns, only this
+        // uncharged trap may execute: no result or normal continuation.
         let mut rows = function.normalized_foreign_calls.iter().filter(|row| {
             row.invocation_site
                 == semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(completion_edge)
         });
-        let row = rows
-            .next()
-            .ok_or(Error::NonReturnControlEffect(instruction.id))?;
+        let foreign = rows.next();
+        let mut checked = function.calls.iter().filter(|row| {
+            row.owner == target_operations::CallSiteOwner::ExternalCompletion(completion_edge)
+        });
+        let checked_call = checked.next();
         let call = block
             .instructions
             .last()
             .ok_or(Error::NonReturnControlEffect(instruction.id))?;
-        let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = call.kind else {
-            return Err(Error::NonReturnControlEffect(instruction.id));
-        };
         if rows.next().is_some()
-            || row.instruction != call.id
-            || row.call.boundary != boundary
-            || function.normalized_foreign_calls.get(ordinal as usize) != Some(row)
-            || selected_instructions::calls::normalized_foreign::return_transport::resolve(
-                function, block, row,
-            )
-            .is_none()
+            || checked.next().is_some()
+            || match (foreign, checked_call, &call.kind) {
+                (
+                    Some(row),
+                    None,
+                    SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal },
+                ) => row.instruction != call.id
+                    || row.call.boundary != *boundary
+                    || function.normalized_foreign_calls.get(*ordinal as usize) != Some(row)
+                    || selected_instructions::calls::normalized_foreign::return_transport::resolve(
+                        function, block, row,
+                    )
+                    .is_none(),
+                (None, Some(row), SelectedInstructionKind::CallUnit { target }) => {
+                    row.instruction != call.id
+                        || *target
+                            != selected_instructions::SelectedCallTarget::from_native(
+                                row.call.target,
+                            )
+                        || row.call.result_placement.is_some()
+                        || row.call.structural_result.is_some()
+                        || !row.call.crash_continuations.is_empty()
+                        || !matches!(
+                            row.call.source,
+                            target_operations::NativeCallOrigin::InstalledProvider { .. }
+                                | target_operations::NativeCallOrigin::TargetFamily { .. }
+                        )
+                        || row.call.validate_source(&[]).is_err()
+                        || call.provenance.edges != [completion_edge]
+                }
+                _ => true,
+            }
         {
             return Err(Error::NonReturnControlEffect(instruction.id));
         }

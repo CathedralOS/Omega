@@ -454,7 +454,11 @@ impl Retirement<'_> {
         parent: arena::Handle<BorrowLoanFact>,
     ) -> bool {
         let parent = self.facts.borrow.loans.get(parent);
-        self.operations.iter().any(|operation| {
+        let mut operations = self
+            .operations
+            .iter()
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls);
+        operations.any(|operation| {
             if let Some(call) = operation.call() {
                 // Root-reference custody owns a whole descriptor release;
                 // record results instead retire their stored leaf groups.
@@ -1243,6 +1247,7 @@ impl Retirement<'_> {
         self.operations
             .iter()
             .chain(self.pending)
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             .any(|operation| match operation {
                 CheckedUnitEffectOperationPlan::Store(store) => {
                     stores::replaces(self, store, handle)

@@ -2,7 +2,6 @@
 use super::observations;
 use super::{KnownUnitInteger, LiveDefinitions};
 use crate::LoweringError;
-use crate::lowering::selected_boundary_calls::SelectedBoundaryCall;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
@@ -25,7 +24,7 @@ pub(super) fn lower_operation(
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    selected_calls: &BTreeMap<(MachineId, OperationId, BoundaryMachineId), SelectedBoundaryCall>,
+    selected_calls: &crate::lowering::selected_boundary_calls::SelectedCallsByCall,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
@@ -40,7 +39,7 @@ pub(super) fn lower_operation(
         ..
     } = operation
     {
-        selected_calls.get(&(function.machine, *psi_operation, *boundary))
+        selected_calls.get(&(function.machine, (*psi_operation).into(), *boundary))
     } else {
         None
     };

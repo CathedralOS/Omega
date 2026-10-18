@@ -63,9 +63,34 @@ pub boundary trait Console {
         Console;
 }
 
-// Namespace and startup storage for the concrete console bodies. The named
-// implementation below owns selection of the complete provider contract.
+// Storage for target-default declarations and the namespace of the exact
+// native leaves. This data declaration is not a whole-trait implementation.
 pub data ConsoleNativeProvider { }
+
+// The selected implementation owns the complete Console map. Native leaves
+// retain their exact target identities; shared adapters use ordinary calls.
+pub NativeConsole satisfies Console {
+    machine write_line(text: &[u8]) reaches Console {
+        console_write_bytes(text, true);
+    }
+    machine write(text: &[u8]) reaches Console {
+        console_write_bytes(text, false);
+    }
+    machine read_line(out_line: &mut [u8]) -> LineReadResult
+    reaches Console blocks; crashes Trap {
+        block ConsoleNativeProvider::read_line(out_line)
+    }
+    machine read_byte() -> ByteRead
+    reaches Console blocks; crashes Trap {
+        block ConsoleNativeProvider::read_byte()
+    }
+    machine write_byte(byte: i32) reaches Console {
+        ConsoleNativeProvider::write_byte(byte);
+    }
+    machine exit_process(return_code: i32) reaches Console {
+        ConsoleNativeProvider::exit_process(return_code);
+    }
+}
 
 // Shared bounded input uses this exact provider's byte leaf, not recursive
 // service redispatch. Check capacity before reading: Full consumes no lookahead
@@ -140,28 +165,4 @@ reaches
     }
 
     state done() { }
-}
-
-machine ConsoleNativeProvider::write(text: &[u8]) satisfies Console::write
-reaches
-    Console
-{
-    console_write_bytes(text, false);
-}
-
-machine ConsoleNativeProvider::write_line(text: &[u8]) satisfies Console::write_line
-reaches
-    Console
-{
-    console_write_bytes(text, true);
-}
-
-// Checked adapters and target-native leaves form one explicit implementation.
-pub NativeConsole satisfies Console {
-    Console::write_line = ConsoleNativeProvider::write_line;
-    Console::write = ConsoleNativeProvider::write;
-    Console::read_line = ConsoleNativeProvider::read_line;
-    Console::read_byte = ConsoleNativeProvider::read_byte;
-    Console::write_byte = ConsoleNativeProvider::write_byte;
-    Console::exit_process = ConsoleNativeProvider::exit_process;
 }

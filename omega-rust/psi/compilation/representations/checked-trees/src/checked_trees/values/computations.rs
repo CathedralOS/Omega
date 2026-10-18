@@ -62,6 +62,10 @@ pub struct CheckedScalarComputationTemporaryCleanup {
     /// None selects the call's authority value; Some selects an ordinary
     /// structural formal. Authority never consumes a formal position.
     pub argument_ordinal: Option<u32>,
+    /// Actual evaluated capture for this operand, before erased/scalar formal
+    /// filtering. Its lifetime frontier relates returned views to their backing
+    /// independently of the value graph and never grants disposal authority.
+    pub operand: Handle<crate::FlowOperandFact>,
     /// Exact completed owner of this action group. Argument planning leaves
     /// this pending; finalization binds the admitted death to the value graph.
     /// A contained zero field can share its parent's expression without owning
@@ -204,6 +208,58 @@ impl Default for CheckedScalarComputation {
             kind: CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(Box::new(
                 CheckedBooleanExpression::Constant(false),
             ))),
+        }
+    }
+}
+
+impl CheckedScalarComputation {
+    /// The executed occurrence, not a folded enclosing destination or a pure
+    /// value marker rewritten by an erased cast.
+    pub fn evaluated_expression(&self) -> typed_trees::expression::ExpressionHandle {
+        match &self.kind {
+            CheckedScalarComputationKind::StorageAddress {
+                source_expression, ..
+            }
+            | CheckedScalarComputationKind::ByteSequenceLiteralComparison {
+                source_expression,
+                ..
+            }
+            | CheckedScalarComputationKind::ByteSequencePredicate {
+                source_expression, ..
+            }
+            | CheckedScalarComputationKind::StructuralField {
+                source_expression, ..
+            }
+            | CheckedScalarComputationKind::CaseMembership {
+                source_expression, ..
+            }
+            | CheckedScalarComputationKind::Qualification {
+                source_expression, ..
+            }
+            | CheckedScalarComputationKind::AuthoredCast {
+                source_expression, ..
+            }
+            | CheckedScalarComputationKind::BooleanToInteger {
+                source_expression, ..
+            }
+            | CheckedScalarComputationKind::Dispatch {
+                source_expression, ..
+            }
+            | CheckedScalarComputationKind::Select {
+                source_expression, ..
+            }
+            | CheckedScalarComputationKind::StorageObservation {
+                source_expression, ..
+            }
+            | CheckedScalarComputationKind::Apply {
+                source_expression, ..
+            } => *source_expression,
+            CheckedScalarComputationKind::RetainedConstant { expression } => *expression,
+            CheckedScalarComputationKind::Value(_) => self.value_source,
+            CheckedScalarComputationKind::SelectedComparison { .. }
+            | CheckedScalarComputationKind::Call { .. } => {
+                typed_trees::expression::ExpressionHandle::invalid()
+            }
         }
     }
 }

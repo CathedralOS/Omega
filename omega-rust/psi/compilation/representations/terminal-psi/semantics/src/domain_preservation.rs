@@ -1,7 +1,9 @@
-//! Mutation preserves a qualification only outside its complete definition.
-//! Predicate observations bind the declared domain-local subject and exact
-//! carrier geometry. Unknown observations stay opaque; paths through indirect
-//! backing never become disjoint because two descriptors have different fields.
+//! Predicate freshness and conserved Content have independent write footprints.
+//! Source checking invalidates or re-establishes predicate observations at their
+//! actual use. Mutation may expire an incoming fact, but cannot silently change
+//! a conserved projection. Borrowed ancestor contracts retain their own checks.
+//! Unknown observations stay opaque; different descriptor fields do not prove
+//! disjointness of the indirect backing they observe.
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Segment, ContentProjectionExpression,
     ContentProjectionScalar, PlaceId, Proposition, ScalarReadProjection, ScalarTerm, ScalarType,
@@ -282,45 +284,63 @@ pub fn domain_write_is_disjoint<'a>(
     let Some(mut paths) = predicate_dependencies(types.clone(), domain.carrier, predicate) else {
         return false;
     };
+    content_dependencies(types.clone(), identities, domain, &mut paths).is_some()
+        && paths.iter().all(|path| {
+            storage_path(types.clone(), domain.carrier, path)
+                .is_some_and(|dependency| !crate::structural_paths_may_overlap(&dependency, write))
+        })
+}
+
+/// Predicate observations may expire on a write; conserved Content does not.
+/// Its exact projection remains an independent mutation constraint.
+fn content_dependencies<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    identities: &TerminalIdentityTable,
+    domain: &StructuralDomainDeclaration,
+    paths: &mut Vec<Vec<Segment>>,
+) -> Option<()> {
     if let Some(projection) = &domain.content_projection {
         let valid = match &projection.expression {
-            ContentProjectionExpression::CountedQuantity(scalar) => content_paths(
-                types.clone(),
-                identities,
-                domain.carrier,
-                scalar,
-                &mut paths,
-                0,
-            ),
+            ContentProjectionExpression::CountedQuantity(scalar) => {
+                content_paths(types.clone(), identities, domain.carrier, scalar, paths, 0)
+            }
             ContentProjectionExpression::IntervalSet(intervals) => {
                 intervals.iter().try_for_each(|(start, end)| {
-                    content_paths(
-                        types.clone(),
-                        identities,
-                        domain.carrier,
-                        start,
-                        &mut paths,
-                        0,
-                    )?;
-                    content_paths(
-                        types.clone(),
-                        identities,
-                        domain.carrier,
-                        end,
-                        &mut paths,
-                        0,
-                    )
+                    content_paths(types.clone(), identities, domain.carrier, start, paths, 0)?;
+                    content_paths(types.clone(), identities, domain.carrier, end, paths, 0)
                 })
             }
         };
         if valid.is_none() {
-            return false;
+            return None;
         }
     }
-    paths.iter().all(|path| {
-        storage_path(types.clone(), domain.carrier, path)
-            .is_some_and(|dependency| !crate::structural_paths_may_overlap(&dependency, write))
-    })
+    Some(())
+}
+
+fn domain_content_write_is_disjoint<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    identities: &TerminalIdentityTable,
+    domain: &StructuralDomainDeclaration,
+    write: &[StructuralPathSegment],
+) -> bool {
+    if domain.content_projection.is_none() {
+        return true;
+    }
+    if write.iter().any(|step| {
+        matches!(
+            step,
+            StructuralPathSegment::Referent | StructuralPathSegment::RepresentationView { .. }
+        )
+    }) {
+        return false;
+    }
+    let mut dependencies = Vec::new();
+    content_dependencies(types.clone(), identities, domain, &mut dependencies).is_some()
+        && dependencies.iter().all(|dependency| {
+            storage_path(types.clone(), domain.carrier, dependency)
+                .is_some_and(|dependency| !crate::structural_paths_may_overlap(&dependency, write))
+        })
 }
 
 /// Preserve every carried whole/projected domain against this exact write.
@@ -357,9 +377,37 @@ pub fn store_preserves_qualifications<'a>(
         })
 }
 
+/// Ordinary predicate memberships are incoming facts, not perpetual storage
+/// contracts. Checking owns their invalidation and consumption judgments.
+/// Mutation still preserves every carried conserved projection independently.
+pub fn store_preserves_domain_content<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'a StructuralDomainDeclaration> + Clone,
+    identities: &TerminalIdentityTable,
+    whole: &[semantic_vocabulary::StructuralDomainId],
+    projected: &[StructuralPathQualification],
+    write: &[StructuralPathSegment],
+) -> bool {
+    let preserved = |identity, path: &[StructuralPathSegment]| {
+        let mut matching = domains.clone().filter(|domain| domain.id == identity);
+        matching.next().is_some_and(|domain| {
+            matching.next().is_none()
+                && domain_content_write_is_disjoint(types.clone(), identities, domain, path)
+        })
+    };
+    whole.iter().all(|domain| preserved(*domain, write))
+        && projected.iter().all(|row| {
+            !crate::structural_paths_may_overlap(&row.path, write)
+                || write
+                    .strip_prefix(row.path.as_slice())
+                    .is_some_and(|relative| preserved(row.domain, relative))
+        })
+}
+
 /// Derive the complete field write footprint from the original declaration.
-/// Runtime indices retain their original conservative overlap semantics.
-pub fn scalar_field_store_preserves_qualifications<'a>(
+/// Predicate freshness belongs to the source checker, not an immutable roster
+/// on a former producer. Runtime indices retain conservative Content overlap.
+pub fn scalar_field_store_preserves_domain_content<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     domains: impl Iterator<Item = &'a StructuralDomainDeclaration> + Clone,
     identities: &TerminalIdentityTable,
@@ -375,7 +423,7 @@ pub fn scalar_field_store_preserves_qualifications<'a>(
     };
     let mut write = path.to_vec();
     write.push(StructuralPathSegment::Field(declaration.identity));
-    store_preserves_qualifications(types, domains, identities, whole, projected, &write)
+    store_preserves_domain_content(types, domains, identities, whole, projected, &write)
 }
 
 /// An exclusive subtree loan may retain its exact and descendant obligations,
@@ -499,7 +547,12 @@ pub fn store_preserves_content<'a>(
                 owners.next().is_some_and(|owner| {
                     owners.next().is_none()
                         && owner.carrier == carrier.id
-                        && domain_write_is_disjoint(types.clone(), identities, owner, relative)
+                        && domain_content_write_is_disjoint(
+                            types.clone(),
+                            identities,
+                            owner,
+                            relative,
+                        )
                 })
             })
         })

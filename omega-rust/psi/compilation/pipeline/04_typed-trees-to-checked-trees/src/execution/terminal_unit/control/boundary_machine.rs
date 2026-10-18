@@ -649,7 +649,7 @@ fn reference_outputs(
         })
         .collect::<Vec<_>>();
     let parameters = parameters.as_slice();
-    let outputs = validation::borrow_contracts::resolve_provider_outputs(program, parameters)
+    let relation = validation::borrow_contracts::resolve_provider_outputs(program, parameters)
         .map_err(|error| match error {
             validation::borrow_contracts::ViewReturnAmbiguity::IncompleteStructure { .. } => {
                 "boundary reference completion has an incomplete type or writable frontier"
@@ -664,7 +664,11 @@ fn reference_outputs(
                 ..
             } => "boundary reference completion has incompatible lifetime access",
         })?;
-    outputs
+    if relation.readiness != validation::borrow_contracts::BorrowRelationReadiness::Complete {
+        return Err("boundary reference completion retains an open declaration frontier");
+    }
+    relation
+        .outputs
         .into_iter()
         .map(|output| {
             let (destination, root) = match output.destination {

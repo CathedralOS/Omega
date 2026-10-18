@@ -27,7 +27,7 @@ fn retain_normal_exits(
         .map(|row| checked_trees::CheckedNormalExitCleanupPlan {
             exit: row.exit,
             selected_regions: owner.normal_exit_regions.insert_many(row.selected_regions),
-            actions: owner.normal_exit_actions.insert_many(row.actions),
+            actions: owner.actions.insert_many(row.actions),
         })
         .collect::<Vec<_>>();
     owner.normal_exit_rows.insert_many(retained)
@@ -277,7 +277,7 @@ fn owner_source(
     super::super::local_storage::source(program, state, &plan.operations, symbol)
 }
 
-fn expression_source(
+pub(in crate::execution::terminal_unit) fn expression_source(
     facts: &CheckFacts,
     state: SymbolHandle,
     operations: &[checked_trees::CheckedUnitEffectOperationPlan],

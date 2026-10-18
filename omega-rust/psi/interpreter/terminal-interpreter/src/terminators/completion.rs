@@ -109,6 +109,12 @@ impl TerminalExecution<'_> {
                 completed.value,
             )));
         };
+        if let SuspendedCallResult::ExternalCompletion { boundary, edge } = caller.result {
+            return Err(TerminalInterpretError::ExternalCompletionProviderReturned {
+                boundary,
+                edge,
+            });
+        }
         let loan_completions = caller.loan_completions.clone();
         let expected = self.restore_return_caller(caller);
         // Structural result rebinding was staged against the suspended caller.
@@ -119,6 +125,9 @@ impl TerminalExecution<'_> {
         }
         self.complete_loan_custody(&loan_completions)?;
         match expected {
+            SuspendedCallResult::ExternalCompletion { boundary, edge } => {
+                Err(TerminalInterpretError::ExternalCompletionProviderReturned { boundary, edge })
+            }
             SuspendedCallResult::NominalCleanups {
                 completed: cleanup,
                 remaining,

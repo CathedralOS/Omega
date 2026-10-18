@@ -6,11 +6,9 @@
 //! It forwards existing operands; declaration settlement introduces no roots.
 
 use super::ValidatedNativeProgramEntrySettlement;
-use crate::provider_admission::{
-    TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement,
-};
+use effects::CompilerIntrinsicExecutionIdentity;
+use effects::provider_plan::ProviderBinding;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use target_operations::CompilerBuiltinExecution;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntryCall {
@@ -37,38 +35,105 @@ impl SelectedProgramEntryCall {
     pub(crate) fn bind(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         entry: &ValidatedNativeProgramEntrySettlement,
-        proposals: &[TerminalCompilerBuiltinProposal],
-        plans: &[effects::provider_plan::ProviderPlan],
+        selection: &effects::SelectedProviderPlanFacts,
+        intrinsic_executions: &[Vec<Option<CompilerIntrinsicExecutionIdentity>>],
     ) -> Result<Option<Self>, String> {
-        let mut selected = proposals.iter().filter(|proposal| {
-            proposal.settlement()
-                == TerminalCompilerBuiltinSettlement::Execution(
-                    CompilerBuiltinExecution::ProgramStorageEntry,
-                )
-        });
-        let Some(proposal) = selected.next() else {
+        // Entry selection precedes executable-demand discovery. Borrow the
+        // retained row identities here; native builtin proposals are derived
+        // once, after that discovery, and admitted independently.
+        let plans = selection.plans();
+        if plans.len() != intrinsic_executions.len() {
+            return Err("semantic-entry transport has misaligned provider plan custody".into());
+        }
+        let module = artifact.semantic_module();
+        let mut entry_rows = Vec::new();
+        for (plan, executions) in plans.iter().zip(intrinsic_executions) {
+            if plan.rows.len() != executions.len() {
+                return Err(format!(
+                    "semantic-entry transport has misaligned intrinsic rows for `{}`",
+                    plan.name,
+                ));
+            }
+            for (row, execution) in plan.rows.iter().zip(executions) {
+                if *execution != Some(CompilerIntrinsicExecutionIdentity::ProgramStorageEntry) {
+                    continue;
+                }
+                if !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
+                    return Err("semantic-entry transport has no selected intrinsic binding".into());
+                }
+                let requirement = plan.identities.text(row.requirement_identity);
+                entry_rows.push((plan, requirement));
+            }
+        }
+        if entry_rows.is_empty() {
+            return Ok(None);
+        }
+        let mut selected = None;
+        // Retained declarations are not calls. Follow actual Terminal
+        // occurrences and preserve their boundary ID through the selected
+        // family/specialization-to-provider-row relationship.
+        for boundary_id in module.blocks().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .filter_map(|operation| match &operation.kind {
+                    terminal_psi::OperationKind::BoundaryCall { boundary, .. } => Some(*boundary),
+                    _ => None,
+                })
+                .chain(match &block.terminator {
+                    terminal_psi::Terminator::ExternalCompletion { boundary, .. } => {
+                        Some(*boundary)
+                    }
+                    _ => None,
+                })
+        }) {
+            let boundary = module
+                .boundary_machine(boundary_id)
+                .ok_or("semantic-entry occurrence names an absent Terminal requirement")?;
+            let requirement = module
+                .identities
+                .text(boundary.identity)
+                .filter(|identity| !identity.is_empty())
+                .ok_or("semantic-entry occurrence has no exact requirement identity")?;
+            let mut matching_rows = entry_rows
+                .iter()
+                .copied()
+                .filter(|(plan, row_requirement)| {
+                    selection.selected_requirement_identity(requirement) == *row_requirement
+                        && selection.selected_row_matches_requirement(
+                            requirement,
+                            row_requirement,
+                            plan.report_fingerprint(),
+                        )
+                });
+            let Some((plan, row_requirement)) = matching_rows.next() else {
+                continue;
+            };
+            if matching_rows.next().is_some() {
+                return Err("semantic-entry transport has competing selected provider rows".into());
+            }
+            if let Some((_, _, previous_boundary)) = selected {
+                if previous_boundary != boundary_id {
+                    return Err("semantic-entry transport has competing selected bindings".into());
+                }
+            }
+            selected = Some((plan, row_requirement, boundary_id));
+        }
+        let Some((plan, requirement, boundary_id)) = selected else {
             return Ok(None);
         };
-        if selected.next().is_some() {
-            return Err("semantic-entry transport has competing selected bindings".into());
-        }
+        let boundary = module
+            .boundary_machine(boundary_id)
+            .ok_or("semantic-entry transport lost its Terminal requirement")?;
         let application = entry
             .semantic_calling_application()
             .ok_or("semantic-entry transport has no selected calling application")?;
-        let plan = plans
-            .get(proposal.provider_plan_index())
-            .ok_or("semantic-entry transport lost its selected provider plan")?;
-        let module = artifact.semantic_module();
-        let boundary = module
-            .boundary_machine(proposal.boundary())
-            .ok_or("semantic-entry transport names an absent Terminal requirement")?;
         if entry.checked_entry().terminal_psi_identity() != artifact.manifest().semantic()
             || entry.target() != target::NativeTarget::uefi_x64()
             || entry.physical_adapter().is_none()
             || entry.source().target_slot().schema
                 != target::ProgramEntrySchema::ProgramStorageApplication
-            || application.requirement_identity != proposal.requirement_identity()
-            || module.identities.text(boundary.identity) != Some(proposal.requirement_identity())
+            || application.requirement_identity != requirement
             || !boundary.scalar_parameters.is_empty()
             || boundary.structural_parameters.len() != 2
             || boundary.result != terminal_psi::BoundaryMachineResult::Unit

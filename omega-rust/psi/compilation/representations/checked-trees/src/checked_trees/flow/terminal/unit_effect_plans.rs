@@ -568,6 +568,33 @@ impl CheckedOperandSequence {
                     .expect("published operand span contains operations")
             })
     }
+
+    pub fn len(&self) -> usize {
+        self.order.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.order.is_empty()
+    }
+
+    pub fn get(&self, ordinal: usize) -> Option<&crate::CheckedUnitEffectOperationPlan> {
+        self.operations
+            .span_or_empty(self.order)
+            .get(ordinal)?
+            .0
+            .as_ref()
+    }
+
+    pub fn get_mut(
+        &mut self,
+        ordinal: usize,
+    ) -> Option<&mut crate::CheckedUnitEffectOperationPlan> {
+        self.operations
+            .span_mut_or_empty(self.order)
+            .get_mut(ordinal)?
+            .0
+            .as_mut()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -575,7 +602,7 @@ pub struct CheckedStructuralValueCall {
     pub value: crate::CheckedStructuralValueHandle,
     operands: CheckedOperandSequence,
     operation: CheckedUnitEffectOperationPlan,
-    /// Normal-return retirement of anonymous descriptors this call did not retain.
+    /// Normal-return descriptor release and checked backing-owner disposition.
     completions: CheckedOperandSequence,
 }
 
@@ -633,12 +660,20 @@ impl CheckedStructuralValueCall {
         &self.operands
     }
 
+    pub fn operands_mut(&mut self) -> &mut CheckedOperandSequence {
+        &mut self.operands
+    }
+
     pub fn operation(&self) -> &CheckedUnitEffectOperationPlan {
         &self.operation
     }
 
     pub fn completions(&self) -> &CheckedOperandSequence {
         &self.completions
+    }
+
+    pub fn completions_mut(&mut self) -> &mut CheckedOperandSequence {
+        &mut self.completions
     }
 
     /// The value's result binding. `with_operands` admits only a call that
@@ -918,6 +953,7 @@ impl CheckedUnitEffectOperationPlan {
             }) = operation
             {
                 for call in calls.iter().rev() {
+                    pending.extend(call.completions().iter().rev());
                     pending.push(call.operation());
                     pending.extend(call.operands().iter().rev());
                 }

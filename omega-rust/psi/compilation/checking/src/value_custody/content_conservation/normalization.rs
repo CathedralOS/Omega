@@ -1,6 +1,6 @@
 use super::{
-    algebra_key, domain_label, is_old_call, is_separate_call, projection_label,
-    projection_plan_for_call, structural_place_label,
+    ContentProjectionFormation, algebra_key, domain_label, is_old_call, is_separate_call,
+    projection_label, projection_plan_for_call, structural_place_label,
 };
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentCaseSegment, ContentConservationEquation,
@@ -14,6 +14,8 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) struct NormalizationContext<'program, 'contracts> {
     pub(super) program: &'program dyn crate::CheckingInput,
+    pub(super) callable: SymbolHandle,
+    pub(super) source_expression: ExpressionHandle,
     pub(super) projections: &'program [ContentProjectionPlan],
     pub(super) parameters: &'program [StateParameter],
     pub(super) return_type: TypeReferenceHandle,
@@ -24,6 +26,7 @@ pub(super) struct NormalizationContext<'program, 'contracts> {
 pub(super) fn normalize_equation(
     context: &NormalizationContext<'_, '_>,
     expression: ExpressionHandle,
+    formations: &mut Vec<ContentProjectionFormation>,
 ) -> Result<(ContentAlgebraIdentity, ContentConservationEquation), String> {
     let Some(binary) = context.program.expression_table.binary_node(expression) else {
         return Err(
@@ -34,8 +37,8 @@ pub(super) fn normalize_equation(
     if binary.operator != BinaryOperator::Equal {
         return Err("content conservation is authored with `==`; containment or scalar comparisons are not the n-ary conservation theorem".to_owned());
     }
-    let (left, left_algebra) = normalize_term(context, binary.left)?;
-    let (right, right_algebra) = normalize_term(context, binary.right)?;
+    let (left, left_algebra) = normalize_term(context, binary.left, formations)?;
+    let (right, right_algebra) = normalize_term(context, binary.right, formations)?;
     if left_algebra != right_algebra {
         return Err(format!(
             "the two sides select different content algebras (`{}` versus `{}`)",
@@ -49,6 +52,7 @@ pub(super) fn normalize_equation(
 fn normalize_term(
     context: &NormalizationContext<'_, '_>,
     expression: ExpressionHandle,
+    formations: &mut Vec<ContentProjectionFormation>,
 ) -> Result<(ContentConservationTerm, ContentAlgebraIdentity), String> {
     let Some(call) = context.program.expression_table.call_node(expression) else {
         return Err(format!(
@@ -71,7 +75,7 @@ fn normalize_term(
         let mut terms = Vec::with_capacity(arguments.len());
         let mut selected_algebra = None;
         for argument in arguments {
-            let (term, algebra) = normalize_term(context, *argument)?;
+            let (term, algebra) = normalize_term(context, *argument, formations)?;
             if let Some(selected) = &selected_algebra {
                 if selected != &algebra {
                     return Err(format!(
@@ -112,6 +116,13 @@ fn normalize_term(
         );
     };
     let subject = normalize_projection_subject(context, *argument, projection)?;
+    formations.push(ContentProjectionFormation {
+        callable: context.callable,
+        source_expression: context.source_expression,
+        projection: projection.machine,
+        call: expression,
+        argument: *argument,
+    });
     Ok((
         ContentConservationTerm::Projection {
             domain: projection.domain,
@@ -151,10 +162,9 @@ fn normalize_projection_subject(
         _ => (ContentPlaceVersion::Current, expression),
     };
 
-    // Content projection observes through the authored shared borrow. Mutable
-    // and write-only borrows cannot become proof observations. Retain the
-    // access judgment here, then normalize the shared wrapper to its exact
-    // structural place.
+    // An explicit shared wrapper and implicit shared lending observe the same
+    // structural place. Reject explicit exclusive lending here; the type walk
+    // independently requires readable access through every enclosing reference.
     let borrowed = match context.program.expression_table.expression(borrowed) {
         ExpressionNode::Borrow(inner)
             if inner.access == language_semantics::ReferenceAccess::Shared =>
@@ -181,15 +191,11 @@ fn normalize_projection_subject(
         }
         (ContentPlaceRoot::Result, context.return_type)
     } else {
-        let Some((position, parameter)) =
-            context
-                .parameters
-                .iter()
-                .enumerate()
-                .find(|(_, parameter)| {
-                    (root_symbol.is_valid() && parameter.symbol == root_symbol)
-                        || parameter.name.as_str() == root_name
-                })
+        let Some((position, parameter)) = context
+            .parameters
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| root_symbol.is_valid() && parameter.symbol == root_symbol)
         else {
             return Err(format!(
                 "projection root `{root_name}` is not a callable parameter, `self`, or `result`",
@@ -208,11 +214,7 @@ fn normalize_projection_subject(
     let final_type =
         structural_place_type(context.program, root_type, &mut segments, context.self_data)?;
     retain_payload_case_segments(context.program, &mut segments);
-    let carrier =
-        crate::value_custody::places::unwrapped_type_reference(context.program, final_type)
-            .ok_or_else(|| {
-                "the projected structural place has no resolved carrier type".to_owned()
-            })?;
+    let carrier = observation_carrier(context.program, final_type)?;
     let carrier_identity = context.program.normalized_type_identity_text(carrier);
     if carrier_identity != projection.carrier_identity {
         return Err(format!(
@@ -362,6 +364,36 @@ pub fn data_variant_name(
     })
 }
 
+/// A proof observation must be readable through every enclosing reference,
+/// including a reference stored at the final selected place. Qualifications
+/// remain on the original type for their independent membership judgment.
+fn observation_carrier(
+    program: &dyn crate::CheckingInput,
+    mut current: TypeReferenceHandle,
+) -> Result<TypeReferenceHandle, String> {
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        if !current.is_valid() {
+            break;
+        }
+        match program.type_reference_table.type_reference(current) {
+            TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
+            TypeReferenceNode::Reference {
+                access, referee, ..
+            } if access.is_readable() => {
+                current = *referee;
+            }
+            TypeReferenceNode::Reference { .. } => {
+                return Err(
+                    "content projection subjects cannot observe write-only reference storage"
+                        .to_owned(),
+                );
+            }
+            _ => return Ok(current),
+        }
+    }
+    Err("the projected structural place has no resolved readable carrier type".to_owned())
+}
+
 fn structural_place_type(
     program: &dyn crate::CheckingInput,
     mut current: TypeReferenceHandle,
@@ -371,8 +403,7 @@ fn structural_place_type(
     let mut active_variant = None;
     let mut at_root = true;
     for segment in segments {
-        let unwrapped = crate::value_custody::places::unwrapped_type_reference(program, current)
-            .ok_or_else(|| "an unresolved type appears in the structural place".to_owned())?;
+        let unwrapped = observation_carrier(program, current)?;
         match segment {
             ContentPlaceSegment::Case(case) => {
                 if active_variant.is_some() {

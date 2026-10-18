@@ -1,22 +1,21 @@
 //! Rejoin source completion declarations to selected provider realizations.
 //! Source admission belongs to Psi; this operation never mutates its judgment.
 
-use crate::{ProviderSchemaDeclaration, SelectedProviderPlanWithProvenance};
+use crate::{ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::boundary_completions::completion_declaration;
 use diagnostics::Diagnostic;
-use effects::provider_plan::ProviderBinding;
 
 /// Rejoin selected provisional source roles to their exact realizations.
 /// This validates the proposal without changing any completed source judgment.
 pub(super) fn validate_proposed(
     typed: &TypedTrees,
-    selected: &[SelectedProviderPlanWithProvenance],
+    selected: &[SelectedProviderReviewProvenance],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut declarations = Vec::new();
     for selected in selected {
-        let plan = &selected.derived.plan;
-        let provenance = &selected.derived.provenance;
+        let plan = &selected.plan;
+        let provenance = &selected.provider;
         let ProviderSchemaDeclaration::BoundaryTrait(owner) = provenance.schema else {
             continue;
         };
@@ -37,11 +36,12 @@ pub(super) fn validate_proposed(
             .rows
             .iter()
             .enumerate()
-            .filter(|(index, row)| {
-                matches!(
-                    row.binding,
-                    ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Import { .. }
-                ) && provenance.row_requirements.get(*index) == Some(&declaration.requirement)
+            .filter(|(index, _row)| {
+                selected
+                    .row_external_completion_leaves
+                    .get(*index)
+                    .is_some_and(|leaves| !leaves.is_empty())
+                    && provenance.row_requirements.get(*index) == Some(&declaration.requirement)
                     && provenance
                         .row_realizations
                         .get(*index)
@@ -76,7 +76,7 @@ pub(super) fn validate_proposed(
         .filter(|declaration| {
             selected.iter().any(|provider| {
                 matches!(
-                    provider.derived.provenance.schema,
+                    provider.provider.schema,
                     ProviderSchemaDeclaration::BoundaryTrait(owner)
                         if owner == declaration.owner
                 )

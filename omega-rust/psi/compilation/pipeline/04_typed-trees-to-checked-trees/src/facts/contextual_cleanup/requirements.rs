@@ -666,6 +666,30 @@ pub(crate) fn occurrence_contexts(
     state: &FlowStateFact,
     disposition: &checked_trees::ContextualCleanupDisposition,
 ) -> Option<Vec<(usize, Vec<FactContextHandle>)>> {
+    if disposition.completion.is_valid() {
+        let PermissionEventSource::Statement { statement_index } = disposition.source else {
+            return None;
+        };
+        let statement = facts.flow.state_statement(state, statement_index)?;
+        let mut matching = facts
+            .flow
+            .control
+            .value_observations
+            .span(statement.value_observations)?
+            .iter()
+            .filter(|observation| observation.expression == disposition.completion);
+        let observation = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        return Some(vec![(
+            statement_index,
+            facts
+                .flow
+                .semantic_constraint_contexts(observation.constraints)
+                .collect(),
+        )]);
+    }
     let points = match disposition.source {
         PermissionEventSource::InstructionDisposition { .. }
         | PermissionEventSource::InstructionExitDisposition { .. } => return None,

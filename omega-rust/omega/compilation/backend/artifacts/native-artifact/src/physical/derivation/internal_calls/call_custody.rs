@@ -13,10 +13,7 @@ pub(super) fn rejoin<'publication>(
     callee: MachineId,
     field_offset: usize,
 ) -> Result<&'publication legalized_operations::LegalizedScalarCall, &'static str> {
-    let operation = occurrence
-        .operation()
-        .ok_or("selected boundary internal call has no operation owner")?;
-    let owner = CallSiteOwner::Operation(operation);
+    let owner = CallSiteOwner::from(occurrence.invocation_site());
     let mut functions = publication
         .selected_plan()
         .functions
@@ -32,9 +29,17 @@ pub(super) fn rejoin<'publication>(
     let (block, instruction) =
         image_emission::unique_block_instruction(function, record.instruction)
             .ok_or("selected boundary internal call lacks its selected instruction")?;
+    let retains_owner = match occurrence.invocation_site() {
+        semantic_vocabulary::BoundaryInvocationSite::Operation(operation) => {
+            instruction.provenance.operations.contains(&operation)
+        }
+        semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge) => {
+            instruction.provenance.edges.contains(&edge)
+        }
+    };
     if record.call.target.machine() != Some(callee)
         || instruction.kind.machine_callee() != Some(callee)
-        || !instruction.provenance.operations.contains(&operation)
+        || !retains_owner
     {
         return Err("selected boundary internal call changed its selected owner or callee");
     }

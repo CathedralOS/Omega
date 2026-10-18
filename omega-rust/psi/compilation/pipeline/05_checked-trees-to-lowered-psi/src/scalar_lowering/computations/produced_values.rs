@@ -7,12 +7,11 @@
 
 use super::{CheckedTrees, LoweringError, unsupported};
 use crate::expression_preparation::computation_graph::produced_value_root;
-use crate::scalar_lowering::branch_states::structural_values::Storage;
 use checked_trees::{
     CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
     CheckedStructuralValueHandle, CheckedUnitStructuralArgumentSourcePlan, FlowCallFact,
 };
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::StructuralTypeDeclaration;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -23,8 +22,6 @@ pub(crate) struct Slot {
     pub(crate) argument_ordinal: Option<usize>,
     pub(crate) root: CheckedStructuralValueHandle,
     pub(crate) type_reference: TypeReferenceHandle,
-    pub(crate) storage: Storage,
-    pub(crate) place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
 }
 
@@ -33,7 +30,6 @@ pub(crate) fn prepare(
     checked: &CheckedTrees,
     machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
-    next_place: &mut u64,
 ) -> Result<Vec<Slot>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let roots = plans.roots_in_machines(machines);
@@ -115,15 +111,11 @@ pub(crate) fn prepare(
                 }
                 continue;
             }
-            let storage = Storage::reserve(identities, checked, root.root, types, next_place)?;
-            let place = storage.place(root.root)?;
             slots.push(Slot {
                 source_call,
                 argument_ordinal,
                 root: root.root,
                 type_reference: root.type_reference,
-                storage,
-                place,
                 structural_type: declaration.id,
             });
         }

@@ -9,12 +9,12 @@ use installation_evidence::{
     InstalledProviderCallEvidence, InstalledProviderCompletionClaimSource,
     ProviderInstallationEvidence,
 };
-use semantic_vocabulary::{BoundaryInvocationSite, BoundaryMachineId, MachineId, OperationId};
+use semantic_vocabulary::{BoundaryInvocationSite, BoundaryMachineId, MachineId};
 use std::collections::BTreeMap;
 
 /// Identity of one boundary call occurrence: the caller machine, the Terminal
 /// operation, and the boundary machine it enters.
-pub(super) type BoundaryCallKey = (MachineId, OperationId, BoundaryMachineId);
+pub(super) type BoundaryCallKey = (MachineId, BoundaryInvocationSite, BoundaryMachineId);
 
 /// Installed provider calls keyed by the boundary call occurrence they claim.
 pub(super) type InstalledCallsByCall = BTreeMap<BoundaryCallKey, InstalledProviderCallEvidence>;
@@ -40,7 +40,7 @@ pub(super) fn index_installed_provider_calls(
     for installed in installed_calls {
         let key = (
             installed.caller,
-            installed.psi_operation,
+            installed.invocation_site,
             installed.boundary,
         );
         if installed_by_call.insert(key, installed).is_some() {
@@ -92,6 +92,34 @@ pub(super) fn validate_installed_provider_calls(
     boundary_calls: &BoundaryCallsByKey<'_>,
 ) -> Result<(), LoweringError> {
     for (key, installed) in installed_by_call {
+        if let Some(AbstractOperation::ExternalCompletion {
+            arguments,
+            structural_arguments,
+            kind,
+            ..
+        }) = boundary_calls.get(key).copied()
+        {
+            if installed.result != terminal_psi::OperationResult::Unit
+                || installed.scalar_arguments != *arguments
+                || installed.structural_arguments != *structural_arguments
+                || !installed.completion_claim_sources.is_empty()
+                || !installed.completion_receipts.is_empty()
+                || installed.provider.boundary != key.2
+                || !plan.provider_candidates.contains(&installed.provider)
+                || !plan.boundary_machine(key.2).is_some_and(|declaration| {
+                    declaration.result.is_unit()
+                        && declaration.completion
+                            == semantic_vocabulary::BoundaryCompletion::External(*kind)
+                })
+            {
+                return Err(LoweringError::SelectedBoundaryCallEvidenceMismatch {
+                    machine: key.0,
+                    operation: key.1,
+                    boundary: key.2,
+                });
+            }
+            continue;
+        }
         let Some(AbstractOperation::BoundaryCall {
             result,
             arguments,
@@ -99,7 +127,7 @@ pub(super) fn validate_installed_provider_calls(
             completion_claim_sources,
             completion_receipts,
             ..
-        }) = boundary_calls.get(&(key.0, key.1.into(), key.2)).copied()
+        }) = boundary_calls.get(key).copied()
         else {
             return Err(LoweringError::UnknownSelectedBoundaryCall {
                 machine: key.0,

@@ -35,8 +35,7 @@ pub use compiler_builtins::{
     TerminalCompilerBuiltinSettlement,
 };
 pub(crate) use compiler_builtins::{
-    demanded_boundary_identities, derive_selected_intrinsic_settlement_proposals,
-    prepare_retained_compiler_builtins,
+    derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
 };
 pub use diagnostics::realization_error;
 

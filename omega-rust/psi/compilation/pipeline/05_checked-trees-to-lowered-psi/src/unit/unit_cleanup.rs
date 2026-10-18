@@ -22,8 +22,10 @@ use symbols::SymbolHandle;
 pub(crate) mod contexts;
 mod dispositions;
 pub(crate) use dispositions::outstanding_actions;
+mod expression_owners;
 mod ordered;
 mod reference_retirement;
+pub(crate) use expression_owners::expression_cleanup_regions;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
 pub(crate) use reference_retirement::lower_reference_completion_regions;
 
@@ -143,6 +145,7 @@ pub(crate) fn continuation_cleanups<'a>(
 ) -> impl Iterator<Item = &'a CheckedUnitNominalAffineCleanupPlan> {
     operations
         .into_iter()
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
         .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 cleanup_actions, ..
@@ -153,17 +156,21 @@ pub(crate) fn continuation_cleanups<'a>(
         .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
 }
 
-/// Resolve the checked schedule once, retaining its selection conditions for
-/// ordinary control emission. The storage resolver owns captured coordinates;
-/// neither action paths nor tag observations may evaluate a selector again.
-pub(crate) fn lower_checked_cleanup_regions<'action>(
+/// Resolve captured storage and checked selection once. Unit emission and
+/// deferred scalar emission consume the same prepared action geometry; only
+/// allocation of the actual hook call belongs to their emission boundary.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_checked_cleanup_regions<'action>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
     selected_regions: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     control: &checked_trees::CheckedCleanupControlPlans,
     types: &[terminal_psi::StructuralTypeDeclaration],
-    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+    mut resolve_type: impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
+        typed_trees::type_identity::TypeIdentityId,
+    ) -> Result<StructuralTypeId, LoweringError>,
     mut storage: impl FnMut(
         &mut terminal_psi::TerminalIdentityTableBuilder,
         &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
@@ -176,14 +183,16 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
         PlaceId,
     )
         -> Result<terminal_psi::StructuralMultiplicity, LoweringError>,
-    mut nominal: impl FnMut(
+    mut consumed_claims: impl FnMut(
         &CheckedUnitNominalAffineCleanupPlan,
         PlaceId,
-        StructuralTypeId,
-        Vec<terminal_psi::StructuralPathSegment>,
-    ) -> Result<NominalAffineCleanup, LoweringError>,
-) -> Result<Vec<CleanupRegion>, LoweringError> {
-    let mut regions = actions
+        &[terminal_psi::StructuralPathSegment],
+    ) -> Result<
+        Vec<language_semantics::PermissionClaimIdentity>,
+        LoweringError,
+    >,
+) -> Result<Vec<PreparedNormalCleanupAction>, LoweringError> {
+    actions
         .into_iter()
         .map(|action| {
             let (place, path) = storage(identities, action.source(), action.path())?;
@@ -218,9 +227,6 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
                 checked_trees::CheckedNormalCleanupAction::Discard(_)
                     if path.is_empty() && conditions.is_empty() =>
                 {
-                    // The source-selected death may end a copyable descriptor
-                    // without owning an affine resource. Use its actual emitted
-                    // occurrence, not the source action's generic discard name.
                     if carrier_multiplicity(place)?
                         == terminal_psi::StructuralMultiplicity::Unrestricted
                     {
@@ -234,28 +240,72 @@ pub(crate) fn lower_checked_cleanup_regions<'action>(
                         terminal_psi::StructuralAffineDiscard {
                             place,
                             path,
-                            structural_type: lookup_type_id(type_ids, &action.type_identity())?,
+                            structural_type: resolve_type(identities, action.type_identity())?,
                         },
                     )
                 }
                 checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
-                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal(
-                        cleanup,
+                    let claims = consumed_claims(cleanup, place, &path)?;
+                    return Ok(PreparedNormalCleanupAction::InvokeNominal {
+                        selected_region,
+                        conditions,
+                        cleanup: cleanup.clone(),
                         place,
-                        lookup_type_id(type_ids, &action.type_identity())?,
+                        structural_type: resolve_type(identities, action.type_identity())?,
                         path,
-                    )?)
+                        consumed_claims: claims,
+                    });
                 }
             };
-            Ok(CleanupRegion {
+            Ok(PreparedNormalCleanupAction::Resolved(CleanupRegion {
                 selected_region,
                 conditions,
                 action: lowered,
-            })
+            }))
         })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    retain_cleanup_descendants(&mut regions);
-    Ok(regions)
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn lower_checked_cleanup_regions<'action>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
+    selected_regions: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    control: &checked_trees::CheckedCleanupControlPlans,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+    storage: impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
+        &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+        &[checked_trees::CheckedUnitStructuralPathSegment],
+    )
+        -> Result<(PlaceId, Vec<terminal_psi::StructuralPathSegment>), LoweringError>,
+    carrier_multiplicity: impl FnMut(
+        PlaceId,
+    ) -> Result<terminal_psi::StructuralMultiplicity, LoweringError>,
+    mut nominal: impl FnMut(
+        &CheckedUnitNominalAffineCleanupPlan,
+        PlaceId,
+        StructuralTypeId,
+        Vec<terminal_psi::StructuralPathSegment>,
+    ) -> Result<NominalAffineCleanup, LoweringError>,
+) -> Result<Vec<CleanupRegion>, LoweringError> {
+    let prepared = prepare_checked_cleanup_regions(
+        identities,
+        checked,
+        actions,
+        selected_regions,
+        control,
+        types,
+        |_, identity| lookup_type_id(type_ids, &identity),
+        storage,
+        carrier_multiplicity,
+        |cleanup, _, _| Ok(cleanup.consumed_claims.clone()),
+    )?;
+    materialize_prepared_cleanup_regions(&prepared, |cleanup, place, structural_type, path, _| {
+        nominal(cleanup, place, structural_type, path)
+    })
 }
 
 /// Resolve parent disposition while the complete checked schedule is intact,
@@ -307,6 +357,16 @@ pub(crate) fn computation_cleanups(
             );
         }
     }
+    cleanups.extend(retained_call_cleanups(checked, Some(machine)));
+    let control = &checked.facts.flow.terminal_unit_effects.cleanup_control;
+    cleanups.extend(
+        control
+            .value_completions
+            .iter()
+            .filter(|(_, row)| row.machine == machine)
+            .flat_map(|(_, row)| control.actions.span_or_empty(row.actions))
+            .filter_map(checked_trees::CheckedNormalCleanupAction::nominal),
+    );
     Ok(cleanups)
 }
 
@@ -335,6 +395,15 @@ pub(crate) fn selected_cleanups(
                 .flat_map(|machine| continuation_cleanups(&machine.operations)),
         )
         .chain(composed_states().flat_map(|state| continuation_cleanups(&state.operations)))
+        .chain(retained_call_cleanups(checked, None))
+        .chain(
+            plans
+                .cleanup_control
+                .value_completions
+                .iter()
+                .flat_map(|(_, row)| plans.cleanup_control.actions.span_or_empty(row.actions))
+                .filter_map(checked_trees::CheckedNormalCleanupAction::nominal),
+        )
         .chain(
             plans
                 .machines
@@ -344,6 +413,34 @@ pub(crate) fn selected_cleanups(
                 .flat_map(move |rows| plans.cleanup_control.normal_actions(rows))
                 .filter_map(checked_trees::CheckedNormalCleanupAction::nominal),
         )
+}
+
+/// Late value-call catalogs retain the same checked completion operations as
+/// embedded constructions. Hook discovery follows their actual source owner.
+pub(crate) fn retained_call_cleanups(
+    checked: &CheckedTrees,
+    machine: Option<SymbolHandle>,
+) -> impl Iterator<Item = &CheckedUnitNominalAffineCleanupPlan> {
+    checked
+        .facts
+        .values
+        .structural_values
+        .scheduled_calls()
+        .filter(move |(_, call)| {
+            machine.is_none_or(|machine| {
+                checked
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get(call.value)
+                    .machine
+                    == machine
+            })
+        })
+        .flat_map(|(_, call)| {
+            continuation_cleanups(call.operands().iter().chain(call.completions().iter()))
+        })
 }
 
 /// Materialize one checked normal-cleanup operation in the shared closure namespace.
@@ -451,6 +548,7 @@ fn requirement_count(
 pub(crate) enum PreparedNormalCleanupAction {
     Resolved(CleanupRegion),
     InvokeNominal {
+        selected_region: Option<terminal_psi::StructuralArgument>,
         conditions: Vec<CleanupCaseCondition>,
         cleanup: CheckedUnitNominalAffineCleanupPlan,
         place: PlaceId,
@@ -478,12 +576,49 @@ pub(crate) fn emit_prepared_cleanup_regions(
     actions: &[PreparedNormalCleanupAction],
     calls: &mut crate::emission::operation_emission::calls::CallEmissionContext<'_>,
 ) -> Result<Vec<CleanupRegion>, LoweringError> {
+    materialize_prepared_cleanup_regions(
+        actions,
+        |cleanup, place, structural_type, path, consumed_claims| {
+            let machine_ids = calls.machine_ids;
+            let receiver = calls
+                .cleanup_receivers
+                .iter()
+                .find_map(|(source, receiver)| {
+                    (*source == cleanup.cleanup_machine).then_some(*receiver)
+                });
+            let mut action = materialize_nominal_cleanup_action(
+                cleanup,
+                place,
+                structural_type,
+                path,
+                machine_ids,
+                receiver,
+                requirement_count(calls.requirement_counts, cleanup.cleanup_machine)?,
+                &mut || calls.allocate_requirement(),
+            )?;
+            bind_consumed_claims(&mut action, consumed_claims, calls.claims.bindings())?;
+            Ok(action)
+        },
+    )
+}
+
+fn materialize_prepared_cleanup_regions(
+    actions: &[PreparedNormalCleanupAction],
+    mut nominal: impl FnMut(
+        &CheckedUnitNominalAffineCleanupPlan,
+        PlaceId,
+        StructuralTypeId,
+        Vec<terminal_psi::StructuralPathSegment>,
+        &[language_semantics::PermissionClaimIdentity],
+    ) -> Result<NominalAffineCleanup, LoweringError>,
+) -> Result<Vec<CleanupRegion>, LoweringError> {
     let mut regions = actions
         .iter()
         .map(|action| {
             Ok(match action {
                 PreparedNormalCleanupAction::Resolved(action) => action.clone(),
                 PreparedNormalCleanupAction::InvokeNominal {
+                    selected_region,
                     conditions,
                     cleanup,
                     place,
@@ -491,28 +626,15 @@ pub(crate) fn emit_prepared_cleanup_regions(
                     path,
                     consumed_claims,
                 } => {
-                    let machine_ids = calls.machine_ids;
-                    let receiver = calls
-                        .cleanup_receivers
-                        .iter()
-                        .find_map(|(source, receiver)| {
-                            (*source == cleanup.cleanup_machine).then_some(*receiver)
-                        });
-                    let mut action = materialize_nominal_cleanup_action(
+                    let action = nominal(
                         cleanup,
                         *place,
                         *structural_type,
                         path.clone(),
-                        machine_ids,
-                        receiver,
-                        requirement_count(calls.requirement_counts, cleanup.cleanup_machine)?,
-                        // Scalar helpers own bounded identity ranges. Use
-                        // their allocator rather than an unbounded counter.
-                        &mut || calls.allocate_requirement(),
+                        consumed_claims,
                     )?;
-                    bind_consumed_claims(&mut action, consumed_claims, calls.claims.bindings())?;
                     CleanupRegion {
-                        selected_region: None,
+                        selected_region: selected_region.clone(),
                         conditions: conditions.clone(),
                         action: terminal_psi::TerminalAffineCleanupAction::InvokeNominal(action),
                     }

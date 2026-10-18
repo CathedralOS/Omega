@@ -16,7 +16,7 @@ use diagnostics::Diagnostic;
 /// canonical artifact. Completed callback bodies arrive in placement order;
 /// neither their cardinality nor their identity is trusted.
 pub struct TerminalNativeProposalRequest<'input> {
-    pub direct_foreign_leaves: &'input [backend_plan::DirectForeignLeaf],
+    pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
     pub provider_declarations:
         Vec<crate::provider_admission::NativeProviderPlanDeclaration<'input>>,
     pub target_profile: Option<target::TargetProfile>,
@@ -194,25 +194,24 @@ fn project_terminal_native_body(
         &request.provider_declarations,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
-    let demanded_intrinsics =
-        crate::provider_admission::demanded_boundary_identities(terminal_module)?;
-    let builtin_proposals =
-        crate::provider_admission::derive_selected_intrinsic_settlement_proposals(
-            &selected,
-            request
-                .boundaries
-                .selected_provider_provenance
-                .iter()
-                .map(
-                    |retained| crate::provider_admission::CompilerIntrinsicPlanProvenance {
-                        plan: retained.plan,
-                        row_executions: retained.row_executions,
-                    },
-                ),
-            &demanded_intrinsics,
-            &terminal_module.boundary_machines,
-            &terminal_module.identities,
-        )?;
+    if selected.plans().len() != request.boundaries.selected_provider_provenance.len() {
+        return Err(vec![Diagnostic::error(
+            "native proposal lost selected intrinsic plan custody",
+        )]);
+    }
+    let intrinsic_executions = selected
+        .plans()
+        .iter()
+        .zip(&request.boundaries.selected_provider_provenance)
+        .map(|(plan, retained)| {
+            if plan != retained.plan || plan.rows.len() != retained.row_executions.len() {
+                return Err(vec![Diagnostic::error(
+                    "native proposal has mismatched intrinsic row custody",
+                )]);
+            }
+            Ok(retained.row_executions.to_vec())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let callback_occurrences = project_callback_occurrences(
         &request.callback_placements,
         artifact.view(),
@@ -250,14 +249,14 @@ fn project_terminal_native_body(
     .map_err(|message| vec![Diagnostic::error(message)])?;
     Ok(TerminalNativeBodyProposal {
         providers: TerminalNativeProviders {
-            direct_foreign_leaves: bind_direct_foreign_leaves(
+            direct_boundary_leaves: bind_direct_boundary_leaves(
                 terminal_module,
-                request.direct_foreign_leaves,
+                &request.direct_boundary_leaves,
             )?,
             selection: selected,
             checked_adapters,
             external_bindings: external_binding_rows,
-            compiler_builtins: builtin_proposals,
+            intrinsic_executions,
             x86_scalar_fma: request.x86_scalar_fma_provider,
         },
         occurrences: TerminalNativeOccurrences {
@@ -276,13 +275,13 @@ fn project_terminal_native_body(
     })
 }
 
-/// A foreign leaf's physical declaration identity is not the portable family
+/// A boundary leaf's physical declaration identity is not the portable family
 /// head's callable identity. Join both retained source coordinates to Terminal
 /// once; exported boundary text is payload, never a source lookup key.
-fn bind_direct_foreign_leaves(
+fn bind_direct_boundary_leaves(
     module: &terminal_psi::TerminalModule,
-    candidates: &[backend_plan::DirectForeignLeaf],
-) -> Result<Vec<backend_plan::DirectForeignLeaf>, Vec<Diagnostic>> {
+    candidates: &[&backend_plan::DirectBoundaryLeaf],
+) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
     let mut bound = Vec::new();
     for candidate in candidates {
         let mut declarations = module.boundary_machines.iter().filter(|boundary| {
@@ -300,7 +299,7 @@ fn bind_direct_foreign_leaves(
         };
         if declarations.next().is_some() {
             return Err(vec![Diagnostic::error(
-                "direct foreign leaf has multiple exact Terminal declarations",
+                "direct boundary leaf has multiple exact Terminal declarations",
             )]);
         }
         let identity = module
@@ -309,15 +308,15 @@ fn bind_direct_foreign_leaves(
             .filter(|text| !text.is_empty())
             .ok_or_else(|| {
                 vec![Diagnostic::error(
-                    "direct foreign leaf has no Terminal boundary identity",
+                    "direct boundary leaf has no Terminal boundary identity",
                 )]
             })?;
-        let mut leaf = candidate.clone();
+        let mut leaf = (*candidate).clone();
         leaf.plan.schema.trait_name = leaf.plan.schema.identities.intern(identity);
         leaf.plan.rows[0].requirement_identity = leaf.plan.identities.intern(identity);
         leaf.plan.schema.methods[0].requirement_identity =
             leaf.plan.schema.identities.intern(identity);
-        if let Ok(binding) = &mut leaf.external_binding {
+        if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut leaf.execution {
             binding.trait_name = identity.to_owned();
             binding.requirement_identity = identity.to_owned();
         }

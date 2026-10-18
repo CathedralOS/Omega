@@ -32,7 +32,7 @@ pub(crate) fn validate(
         installed
             .iter()
             .cloned()
-            .map(|call| ((call.caller, call.psi_operation, call.boundary), call))
+            .map(|call| ((call.caller, call.invocation_site, call.boundary), call))
             .collect(),
         input,
     )?;
@@ -54,7 +54,7 @@ pub(crate) fn validate(
             if let NativeCallOrigin::TargetFamily { boundary, .. }
             | NativeCallOrigin::ProgramEntry { boundary, .. } = origin
             {
-                let key = (function.machine, psi_operation, *boundary);
+                let key = (function.machine, psi_operation.into(), *boundary);
                 let invalid = || LoweringError::SelectedBoundaryCallEvidenceMismatch {
                     machine: key.0,
                     operation: key.1,
@@ -79,22 +79,22 @@ pub(crate) fn validate(
             else {
                 continue;
             };
-            let key = (function.machine, psi_operation, *boundary);
+            let key = (function.machine, psi_operation.into(), *boundary);
             let invalid = || LoweringError::SelectedBoundaryCallEvidenceMismatch {
                 machine: function.machine,
-                operation: psi_operation,
+                operation: psi_operation.into(),
                 boundary: *boundary,
             };
             if !observed.insert(key) {
                 return Err(LoweringError::DuplicateSelectedBoundaryCall {
                     machine: function.machine,
-                    operation: psi_operation,
+                    operation: psi_operation.into(),
                     boundary: *boundary,
                 });
             }
             let mut matching = installed
                 .iter()
-                .filter(|call| (call.caller, call.psi_operation, call.boundary) == key);
+                .filter(|call| (call.caller, call.invocation_site, call.boundary) == key);
             let Some(call) = matching.next() else {
                 return Err(invalid());
             };
@@ -161,11 +161,69 @@ pub(crate) fn validate(
             }
         }
     }
+    for function in &target.functions {
+        for block in &function.graph.blocks {
+            let target_operations::TargetControlTerminator::ExternalCompletion {
+                psi_edge,
+                boundary,
+                arguments,
+                structural_arguments,
+                binding:
+                    target_operations::ExternalCompletionBinding::Checked { callee, origin, .. },
+                ..
+            } = &block.terminator
+            else {
+                continue;
+            };
+            let key = (
+                function.machine,
+                semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                *boundary,
+            );
+            let invalid = || LoweringError::SelectedBoundaryCallEvidenceMismatch {
+                machine: key.0,
+                operation: key.1,
+                boundary: key.2,
+            };
+            let expected = selected.get(&key).ok_or_else(invalid)?;
+            if !observed.insert(key) || expected.callee != *callee || expected.origin != *origin {
+                return Err(invalid());
+            }
+            let source = plan.function(function.machine).ok_or_else(invalid)?;
+            let mut occurrences =
+                source
+                    .operations
+                    .iter()
+                    .filter_map(|operation| match operation {
+                        abstract_operations::AbstractOperation::ExternalCompletion {
+                            psi_edge: edge,
+                            boundary: source_boundary,
+                            arguments,
+                            structural_arguments,
+                            ..
+                        } if edge == psi_edge && source_boundary == boundary => {
+                            Some((arguments, structural_arguments))
+                        }
+                        _ => None,
+                    });
+            let (source_arguments, source_structural) = occurrences.next().ok_or_else(invalid)?;
+            if occurrences.next().is_some()
+                || structural_arguments != source_structural
+                || arguments.len() != source_arguments.len()
+                || !arguments
+                    .iter()
+                    .zip(source_arguments)
+                    .all(|(actual, expected)| actual.source_value() == *expected)
+            {
+                return Err(invalid());
+            }
+        }
+    }
     for call in &installed {
-        if !observed.contains(&(call.caller, call.psi_operation, call.boundary)) {
+        if !observed.contains(&(call.caller, call.invocation_site, call.boundary)) {
             return Err(LoweringError::UnknownSelectedBoundaryCall {
                 machine: call.caller,
-                operation: call.psi_operation,
+                operation: call.invocation_site,
                 boundary: call.boundary,
             });
         }

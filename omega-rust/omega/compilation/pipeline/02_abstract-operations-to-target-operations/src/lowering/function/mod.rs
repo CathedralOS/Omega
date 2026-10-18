@@ -1,7 +1,6 @@
 //! Optimizer module role: executable entrance. Every function lowers through its explicit control graph.
 
 use crate::LoweringError;
-use crate::lowering::selected_boundary_calls::SelectedBoundaryCall;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
@@ -22,7 +21,7 @@ pub(super) fn lower_function(
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    selected_calls: &BTreeMap<(MachineId, OperationId, BoundaryMachineId), SelectedBoundaryCall>,
+    selected_calls: &crate::lowering::selected_boundary_calls::SelectedCallsByCall,
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
 ) -> Result<TargetFunction, LoweringError> {
     if let Some((operation, boundary)) =

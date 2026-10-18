@@ -14,7 +14,7 @@ pub use error::ProviderInstallationError;
 
 use abstract_operations::CompletionClaimSource;
 pub(crate) use admission::admit_provider_installation_with_projection;
-use semantic_vocabulary::{MachineId, OperationId};
+use semantic_vocabulary::{BoundaryInvocationSite, MachineId};
 use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralArgument};
 
 /// Bind Omega's provider policy only to exact rows preserved from the verified
@@ -39,7 +39,7 @@ pub struct SelectedProviderAdapter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedInstalledProviderCall {
     pub(crate) caller: MachineId,
-    pub(crate) psi_operation: OperationId,
+    pub(crate) invocation_site: BoundaryInvocationSite,
     pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
     /// Supplied requirement's real checked conformance, never relabelled.
     pub(crate) provider: ProviderCandidateConformance,
@@ -56,8 +56,8 @@ impl AdmittedInstalledProviderCall {
         self.caller
     }
 
-    pub const fn psi_operation(&self) -> OperationId {
-        self.psi_operation
+    pub const fn invocation_site(&self) -> BoundaryInvocationSite {
+        self.invocation_site
     }
 
     pub const fn boundary(&self) -> semantic_vocabulary::BoundaryMachineId {
@@ -131,7 +131,7 @@ impl installation_evidence::ProviderInstallationEvidence for AdmittedProviderIns
             .map(
                 |call| installation_evidence::InstalledProviderCallEvidence {
                     caller: call.caller,
-                    psi_operation: call.psi_operation,
+                    invocation_site: call.invocation_site,
                     boundary: call.boundary,
                     provider: call.provider.clone(),
                     assumption: call.assumption.as_ref().map(|row| {

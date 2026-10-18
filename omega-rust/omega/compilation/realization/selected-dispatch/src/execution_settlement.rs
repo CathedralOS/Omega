@@ -179,6 +179,7 @@ impl SelectedExecution {
 /// second asserted component root. This remains a checked-tree realization
 /// boundary; it does not claim the intended Terminal-only provider handoff.
 pub struct SelectedExecutionRequest<'a> {
+    pub direct_boundary_candidates: &'a mut [provider_planning::DirectBoundaryCandidate],
     /// Provider derivation target, distinct from executable deployment selection.
     pub provider_planning_target_profile: Option<target::TargetProfile>,
     pub calling_plans:
@@ -262,6 +263,15 @@ pub fn settle_selected_execution(
             .map(target::TargetProfile::target_name),
         accepted_binding(AcceptedSemanticBindingRole::ConsoleExitProcessI32),
         accepted_binding(AcceptedSemanticBindingRole::ProcessExitExitProcessI32),
+    )?;
+    crate::intrinsic_review::close_direct_boundary_candidates(
+        &checked.program,
+        &settlement.selected_provider_provenance,
+        settlement.direct_boundary_candidates,
+        settlement
+            .provider_planning_target_profile
+            .map(target::TargetProfile::target_name),
+        &resolved_exit_bindings,
     )?;
     let resolved_filesystem_binding = resolve_service_binding(accepted_binding(
         AcceptedSemanticBindingRole::FilesystemHostService,

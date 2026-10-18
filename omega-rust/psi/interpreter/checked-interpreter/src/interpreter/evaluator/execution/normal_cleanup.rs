@@ -128,6 +128,26 @@ impl<'program> Evaluator<'program> {
             return Ok(());
         };
         let actions = self.normal_cleanup_actions(machine, state)?;
+        let control = &checked.facts.flow.terminal_unit_effects.cleanup_control;
+        // This comparison engine has no expression-owned cell custody ledger.
+        // Knowing a hook from another exit cannot make this occurrence execute.
+        // Refuse before evaluation rather than silently omit its side effects.
+        if control
+            .value_completions
+            .iter()
+            .filter(|(_, row)| row.machine == machine.symbol && row.state == state.symbol)
+            .any(|(_, row)| {
+                control
+                    .actions
+                    .span_or_empty(row.actions)
+                    .iter()
+                    .any(|action| action.nominal().is_some())
+            })
+        {
+            return unsupported(
+                "unimplemented: checked-tree interpreter expression-owned normal cleanup",
+            );
+        }
         let composed = checked
             .facts
             .flow
@@ -235,7 +255,7 @@ impl<'program> Evaluator<'program> {
                     "unimplemented: checked-tree interpreter selected owner cleanup",
                 );
             }
-            for action in control.normal_exit_actions.span_or_empty(row.actions) {
+            for action in control.actions.span_or_empty(row.actions) {
                 let CheckedNormalCleanupAction::InvokeNominal(action) = action else {
                     continue;
                 };

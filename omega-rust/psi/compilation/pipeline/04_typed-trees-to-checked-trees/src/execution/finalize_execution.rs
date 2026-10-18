@@ -115,12 +115,6 @@ pub(crate) fn finalize_execution(
         return Err(cleanup_diagnostics);
     }
     facts.flow.terminal_unit_effects = terminal_unit_effects;
-    crate::execution::terminal_unit::cleanup::finalize_scalar_actions(program, &mut facts)
-        .map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "cannot plan contextual temporary cleanup against the executable hook roster: {reason}"
-            ))]
-        })?;
     crate::execution::terminal_unit::retain_structural_value_calls(program, &mut facts).map_err(
         |identity| {
             vec![Diagnostic::error(format!(
@@ -129,6 +123,15 @@ pub(crate) fn finalize_execution(
             ))]
         },
     )?;
+
+    // Publish all value-call schedules before selecting their normal-return
+    // cleanup. A later schedule must not retain provisional disposal seeds.
+    crate::execution::terminal_unit::cleanup::finalize_completion_actions(program, &mut facts)
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "cannot plan contextual call cleanup against the executable hook roster: {reason}"
+            ))]
+        })?;
 
     Ok(facts)
 }

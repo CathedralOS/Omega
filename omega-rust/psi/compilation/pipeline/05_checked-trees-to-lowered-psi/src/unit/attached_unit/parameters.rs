@@ -501,10 +501,10 @@ pub(crate) fn lower_structural_arguments(
                     identities, checked, argument, &[], structural_types,
                 )?;
                 let path = crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
-                    &prepared.path, prepared.place, caller_scalar_values, &mut *selector_values,
+                    &prepared.path, prepared.source.known_place()?, caller_scalar_values, &mut *selector_values,
                     calls.as_deref_mut(), emission.as_mut().map(|(next, operations)| (&mut **next, &mut **operations)),
                 )?;
-                return Ok(structural_argument(prepared.place, path, prepared.access));
+                return Ok(structural_argument(prepared.source.known_place()?, path, prepared.access));
             }
             let mut lower_path = |identities: &mut terminal_psi::TerminalIdentityTableBuilder,
                                   argument: &checked_trees::CheckedUnitStructuralArgumentPlan,

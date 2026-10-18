@@ -249,10 +249,22 @@ pub(crate) fn check_with_private_entry_ram(
             }
             match &block.terminator {
                 Terminator::ExternalCompletion { boundary, kind, .. } => {
-                    external_demands.insert(TerminalExternalCompletionDemand {
-                        boundary: *boundary,
-                        kind: *kind,
-                    });
+                    let callee = crate::calls::target_families::completion_callee(
+                        program,
+                        installation.and_then(|row| row.target_machines.as_ref()),
+                        installation
+                            .and_then(|row| row.supplies.get(boundary))
+                            .copied(),
+                        *boundary,
+                    )?;
+                    if let Some(callee) = callee {
+                        pending.push(callee);
+                    } else {
+                        external_demands.insert(TerminalExternalCompletionDemand {
+                            boundary: *boundary,
+                            kind: *kind,
+                        });
+                    }
                 }
                 Terminator::Jump { target, .. } => blocks.push(*target),
                 Terminator::Conditional {

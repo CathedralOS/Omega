@@ -1,0 +1,26 @@
+use omega::language::core::content;
+
+data ByteUnit {}
+data Region [linear] { remaining: u64; }
+domain Region::Owned;
+machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+satisfies Content<Region, CountedQuantity<ByteUnit>>::project {
+    CountedQuantity { magnitude: embed(region.remaining) as Nat }
+}
+
+// Readable access, not explicit shared-borrow syntax, forms the observation.
+boundary trait Direct {
+    machine owned(whole: Region in Owned)
+    ensures Owned::content(old(whole)) == Owned::content(whole);
+    machine shared(whole: &Region in Owned)
+    ensures Owned::content(old(whole)) == Owned::content(whole);
+    machine mutable(whole: &mut Region in Owned)
+    ensures Owned::content(old(whole)) == Owned::content(whole);
+}
+data Envelope { region: Region in Owned; }
+boundary trait Nested {
+    machine shared(whole: &Envelope)
+    ensures Owned::content(old(&whole.region)) == Owned::content(&whole.region);
+    machine mutable(whole: &mut Envelope)
+    ensures Owned::content(old(&whole.region)) == Owned::content(&whole.region);
+}

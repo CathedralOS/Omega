@@ -19,7 +19,8 @@ pub struct CheckedCleanupControlPlans {
     pub paths: arena::Arena<CheckedUnitStructuralPathSegment>,
     /// One durable owner for sequence and graph normal completion transactions.
     pub normal_exit_rows: arena::Arena<CheckedNormalExitCleanupPlan>,
-    pub normal_exit_actions: arena::Arena<CheckedNormalCleanupAction>,
+    pub value_completions: arena::Arena<CheckedValueCompletionPlan>,
+    pub actions: arena::Arena<CheckedNormalCleanupAction>,
     pub normal_exit_regions: arena::Arena<super::CheckedUnitStructuralArgumentPlan>,
 }
 
@@ -37,8 +38,35 @@ impl CheckedCleanupControlPlans {
     ) -> impl Iterator<Item = &CheckedNormalCleanupAction> {
         self.normal_exits(rows)
             .iter()
-            .flat_map(|row| self.normal_exit_actions.span_or_empty(row.actions))
+            .flat_map(|row| self.actions.span_or_empty(row.actions))
     }
+
+    pub fn value_completion(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement_index: u32,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<&CheckedValueCompletionPlan> {
+        self.value_completions.iter().find_map(|(_, row)| {
+            (row.machine == machine
+                && row.state == state
+                && row.statement_index == statement_index
+                && row.expression == expression)
+                .then_some(row)
+        })
+    }
+}
+
+/// Source-authorized normal death after one evaluated value, independent of
+/// whether its observer returns a scalar or a structural value.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedValueCompletionPlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement_index: u32,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub actions: arena::HandleSpan<CheckedNormalCleanupAction>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

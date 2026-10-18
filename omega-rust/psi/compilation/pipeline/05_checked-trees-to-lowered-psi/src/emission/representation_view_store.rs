@@ -62,6 +62,7 @@ pub(crate) fn emit(
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
     structural_types: &[StructuralTypeDeclaration],
+    environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
 ) -> Result<Vec<OperationKind>, LoweringError> {
     // The value rejoin and any field selector read run inside the body's
     // scalar namespace, with the resolved observations a byte leaf's
@@ -120,6 +121,7 @@ pub(crate) fn emit(
                     next_edge,
                     operations,
                     calls,
+                    environment,
                 )?;
                 let mut path = runtime_elements::complete_path(steps, indexes, calls, operations)?;
                 path.push(StructuralPathSegment::Field(
@@ -215,6 +217,7 @@ pub(crate) fn emit(
                     operations,
                     calls,
                     structural_types,
+                    environment,
                 )?;
                 (destination, physical)
             };
@@ -607,6 +610,7 @@ pub(crate) fn prepare_byte_destination(
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
     structural_types: &[StructuralTypeDeclaration],
+    environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
 ) -> Result<ByteStoreDestination, LoweringError> {
     let Some((leaf, prefix)) = path.split_last() else {
         return unsupported("byte representation store has no backing coordinate");
@@ -638,6 +642,7 @@ pub(crate) fn prepare_byte_destination(
         next_edge,
         operations,
         calls,
+        environment,
     )?;
     if captured_index.is_some()
         && !matches!(leaf, CheckedUnitStructuralPathSegment::RuntimeIndex(_))

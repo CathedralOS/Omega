@@ -37,10 +37,13 @@ impl StateGraphEmission<'_, '_> {
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
+        sequence: &crate::unit::attached_unit::composed_control::emission::OperationSequence,
     ) -> Result<SuccessorEdge, LoweringError> {
         let checked = self.checked;
         let plan = self.plan;
         let state = &plan.states[position];
+        let owner = self.admitted.authored[position].0.symbol;
+        let mut sequence = sequence.branch();
         let target = block_id(allocate_dense(next_block)?);
         let retained_bindings = operations.structural_values.len();
         let mut arm_evaluation = evaluation.branch(target, operations.len());
@@ -83,7 +86,6 @@ impl StateGraphEmission<'_, '_> {
                 super::super::guarded::emit_return(
                     identities,
                     checked,
-                    plan,
                     state,
                     super::super::cleanup::coordinate(
                         self.catalogs.cleanup_control,
@@ -106,6 +108,8 @@ impl StateGraphEmission<'_, '_> {
                     next_block,
                     next_edge,
                     operations,
+                    owner,
+                    &mut sequence,
                 )?
             }
             // The selected arm evaluates its operands and invokes its call
@@ -123,7 +127,7 @@ impl StateGraphEmission<'_, '_> {
                 super::super::super::emission::emit_call_operations(
                     identities,
                     checked,
-                    plan.machine,
+                    owner,
                     state,
                     &planned,
                     self.catalogs,
@@ -136,6 +140,7 @@ impl StateGraphEmission<'_, '_> {
                     next_block,
                     next_edge,
                     operations,
+                    &mut sequence,
                 )?;
                 arm_evaluation.remap_transported_call_operands(operations);
                 if let Some(terminator) = operations.take_external_completion(next_edge)? {
@@ -221,24 +226,48 @@ impl StateGraphEmission<'_, '_> {
                             .root,
                     ),
                 };
-                let mut calls = self.catalogs.scalar_calls.emission_context();
-                let value = arm_evaluation.source_value(
-                    identities,
-                    checked,
-                    plan.machine,
-                    state.state,
-                    *statement_ordinal,
-                    role,
-                    &retained,
-                    arm_values.len(),
-                    &mut arm_values,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    operations,
-                    &mut calls,
-                )?;
-                self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
+                let mut calls = scalar_calls.emission_context();
+                let value = {
+                    let (mut environment, emission) = operation_catalogs
+                        .operation_frame(
+                            checked,
+                            owner,
+                            state,
+                            state_parameters,
+                            &self.state_erased[position],
+                            &mut sequence,
+                            crate::unit::attached_unit::operation_frame::OperationEmission {
+                                source_value_count: arm_values.len(),
+                                evaluation: &mut arm_evaluation,
+                                values: &mut arm_values,
+                                next_value,
+                                next_block,
+                                next_edge,
+                                calls: &mut calls,
+                                operations,
+                            },
+                        )
+                        .split();
+                    emission.evaluation.source_value(
+                        identities,
+                        checked,
+                        owner,
+                        state.state,
+                        *statement_ordinal,
+                        role,
+                        &retained,
+                        emission.source_value_count,
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                }?;
+                scalar_calls.next_call_obligation = calls.next_obligation_identity;
                 Terminator::Return {
                     edge: edge_id(allocate_dense(next_edge)?),
                     value: value.id,
@@ -246,6 +275,9 @@ impl StateGraphEmission<'_, '_> {
                 }
             }
         };
+        if !matches!(&terminator, Terminator::Crash { .. }) {
+            sequence.require_closed()?;
+        }
         // Resolve the selected exit only after its producer has materialized
         // the result and moved any operands. This uses the same checked
         // disposition schedule as structural returns; neither result type nor

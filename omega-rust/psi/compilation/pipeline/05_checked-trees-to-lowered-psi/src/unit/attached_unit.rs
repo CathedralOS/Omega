@@ -52,7 +52,6 @@ use super::{
     lower_structural_crash_route_buckets, machine_id, obligation_id, place_id,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
-use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
@@ -81,7 +80,7 @@ pub(crate) mod argument_schedule;
 pub(crate) mod bodies;
 mod composed_control;
 mod operation_frame;
-pub(crate) use operation_frame::BoundaryParameters;
+pub(crate) use operation_frame::{BoundaryParameters, OperationEnvironment};
 mod normal_guarantees;
 mod ordinary_machine;
 mod provider_attachments;

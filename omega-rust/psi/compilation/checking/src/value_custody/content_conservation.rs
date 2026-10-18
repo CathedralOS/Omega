@@ -11,6 +11,7 @@ pub use normalization::{data_variant_name, push_structural_field};
 
 use normalization::{NormalizationContext, normalize_equation};
 
+use arena::Arena;
 use diagnostics::Diagnostic;
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentConservationOwnerKind, ContentConservationPlan,
@@ -18,6 +19,7 @@ use language_semantics::content::{
     ContentStructuralPlace, conservation_report_fingerprint,
 };
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use symbols::{BuiltinFunction, SymbolHandle};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
@@ -29,41 +31,117 @@ pub struct ContentConservationSourcePlan {
     pub plan: ContentConservationPlan,
 }
 
+/// Formation belongs to this immutable checking invocation. These observations
+/// describe proof-only places, not runtime reference values or proved theorems.
+#[derive(Debug)]
+pub(crate) struct ContentConservationInputs {
+    plans: Arc<Vec<ContentConservationSourcePlan>>,
+    diagnostics: Vec<Diagnostic>,
+    formations: Arena<ContentProjectionFormation>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(super) struct ContentProjectionFormation {
+    callable: SymbolHandle,
+    source_expression: ExpressionHandle,
+    projection: SymbolHandle,
+    call: ExpressionHandle,
+    argument: ExpressionHandle,
+}
+
+/// A successful closed equation lends only its own exact projection operands.
+#[derive(Clone, Copy)]
+pub(crate) struct ContentDeclarationFormation<'inputs> {
+    inputs: &'inputs ContentConservationInputs,
+    callable: SymbolHandle,
+    source_expression: ExpressionHandle,
+}
+
+impl ContentConservationInputs {
+    pub(crate) fn declaration_formation(
+        &self,
+        callable: SymbolHandle,
+        source_expression: ExpressionHandle,
+    ) -> Option<ContentDeclarationFormation<'_>> {
+        self.plans
+            .iter()
+            .any(|plan| {
+                plan.plan.callable == callable && plan.source_expression == source_expression
+            })
+            .then_some(ContentDeclarationFormation {
+                inputs: self,
+                callable,
+                source_expression,
+            })
+    }
+}
+
+impl ContentDeclarationFormation<'_> {
+    pub(crate) fn forms_argument(
+        self,
+        projection: SymbolHandle,
+        call: ExpressionHandle,
+        argument: ExpressionHandle,
+    ) -> bool {
+        self.inputs.formations.iter().any(|(_, formation)| {
+            formation.callable == self.callable
+                && formation.source_expression == self.source_expression
+                && formation.projection == projection
+                && formation.call == call
+                && formation.argument == argument
+        })
+    }
+}
+
 pub(crate) fn validate_content_conservation_contracts(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let projections =
-        crate::value_custody::content_projections::build_content_projection_plans(program);
-    let _ = collect_content_conservation_plans(program, &projections, diagnostics);
+    let inputs = content_conservation_inputs(program);
+    diagnostics.extend(inputs.diagnostics.iter().cloned());
 }
 
-/// [`build_content_conservation_plans`], computed once per frozen program:
-/// check facts, crash contracts and package evidence each ask for the whole
-/// table, some once per declaration.
-pub fn content_conservation_plans(
+/// Produce normalization, scoped operand formation and diagnostics together.
+/// Frozen consumers borrow this same result rather than discarding and
+/// rebuilding it between source validation and checked fact construction.
+pub(crate) fn content_conservation_inputs(
     program: &dyn crate::CheckingInput,
-) -> std::sync::Arc<Vec<ContentConservationSourcePlan>> {
+) -> Arc<ContentConservationInputs> {
     crate::frozen_program::frozen_memo(
         program,
         |memos| &memos.content_conservation,
-        || build_content_conservation_plans(program),
+        || {
+            let projections =
+                crate::value_custody::content_projections::build_content_projection_plans(program);
+            let mut diagnostics = Vec::new();
+            let mut formations = Arena::default();
+            let plans = collect_content_conservation_plans(
+                program,
+                &projections,
+                &mut diagnostics,
+                &mut formations,
+            );
+            ContentConservationInputs {
+                plans: Arc::new(plans),
+                diagnostics,
+                formations,
+            }
+        },
     )
 }
 
-pub fn build_content_conservation_plans(
+/// The already normalized source contracts for check facts and publication.
+pub fn content_conservation_plans(
     program: &dyn crate::CheckingInput,
-) -> Vec<ContentConservationSourcePlan> {
-    let projections =
-        crate::value_custody::content_projections::build_content_projection_plans(program);
-    let mut diagnostics = Vec::new();
-    collect_content_conservation_plans(program, &projections, &mut diagnostics)
+) -> Arc<Vec<ContentConservationSourcePlan>> {
+    Arc::clone(&content_conservation_inputs(program).plans)
 }
 
 fn collect_content_conservation_plans(
     program: &dyn crate::CheckingInput,
     projections: &[ContentProjectionPlan],
     diagnostics: &mut Vec<Diagnostic>,
+    formations: &mut Arena<ContentProjectionFormation>,
 ) -> Vec<ContentConservationSourcePlan> {
     let mut plans = Vec::new();
     let mut proof_nodes = HashSet::new();
@@ -87,6 +165,7 @@ fn collect_content_conservation_plans(
                 &contracts,
                 &mut proof_nodes,
                 &mut plans,
+                formations,
                 diagnostics,
             );
         }
@@ -106,6 +185,7 @@ fn collect_content_conservation_plans(
             &contracts,
             &mut proof_nodes,
             &mut plans,
+            formations,
             diagnostics,
         );
     });
@@ -147,6 +227,7 @@ fn collect_callable_plans(
     contracts: &[&SignatureContract],
     proof_nodes: &mut HashSet<(u32, u32)>,
     plans: &mut Vec<ContentConservationSourcePlan>,
+    formations: &mut Arena<ContentProjectionFormation>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for contract in contracts {
@@ -177,13 +258,20 @@ fn collect_callable_plans(
 
             let context = NormalizationContext {
                 program,
+                callable,
+                source_expression: *expression,
                 projections,
                 parameters,
                 return_type,
                 self_data,
                 contracts,
             };
-            let (algebra, equation) = match normalize_equation(&context, *expression) {
+            let mut projection_formations = Vec::new();
+            let (algebra, equation) = match normalize_equation(
+                &context,
+                *expression,
+                &mut projection_formations,
+            ) {
                 Ok(normalized) => normalized,
                 Err(message) => {
                     diagnostics.push(Diagnostic::error(format!(
@@ -201,6 +289,8 @@ fn collect_callable_plans(
                 )));
                 continue;
             }
+            // Partial/invalid equations publish no operand formation rows.
+            formations.insert_many(projection_formations);
             let report_fingerprint = conservation_report_fingerprint(&algebra, &equation);
             plans.push(ContentConservationSourcePlan {
                 source_expression: *expression,
@@ -222,47 +312,18 @@ fn projection_plan_for_call<'a>(
     projections: &'a [ContentProjectionPlan],
     call: &TableCallExpression,
 ) -> Option<&'a ContentProjectionPlan> {
-    if !call.receiver.is_valid() {
-        return None;
-    }
+    // The selected declaration owns projection meaning. Receiver spellings
+    // and same-named state bodies cannot substitute for that exact identity.
     projections.iter().find(|projection| {
-        let Some(machine) = program.machine(projection.machine) else {
-            return false;
-        };
-        let target_matches = call.target_symbol == machine.symbol
-            || typed_trees::state::state_by_symbol(
-                program.machine_states(machine),
-                call.target_symbol,
-            )
-            .is_some()
-            || program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.name.as_str() == call.target.as_str());
-        target_matches && receiver_selects_domain(program, call.receiver, projection.domain)
+        program.machine(projection.machine).is_some_and(|machine| {
+            call.target_symbol == machine.symbol
+                || typed_trees::state::state_by_symbol(
+                    program.machine_states(machine),
+                    call.target_symbol,
+                )
+                .is_some()
+        })
     })
-}
-
-fn receiver_selects_domain(
-    program: &dyn crate::CheckingInput,
-    receiver: ExpressionHandle,
-    domain: SymbolHandle,
-) -> bool {
-    let Some(path) = program.expression_table.name_path_node(receiver) else {
-        return false;
-    };
-    if path.symbol == domain || path.head_symbol == domain {
-        return true;
-    }
-    let Some(spelled) = program
-        .expression_table
-        .name_path_members(path.members)
-        .last()
-    else {
-        return false;
-    };
-    let expected = domain_label(program, domain);
-    spelled.as_str() == expected.rsplit("::").next().unwrap_or(expected.as_str())
 }
 
 fn is_old_call(program: &dyn crate::CheckingInput, call: &TableCallExpression) -> bool {

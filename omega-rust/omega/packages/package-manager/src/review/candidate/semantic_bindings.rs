@@ -687,7 +687,16 @@ fn candidate_hosted_exit_provider_package(
     };
     (expected_schema_owner
         && provider.origin_package_identity == Some(package)
-        && candidate_hosted_exit_methods(provider).any(|method| method.name == "exit_process"))
+        && provider.rows.iter().enumerate().any(|(position, row)| {
+            provider
+                .schema
+                .method_for_row(row, &provider.identities)
+                .is_some_and(|method| method.name == "exit_process")
+                && retained
+                    .row_external_completion_leaves
+                    .get(position)
+                    .is_some_and(|leaves| !leaves.is_empty())
+        }))
     .then_some(package)
 }
 
@@ -695,7 +704,9 @@ fn candidate_hosted_exit_methods(provider: &ProviderPlan) -> impl Iterator<Item 
     provider.rows.iter().filter_map(|row| {
         if matches!(
             row.binding,
-            ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Import { .. }
+            ProviderBinding::CompilerIntrinsic { .. }
+                | ProviderBinding::Import { .. }
+                | ProviderBinding::CheckedAdapter { .. }
         ) {
             provider.schema.method_for_row(row, &provider.identities)
         } else {

@@ -87,22 +87,26 @@ impl OperationFrame<'_, '_> {
                     LoweringError::Unsupported("atomic event operand ordinal overflow")
                 })?,
             };
-            let value = self.evaluation.source_value(
-                identities,
-                self.checked,
-                self.machine,
-                self.state,
-                access.statement_index,
-                role,
-                operand,
-                self.source_value_count,
-                self.values,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.operations,
-                self.calls,
-            )?;
+            let value = {
+                let (mut environment, emission) = self.reborrow().split();
+                emission.evaluation.source_value(
+                    identities,
+                    environment.checked,
+                    environment.machine,
+                    environment.state,
+                    access.statement_index,
+                    role,
+                    operand,
+                    emission.source_value_count,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?;
             operands.push(value.id);
         }
         let operand = |ordinal: usize| {

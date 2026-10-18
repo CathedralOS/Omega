@@ -20,6 +20,10 @@ pub enum TerminalInterpretError {
         missing: Vec<crate::capabilities::TerminalExternalCompletionDemand>,
     },
     ExternalCompletion(crate::results::TerminalExternalCompletion),
+    ExternalCompletionProviderReturned {
+        boundary: BoundaryMachineId,
+        edge: semantic_vocabulary::EdgeId,
+    },
     ScalarEntryQualificationUnsupported,
     UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability),
     /// A well-formed semantic case this implementation cannot yet execute.

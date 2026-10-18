@@ -15,6 +15,7 @@ impl Execution<'_, '_, '_> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
+        self.evaluation = checked_trees::FlowPermissionEvaluation::TransitionTarget(target);
         let mut returned_value = arena::Handle::invalid();
         let mut operands = Vec::new();
         let mut captured_operands = Vec::new();

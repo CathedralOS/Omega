@@ -582,6 +582,7 @@ pub(crate) fn emit(
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
     calls: &mut crate::emission::operation_emission::calls::CallEmissionContext<'_>,
+    environment: &mut super::OperationEnvironment<'_>,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let (start, end) = (site.range.start.clone(), site.range.end.clone());
     let (machine, _) = crate::declarations::state_declaration(checked, site.state)?;
@@ -623,6 +624,7 @@ pub(crate) fn emit(
                 next_edge,
                 operations,
                 calls,
+                environment,
             )?;
             positions[ordinal] = Some(values.len());
             values.push(completed);

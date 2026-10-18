@@ -1,7 +1,7 @@
 use console;
 
-// Complete windows_x86_64 Console provider closure. Friendly line and write
-// adapters live in std/console.omg on the same nominal provider type.
+// Exact windows_x86_64 Console leaves. The named NativeConsole implementation
+// in std/console.omg forwards to these target declarations.
 //
 // Windows has no stable syscall ABI, so every leaf realizes through DLL
 // linkage. Byte I/O uses the MSVCRT descriptor calls, which are unbuffered:

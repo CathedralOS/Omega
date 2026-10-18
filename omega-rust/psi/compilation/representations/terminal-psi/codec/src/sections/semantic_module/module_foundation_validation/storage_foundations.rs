@@ -468,7 +468,7 @@ fn field_store_carrier<'path>(
     CodecError,
 > {
     let preserves = |root, whole: &[_], projected: &[_]| {
-        terminal_semantics::scalar_field_store_preserves_qualifications(
+        terminal_semantics::scalar_field_store_preserves_domain_content(
             module.structural_types.iter(),
             module.structural_domains.iter(),
             &module.identities,

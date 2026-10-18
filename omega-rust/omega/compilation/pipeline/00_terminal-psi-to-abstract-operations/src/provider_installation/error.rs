@@ -1,5 +1,5 @@
 use crate::artifact_admission::ArtifactLoweringError;
-use semantic_vocabulary::{MachineId, OperationId};
+use semantic_vocabulary::{BoundaryInvocationSite, MachineId, OperationId};
 
 #[derive(Debug)]
 pub enum ProviderInstallationError {
@@ -26,7 +26,7 @@ pub enum ProviderInstallationError {
     },
     InstalledCallReplayMismatch {
         caller: MachineId,
-        operation: OperationId,
+        invocation_site: BoundaryInvocationSite,
         boundary: semantic_vocabulary::BoundaryMachineId,
     },
 }

@@ -124,6 +124,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
                 .operations
                 .iter()
                 .chain(retirement.pending)
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                 .any(|operation| {
                     matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
                         selection_complements, ..

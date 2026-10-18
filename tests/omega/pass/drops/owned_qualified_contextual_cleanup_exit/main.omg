@@ -29,6 +29,8 @@ machine wrap(capacity: Capacity in Capacity::Available) -> Envelope { Envelope {
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
  let mut first: Capacity in Capacity::Held = acquire();
+ // Vacant is an initializer fact, not a permanent Held storage invariant.
+ first.active = 1;
  first.active = 0;
  first.released = true;
  drop(first);

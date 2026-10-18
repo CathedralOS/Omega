@@ -170,7 +170,13 @@ pub(crate) fn prepare_permission_events(
             }
         };
         let temporary_owners =
-            temporary_results::temporary_owners(program, facts, machine, state, &calls);
+            match temporary_results::temporary_owners(program, facts, machine, state, &calls) {
+                Ok(owners) => owners,
+                Err(diagnostic) => {
+                    selection_diagnostics.push(diagnostic);
+                    continue;
+                }
+            };
         // Expression-owned completions need the same claim namespace as
         // named destinations. A name/projection already refers to existing
         // custody; only a real expression root reserves a new owner here.

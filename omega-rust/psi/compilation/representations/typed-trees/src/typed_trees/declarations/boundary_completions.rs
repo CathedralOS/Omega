@@ -47,6 +47,63 @@ pub fn boundary_requirement_completion(
     program: &TypedTrees,
     requirement: SymbolHandle,
 ) -> semantic_vocabulary::BoundaryCompletion {
+    // A portable family head has no satisfaction edges of its own. Its
+    // completion must hold for every retained target member, independently
+    // of which target Omega will select. Never inherit one prototype's
+    // promise or turn a checked body into an external leaf.
+    if let Some(family) = program
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == requirement)
+    {
+        let mut members = family.members.iter();
+        if let Some(first) = members.next() {
+            let completion = machine_completion(program, first.machine);
+            if members.all(|member| machine_completion(program, member.machine) == completion) {
+                return completion;
+            }
+        }
+        return semantic_vocabulary::BoundaryCompletion::NormalReturn;
+    }
+    machine_completion(program, requirement)
+}
+
+fn machine_completion(
+    program: &TypedTrees,
+    requirement: SymbolHandle,
+) -> semantic_vocabulary::BoundaryCompletion {
+    // A direct bodyless realization carries its exact satisfied declaration's
+    // completion. Checked adapters do not: their control flow must establish
+    // that promise, rather than assuming it from their satisfaction edge.
+    if let Some(machine) = program.machine_by_symbol(requirement)
+        && !machine.body_is_present
+    {
+        let mut external = program
+            .machine_trait_conformances(machine)
+            .iter()
+            .filter_map(|edge| {
+                let declaration =
+                    crate::machine::resolve_satisfied_declaration(program, machine, edge)?;
+                let completion = declared_completion(program, declaration.symbol());
+                matches!(
+                    completion,
+                    semantic_vocabulary::BoundaryCompletion::External(_)
+                )
+                .then_some(completion)
+            });
+        if let Some(completion) = external.next()
+            && external.all(|other| other == completion)
+        {
+            return completion;
+        }
+    }
+    declared_completion(program, requirement)
+}
+
+fn declared_completion(
+    program: &TypedTrees,
+    requirement: SymbolHandle,
+) -> semantic_vocabulary::BoundaryCompletion {
     use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
     let mut declarations = program
         .boundary_completion_declarations

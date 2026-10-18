@@ -5,6 +5,17 @@ use arena::HandleSpan;
 use checked_trees::{FlowControlFacts, FlowOperandReferent, FlowStatementFact};
 use validation::CanonicalPlace;
 
+/// One authoritative reaching store, before interpreting its descriptor as
+/// geometry or lifetime dependencies. Unavailable is not an older initializer.
+pub(crate) enum StoredOperand {
+    Unavailable,
+    Value {
+        capture: checked_trees::FlowOperandFact,
+        reference: typed_trees::types::TypeReferenceHandle,
+        projection: Vec<facts::PlaceSegment>,
+    },
+}
+
 pub(crate) fn before_statement(
     program: &dyn validation::CheckingInput,
     semantic: &facts::FactPlan,
@@ -16,6 +27,75 @@ pub(crate) fn before_statement(
     unknown_write: bool,
     source: &CanonicalPlace,
 ) -> Option<Vec<CanonicalPlace>> {
+    let StoredOperand::Value {
+        capture,
+        reference,
+        projection,
+    } = capture_before_statement(
+        program,
+        semantic,
+        control,
+        state,
+        statements,
+        before,
+        writes,
+        unknown_write,
+        source,
+    )?
+    else {
+        return Some(Vec::new());
+    };
+    // This consumer needs actual descriptor contents. A lifetime-only leaf
+    // does not supply an address, even though the reaching store is known.
+    let (capture, reference, projection) =
+        if super::operand_contexts::operand_binds_live_view(program, reference) {
+            (&capture, reference, projection.as_slice())
+        } else {
+            let Some((selected, reference)) = super::operand_values::captured_operand_at_path(
+                program,
+                control,
+                &capture,
+                reference,
+                &projection,
+            ) else {
+                return Some(Vec::new());
+            };
+            (selected, reference, &[][..])
+        };
+    if !super::operand_contexts::operand_binds_live_view(program, reference) {
+        return None;
+    }
+    let places = control
+        .operand_referents
+        .span_or_empty(capture.referents)
+        .iter()
+        .map(|referent| {
+            super::operand_values::project_captured_view_place(
+                CanonicalPlace {
+                    root: referent.root,
+                    segments: control
+                        .operand_referent_segments
+                        .span_or_empty(referent.segments)
+                        .to_vec(),
+                },
+                &projection,
+            )
+        })
+        .collect::<Option<Vec<_>>>();
+    Some(places.unwrap_or_default())
+}
+
+pub(crate) fn capture_before_statement(
+    program: &dyn validation::CheckingInput,
+    semantic: &facts::FactPlan,
+    control: &FlowControlFacts,
+    state: &typed_trees::state::State,
+    statements: HandleSpan<FlowStatementFact>,
+    before: usize,
+    writes: HandleSpan<FlowOperandReferent>,
+    unknown_write: bool,
+    source: &CanonicalPlace,
+) -> Option<StoredOperand> {
     let is_view = |reference| super::operand_contexts::operand_binds_live_view(program, reference);
     // Incoming exclusive parameters lend fixed backing, not their outer
     // descriptor slot. An immutable shared parameter is fixed too; a mutable
@@ -43,7 +123,7 @@ pub(crate) fn before_statement(
         unknown_write,
         source,
     ) {
-        return Some(Vec::new());
+        return Some(StoredOperand::Unavailable);
     }
     let order = program
         .statement_table
@@ -74,43 +154,11 @@ pub(crate) fn before_statement(
             {
                 let stored = control.operands.get(statement.stored_value);
                 let path = &source.segments[destination.segments.len()..];
-                let (captured, reference, projection) = if is_view(stored.type_reference) {
-                    (stored, stored.type_reference, path)
-                } else {
-                    let Some((captured, reference)) =
-                        super::operand_values::captured_operand_at_path(
-                            program,
-                            control,
-                            stored,
-                            stored.type_reference,
-                            path,
-                        )
-                    else {
-                        return Some(Vec::new());
-                    };
-                    (captured, reference, &[][..])
-                };
-                if !is_view(reference) {
-                    return None;
-                }
-                let places = control
-                    .operand_referents
-                    .span_or_empty(captured.referents)
-                    .iter()
-                    .map(|referent| {
-                        super::operand_values::project_captured_view_place(
-                            CanonicalPlace {
-                                root: referent.root,
-                                segments: control
-                                    .operand_referent_segments
-                                    .span_or_empty(referent.segments)
-                                    .to_vec(),
-                            },
-                            projection,
-                        )
-                    })
-                    .collect::<Option<Vec<_>>>();
-                return Some(places.unwrap_or_default());
+                return Some(StoredOperand::Value {
+                    capture: *stored,
+                    reference: stored.type_reference,
+                    projection: path.to_vec(),
+                });
             }
         }
         if !super::operand_contexts::binding_origin_is_stable(
@@ -120,7 +168,7 @@ pub(crate) fn before_statement(
             statement.completed_unknown_write,
             source,
         ) {
-            return Some(Vec::new());
+            return Some(StoredOperand::Unavailable);
         }
     }
     source
@@ -128,7 +176,7 @@ pub(crate) fn before_statement(
         .as_symbol()
         .and_then(|root| program.state_local_declaration(state, root))
         .filter(|(_, local)| is_view(local.type_reference))
-        .map(|_| Vec::new())
+        .map(|_| StoredOperand::Unavailable)
 }
 
 /// Resolve only descriptor crossings on an address. Writes to an atomic

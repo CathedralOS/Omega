@@ -395,7 +395,7 @@ pub(in crate::execution::terminal_unit) fn build(
         }
 
         let statement_index = u32::try_from(index).ok()?;
-        trace.phase(statement_phase(statement));
+        trace.phase("statement sequence: reference retirement");
         trace.statement(Some(statement_index));
         append_reference_releases(
             program,
@@ -407,7 +407,10 @@ pub(in crate::execution::terminal_unit) fn build(
             statement_index,
             &structural_results,
             &mut operations,
+            trace,
         )?;
+        trace.phase(statement_phase(statement));
+        trace.statement(Some(statement_index));
         // Control points and proved assertions carry no runtime value or
         // effect. They preserve the current operation/claim construction.
         if matches!(

@@ -23,6 +23,7 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_lowering::branch_states::prepared::scalar_state_emission_order;
 use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
+use crate::unit::attached_unit::OperationEnvironment;
 use checked_trees::CheckedCallScalarArgument;
 use state_emission::emit_state;
 
@@ -935,6 +936,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<Option<Vec<ValueDeclaration>>, LoweringError> {
         self.arguments_slice(
             identities,
@@ -950,6 +952,7 @@ impl Evaluation {
             next_edge,
             operations,
             calls,
+            environment,
         )
     }
 
@@ -973,6 +976,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let call = operation
             .call()
@@ -1016,6 +1020,7 @@ impl Evaluation {
                     next_edge,
                     operations,
                     calls,
+                    environment,
                 )?
             }
             checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
@@ -1072,6 +1077,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<(), LoweringError> {
         let Some(call) = operation.call() else {
             return unsupported("window endpoint schedule has no call");
@@ -1097,6 +1103,7 @@ impl Evaluation {
                 next_edge,
                 operations,
                 calls,
+                environment,
             )?;
             values.push(value);
         }
@@ -1124,6 +1131,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let arguments = self.arguments_slice(
             identities,
@@ -1139,6 +1147,7 @@ impl Evaluation {
             next_edge,
             operations,
             calls,
+            environment,
         )?;
         match arguments.as_deref() {
             Some([argument]) => Ok(*argument),
@@ -1162,6 +1171,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<Option<Vec<ValueDeclaration>>, LoweringError> {
         if source_value_count > values.len() {
             return unsupported("call argument source prefix exceeds its retained values");
@@ -1273,6 +1283,7 @@ impl Evaluation {
             next_edge,
             operations,
             calls,
+            environment,
         )
         .map(Some)
     }
@@ -1295,6 +1306,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let bindings = self.contextual_bindings();
         let qualifications = &self.shared_qualifications;
@@ -1373,6 +1385,7 @@ impl Evaluation {
                 operations,
                 calls,
                 "field assignment has no single completed RHS",
+                environment,
             );
         }
         let (root, role) = computation.ok_or(LoweringError::Unsupported(
@@ -1421,6 +1434,7 @@ impl Evaluation {
             operations,
             calls,
             "field assignment has no single completed RHS",
+            environment,
         )
     }
 
@@ -1441,6 +1455,7 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
         message: &'static str,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let result = self.complete_expansion(
             identities,
@@ -1454,6 +1469,7 @@ impl Evaluation {
             next_edge,
             operations,
             calls,
+            environment,
         )?;
         match result.as_slice() {
             [value] => Ok(*value),
@@ -1476,16 +1492,8 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<Vec<ValueDeclaration>, LoweringError> {
-        // Scalar completion must not discard the storage identities produced
-        // while evaluating its operands. Retirement uses the same namespace
-        // as construction, without repeating the producer or treating reserved
-        // but unevaluated slots as established values. These associations grant
-        // no liveness: emitted control/ownership frontiers remain authoritative.
-        crate::expression_preparation::bindings::retain_completed_structural_homes(
-            &mut self.structural_locals,
-            &expansion.storage,
-        )?;
         let states = &expansion.states;
         if let Some(completed) = self.complete_straight_line(
             identities,
@@ -1550,6 +1558,8 @@ impl Evaluation {
         });
         for index in scalar_state_emission_order(states, entry_index)? {
             let state = &states[index];
+            let mut state_evaluation = self.branch(targets[index + 1], operations.len());
+            state_evaluation.qualification_coercions.clear();
             emit_state(
                 identities,
                 checked,
@@ -1569,7 +1579,15 @@ impl Evaluation {
                 operations,
                 calls,
                 &mut self.blocks,
+                environment,
+                &mut state_evaluation,
             )?;
+            crate::expression_preparation::bindings::retain_completed_structural_homes(
+                &mut self.structural_locals,
+                &state_evaluation.structural_locals,
+            )?;
+            self.qualification_coercions
+                .append(&mut state_evaluation.qualification_coercions);
         }
         operations.length_observations.clear();
         let result = completion_parameters[source_types.len()..].to_vec();

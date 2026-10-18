@@ -62,6 +62,29 @@ pub(crate) fn selected_member(
     }
 }
 
+/// Resolve a checked body for a domain-ending invocation. The body runs before
+/// any host completion; selecting it grants no authority to simulate its leaf.
+pub(crate) fn completion_callee(
+    program: &AdmittedTerminalProgram<'_>,
+    selections: Option<&AdmittedTargetMachineSelections>,
+    supply: Option<crate::effects::AdmittedBoundarySupply>,
+    boundary: BoundaryMachineId,
+) -> Result<Option<MachineId>, TerminalInterpretError> {
+    if program.is_target_family_head(boundary)
+        && let TargetMachineCallable::Machine(member) =
+            selected_member(program, selections, boundary)?
+    {
+        return Ok(Some(member));
+    }
+    match supply {
+        Some(crate::effects::AdmittedBoundarySupply::CheckedProvider(callee)) => Ok(Some(callee)),
+        None if program.has_provider(&boundary) => Err(
+            TerminalInterpretError::ProviderInstallationMissing(boundary),
+        ),
+        _ => Ok(None),
+    }
+}
+
 /// The same result capability decision runs during called-scope preflight and
 /// before frame entry. A selected body cannot issue extra head domains.
 pub(crate) fn validate_result_transport(

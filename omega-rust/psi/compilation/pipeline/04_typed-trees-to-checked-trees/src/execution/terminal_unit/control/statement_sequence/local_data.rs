@@ -571,6 +571,7 @@ pub(super) fn plan(
                 coordinate,
                 structural_results,
                 operations,
+                trace,
             )?;
         }
         return Some(LocalPlan::Planned);

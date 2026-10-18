@@ -43,6 +43,112 @@ pub(crate) struct CapturedValuePlace {
     pub projected: validation::CanonicalPlace,
 }
 
+/// Select lifetime evidence through completed copies, independently of address
+/// projection. The stored-value links point to earlier captures, never to a
+/// source initializer or storage reread at the consuming call.
+pub(crate) fn captured_retention_at_path<'capture>(
+    program: &dyn validation::CheckingInput,
+    control: &'capture FlowControlFacts,
+    mut operand: &'capture FlowOperandFact,
+    path: &[PlaceSegment],
+) -> arena::Handle<checked_trees::FlowOperandRetention> {
+    let mut visited = Vec::new();
+    let mut path = path.to_vec();
+    loop {
+        if path.is_empty()
+            && (!control.operand_retentions.is_valid(operand.retention)
+                || control
+                    .operand_retentions
+                    .get(operand.retention)
+                    .stored_projection
+                    .is_empty())
+        {
+            return operand.retention;
+        }
+        let mut selected_child = None;
+        for child in control.operand_children.span_or_empty(operand.children) {
+            let destination = control.operand_child_paths.span_or_empty(child.path);
+            if destination.is_empty() {
+                return arena::Handle::invalid();
+            }
+            if destination.len() <= path.len()
+                && destination.iter().zip(&path).all(|(left, right)| {
+                    super::canonical_place_segments_equal(program, *left, *right)
+                })
+            {
+                if selected_child.is_some() || !control.operands.is_valid(child.value) {
+                    return arena::Handle::invalid();
+                }
+                selected_child = Some((child.value, destination.len()));
+            }
+        }
+        if let Some((child, length)) = selected_child {
+            operand = control.operands.get(child);
+            path.drain(..length);
+            continue;
+        }
+        if !control.operand_retentions.is_valid(operand.retention) {
+            return arena::Handle::invalid();
+        }
+        let profile = control.operand_retentions.get(operand.retention);
+        let mut selected = control
+            .operand_retained_leaves
+            .span_or_empty(profile.leaves)
+            .iter()
+            .filter(|leaf| {
+                let candidate = control.operand_retained_paths.span_or_empty(leaf.path);
+                candidate.len() == path.len()
+                    && candidate.iter().zip(&path).all(|(left, right)| {
+                        super::canonical_place_segments_equal(program, *left, *right)
+                    })
+            });
+        if let Some(leaf) = selected.next() {
+            return if selected.next().is_none() {
+                leaf.retention
+            } else {
+                arena::Handle::invalid()
+            };
+        }
+        let stored = profile.stored_value;
+        if !control.operands.is_valid(stored) || visited.contains(&stored) {
+            return arena::Handle::invalid();
+        }
+        visited.push(stored);
+        let prefix = control
+            .operand_retained_paths
+            .span_or_empty(profile.stored_projection);
+        if !prefix.is_empty() {
+            let mut selected = prefix.to_vec();
+            selected.extend_from_slice(&path);
+            path = selected;
+        }
+        operand = control.operands.get(stored);
+    }
+}
+
+/// A complete lifetime frontier for this value's declared reference leaves.
+/// Known view-free values produce an empty set. A missing reference leaf is
+/// unresolved coverage, not evidence that an earlier backing can die.
+pub(crate) fn captured_lifetime_roots(
+    program: &dyn validation::CheckingInput,
+    control: &FlowControlFacts,
+    operand: &FlowOperandFact,
+) -> Option<Vec<PlaceRoot>> {
+    let paths =
+        validation::borrow_contracts::borrow_carrying_owner_paths(program, operand.type_reference)?;
+    let mut roots = Vec::new();
+    for path in paths {
+        let path = crate::borrow::owner_place_segments(&path);
+        let leaf = captured_retention_at_path(program, control, operand, &path);
+        for root in control.retained_roots(leaf)? {
+            if !roots.contains(root) {
+                roots.push(*root);
+            }
+        }
+    }
+    Some(roots)
+}
+
 pub(crate) fn captured_value_places(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,

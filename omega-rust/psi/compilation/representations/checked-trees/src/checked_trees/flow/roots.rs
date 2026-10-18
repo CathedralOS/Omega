@@ -123,6 +123,7 @@ impl FlowBoundaryFacts {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowControlFacts {
+    pub value_observations: Arena<super::FlowValueObservationFact>,
     pub atomic_executions: Arena<super::FlowAtomicExecutionFact>,
     pub case_accesses: Arena<super::FlowCaseAccessFact>,
     pub operator_invocations: Arena<super::FlowOperatorInvocationFact>,
@@ -135,6 +136,10 @@ pub struct FlowControlFacts {
     pub operand_origin_writes: Arena<super::FlowOperandReferent>,
     pub operand_referents: Arena<super::FlowOperandReferent>,
     pub operand_referent_segments: Arena<facts::PlaceSegment>,
+    pub operand_retentions: Arena<super::FlowOperandRetention>,
+    pub operand_retained_roots: Arena<facts::PlaceRoot>,
+    pub operand_retained_leaves: Arena<super::FlowOperandRetainedLeaf>,
+    pub operand_retained_paths: Arena<facts::PlaceSegment>,
     pub statements: Arena<FlowStatementFact>,
     pub calls: Arena<FlowCallFact>,
     /// Authored argument expressions, spanned by [`FlowCallFact::authored_arguments`].
@@ -151,6 +156,23 @@ pub struct FlowControlFacts {
 }
 
 impl FlowControlFacts {
+    /// Complete captured lifetime dependencies, never exact address evidence.
+    pub fn retained_roots(
+        &self,
+        retention: arena::Handle<super::FlowOperandRetention>,
+    ) -> Option<&[facts::PlaceRoot]> {
+        if !self.operand_retentions.is_valid(retention) {
+            return None;
+        }
+        let profile = self.operand_retentions.get(retention);
+        // A projected snapshot must first resolve its selected value. Its
+        // empty local roster is not a proof of absent lifetime dependencies.
+        if !profile.stored_projection.is_empty() {
+            return None;
+        }
+        self.operand_retained_roots.span(profile.roots)
+    }
+
     pub fn with_roots(
         statements: Arena<FlowStatementFact>,
         calls: Arena<FlowCallFact>,
@@ -159,6 +181,7 @@ impl FlowControlFacts {
     ) -> Self {
         Self {
             statements,
+            value_observations: Arena::default(),
             atomic_executions: Arena::default(),
             case_accesses: Arena::default(),
             operator_invocations: Arena::default(),
@@ -168,6 +191,10 @@ impl FlowControlFacts {
             operand_origin_writes: Arena::default(),
             operand_referents: Arena::default(),
             operand_referent_segments: Arena::default(),
+            operand_retentions: Arena::default(),
+            operand_retained_roots: Arena::default(),
+            operand_retained_leaves: Arena::default(),
+            operand_retained_paths: Arena::default(),
             calls,
             call_arguments: Arena::default(),
             exits,

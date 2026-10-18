@@ -178,6 +178,7 @@ pub(super) fn append_transition_flow_facts<'plans>(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
+    statement_fact: arena::Handle<checked_trees::FlowStatementFact>,
     transition: &typed_trees::statement::TableTransition,
     calls: &[BorrowCallFact],
     state_calls: &mut HandleSpan<FlowCallFact>,
@@ -192,6 +193,7 @@ pub(super) fn append_transition_flow_facts<'plans>(
         machine,
         state,
         statement_index,
+        statement_fact,
         semantic,
         build,
         state_calls,
@@ -199,6 +201,7 @@ pub(super) fn append_transition_flow_facts<'plans>(
         active_contexts,
         active_constraints,
     );
+    execution.evaluation = checked_trees::FlowPermissionEvaluation::TransitionGuard;
     if let typed_trees::statement::TransitionGuardNode::When(expression) = transition.guard {
         execution.expression(expression, active_contexts, active_constraints);
     }

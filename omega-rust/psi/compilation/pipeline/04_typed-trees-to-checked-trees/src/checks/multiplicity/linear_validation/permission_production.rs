@@ -131,7 +131,7 @@ pub(crate) fn apply_statement_permission_production(
         );
     }
     for owner in temporary_owners.iter().filter(|owner| {
-        matches!(owner.consumer, PermissionEventSource::Call { statement_index: index, .. } if index == statement_index)
+        matches!(owner.consumer, PermissionEventSource::Call { statement_index: index, .. } | PermissionEventSource::Statement { statement_index: index } if index == statement_index)
             && owner.evaluation == evaluation
     }) {
         let target = validation::CanonicalPlace { root: facts::PlaceRoot::Expression(owner.expression), segments: Vec::new() };
@@ -163,6 +163,15 @@ pub(crate) fn apply_statement_permission_production(
         .cloned()
         .collect::<Vec<_>>();
     let mut storage_establishments = Vec::new();
+    let copy_completions = copy_source_completions(
+        program,
+        facts,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        &occurrences,
+        temporary_owners,
+    );
     let mut checked_through = event_start;
     let mut custody = (places.to_vec(), remaining.clone());
     let mut selected = SelectedEvaluation::new();
@@ -186,7 +195,35 @@ pub(crate) fn apply_statement_permission_production(
             StatementStep::Observe { .. } => continue,
             StatementStep::Move { event, ordered, .. } => {
                 let event = &moves[event];
-                if !ordered || event.source_arm.is_valid() || event.evaluation != evaluation {
+                if event.evaluation != evaluation {
+                    continue;
+                }
+                let path = facts.flow.ownership.segments.span_or_empty(event.segments);
+                // Admission covers every source move, including unmatched and
+                // arm-local occurrences that cannot publish unconditional
+                // permission events below. Borrowed extraction keeps its
+                // separate window contract rather than acquiring ownership.
+                if !path.is_empty()
+                    && !super::super::linear_obligations::move_event_is_production_target(
+                        program, state, event, path,
+                    )
+                    && !projected_affine::is_borrowed_place_transfer(
+                        program,
+                        machine_symbol,
+                        state,
+                        event,
+                        path,
+                    )
+                    && let Some(diagnostic) = temporary_results::unselected_claim_diagnostic(
+                        program,
+                        state_symbol,
+                        event,
+                        path,
+                    )
+                {
+                    return Err(diagnostic);
+                }
+                if !ordered || event.source_arm.is_valid() {
                     continue;
                 }
                 selected.enter(&occurrence.route, &mut custody, join)?;
@@ -361,6 +398,7 @@ pub(crate) fn apply_statement_permission_production(
                         machine_symbol,
                         state_symbol,
                         source,
+                        typed_trees::expression::ExpressionHandle::invalid(),
                         evaluation,
                         temporary_owners,
                         places,
@@ -449,6 +487,113 @@ pub(crate) fn apply_statement_permission_production(
                     &establishments,
                     false,
                 );
+                for completion in copy_completions
+                    .iter()
+                    .filter(|completion| completion.expression == expression)
+                {
+                    let root = completion.root;
+                    if !remaining.is_present(root, &[])
+                        || !places
+                            .iter()
+                            .any(|place| place.root == root && place.ever_established)
+                    {
+                        continue;
+                    }
+                    let completion_start = permission_events.len();
+                    super::affine_cleanup::append_owned_region_cleanup_permission_events(
+                        program,
+                        completion.type_reference,
+                        root,
+                        &[],
+                        places,
+                        remaining,
+                        FlowPermissionEventFact {
+                            expression,
+                            evaluation,
+                            machine_symbol,
+                            state_symbol,
+                            source: statement_source,
+                            kind: PermissionEventKind::AffineDrop,
+                            multiplicity: Multiplicity::Affine,
+                            access: PermissionAccess::Owned,
+                            claim_identity: PermissionClaimIdentity::Unknown,
+                            provenance: PermissionProvenance::Unknown,
+                            root,
+                            segments: Default::default(),
+                            obligation_live: false,
+                        },
+                        &mut facts.flow.ownership.segments,
+                        permission_events,
+                    );
+                    if permission_events.len() == completion_start {
+                        return Err(diagnostics::Diagnostic::error(
+                            "copied temporary source has no eligible owned completion",
+                        )
+                        .with_source_span(program.expression_table.source_span(expression)));
+                    }
+                    let disposition_start = cleanup_dispositions.dispositions.len();
+                    remaining.observe_ordinary(
+                        program,
+                        &permission_events[completion_start..],
+                        &facts.flow.ownership.segments,
+                        cleanup_dispositions,
+                        checked_trees::FlowClaimJoinExit::default(),
+                        &[],
+                        false,
+                    );
+                    let mut disposition_ordinal = 0;
+                    cleanup_dispositions
+                        .dispositions
+                        .for_each_mut(|_, disposition| {
+                            if disposition_ordinal >= disposition_start {
+                                disposition.completion = expression;
+                            }
+                            disposition_ordinal += 1;
+                        });
+                    for place in places.iter_mut().filter(|place| place.root == root) {
+                        place.live = false;
+                    }
+                    remaining.retire_storage(
+                        root,
+                        machine_symbol,
+                        state_symbol,
+                        statement_source,
+                        cleanup_dispositions,
+                    );
+                }
+                let completion_start = permission_events.len();
+                let retired = temporary_results::append_continuation_cleanup(
+                    program,
+                    facts,
+                    machine_symbol,
+                    state_symbol,
+                    statement_source,
+                    expression,
+                    evaluation,
+                    temporary_owners,
+                    places,
+                    remaining,
+                    permission_events,
+                    cleanup_dispositions,
+                )?;
+                remaining.observe_ordinary(
+                    program,
+                    &permission_events[completion_start..],
+                    &facts.flow.ownership.segments,
+                    cleanup_dispositions,
+                    checked_trees::FlowClaimJoinExit::default(),
+                    &[],
+                    false,
+                );
+                for root in retired {
+                    remaining.retire_storage(
+                        root,
+                        machine_symbol,
+                        state_symbol,
+                        statement_source,
+                        cleanup_dispositions,
+                    );
+                }
             }
         }
     }
@@ -627,6 +772,131 @@ pub(crate) fn apply_statement_permission_production(
         establishments: storage_establishments,
         evaluated_events,
     })
+}
+
+struct CopySourceCompletion {
+    expression: typed_trees::expression::ExpressionHandle,
+    root: facts::PlaceRoot,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+}
+
+/// A copied leaf no longer uses its anonymous supplier's storage. End that
+/// supplier at the actual read completion, on the route that established it.
+/// Only descriptor-only, claim-free owners have no observable cleanup timing
+/// to preserve. Existing loans of the supplier's storage keep their own lifetime;
+/// loans stored inside it continue through the independently copied carrier.
+fn copy_source_completions(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    occurrences: &[crate::checks::ownership_occurrences::StatementOccurrence],
+    temporary_owners: &[temporary_results::TemporaryOwner],
+) -> Vec<CopySourceCompletion> {
+    let mut completions = Vec::new();
+    for (observation_ordinal, observation) in occurrences.iter().enumerate() {
+        let StatementStep::Observe { place, expression } = &observation.step else {
+            continue;
+        };
+        let expression = *expression;
+        if !expression.is_valid()
+            || program
+                .expression_table
+                .borrow_expression(expression)
+                .is_some()
+        {
+            continue;
+        }
+        let Some(source) = place.root.as_expression() else {
+            continue;
+        };
+        if place.segments.is_empty()
+            || temporary_owners
+                .iter()
+                .any(|owner| owner.expression == source)
+            || completions
+                .iter()
+                .any(|completion: &CopySourceCompletion| completion.root == place.root)
+        {
+            continue;
+        }
+        let mut reads = occurrences[observation_ordinal + 1..].iter().enumerate().filter(|(_, occurrence)| {
+            matches!(occurrence.step, StatementStep::Complete(completed) if completed == expression)
+        });
+        let Some((read_ordinal, occurrence)) = reads.next() else {
+            continue;
+        };
+        if reads.next().is_some() {
+            continue;
+        }
+        let ordinal = observation_ordinal + 1 + read_ordinal;
+        let Some(selected) =
+            validation::canonical_place_type_reference(program, state, statement_index, place)
+        else {
+            continue;
+        };
+        if !validation::type_satisfies_declared_property(
+            program,
+            &[],
+            selected,
+            validation::DeclaredPropertyRequirement::Copy,
+        ) {
+            continue;
+        }
+        let mut producers = occurrences[..observation_ordinal].iter().filter(|producer| {
+            matches!(producer.step, StatementStep::Complete(completed) if completed == source)
+        });
+        let Some(producer) = producers.next() else {
+            continue;
+        };
+        if producers.next().is_some()
+            // Both ends belong to the same selected evaluation. A read in
+            // only one later arm cannot retire a supplier established before
+            // that decision: its skipped arm still owes the original death.
+            || producer.route != occurrence.route
+            || occurrences[ordinal + 1..].iter().any(|later| {
+                matches!(&later.step, StatementStep::Observe { place: later_place, .. } if later_place.root == place.root)
+            })
+        {
+            continue;
+        }
+        let Some(reference) = validation::canonical_place_type_reference(
+            program,
+            state,
+            statement_index,
+            &validation::CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            },
+        ) else {
+            continue;
+        };
+        if program.type_multiplicity(reference) != Multiplicity::Affine
+            || crate::checks::type_carries_linear_obligation(program, reference)
+            || !validation::has_contents(
+                program,
+                reference,
+                &[],
+                validation::ContentsRequirement::DescriptorCleanup,
+            )
+            || facts.borrow.states.iter().any(|(_, state_fact)| {
+                state_fact.machine_symbol == machine
+                    && state_fact.state_symbol == state
+                    && facts.borrow.loans.iter().any(|(handle, loan)| {
+                        facts.borrow.state_owns_loan(state_fact, handle) && loan.root == place.root
+                    })
+            })
+        {
+            continue;
+        }
+        completions.push(CopySourceCompletion {
+            expression,
+            root: place.root,
+            type_reference: reference,
+        });
+    }
+    completions
 }
 
 #[allow(clippy::too_many_arguments)]

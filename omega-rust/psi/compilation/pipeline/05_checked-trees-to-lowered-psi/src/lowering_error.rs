@@ -41,6 +41,23 @@ pub enum LoweringError {
         gap: Option<Diagnostic>,
     },
     Unsupported(&'static str),
+    NonDenseStructuralResult {
+        reason: &'static str,
+        completed_bindings: usize,
+        requested_binding: u32,
+        statement_index: u32,
+    },
+    /// Preserve both physical bindings and the emitting join when source
+    /// identity unexpectedly acquires two different completed homes.
+    ConflictingStructuralValueHome {
+        root: facts::PlaceRoot,
+        established: terminal_psi::StructuralArgument,
+        established_type: semantic_vocabulary::StructuralTypeId,
+        requested: terminal_psi::StructuralArgument,
+        requested_type: semantic_vocabulary::StructuralTypeId,
+        producer_file: &'static str,
+        producer_line: u32,
+    },
     /// A checked operation's failed join, retaining its exact source coordinate
     /// even when the machine has a complete plan and no earlier plan gap.
     InvalidUnitStatementPlan {

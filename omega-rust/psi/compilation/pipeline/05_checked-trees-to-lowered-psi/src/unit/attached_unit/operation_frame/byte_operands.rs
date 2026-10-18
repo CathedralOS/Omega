@@ -114,26 +114,30 @@ impl OperationFrame<'_, '_> {
             }
             let destination = place_id(allocate_dense(self.next_place)?);
             let result_type = range_source.structural_type;
-            let declaration = super::super::view_ranges::emit(
-                identities,
-                self.checked,
-                ViewRangeSite {
-                    state: self.state,
-                    statement: statement_index,
-                    range,
-                },
-                range_source,
-                result_type,
-                destination,
-                self.evaluation,
-                self.values.len(),
-                self.values,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.operations,
-                self.calls,
-            )?;
+            let declaration = {
+                let (mut environment, emission) = self.reborrow().split();
+                super::super::view_ranges::emit(
+                    identities,
+                    environment.checked,
+                    ViewRangeSite {
+                        state: environment.state,
+                        statement: statement_index,
+                        range,
+                    },
+                    range_source,
+                    result_type,
+                    destination,
+                    emission.evaluation,
+                    emission.values.len(),
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?;
             self.private_places.push(declaration);
             return Ok(destination);
         }

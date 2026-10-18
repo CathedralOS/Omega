@@ -68,6 +68,10 @@ pub struct ContextualCleanupDisposition {
     /// is not an exit, or the custody producer cannot distinguish its exits;
     /// it never authorizes borrowing facts from every exit of the state.
     pub exit: crate::FlowClaimJoinExit,
+    /// The value completion owning this death, when it occurs inside an
+    /// evaluation. Zero retains the statement, call or exit boundary. This
+    /// identity keeps branch-local cleanup with its actual produced value.
+    pub completion: typed_trees::expression::ExpressionHandle,
     pub root: facts::PlaceRoot,
     /// A displaced borrowed referent owns the stored value's type, not its
     /// access route's reference carrier. Zero retains the ordinary owned-place

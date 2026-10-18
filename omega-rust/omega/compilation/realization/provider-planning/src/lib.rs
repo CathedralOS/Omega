@@ -56,6 +56,7 @@ pub use build_time_evaluation::provider_declarations::{
 pub use intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
 };
+pub use provider_planning::direct_boundary_leaves::DirectBoundaryCandidate;
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,
@@ -66,8 +67,8 @@ pub use provider_planning::{
     selected_use_plan, specialized_provider_machines,
 };
 pub(crate) use provider_planning::{
-    DerivedProviderPlan, ProviderPlanProvenance, SelectedProviderPlanWithProvenance,
-    SelectedTargetMachineOrigin, selected_provider_plan_facts_with_independent_components,
+    DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
+    selected_provider_plan_facts_with_independent_components,
 };
 pub(crate) use provider_planning::{
     extract_native_external_binding_rows, validate_selected_synchronous_invocation_cycles,

@@ -1,8 +1,7 @@
 use console;
 
-// Complete linux_x86_64 Console provider closure over compiler-known native
-// byte/runtime leaves. Friendly line and write adapters live in std/console.omg on the
-// same nominal provider type.
+// Exact linux_x86_64 Console byte/runtime leaves. The named NativeConsole
+// implementation in std/console.omg forwards to these target declarations.
 // Unmigrated sibling leaves retain transitional payload-free `via` syntax. The
 // exit leaf's compiler supply is inferred from its exact realization symbol,
 // normalized signature, package custody, and selected target.

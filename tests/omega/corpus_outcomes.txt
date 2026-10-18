@@ -6271,6 +6271,14 @@ fail/providers/checked_boundary_operator_const_application_unselected rejected 4
 	fixed-array length `[u8; limit()]`: const evaluation of `limit` failed: machine `limit` is not build-time admissible: machine call path `limit -> Math::remainder` reaches a requirement that requires exact authored selection before evaluation; the evaluator cannot execute a bodyless requirement; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/providers/checked_boundary_operator_missing_contract rejected 1307ms expected @a9ae30e1c334+wt
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
+fail/providers/checked_completion_changed_status rejected 4551ms expected @ad4def8456dc+wt
+	selected completion provider `NativeConsole::exit_process`: external-completion provider does not preserve its exact status argument
+fail/providers/checked_completion_ordinary_leaf_lookalike rejected 4066ms expected @ad4def8456dc+wt
+	selected completion provider `NativeConsole::exit_process`: selected external-completion provider has a normal return path
+fail/providers/checked_completion_returning_branch rejected 3438ms expected @ad4def8456dc+wt
+	selected completion provider `NativeConsole::exit_process`: selected external-completion provider has a normal return path
+fail/providers/checked_completion_service_redispatch rejected 3227ms expected @ad4def8456dc+wt
+	selected completion provider `NativeConsole::exit_process`: external-completion provider has a cyclic checked invocation path
 fail/providers/checked_reference_provider_local_escape rejected 1208ms expected @001fe6f26d2c
 	machine `Provider::locate` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/providers/checked_view_provider_wrong_extent rejected 271ms expected @71e65af3059c+wt
@@ -7175,6 +7183,8 @@ fail/termination/stored_reference_endpoint_referent_write rejected 1516ms expect
 	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
 fail/termination/stored_reference_endpoint_reseat rejected 1746ms expected @a9ae30e1c334+wt
 	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
+fail/termination/target_family_missing_progress rejected 323ms expected @c62dcd324e77+wt
+	cannot prove published termination for machine `forward`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/unproved_state_rank_arrival_rejected rejected 1590ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call hold from Main::count: remaining > 0 && remaining <= 9 (needs fact `pending > 0 && pending <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/termination/wrapping_subject_unguarded_decrement rejected 548ms expected @3e63a17a5fea+wt
@@ -9141,6 +9151,7 @@ pass/domains/vacuous_domain_qualification checked 1751ms @a9ae30e1c334+wt
 pass/domains/view_field_literal_store_reads_exit checked 12827ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/write_domain_store checked 9451ms @5041ef1af684+wt
 pass/domains/zero_value_membership_occurrences_exit checked 3381ms check-target:macos_arm64 @7c138f5545aa
+pass/drops/borrowed_temporary_normal_completion_exit checked 5112ms check-target:macos_arm64 @c3f6e1b1295c+wt
 pass/drops/case_subject_root_cleanup checked 9558ms @5041ef1af684+wt
 pass/drops/cleanup_machine_drop_shape checked 2087ms @a9ae30e1c334+wt
 pass/drops/cleanup_owner_identity_application checked 1769ms @a9ae30e1c334+wt
@@ -10657,6 +10668,7 @@ pass/providers/runtime_boundary_linear_result_exit checked 9075ms check-target:m
 pass/providers/runtime_boundary_owned_array_cycle_exit checked 11933ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 11479ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_qualified_state_exit checked 3879ms check-target:macos_arm64 @d75fe4ba5012+wt
+pass/providers/runtime_checked_completion_forwarding_exit checked 7390ms check-target:macos_arm64 @ad4def8456dc+wt
 pass/providers/runtime_closed_provider_and_assumed_chain_exit checked 3774ms check-target:macos_arm64 @8bcf9d86d52e
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 9447ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit checked 16098ms check-target:macos_arm64 @7e6c0ae564d2+wt
@@ -11257,6 +11269,7 @@ pass/termination/slice_tail_rank checked 9730ms @5041ef1af684+wt
 pass/termination/state_cycle_record checked 9750ms @5041ef1af684+wt
 pass/termination/stored_reference_endpoint_arrivals checked 1967ms @a9ae30e1c334+wt
 pass/termination/symbolic_quotient_endpoints checked 2150ms @a9ae30e1c334+wt
+pass/termination/target_family_published_progress checked 681ms @c62dcd324e77+wt
 pass/termination/unsigned_identity_measure_rank_range checked 1684ms @a9ae30e1c334+wt
 pass/termination/variable_step_cycle checked 9388ms @5041ef1af684+wt
 pass/termination/wrapping_subject_guarded_descent checked 1623ms @3e63a17a5fea+wt
@@ -11429,6 +11442,7 @@ pass/traits/runtime_generic_exact_application_exit checked 10978ms check-target:
 pass/traits/runtime_inherited_trait_default_exit checked 11830ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_named_implementation_selection_exit checked 12231ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 6395ms check-target:macos_arm64 @6d0b8da07bdd+wt
+pass/traits/runtime_qualified_owned_requirement_calls_exit checked 4243ms check-target:macos_arm64 @3b92de23fee5+wt
 pass/traits/runtime_selected_case_reference_exit checked 4259ms check-target:macos_arm64 @dd6871ed0476
 pass/traits/runtime_selected_reference_region checked 4258ms check-target:macos_arm64 @dd6871ed0476
 pass/traits/runtime_selected_slice_reference_exit checked 4486ms check-target:macos_arm64 @dd6871ed0476

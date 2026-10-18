@@ -198,22 +198,26 @@ impl OperationFrame<'_, '_> {
             // Capture the destination before evaluating the RHS, just as for
             // field stores. A recast loan never invents another owned home.
             let destination = self.prepare_loaned_byte_store(identities, statement_index, &loan)?;
-            let value = self.evaluation.source_value(
-                identities,
-                self.checked,
-                self.machine,
-                self.state,
-                statement_index,
-                role,
-                authored_value,
-                self.source_value_count,
-                self.values,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.operations,
-                self.calls,
-            )?;
+            let value = {
+                let (mut environment, emission) = self.reborrow().split();
+                emission.evaluation.source_value(
+                    identities,
+                    environment.checked,
+                    environment.machine,
+                    environment.state,
+                    statement_index,
+                    role,
+                    authored_value,
+                    emission.source_value_count,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?;
             for kind in destination.emit(
                 value,
                 projection.stored_type,
@@ -325,32 +329,36 @@ impl OperationFrame<'_, '_> {
                 ..
             }
         );
-        let kind = crate::emission::primitive_store::emit_assignment(
-            identities,
-            self.checked,
-            self.machine,
-            self.state,
-            statement_index,
-            destination,
-            self.structural_types.declarations(),
-            preserves_byte_memberships,
-            match &store.destination.leaf {
-                CheckedStoreLeaf::Primitive {
-                    receiving_range, ..
-                } => receiving_range.as_ref(),
-                _ => unreachable!("primitive store dispatch"),
-            },
-            role,
-            value,
-            self.evaluation,
-            self.source_value_count,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-            self.calls,
-        )?;
+        let kind = {
+            let (mut environment, emission) = self.reborrow().split();
+            crate::emission::primitive_store::emit_assignment(
+                identities,
+                environment.checked,
+                environment.machine,
+                environment.state,
+                statement_index,
+                destination,
+                environment.structural_types,
+                preserves_byte_memberships,
+                match &store.destination.leaf {
+                    CheckedStoreLeaf::Primitive {
+                        receiving_range, ..
+                    } => receiving_range.as_ref(),
+                    _ => unreachable!("primitive store dispatch"),
+                },
+                role,
+                value,
+                emission.evaluation,
+                emission.source_value_count,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )
+        }?;
         self.push_unit(kind);
         Ok(())
     }
@@ -429,22 +437,26 @@ impl OperationFrame<'_, '_> {
                     &store.destination.path,
                     self.structural_types.declarations(),
                 )?;
-            let indexes = crate::emission::runtime_elements::evaluate_selectors(
-                identities,
-                &destination.steps,
-                self.checked,
-                self.machine,
-                self.state,
-                store.statement_index,
-                self.evaluation,
-                self.source_value_count,
-                self.values,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.operations,
-                self.calls,
-            )?;
+            let indexes = {
+                let (mut environment, emission) = self.reborrow().split();
+                crate::emission::runtime_elements::evaluate_selectors(
+                    identities,
+                    &destination.steps,
+                    environment.checked,
+                    environment.machine,
+                    environment.state,
+                    store.statement_index,
+                    emission.evaluation,
+                    emission.source_value_count,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?;
             let path = crate::emission::runtime_elements::complete_path(
                 std::mem::take(&mut destination.steps),
                 indexes,
@@ -532,22 +544,26 @@ impl OperationFrame<'_, '_> {
             None
         };
         if captured_index.is_none() {
-            let descriptor_selectors = crate::emission::runtime_elements::evaluate_selectors(
-                identities,
-                &destination.descriptor_steps,
-                self.checked,
-                self.machine,
-                self.state,
-                leaf.statement_index(),
-                self.evaluation,
-                self.source_value_count,
-                self.values,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.operations,
-                self.calls,
-            )?;
+            let descriptor_selectors = {
+                let (mut environment, emission) = self.reborrow().split();
+                crate::emission::runtime_elements::evaluate_selectors(
+                    identities,
+                    &destination.descriptor_steps,
+                    environment.checked,
+                    environment.machine,
+                    environment.state,
+                    leaf.statement_index(),
+                    emission.evaluation,
+                    emission.source_value_count,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?;
             let descriptor_path = crate::emission::runtime_elements::complete_path(
                 std::mem::take(&mut destination.descriptor_steps),
                 descriptor_selectors,
@@ -619,24 +635,26 @@ impl OperationFrame<'_, '_> {
         ) {
             // The shared scalar evaluator carries the captured coordinate
             // through any private blocks in the RHS's evaluation schedule.
-            crate::emission::indexed_write::IndexedWriteValue::Established(
-                self.evaluation.field_assignment_value(
+            crate::emission::indexed_write::IndexedWriteValue::Established({
+                let (mut environment, emission) = self.reborrow().split();
+                emission.evaluation.field_assignment_value(
                     identities,
-                    self.checked,
-                    self.machine,
-                    self.state,
+                    environment.checked,
+                    environment.machine,
+                    environment.state,
                     leaf.statement_index(),
                     leaf.value(),
                     leaf.value_type(),
                     None,
-                    self.values,
-                    self.next_value,
-                    self.next_block,
-                    self.next_edge,
-                    self.operations,
-                    self.calls,
-                )?,
-            )
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?)
         } else {
             crate::emission::indexed_write::IndexedWriteValue::Expression(lowered.as_ref().ok_or(
                 LoweringError::Unsupported("indexed write lost its retained scalar value"),
@@ -702,24 +720,28 @@ impl OperationFrame<'_, '_> {
                 })
             })
             .transpose()?;
-        for kind in crate::emission::representation_view_store::emit(
-            identities,
-            store,
-            view,
-            captured,
-            self.checked,
-            self.machine,
-            self.state,
-            &mut *self.evaluation,
-            self.source_value_count,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-            self.calls,
-            self.structural_types.declarations(),
-        )? {
+        for kind in {
+            let (mut environment, emission) = self.reborrow().split();
+            crate::emission::representation_view_store::emit(
+                identities,
+                store,
+                view,
+                captured,
+                environment.checked,
+                environment.machine,
+                environment.state,
+                &mut *emission.evaluation,
+                emission.source_value_count,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                environment.structural_types,
+                &mut environment,
+            )
+        }? {
             self.push_unit(kind);
         }
         Ok(())
@@ -899,49 +921,57 @@ impl OperationFrame<'_, '_> {
         } else {
             None
         };
-        let mut destination = crate::emission::representation_view_store::prepare_byte_destination(
-            identities,
-            place,
-            root_type,
-            &loan.path,
-            captured_index,
-            loan.decided_byte_view_store,
-            self.checked,
-            self.machine,
-            self.state,
-            statement_index,
-            self.evaluation,
-            self.source_value_count,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-            self.calls,
-            self.structural_types.declarations(),
-        )?;
+        let mut destination = {
+            let (mut environment, emission) = self.reborrow().split();
+            crate::emission::representation_view_store::prepare_byte_destination(
+                identities,
+                place,
+                root_type,
+                &loan.path,
+                captured_index,
+                loan.decided_byte_view_store,
+                environment.checked,
+                environment.machine,
+                environment.state,
+                statement_index,
+                emission.evaluation,
+                emission.source_value_count,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                environment.structural_types,
+                &mut environment,
+            )
+        }?;
         if let Some(projection) = &loan.byte_overlay {
             let steps = projection
                 .indices
                 .iter()
                 .map(|index| crate::emission::runtime_elements::selector_step(&index.selector))
                 .collect::<Vec<_>>();
-            let indexes = crate::emission::runtime_elements::evaluate_selectors(
-                identities,
-                &steps,
-                self.checked,
-                self.machine,
-                self.state,
-                statement_index,
-                self.evaluation,
-                self.source_value_count,
-                self.values,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.operations,
-                self.calls,
-            )?;
+            let indexes = {
+                let (mut environment, emission) = self.reborrow().split();
+                crate::emission::runtime_elements::evaluate_selectors(
+                    identities,
+                    &steps,
+                    environment.checked,
+                    environment.machine,
+                    environment.state,
+                    statement_index,
+                    emission.evaluation,
+                    emission.source_value_count,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?;
             if indexes.len() != projection.indices.len() {
                 return unsupported("record byte store lost a declared array coordinate");
             }
@@ -1096,7 +1126,7 @@ impl OperationFrame<'_, '_> {
             &store.destination.path,
         )? {
             let logical = self.receiving_place(captured.original_source, captured.original_path)?;
-            if !terminal_semantics::store_preserves_qualifications(
+            if !terminal_semantics::store_preserves_domain_content(
                 self.structural_types.declarations().iter(),
                 self.callees.domain_declarations.iter(),
                 &identities.snapshot(),
@@ -1104,9 +1134,7 @@ impl OperationFrame<'_, '_> {
                 &logical.projected_qualifications,
                 &logical.path,
             ) {
-                return unsupported(
-                    "captured scalar store overlaps logical qualification evidence",
-                );
+                return unsupported("captured scalar store changes logical conserved Content");
             }
             let mut physical = self.receiving_place(captured.source, captured.path)?;
             let expected_field = terminal_psi::StructuralPathSegment::Field(
@@ -1129,22 +1157,26 @@ impl OperationFrame<'_, '_> {
                 .collect();
         }
         // The carrier's runtime elements are evaluated before the value.
-        let indexes = crate::emission::runtime_elements::evaluate_selectors(
-            identities,
-            &lowered.steps,
-            self.checked,
-            self.machine,
-            self.state,
-            store.statement_index,
-            self.evaluation,
-            self.source_value_count,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-            self.calls,
-        )?;
+        let indexes = {
+            let (mut environment, emission) = self.reborrow().split();
+            crate::emission::runtime_elements::evaluate_selectors(
+                identities,
+                &lowered.steps,
+                environment.checked,
+                environment.machine,
+                environment.state,
+                store.statement_index,
+                emission.evaluation,
+                emission.source_value_count,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )
+        }?;
         let value = self.scalar_store_value(
             identities,
             store.statement_index,
@@ -1170,7 +1202,7 @@ impl OperationFrame<'_, '_> {
             ))?;
             let mut written = path.clone();
             written.push(terminal_psi::StructuralPathSegment::Field(field.identity));
-            if !terminal_semantics::store_preserves_qualifications(
+            if !terminal_semantics::store_preserves_domain_content(
                 self.structural_types.declarations().iter(),
                 self.callees.domain_declarations.iter(),
                 &identities.snapshot(),
@@ -1178,7 +1210,7 @@ impl OperationFrame<'_, '_> {
                 &projected,
                 &written,
             ) {
-                return unsupported("scalar store overlaps qualification evidence");
+                return unsupported("scalar store changes conserved domain Content");
             }
         }
         self.observe_store_element_extent(destination_place, destination_type, &path)?;
@@ -1312,22 +1344,26 @@ impl OperationFrame<'_, '_> {
         primitive_type: checked_trees::types::PrimitiveType,
         field_identity: &checked_trees::CheckedMemberIdentity,
     ) -> Result<ValueDeclaration, LoweringError> {
-        self.evaluation.field_assignment_value(
-            identities,
-            self.checked,
-            self.machine,
-            self.state,
-            statement_index,
-            value,
-            primitive_type,
-            Some(field_identity),
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-            self.calls,
-        )
+        {
+            let (mut environment, emission) = self.reborrow().split();
+            emission.evaluation.field_assignment_value(
+                identities,
+                environment.checked,
+                environment.machine,
+                environment.state,
+                statement_index,
+                value,
+                primitive_type,
+                Some(field_identity),
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )
+        }
     }
 
     fn window_destination(

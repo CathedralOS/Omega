@@ -14,7 +14,7 @@
 //! entirely by ordinary target-scoped std providers.
 //! `Console` is deliberately absent from the fallback set:
 //! its canonical boundary is authored-provider-complete — every hosted
-//! target ships a `ConsoleNativeProvider` conformance plus a
+//! target ships a named `NativeConsole` implementation plus a
 //! `provider_defaults` selection in `targets/<target>/console_impl.omg`, and
 //! its leaves close through intrinsic review, syscall rows, or DLL imports
 //! under accepted bindings. A program whose `Console` boundary selects no
@@ -22,6 +22,7 @@
 //! identity is nominal and never inferred from the boundary's name.
 
 mod canonical_filesystem_host;
+mod completion;
 mod composition_modes;
 mod independent_components;
 mod semantic_roles;
@@ -232,8 +233,8 @@ pub struct CheckedProviderSelection {
 /// selected plan facts that selected execution owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSettlement {
-    /// Exact direct foreign candidates; only native execution demand selects them.
-    pub direct_foreign_leaves: Vec<backend_plan::DirectForeignLeaf>,
+    /// Exact direct boundary candidates; only native execution demand selects them.
+    pub direct_boundary_leaves: Vec<crate::DirectBoundaryCandidate>,
     /// Exact target used to derive candidate plans, including semantic-only
     /// checking's supported host profile. This grants no deployment entry.
     pub planning_target_profile: Option<target::TargetProfile>,
@@ -261,7 +262,7 @@ pub struct ProviderSettlement {
 /// Derive and select providers against the immutable, source-checked roster.
 /// A realization cannot rewrite source contracts or fold target values into them.
 pub fn settle_checked_providers(
-    typed: &TypedTrees,
+    checked: &checked_trees::CheckedTrees,
     settled_target_machines: SettledTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
@@ -272,6 +273,7 @@ pub fn settle_checked_providers(
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
+    let typed = &checked.typed;
     // Every Product body has already been checked. This target chooses only
     // realization rows; it never narrows the source program.
     let planning_target = selected_target_profile.or_else(target::TargetProfile::host_if_supported);
@@ -302,7 +304,7 @@ pub fn settle_checked_providers(
         &target_provider_defaults,
         build_provider_selections,
     )?;
-    let direct_foreign_leaves = crate::provider_planning::direct_foreign_leaves::derive(
+    let direct_boundary_leaves = crate::provider_planning::direct_boundary_leaves::derive(
         typed,
         &derived_provider_plans,
         target_name,
@@ -310,9 +312,6 @@ pub fn settle_checked_providers(
         &boundary_calling_plan_realizations,
         opaque_representation_selections,
     )?;
-    if package_inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery) {
-        semantic_roles::validate_proposed(typed, &selected_provider_plans)?;
-    }
     let mut provider_plans = derived_provider_plans
         .iter()
         .map(|derived| derived.plan.clone())
@@ -379,6 +378,15 @@ pub fn settle_checked_providers(
             selected_provider_plans,
             &independent_components,
         )?;
+    completion::retain_completions(
+        checked,
+        &mut selected_provider_provenance,
+        target_name,
+        &derived_provider_plans,
+    )?;
+    if package_inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery) {
+        semantic_roles::validate_proposed(typed, &selected_provider_provenance)?;
+    }
     for minted in [toolchain_filesystem_plan].into_iter().flatten() {
         selected_provider_plan_facts = selected_provider_plan_facts
             .with_toolchain_settled_plan(minted.plan.clone())
@@ -414,6 +422,7 @@ pub fn settle_checked_providers(
                 },
                 selected_by: crate::ProviderSelectionProvenance::UniqueCoveringCandidate,
                 row_compiler_intrinsic_executions: Vec::new(),
+                row_external_completion_leaves: vec![Vec::new(); minted.plan.rows.len()],
             },
         );
         // The trust report replays every selected plan against exactly one
@@ -590,7 +599,7 @@ pub fn settle_checked_providers(
     }
     Ok(CheckedProviderSelection {
         settlement: ProviderSettlement {
-            direct_foreign_leaves,
+            direct_boundary_leaves,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,
             provider_plans,

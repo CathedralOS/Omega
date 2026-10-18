@@ -241,7 +241,7 @@ pub(super) fn validate(
     function: usize,
     source: &LegalizedScalarFunction,
     call: &LegalizedScalarCall,
-    operation: semantic_vocabulary::OperationId,
+    owner: target_operations::CallSiteOwner,
     key: RegisterConstraintKey,
     row: &RegisterInstructionConstraint,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -262,6 +262,7 @@ pub(super) fn validate(
         .iter()
         .any(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
     {
+        let operation = owner.operation().ok_or_else(invalid)?;
         if source.call_plan.policy != CallingPolicy::native_for_target(environment.target()) {
             return Err(invalid());
         }

@@ -59,7 +59,7 @@ pub(super) fn lower(
                     ))?;
                     return Ok(PreparedStructuralArgument {
                         selector_positions: Vec::new(),
-                        place: slot.place,
+                        source: crate::emission::operation_emission::calls::StructuralValueSource::Computed(slot.root),
                         root_type: Some(slot.structural_type),
                         path: crate::expression_preparation::bindings::structural_paths::prepare_call_argument_path(identities, checked, argument, slot.structural_type, structural_types)?,
                         access: match argument.access {
@@ -81,7 +81,7 @@ pub(super) fn lower(
                 }
                 return Ok(PreparedStructuralArgument {
                     selector_positions: Vec::new(),
-                    place: slot.literal.place,
+                    source: slot.literal.place.into(),
                     root_type: Some(slot.literal.structural_type),
                     path: Vec::new(),
                     access: match argument.access {
@@ -122,7 +122,7 @@ pub(super) fn lower(
                         ))?;
                     return Ok(PreparedStructuralArgument {
                         selector_positions: Vec::new(),
-                        place: slot.place,
+                        source: slot.place.into(),
                         root_type: Some(slot.structural_type),
                         path: Vec::new(),
                         access,

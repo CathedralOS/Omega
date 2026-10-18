@@ -10,7 +10,7 @@ use super::super::super::{
     allocate_dense, edge_id, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
-use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
+use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
 /// Emit the selected structural producer through ordinary operand preparation.
@@ -20,7 +20,6 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 pub(super) fn emit(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
@@ -32,6 +31,8 @@ pub(super) fn emit(
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
+    owner: symbols::SymbolHandle,
+    sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
 ) -> Result<Option<Terminator>, LoweringError> {
     let CheckedComposedUnitControlTerminatorPlan::Guarded {
         arms,
@@ -52,21 +53,45 @@ pub(super) fn emit(
                 "guarded structural guards are stale",
             ))?;
     for (position, guard) in guards.iter().enumerate() {
-        let mut calls = catalogs.scalar_calls.emission_context();
-        let condition = evaluation.guard_value(
-            identities,
-            checked,
-            plan.machine,
-            state.state,
-            guard.guard_statement_ordinal,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-            &mut calls,
-        )?;
-        catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+        let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
+        let mut calls = scalar_calls.emission_context();
+        let condition = {
+            let (mut environment, emission) = operation_catalogs
+                .operation_frame(
+                    checked,
+                    owner,
+                    state,
+                    parameters,
+                    erased_parameters,
+                    sequence,
+                    crate::unit::attached_unit::operation_frame::OperationEmission {
+                        source_value_count: values.len(),
+                        evaluation,
+                        values,
+                        next_value,
+                        next_block,
+                        next_edge,
+                        calls: &mut calls,
+                        operations,
+                    },
+                )
+                .split();
+            emission.evaluation.guard_value(
+                identities,
+                checked,
+                owner,
+                state.state,
+                guard.guard_statement_ordinal,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )
+        }?;
+        scalar_calls.next_call_obligation = calls.next_obligation_identity;
         if condition.scalar_type != ScalarType::Boolean {
             return unsupported("ordered return guard is not Boolean");
         }
@@ -106,11 +131,11 @@ pub(super) fn emit(
         let retained_bindings = operations.structural_values.len();
         let mut selected_evaluation = evaluation.branch(selected, operations.len());
         let mut selected_values = values.clone();
+        let mut selected_sequence = sequence.branch();
         operations.length_observations.clear();
         let terminator = emit_return(
             identities,
             checked,
-            plan,
             state,
             super::cleanup::destination(catalogs.cleanup_control, state, &guard.destination)?,
             &return_values[position],
@@ -124,6 +149,8 @@ pub(super) fn emit(
             next_block,
             next_edge,
             operations,
+            owner,
+            &mut selected_sequence,
         )?;
         if exhausted {
             evaluation.blocks.append(&mut selected_evaluation.blocks);
@@ -165,7 +192,6 @@ pub(super) fn emit(
     emit_return(
         identities,
         checked,
-        plan,
         state,
         fallback_exit,
         fallback,
@@ -179,6 +205,8 @@ pub(super) fn emit(
         next_block,
         next_edge,
         operations,
+        owner,
+        sequence,
     )
     .map(Some)
 }
@@ -187,7 +215,6 @@ pub(super) fn emit(
 pub(super) fn emit_return(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
     exit: checked_trees::FlowClaimJoinExit,
     operation: &CheckedUnitEffectOperationPlan,
@@ -201,11 +228,13 @@ pub(super) fn emit_return(
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
+    owner: symbols::SymbolHandle,
+    sequence: &mut crate::unit::attached_unit::composed_control::emission::OperationSequence,
 ) -> Result<Terminator, LoweringError> {
     super::super::emission::emit_call_operations(
         identities,
         checked,
-        plan.machine,
+        owner,
         state,
         std::slice::from_ref(operation),
         catalogs,
@@ -218,6 +247,7 @@ pub(super) fn emit_return(
         next_block,
         next_edge,
         operations,
+        sequence,
     )?;
     complete_structural_return(
         identities, claims, checked, state, exit, operation, catalogs, parameters, evaluation,

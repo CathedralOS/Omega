@@ -430,6 +430,7 @@ fn argument_matches_type_reference_using(
     {
         return reference_values::projected_matches_reference(
             program,
+            scope,
             argument,
             type_reference,
             correspondence,

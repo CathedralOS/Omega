@@ -34,17 +34,17 @@ pub enum LoweringError {
     ProviderInstallationIdentityMismatch,
     DuplicateSelectedBoundaryCall {
         machine: MachineId,
-        operation: OperationId,
+        operation: semantic_vocabulary::BoundaryInvocationSite,
         boundary: BoundaryMachineId,
     },
     UnknownSelectedBoundaryCall {
         machine: MachineId,
-        operation: OperationId,
+        operation: semantic_vocabulary::BoundaryInvocationSite,
         boundary: BoundaryMachineId,
     },
     SelectedBoundaryCallEvidenceMismatch {
         machine: MachineId,
-        operation: OperationId,
+        operation: semantic_vocabulary::BoundaryInvocationSite,
         boundary: BoundaryMachineId,
     },
     SelectedBoundaryCallShapeMismatch {

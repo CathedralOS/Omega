@@ -16,13 +16,11 @@
 //! that current home before considering unaddressed scalar bindings; creating
 //! another home here would split storage identity from later reads and writes.
 
-use super::super::{argument_evaluation, ordinary_calls, signatures, structural_values};
+use super::super::{ordinary_calls, signatures, structural_values};
 use super::{OperationFrame, StructuralResults};
 use crate::direct_calls::DirectCallResult;
-use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
-use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
-use crate::terminal_identities::lookup_type_id;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, OperationResult, PlaceId,
     StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
@@ -196,6 +194,32 @@ impl OperationFrame<'_, '_> {
         discard_on_return: bool,
     ) -> Result<(), LoweringError> {
         self.results.push(declaration, discard_on_return);
+        // Every performed call publishes its exact expression home, including
+        // preparatory calls. A containing value's consumer cannot reconstruct
+        // these owners after its normal-return cleanup has already needed them.
+        // This association carries storage geometry, not another disposal debt.
+        let source = operation
+            .call()
+            .and_then(CheckedUnitCallPlan::source_site)
+            .ok_or(LoweringError::Unsupported(
+                "structural call result lost its authored occurrence",
+            ))?;
+        if let Some(checked_trees::NominalMachineUseSite::Expression(expression)) = source {
+            crate::expression_preparation::bindings::retain_completed_structural_homes(
+                &mut self.evaluation.structural_locals,
+                &[
+                    crate::expression_preparation::bindings::StructuralLocalBinding {
+                        result_binding_ordinal: None,
+                        root: facts::PlaceRoot::Expression(expression),
+                        structural_type: produced.structural_type,
+                        argument: terminal_psi::StructuralArgument::whole(
+                            produced.place,
+                            terminal_psi::StructuralAccess::Owned,
+                        ),
+                    },
+                ],
+            )?;
+        }
         if matches!(self.results, StructuralResults::Dense(_)) {
             structural_values::bind_local(
                 operation,
@@ -241,40 +265,6 @@ impl OperationFrame<'_, '_> {
             }
             return Ok(());
         }
-        // Any call with a structural result, ordinary or boundary.
-        let Some(coordinate) = operation
-            .call()
-            .filter(|call| call.structural_result().is_some())
-            .map(|call| call.coordinate)
-        else {
-            return unsupported("structural result has no call coordinate");
-        };
-        let authored = crate::call_sites::locate(self.checked, self.state, coordinate)?;
-        let (_, source) = crate::declarations::state_declaration(self.checked, self.state)?;
-        // A computed dispatch owns one anonymous result. Publish its exact
-        // source identity after ordinary result registration; copied payload
-        // receivers then read this home without running their call again.
-        // A nested operand or the selected terminal call shares the statement
-        // but is not the canonical subject producer.
-        let saved_subject = match authored.source_site {
-            Some(checked_trees::NominalMachineUseSite::Expression(expression)) => {
-                validation::saved_dispatch_subject(
-                    &self.checked.typed,
-                    source,
-                    coordinate.statement_index as usize,
-                    expression,
-                )
-                .filter(|(statement, subject)| {
-                    *statement == coordinate.statement_index as usize
-                        && *subject == expression
-                        && coordinate.call_ordinal == 0
-                })
-                .map(|(_, subject)| subject)
-            }
-            _ => None,
-        };
-        let place = produced.place;
-        let structural_type = produced.structural_type;
         if matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. }) {
             // The call emitter has prepared the public result contract and
             // recorded the selected leaves' introductions. The completed
@@ -296,29 +286,6 @@ impl OperationFrame<'_, '_> {
                 self.structural_types.declarations(),
                 self.operations,
             )?;
-        }
-        if let Some(subject) = saved_subject {
-            let root = facts::PlaceRoot::Expression(subject);
-            if self
-                .evaluation
-                .structural_locals
-                .iter()
-                .any(|binding| binding.root == root)
-            {
-                return unsupported("computed structural subject was established twice");
-            }
-            self.evaluation.structural_locals.push(
-                crate::expression_preparation::bindings::StructuralLocalBinding {
-                    result_binding_ordinal: Some(result.binding_ordinal),
-                    root,
-                    structural_type,
-                    argument: terminal_psi::StructuralArgument {
-                        place,
-                        path: Vec::new(),
-                        access: terminal_psi::StructuralAccess::Owned,
-                    },
-                },
-            );
         }
         Ok(())
     }
@@ -678,212 +645,6 @@ impl OperationFrame<'_, '_> {
     /// Establish one fresh structural value. Its member operands that are
     /// calls into Unit bodies emit exactly like a statement-level structural
     /// call: `ordinary_calls::prepare` against the callee's signature, then
-    /// `emit_structural`, registering the member's own result binding.
-    pub(super) fn establish_structural_value(
-        self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-
-        operation: &CheckedUnitEffectOperationPlan,
-    ) -> Result<(), LoweringError> {
-        let CheckedUnitEffectOperationPlan::EstablishLocal(
-            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-                result,
-                value,
-                discard_result_on_return,
-                ..
-            },
-        ) = operation
-        else {
-            return unsupported("structural value producer missing");
-        };
-        let OperationFrame {
-            checked,
-            machine,
-            state,
-            scalar_result,
-            scalar_parameter_count,
-            parameters,
-            structural_types,
-            type_ids,
-            service_ids,
-            primitive_locals,
-            mut results,
-            private_places,
-            windows,
-            evaluation,
-            values,
-            next_place,
-            next_value,
-            next_block,
-            next_edge,
-            calls,
-            operations,
-            callees,
-            caller,
-            ..
-        } = self;
-        let structural_types = structural_types.declarations();
-        // Fresh construction carries the claims the checker established at
-        // the binding statement. Resolve them before the operand emitter
-        // borrows the caller's claim namespace; the producing operation's
-        // result publishes them below.
-        //
-        // The binding's own multiplicity does not decide whether there are
-        // claims to carry. A transparent affine aggregate contributes no root
-        // claim and holds each contained linear member as an independent
-        // path-indexed claim, so an affine result can own several linear
-        // claims and a linear result owns exactly its whole-root one.
-        // A completed value has its own expression root unless the exact
-        // local initializer receives it. Use the retained value occurrence,
-        // not an assumption that every structural producer is a declaration.
-        let occurrence = checked.facts.values.structural_values.nodes.get(*value);
-        let owner = if result.local.is_named() {
-            facts::PlaceRoot::Symbol(result.local.symbol)
-        } else {
-            facts::PlaceRoot::Expression(occurrence.expression)
-        };
-        let prepared_claims = crate::emission::claim_bindings::prepare_establishment_claims(
-            identities,
-            checked,
-            machine,
-            state,
-            result.statement_index as usize,
-            owner,
-            occurrence.type_reference,
-            lookup_type_id(type_ids, &result.type_identity)?,
-            structural_types,
-        )?;
-        let result_claims = crate::emission::claim_bindings::emit_establishment_claims(
-            &prepared_claims,
-            &mut calls.claims,
-        )?;
-        // The evaluator supplies its current namespaces at the exact operand
-        // occurrence. Recursive construction and calls share normal frame
-        // publication; no stale snapshot or second result home is introduced.
-        let mut emit_operand =
-            |identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-             operand: &CheckedUnitEffectOperationPlan,
-             evaluated: Option<&[ValueDeclaration]>,
-             evaluated_selectors: Option<&[ValueDeclaration]>,
-             byte_places: &[PlaceId],
-             source_value_count: usize,
-             evaluation: &mut argument_evaluation::Evaluation,
-             values: &mut Vec<ValueDeclaration>,
-             next_value: &mut u64,
-             next_block: &mut u64,
-             next_edge: &mut u64,
-             calls: &mut CallEmissionContext<'_>,
-             operations: &mut OperationBuffer,
-             next_place: &mut u64,
-             temporary_places: &mut Vec<StructuralPlaceDeclaration>| {
-                let result =
-                    operand
-                        .structural_result_binding()
-                        .ok_or(LoweringError::Unsupported(
-                            "structural operand preparation has no result",
-                        ))?;
-                results.require_next(result, "structural operand result binding is not dense")?;
-                let frame = OperationFrame {
-                    checked,
-                    machine,
-                    state,
-                    scalar_result,
-                    scalar_parameter_count,
-                    source_value_count,
-                    parameters: evaluation.current_parameters(&parameters),
-                    structural_types: super::StructuralTypeRoster::Published(structural_types),
-                    type_ids,
-                    service_ids,
-                    primitive_locals,
-                    results: match &mut results {
-                        StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
-                        StructuralResults::StateGraph { state, places } => {
-                            StructuralResults::StateGraph { state, places }
-                        }
-                    },
-                    private_places: temporary_places,
-                    windows: &mut *windows,
-                    evaluation,
-                    values,
-                    next_place,
-                    next_value,
-                    next_block,
-                    next_edge,
-                    calls,
-                    operations,
-                    callees,
-                    caller: super::CallerCustody {
-                        erased_scalar_parameters: caller.erased_scalar_parameters,
-                        erased_proof_parameters: caller.erased_proof_parameters,
-                        local_places: caller.local_places,
-                    },
-                };
-                if OperationFrame::lowers(operand) {
-                    frame.emit(identities, operand)?;
-                    return Ok(None);
-                }
-                frame.emit_call(
-                    identities,
-                    operand,
-                    CallInputs {
-                        evaluated_scalar_arguments: evaluated,
-                        byte_places,
-                        evaluated_selectors,
-                    },
-                )?;
-                let place = results.continuation_place(result.binding_ordinal, operations)?;
-                let declaration = match &results {
-                    StructuralResults::Dense(roster) => {
-                        roster.iter().find_map(|(declaration, _)| {
-                            declaration.filter(|declaration| declaration.id == place)
-                        })
-                    }
-                    StructuralResults::StateGraph { places, .. } => places
-                        .iter()
-                        .find(|declaration| declaration.id == place)
-                        .copied(),
-                }
-                .ok_or(LoweringError::Unsupported(
-                    "structural operand result has no declaration",
-                ))?;
-                Ok(Some(declaration))
-            };
-        let direct_establishments = crate::emission::claim_bindings::direct_establishment_claims(
-            &prepared_claims,
-            &calls.claims,
-        )?;
-        let declaration = structural_values::emit(
-            identities,
-            checked,
-            machine,
-            state,
-            operation,
-            structural_types,
-            type_ids,
-            callees.domain_ids,
-            callees.domain_declarations,
-            next_place,
-            private_places,
-            &mut emit_operand,
-            calls,
-            evaluation,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-            result_claims,
-            direct_establishments,
-        )?;
-        results.publish_value_binding(
-            result,
-            declaration,
-            *discard_result_on_return,
-            operations,
-        )?;
-        Ok(())
-    }
-
     /// One ordinary scalar call into a prepared scalar callee or a
     /// scalar-completing Unit body. Structural operands or claims select the
     /// structural scalar call shape.

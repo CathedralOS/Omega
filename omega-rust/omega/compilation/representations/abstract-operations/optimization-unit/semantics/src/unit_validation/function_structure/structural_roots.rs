@@ -444,7 +444,7 @@ pub(crate) fn validate_structural_root_operations(
                     // supplies its incoming permission, never an entry ABI slot.
                     // Availability above and exclusive-transfer replay below
                     // independently establish dominance and live custody.
-                    let preserved = terminal_semantics::scalar_field_store_preserves_qualifications(
+                    let preserved = terminal_semantics::scalar_field_store_preserves_domain_content(
                         structural_types.values().copied(),
                         structural_domains.values().copied(),
                         &unit.identities,

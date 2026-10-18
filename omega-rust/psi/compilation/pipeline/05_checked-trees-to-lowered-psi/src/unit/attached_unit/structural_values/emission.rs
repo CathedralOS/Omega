@@ -3,11 +3,10 @@ use super::super::super::{
     StructuralTypeDeclaration, SuccessorEdge, ValueId, block_id,
 };
 use super::super::{
-    Block, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError,
-    Multiplicity, OperationKind, OperationResult, PlaceId, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    Terminator, ValueDeclaration, allocate_dense, argument_evaluation, edge_id, lookup_type_id,
-    lower_structural_path, obligation_id,
+    Block, CheckedScalarExpressionRole, LoweringError, Multiplicity, OperationKind,
+    OperationResult, PlaceId, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, Terminator, ValueDeclaration,
+    allocate_dense, argument_evaluation, edge_id, lookup_type_id, obligation_id,
     operation_frame::{
         allocate_structural_result, block_parameter_declaration, operation_result_declaration,
         structural_parameter_declaration,
@@ -36,39 +35,33 @@ mod quotient_calls;
 mod reference;
 mod residual_complement;
 
-pub(super) type StructuralOperandEmitter<'a> = dyn FnMut(
-        &mut terminal_psi::TerminalIdentityTableBuilder,
-        &CheckedUnitEffectOperationPlan,
-        Option<&[ValueDeclaration]>,
-        Option<&[ValueDeclaration]>,
-        &[PlaceId],
-        usize,
-        &mut argument_evaluation::Evaluation,
-        &mut Vec<ValueDeclaration>,
-        &mut u64,
-        &mut u64,
-        &mut u64,
-        &mut CallEmissionContext<'_>,
-        &mut OperationBuffer,
-        &mut u64,
-        &mut Vec<StructuralPlaceDeclaration>,
-    ) -> Result<Option<StructuralPlaceDeclaration>, LoweringError>
-    + 'a;
+/// Checked value production is independent of a source local's publication.
+pub(crate) struct ValueProduction<'source> {
+    pub(crate) value: CheckedStructuralValueHandle,
+    pub(crate) owner: facts::PlaceRoot,
+    /// A scalar consumer reserves its receiving home before graph emission.
+    pub(crate) statement: u32,
+    pub(crate) structural_type: StructuralTypeId,
+    pub(crate) multiplicity: Multiplicity,
+    pub(crate) binding_type_reference: checked_trees::types::TypeReferenceHandle,
+    pub(crate) access: StructuralAccess,
+    pub(crate) selection: arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
+    pub(crate) calls: &'source [checked_trees::CheckedStructuralValueCall],
+}
+
+/// A producer returns custody and optional fresh storage. Its consumer alone
+/// publishes its local ordinal or lends the complete binding to its consumer.
+pub(crate) struct CompletedValue {
+    pub(crate) argument: StructuralArgument,
+    pub(crate) binding: crate::emission::operation_emission::buffer::StructuralBinding,
+    pub(crate) declaration: Option<StructuralPlaceDeclaration>,
+}
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn emit(
+pub(crate) fn emit<'source>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    operation: &CheckedUnitEffectOperationPlan,
-    structural_types: &[StructuralTypeDeclaration],
-    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
-    domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
-    domain_declarations: &[terminal_psi::StructuralDomainDeclaration],
-    next_place: &mut u64,
-    temporary_places: &mut Vec<StructuralPlaceDeclaration>,
-    operand_emitter: &mut StructuralOperandEmitter<'_>,
+    production: ValueProduction<'source>,
+    environment: &mut super::super::operation_frame::OperationEnvironment<'source>,
     calls: &mut CallEmissionContext<'_>,
     evaluation: &mut argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
@@ -76,29 +69,51 @@ pub(crate) fn emit(
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
-    result_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
-    direct_establishments: Vec<semantic_vocabulary::ClaimId>,
-) -> Result<Option<StructuralPlaceDeclaration>, LoweringError> {
-    let CheckedUnitEffectOperationPlan::EstablishLocal(
-        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-            result,
-            value,
-            calls: operand_calls,
-            ..
-        },
-    ) = operation
-    else {
-        return unsupported("structural value producer missing");
-    };
-    let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
-    let multiplicity = crate::terminal_identities::structural_multiplicity(result.multiplicity);
+) -> Result<CompletedValue, LoweringError> {
+    let checked = environment.checked;
+    let machine = environment.machine;
+    let state = environment.state;
+    let structural_types = environment.structural_types;
+    let type_ids = environment.type_ids;
+    let domain_ids = environment.callees.domain_ids;
+    let domain_declarations = environment.callees.domain_declarations;
+    let value = &production.value;
+    let operand_calls = production.calls;
+    let structural_type = production.structural_type;
+    let multiplicity = crate::terminal_identities::structural_multiplicity(production.multiplicity);
+    let occurrence = checked.facts.values.structural_values.nodes.get(*value);
+    let prepared_claims = crate::emission::claim_bindings::prepare_establishment_claims(
+        identities,
+        checked,
+        machine,
+        state,
+        production.statement as usize,
+        production.owner,
+        occurrence.type_reference,
+        structural_type,
+        structural_types,
+    )?;
+    let result_claims = crate::emission::claim_bindings::emit_establishment_claims(
+        &prepared_claims,
+        &mut calls.claims,
+    )?;
+    let direct_establishments = crate::emission::claim_bindings::direct_establishment_claims(
+        &prepared_claims,
+        &calls.claims,
+    )?;
     let authored_state = crate::declarations::state_declaration(checked, state)?.1;
-    let sources = checked
-        .facts
-        .flow
-        .ownership
-        .owned_selection_at(state, result.statement_index)
-        .map(|(_, receipt)| {
+    let sources = production
+        .selection
+        .is_valid()
+        .then(|| {
+            checked
+                .facts
+                .flow
+                .ownership
+                .owned_selections
+                .get(production.selection)
+        })
+        .map(|receipt| {
             checked
                 .facts
                 .flow
@@ -195,7 +210,7 @@ pub(crate) fn emit(
             }
             Some(borrowed_view_join_access(
                 &declaration.shape,
-                result.multiplicity,
+                production.multiplicity,
             ))
         })
         .flatten();
@@ -205,8 +220,8 @@ pub(crate) fn emit(
         access
     } else if let Some(access) = view_loan {
         access
-    } else if result.local.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-        && result.multiplicity == Multiplicity::Unrestricted
+    } else if production.access == StructuralAccess::SharedBorrow
+        && production.multiplicity == Multiplicity::Unrestricted
     {
         StructuralAccess::SharedBorrow
     } else {
@@ -225,7 +240,7 @@ pub(crate) fn emit(
             checked,
             machine,
             state,
-            result.statement_index,
+            production.statement,
             structural_types,
             evaluation,
             operations,
@@ -249,27 +264,25 @@ pub(crate) fn emit(
         checked,
         machine,
         state,
-        statement: result.statement_index,
+        statement: production.statement,
         structural_type,
         multiplicity,
         structural_types,
         type_ids,
         domain_ids,
         domain_declarations,
-        binding_type_reference: result.local.declared_type,
+        binding_type_reference: production.binding_type_reference,
         type_reference: structural_values(checked)
             .root_for_expression(
                 state,
-                result.statement_index,
+                production.statement,
                 structural_values(checked).nodes.get(*value).expression,
             )
             .map(|root| root.type_reference)
             .unwrap_or_default(),
-        next_place,
-        temporary_places,
+        environment,
         calls,
         operand_calls,
-        operand_emitter,
         evaluation,
         values,
         next_value,
@@ -320,15 +333,11 @@ pub(crate) fn emit(
         storage_value = *source;
     }
     if emission.sources.is_empty()
-        && multiplicity != StructuralMultiplicity::Unrestricted
-        && !terminal_semantics::is_shared_reference_carrier(
-            structural_types.iter(),
-            structural_type,
-        )
         && let CheckedStructuralValueKind::Projection {
             source,
             path,
             type_identity,
+            copies_selected_value: false,
         } = structural_values(checked)
             .nodes
             .get(storage_value)
@@ -340,7 +349,7 @@ pub(crate) fn emit(
             CheckedStructuralValueKind::Place(_)
         )
     {
-        let projected = emission.projected_root(identities, source, path, type_identity)?;
+        let projected = emission.projection_source(identities, source, path, type_identity)?;
         let alias_path =
             projected.lowered_path(identities, emission.type_ids, emission.structural_types)?;
         // The leaf's claim is published where its root was established: the
@@ -485,13 +494,15 @@ pub(crate) fn emit(
                 multiplicity,
                 claims: selected_claims,
             };
-        emission.evaluation.establish_structural_binding(
-            result,
-            alias,
-            structural_types,
-            emission.operations,
-        )?;
-        return Ok(None);
+        return Ok(CompletedValue {
+            argument: StructuralArgument {
+                place: projected.root,
+                path: alias.path().to_vec(),
+                access: StructuralAccess::Owned,
+            },
+            binding: alias,
+            declaration: None,
+        });
     }
     let place = if emission.sources.is_empty()
         && let Some((source, region, loan)) =
@@ -516,18 +527,22 @@ pub(crate) fn emit(
             loan,
         )?
     } else {
-        let first_new_place = *emission.next_place;
+        let first_new_place = *emission.environment.next_place;
         let source = emission.value(identities, *value, None)?;
         // Image-backed descriptors are established storage, not operation
         // results. Copy the selected unrestricted carrier without copying
         // or taking ownership of its bytes, retaining the operand coordinate.
-        let source = if emission.temporary_places.iter().any(|declaration| {
-            declaration.id == source.place
-                && matches!(
-                    declaration.kind,
-                    StructuralPlaceKind::ByteSequenceLiteral { .. }
-                )
-        }) {
+        let source = if emission
+            .environment
+            .private_places
+            .iter()
+            .any(|declaration| {
+                declaration.id == source.place
+                    && matches!(
+                        declaration.kind,
+                        StructuralPlaceKind::ByteSequenceLiteral { .. }
+                    )
+            }) {
             let place = emission.copied_leaf_place(
                 identities,
                 &StructuralArgument {
@@ -573,10 +588,11 @@ pub(crate) fn emit(
     // own call result, so it claims no temporary row and yields no declaration
     // for the caller to republish.
     let declaration = emission
-        .temporary_places
+        .environment
+        .private_places
         .iter()
         .position(|item| item.id == place)
-        .map(|position| emission.temporary_places.remove(position));
+        .map(|position| emission.environment.private_places.remove(position));
     let published_declaration = emission.published_places.iter().find(|row| row.id == place);
     let completed_declaration =
         declaration
@@ -608,13 +624,11 @@ pub(crate) fn emit(
         emission.evaluation.structural_root_parameters(),
         arrival_claims,
     )?;
-    emission.evaluation.establish_structural_binding(
-        result,
-        completed.into(),
-        structural_types,
-        emission.operations,
-    )?;
-    Ok(declaration)
+    Ok(CompletedValue {
+        argument: StructuralArgument::whole(place, emission.result_access),
+        binding: completed.into(),
+        declaration,
+    })
 }
 
 /// Loan access a borrowed-view join may publish for this carrier.
@@ -1014,11 +1028,9 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     pub(super) domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
     type_reference: checked_trees::types::TypeReferenceHandle,
     binding_type_reference: checked_trees::types::TypeReferenceHandle,
-    pub(super) next_place: &'b mut u64,
-    pub(super) temporary_places: &'b mut Vec<StructuralPlaceDeclaration>,
+    pub(super) environment: &'b mut super::super::operation_frame::OperationEnvironment<'a>,
     pub(super) calls: &'b mut CallEmissionContext<'calls>,
     pub(super) operand_calls: &'a [checked_trees::CheckedStructuralValueCall],
-    pub(super) operand_emitter: &'b mut StructuralOperandEmitter<'a>,
     pub(super) evaluation: &'b mut argument_evaluation::Evaluation,
     pub(super) values: &'b mut Vec<ValueDeclaration>,
     pub(super) next_value: &'b mut u64,
@@ -1058,11 +1070,10 @@ pub(super) struct ValueContinuation {
     has_incoming_memberships: bool,
 }
 
-/// One projected affine child moved on a selected edge. The root place keeps
-/// its once-evaluated owner, `path` is the exact checked field/fixed-index
-/// projection, and the two identities let the edge argument carry the moved
-/// leaf type while `residual_complement` derives the root's untouched subtrees.
-pub(super) struct ProjectedMove {
+/// The completed source and exact projection, before its consumer chooses
+/// copying or transfer. Root and leaf identities stay distinct; only an owned
+/// transfer asks the continuation to dispose a residual complement.
+pub(super) struct ProjectionSource {
     pub(super) root: PlaceId,
     /// The already lowered walk from `root`'s storage to the checked source
     /// the projection reads. It is empty unless that source is itself a
@@ -1074,7 +1085,7 @@ pub(super) struct ProjectedMove {
     pub(super) root_source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
 }
 
-impl ProjectedMove {
+impl ProjectionSource {
     /// The complete walk from `root`'s storage to the projected leaf.
     fn lowered_path(
         &self,
@@ -1182,10 +1193,10 @@ impl Emission<'_, '_, '_> {
                         statement,
                         self.structural_types,
                         self.values,
-                        self.next_place,
+                        self.environment.next_place,
                         self.next_value,
                         self.operations,
-                        self.temporary_places,
+                        self.environment.private_places,
                     )?;
                     continue;
                 }
@@ -1223,6 +1234,7 @@ impl Emission<'_, '_, '_> {
                         self.next_edge,
                         self.operations,
                         self.calls,
+                        self.environment,
                     )?;
                     staged_values[operation].push(self.values.len());
                     self.values.push(value);
@@ -1251,6 +1263,7 @@ impl Emission<'_, '_, '_> {
                         self.next_edge,
                         self.operations,
                         self.calls,
+                        self.environment,
                     )?;
                     staged_selectors[operation].push(self.values.len());
                     self.values.push(value);
@@ -1277,6 +1290,7 @@ impl Emission<'_, '_, '_> {
                         self.next_edge,
                         self.operations,
                         self.calls,
+                        self.environment,
                     )?;
                     continue;
                 }
@@ -1300,18 +1314,19 @@ impl Emission<'_, '_, '_> {
                         self.evaluation,
                         count,
                         self.values,
-                        self.temporary_places,
-                        self.next_place,
                         self.next_value,
                         self.next_block,
                         self.next_edge,
                         self.operations,
                         self.calls,
+                        self.environment,
                     )?;
                     staged_ranges[operation].push((ordinal, place));
                     continue;
                 }
-                Step::Produce(index) | Step::Call(index) if source_count.is_some() => (index, true),
+                Step::Operation(index) | Step::Call(index) if source_count.is_some() => {
+                    (index, true)
+                }
                 Step::Ordinary(index) if source_count.is_none() => (index, false),
                 _ => return unsupported("structural operand argument schedule is unbalanced"),
             };
@@ -1344,6 +1359,7 @@ impl Emission<'_, '_, '_> {
                     self.next_edge,
                     self.operations,
                     self.calls,
+                    self.environment,
                 )?
             } else {
                 None
@@ -1365,7 +1381,7 @@ impl Emission<'_, '_, '_> {
                 &mut 0,
                 &staged_ranges[index],
             )?;
-            let declaration = (self.operand_emitter)(
+            let declaration = self.environment.emit_operand(
                 identities,
                 operation,
                 evaluated.as_deref(),
@@ -1379,58 +1395,30 @@ impl Emission<'_, '_, '_> {
                 self.next_edge,
                 self.calls,
                 self.operations,
-                self.next_place,
-                self.temporary_places,
             )?;
             if index + 1 == planned.len() {
                 completed = declaration;
             }
         }
         for completion in call.completions().iter() {
-            let CheckedUnitEffectOperationPlan::ReleaseReference {
-                source:
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    },
-                path,
-                ..
-            } = completion
-            else {
-                return unsupported("call completion is not a descriptor release");
-            };
-            if !path.is_empty() {
-                return unsupported("call completion does not name a whole descriptor");
-            }
-            let mut bindings = self
-                .operations
-                .structural_values
-                .iter()
-                .filter(|(ordinal, _)| ordinal == binding_ordinal);
-            let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
-                "call completion has no produced descriptor",
-            ))?;
-            if bindings.next().is_some() || !binding.path().is_empty() {
-                return unsupported("call completion has no unique whole descriptor");
-            }
-            let place = self.evaluation.current_structural_place(binding.place());
-            let action = self
-                .evaluation
-                .descriptor_retirement(place, self.operations)?;
-            self.evaluation.continue_cleanup_regions(
+            // Completion is an ordinary checked operation stream. In
+            // particular, nominal backing cleanup follows descriptor release
+            // through the same frame that emitted the operand preparations.
+            self.environment.emit_operand(
                 identities,
-                self.checked,
-                vec![crate::unit::unit_cleanup::CleanupRegion {
-                    selected_region: None,
-                    conditions: Vec::new(),
-                    action,
-                }],
+                completion,
+                None,
+                None,
+                &[],
+                source_count.unwrap_or(self.values.len()),
+                self.evaluation,
                 self.values,
                 self.next_value,
                 self.next_block,
                 self.next_edge,
+                self.calls,
                 self.operations,
             )?;
-            self.evaluation.retire_structural_home(place);
         }
         let completed = completed.ok_or(LoweringError::Unsupported(
             "structural operand call did not publish its result",
@@ -1440,7 +1428,6 @@ impl Emission<'_, '_, '_> {
         // an operation result; selected leaves publish one completed arrival.
         // Retain that exact home and custody instead of choosing a leaf or
         // reconstructing the producer from the receiving local.
-        let node = structural_values(self.checked).nodes.get(call.value);
         let result =
             call.operation()
                 .structural_result_binding()
@@ -1466,21 +1453,9 @@ impl Emission<'_, '_, '_> {
             self.evaluation.structural_root_parameters(),
             binding.claims(),
         )?;
-        let structural_type = result.structural_type;
         // Enclosing value completion must see the call's authenticated claim
         // frontier even when its storage is the dispatch continuation.
         self.arrival_claims.push((completed.id, result.claims));
-        crate::expression_preparation::bindings::retain_completed_structural_homes(
-            &mut self.evaluation.structural_locals,
-            &[
-                crate::expression_preparation::bindings::StructuralLocalBinding {
-                    result_binding_ordinal: None,
-                    root: facts::PlaceRoot::Expression(node.expression),
-                    argument: StructuralArgument::whole(completed.id, StructuralAccess::Owned),
-                    structural_type,
-                },
-            ],
-        )?;
         self.published_places.push(completed);
         Ok(completed)
     }
@@ -1536,7 +1511,7 @@ impl Emission<'_, '_, '_> {
         value: CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
     ) -> Result<super::operand_claims::CompletedOperand, LoweringError> {
-        let first_new_place = *self.next_place;
+        let first_new_place = *self.environment.next_place;
         let first_new_operation = self.operations.next_identity;
         let node = self.structural_value_node(value);
         // A projection of existing storage moves its child in place; the
@@ -1547,6 +1522,7 @@ impl Emission<'_, '_, '_> {
             source,
             path,
             type_identity,
+            copies_selected_value: false,
         } = node.kind
             && !path.is_empty()
             && matches!(
@@ -1554,7 +1530,7 @@ impl Emission<'_, '_, '_> {
                 CheckedStructuralValueKind::Place(_)
             )
         {
-            let projected = self.projected_root(identities, source, path, type_identity)?;
+            let projected = self.projection_source(identities, source, path, type_identity)?;
             let lowered =
                 projected.lowered_path(identities, self.type_ids, self.structural_types)?;
             return self.capture_operand(
@@ -1669,7 +1645,7 @@ impl Emission<'_, '_, '_> {
                     self.calls.machine_ids,
                     selected.symbol,
                 )?;
-                let place = place_id(allocate_dense(self.next_place)?);
+                let place = place_id(allocate_dense(self.environment.next_place)?);
                 let operation = self.operations.allocate();
                 self.operations.push(terminal_psi::Operation {
                     id: operation,
@@ -1683,13 +1659,15 @@ impl Emission<'_, '_, '_> {
                         ),
                     kind: OperationKind::EstablishNativeCodeLayout { machine },
                 });
-                self.temporary_places.push(StructuralPlaceDeclaration {
-                    id: place,
-                    kind: StructuralPlaceKind::OperationResult {
-                        producer: operation,
-                        structural_type: self.structural_type,
-                    },
-                });
+                self.environment
+                    .private_places
+                    .push(StructuralPlaceDeclaration {
+                        id: place,
+                        kind: StructuralPlaceKind::OperationResult {
+                            producer: operation,
+                            structural_type: self.structural_type,
+                        },
+                    });
                 self.completed(identities, place, continuation)
             }
 
@@ -1723,7 +1701,7 @@ impl Emission<'_, '_, '_> {
                         "quotient adaptation requires a whole custody-free copy value",
                     );
                 }
-                let place = place_id(allocate_dense(self.next_place)?);
+                let place = place_id(allocate_dense(self.environment.next_place)?);
                 let declaration = crate::emission::quotient_values::emit_adaptation(
                     value,
                     completed.argument.place,
@@ -1732,7 +1710,7 @@ impl Emission<'_, '_, '_> {
                     self.structural_type,
                     self.operations,
                 );
-                self.temporary_places.push(declaration);
+                self.environment.private_places.push(declaration);
                 self.completed(identities, place, continuation)
             }
             // A borrowed `&[T]` view lowers to `EstablishElementView` and a
@@ -1811,6 +1789,7 @@ impl Emission<'_, '_, '_> {
                 source,
                 path,
                 type_identity,
+                copies_selected_value,
             } => {
                 // A whole-value projection has no residual complement or new
                 // storage. Evaluate its retained producer at this DAG position,
@@ -1842,39 +1821,54 @@ impl Emission<'_, '_, '_> {
                 // Copy permission belongs to the selected value, independently
                 // of its parent's multiplicity. Shared descriptors copy their
                 // carrier while preserving the same backing obligations.
-                if self.multiplicity == StructuralMultiplicity::Unrestricted
-                    || terminal_semantics::is_shared_reference_carrier(
-                        self.structural_types.iter(),
-                        self.structural_type,
-                    )
-                {
-                    let mut argument = if let CheckedStructuralValueKind::CopiedStructuralPlace {
-                        source: copied,
-                        ..
-                    } =
-                        &structural_values(self.checked).nodes.get(source).kind
-                    {
-                        // Copied provenance already names storage; copying its
-                        // enclosing carrier would observe unselected siblings.
-                        self.copied_place_argument(
-                            identities,
-                            structural_values(self.checked).nodes.get(source).expression,
-                            copied,
-                        )?
-                    } else {
-                        self.value(identities, source, None)?
+                if copies_selected_value {
+                    let projected =
+                        self.projection_source(identities, source, path, type_identity)?;
+                    let source_plan = checked_trees::CheckedUnitStructuralArgumentPlan {
+                        source: projected.root_source.clone(),
+                        type_identity,
+                        path: projected.path.clone(),
+                        access: checked_trees::CheckedStructuralAccess::SharedBorrow,
                     };
-                    argument
-                        .path
-                        .extend(lower_structural_path(identities, &path)?);
+                    let mut prepared = projected.root_path.iter().cloned().map(
+                        crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
+                    ).collect::<Vec<_>>();
+                    prepared.extend(
+                        crate::expression_preparation::bindings::structural_paths::prepare_observation_path(
+                            identities, self.checked, &projected.path,
+                            lookup_type_id(self.type_ids, &projected.root_type_identity)?,
+                            projected.root_type_identity, type_identity,
+                            StructuralAccess::SharedBorrow, self.structural_types,
+                        )?,
+                    );
+                    let mut selectors = self
+                        .capture_projection_selectors(identities, node.expression, &source_plan)?
+                        .into_iter();
+                    let root = self.evaluation.current_structural_place(projected.root);
+                    let path =
+                        crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
+                            &prepared, root, Some(self.values.as_slice()), &mut selectors,
+                            Some(&mut *self.calls),
+                            Some((&mut *self.next_value, &mut *self.operations)),
+                        )?;
+                    let argument = StructuralArgument {
+                        place: root,
+                        path,
+                        access: StructuralAccess::SharedBorrow,
+                    };
                     let place = self.copied_leaf_place(
                         identities,
                         &argument,
                         node.qualification_decisions,
-                        continuation,
+                        None,
                     )?;
+                    self.complete_observation(identities, node.expression)?;
+                    let result_place = continuation
+                        .as_ref()
+                        .map_or(place, |continuation| continuation.place);
+                    self.completed(identities, place, continuation)?;
                     return Ok(StructuralArgument {
-                        place,
+                        place: result_place,
                         path: Vec::new(),
                         access: StructuralAccess::Owned,
                     });
@@ -1892,7 +1886,7 @@ impl Emission<'_, '_, '_> {
                     owned_continuation = self.root_value_continuation(self.values.clone())?;
                     &mut owned_continuation
                 };
-                let projected = self.projected_root(identities, source, path, type_identity)?;
+                let projected = self.projection_source(identities, source, path, type_identity)?;
                 if matches!(
                     structural_values(self.checked).nodes.get(source).kind,
                     CheckedStructuralValueKind::Place(_)
@@ -1962,7 +1956,7 @@ impl Emission<'_, '_, '_> {
                 });
                 let (place, operation) = allocate_structural_result(
                     self.operations,
-                    self.next_place,
+                    self.environment.next_place,
                     self.structural_type,
                     self.multiplicity,
                     Vec::new(),
@@ -1977,11 +1971,13 @@ impl Emission<'_, '_, '_> {
                         ],
                     },
                 )?;
-                self.temporary_places.push(operation_result_declaration(
-                    place,
-                    operation,
-                    self.structural_type,
-                ));
+                self.environment
+                    .private_places
+                    .push(operation_result_declaration(
+                        place,
+                        operation,
+                        self.structural_type,
+                    ));
                 self.complete_construction(
                     identities,
                     place,
@@ -2004,14 +2000,14 @@ impl Emission<'_, '_, '_> {
                     &mut self.calls.next_obligation_identity,
                 )?;
                 let (place, declaration) = super::super::primitive_locals::push_established_local(
-                    self.next_place,
+                    self.environment.next_place,
                     self.operations,
                     initialized.id,
                     self.structural_type,
                     self.structural_types,
                     obligation,
                 )?;
-                self.temporary_places.push(declaration);
+                self.environment.private_places.push(declaration);
                 self.completed(identities, place, continuation)
             }
             CheckedStructuralValueKind::ScalarArray { elements } => {
@@ -2041,17 +2037,19 @@ impl Emission<'_, '_, '_> {
                 self.values.truncate(source_count);
                 let (place, operation) = allocate_structural_result(
                     self.operations,
-                    self.next_place,
+                    self.environment.next_place,
                     self.structural_type,
                     self.multiplicity,
                     Vec::new(),
                     OperationKind::EstablishScalarArray { elements: leaves },
                 )?;
-                self.temporary_places.push(operation_result_declaration(
-                    place,
-                    operation,
-                    self.structural_type,
-                ));
+                self.environment
+                    .private_places
+                    .push(operation_result_declaration(
+                        place,
+                        operation,
+                        self.structural_type,
+                    ));
                 self.complete_construction(
                     identities,
                     place,
@@ -2072,8 +2070,8 @@ impl Emission<'_, '_, '_> {
                         self.structural_type,
                         qualifications,
                         self.structural_types,
-                        self.temporary_places,
-                        self.next_place,
+                        self.environment.private_places,
+                        self.environment.next_place,
                         self.next_value,
                         &mut self.calls.next_obligation_identity,
                         self.operations,
@@ -2121,9 +2119,9 @@ impl Emission<'_, '_, '_> {
                             self.domain_ids, domain, self.structural_type,
                         )
                     ).collect::<Result<Vec<_>, _>>()?;
-                    let (declaration, _) = crate::emission::structural_byte_sequence_store::emit_owned_literal(identities, bytes, self.structural_type, qualifications, self.structural_types, self.temporary_places, self.next_place, self.next_value, &mut self.calls.next_obligation_identity, self.operations)?;
+                    let (declaration, _) = crate::emission::structural_byte_sequence_store::emit_owned_literal(identities, bytes, self.structural_type, qualifications, self.structural_types, self.environment.private_places, self.environment.next_place, self.next_value, &mut self.calls.next_obligation_identity, self.operations)?;
                     let place = declaration.id;
-                    self.temporary_places.push(declaration);
+                    self.environment.private_places.push(declaration);
                     self.completed(identities, place, continuation)?;
                     return Ok(StructuralArgument { place, path: Vec::new(), access: StructuralAccess::Owned });
                 }
@@ -2210,7 +2208,7 @@ impl Emission<'_, '_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "structural case lost its authored constructor",
                 ))?;
-                let place = place_id(allocate_dense(self.next_place)?);
+                let place = place_id(allocate_dense(self.environment.next_place)?);
                 let slot = crate::scalar_lowering::computations::cases::reserve(
                     identities,
                     self.checked,
@@ -2255,7 +2253,7 @@ impl Emission<'_, '_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "structural case result declaration missing",
                 ))?;
-                self.temporary_places.push(declaration);
+                self.environment.private_places.push(declaration);
                 self.values.truncate(field_start);
                 self.completed(identities, place, continuation)
             }
@@ -2312,7 +2310,7 @@ impl Emission<'_, '_, '_> {
             .capture_operand(identities, source.clone(), node.expression, first_new_place)?
             .claims;
         let block = block_id(allocate_dense(self.next_block)?);
-        let place = place_id(allocate_dense(self.next_place)?);
+        let place = place_id(allocate_dense(self.environment.next_place)?);
         if self.multiplicity == StructuralMultiplicity::Affine {
             // The return frontier orders operation results before block owners.
             // Transport surviving affine locals together so a moved result and
@@ -2332,11 +2330,12 @@ impl Emission<'_, '_, '_> {
         let mut pass_through = Vec::new();
         let mut structural_parameters = Vec::new();
         for owner in &mut remaining_owners {
-            let target = place_id(allocate_dense(self.next_place)?);
+            let target = place_id(allocate_dense(self.environment.next_place)?);
             let position = u32::try_from(structural_parameters.len()).map_err(|_| {
                 LoweringError::Unsupported("owned move parameter count exceeds u32")
             })?;
-            self.temporary_places
+            self.environment
+                .private_places
                 .push(block_parameter_declaration(target, block, position));
             structural_parameters.push(self.transported_parameter(
                 &StructuralArgument {
@@ -2357,10 +2356,12 @@ impl Emission<'_, '_, '_> {
         structural_parameters
             .push(self.value_binding_parameter(identities, &source, place, position)?);
         let parameters = fresh_value_declarations(self.next_value, self.values)?;
-        self.temporary_places.push(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::BlockParameter { block, position },
-        });
+        self.environment
+            .private_places
+            .push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::BlockParameter { block, position },
+            });
         let mut continuation = ValueContinuation {
             block,
             parameters,
@@ -2397,6 +2398,8 @@ impl Emission<'_, '_, '_> {
                     argument.place = *target;
                 }
             }
+            self.operations
+                .transport_computed_values(&continuation.pass_through);
             self.evaluation.structural_value_owners = continuation.remaining_owners;
             self.evaluation
                 .selection_cleanups
@@ -2425,9 +2428,10 @@ impl Emission<'_, '_, '_> {
     /// every arm of a borrowed selection.
     fn direct_borrow(&mut self, argument: StructuralArgument) -> Result<PlaceId, LoweringError> {
         let join = block_id(allocate_dense(self.next_block)?);
-        let place = place_id(allocate_dense(self.next_place)?);
+        let place = place_id(allocate_dense(self.environment.next_place)?);
         let position = 0u32;
-        self.temporary_places
+        self.environment
+            .private_places
             .push(block_parameter_declaration(place, join, position));
         let structural_parameters = vec![structural_parameter_declaration(
             place,
@@ -2510,7 +2514,7 @@ impl Emission<'_, '_, '_> {
         }
         qualifications.sort();
         qualifications.dedup();
-        let place = place_id(allocate_dense(self.next_place)?);
+        let place = place_id(allocate_dense(self.environment.next_place)?);
         let operation = self.operations.allocate();
         self.operations.push(terminal_psi::Operation {
             static_reach_binding: None,
@@ -2530,11 +2534,13 @@ impl Emission<'_, '_, '_> {
                 path,
             },
         });
-        self.temporary_places.push(operation_result_declaration(
-            place,
-            operation,
-            self.structural_type,
-        ));
+        self.environment
+            .private_places
+            .push(operation_result_declaration(
+                place,
+                operation,
+                self.structural_type,
+            ));
         let Some(continuation) = continuation else {
             // At the value root the fresh place publishes directly — the copy
             // consumes nothing, so there is no custody edge to join.
@@ -2576,6 +2582,7 @@ impl Emission<'_, '_, '_> {
             self.next_edge,
             self.operations,
             self.calls,
+            self.environment,
         )?;
         Ok(value)
     }
@@ -2782,7 +2789,7 @@ impl Emission<'_, '_, '_> {
             let position = u32::try_from(position).map_err(|_| {
                 LoweringError::Unsupported("owned selection parameter count exceeds u32")
             })?;
-            let place = place_id(allocate_dense(self.next_place)?);
+            let place = place_id(allocate_dense(self.environment.next_place)?);
             if let Some(owner) = owner {
                 if self.source_at(owner.value.place).is_some() {
                     owner.symbol = symbols::SymbolHandle::invalid();
@@ -2792,7 +2799,8 @@ impl Emission<'_, '_, '_> {
                 }
                 owner.value.place = place;
             }
-            self.temporary_places
+            self.environment
+                .private_places
                 .push(block_parameter_declaration(place, join, position));
             structural_parameters.push(structural_parameter_declaration(
                 place,
@@ -2859,6 +2867,8 @@ impl Emission<'_, '_, '_> {
                 pass_through: continuation.pass_through.clone(),
                 next_operation: self.operations.next_identity,
             });
+        self.operations
+            .transport_computed_values(&continuation.pass_through);
         self.evaluation.structural_value_owners = continuation.remaining_owners.clone();
         self.evaluation.structural_locals.retain(
             |crate::expression_preparation::bindings::StructuralLocalBinding {

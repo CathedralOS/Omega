@@ -30,12 +30,11 @@ mod operation_types;
 mod place_types;
 pub(super) use operation_types::collect_operation_type_roots;
 
-/// Root the leaf type identity of every structural argument plan reachable
-/// inside a structural value tree: member/fixed-index leaf reads mint the
-/// projected leaf's own identity (`slice(named(u8))` for a `&'a [u8]`
-/// member), which no signature root names, while emission resolves that
-/// identity against the unit catalog. A reference's computed backing also
-/// roots its complete storage type, independently of the projected referent.
+/// Retain the declarations used while evaluating a structural value tree.
+/// A selected leaf and its completed source own distinct storage: the source
+/// declaration survives even when only the copied leaf occurs in a signature.
+/// A reference's computed backing likewise roots its complete storage type,
+/// independently of the projected referent.
 /// Scalar and Unit entrances consume this same inventory.
 pub(crate) fn collect_value_roots(
     checked: &CheckedTrees,
@@ -82,22 +81,14 @@ pub(crate) fn collect_value_roots(
             ..
         } => {
             roots.push(*type_identity);
-            // A copied projection emits a leaf copy through the existing
-            // referent. Its source node is provenance, not a materialized
-            // reference carrier; the signature or local already owns the
-            // backing type. Owned projections still materialize their root.
-            if !matches!(
-                checked
-                    .facts
-                    .values
-                    .structural_values
-                    .nodes
-                    .get(*source)
-                    .kind,
-                checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
-            ) {
-                collect_value_roots(checked, *source, roots)?;
-            }
+            let source_node = checked.facts.values.structural_values.nodes.get(*source);
+            roots.push(validation::stored_structural_type_identity(
+                &checked.typed,
+                source_node.type_reference,
+                &[],
+                &[],
+            ));
+            collect_value_roots(checked, *source, roots)?;
         }
         checked_trees::CheckedStructuralValueKind::Record { fields, .. }
         | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
@@ -1924,17 +1915,6 @@ pub(super) fn lower_provider_candidate_service_ceiling(
         return unsupported("checked provider adapter reach contains duplicates");
     }
     Ok(lowered)
-}
-
-pub(crate) fn checked_unit_target_reach_matches(
-    call: ServiceReachSummary,
-    target_contract: ServiceReachPlan,
-) -> bool {
-    let expected = match target_contract.interface {
-        ServiceReachInterface::PublishedCeiling(row) => row,
-        ServiceReachInterface::InternalInferred => target_contract.checked_inferred,
-    };
-    call.transitive == expected
 }
 
 pub(crate) fn collect_service_summary(

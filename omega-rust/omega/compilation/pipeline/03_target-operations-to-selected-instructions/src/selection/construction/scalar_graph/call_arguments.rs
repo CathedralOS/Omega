@@ -60,38 +60,15 @@ pub(super) fn marshal(
                 placement,
             } => (*value, placement),
         };
-        let (_, input, site, scalar_type) = builder.resolve(value).ok_or_else(&invalid)?;
-        if crate::selection::scalar_call_abi::scalar_shape(scalar_type) != Some(placement.shape) {
-            return Err(invalid());
+        if let Some(output) = scalar_argument(
+            operation.operation.into(),
+            argument_index,
+            value,
+            placement,
+            builder,
+        )? {
+            operands.push((argument_index, output));
         }
-        if super::scalar_stack::argument(builder, operation, argument_index, value, placement)? {
-            continue;
-        }
-        let output = if let Some((kind, key)) =
-            crate::selection::scalar_call_abi::outgoing_float_transfer(
-                scalar_type,
-                &builder.constraints.keys,
-            ) {
-            let output = builder.register(value, site, scalar_type)?;
-            builder.registers[output.0 as usize].class = row(builder.catalog, key)?
-                .operands
-                .get(1)
-                .ok_or_else(&invalid)?
-                .class;
-            builder.emit(
-                kind,
-                key,
-                &[input, output],
-                SelectedInstructionProvenance {
-                    values: vec![value],
-                    ..Default::default()
-                },
-            )?;
-            output
-        } else {
-            builder.copy(input, value, site, scalar_type)?
-        };
-        operands.push((argument_index, output));
     }
     // Only a register-placed argument yields operands, and the register order
     // names every such argument.
@@ -111,6 +88,56 @@ pub(super) fn marshal(
                 .map(|(_, register)| *register)
         })
         .collect())
+}
+
+/// Scalar transport is identical at an ordinary operation and a completion
+/// edge. Stack slots retain that occurrence instead of inventing an operation.
+pub(super) fn scalar_argument(
+    invocation_site: semantic_vocabulary::BoundaryInvocationSite,
+    argument_index: usize,
+    value: semantic_vocabulary::ValueId,
+    placement: &calling_conventions::ValuePlacement,
+    builder: &mut Builder<'_>,
+) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
+    let invalid = SelectedInstructionError::custody;
+    let (_, input, site, scalar_type) = builder.resolve(value).ok_or_else(invalid)?;
+    if crate::selection::scalar_call_abi::scalar_shape(scalar_type) != Some(placement.shape) {
+        return Err(invalid());
+    }
+    if super::scalar_stack::invocation_argument(
+        builder,
+        invocation_site,
+        argument_index,
+        value,
+        placement,
+    )? {
+        return Ok(None);
+    }
+    let output = if let Some((kind, key)) =
+        crate::selection::scalar_call_abi::outgoing_float_transfer(
+            scalar_type,
+            &builder.constraints.keys,
+        ) {
+        let output = builder.register(value, site, scalar_type)?;
+        builder.registers[output.0 as usize].class = row(builder.catalog, key)?
+            .operands
+            .get(1)
+            .ok_or_else(invalid)?
+            .class;
+        builder.emit(
+            kind,
+            key,
+            &[input, output],
+            SelectedInstructionProvenance {
+                values: vec![value],
+                ..Default::default()
+            },
+        )?;
+        output
+    } else {
+        builder.copy(input, value, site, scalar_type)?
+    };
+    Ok(Some(output))
 }
 
 /// Transport a validated structural actual independently of the call mechanism.

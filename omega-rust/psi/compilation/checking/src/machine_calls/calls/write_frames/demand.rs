@@ -251,7 +251,7 @@ impl<'program> CallFrameResolver<'program> {
             &self.tables.symbols,
             &mut FrameInference::default(),
         )
-        .map(super::stored_calls::public_effects)
+        .and_then(super::stored_calls::public_effects)
     }
 
     /// Complete normal-exit reference-slot relation, reconstructed from the
@@ -269,8 +269,23 @@ impl<'program> CallFrameResolver<'program> {
         {
             return Some(Vec::new());
         }
+        let (_, _, _, transfer) = self.statement_reference_transfer(machine, statement)?;
+        if !transfer.is_complete() {
+            return None;
+        }
+        super::stored_calls::public_effects(transfer.effects)
+    }
+
+    /// Failures belong to actual invocations, not a target-wide classification.
+    /// A symbolic relation remains unavailable to concrete effect consumers,
+    /// while later concrete calls still retain their own failed obligations.
+    pub fn stored_reference_call_failures(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+    ) -> Option<Vec<super::stored_calls::StoredReferenceCallFailure>> {
         self.statement_reference_transfer(machine, statement)
-            .map(|(_, _, _, effects)| super::stored_calls::public_effects(effects))
+            .map(|(_, _, _, transfer)| transfer.incomplete_calls)
     }
 
     /// A reachable opaque output slot needs a complete normal-exit relation,
@@ -291,9 +306,12 @@ impl<'program> CallFrameResolver<'program> {
         statement: &StatementNode,
         binding_is_stable: impl Fn(SymbolHandle, &[facts::PlaceSegment]) -> bool,
     ) -> Option<Vec<LocalWriteOrigin>> {
-        let (state, index, mut prefix, effects) =
+        let (state, index, mut prefix, transfer) =
             self.statement_reference_transfer(machine, statement)?;
-        super::stored_calls::apply(self.program, &mut prefix.stored, &effects);
+        if !transfer.is_complete() {
+            return None;
+        }
+        super::stored_calls::apply(self.program, &mut prefix.stored, &transfer.effects);
         let mut origins = super::caller_aliases::prefix_reference_origins(
             self.program,
             Some((state, index)),
@@ -335,7 +353,7 @@ impl<'program> CallFrameResolver<'program> {
         &State,
         usize,
         CollectedStatementPrefix,
-        Vec<super::stored_calls::SlotEffect>,
+        super::stored_calls::SlotRelationTransfer,
     )> {
         let (state, _, index) = super::caller_aliases::caller_statement_at_site(
             self.program,

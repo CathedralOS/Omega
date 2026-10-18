@@ -56,12 +56,14 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
 pub(crate) struct AcceptedRowBinding<'binding> {
     pub(crate) accepted: &'binding package_compilation::AcceptedSemanticBinding,
     pub(crate) declaration_symbol: Option<SymbolHandle>,
+    pub(crate) public_plan: Option<&'binding ProviderPlan>,
 }
 
 impl<'binding> AcceptedRowBinding<'binding> {
     fn resolved(binding: &'binding crate::ResolvedAcceptedSemanticBinding) -> Self {
         Self {
             accepted: binding.accepted(),
+            public_plan: None,
             declaration_symbol: Some(binding.declaration_symbol()),
         }
     }
@@ -420,14 +422,17 @@ impl HostedIntrinsicRow {
         let consumed = accepted.is_some_and(|binding| {
             self.service.accepted_binding_matches(
                 checked,
-                plan,
+                binding.public_plan.unwrap_or(plan),
                 trait_symbol,
                 requirement_symbol,
                 realization_symbol,
                 binding.accepted,
             ) && binding
-                .declaration_symbol
-                .is_none_or(|symbol| symbol == trait_symbol)
+                .public_plan
+                .is_none_or(|public| public.schema == plan.schema && public.target == plan.target)
+                && binding
+                    .declaration_symbol
+                    .is_none_or(|symbol| symbol == trait_symbol)
         });
         if !bundled && !consumed {
             return Ok(false);
@@ -576,6 +581,7 @@ pub(crate) fn accepted_binding_matches_exit_process_row(
     trait_symbol: SymbolHandle,
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
+    checked_external_completion: bool,
     binding: &package_compilation::AcceptedSemanticBinding,
 ) -> Result<bool, Diagnostic> {
     if !service.accepted_binding_matches(
@@ -589,6 +595,23 @@ pub(crate) fn accepted_binding_matches_exit_process_row(
         return Ok(false);
     }
     let hosted = service.exit_process_row();
+    if matches!(
+        row.binding,
+        effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+    ) {
+        // The exact selected public plan consumes the binding. Its checked
+        // completion is not an intrinsic identity for this adapter.
+        return Ok(checked_external_completion
+            && matches!(
+                checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
+                    checked,
+                    requirement_symbol
+                ),
+                semantic_vocabulary::BoundaryCompletion::External(
+                    semantic_vocabulary::ExternalCompletionKind::ProcessExit
+                )
+            ));
+    }
     boundary_row_shape(
         checked,
         plan,

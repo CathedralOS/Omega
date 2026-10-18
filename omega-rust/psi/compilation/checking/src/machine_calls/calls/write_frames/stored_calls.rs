@@ -59,10 +59,11 @@ pub struct StoredReferenceSource {
 pub(super) struct SlotEffect {
     root: SymbolHandle,
     segments: Vec<PlaceSegment>,
-    sources: Vec<SlotSource>,
+    /// None retains unknown contents; Some([]) is not an unknown write.
+    sources: Option<Vec<SlotSource>>,
     incoming: bool,
     may_select: bool,
-    access: language_semantics::ReferenceAccess,
+    kind: stored_origins::StoredOriginKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,29 +82,110 @@ struct SlotInventory {
     ancestors: Vec<Vec<PlaceSegment>>,
 }
 
-pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Vec<StoredReferenceEffect> {
+/// A failed invocation remains an obligation even if a later call overwrites
+/// every affected slot. Declaration dependence is recorded separately.
+#[derive(Clone)]
+pub struct StoredReferenceCallFailure {
+    pub target: SymbolHandle,
+    pub requires_relation: bool,
+}
+
+#[derive(Clone, Default)]
+pub(super) struct SlotRelationTransfer {
+    pub effects: Vec<SlotEffect>,
+    pub template_dependent: bool,
+    pub incomplete_calls: Vec<StoredReferenceCallFailure>,
+}
+
+impl SlotRelationTransfer {
+    pub fn complete(effects: Vec<SlotEffect>) -> Self {
+        Self {
+            effects,
+            ..Self::default()
+        }
+    }
+
+    pub fn is_complete(&self) -> bool {
+        !self.template_dependent && self.incomplete_calls.is_empty()
+    }
+
+    /// Unknown reach cannot preserve any possibly aliased incoming origin.
+    /// Preserve typed opaque regions as opaque, never invent reference access.
+    pub fn unknown(
+        context: &CollectedStatementPrefix,
+        target: SymbolHandle,
+        template_dependent: bool,
+        requires_relation: bool,
+    ) -> Self {
+        let mut effects = Vec::new();
+        for record in &context.stored {
+            for leaf in &record.references {
+                if effects.iter().any(|prior: &SlotEffect| {
+                    prior.root == record.local_symbol
+                        && prior.segments == leaf.local_segments
+                        && prior.kind == leaf.kind
+                        && prior.may_select == leaf.may_select
+                }) {
+                    continue;
+                }
+                effects.push(SlotEffect {
+                    root: record.local_symbol,
+                    segments: leaf.local_segments.clone(),
+                    sources: None,
+                    incoming: false,
+                    may_select: leaf.may_select,
+                    kind: leaf.kind,
+                });
+            }
+        }
+        Self {
+            effects,
+            template_dependent,
+            incomplete_calls: if template_dependent {
+                Vec::new()
+            } else {
+                vec![StoredReferenceCallFailure {
+                    target,
+                    requires_relation,
+                }]
+            },
+        }
+    }
+}
+
+struct DestinationInventory {
+    slots: Vec<SlotInventory>,
+    template_dependent: bool,
+}
+
+pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Option<Vec<StoredReferenceEffect>> {
     effects
         .into_iter()
-        .map(|effect| StoredReferenceEffect {
-            destination: LocalWriteOrigin {
-                local_symbol: effect.root,
-                local_segments: effect.segments,
-                source: None,
-            },
-            sources: effect
-                .sources
-                .into_iter()
-                .filter(|source| !source.origin.source.is_static())
-                .map(|source| StoredReferenceSource {
-                    lifetime_access: source.lifetime_access,
-                    carrier_symbol: source.carrier.root,
-                    carrier_segments: source.carrier.segments,
-                    backing: LocalWriteSource::from(source.origin),
-                })
-                .collect(),
-            retains_incoming: effect.incoming,
-            may_select: effect.may_select,
-            access: effect.access,
+        .map(|effect| {
+            let stored_origins::StoredOriginKind::Reference(access) = effect.kind else {
+                return None;
+            };
+            Some(StoredReferenceEffect {
+                destination: LocalWriteOrigin {
+                    local_symbol: effect.root,
+                    local_segments: effect.segments,
+                    source: None,
+                },
+                sources: effect
+                    .sources?
+                    .into_iter()
+                    .filter(|source| !source.origin.source.is_static())
+                    .map(|source| StoredReferenceSource {
+                        lifetime_access: source.lifetime_access,
+                        carrier_symbol: source.carrier.root,
+                        carrier_segments: source.carrier.segments,
+                        backing: LocalWriteSource::from(source.origin),
+                    })
+                    .collect(),
+                retains_incoming: effect.incoming,
+                may_select: effect.may_select,
+                access,
+            })
         })
         .collect()
 }
@@ -116,7 +198,7 @@ pub(super) fn call_effects(
     context: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-) -> Option<Vec<SlotEffect>> {
+) -> Option<SlotRelationTransfer> {
     invocation_effects(
         program,
         machine,
@@ -140,7 +222,7 @@ fn invocation_effects(
     context: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-) -> Option<Vec<SlotEffect>> {
+) -> Option<SlotRelationTransfer> {
     let Some((callee, state)) = super::machine_state_by_symbol(program, target) else {
         if let Some((definition, signature)) =
             crate::selected_requirement_signature(program, target)
@@ -158,7 +240,7 @@ fn invocation_effects(
         return arguments
             .iter()
             .all(|argument| !lends_exclusive_storage(program, machine, caller_state, *argument))
-            .then(Vec::new);
+            .then(|| SlotRelationTransfer::complete(Vec::new()));
     };
     let parameters = program.state_parameters(state);
     if (parameters.len() != arguments.len())
@@ -181,12 +263,13 @@ fn invocation_effects(
         return None;
     }
     if destination_inventory(program, state)?.is_empty() {
-        return Some(Vec::new());
+        return Some(SlotRelationTransfer::complete(Vec::new()));
     }
     let relative = state_effects(program, callee, state, symbols, inference)?;
     instantiate(
         program, machine, parameters, arguments, &relative, context, symbols, inference,
     )
+    .map(SlotRelationTransfer::complete)
 }
 
 fn lends_exclusive_storage(
@@ -212,7 +295,8 @@ fn destination_inventory(
     program: &dyn crate::CheckingInput,
     state: &State,
 ) -> Option<Vec<SlotInventory>> {
-    parameter_destination_inventory(program, program.state_parameters(state))
+    let inventory = parameter_destination_inventory(program, program.state_parameters(state))?;
+    (!inventory.template_dependent).then_some(inventory.slots)
 }
 
 /// Opaque calls with possible reference outputs require a complete call-site
@@ -240,14 +324,16 @@ pub(super) fn provider_output_relation_required(
     } else {
         return false;
     };
-    parameter_destination_inventory(program, parameters).is_none_or(|slots| !slots.is_empty())
+    parameter_destination_inventory(program, parameters)
+        .is_none_or(|inventory| inventory.template_dependent || !inventory.slots.is_empty())
 }
 
 fn parameter_destination_inventory(
     program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
-) -> Option<Vec<SlotInventory>> {
+) -> Option<DestinationInventory> {
     let mut leaves = Vec::new();
+    let mut template_dependent = false;
     for parameter in parameters {
         let shell = crate::reference_shell(program, parameter.type_reference);
         if shell.is_some_and(|shell| !shell.access.is_exclusive()) {
@@ -288,6 +374,13 @@ fn parameter_destination_inventory(
                     let leaf_type = program
                         .type_reference_table
                         .unconstrained_type_reference(leaf_type);
+                    if matches!(program.type_reference_table.type_reference(leaf_type),
+                        typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                        if program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter)
+                    {
+                        template_dependent = true;
+                        continue;
+                    }
                     let (definition, _) = super::type_instantiation::DeclarationScopes::default()
                         .definition(program, leaf_type, 0)?;
                     if definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque
@@ -330,7 +423,10 @@ fn parameter_destination_inventory(
             }
         }
     }
-    Some(leaves)
+    Some(DestinationInventory {
+        slots: leaves,
+        template_dependent,
+    })
 }
 
 /// Both source-call effects and portable boundary publication require the
@@ -340,11 +436,9 @@ pub(crate) fn provider_completion_covers_writable_slots(
     program: &dyn crate::CheckingInput,
     parameters: &[StateParameter],
     outputs: &[crate::borrow_contracts::ProviderOutput],
-) -> bool {
-    let Some(inventory) = parameter_destination_inventory(program, parameters) else {
-        return false;
-    };
-    inventory.iter().all(|slot| {
+) -> Option<crate::borrow_contracts::BorrowRelationReadiness> {
+    let inventory = parameter_destination_inventory(program, parameters)?;
+    if !inventory.slots.iter().all(|slot| {
         outputs.iter().any(|output| {
             let crate::borrow_contracts::ProviderOutputDestination::Parameter(position) =
                 output.destination
@@ -358,6 +452,13 @@ pub(crate) fn provider_completion_covers_writable_slots(
                     == Some(&slot.origin.local_segments)
                 && output.access == slot.access
         })
+    }) {
+        return None;
+    }
+    Some(if inventory.template_dependent {
+        crate::borrow_contracts::BorrowRelationReadiness::TemplateDependent
+    } else {
+        crate::borrow_contracts::BorrowRelationReadiness::Complete
     })
 }
 
@@ -653,16 +754,17 @@ fn solve_state_effects<'program>(
                         && prior.segments == effect.segments
                         && prior.may_select == effect.may_select
                 }) {
-                    if prior.access != effect.access {
+                    if prior.kind != effect.kind {
                         return None;
                     }
                     if effect.incoming && !prior.incoming {
                         prior.incoming = true;
                         changed = true;
                     }
-                    for source in effect.sources {
-                        if !prior.sources.contains(&source) {
-                            prior.sources.push(source);
+                    let prior_sources = prior.sources.as_mut()?;
+                    for source in effect.sources? {
+                        if !prior_sources.contains(&source) {
+                            prior_sources.push(source);
                             changed = true;
                         }
                     }
@@ -783,19 +885,20 @@ fn collect_exit(
                 effects.push(SlotEffect {
                     root: slot.local_symbol,
                     segments: slot.local_segments.clone(),
-                    sources: Vec::new(),
+                    sources: Some(Vec::new()),
                     incoming: slot.may_select,
                     may_select: slot.may_select,
-                    access: declaration.access,
+                    kind: stored_origins::StoredOriginKind::Reference(declaration.access),
                 });
                 effects.last_mut()?
             };
-            if effect.access != declaration.access {
+            if effect.kind != stored_origins::StoredOriginKind::Reference(declaration.access) {
                 return None;
             }
             effect.incoming |= incoming;
-            if !incoming && !effect.sources.contains(&supplied) {
-                effect.sources.push(supplied);
+            let sources = effect.sources.as_mut()?;
+            if !incoming && !sources.contains(&supplied) {
+                sources.push(supplied);
             }
         }
     }
@@ -876,12 +979,12 @@ fn instantiate(
     for effect in relative {
         // An identity row proves preservation; it has no store to instantiate.
         // In particular, a wildcard default is not an executable selector.
-        if effect.incoming && effect.sources.is_empty() {
+        if effect.incoming && effect.sources.as_ref()?.is_empty() {
             continue;
         }
         let destination = substitute(effect.root, &effect.segments, inference)?;
         let mut sources = Vec::new();
-        for supplied in &effect.sources {
+        for supplied in effect.sources.as_ref()? {
             let source = &supplied.origin;
             if !source.source.is_static() {
                 let index = typed_trees::signature::state_parameter_position(
@@ -979,10 +1082,10 @@ fn instantiate(
         output.push(SlotEffect {
             root: destination.root,
             segments: destination.segments,
-            sources,
+            sources: Some(sources),
             incoming: effect.incoming,
             may_select: effect.may_select,
-            access: effect.access,
+            kind: effect.kind,
         });
     }
     Some(output)
@@ -1268,16 +1371,41 @@ pub(super) fn apply(
                 stored.len() - 1
             });
         let record = &mut stored[index];
-        if effect.may_select && !effect.sources.is_empty() {
-            for leaf in &mut record.references {
-                if leaf.local_segments.len() > effect.segments.len()
-                    && stored_origins::path_covers(&effect.segments, &leaf.local_segments)
+        let invalidates_descendants = effect.may_select
+            && effect
+                .sources
+                .as_ref()
+                .is_none_or(|sources| !sources.is_empty());
+        if effect.sources.is_none() || invalidates_descendants {
+            // Exact overlays cannot hide an unknown covering region, including
+            // an equal-depth wildcard. Keep each known debt, beside a separate
+            // incomplete row at every already-materialized covered coordinate.
+            let mut unresolved = Vec::new();
+            for leaf in &record.references {
+                if stored_origins::path_covers(&effect.segments, &leaf.local_segments)
+                    && (effect.sources.is_none()
+                        || leaf.local_segments.len() > effect.segments.len())
                 {
-                    // A descendant snapshot assumes its incoming pointer.
-                    // A weak replacement invalidates that correspondence too.
-                    leaf.origin = None;
+                    let mut unknown = leaf.clone();
+                    unknown.origin = None;
+                    unknown.lifetime_dependencies.clear();
+                    if !record
+                        .references
+                        .iter()
+                        .chain(unresolved.iter())
+                        .any(|prior| {
+                            prior.local_segments == unknown.local_segments
+                                && prior.kind == unknown.kind
+                                && prior.may_select == unknown.may_select
+                                && prior.origin.is_none()
+                                && prior.lifetime_dependencies.is_empty()
+                        })
+                    {
+                        unresolved.push(unknown);
+                    }
                 }
             }
+            record.references.extend(unresolved);
         }
         // Materialize the old concrete slot before installing an overlay on
         // a conditional write. Keeping only its wildcard default would let
@@ -1287,13 +1415,20 @@ pub(super) fn apply(
         } else {
             Some(Vec::new())
         };
-        let incoming_unknown = incoming.is_none();
+        let incoming_unknown = incoming.is_none() || effect.sources.is_none();
         // Installing a pointer changes the storage reached beneath it. Old
         // pointee-slot snapshots cannot outlive that replacement, even when
         // another normal route preserves the pointer's incoming contents.
         record.references.retain(|leaf| {
-            effect.may_select
-                || (!((!effect.incoming || !effect.sources.is_empty())
+            // Unknown contents authorize poisoning, not replacing a typed row.
+            // A later complete definite overwrite may retire these snapshots.
+            effect.sources.is_none()
+                || effect.may_select
+                || (!((!effect.incoming
+                    || effect
+                        .sources
+                        .as_ref()
+                        .is_none_or(|sources| !sources.is_empty()))
                     && leaf.local_segments.len() > effect.segments.len()
                     && leaf.local_segments.starts_with(&effect.segments))
                     && (effect.incoming || leaf.local_segments != effect.segments))
@@ -1301,7 +1436,7 @@ pub(super) fn apply(
         let sources: Vec<_> = incoming
             .into_iter()
             .flatten()
-            .chain(effect.sources.iter().cloned())
+            .chain(effect.sources.iter().flatten().cloned())
             .collect();
         let lifetime_dependencies: Vec<_> = sources
             .iter()
@@ -1311,12 +1446,17 @@ pub(super) fn apply(
         let origins = sources
             .iter()
             .filter(|source| !source.lifetime_access.is_some())
-            .map(|source| Some(source.origin.clone()))
-            .chain(incoming_unknown.then_some(None))
-            .chain((!lifetime_dependencies.is_empty()).then_some(None));
-        for origin in origins {
+            .map(|source| (Some(source.origin.clone()), lifetime_dependencies.clone()))
+            .chain(
+                (!lifetime_dependencies.is_empty())
+                    .then_some((None, lifetime_dependencies.clone())),
+            )
+            // A partial debt roster is not a complete opaque dependency answer.
+            .chain(incoming_unknown.then_some((None, Vec::new())));
+        for (origin, lifetime_dependencies) in origins {
             if record.references.iter().any(|leaf| {
                 leaf.local_segments == effect.segments
+                    && leaf.kind == effect.kind
                     && leaf.origin == origin
                     && leaf.may_select == effect.may_select
                     && leaf.lifetime_dependencies == lifetime_dependencies
@@ -1325,7 +1465,7 @@ pub(super) fn apply(
             }
             record.references.push(StoredWriteOrigin {
                 lifetime_dependencies: lifetime_dependencies.clone(),
-                kind: super::stored_origins::StoredOriginKind::Reference(effect.access),
+                kind: effect.kind,
                 local_symbol: effect.root,
                 local_path: path(
                     program,
@@ -1339,6 +1479,14 @@ pub(super) fn apply(
                 local_segments: effect.segments.clone(),
                 may_select: effect.may_select,
                 origin,
+            });
+        }
+        if effect.kind == stored_origins::StoredOriginKind::OpaqueRegion {
+            record
+                .cases
+                .retain(|path| !stored_origins::path_covers(&effect.segments, path));
+            record.moves.retain(|moved| {
+                !stored_origins::path_covers(&effect.segments, &moved.local_segments)
             });
         }
         record.symbolic = false;

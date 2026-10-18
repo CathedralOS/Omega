@@ -968,17 +968,10 @@ pub fn structural_source(
     // a whole-content transfer classifier is not a storage-read judgment.
     // The owner's claims remain live: observing one scalar neither transfers
     // the owner nor proves that its disposal obligation has been discharged.
-    // A completed reference result owns a descriptor home. Validate the
-    // selected record through its declared readable crossings while retaining
-    // the descriptor type so observation emits those crossings explicitly.
-    let record_carrier = readable_projection_carrier(program, carrier, &mut Vec::new())?;
-    let record = program
-        .closed_data_definition(crate::peel_declared_constraints(program, record_carrier))?;
-    if !record.symbol.is_valid()
-        || program.symbols.get(record.symbol).kind != symbols::SymbolKind::Data
-    {
-        return None;
-    }
+    // Acquire the complete source, not the first record encountered beneath
+    // it. The projection walk validates each declared field, readable reference
+    // crossing and builtin element coordinate at that segment's own carrier.
+    // Requiring a record here loses array owners before that walk can begin.
     Some(StructuralSource {
         root,
         receiver_value,

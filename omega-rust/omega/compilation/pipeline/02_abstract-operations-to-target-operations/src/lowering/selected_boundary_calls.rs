@@ -4,14 +4,14 @@
 use crate::LoweringError;
 use abstract_operations::{AbstractBoundaryResult, AbstractOperation, AbstractOperationPlan};
 use installation_evidence::InstalledProviderCallEvidence;
-use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+use semantic_vocabulary::{BoundaryInvocationSite, BoundaryMachineId, MachineId};
 use std::collections::BTreeMap;
 use target_operations::NativeCallOrigin;
 use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
 
 pub(crate) struct SelectedBoundaryCall {
     pub caller: MachineId,
-    pub psi_operation: OperationId,
+    pub invocation_site: BoundaryInvocationSite,
     pub boundary: BoundaryMachineId,
     pub callee: MachineId,
     pub result: AbstractBoundaryResult,
@@ -19,28 +19,47 @@ pub(crate) struct SelectedBoundaryCall {
 }
 
 pub(crate) type SelectedCallsByCall =
-    BTreeMap<(MachineId, OperationId, BoundaryMachineId), SelectedBoundaryCall>;
+    BTreeMap<(MachineId, BoundaryInvocationSite, BoundaryMachineId), SelectedBoundaryCall>;
 
 pub(crate) fn index(
     plan: &AbstractOperationPlan,
-    installed: BTreeMap<(MachineId, OperationId, BoundaryMachineId), InstalledProviderCallEvidence>,
+    installed: BTreeMap<
+        (MachineId, BoundaryInvocationSite, BoundaryMachineId),
+        InstalledProviderCallEvidence,
+    >,
     input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 ) -> Result<SelectedCallsByCall, LoweringError> {
     let mut selected = SelectedCallsByCall::new();
     for function in &plan.functions {
         for operation in &function.operations {
-            let AbstractOperation::BoundaryCall {
-                psi_operation,
-                boundary,
-                result,
-                completion_claim_sources,
-                completion_receipts,
-                ..
-            } = operation
-            else {
-                continue;
-            };
-            let key = (function.machine, *psi_operation, *boundary);
+            let (invocation_site, boundary, result, completion_claim_sources, completion_receipts) =
+                match operation {
+                    AbstractOperation::BoundaryCall {
+                        psi_operation,
+                        boundary,
+                        result,
+                        completion_claim_sources,
+                        completion_receipts,
+                        ..
+                    } => (
+                        (*psi_operation).into(),
+                        boundary,
+                        result,
+                        completion_claim_sources.as_slice(),
+                        completion_receipts.as_slice(),
+                    ),
+                    AbstractOperation::ExternalCompletion {
+                        psi_edge, boundary, ..
+                    } => (
+                        BoundaryInvocationSite::ExternalCompletion(*psi_edge),
+                        boundary,
+                        &AbstractBoundaryResult::Unit,
+                        &[][..],
+                        &[][..],
+                    ),
+                    _ => continue,
+                };
+            let key = (function.machine, invocation_site, *boundary);
             let invalid = || LoweringError::SelectedBoundaryCallEvidenceMismatch {
                 machine: key.0,
                 operation: key.1,
@@ -77,8 +96,8 @@ pub(crate) fn index(
                         boundary: *boundary,
                         entry: entry.entry(),
                         source_signature: entry.source_signature(),
-                        completion_claim_sources: completion_claim_sources.clone(),
-                        completion_receipts: completion_receipts.clone(),
+                        completion_claim_sources: completion_claim_sources.to_vec(),
+                        completion_receipts: completion_receipts.to_vec(),
                     },
                 )
             } else {
@@ -90,8 +109,8 @@ pub(crate) fn index(
                             boundary: *boundary,
                             provider: call.provider.clone(),
                             assumption: call.assumption.clone(),
-                            completion_claim_sources: completion_claim_sources.clone(),
-                            completion_receipts: completion_receipts.clone(),
+                            completion_claim_sources: completion_claim_sources.to_vec(),
+                            completion_receipts: completion_receipts.to_vec(),
                         },
                     ),
                     (None, Some(family)) => {
@@ -128,8 +147,8 @@ pub(crate) fn index(
                                 boundary: *boundary,
                                 member: callee,
                                 target: selections.target().to_owned(),
-                                completion_claim_sources: completion_claim_sources.clone(),
-                                completion_receipts: completion_receipts.clone(),
+                                completion_claim_sources: completion_claim_sources.to_vec(),
+                                completion_receipts: completion_receipts.to_vec(),
                             },
                         )
                     }
@@ -141,7 +160,7 @@ pub(crate) fn index(
                     key,
                     SelectedBoundaryCall {
                         caller: key.0,
-                        psi_operation: key.1,
+                        invocation_site: key.1,
                         boundary: key.2,
                         callee,
                         result: result.clone(),

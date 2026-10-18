@@ -34,41 +34,6 @@ pub(crate) enum StructuralCopySelector {
 }
 
 impl ScalarBindings {
-    /// Resolve a readable copy operand through the same published local/formal
-    /// namespace as a loan. Its relative path selects contents; it never gives
-    /// ownership of the original place to the copy's consumer.
-    pub(crate) fn copied_place_source(
-        &self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        checked: &checked_trees::CheckedTrees,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-        parameters: &[checked_trees::signature::StateParameter],
-        types: &[StructuralTypeDeclaration],
-        mut capture: impl FnMut(
-            &mut terminal_psi::TerminalIdentityTableBuilder,
-            StructuralCopySelector,
-        ) -> Result<LoweredDirectExpression, LoweringError>,
-    ) -> Result<PreparedStructuralCopy, LoweringError> {
-        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
-            return unsupported("copied value requires readable source custody");
-        }
-        let source = self.borrowed_structural_home(argument, parameters)?;
-        let root_type =
-            self.structural_argument_type(&source)
-                .ok_or(LoweringError::Unsupported(
-                    "copied value lost its exact source carrier",
-                ))?;
-        let mut path = source
-            .path
-            .into_iter()
-            .map(structural_paths::PreparedStructuralPathSegment::Static)
-            .collect::<Vec<_>>();
-        path.extend(structural_paths::prepare_structural_argument_path(
-            identities, checked, argument, root_type, types,
-        )?);
-        self.structural_copy_source(identities, source.place, &path, types, &mut capture)
-    }
-
     /// Bind selector reads now, but evaluate them only at the copy's scheduled
     /// operand position. Authored scalar coordinates and emitted SSA positions
     /// are distinct; all runtime selectors use the ordinary binding resolver.

@@ -695,13 +695,24 @@ impl TerminalExecution<'_> {
                     .is_some_and(|domain| {
                         domain.content_projection.is_none()
                             && domain.establishment_routes.is_empty()
-                            && domain.predicate.as_ref().is_some_and(|predicate| {
-                                terminal_semantics::domain_predicate_is_closed(
+                            && match &domain.predicate {
+                                Some(predicate) => terminal_semantics::domain_predicate_is_closed(
                                     self.program.structural_types().values(),
                                     domain.carrier,
                                     predicate,
-                                )
-                            })
+                                ),
+                                None => {
+                                    terminal_semantics::byte_predicate_carrier(
+                                        self.program.structural_types().values(),
+                                        domain.carrier,
+                                    ) && terminal_semantics::byte_qualification_predicates_in(
+                                        self.program.catalogs.structural_domains.iter(),
+                                        domain.carrier,
+                                        &[identity],
+                                    )
+                                    .is_some()
+                                }
+                            }
                     })
             };
             for domain in whole {

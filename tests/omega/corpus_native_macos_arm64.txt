@@ -1105,6 +1105,7 @@ pass/domains/utf8_field_write_from_param built 5023ms exit:0 @51cd9b31baf0
 pass/domains/vacuous_domain_qualification checked 203ms
 pass/domains/view_field_literal_store_reads_exit built 1100ms exit:70 @1c0bb7bc95d0
 pass/domains/write_domain_store checked 9253ms @5041ef1af684+wt
+pass/drops/borrowed_temporary_normal_completion_exit built 5226ms exit:0 @c3f6e1b1295c+wt
 pass/drops/case_subject_root_cleanup checked 9520ms @5041ef1af684+wt
 pass/drops/cleanup_machine_drop_shape checked 749ms @9beb2be72f2d+wt
 pass/drops/conditional_return_cleanup checked 9778ms @5041ef1af684+wt
@@ -1121,6 +1122,7 @@ pass/drops/drop_hook_body checked 9729ms @5041ef1af684+wt
 pass/drops/drop_owner_hooks checked 9664ms @5041ef1af684+wt
 pass/drops/drop_requires_hook checked 9614ms @5041ef1af684+wt
 pass/drops/erased_record_initializer_exit built 2783ms exit:70 @9beb2be72f2d+wt
+pass/drops/owned_qualified_contextual_cleanup_exit built 6817ms exit:70 @960d94935ad7+wt
 pass/drops/projected_case_subject_root_cleanup_exit built 4118ms exit:0 stdout:match @e06e59f77bec+wt
 pass/drops/reference_rebinding_preserves_pointee_exit built 2447ms exit:0 @c1d3bd9711c2+wt
 pass/drops/result_cleanup_implicit_boolean_exit built 3935ms exit:0 @76ea4b8c7c50
@@ -1998,6 +2000,7 @@ pass/providers/runtime_boundary_linear_borrowed_argument_exit built 4951ms exit:
 pass/providers/runtime_boundary_linear_result_exit built 4902ms exit:70 @20ad71d6e3a6+wt
 pass/providers/runtime_boundary_owned_array_cycle_exit built 1029ms exit:70 @cba4afbf6f2f+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit built 901ms exit:70
+pass/providers/runtime_checked_completion_forwarding_exit built 4632ms exit:70 @ad4def8456dc+wt
 pass/providers/runtime_closed_provider_and_assumed_chain_exit built 6823ms exit:0 @8bcf9d86d52e
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit built 15681ms exit:70 @7e6c0ae564d2+wt
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit built 15074ms exit:70 @7e6c0ae564d2+wt
@@ -2500,6 +2503,7 @@ pass/traits/runtime_generic_exact_application_exit built 1627ms exit:0 @b5a9b4a9
 pass/traits/runtime_inherited_trait_default_exit built 3776ms exit:70 @7e0a5e1d48d2+wt
 pass/traits/runtime_named_implementation_selection_exit built 1238ms exit:70 @65c3b89f46f4+wt
 pass/traits/runtime_qualified_byte_crash_equality_exit built 724ms exit:70 @8bd51016873be5f442446f3e2fff2f682806bca6
+pass/traits/runtime_qualified_owned_requirement_calls_exit built 4416ms exit:0 interpreter-exit:0 interpreter:agrees @3b92de23fee5+wt
 pass/traits/runtime_trait_default_requirement_scope_exit built 3688ms exit:70 @7e0a5e1d48d2+wt
 pass/traits/satisfies_bound_trait_parameter_exit built 7255ms exit:0 @7795541dfbb7+wt
 pass/traits/trait_generic_bound_static_dispatch built 1207ms exit:1 @bed5f45e9185+wt

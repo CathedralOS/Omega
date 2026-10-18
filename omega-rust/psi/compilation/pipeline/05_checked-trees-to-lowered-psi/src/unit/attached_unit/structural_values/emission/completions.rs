@@ -4,11 +4,61 @@
 
 use super::super::super::super::{StructuralAccess, StructuralArgument};
 use super::super::super::{LoweringError, PlaceId, lookup_type_id, unsupported};
-use super::{Emission, ProjectedMove, ValueContinuation};
+use super::{Emission, ProjectionSource, ValueContinuation};
 use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 
 impl Emission<'_, '_, '_> {
+    /// End the exact checked owners after the observation completes, before
+    /// handing its result to the value continuation. Scalar observations use
+    /// the same action roster, including nominal hooks on backing owners.
+    pub(super) fn complete_observation(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Result<(), LoweringError> {
+        let control = &self
+            .checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .cleanup_control;
+        let Some(completion) =
+            control.value_completion(self.machine, self.state, self.statement, expression)
+        else {
+            return Ok(());
+        };
+        let actions = crate::unit::unit_cleanup::expression_cleanup_regions(
+            identities,
+            self.checked,
+            control.actions.span_or_empty(completion.actions),
+            &self.evaluation.structural_locals,
+            |place| self.evaluation.carrier_multiplicity(place, self.operations),
+            self.calls,
+        )?;
+        let mut retired = Vec::new();
+        for action in &actions {
+            let place = action.action.place();
+            if !retired.contains(&place) {
+                retired.push(place);
+            }
+        }
+        self.evaluation.continue_cleanup_regions(
+            identities,
+            self.checked,
+            actions,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+        )?;
+        for place in retired {
+            self.evaluation.retire_structural_home(place);
+        }
+        Ok(())
+    }
+
     /// Completes `place` against `continuation` when one is armed and hands
     /// the place back — the tail every already-built structural value shares.
     pub(super) fn completed(
@@ -36,7 +86,7 @@ impl Emission<'_, '_, '_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         selected: StructuralArgument,
-        projection: Option<&ProjectedMove>,
+        projection: Option<&ProjectionSource>,
         continuation: &mut ValueContinuation,
     ) -> Result<(), LoweringError> {
         // The join binds owner slots positionally, so arguments are built

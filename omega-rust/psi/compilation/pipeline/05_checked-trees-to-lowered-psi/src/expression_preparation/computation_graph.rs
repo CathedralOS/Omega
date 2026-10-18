@@ -60,7 +60,8 @@ pub(crate) fn borrowed_arguments_from_roots<'checked>(
                 .facts
                 .values
                 .structural_values
-                .calls_for_root(value)
+                .call_schedule(value)
+                .map(|(_, calls)| calls)
                 .unwrap_or(&[])
             {
                 for operation in call
@@ -247,7 +248,8 @@ fn value_calls(
                 .facts
                 .values
                 .structural_values
-                .calls_for_root(value)
+                .call_schedule(value)
+                .map(|(_, calls)| calls)
                 .unwrap_or(&[]),
         );
     }
@@ -429,7 +431,11 @@ pub(crate) fn structural_dependencies(
         // the result node misses reference formations nested inside an operand,
         // so reservation and address demand would disagree with evaluation.
         // This catalogs dependencies; it never runs an operand or selector.
-        for call in plans.calls_for_root(value).unwrap_or(&[]) {
+        for call in plans
+            .call_schedule(value)
+            .map(|(_, calls)| calls)
+            .unwrap_or(&[])
+        {
             for operation in call
                 .operands()
                 .iter()

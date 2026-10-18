@@ -123,7 +123,6 @@ pub(super) struct MachineEmission<'a> {
     staged_arguments: Vec<Vec<usize>>,
     staged_subslices: Vec<Vec<(usize, PlaceId)>>,
     staged_selectors: Vec<Vec<usize>>,
-    subslice_places: Vec<StructuralPlaceDeclaration>,
     retained_scalar_prefix: Option<usize>,
     scalar_calls: CallEmissionContext<'a>,
 }
@@ -313,7 +312,6 @@ pub(super) fn emit(
         plan.machine,
         &[plan.machine],
         structural_types,
-        &mut next_place,
     )?;
     evaluation.literals = crate::scalar_lowering::computations::literals::prepare(
         identities,
@@ -334,7 +332,6 @@ pub(super) fn emit(
         checked,
         &[plan.machine],
         structural_types,
-        &mut next_place,
     )?;
     evaluation.observations = crate::scalar_lowering::computations::observations::prepare(
         checked,
@@ -385,7 +382,6 @@ pub(super) fn emit(
     primitive_locals::register_mut_formal_storage_homes(&mut evaluation, &parameter_storage)?;
     let staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
     let staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
-    let subslice_places = Vec::new();
     let retained_scalar_prefix = None;
     let cleanup_receivers = machine_signatures
         .iter()
@@ -428,7 +424,6 @@ pub(super) fn emit(
         staged_arguments,
         staged_subslices,
         staged_selectors: vec![Vec::new(); plan.operations.len()],
-        subslice_places,
         retained_scalar_prefix,
         scalar_calls: CallEmissionContext {
             terminal_machine,
@@ -468,12 +463,11 @@ pub(super) fn emit(
         mut evaluation,
         mut scalar_result_values,
         primitive_local_places,
-        structural_result_places,
+        mut structural_result_places,
         local_places,
         mut private_places,
         next_literal_argument,
-        subslice_places,
-        borrowed_windows,
+        mut borrowed_windows,
         mut scalar_calls,
         ..
     } = emission;
@@ -609,20 +603,62 @@ pub(super) fn emit(
                 &evaluation,
                 &operations,
             )?;
-            let source = evaluation.scalar_control_result(
-                identities,
-                checked,
-                plan.machine,
-                plan.state,
-                control,
-                &cleanups,
-                &mut scalar_result_values,
-                &mut next_value_identity,
-                &mut next_block,
-                &mut next_edge,
-                &mut operations,
-                &mut scalar_calls,
-            )?;
+            let source = {
+                let (mut environment, emission) = OperationFrame {
+                    checked,
+                    machine: plan.machine,
+                    state: plan.state,
+                    scalar_result: plan.scalar_result.as_ref(),
+                    scalar_parameter_count,
+                    source_value_count: scalar_result_values.len(),
+                    parameters: evaluation.current_parameters(parameters),
+                    structural_types: StructuralTypeRoster::Published(structural_types),
+                    type_ids,
+                    service_ids,
+                    primitive_locals: &primitive_local_places,
+                    results: StructuralResults::Dense(&mut structural_result_places),
+                    private_places: &mut private_places,
+                    windows: &mut borrowed_windows,
+                    next_place: &mut next_place,
+                    evaluation: &mut evaluation,
+                    values: &mut scalar_result_values,
+                    next_value: &mut next_value_identity,
+                    next_block: &mut next_block,
+                    next_edge: &mut next_edge,
+                    calls: &mut scalar_calls,
+                    operations: &mut operations,
+                    callees: Callees {
+                        plans,
+                        signatures: machine_signatures,
+                        boundaries: lowered_boundary_parameters,
+                        domain_ids,
+                        domain_declarations,
+                        closure,
+                    },
+                    caller: CallerCustody {
+                        erased_scalar_parameters: &signature.erased_scalar_parameters,
+                        erased_proof_parameters: &signature.erased_proof_parameters,
+                        local_places: &local_places,
+                    },
+                }
+                .split();
+                emission.evaluation.scalar_control_result(
+                    identities,
+                    checked,
+                    plan.machine,
+                    plan.state,
+                    control,
+                    &cleanups,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?;
+            borrowed_windows.require_closed()?;
             next_call_obligation = scalar_calls.next_obligation_identity;
             let declaration = ValueDeclaration {
                 qualifications: super::parameters::unit_scalar_result_type(
@@ -1064,7 +1100,6 @@ pub(super) fn emit(
         .chain(local_places.iter().copied())
         .chain(primitive_local_places.iter().map(|local| local.declaration))
         .chain(private_places.iter().copied())
-        .chain(subslice_places.iter().copied())
         .chain(
             structural_result_homes
                 .iter()
@@ -1492,21 +1527,25 @@ impl MachineEmission<'_> {
                 if self.staged_arguments[operation].len() != ordinal {
                     return unsupported("staged scalar argument ordinals are not dense");
                 }
-                let value = self.evaluation.argument_at(
-                    identities,
-                    checked,
-                    plan.machine,
-                    plan.state,
-                    &plan.operations[operation],
-                    ordinal,
-                    source_value_count,
-                    &mut self.scalar_result_values,
-                    &mut self.next_value_identity,
-                    &mut self.next_block,
-                    &mut self.next_edge,
-                    &mut self.operations,
-                    &mut self.scalar_calls,
-                )?;
+                let value = {
+                    let (mut environment, emission) = self.frame(source_value_count).split();
+                    emission.evaluation.argument_at(
+                        identities,
+                        checked,
+                        plan.machine,
+                        plan.state,
+                        &plan.operations[operation],
+                        ordinal,
+                        source_value_count,
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                }?;
                 self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                 self.staged_arguments[operation].push(self.scalar_result_values.len());
                 self.scalar_result_values.push(value);
@@ -1522,22 +1561,26 @@ impl MachineEmission<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "selector staging has no source prefix",
                         ))?;
-                let value = self.evaluation.call_selector(
-                    identities,
-                    checked,
-                    plan.machine,
-                    plan.state,
-                    &plan.operations[operation],
-                    argument,
-                    segment,
-                    source_value_count,
-                    &mut self.scalar_result_values,
-                    &mut self.next_value_identity,
-                    &mut self.next_block,
-                    &mut self.next_edge,
-                    &mut self.operations,
-                    &mut self.scalar_calls,
-                )?;
+                let value = {
+                    let (mut environment, emission) = self.frame(source_value_count).split();
+                    emission.evaluation.call_selector(
+                        identities,
+                        checked,
+                        plan.machine,
+                        plan.state,
+                        &plan.operations[operation],
+                        argument,
+                        segment,
+                        source_value_count,
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                }?;
                 self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                 self.staged_selectors[operation].push(self.scalar_result_values.len());
                 self.scalar_result_values.push(value);
@@ -1552,21 +1595,25 @@ impl MachineEmission<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "endpoint staging has no source prefix",
                         ))?;
-                self.evaluation.window_endpoints(
-                    identities,
-                    checked,
-                    plan.machine,
-                    plan.state,
-                    &plan.operations[operation],
-                    argument,
-                    source_value_count,
-                    &mut self.scalar_result_values,
-                    &mut self.next_value_identity,
-                    &mut self.next_block,
-                    &mut self.next_edge,
-                    &mut self.operations,
-                    &mut self.scalar_calls,
-                )?;
+                {
+                    let (mut environment, emission) = self.frame(source_value_count).split();
+                    emission.evaluation.window_endpoints(
+                        identities,
+                        checked,
+                        plan.machine,
+                        plan.state,
+                        &plan.operations[operation],
+                        argument,
+                        source_value_count,
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                }?;
                 self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                 return Ok(());
             }
@@ -1592,29 +1639,31 @@ impl MachineEmission<'_> {
                     .with_structural_locals(&self.evaluation.structural_locals)
                     .with_view_locals(&self.evaluation.view_locals)
                     .with_element_views(&self.evaluation.element_views);
-                let context = byte_subslices::StagingContext {
-                    state: plan.state,
-                    structural_types: self.structural_types,
-                    type_ids: self.type_ids,
-                    bindings: &bindings,
-                };
-                let place = byte_subslices::emit(
-                    identities,
-                    checked,
-                    &context,
-                    &plan.operations[operation],
-                    ordinal,
-                    &mut self.evaluation,
-                    source_value_count,
-                    &mut self.scalar_result_values,
-                    &mut self.subslice_places,
-                    &mut self.next_place,
-                    &mut self.next_value_identity,
-                    &mut self.next_block,
-                    &mut self.next_edge,
-                    &mut self.operations,
-                    &mut self.scalar_calls,
-                )?;
+                let place = {
+                    let (mut environment, emission) = self.frame(source_value_count).split();
+                    let context = byte_subslices::StagingContext {
+                        state: plan.state,
+                        structural_types: environment.structural_types,
+                        type_ids: environment.type_ids,
+                        bindings: &bindings,
+                    };
+                    byte_subslices::emit(
+                        identities,
+                        checked,
+                        &context,
+                        &plan.operations[operation],
+                        ordinal,
+                        emission.evaluation,
+                        source_value_count,
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                }?;
                 self.next_call_obligation = self.scalar_calls.next_obligation_identity;
                 self.staged_subslices[operation].push((ordinal, place));
                 return Ok(());
@@ -1622,7 +1671,7 @@ impl MachineEmission<'_> {
             argument_schedule::Step::Call(index) if self.retained_scalar_prefix.is_some() => {
                 (index, true)
             }
-            argument_schedule::Step::Produce(index) if self.retained_scalar_prefix.is_some() => {
+            argument_schedule::Step::Operation(index) if self.retained_scalar_prefix.is_some() => {
                 (index, true)
             }
             argument_schedule::Step::Ordinary(index) if self.retained_scalar_prefix.is_none() => {
@@ -1666,19 +1715,23 @@ impl MachineEmission<'_> {
                     .collect::<Result<Vec<_>, _>>()?,
             )
         } else {
-            self.evaluation.arguments(
-                identities,
-                checked,
-                plan.machine,
-                plan.state,
-                operation,
-                &mut self.scalar_result_values,
-                &mut self.next_value_identity,
-                &mut self.next_block,
-                &mut self.next_edge,
-                &mut self.operations,
-                &mut self.scalar_calls,
-            )?
+            {
+                let (mut environment, emission) = self.frame(source_value_count).split();
+                emission.evaluation.arguments(
+                    identities,
+                    checked,
+                    plan.machine,
+                    plan.state,
+                    operation,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?
         };
         self.next_call_obligation = self.scalar_calls.next_obligation_identity;
         let step = StepInputs {

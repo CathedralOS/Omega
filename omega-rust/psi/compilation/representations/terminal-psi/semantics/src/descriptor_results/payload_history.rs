@@ -11,6 +11,8 @@ use std::collections::VecDeque;
 #[derive(Clone, Default, PartialEq, Eq)]
 struct State {
     values: BTreeMap<PlaceId, PayloadMembershipContract>,
+    // Published snapshots keep all premise rosters sorted and unique. An
+    // edge join only removes evidence, so ordered intersection is sufficient.
     scalar_requirements: Vec<semantic_vocabulary::Proposition>,
 }
 
@@ -65,11 +67,15 @@ pub fn current_payload_contract(
         if let Some((_, requirements)) = &machine.payload_entry_predicates {
             initial.scalar_requirements = super::scalar_contracts::scalar_conjuncts(requirements);
         }
+        initial.scalar_requirements.sort();
+        initial.scalar_requirements.dedup();
         for place in &machine.places {
             if matches!(place.definition, DescriptorDefinition::Parameter { .. }) {
                 failure = "entry payload contract is absent";
                 let mut contract = source(place.place)?;
                 super::payload_entry::close(types, domains, machine, place.place, &mut contract);
+                contract.scalar_requirements.sort();
+                contract.scalar_requirements.dedup();
                 initial.values.insert(place.place, contract);
             }
         }
@@ -275,9 +281,11 @@ pub fn current_payload_contract(
                 after
                     .scalar_requirements
                     .extend(requirements.iter().cloned());
-                after.scalar_requirements.sort();
-                after.scalar_requirements.dedup();
             }
+            // Reads can add equations even when this step has no postcondition.
+            // Normalize at publication, after all local append operations.
+            after.scalar_requirements.sort();
+            after.scalar_requirements.dedup();
             for contract in after.values.values_mut() {
                 contract
                     .scalar_requirements
@@ -401,10 +409,11 @@ pub fn current_payload_contract(
                     super::payload_predicates::close(types, domains, contract);
                 }
                 let changed = if let Some(existing) = snapshots.get_mut(&edge.target) {
-                    let old = existing.clone();
-                    existing
-                        .scalar_requirements
-                        .retain(|premise| arrival.scalar_requirements.contains(premise));
+                    let mut changed = retain_common_premises(
+                        &mut existing.scalar_requirements,
+                        &arrival.scalar_requirements,
+                    );
+                    let previous_values = existing.values.len();
                     existing.values.retain(|place, contract| {
                         let Some(incoming) = arrival.values.get(place) else {
                             return false;
@@ -412,9 +421,15 @@ pub fn current_payload_contract(
                         if contract.carrier != incoming.carrier {
                             return false;
                         }
-                        contract
-                            .scalar_requirements
-                            .retain(|premise| incoming.scalar_requirements.contains(premise));
+                        changed |= retain_common_premises(
+                            &mut contract.scalar_requirements,
+                            &incoming.scalar_requirements,
+                        );
+                        let previous_counts = (
+                            contract.scalar_observations.len(),
+                            contract.qualifications.len(),
+                            contract.projected_qualifications.len(),
+                        );
                         contract.scalar_observations.retain(|observation| {
                             incoming.scalar_observations.contains(observation)
                         });
@@ -424,9 +439,18 @@ pub fn current_payload_contract(
                         contract
                             .projected_qualifications
                             .retain(|row| incoming.projected_qualifications.contains(row));
+                        changed |= previous_counts
+                            != (
+                                contract.scalar_observations.len(),
+                                contract.qualifications.len(),
+                                contract.projected_qualifications.len(),
+                            );
                         true
                     });
-                    *existing != old
+                    // This meet never inserts or rewrites a surviving row.
+                    // Cardinality changes therefore identify every change
+                    // without cloning and comparing the complete snapshot.
+                    changed || existing.values.len() != previous_values
                 } else {
                     snapshots.insert(edge.target, arrival);
                     true
@@ -473,6 +497,28 @@ pub fn current_payload_contract(
         Some(current)
     })();
     result.ok_or(failure)
+}
+
+/// Intersect canonical premise rosters without searching the whole arrival for
+/// every retained premise. The caller publishes sorted, unique snapshots.
+fn retain_common_premises(
+    retained: &mut Vec<semantic_vocabulary::Proposition>,
+    incoming: &[semantic_vocabulary::Proposition],
+) -> bool {
+    let previous = retained.len();
+    let mut remaining = incoming.iter().peekable();
+    retained.retain(|premise| {
+        while remaining
+            .peek()
+            .is_some_and(|candidate| *candidate < premise)
+        {
+            remaining.next();
+        }
+        remaining
+            .peek()
+            .is_some_and(|candidate| *candidate == premise)
+    });
+    retained.len() != previous
 }
 
 fn retire(

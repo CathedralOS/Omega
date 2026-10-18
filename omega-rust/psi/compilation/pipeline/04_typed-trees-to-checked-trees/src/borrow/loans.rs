@@ -56,7 +56,10 @@ pub(crate) use owner_paths::{
 mod aggregate;
 mod owner_paths;
 mod returned_carriers;
-pub(crate) use returned_carriers::{call_reference_sources, returned_body_source_mismatch};
+pub(crate) use returned_carriers::place_segments as owner_place_segments;
+pub(crate) use returned_carriers::{
+    call_reference_lifetime_sources, call_reference_sources, returned_body_source_mismatch,
+};
 mod replacement;
 mod stored_calls;
 pub(in crate::borrow) use replacement::{CarrierReplacement, capture_replacement};

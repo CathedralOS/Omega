@@ -76,22 +76,26 @@ impl OperationFrame<'_, '_> {
                     .scalar_locals_before(self.state, result.statement_index),
             }
         };
-        let lowered = self.evaluation.source_value(
-            identities,
-            self.checked,
-            self.machine,
-            self.state,
-            result.statement_index,
-            role,
-            value,
-            self.source_value_count,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-            self.calls,
-        )?;
+        let lowered = {
+            let (mut environment, emission) = self.reborrow().split();
+            emission.evaluation.source_value(
+                identities,
+                environment.checked,
+                environment.machine,
+                environment.state,
+                result.statement_index,
+                role,
+                value,
+                emission.source_value_count,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )
+        }?;
         if lowered.scalar_type != terminal_scalar_type(result.primitive_type)? {
             return unsupported("Unit scalar expression local type disagrees with its binding");
         }
@@ -208,25 +212,29 @@ impl OperationFrame<'_, '_> {
         for (ordinal, element) in elements.iter().enumerate() {
             let element_ordinal = u32::try_from(ordinal)
                 .map_err(|_| LoweringError::Unsupported("array element ordinal exceeds u32"))?;
-            let value = self.evaluation.source_value(
-                identities,
-                self.checked,
-                self.machine,
-                self.state,
-                result.statement_index,
-                CheckedScalarExpressionRole::ArrayElement {
-                    source: *source,
-                    element_ordinal,
-                },
-                element,
-                self.source_value_count,
-                self.values,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.operations,
-                self.calls,
-            )?;
+            let value = {
+                let (mut environment, emission) = self.reborrow().split();
+                emission.evaluation.source_value(
+                    identities,
+                    environment.checked,
+                    environment.machine,
+                    environment.state,
+                    result.statement_index,
+                    CheckedScalarExpressionRole::ArrayElement {
+                        source: *source,
+                        element_ordinal,
+                    },
+                    element,
+                    emission.source_value_count,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?;
             self.values.push(value);
         }
         let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
@@ -342,32 +350,32 @@ impl OperationFrame<'_, '_> {
             &prepared_claims,
             &mut self.calls.claims,
         )?;
-        let mut evaluation = WindowEvaluation {
-            checked: self.checked,
-            machine: self.machine,
-            state: self.state,
-            statement_index,
-            evaluation: &mut *self.evaluation,
-            source_value_count: self.source_value_count,
-            calls: &mut *self.calls,
-        };
-        let place = self.windows.emit_move(
-            identities,
-            moved,
-            expression,
-            result,
-            result_claims,
-            &self.parameters,
-            self.structural_types.declarations(),
-            self.type_ids,
-            &mut evaluation,
-            self.values,
-            self.next_place,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-        )?;
+        let place = {
+            let (mut environment, emission) = self.reborrow().split();
+            let mut evaluation = WindowEvaluation {
+                checked: environment.checked,
+                machine: environment.machine,
+                state: environment.state,
+                statement_index,
+                evaluation: emission.evaluation,
+                source_value_count: emission.source_value_count,
+                calls: emission.calls,
+            };
+            crate::emission::borrowed_window::BorrowedWindowLedger::emit_move(
+                &mut environment,
+                identities,
+                moved,
+                expression,
+                result,
+                result_claims,
+                &mut evaluation,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+            )
+        }?;
         crate::emission::claim_bindings::record_prepared_introductions(
             self.operations,
             place,
@@ -387,29 +395,28 @@ impl OperationFrame<'_, '_> {
         opening: Option<PlaceId>,
         value: BorrowedWindowRepairValue,
     ) -> Result<(), LoweringError> {
+        let (mut environment, emission) = self.reborrow().split();
         let mut evaluation = WindowEvaluation {
-            checked: self.checked,
-            machine: self.machine,
-            state: self.state,
+            checked: environment.checked,
+            machine: environment.machine,
+            state: environment.state,
             statement_index,
-            evaluation: &mut *self.evaluation,
-            source_value_count: self.source_value_count,
-            calls: &mut *self.calls,
+            evaluation: emission.evaluation,
+            source_value_count: emission.source_value_count,
+            calls: emission.calls,
         };
-        self.windows.emit_store(
+        crate::emission::borrowed_window::BorrowedWindowLedger::emit_store(
+            &mut environment,
             identities,
             destination,
             opening,
             value,
-            &self.parameters,
-            self.structural_types.declarations(),
-            self.type_ids,
             &mut evaluation,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
+            emission.values,
+            emission.next_value,
+            emission.next_block,
+            emission.next_edge,
+            emission.operations,
         )
     }
 
@@ -691,22 +698,26 @@ impl OperationFrame<'_, '_> {
             )?;
             self.private_places.push(declaration);
         }
-        let declaration = super::super::view_ranges::emit(
-            identities,
-            self.checked,
-            site,
-            range_source,
-            result_type,
-            destination,
-            self.evaluation,
-            self.values.len(),
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-            self.calls,
-        )?;
+        let declaration = {
+            let (mut environment, emission) = self.reborrow().split();
+            super::super::view_ranges::emit(
+                identities,
+                environment.checked,
+                site,
+                range_source,
+                result_type,
+                destination,
+                emission.evaluation,
+                emission.values.len(),
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )
+        }?;
         let produced = self
             .operations
             .operations

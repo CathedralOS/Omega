@@ -62,6 +62,7 @@ impl Builder<'_, '_> {
         Some(CheckedStructuralValueKind::Projection {
             source,
             path: Vec::new(),
+            copies_selected_value: false,
             type_identity: validation::stored_structural_type_identity(
                 self.program,
                 actual,
@@ -101,6 +102,7 @@ impl Builder<'_, '_> {
         Some(CheckedStructuralValueKind::Projection {
             source,
             path: Vec::new(),
+            copies_selected_value: false,
             type_identity: carrier,
         })
     }
@@ -159,7 +161,7 @@ impl Builder<'_, '_> {
         // the computation's scalar namespace, including captured immutable
         // locals, rather than replaying the selector's original storage read.
         // The retained coordinate grants no bounds or copy permission.
-        let selectors = self.projection_selector_evaluations(expression)?;
+        let selectors = self.projection_selector_evaluations(expression, expression)?;
         let (_, mut path) = crate::execution::terminal_unit::calls::projected_argument_path(
             self.program,
             self.state,
@@ -222,8 +224,8 @@ impl Builder<'_, '_> {
     /// One projected owned child of an existing owner. The checked ownership
     /// transfer is the authoritative admission: its recorded canonical path
     /// must equal the authored place, and the projected type must be the
-    /// enclosing result type. The root source is built as a whole `Place` (or
-    /// `Call` product) node carrying the exact root identity.
+    /// enclosing result type. The root source is retained whole, including an
+    /// evaluated product, and selectors keep their own checked evaluations.
     pub(super) fn projected_owned_place(
         &mut self,
         expression: ExpressionHandle,
@@ -245,18 +247,35 @@ impl Builder<'_, '_> {
             self.statement_index,
             expression,
         )?;
-        let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
-            self.program,
-            self.state,
-            self.statement_index,
-            &place,
-            None,
-            None,
-        )?;
+        let selectors = self.projection_selector_evaluations(expression, expression)?;
+        let (projected, mut path) =
+            crate::execution::terminal_unit::calls::projected_argument_path(
+                self.program,
+                self.state,
+                self.statement_index,
+                &place,
+                Some(self.machine),
+                Some(&|expression| {
+                    selectors.iter().find_map(|(selector, value)| {
+                        (*selector == expression).then_some(
+                            checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
+                        )
+                    })
+                }),
+            )?;
         if self.program.normalized_type_identity(projected)
             != self.program.normalized_type_identity(expected)
         {
             return None;
+        }
+        for (ordinal, (_, value)) in selectors.iter().enumerate() {
+            self.push_scalar_root(
+                checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
+                    expression,
+                    selector_ordinal: u32::try_from(ordinal).ok()?,
+                },
+                *value,
+            )?;
         }
         let root_expression = projection_root_expression(self.program, expression);
         let root_reference = validation::canonical_place_type_reference(
@@ -268,10 +287,27 @@ impl Builder<'_, '_> {
                 segments: Vec::new(),
             },
         )?;
+        if matches!(place.root, facts::PlaceRoot::Expression(_)) {
+            // The canonical place walk starts at borrowed storage. An
+            // evaluated value instead owns its stored descriptor, so retain
+            // each actual pointer crossing before selecting the first field.
+            // View descriptors already interpret their own element paths.
+            let mut reference = root_reference;
+            while let Some(shell) = validation::reference_shell(self.program, reference)
+                && validation::stores_reference_shape(self.program, reference, &[])
+            {
+                path.insert(0, checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                reference = shell.referee;
+            }
+        }
         let source = self.structural_value(root_expression, root_reference)?;
+        // Copy permission belongs to the selected value. The source's own
+        // checked disposition is independent: an anonymous owner's eventual
+        // death cannot turn an observation into a partial ownership move.
         Some(CheckedStructuralValueKind::Projection {
             source,
             path,
+            copies_selected_value: super::place_types::copied_place_type(self.program, expected),
             type_identity: validation::stored_structural_type_identity(
                 self.program,
                 projected,

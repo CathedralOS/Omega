@@ -42,27 +42,6 @@ enum LiteralStorage {
 }
 
 impl ByteLiteral {
-    /// A checked shared literal uses the expression schedule's reserved home.
-    /// Its image backing never acquires owned or mutable storage authority.
-    pub(crate) fn borrowed(
-        place: semantic_vocabulary::PlaceId,
-        structural_type: StructuralTypeId,
-        bytes: &[u8],
-        types: &[StructuralTypeDeclaration],
-    ) -> Result<Self, LoweringError> {
-        if !terminal_psi::find_structural_type(types, structural_type)
-            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
-        {
-            return unsupported("shared byte literal has a non-view carrier");
-        }
-        Ok(Self {
-            place,
-            structural_type,
-            bytes: bytes.to_vec(),
-            storage: LiteralStorage::Borrowed,
-        })
-    }
-
     pub(crate) fn reserve(
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         bytes: &[u8],

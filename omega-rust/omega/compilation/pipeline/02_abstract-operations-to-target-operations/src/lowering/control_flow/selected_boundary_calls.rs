@@ -33,7 +33,7 @@ pub(super) fn resolve(
     else {
         return Err(LoweringError::SelectedBoundaryCallEvidenceMismatch {
             machine: installed.caller,
-            operation: installed.psi_operation,
+            operation: installed.invocation_site,
             boundary: installed.boundary,
         });
     };
@@ -148,17 +148,20 @@ pub(super) fn retain_origin(
     else {
         return Err(LoweringError::SelectedBoundaryCallShapeMismatch {
             machine: installed.caller,
-            operation: installed.psi_operation,
+            operation: installed.invocation_site.operation().ok_or(
+                LoweringError::BoundaryRealizationMismatch(installed.boundary),
+            )?,
             boundary: installed.boundary,
         });
     };
-    if *psi_operation != installed.psi_operation
+    if semantic_vocabulary::BoundaryInvocationSite::Operation(*psi_operation)
+        != installed.invocation_site
         || *target != target_operations::NativeCallTarget::Machine(installed.callee)
         || *actual != target_operations::NativeCallOrigin::Authored
     {
         return Err(LoweringError::SelectedBoundaryCallEvidenceMismatch {
             machine: installed.caller,
-            operation: installed.psi_operation,
+            operation: installed.invocation_site,
             boundary: installed.boundary,
         });
     }

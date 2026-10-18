@@ -120,7 +120,12 @@ impl RemainingCustody {
         };
         let mut merged = frontier.clone();
         for path in later {
-            merged.establish(program, path);
+            // Union existing coverage, not storage-write events. Replaying an
+            // unchanged zero-seeded child could complete its gated parent even
+            // though no value was established there.
+            if !merged.contains(path) {
+                merged.establish(program, path);
+            }
         }
         merged.established.iter().any(Vec::is_empty)
     }
@@ -352,8 +357,7 @@ impl RemainingCustody {
             // A containing death is published before its exact child claim
             // receipts. Those receipts retire claims, but must not schedule
             // the same recursive hooks a second time below the dead region.
-            let whole_call_disposition = event.kind == PermissionEventKind::AffineDrop
-                && matches!(event.source, PermissionEventSource::Call { .. })
+            let whole_owned_disposition = event.kind == PermissionEventKind::AffineDrop
                 && self.is_present(event.root, path)
                 && output
                     .dispositions
@@ -362,6 +366,7 @@ impl RemainingCustody {
                         row.machine == event.machine_symbol
                             && row.state == event.state_symbol
                             && row.source == event.source
+                            && row.completion == event.expression
                             && row.exit == exit
                             && row.root == event.root
                             && row.disposed_type.is_valid()
@@ -373,7 +378,7 @@ impl RemainingCustody {
                     .take(2)
                     .count()
                     == 1;
-            if (event.kind == PermissionEventKind::AffineDrop && !whole_call_disposition)
+            if (event.kind == PermissionEventKind::AffineDrop && !whole_owned_disposition)
                 || (event.kind == PermissionEventKind::Consume
                     && (event.source == PermissionEventSource::StateExit
                         || (selected
@@ -414,6 +419,7 @@ impl RemainingCustody {
                     state: event.state_symbol,
                     source: event.source,
                     exit,
+                    completion: Default::default(),
                     root: event.root,
                     disposed_type: typed_trees::types::TypeReferenceHandle::invalid(),
                     path: event.segments,
@@ -532,6 +538,7 @@ impl RemainingCustody {
                 source,
                 root,
                 exit: FlowClaimJoinExit::default(),
+                completion: Default::default(),
                 disposed_type: Default::default(),
                 path: Default::default(),
                 exclusions,

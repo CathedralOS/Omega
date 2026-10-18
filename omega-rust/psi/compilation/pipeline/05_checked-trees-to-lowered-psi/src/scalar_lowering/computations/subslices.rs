@@ -122,34 +122,6 @@ pub(crate) fn reserve(
 }
 
 impl super::Expansion<'_> {
-    /// Structural and scalar callers use the same range evaluator, including
-    /// selector capture, endpoint sequencing and descriptor narrowing.
-    pub(crate) fn range_argument(
-        &mut self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        state: symbols::SymbolHandle,
-        statement: u32,
-        argument: &CheckedUnitStructuralArgumentPlan,
-        slot: &Slot,
-        bindings: &crate::expression_preparation::bindings::ScalarBindings,
-        input_types: &[super::QualifiedScalarType],
-        target: usize,
-    ) -> Result<usize, LoweringError> {
-        self.subslice(
-            identities,
-            argument,
-            slot,
-            input_types,
-            target,
-            &super::Site {
-                state,
-                statement,
-                bindings,
-            },
-            &mut Vec::new(),
-        )
-    }
-
     /// Capture each endpoint once, in start/end order, and retire those scalar
     /// temporaries only after the ordinary descriptor operation consumes them.
     pub(super) fn subslice(

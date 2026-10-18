@@ -367,7 +367,13 @@ impl<'facts> CallTransfers<'facts> {
         let (Some(root), None) = (roots.next(), roots.next()) else {
             return 0;
         };
-        self.constructed(root.root, plans.calls_for_root(root.root).unwrap_or(&[]))
+        self.constructed(
+            root.root,
+            plans
+                .call_schedule(root.root)
+                .map(|(_, calls)| calls)
+                .unwrap_or(&[]),
+        )
     }
 
     /// Whole owners a completed construction takes as its members, plus the
@@ -520,7 +526,8 @@ impl<'facts> CallTransfers<'facts> {
                             *receiver_value,
                             self.values
                                 .structural_values
-                                .calls_for_root(*receiver_value)
+                                .call_schedule(*receiver_value)
+                                .map(|(_, calls)| calls)
                                 .unwrap_or(&[]),
                         )
                     } else {
@@ -538,7 +545,8 @@ impl<'facts> CallTransfers<'facts> {
                             *receiver_value,
                             self.values
                                 .structural_values
-                                .calls_for_root(*receiver_value)
+                                .call_schedule(*receiver_value)
+                                .map(|(_, calls)| calls)
                                 .unwrap_or(&[]),
                         )
                     } else {

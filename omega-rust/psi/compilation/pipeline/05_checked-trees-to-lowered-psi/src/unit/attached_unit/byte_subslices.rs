@@ -82,17 +82,16 @@ pub(super) fn emit(
     evaluation: &mut super::argument_evaluation::Evaluation,
     source_value_count: usize,
     values: &mut Vec<ValueDeclaration>,
-    temporaries: &mut Vec<StructuralPlaceDeclaration>,
-    next_place: &mut u64,
     next_value: &mut u64,
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
     calls: &mut crate::emission::operation_emission::calls::CallEmissionContext<'_>,
+    environment: &mut super::OperationEnvironment<'_>,
 ) -> Result<PlaceId, LoweringError> {
     let (argument, site) = locate(context.state, operation, ordinal)?;
     let structural_type = lookup_type_id(context.type_ids, &argument.type_identity)?;
-    let destination = place_id(allocate_dense(next_place)?);
+    let destination = place_id(allocate_dense(environment.next_place)?);
     let storage = view_ranges::storage(
         identities,
         checked,
@@ -103,7 +102,7 @@ pub(super) fn emit(
     )?;
     let whole = storage
         .requires_establishment()
-        .then(|| allocate_dense(next_place).map(place_id))
+        .then(|| allocate_dense(environment.next_place).map(place_id))
         .transpose()?;
     let (source, establishment) = storage.bind(
         identities,
@@ -114,7 +113,7 @@ pub(super) fn emit(
         context.structural_types,
     )?;
     if let Some(establishment) = establishment {
-        temporaries.push(view_ranges::establish(
+        environment.private_places.push(view_ranges::establish(
             &establishment,
             values,
             next_value,
@@ -136,8 +135,9 @@ pub(super) fn emit(
         next_edge,
         operations,
         calls,
+        environment,
     )?;
-    temporaries.push(declaration);
+    environment.private_places.push(declaration);
     Ok(destination)
 }
 

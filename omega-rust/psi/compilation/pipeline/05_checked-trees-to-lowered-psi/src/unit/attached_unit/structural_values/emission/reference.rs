@@ -38,9 +38,9 @@ impl Emission<'_, '_, '_> {
             source,
             self.values,
             self.structural_types,
-            self.next_place,
+            self.environment.next_place,
             self.operations,
-            self.temporary_places,
+            self.environment.private_places,
         )?;
         let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let referent_type = lookup_type_id(self.type_ids, &source.type_identity)?;
@@ -276,11 +276,13 @@ impl Emission<'_, '_, '_> {
             storage,
             self.structural_types,
             self.evaluation.structural_root_parameters(),
-            super::super::super::place_id(super::super::super::allocate_dense(self.next_place)?),
+            super::super::super::place_id(super::super::super::allocate_dense(
+                self.environment.next_place,
+            )?),
             self.operations,
         )?;
         let place = carrier.id;
-        self.temporary_places.push(carrier);
+        self.environment.private_places.push(carrier);
         self.completed(identities, place, continuation)
     }
 }

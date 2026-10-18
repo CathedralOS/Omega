@@ -36,25 +36,29 @@ impl OperationFrame<'_, '_> {
             let argument_ordinal = u32::try_from(ordinal).map_err(|_| {
                 LoweringError::Unsupported("register access operand ordinal overflow")
             })?;
-            let value = self.evaluation.source_value(
-                identities,
-                self.checked,
-                self.machine,
-                self.state,
-                coordinate.statement_index,
-                CheckedScalarExpressionRole::UnitCallArgument {
-                    call_ordinal: coordinate.call_ordinal,
-                    argument_ordinal,
-                },
-                argument,
-                self.source_value_count,
-                self.values,
-                self.next_value,
-                self.next_block,
-                self.next_edge,
-                self.operations,
-                self.calls,
-            )?;
+            let value = {
+                let (mut environment, emission) = self.reborrow().split();
+                emission.evaluation.source_value(
+                    identities,
+                    environment.checked,
+                    environment.machine,
+                    environment.state,
+                    coordinate.statement_index,
+                    CheckedScalarExpressionRole::UnitCallArgument {
+                        call_ordinal: coordinate.call_ordinal,
+                        argument_ordinal,
+                    },
+                    argument,
+                    emission.source_value_count,
+                    emission.values,
+                    emission.next_value,
+                    emission.next_block,
+                    emission.next_edge,
+                    emission.operations,
+                    emission.calls,
+                    &mut environment,
+                )
+            }?;
             inputs.push(value.id);
         }
         let event = match (operation, inputs.as_slice()) {

@@ -26,10 +26,9 @@ use semantic_vocabulary::{
     StructuralFieldId, StructuralTypeId,
 };
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
-    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, ValueDeclaration,
+    Operation, OperationKind, OperationResult, StructuralAccess, StructuralFieldType,
+    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, ValueDeclaration,
 };
 
 use crate::emission::expression_validation::validate_direct_parameter_types;
@@ -37,7 +36,7 @@ use crate::emission::operation_emission::emit_direct_expression;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{allocate_dense, lookup_machine_id, place_id};
+use crate::terminal_identities::{allocate_dense, place_id};
 
 pub(crate) mod branch_states;
 pub(crate) mod call_closure;

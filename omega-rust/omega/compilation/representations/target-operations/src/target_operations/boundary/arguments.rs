@@ -40,3 +40,15 @@ pub struct BoundarySettlementBinding {
     pub execution: BoundaryExecutionBinding,
     pub realization: BoundarySettlementRealization,
 }
+
+/// The same domain-ending edge either enters a checked body or invokes an
+/// admitted opaque mechanism. A checked body is never a leaf settlement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExternalCompletionBinding {
+    Boundary(BoundarySettlementBinding),
+    Checked {
+        callee: semantic_vocabulary::MachineId,
+        origin: crate::NativeCallOrigin,
+        call_plan: calling_conventions::CallPlan,
+    },
+}

@@ -195,7 +195,7 @@ fn lower_store(
     } else {
         (destination.structural_type(), path)
     };
-    if !terminal_semantics::scalar_field_store_preserves_qualifications(
+    if !terminal_semantics::scalar_field_store_preserves_domain_content(
         structural_types.iter(),
         module.structural_domains.iter(),
         &module.identities,
@@ -206,7 +206,7 @@ fn lower_store(
         field,
     ) {
         return Err(invalid(
-            "field write overlaps a domain predicate or content definition",
+            "field write changes a conserved domain Content definition",
         ));
     }
     if !terminal_semantics::scalar_field_store_preserves_content(

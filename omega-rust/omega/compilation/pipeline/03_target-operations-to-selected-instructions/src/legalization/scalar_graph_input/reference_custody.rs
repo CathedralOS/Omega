@@ -2825,16 +2825,21 @@ fn apply_cleanup_actions(
                 if source_contract(function, custody, cleanup.place)
                     .and_then(|root| leaf_type(types, root, &cleanup.path))
                     != Some(cleanup.structural_type)
-                    || storage_access_conflicts(
-                        function,
-                        custody,
-                        types,
-                        cleanup.place,
-                        &cleanup.path,
-                        StructuralAccess::Owned,
-                    )
                 {
                     return Err(invalid());
+                }
+                if storage_access_conflicts(
+                    function,
+                    custody,
+                    types,
+                    cleanup.place,
+                    &cleanup.path,
+                    StructuralAccess::Owned,
+                ) {
+                    return Err(LegalizationError::ReferenceDisposalConflict {
+                        machine: function.machine,
+                        place: cleanup.place,
+                    });
                 }
                 // The borrowed call retains the selected original storage;
                 // completing it retires only this subject's contained loans.

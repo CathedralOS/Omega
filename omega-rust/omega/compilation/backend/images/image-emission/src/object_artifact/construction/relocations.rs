@@ -123,15 +123,12 @@ fn internal_call_relocations(
                 function_symbol_handle: emitted.symbol,
                 operation_identity: operation.get(),
             },
-            CallSiteOwner::ExternalCompletion(_) => {
-                return Err(ObjectError::InvalidInternalUnitCallEvidence(
-                    function.machine,
-                ));
+            CallSiteOwner::ExternalCompletion(edge) | CallSiteOwner::CleanupAction { edge, .. } => {
+                RelocationOrigin::SemanticEdge {
+                    function_symbol_handle: emitted.symbol,
+                    edge_identity: edge.get(),
+                }
             }
-            CallSiteOwner::CleanupAction { edge, .. } => RelocationOrigin::SemanticEdge {
-                function_symbol_handle: emitted.symbol,
-                edge_identity: edge.get(),
-            },
         };
         relocations.push_record(RelocationRecord {
             origin,

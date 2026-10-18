@@ -20,6 +20,7 @@ data Envelope { pair: Pair; }
 
 data Choice { case Empty; case Value(receipt: Receipt); }
 data ChoiceEnvelope { choice: Choice; sibling: Receipt; }
+data ProjectedChoice { choice: Choice; tag: i32; }
 
 machine pass(receipt: Receipt) -> Receipt {
     receipt
@@ -102,6 +103,10 @@ machine consume_choice(choice: Choice) -> i32 {
     }
 }
 
+machine enclose_choice(present: bool) -> ProjectedChoice {
+    ProjectedChoice { choice: choose(present), tag: 3 }
+}
+
 machine open_choice(envelope: ChoiceEnvelope) -> i32 {
     let sibling: i32 = consume(envelope.sibling);
     let chosen: i32 = consume_choice(envelope.choice);
@@ -136,9 +141,12 @@ machine main() crashes Trap {
     let array_record: i32 = settle_pairs([Pair { left: make(1), right: make(2) }]);
     let absent: i32 = open_choice(ChoiceEnvelope { choice: choose(false), sibling: make(21) });
     let present: i32 = open_choice(ChoiceEnvelope { choice: choose(true), sibling: make(22) });
+    let projected_absent: i32 = consume_choice(enclose_choice(false).choice);
+    let projected_present: i32 = consume_choice(enclose_choice(true).choice);
     drop(Receipt { code: 9 });
     verify(moved == 3 && fresh == 7 && direct == 5 && forwarded == 6 && produced == 15
         && nested == 21 && ordered == 21 && sequence == 5 && array == 12 && array_order == 34
         && nested_array == 12 && array_record == 12
-        && absent == 21 && present == 34);
+        && absent == 21 && present == 34
+        && projected_absent == 0 && projected_present == 12);
 }

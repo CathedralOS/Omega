@@ -3,6 +3,8 @@
 // including conditional returned records, and indices whose result is known.
 // Scalar and Unit consumers retain parameter, local, field and view storage.
 // Eight counter updates pin evaluation order; a retained return keeps its input.
+// Runtime element choices and intermediate returned aggregates preserve each
+// reference leaf's backing, independently of exact address observations.
 machine read(value: &u8) -> u8 { value }
 machine direct(bytes: &[u8]) -> u8 requires bytes.len > 2 { read(&bytes[2]) }
 machine indexed(bytes: &[u8], position: u64) -> u8 requires position < bytes.len { read(&bytes[position]) }
@@ -52,6 +54,29 @@ machine retained_check() -> i32 {
     let retained: &Cell = keep(&stable);
     retained.value
 }
+data CellHolder<'storage> { cell: &'storage Cell; }
+data NestedHolder<'storage> { inner: CellHolder<'storage>; }
+machine hold_cell<'storage>(cell: &'storage Cell) -> CellHolder<'storage> {
+    CellHolder { cell: cell }
+}
+machine nest_cell<'storage>(cell: &'storage Cell) -> NestedHolder<'storage> {
+    NestedHolder { inner: CellHolder { cell: cell } }
+}
+machine read_cell(cell: &Cell) -> i32 { cell.value }
+machine indexed_holder<'storage>(first: &'storage Cell, second: &'storage Cell, position: u64) -> i32
+    requires position < 2
+{
+    read_cell([hold_cell(first), hold_cell(second)][position].cell)
+}
+machine nested_holder<'storage>(cell: &'storage Cell) -> i32 {
+    read_cell(nest_cell(cell).inner.cell)
+}
+machine retained_holder<'storage>(first: &'storage Cell, second: &'storage Cell, position: u64) -> i32
+    requires position < 2
+{
+    let selected: &Cell = [hold_cell(first), hold_cell(second)][position].cell;
+    read_cell(selected)
+}
 machine main() crashes Trap {
     let bytes: [u8; 3] = [17, 23, 31];
     let view: &[u8] = &bytes[..];
@@ -66,7 +91,14 @@ machine main() crashes Trap {
     let supplied: Packet = packet();
     let supplied_byte: u8 = field(&supplied, &mut cursor);
     receive(&made_packet(&mut cursor).bytes[selected(&mut cursor)], &mut output);
-    transition retained_check() == 17 && wide_output == 3 && supplied_byte == 23 && length == 3 && local_record() == 42 && output == 23 && direct(view) == 31 && indexed(view, 0) == 17 && result == 23 && cursor.calls == 8 {
+    let first_cell: Cell = Cell { value: 17 };
+    let second_cell: Cell = Cell { value: 23 };
+    let first_held: i32 = indexed_holder(&first_cell, &second_cell, 0);
+    let second_held: i32 = indexed_holder(&first_cell, &second_cell, 1);
+    let nested_held: i32 = nested_holder(&first_cell);
+    let first_retained: i32 = retained_holder(&first_cell, &second_cell, 0);
+    let second_retained: i32 = retained_holder(&first_cell, &second_cell, 1);
+    transition retained_check() == 17 && wide_output == 3 && supplied_byte == 23 && length == 3 && local_record() == 42 && output == 23 && direct(view) == 31 && indexed(view, 0) == 17 && result == 23 && cursor.calls == 8 && first_held == 17 && second_held == 23 && nested_held == 17 && first_retained == 17 && second_retained == 23 {
         true -> done() _ -> bad()
     }
     state done() {}

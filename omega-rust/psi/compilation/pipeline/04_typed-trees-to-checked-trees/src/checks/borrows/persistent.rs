@@ -169,11 +169,23 @@ fn check_stored_output_relations(
                             .and_then(|target| program.machine_holding_state(target.symbol))
                             .is_some_and(|callee| obligated.contains(&callee.symbol)))
                 });
-                if requires_relation
-                    && frames
-                        .and_then(|frames| frames.stored_reference_effects(machine, statement))
-                        .is_none()
-                {
+                // The declaration selects an obligation, not its verdict.
+                // Once selected, evaluate every invocation in authored order.
+                if !requires_relation {
+                    continue;
+                }
+                let failures = frames
+                    .and_then(|frames| frames.stored_reference_call_failures(machine, statement));
+                let incomplete = match failures {
+                    Some(failures) => failures.iter().any(|failure| {
+                        failure.requires_relation
+                            || validation::call_target_state(program, failure.target)
+                                .and_then(|target| program.machine_holding_state(target.symbol))
+                                .is_some_and(|callee| obligated.contains(&callee.symbol))
+                    }),
+                    None => requires_relation,
+                };
+                if incomplete {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` state `{}` statement {statement_index}: call stores a borrowed value without a complete destination/backing relation",
                         machine.name, state.name,

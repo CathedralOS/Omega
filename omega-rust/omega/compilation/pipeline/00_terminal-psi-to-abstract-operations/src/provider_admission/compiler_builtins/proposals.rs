@@ -19,47 +19,6 @@ pub struct CompilerIntrinsicPlanProvenance<'a> {
     pub row_executions: &'a [Option<CompilerIntrinsicExecutionIdentity>],
 }
 
-pub(crate) fn demanded_boundary_identities(
-    module: &terminal_psi::TerminalModule,
-) -> Result<BTreeSet<String>, Vec<Diagnostic>> {
-    let declarations = module
-        .boundary_machines
-        .iter()
-        .map(|boundary| {
-            (
-                boundary.id,
-                module
-                    .identities
-                    .text(boundary.identity)
-                    .unwrap_or_default(),
-            )
-        })
-        .collect::<std::collections::BTreeMap<_, _>>();
-    let mut demanded = BTreeSet::new();
-    for boundary in module.blocks().flat_map(|block| {
-        block
-            .operations
-            .iter()
-            .filter_map(|operation| match &operation.kind {
-                terminal_psi::OperationKind::BoundaryCall { boundary, .. } => Some(*boundary),
-                _ => None,
-            })
-            .chain(match &block.terminator {
-                terminal_psi::Terminator::ExternalCompletion { boundary, .. } => Some(*boundary),
-                _ => None,
-            })
-    }) {
-        let Some(identity) = declarations.get(&boundary).copied() else {
-            return Err(vec![Diagnostic::error(format!(
-                "Terminal intrinsic settlement demand cites absent boundary {:?}",
-                boundary,
-            ))]);
-        };
-        demanded.insert(identity.to_owned());
-    }
-    Ok(demanded)
-}
-
 /// The boundary's IEEE format: prefer its result, otherwise its first IEEE
 /// operand. Classification returns Bool, not the classified carrier, so
 /// format-free builtin identities cannot infer their format from results alone.

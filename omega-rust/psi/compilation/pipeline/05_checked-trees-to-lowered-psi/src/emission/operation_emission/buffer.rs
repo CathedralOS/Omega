@@ -212,7 +212,18 @@ pub(crate) struct SourceQuotientAdaptation {
     pub(crate) result_type: semantic_vocabulary::StructuralTypeId,
 }
 
+/// A completed value carries its selected path and access, not another home.
+#[derive(Clone, Debug)]
+pub(crate) struct ComputedValueBinding {
+    pub(crate) argument: terminal_psi::StructuralArgument,
+    pub(crate) structural_type: semantic_vocabulary::StructuralTypeId,
+}
+
 pub(crate) struct OperationBuffer {
+    pub(crate) computed_values: Vec<(
+        checked_trees::CheckedStructuralValueHandle,
+        ComputedValueBinding,
+    )>,
     pub(crate) claim_introductions: Vec<crate::emission::claim_bindings::ClaimIntroduction>,
     pub(crate) selected_cleanup_groups:
         Vec<crate::emission::selected_continuations::SelectedCleanupGroup>,
@@ -380,6 +391,7 @@ impl OperationBuffer {
             external_completion: None,
             dynamic_dispatch,
             structural_values: Vec::new(),
+            computed_values: Vec::new(),
             structural_establishments: Vec::new(),
             literal_types: Vec::new(),
             scalar_block_invariants: Vec::new(),
@@ -399,6 +411,20 @@ impl OperationBuffer {
             source_checked_obligations: Vec::new(),
             claim_introductions: Vec::new(),
             selected_cleanup_groups: Vec::new(),
+        }
+    }
+
+    /// A genuine whole-owner continuation changes physical storage, not the
+    /// value's selected path or access. Keep completed dependencies at that
+    /// same frontier; the catalog grants neither liveness nor new custody.
+    pub(crate) fn transport_computed_values(&mut self, transfers: &[(PlaceId, PlaceId)]) {
+        for (_, binding) in &mut self.computed_values {
+            if let Some((_, target)) = transfers
+                .iter()
+                .find(|(source, _)| *source == binding.argument.place)
+            {
+                binding.argument.place = *target;
+            }
         }
     }
 

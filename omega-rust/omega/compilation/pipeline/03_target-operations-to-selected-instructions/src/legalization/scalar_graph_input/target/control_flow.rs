@@ -281,9 +281,15 @@ pub(super) fn validate(
                     parameters,
                     result: None,
                 };
-                let expected_plan = match &binding.realization {
-                    target_operations::BoundarySettlementRealization::NormalizedForeignCall(
-                        foreign,
+                let expected_plan = match binding {
+                    target_operations::ExternalCompletionBinding::Boundary(
+                        target_operations::BoundarySettlementBinding {
+                            realization:
+                                target_operations::BoundarySettlementRealization::NormalizedForeignCall(
+                                    foreign,
+                                ),
+                            ..
+                        },
                     ) => calling_conventions::validate_boundary_entry_plan(
                         foreign.boundary_entry_plan.clone(),
                         &signature,
@@ -304,7 +310,49 @@ pub(super) fn validate(
                     && structural_arguments == expected_structural
                     && requirement_obligations == expected_obligations
                     && frontier_lower_bound == expected_frontier
-                    && binding.boundary == *boundary
+                    && match binding {
+                        target_operations::ExternalCompletionBinding::Boundary(binding) => {
+                            binding.boundary == *boundary
+                        }
+                        target_operations::ExternalCompletionBinding::Checked {
+                            callee,
+                            origin,
+                            call_plan,
+                        } => {
+                            *call_plan == expected_plan
+                                && plan.function(*callee).is_some_and(|candidate| {
+                                    candidate.result
+                                        == abstract_operations::AbstractFunctionResult::Unit
+                                        && candidate
+                                            .parameters
+                                            .iter()
+                                            .map(|row| row.scalar_type)
+                                            .eq(declaration.scalar_parameters.iter().copied())
+                                        && candidate.structural_parameters
+                                            == declaration.structural_parameters
+                                })
+                                && match origin {
+                                    target_operations::NativeCallOrigin::InstalledProvider {
+                                        boundary: required,
+                                        provider,
+                                        ..
+                                    } => {
+                                        required == boundary
+                                            && provider.candidate == *callee
+                                            && plan.provider_candidates.contains(provider)
+                                    }
+                                    target_operations::NativeCallOrigin::TargetFamily {
+                                        boundary: required,
+                                        member,
+                                        ..
+                                    } => required == boundary && member == callee,
+                                    target_operations::NativeCallOrigin::Authored
+                                    | target_operations::NativeCallOrigin::ProgramEntry {
+                                        ..
+                                    } => false,
+                                }
+                        }
+                    }
                     && declaration.completion
                         == semantic_vocabulary::BoundaryCompletion::External(*kind)
                     && declaration.result.is_unit()

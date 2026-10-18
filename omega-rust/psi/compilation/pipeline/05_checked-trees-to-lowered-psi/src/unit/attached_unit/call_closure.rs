@@ -87,7 +87,9 @@ pub(crate) fn checked_unit_call_closure_including(
                 closure.push(representative.symbol);
             }
         }
-        for cleanup in crate::unit::unit_cleanup::continuation_cleanups(machine.operations()) {
+        for cleanup in crate::unit::unit_cleanup::continuation_cleanups(machine.operations()).chain(
+            crate::unit::unit_cleanup::retained_call_cleanups(checked, Some(machine_symbol)),
+        ) {
             if !closure.contains(&cleanup.cleanup_machine) {
                 closure.push(cleanup.cleanup_machine);
             }

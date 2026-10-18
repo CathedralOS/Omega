@@ -9,7 +9,6 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::permission_events::record_crash_frontier_lower_bounds;
 use crate::checks::multiplicity::projected_affine;
-use crate::checks::multiplicity::temporary_results;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -431,13 +430,6 @@ pub(super) fn prepare_storage_deaths(
                         continue;
                     }
                     if !path.is_empty() {
-                        temporary_results::check_unselected_claims(
-                            program,
-                            state.symbol,
-                            event,
-                            path,
-                            &mut diagnostics,
-                        );
                         for prefix_len in 0..path.len() {
                             let prefix = validation::CanonicalPlace {
                                 root: event.root,
@@ -562,6 +554,7 @@ pub(super) fn prepare_storage_deaths(
                 state,
                 source: PermissionEventSource::Statement { statement_index },
                 exit: checked_trees::FlowClaimJoinExit::default(),
+                completion: Default::default(),
                 root: place.root,
                 disposed_type,
                 path,

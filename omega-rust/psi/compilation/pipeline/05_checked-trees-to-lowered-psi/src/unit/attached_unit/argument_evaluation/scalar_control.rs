@@ -12,6 +12,7 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_lowering::branch_states::prepared::{
     CaseDispatchArm, LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
+use crate::unit::attached_unit::OperationEnvironment;
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 
 /// Cleanup already selected by source ownership, before scalar arm expansion.
@@ -317,6 +318,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let bindings = self.contextual_bindings();
         let qualifications = &self.shared_qualifications;
@@ -706,6 +708,7 @@ impl Evaluation {
             operations,
             calls,
             "ordered scalar control has no unique completed value",
+            environment,
         )
     }
 }

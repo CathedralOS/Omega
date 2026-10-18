@@ -45,6 +45,8 @@ pub(super) fn emit_state(
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
     blocks: &mut Vec<Block>,
+    environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
+    evaluation: &mut super::Evaluation,
 ) -> Result<(), LoweringError> {
     let erased_formals = declarations(&state.erased_formal_types, next_value)?;
     let mut block_erased_formals = erased_formals.clone();
@@ -228,10 +230,9 @@ pub(super) fn emit_state(
     };
     crate::scalar_lowering::effects::emit(
         identities,
-        checked,
+        environment,
         &state.structural_effects,
-        &values,
-        caller_erased_formals,
+        &mut values,
         next_value,
         operations,
         calls,
@@ -239,6 +240,8 @@ pub(super) fn emit_state(
         blocks,
         next_block,
         next_edge,
+        source_erased_proof_formals,
+        evaluation,
     )?;
     block = effect_span.id;
     block_erased_formals = effect_span.erased_scalar_formals;

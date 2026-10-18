@@ -22,6 +22,79 @@ pub(super) fn replay_installed_provider_calls(
     let mut calls = Vec::new();
     for caller in &plan.functions {
         for operation in &caller.operations {
+            if let AbstractOperation::ExternalCompletion {
+                psi_edge,
+                boundary,
+                kind,
+                arguments,
+                structural_arguments,
+                requirement_obligations,
+                frontier_lower_bound,
+            } = operation
+            {
+                let Some(provider) = installed.iter().find(|row| row.boundary == *boundary) else {
+                    continue;
+                };
+                let invocation_site =
+                    semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(*psi_edge);
+                let malformed = || ProviderInstallationError::InstalledCallReplayMismatch {
+                    caller: caller.machine,
+                    invocation_site,
+                    boundary: *boundary,
+                };
+                let declaration = plan.boundary_machine(*boundary).ok_or_else(malformed)?;
+                let candidate = module.machine(provider.candidate).ok_or_else(malformed)?;
+                let source = module.machine(caller.machine).ok_or_else(malformed)?;
+                let mut edges = source
+                    .blocks
+                    .iter()
+                    .filter_map(|block| match &block.terminator {
+                        terminal_psi::Terminator::ExternalCompletion { edge, .. }
+                            if edge == psi_edge =>
+                        {
+                            Some(&block.terminator)
+                        }
+                        _ => None,
+                    });
+                let expected = terminal_psi::Terminator::ExternalCompletion {
+                    edge: *psi_edge,
+                    boundary: *boundary,
+                    kind: *kind,
+                    arguments: arguments.clone(),
+                    structural_arguments: structural_arguments.clone(),
+                    requirement_obligations: requirement_obligations.clone(),
+                    frontier_lower_bound: frontier_lower_bound.clone(),
+                };
+                if edges.next() != Some(&expected)
+                    || edges.next().is_some()
+                    || declaration.identity != provider.requirement_identity
+                    || declaration.completion
+                        != semantic_vocabulary::BoundaryCompletion::External(*kind)
+                    || !declaration.result.is_unit()
+                    || candidate.result != terminal_psi::TerminalMachineResult::Unit
+                    || declaration.scalar_parameters.len() != arguments.len()
+                    || declaration.structural_parameters.len() != structural_arguments.len()
+                    || candidate.parameters.len() != arguments.len()
+                    || candidate.structural_parameters.len() != structural_arguments.len()
+                    || !candidate.entry_claims.is_empty()
+                    || !candidate.content_entry_claims.is_empty()
+                {
+                    return Err(malformed());
+                }
+                calls.push(AdmittedInstalledProviderCall {
+                    caller: caller.machine,
+                    invocation_site,
+                    boundary: *boundary,
+                    provider: provider.clone(),
+                    assumption: None,
+                    result: terminal_psi::OperationResult::Unit,
+                    scalar_arguments: arguments.clone(),
+                    structural_arguments: structural_arguments.clone(),
+                    completion_claim_sources: Vec::new(),
+                    completion_receipts: Vec::new(),
+                });
+                continue;
+            }
             let AbstractOperation::BoundaryCall {
                 psi_operation,
                 result,
@@ -51,7 +124,7 @@ pub(super) fn replay_installed_provider_calls(
             };
             let malformed = || ProviderInstallationError::InstalledCallReplayMismatch {
                 caller: caller.machine,
-                operation: *psi_operation,
+                invocation_site: (*psi_operation).into(),
                 boundary: *boundary,
             };
             let boundary_declaration =
@@ -225,7 +298,7 @@ pub(super) fn replay_installed_provider_calls(
             }
             calls.push(AdmittedInstalledProviderCall {
                 caller: caller.machine,
-                psi_operation: *psi_operation,
+                invocation_site: (*psi_operation).into(),
                 result: terminal_operation.result.clone(),
                 boundary: *boundary,
                 provider: provider.clone(),

@@ -1,8 +1,7 @@
 use console;
 
-// Complete macos_x86_64 Console provider closure over compiler-known native
-// byte/runtime leaves. Friendly line and write adapters live in std/console.omg on the
-// same nominal provider type.
+// Exact macos_x86_64 Console byte/runtime leaves. The named NativeConsole
+// implementation in std/console.omg forwards to these target declarations.
 // Unmigrated sibling leaves retain transitional payload-free `via` syntax.
 // Byte output and process exit are inferred from their exact realization
 // symbols, normalized signatures, package custody, and selected target.

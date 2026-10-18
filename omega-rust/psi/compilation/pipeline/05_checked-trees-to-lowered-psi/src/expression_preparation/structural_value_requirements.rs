@@ -87,7 +87,11 @@ fn collect_domains(
         // its result shape. Their formations can require theories absent from
         // every published parameter (for example a qualified literal field).
         // Follow checked schedule edges, never unrelated arena occurrences.
-        for call in plans.calls_for_root(value).unwrap_or(&[]) {
+        for call in plans
+            .call_schedule(value)
+            .map(|(_, calls)| calls)
+            .unwrap_or(&[])
+        {
             for operation in call.operands().iter() {
                 if let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },

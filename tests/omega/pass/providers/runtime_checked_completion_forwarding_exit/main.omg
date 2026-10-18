@@ -1,0 +1,7 @@
+// Expected exit: 70.
+use completion_provider::console;
+data Main { code: i32 }
+machine Main::main(main: &mut Main) reaches Console {
+    main.code = 70;
+    Console::exit_process(main.code);
+}

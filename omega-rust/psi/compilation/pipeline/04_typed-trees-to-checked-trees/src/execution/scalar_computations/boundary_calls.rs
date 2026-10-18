@@ -188,8 +188,25 @@ impl Builder<'_, '_> {
             structural_arguments,
             mut temporary_cleanups,
             claim_transfers,
-        } = self.call_operands(source_call, operands, parameters)?;
+        } = self.call_operands(
+            source_call,
+            self.flow.control.calls.get(source_call).argument_operands(),
+            operands,
+            parameters,
+        )?;
         if authority_value.is_valid() {
+            let call = self.flow.control.calls.get(source_call);
+            if call.operands.is_empty()
+                || !call.authored_receiver.is_valid()
+                || call.authored_receiver
+                    != self.structural_values.nodes.get(authority_value).expression
+            {
+                return None;
+            }
+            let operand = call.operands.start();
+            if self.flow.control.operands.get(operand).expression != call.authored_receiver {
+                return None;
+            }
             let mut cleanups = self
                 .plans
                 .temporary_cleanups
@@ -199,6 +216,7 @@ impl Builder<'_, '_> {
             // its captured carrier retires after all ordinary temporaries.
             cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {
                 argument_ordinal: None,
+                operand,
                 owner: Default::default(),
                 actions: Default::default(),
             });

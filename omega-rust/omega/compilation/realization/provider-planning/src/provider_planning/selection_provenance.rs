@@ -5,6 +5,7 @@ use crate::{DerivedProviderPlan, ProviderPlanProvenance};
 use component_description::VerifiedComponent;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ProviderPlan;
+use symbols::SymbolHandle;
 
 type ProviderSelectionKey = (Option<semantic_vocabulary::PackageKeyIdentity>, String);
 
@@ -109,6 +110,9 @@ pub struct SelectedProviderReviewProvenance {
     /// `Some` is reserved for compiler-intrinsic rows whose selected
     /// execution has a closed identity; all other rows retain `None`.
     pub row_compiler_intrinsic_executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
+    /// Exact external leaves reached on every checked completion path. This
+    /// does not turn an authored adapter into a compiler intrinsic.
+    pub row_external_completion_leaves: Vec<Vec<SymbolHandle>>,
 }
 
 /// Publish selected provider facts on a route that supplies no verified
@@ -238,6 +242,7 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
             provider: selected.derived.provenance,
             selected_by: selected.selected_by,
             row_compiler_intrinsic_executions: Vec::new(),
+            row_external_completion_leaves: Vec::new(),
         })
         .collect();
     Ok((facts, provenance))

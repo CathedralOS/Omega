@@ -13,7 +13,7 @@ use crate::machine_calls::effect_inference::PreparedEffectPlans;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     EntryMachines, LicenseCandidates,
 };
-use crate::value_custody::content_conservation::ContentConservationSourcePlan;
+use crate::value_custody::content_conservation::ContentConservationInputs;
 use language_semantics::declaration_selection::AuthoredDeclarationSelections;
 use representation_selections::OpaqueRepresentationSelection;
 use std::fmt;
@@ -430,7 +430,7 @@ pub struct CheckingMemos {
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
-    pub(crate) content_conservation: OnceLock<Arc<Vec<ContentConservationSourcePlan>>>,
+    pub(crate) content_conservation: OnceLock<Arc<ContentConservationInputs>>,
     /// Exact ordered roots to a complete target roster. Rows are retained
     /// as positions in this immutable program's target-layout storage, not
     /// borrowed strings or a selected deployment target.

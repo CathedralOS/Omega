@@ -3,7 +3,7 @@
 //! A selected checked callee inside the same artifact emits an ordinary
 //! resolved internal call: no object settlement row, no normalized foreign
 //! call, and no external execution binding. The emitted call's retained
-//! call-stack row names the owner operation and the callee machine, and the
+//! call-stack row names the invocation owner and the callee machine, and the
 //! canonical module names the selected provider or target-family member.
 //! This lane binds that custody — the same object rosters `fragment_call`
 //! follows for resolved calls — under the actual selection parent. Providers
@@ -30,6 +30,7 @@ use crate::physical::native_byte_span;
 use crate::physical::operator_applications::fragment_call::validate_destination;
 use object_file::SectionKind;
 use optimization_core::NativeOptimizationProjectionIdentity;
+use semantic_vocabulary::BoundaryInvocationSite;
 use target::{Architecture, NativeTarget, TargetProfile};
 use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
@@ -125,7 +126,7 @@ impl InternalCallRow<'_> {
     }
 }
 
-/// `true` when the occurrence's operation owns a retained internal call-stack
+/// `true` when the occurrence owns a retained internal call-stack
 /// row — that is, the boundary call emitted an ordinary internal call.
 /// `evidence.rs` uses the predicate to reject an occurrence that somehow
 /// carries this realization beside an installed settlement or a normalized
@@ -134,9 +135,7 @@ pub(crate) fn boundary_internal_call_exists(
     object: &image_emission::ObjectArtifact,
     occurrence: &OptimizedBoundaryOccurrence,
 ) -> bool {
-    let Some(operation) = occurrence.operation() else {
-        return false;
-    };
+    let invocation_owner = CallSiteOwner::from(occurrence.invocation_site());
     object
         .function_on_machine(occurrence.machine())
         .is_some_and(|function| {
@@ -145,7 +144,7 @@ pub(crate) fn boundary_internal_call_exists(
                 .iter()
                 .map(|call| call.owner)
                 .chain(function.scalar_call_stacks.iter().map(|call| call.owner))
-                .any(|owner| owner == CallSiteOwner::Operation(operation))
+                .any(|owner| owner == invocation_owner)
         })
 }
 
@@ -172,30 +171,69 @@ pub(crate) fn derive_boundary_internal_call_child(
         &crate::physical::fragment_publication::FragmentPublicationBinding,
     >,
 ) -> Result<Option<NativePhysicalChild>, &'static str> {
-    let source_operation = occurrence
-        .operation()
-        .ok_or("selected boundary internal call requires an operation invocation")?;
     // The emitted call must still rejoin exactly one Terminal boundary call
     // on the occurrence's machine. This lane binds the plain internal-call
     // custody. Image publication already joined its complete operand and
     // result transport; structural operands do not make the call foreign.
-    let matching_operations = module
+    let mut machines = module
         .machines
         .iter()
-        .filter(|machine| machine.id == occurrence.machine())
-        .flat_map(|machine| machine.operations())
-        .filter(|operation| operation.id == source_operation)
-        .collect::<Vec<_>>();
-    let [operation] = matching_operations.as_slice() else {
-        return Err("selected boundary internal call does not rejoin one Terminal operation");
+        .filter(|machine| machine.id == occurrence.machine());
+    let (Some(machine), None) = (machines.next(), machines.next()) else {
+        return Err("selected boundary internal call does not rejoin one Terminal machine");
     };
-    let OperationKind::BoundaryCall {
-        boundary,
-        completion_receipts,
-        ..
-    } = &operation.kind
-    else {
-        return Err("selected boundary internal call owner is not a Terminal boundary call");
+    let (boundary, completion_receipts, semantic_site) = match occurrence.invocation_site() {
+        BoundaryInvocationSite::Operation(source_operation) => {
+            let mut operations = machine
+                .operations()
+                .filter(|operation| operation.id == source_operation);
+            let (Some(operation), None) = (operations.next(), operations.next()) else {
+                return Err(
+                    "selected boundary internal call does not rejoin one Terminal operation",
+                );
+            };
+            let OperationKind::BoundaryCall {
+                boundary,
+                completion_receipts,
+                ..
+            } = &operation.kind
+            else {
+                return Err(
+                    "selected boundary internal call owner is not a Terminal boundary call",
+                );
+            };
+            (
+                boundary,
+                completion_receipts.as_slice(),
+                machine_code::SemanticCodeSite::Operation(source_operation),
+            )
+        }
+        BoundaryInvocationSite::ExternalCompletion(source_edge) => {
+            let mut completions =
+                machine
+                    .blocks
+                    .iter()
+                    .filter_map(|block| match &block.terminator {
+                        terminal_psi::Terminator::ExternalCompletion { edge, boundary, .. }
+                            if *edge == source_edge =>
+                        {
+                            Some(boundary)
+                        }
+                        _ => None,
+                    });
+            let (Some(boundary), None) = (completions.next(), completions.next()) else {
+                return Err(
+                    "selected boundary internal call does not rejoin one Terminal completion edge",
+                );
+            };
+            // External completion carries no returning claim receipts. The
+            // selected-call replay retains its complete edge and operands.
+            (
+                boundary,
+                &[][..],
+                machine_code::SemanticCodeSite::Edge(source_edge),
+            )
+        }
     };
     if *boundary != occurrence.boundary() {
         return Err("selected boundary internal call changed its boundary");
@@ -203,7 +241,15 @@ pub(crate) fn derive_boundary_internal_call_child(
     let function = object
         .function_on_machine(occurrence.machine())
         .ok_or("selected boundary internal call names an absent object function")?;
-    if !function.provenance.operations.contains(&source_operation) {
+    let retains_owner = match occurrence.invocation_site() {
+        BoundaryInvocationSite::Operation(operation) => {
+            function.provenance.operations.contains(&operation)
+        }
+        BoundaryInvocationSite::ExternalCompletion(edge) => {
+            function.provenance.edges.contains(&edge)
+        }
+    };
+    if !retains_owner {
         return Err("selected boundary internal call left its function provenance");
     }
     let calls = function
@@ -216,7 +262,7 @@ pub(crate) fn derive_boundary_internal_call_child(
                 .iter()
                 .map(InternalCallRow::Scalar),
         )
-        .filter(|call| call.owner() == CallSiteOwner::Operation(source_operation))
+        .filter(|call| call.owner() == CallSiteOwner::from(occurrence.invocation_site()))
         .collect::<Vec<_>>();
     let [call] = calls.as_slice() else {
         return if calls.is_empty() {
@@ -350,7 +396,7 @@ pub(crate) fn derive_boundary_internal_call_child(
     // call carries no relocation of its own.
     let mut attribution = object.semantic_code_attribution().iter().filter(|row| {
         row.machine == function.machine
-            && row.attribution.site == machine_code::SemanticCodeSite::Operation(source_operation)
+            && row.attribution.site == semantic_site
             && row.attribution.operation_ordinal == occurrence.operation_ordinal()
             && row.text_offset <= opcode
             && row

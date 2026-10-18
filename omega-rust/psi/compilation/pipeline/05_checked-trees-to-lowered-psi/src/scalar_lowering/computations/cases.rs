@@ -40,10 +40,6 @@ pub(crate) struct Slot {
     pub(crate) multiplicity: StructuralMultiplicity,
     pub(crate) case: StructuralCaseId,
     cases: Vec<(symbols::SymbolHandle, StructuralCaseId)>,
-    receiver: Option<(
-        checked_trees::CheckedStructuralValueHandle,
-        crate::scalar_lowering::branch_states::structural_values::Storage,
-    )>,
     pub(crate) fields: Vec<ReservedField>,
 }
 
@@ -51,7 +47,6 @@ pub(crate) struct Slot {
 /// operand is evaluated.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ReservedField {
-    pub(crate) symbol: symbols::SymbolHandle,
     pub(super) field: StructuralFieldId,
     pub(crate) scalar_type: ScalarType,
     /// The declaration restricts the carrier to a range, so establishment must
@@ -97,17 +92,6 @@ pub(crate) fn prepare(
     let roots = plans.roots_in_machines(machines);
     let mut slots: Vec<Slot> = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
-        if let Some(slot) = observed_values::reserve(
-            identities,
-            checked,
-            &plans.nodes.get(handle).kind,
-            types,
-            &slots,
-            next_place,
-        )? {
-            slots.push(slot);
-        }
-
         for subject in constructions(checked, &plans.nodes.get(handle).kind)? {
             if slots
                 .iter()
@@ -226,7 +210,6 @@ pub(crate) fn reserve(
             return unsupported("computed case field requires its exact scalar carrier");
         }
         field_bindings.push(ReservedField {
-            symbol: field.0,
             field: declaration.id,
             scalar_type,
             bounded: terminal_semantics::scalar_field_requires_evidence(&declaration.field_type),
@@ -240,7 +223,6 @@ pub(crate) fn reserve(
         multiplicity,
         case: case.id,
         cases: case_bindings,
-        receiver: None,
         fields: field_bindings,
     })
 }
@@ -250,9 +232,6 @@ impl Slot {
         &self,
         values: &[ValueDeclaration],
     ) -> Result<Construction, LoweringError> {
-        if self.receiver.is_some() {
-            return unsupported("an observed enum result is not a case constructor");
-        }
         if values.len() != self.fields.len() {
             return unsupported("case construction lost its completed field roster");
         }
@@ -343,6 +322,7 @@ impl Expansion<'_> {
     pub(super) fn case_membership(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        observation: checked_trees::CheckedScalarComputationHandle,
 
         subject: &CheckedScalarComputationStructuralArgument,
         receiver_value: checked_trees::CheckedStructuralValueHandle,
@@ -356,6 +336,7 @@ impl Expansion<'_> {
             return observed_values::lower(
                 self,
                 identities,
+                observation,
                 receiver_value,
                 observed_case,
                 input_types,
@@ -636,7 +617,7 @@ pub(crate) fn declarations(
 /// Parameter-field observations retain a case by symbol; the structural-case
 /// resolver keys on the declared identity spelling, so recover it from the
 /// case's own declaration.
-fn structural_case_identity(
+pub(crate) fn structural_case_identity(
     checked: &CheckedTrees,
     observed_case: symbols::SymbolHandle,
 ) -> Result<checked_trees::CheckedMemberIdentity, LoweringError> {

@@ -239,8 +239,10 @@ pub(super) fn account(
         // reference retirement realizes that holder's selected exit disposal;
         // it cannot also receive a second lexical disposal below. Transfers
         // and distinct physical retirement rows remain independent owners.
-        let reference_releases = if result.multiplicity != Multiplicity::Unrestricted {
-            control::statement_sequence::captured_reference_result(
+        let reference_releases = if result.multiplicity != Multiplicity::Unrestricted
+            && shapes.types.get(&result.type_identity)?.descriptor_cleanup
+        {
+            let captured = control::statement_sequence::captured_reference_result(
                 program,
                 facts,
                 machine.symbol,
@@ -248,33 +250,20 @@ pub(super) fn account(
                 structural_results,
                 operation,
                 operations,
-            )
-            .map_or_else(
-                || {
-                    operations[producer_index + 1..]
-                        .iter()
-                        .filter(|operation| {
-                            control::statement_sequence::release_matches(
-                                operation,
-                                result,
-                                Default::default(),
-                            )
-                        })
-                        .count()
-                },
-                |captured| {
-                    operations[producer_index + 1..]
-                        .iter()
-                        .filter(|operation| {
-                            control::statement_sequence::release_matches(
-                                operation,
-                                captured.result,
-                                captured.loans,
-                            )
-                        })
-                        .count()
-                },
-            )
+            );
+            let (released, loans) = captured.map_or((result, Default::default()), |captured| {
+                (captured.result, captured.loans)
+            });
+            // Computed descriptor-capable carriers have no named loan group.
+            // Their exact result occurrence still owns one physical release;
+            // a record wrapper does not erase that completed disposition.
+            operations[producer_index + 1..]
+                .iter()
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .filter(|operation| {
+                    control::statement_sequence::release_matches(operation, released, loans)
+                })
+                .count()
         } else {
             0
         };

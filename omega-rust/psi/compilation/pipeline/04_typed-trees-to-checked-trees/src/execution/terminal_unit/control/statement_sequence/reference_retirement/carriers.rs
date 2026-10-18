@@ -161,6 +161,7 @@ impl Retirement<'_> {
             .operations
             .iter()
             .chain(self.pending)
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             .any(|operation| match operation {
                 CheckedUnitEffectOperationPlan::ReleaseReference {
                     source: released,
@@ -326,6 +327,7 @@ impl Retirement<'_> {
                         let retired = self
                             .operations
                             .iter()
+                            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                             .filter_map(|operation| operation.call())
                             .filter(|call| call.coordinate.statement_index == *statement_index)
                             .filter(|call| {

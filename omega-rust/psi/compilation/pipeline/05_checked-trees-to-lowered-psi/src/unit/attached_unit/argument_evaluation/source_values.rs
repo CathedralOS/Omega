@@ -14,6 +14,7 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::unit::attached_unit::OperationEnvironment;
 
 impl Evaluation {
     /// Consume an already retained computation over one captured formal frame.
@@ -31,6 +32,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let source_types = values
             .iter()
@@ -67,6 +69,7 @@ impl Evaluation {
             operations,
             calls,
             "retained observation has no single completed value",
+            environment,
         )
     }
 
@@ -144,6 +147,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let role = CheckedScalarExpressionRole::Guard;
         let mut computations = checked
@@ -187,6 +191,7 @@ impl Evaluation {
             next_edge,
             operations,
             calls,
+            environment,
         )?;
         if value.scalar_type != ScalarType::Boolean {
             return unsupported("guard source value is not Boolean");
@@ -211,6 +216,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
+        environment: &mut OperationEnvironment<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         if source_value_count > values.len() {
             return unsupported("scalar source prefix exceeds its retained values");
@@ -349,6 +355,7 @@ impl Evaluation {
             operations,
             calls,
             "scalar source has no single completed value",
+            environment,
         )
     }
 }

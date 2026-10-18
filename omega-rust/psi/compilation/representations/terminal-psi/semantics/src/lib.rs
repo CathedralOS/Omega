@@ -46,8 +46,8 @@ mod domain_preservation;
 pub use domain_preservation::{
     domain_predicate_is_closed, domain_write_is_disjoint,
     reference_preserves_ancestor_qualifications, scalar_field_store_preserves_content,
-    scalar_field_store_preserves_qualifications, store_preserves_content,
-    store_preserves_qualifications,
+    scalar_field_store_preserves_domain_content, store_preserves_content,
+    store_preserves_domain_content, store_preserves_qualifications,
 };
 mod primitive_place;
 mod proof_bearing_scalar;

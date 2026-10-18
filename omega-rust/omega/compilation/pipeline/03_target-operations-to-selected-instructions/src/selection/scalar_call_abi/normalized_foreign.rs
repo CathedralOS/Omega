@@ -353,63 +353,68 @@ pub(crate) fn validate(
             crate::structural_inputs::structural_reference_input::borrowed_byte_view_presentation(
                 &root, &semantic, argument.structural_type, &signature.structural_types,
             )).flatten();
-        let (projected_type, source_byte_offset, elements) = if let Some((offset, _, _)) =
-            presentation
-        {
-            if presentation_debt {
-                return Err(invalid!());
-            }
-            (argument.structural_type, offset, Vec::new())
-        } else if argument
-            .path
-            .contains(&terminal_psi::StructuralPathSegment::Referent)
-        {
-            let address = crate::selection::reference_input::borrowed_argument(
-                source, &semantic, argument, indices,
-            )
-            .ok_or_else(|| invalid!())?;
-            // A thin pointer exports the original address and omits the
-            // codec. The checked loan must admit only this byte footprint,
-            // independently of the descriptor's source arrangement.
-            if address.scalar_descriptor {
-                let scalar = crate::structural_inputs::structural_reference_input::scalar_storage_type(
-                    argument.structural_type, &signature.structural_types,
-                ).ok_or_else(|| invalid!())?;
-                crate::selection::reference_input::validate_scalar_foreign_export(
-                    source, &semantic, scalar, argument.shape.byte_size,
-                )?;
-            }
-            let projection =
-                crate::structural_inputs::structural_reference_input::reference_projection(
+        let (projected_type, source_byte_offset, elements) =
+            if let Some((offset, _, _)) = presentation {
+                if presentation_debt {
+                    return Err(invalid!());
+                }
+                (argument.structural_type, offset, Vec::new())
+            } else if argument
+                .path
+                .contains(&terminal_psi::StructuralPathSegment::Referent)
+            {
+                let address = crate::selection::reference_input::borrowed_argument(
+                    source, &semantic, argument, indices,
+                )
+                .ok_or_else(|| invalid!())?;
+                // A thin pointer exports the original address and omits the
+                // codec. The checked loan must admit only this byte footprint,
+                // independently of the descriptor's source arrangement.
+                if address.scalar_descriptor {
+                    let scalar =
+                        crate::structural_inputs::structural_reference_input::scalar_storage_type(
+                            argument.structural_type,
+                            &signature.structural_types,
+                        )
+                        .ok_or_else(|| invalid!())?;
+                    crate::selection::reference_input::validate_scalar_foreign_export(
+                        source,
+                        &semantic,
+                        scalar,
+                        argument.shape.byte_size,
+                    )?;
+                }
+                let projection =
+                    crate::structural_inputs::structural_reference_input::reference_projection(
+                        argument.root_structural_type,
+                        &argument.path,
+                        argument.access,
+                        Some(argument.structural_type),
+                        &signature.structural_types,
+                    )
+                    .ok_or_else(|| invalid!())?;
+                (
+                    argument.structural_type,
+                    address.referent_offset,
+                    projection.elements,
+                )
+            } else if argument.access != terminal_psi::StructuralAccess::Owned {
+                crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
                     argument.root_structural_type,
                     &argument.path,
                     argument.access,
                     Some(argument.structural_type),
                     &signature.structural_types,
                 )
-                .ok_or_else(|| invalid!())?;
-            (
-                argument.structural_type,
-                address.referent_offset,
-                projection.elements,
-            )
-        } else if argument.access != terminal_psi::StructuralAccess::Owned {
-            crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
-                argument.root_structural_type,
-                &argument.path,
-                argument.access,
-                Some(argument.structural_type),
-                &signature.structural_types,
-            )
-            .ok_or_else(|| invalid!())?
-        } else {
-            crate::structural_inputs::structural_reference_input::runtime_projection(
-                argument.root_structural_type,
-                &argument.path,
-                &signature.structural_types,
-            )
-            .ok_or_else(|| invalid!())?
-        };
+                .ok_or_else(|| invalid!())?
+            } else {
+                crate::structural_inputs::structural_reference_input::runtime_projection(
+                    argument.root_structural_type,
+                    &argument.path,
+                    &signature.structural_types,
+                )
+                .ok_or_else(|| invalid!())?
+            };
         let projected_shape = crate::structural_inputs::structural_reference_input::shape(
             projected_type,
             &signature.structural_types,

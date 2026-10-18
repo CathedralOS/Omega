@@ -1,15 +1,14 @@
-//! Parameter ingress places: resolving a checked source plan to a whole
-//! parameter declaration, and projecting a parameter subtree to its moved
-//! root with the alias path and leaf/root type identities the operation
-//! result carries.
+//! Resolve ingress and completed projection sources in their actual storage.
+//! Copying and transfer share root evaluation and typed path preparation;
+//! the consuming operation separately chooses its ownership consequence.
 
 use super::super::super::super::{
     StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
 };
 use super::super::super::{
-    LoweringError, PlaceId, StructuralMultiplicity, StructuralPlaceKind, unsupported,
+    LoweringError, PlaceId, StructuralMultiplicity, lookup_type_id, unsupported,
 };
-use super::{Emission, ProjectedMove};
+use super::{Emission, ProjectionSource};
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 
 impl Emission<'_, '_, '_> {
@@ -114,17 +113,18 @@ impl Emission<'_, '_, '_> {
         Ok(Some(declaration))
     }
 
-    /// The once-evaluated root carrying a projected move: an established local
-    /// keeps its emitted place; a structural product emits its producing call.
+    /// The once-evaluated root carrying a projection: an established local
+    /// keeps its emitted place; an evaluated product completes through the
+    /// ordinary value evaluator, including constructor and selected values.
     /// Returns the root place, the root's checked type identity and argument
-    /// source for the residual complement.
-    pub(super) fn projected_root(
+    /// source identity for either observation or a moved residual complement.
+    pub(super) fn projection_source(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source: CheckedStructuralValueHandle,
         path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         leaf_type_identity: typed_trees::type_identity::TypeIdentityId,
-    ) -> Result<ProjectedMove, LoweringError> {
+    ) -> Result<ProjectionSource, LoweringError> {
         let node = self.structural_value_node(source);
         let mut root_alias_path = Vec::new();
         let (root, root_type_identity, root_source) = match node.kind {
@@ -177,34 +177,88 @@ impl Emission<'_, '_, '_> {
                 };
                 (place, argument.type_identity, root_source)
             }
-            CheckedStructuralValueKind::Call { .. } => {
-                let mut matching = self
-                    .operand_calls
-                    .iter()
-                    .filter(|call| call.value == source);
-                let call = matching.next().ok_or(LoweringError::Unsupported(
-                    "projected selection operand call missing",
-                ))?;
-                if matching.next().is_some() {
-                    return unsupported("projected selection operand call is duplicated");
-                }
-                let result = call.structural_result();
-                let root_type_identity = result.type_identity.clone();
-                let root_source =
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: result.binding_ordinal,
-                    };
-                let declaration = self.emit_operand_call(identities, call)?;
-                let StructuralPlaceKind::OperationResult { .. } = declaration.kind else {
-                    return unsupported("projected selection call has no result place");
-                };
-                (declaration.id, root_type_identity, root_source)
-            }
             _ => {
-                return unsupported("projected selection requires a place or call root");
+                let root_type_identity = validation::stored_structural_type_identity(
+                    &self.checked.typed,
+                    node.type_reference,
+                    &[],
+                    &[],
+                );
+                let root_type =
+                    lookup_type_id(self.type_ids, &root_type_identity).map_err(|_| {
+                        LoweringError::MissingUnitStructuralType(format!(
+                            "projection source: {}",
+                            self.checked
+                                .type_identity_text(root_type_identity)
+                                .unwrap_or_else(|| format!("{root_type_identity:?}")),
+                        ))
+                    })?;
+                // The selected result's paths are relative to its leaf. The
+                // producing owner needs its own full checked frontier,
+                // including children left in the residual complement.
+                let prepared_claims =
+                    crate::emission::claim_bindings::prepare_establishment_claims(
+                        identities,
+                        self.checked,
+                        self.machine,
+                        self.state,
+                        self.statement as usize,
+                        facts::PlaceRoot::Expression(node.expression),
+                        node.type_reference,
+                        root_type,
+                        self.structural_types,
+                    )?;
+                let source_claims = crate::emission::claim_bindings::emit_establishment_claims(
+                    &prepared_claims,
+                    &mut self.calls.claims,
+                )?;
+                let source_introductions =
+                    crate::emission::claim_bindings::direct_establishment_claims(
+                        &prepared_claims,
+                        &self.calls.claims,
+                    )?;
+                let selected_claims = std::mem::replace(&mut self.completion_claims, source_claims);
+                let selected_introductions =
+                    std::mem::replace(&mut self.direct_establishments, source_introductions);
+                let completed = self.child_constructor_operand(
+                    identities,
+                    root_type,
+                    source,
+                    node.type_reference,
+                    &[],
+                );
+                self.completion_claims = selected_claims;
+                self.direct_establishments = selected_introductions;
+                let completed = completed?;
+                if !completed.argument.path.is_empty()
+                    || completed.argument.access != StructuralAccess::Owned
+                {
+                    return unsupported("projected selection requires a completed whole owner");
+                }
+                // The source remains a distinct established home when its
+                // selected child copies. Scope-exit cleanup consumes this
+                // exact expression binding, never the copied leaf's home.
+                crate::expression_preparation::bindings::retain_completed_structural_homes(
+                    &mut self.evaluation.structural_locals,
+                    &[
+                        crate::expression_preparation::bindings::StructuralLocalBinding {
+                            result_binding_ordinal: None,
+                            root: facts::PlaceRoot::Expression(node.expression),
+                            argument: completed.argument.clone(),
+                            structural_type: root_type,
+                        },
+                    ],
+                )?;
+                (
+                    completed.argument.place,
+                    root_type_identity,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        expression: node.expression,
+                    },
+                )
             }
         };
-        Ok(ProjectedMove {
+        Ok(ProjectionSource {
             root,
             root_path: root_alias_path,
             path,

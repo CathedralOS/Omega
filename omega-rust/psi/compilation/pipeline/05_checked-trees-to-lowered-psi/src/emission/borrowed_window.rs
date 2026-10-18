@@ -238,26 +238,23 @@ impl ResolvedStorageAddress {
 
 impl BorrowedWindowLedger {
     pub(crate) fn capture_assignment_destination(
-        &mut self,
+        environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         destination: &CheckedUnitStructuralArgumentPlan,
         destination_expression: typed_trees::expression::ExpressionHandle,
-        parameters: &[StructuralParameterDeclaration],
-        structural_types: &[StructuralTypeDeclaration],
         evaluation: &mut WindowEvaluation<'_, '_>,
         values: &mut Vec<terminal_psi::ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
         next_edge: &mut u64,
-        next_place: &mut u64,
-        places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
+        let structural_types = environment.structural_types;
         let place = resolve_storage_address(
             identities,
             destination,
             StructuralAccess::WriteOnlyBorrow,
-            parameters,
+            &environment.parameters,
             evaluation.evaluation,
             operations,
             structural_types,
@@ -277,6 +274,7 @@ impl BorrowedWindowLedger {
             next_edge,
             operations,
             evaluation.calls,
+            environment,
         )?;
         let mut path =
             runtime_elements::complete_path(place.steps, indexes, evaluation.calls, operations)?;
@@ -379,8 +377,8 @@ impl BorrowedWindowLedger {
                 next_value,
                 next_block,
                 next_edge,
-                next_place,
-                places,
+                environment.next_place,
+                environment.private_places,
                 operations,
             )?;
             (source, capture_type, retained_path)
@@ -391,7 +389,7 @@ impl BorrowedWindowLedger {
         // consumed while capturing this endpoint. Associate suffixes with that
         // same normalized coordinate, or an implicit root crossing is appended
         // a second time below the captured referent.
-        self.assignment = Some(CapturedAssignmentDestination {
+        environment.windows.assignment = Some(CapturedAssignmentDestination {
             statement_index: evaluation.statement_index,
             destination_expression,
             destination: destination.clone(),
@@ -559,6 +557,7 @@ impl BorrowedWindowLedger {
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
+        environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
     ) -> Result<EvaluatedStoragePlace, LoweringError> {
         if let Some(capture) = capture {
             let descendants =
@@ -603,6 +602,7 @@ impl BorrowedWindowLedger {
             next_edge,
             operations,
             evaluation.calls,
+            environment,
         )?;
         let path = runtime_elements::complete_path(
             place.steps.clone(),
@@ -624,28 +624,26 @@ impl BorrowedWindowLedger {
     /// consuming move takes out of exclusive storage, binding the
     /// removed value as `result`. Returns the structural result place.
     pub(crate) fn emit_move(
-        &mut self,
+        environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         moved: &CheckedUnitStructuralArgumentPlan,
         expression: typed_trees::expression::ExpressionHandle,
         result: &CheckedUnitStructuralResultBindingPlan,
         result_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
-        parameters: &[StructuralParameterDeclaration],
-        structural_types: &[StructuralTypeDeclaration],
-        type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
         evaluation: &mut WindowEvaluation<'_, '_>,
         values: &mut Vec<terminal_psi::ValueDeclaration>,
-        next_place: &mut u64,
         next_value: &mut u64,
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<PlaceId, LoweringError> {
+        let structural_types = environment.structural_types;
+        let type_ids = environment.type_ids;
         let (place, hole_type) = resolve_window_place(
             identities,
             moved,
             StructuralAccess::MutableBorrow,
-            parameters,
+            &environment.parameters,
             evaluation.evaluation,
             operations,
             structural_types,
@@ -666,21 +664,30 @@ impl BorrowedWindowLedger {
         // Only displacement belongs to the assignment target occurrence.
         // Matching a source/path is not enough: a genuine RHS extraction reads
         // its own later source, even when it spells that same storage route.
-        let capture = self
+        let capture = environment
+            .windows
             .assignment_destination(evaluation.statement_index, &moved.source, &moved.path)
-            .filter(|capture| {
-                expression.is_valid() && capture.destination_expression == expression
-            });
+            .filter(|capture| expression.is_valid() && capture.destination_expression == expression)
+            .cloned();
         let evaluated = Self::evaluated_place(
-            capture, identities, moved, &place, evaluation, values, next_value, next_block,
-            next_edge, operations,
+            capture.as_ref(),
+            identities,
+            moved,
+            &place,
+            evaluation,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            environment,
         )?;
         let source = evaluated.source;
         let path = evaluated.path;
         let field = evaluated.field;
         let (qualifications, projected_qualifications) =
             place.selected_memberships(identities, &evaluated.original_path)?;
-        if let Some(absent) = self.open.iter().find(|absent| {
+        if let Some(absent) = environment.windows.open.iter().find(|absent| {
             absent.source == evaluated.original_source
                 && paths_overlap(
                     &absent.path,
@@ -707,7 +714,7 @@ impl BorrowedWindowLedger {
             next_value,
             operations,
         )?;
-        let moved_place = place_id(allocate_dense(next_place)?);
+        let moved_place = place_id(allocate_dense(environment.next_place)?);
         // The RHS can observe storage again after capture cleared the cache.
         // Both spellings now denote the modified subtree; neither retains a
         // live descriptor observation across its extraction or replacement.
@@ -730,7 +737,7 @@ impl BorrowedWindowLedger {
                 field,
             },
         );
-        self.open.push(OpenBorrowedWindow {
+        environment.windows.open.push(OpenBorrowedWindow {
             opening: moved_place,
             source: evaluated.original_source,
             path: evaluated.original_path,
@@ -748,14 +755,11 @@ impl BorrowedWindowLedger {
     /// requires freely discardable replacement custody. Both retain the destination
     /// captured before the RHS and its exact declared type.
     pub(crate) fn emit_store(
-        &mut self,
+        environment: &mut crate::unit::attached_unit::OperationEnvironment<'_>,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         destination: &CheckedUnitStructuralArgumentPlan,
         opening: Option<PlaceId>,
         value: BorrowedWindowRepairValue,
-        parameters: &[StructuralParameterDeclaration],
-        structural_types: &[StructuralTypeDeclaration],
-        type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
         evaluation: &mut WindowEvaluation<'_, '_>,
         values: &mut Vec<terminal_psi::ValueDeclaration>,
         next_value: &mut u64,
@@ -763,23 +767,28 @@ impl BorrowedWindowLedger {
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
+        let structural_types = environment.structural_types;
+        let type_ids = environment.type_ids;
         let (place, hole_type) = resolve_window_place(
             identities,
             destination,
             StructuralAccess::WriteOnlyBorrow,
-            parameters,
+            &environment.parameters,
             evaluation.evaluation,
             operations,
             structural_types,
             type_ids,
         )?;
-        let capture = self.assignment_destination(
-            evaluation.statement_index,
-            &destination.source,
-            &destination.path,
-        );
+        let capture = environment
+            .windows
+            .assignment_destination(
+                evaluation.statement_index,
+                &destination.source,
+                &destination.path,
+            )
+            .cloned();
         let evaluated = Self::evaluated_place(
-            capture,
+            capture.as_ref(),
             identities,
             destination,
             &place,
@@ -789,12 +798,15 @@ impl BorrowedWindowLedger {
             next_block,
             next_edge,
             operations,
+            environment,
         )?;
         let source = evaluated.source;
         let path = evaluated.path;
         let field = evaluated.field;
         let index = opening.and_then(|opening| {
-            self.open
+            environment
+                .windows
+                .open
                 .iter()
                 .position(|absent| absent.opening == opening)
         });
@@ -805,7 +817,7 @@ impl BorrowedWindowLedger {
             ));
         }
         if let Some(index) = index {
-            let absent = &self.open[index];
+            let absent = &environment.windows.open[index];
             if absent.source != evaluated.original_source
                 || absent.field != place.field.as_ref().map(|field| field.id)
                 || absent.hole_type != hole_type
@@ -816,7 +828,8 @@ impl BorrowedWindowLedger {
                 ));
             }
         }
-        let multiplicity = parameters
+        let multiplicity = environment
+            .parameters
             .iter()
             .find(|parameter| parameter.place == value.place)
             .map(|parameter| parameter.multiplicity)
@@ -852,7 +865,7 @@ impl BorrowedWindowLedger {
                 });
         if index.is_none()
             && ((place.restoration_required && !discardable)
-                || self.open.iter().any(|absent| {
+                || environment.windows.open.iter().any(|absent| {
                     absent.source == evaluated.original_source
                         && paths_overlap(
                             &absent.path,
@@ -863,7 +876,7 @@ impl BorrowedWindowLedger {
                         )
                 }))
         {
-            let reason = if self.open.iter().any(|absent| {
+            let reason = if environment.windows.open.iter().any(|absent| {
                 absent.source == evaluated.original_source
                     && paths_overlap(
                         &absent.path,
@@ -887,7 +900,8 @@ impl BorrowedWindowLedger {
             ));
         }
         let _ = place.selected_memberships(identities, &evaluated.original_path)?;
-        let _ = parameters
+        let _ = environment
+            .parameters
             .iter()
             .filter(|parameter| parameter.place == value.place)
             .map(|parameter| {
@@ -957,7 +971,7 @@ impl BorrowedWindowLedger {
             },
         );
         if let Some(index) = index {
-            self.open.remove(index);
+            environment.windows.open.remove(index);
         }
         Ok(())
     }
@@ -990,21 +1004,9 @@ pub(crate) fn terminal_multiplicity(multiplicity: Multiplicity) -> StructuralMul
     }
 }
 
-/// The multiplicity a declared-only local's zeroed whole shape carries. A
-/// `[linear]` type's zero image owns only storage: implicit zero-filling
-/// establishes no linear obligation (wiki/spec/language/ownership.md,
-/// "Establishment and erasure"); the later assignment establishes the owed
-/// value and its consumer discharges it. Terminal's zeroed establishment
-/// therefore admits only non-linear results, and the zero image of a linear
-/// carrier is presented as affine: disposable storage with no debt, exactly
-/// as an affine carrier's zero image.
-pub(crate) fn zeroed_image_multiplicity(multiplicity: Multiplicity) -> StructuralMultiplicity {
-    zeroed_image(terminal_multiplicity(multiplicity))
-}
-
-/// The same rule over a carrier already lowered to its Terminal multiplicity:
-/// both lanes mint a declared-only local's zero image through this one
-/// mapping.
+/// A declared-only local's zero image establishes storage, not linear debt.
+/// Present a linear carrier's zero image as disposable affine storage until
+/// assignment establishes its owed value (ownership: establishment and erasure).
 pub(crate) fn zeroed_image(multiplicity: StructuralMultiplicity) -> StructuralMultiplicity {
     match multiplicity {
         StructuralMultiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,

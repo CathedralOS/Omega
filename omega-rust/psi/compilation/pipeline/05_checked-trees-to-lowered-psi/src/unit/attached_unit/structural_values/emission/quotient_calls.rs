@@ -31,7 +31,7 @@ impl Emission<'_, '_, '_> {
             }
             actuals.push((child.argument, ty));
         }
-        let place = place_id(allocate_dense(self.next_place)?);
+        let place = place_id(allocate_dense(self.environment.next_place)?);
         let declaration = crate::emission::quotient_values::emit_call(
             self.checked,
             value,
@@ -42,7 +42,7 @@ impl Emission<'_, '_, '_> {
             self.operations,
             self.calls,
         )?;
-        self.temporary_places.push(declaration);
+        self.environment.private_places.push(declaration);
         Ok(place)
     }
 }

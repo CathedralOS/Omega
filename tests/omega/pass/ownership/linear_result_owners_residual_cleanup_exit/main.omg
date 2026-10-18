@@ -33,7 +33,10 @@ machine main() crashes Trap {
     let first_receipt: Receipt = first.receipt;
     let first_code: i32 = consume(first_receipt);
     let second_code: i32 = consume(second.receipt);
-    transition first_code == 1 && second_code == 2 {
+    // The anonymous owner keeps its whole producer claim frontier while the
+    // selected receipt moves and the hooked sibling's residual is disposed.
+    let direct_code: i32 = consume(issue(3).receipt);
+    transition first_code == 1 && second_code == 2 && direct_code == 3 {
         true -> done()
         _ -> bad()
     }

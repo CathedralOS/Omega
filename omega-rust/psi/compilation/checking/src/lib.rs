@@ -168,10 +168,11 @@ pub use value_custody::places::{
     collection_length_receiver, declaration_storage_label, declared_collection_extent,
     exact_attached_field, exact_attached_storage_field, exact_data_member_field, exact_self_field,
     expression_names_attached_storage, fixed_array_type_length, has_builtin_subslice_meaning,
-    mutable_byte_slice_parameter_element, place_has_builtin_coordinates, saved_dispatch_call,
-    saved_dispatch_subject, structural_scalar_field, structural_scalar_field_at_coordinate,
+    indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
+    place_has_builtin_coordinates, saved_dispatch_call, saved_dispatch_subject,
+    structural_scalar_field, structural_scalar_field_at_coordinate,
     structural_scalar_field_in_parameters, structural_source, subslice_expression,
-    value_has_builtin_coordinates,
+    value_element_has_builtin_coordinate, value_has_builtin_coordinates,
 };
 
 pub use proof_contracts::bound_expression_meaning::{
@@ -226,7 +227,7 @@ pub use crate::value_custody::cleanup::{
     nominal_cleanup_machine_for_type, nominal_cleanup_owner, validate_reserved_cleanup_selections,
 };
 pub use crate::value_custody::content_conservation::{
-    ContentConservationSourcePlan, build_content_conservation_plans, content_conservation_plans,
+    ContentConservationSourcePlan, content_conservation_plans,
 };
 pub use crate::value_custody::content_projections::build_content_projection_plans;
 

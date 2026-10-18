@@ -10,6 +10,9 @@ use super::structural_judgment::{StructuralJudge, StructuralJudgment, Structural
 use super::structural_terms::structural_term;
 use crate::expression_traversal::children;
 use crate::machine_calls::calls::machine_state_by_symbol;
+use crate::value_custody::content_conservation::{
+    ContentDeclarationFormation, content_conservation_inputs,
+};
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::domain::ProofFact;
@@ -124,6 +127,7 @@ pub(crate) fn validate_declaration_expression_formation(
         prior_facts,
         owner,
         diagnostics,
+        None,
         &mut Vec::new(),
     );
 }
@@ -138,6 +142,7 @@ fn validate_declaration_call_arguments(
     expression: ExpressionHandle,
     call: &TableCallExpression,
     selected: SelectedCallContract<'_>,
+    content_formation: Option<ContentDeclarationFormation<'_>>,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -159,6 +164,15 @@ fn validate_declaration_call_arguments(
         return;
     }
     for (argument, parameter) in actual.iter().zip(expected.iter()) {
+        // This exact proof observation already has a checked place, carrier,
+        // access and qualification. It is not an ordinary runtime reference.
+        // Selected call preconditions remain with validate_expression below.
+        if let Some(formation) = content_formation
+            && let SelectedCallContract::Concrete(projection, _) = &selected
+            && formation.forms_argument(projection.symbol, expression, *argument)
+        {
+            continue;
+        }
         let natural = crate::parameter_expression_result_type_reference(
             program,
             owner_symbol,
@@ -194,6 +208,7 @@ pub(crate) fn validate_declaration_call_requirements(
 ) {
     let mut roots = Vec::new();
     fact_roots(program, fact, &mut roots);
+    let content = content_conservation_inputs(program);
     let mut visited = Vec::new();
     for root in roots {
         validate_expression(
@@ -203,6 +218,7 @@ pub(crate) fn validate_declaration_call_requirements(
             prior_facts,
             owner,
             diagnostics,
+            content.declaration_formation(owner_symbol, root),
             &mut visited,
         );
     }
@@ -228,6 +244,7 @@ pub(crate) fn validate_specification_call_requirements(
             prior_facts,
             owner,
             diagnostics,
+            None,
             &mut visited,
         );
     }
@@ -241,6 +258,7 @@ fn validate_expression(
     prior_facts: &[ExpressionHandle],
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
+    content_formation: Option<ContentDeclarationFormation<'_>>,
     visited: &mut Vec<ExpressionHandle>,
 ) {
     if !expression.is_valid() || visited.contains(&expression) {
@@ -257,6 +275,7 @@ fn validate_expression(
             prior_facts,
             owner,
             diagnostics,
+            content_formation,
             visited,
         );
     });
@@ -289,6 +308,7 @@ fn validate_expression(
             expression,
             call,
             contract_owner,
+            content_formation,
             owner,
             diagnostics,
         );

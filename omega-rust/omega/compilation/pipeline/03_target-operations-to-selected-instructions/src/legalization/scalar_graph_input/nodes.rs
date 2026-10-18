@@ -679,7 +679,7 @@ pub(super) fn validate(
                     .is_some_and(|field| {
                         let mut written = path.clone();
                         written.push(terminal_psi::StructuralPathSegment::Field(field.identity));
-                        optimization_unit_semantics::structural_write_preserves_memberships(
+                        optimization_unit_semantics::structural_write_preserves_content(
                             optimized,
                             destination.place(),
                             &written,

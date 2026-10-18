@@ -61,6 +61,14 @@ impl Builder<'_, '_> {
         }
         let arguments = program.expression_table.expression_handles(call.arguments);
         let (&selector_argument, data_arguments) = arguments.split_first()?;
+        let captures = self.flow.control.calls.get(source_call).argument_operands();
+        if captures.len() != arguments.len() {
+            return None;
+        }
+        let data_captures = arena::HandleSpan::from_parts_or_empty(
+            captures.handle_at(1),
+            captures.count().checked_sub(1)?,
+        );
         let selector = self.expression(selector_argument, PrimitiveType::Selector)?;
         self.plans.nodes.get_mut(selector).authored_root = selector_argument;
         let ComputedCallOperands {
@@ -68,7 +76,12 @@ impl Builder<'_, '_> {
             structural_arguments,
             temporary_cleanups,
             claim_transfers,
-        } = self.call_operands(source_call, data_arguments, slot.data_parameters())?;
+        } = self.call_operands(
+            source_call,
+            data_captures,
+            data_arguments,
+            slot.data_parameters(),
+        )?;
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::Call {

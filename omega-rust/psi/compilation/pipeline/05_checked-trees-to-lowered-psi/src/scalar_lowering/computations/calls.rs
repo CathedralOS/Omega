@@ -400,7 +400,7 @@ impl Expansion<'_> {
                             .count();
                     let source = site.bindings.structural_copy_source(
                         identities,
-                        actual.place,
+                        actual.source.known_place()?,
                         &actual.path,
                         self.structural_types,
                         |identities, selector| {
@@ -430,7 +430,7 @@ impl Expansion<'_> {
                         },
                         value,
                     });
-                    actual.place = slot.place;
+                    actual.source = slot.place.into();
                     actual.path.clear();
                     actual.selector_positions.clear();
                 }
@@ -688,14 +688,6 @@ impl Expansion<'_> {
         // The checked call owns retirement, not the producer's source family
         // or its borrowed access. Keep the scalar result and caller prefix live
         // across the exact normal continuation; a crashing call never reaches it.
-        let discards = self.temporary_cleanup_actions(
-            identities,
-            site.state,
-            source_call,
-            callee.authority_value(),
-            structural,
-            temporary_cleanups,
-        )?;
         let target = if temporary_cleanups.is_empty() {
             target
         } else {
@@ -703,14 +695,15 @@ impl Expansion<'_> {
             parameter_types.push(result_type);
             self.push(LoweredScalarBranchState {
                 structural_parameters: Vec::new(),
-                structural_effects: Vec::new(),
+                structural_effects: vec![LoweredScalarEffect::CompleteTemporaryOperands {
+                    cleanups: temporary_cleanups,
+                }],
                 bindings: Vec::new(),
                 erased_formal_types: Vec::new(),
                 erased_proof_formals: Vec::new(),
-                terminator: LoweredScalarBranchTerminator::jump_with_cleanup(
+                terminator: LoweredScalarBranchTerminator::jump(
                     target,
                     super::parameters(&parameter_types),
-                    discards,
                 ),
                 parameter_types,
             })
@@ -748,11 +741,9 @@ impl Expansion<'_> {
                     operands[..ordinal]
                         .iter()
                         .filter_map(|operand| match operand {
-                            Operand::Produced(slot) => Some(EstablishedValue::Produced {
-                                root: slot.root,
-                                place: slot.place,
-                                structural_type: slot.structural_type,
-                            }),
+                            Operand::Produced(slot) => {
+                                Some(EstablishedValue::Produced { root: slot.root })
+                            }
                             Operand::Copy { value, .. } => Some(value.clone()),
                             _ => None,
                         }),
@@ -809,302 +800,17 @@ impl Expansion<'_> {
                     ),
                 }),
                 Operand::Produced(slot) => {
-                    let values = &self.checked.facts.values.structural_values;
-                    let prepared =
-                        crate::scalar_lowering::branch_states::structural_values::prepare_value(
-                            identities,
-                            self.checked,
-                            self.qualifications,
-                            site.state,
-                            facts::PlaceRoot::Expression(values.nodes.get(slot.root).expression),
-                            site.statement,
-                            slot.root,
-                            values.calls_for_root(slot.root).unwrap_or(&[]),
-                            slot.type_reference,
-                            site.bindings,
-                            prefix,
-                            self.structural_types,
-                            &slot.storage,
-                        )?;
-                    if prepared.place != slot.place {
-                        return unsupported(
-                            "computed value did not establish its reserved operand place",
-                        );
-                    }
-                    if prepared.structural_type != slot.structural_type {
-                        return unsupported(
-                            "computed value disagrees with its reserved operand carrier",
-                        );
-                    }
-                    prepared.finish(
-                        identities,
-                        site.state,
-                        site.bindings,
-                        prefix,
-                        continuation,
-                        self,
-                    )?
+                    let arrival =
+                        crate::scalar_lowering::branch_states::structural_values::ValueRequest {
+                            value: slot.root,
+                            structural_type: slot.structural_type,
+                        };
+                    arrival.finish(prefix, continuation, self)
                 }
             };
             self.established_values.truncate(established_prefix);
             self.completed.truncate(completed_prefix);
         }
         Ok(continuation)
-    }
-
-    /// Translate the checked partition in its authored cleanup order. Admission
-    /// owns the permission and complement derivation; this step only joins its
-    /// exact source to storage and lowers the already selected subtree paths.
-    fn temporary_cleanup_actions(
-        &self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        state: symbols::SymbolHandle,
-        source_call: Handle<checked_trees::FlowCallFact>,
-        authority: checked_trees::CheckedStructuralValueHandle,
-        arguments: &[CheckedScalarComputationStructuralArgument],
-        retained: HandleSpan<CheckedScalarComputationTemporaryCleanup>,
-    ) -> Result<Vec<crate::unit::unit_cleanup::PreparedNormalCleanupAction>, LoweringError> {
-        let plans = &self.checked.facts.values.scalar_computations;
-        let retained =
-            plans
-                .temporary_cleanups
-                .span(retained)
-                .ok_or(LoweringError::Unsupported(
-                    "computed call lost its temporary retirement roster",
-                ))?;
-        let mut actions = Vec::new();
-        let mut retired = Vec::with_capacity(retained.len());
-        for discard in retained {
-            let ordinal = discard.argument_ordinal.map(|ordinal| ordinal as usize);
-            let source = match ordinal {
-                Some(ordinal) => arguments
-                    .get(ordinal)
-                    .and_then(|argument| argument.as_place())
-                    .ok_or(LoweringError::Unsupported(
-                        "temporary retirement lost its structural operand",
-                    ))?
-                    .source
-                    .clone(),
-                None if self
-                    .checked
-                    .facts
-                    .values
-                    .structural_values
-                    .nodes
-                    .is_valid(authority) =>
-                {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                        expression: self
-                            .checked
-                            .facts
-                            .values
-                            .structural_values
-                            .nodes
-                            .get(authority)
-                            .expression,
-                    }
-                }
-                None => return unsupported("authority retirement lost its evaluated operand"),
-            };
-            if retired.contains(&discard.owner)
-                || !matches!(
-                    source,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
-                )
-            {
-                return unsupported("temporary retirement repeats or loses its owner source");
-            }
-            let slot = self
-                .produced_values
-                .iter()
-                .find(|slot| slot.source_call == source_call && slot.argument_ordinal == ordinal)
-                .ok_or(LoweringError::Unsupported(
-                    "temporary retirement lost its reserved owner",
-                ))?;
-            retired.push(discard.owner);
-            let discards = plans
-                .temporary_cleanup_actions
-                .span(discard.actions)
-                .ok_or(LoweringError::Unsupported(
-                    "temporary retirement has stale residual rows",
-                ))?;
-            let call = self.checked.facts.flow.control.calls.get(source_call);
-            let values = &self.checked.facts.values.structural_values;
-            let dependencies =
-                values
-                    .value_dependencies(slot.root)
-                    .ok_or(LoweringError::Unsupported(
-                        "temporary cleanup lost its owner graph",
-                    ))?;
-            // The checked owner group binds a completed home, not every node
-            // with the same diagnostic expression. Contained zero operands can
-            // share their parent's source without acquiring another death.
-            if !values.nodes.is_valid(discard.owner) || !dependencies.contains(&discard.owner) {
-                return unsupported("temporary cleanup owner is outside its reserved operand");
-            }
-            let root = values.nodes.get(discard.owner);
-            if root.machine != self.machine
-                || root.state != state
-                || root.statement_index as usize != call.statement_index
-            {
-                return unsupported("temporary cleanup owner has a different occurrence scope");
-            }
-            let owner_structural_type =
-                crate::terminal_identities::structural_declaration_by_identity(
-                    self.structural_types,
-                    identities,
-                    self.checked,
-                    validation::stored_structural_type_identity(
-                        &self.checked.typed,
-                        root.type_reference,
-                        &[],
-                        &[],
-                    ),
-                    "temporary cleanup owner has no structural type",
-                )?
-                .id;
-            let owner_place = slot.storage.place(discard.owner)?;
-            // Even an empty residual span must settle this exact owner's claims.
-            // The containing operand cannot lend its claim authority to backing.
-
-            let root_claims = crate::emission::claim_bindings::prepare_claim_dispositions(
-                identities,
-                self.checked,
-                self.machine,
-                state,
-                language_semantics::PermissionEventSource::Call {
-                    statement_index: call.statement_index,
-                    call_ordinal: call.call_ordinal,
-                    target_symbol: call.target_symbol,
-                },
-                facts::PlaceRoot::Expression(root.expression),
-                root.type_reference,
-                owner_structural_type,
-                self.structural_types,
-            )?;
-            let selected_claims = root_claims
-                .iter()
-                .map(|claim| claim.identity)
-                .collect::<Vec<_>>();
-            let action_start = actions.len();
-            for action in discards {
-                use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
-                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                    expression,
-                } = action.source()
-                else {
-                    return unsupported("temporary cleanup lost its owner expression");
-                };
-                if *expression != root.expression {
-                    return unsupported("temporary cleanup action disagrees with its exact owner");
-                }
-                let claims = &root_claims;
-                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    identities,
-                    action.path(),
-                    owner_structural_type,
-                    self.structural_types,
-                    None,
-                    &mut std::iter::empty(),
-                    None,
-                )?;
-                let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
-                    identities,
-                    self.checked,
-                    &self
-                        .checked
-                        .facts
-                        .flow
-                        .terminal_unit_effects
-                        .cleanup_control,
-                    action.case_conditions(),
-                    self.structural_types,
-                    |identities, condition_path| {
-                        let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(identities, condition_path, owner_structural_type, self.structural_types, None, &mut std::iter::empty(), None)?;
-                        Ok((owner_place, path))
-                    },
-                )?;
-                let structural_type =
-                    crate::terminal_identities::structural_declaration_by_identity(
-                        self.structural_types,
-                        identities,
-                        self.checked,
-                        action.type_identity(),
-                        "temporary cleanup has no structural type",
-                    )?
-                    .id;
-                actions.push(match action {
-                    checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {
-                        PreparedNormalCleanupAction::Resolved(
-                            crate::unit::unit_cleanup::CleanupRegion::unconditional(
-                                terminal_psi::TerminalAffineCleanupAction::RetireHome(owner_place),
-                            ),
-                        )
-                    }
-                    checked_trees::CheckedNormalCleanupAction::Discard(_)
-                        if path.is_empty() && conditions.is_empty() =>
-                    {
-                        PreparedNormalCleanupAction::discard_root(owner_place)
-                    }
-                    checked_trees::CheckedNormalCleanupAction::Discard(_) => {
-                        PreparedNormalCleanupAction::Resolved(
-                            crate::unit::unit_cleanup::CleanupRegion {
-                                selected_region: None,
-                                conditions,
-                                action: terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
-                                    terminal_psi::StructuralAffineDiscard {
-                                        place: owner_place,
-                                        path,
-                                        structural_type,
-                                    },
-                                ),
-                            },
-                        )
-                    }
-                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
-                        let consumed_claims = claims
-                            .iter()
-                            .filter(|claim| claim.path == path)
-                            .map(|claim| claim.identity)
-                            .collect();
-                        PreparedNormalCleanupAction::InvokeNominal {
-                            conditions,
-                            cleanup: cleanup.clone(),
-                            place: owner_place,
-                            path,
-                            structural_type,
-                            consumed_claims,
-                        }
-                    }
-                });
-            }
-            let selected = selected_claims;
-            let emitted = actions[action_start..]
-                .iter()
-                .flat_map(|action| match action {
-                    crate::unit::unit_cleanup::PreparedNormalCleanupAction::InvokeNominal {
-                        consumed_claims,
-                        ..
-                    } => consumed_claims.as_slice(),
-                    _ => &[],
-                })
-                .copied()
-                .collect::<Vec<_>>();
-            if selected.len() != emitted.len()
-                || selected.iter().any(|identity| {
-                    emitted
-                        .iter()
-                        .filter(|candidate| *candidate == identity)
-                        .count()
-                        != 1
-                })
-                || emitted.iter().any(|identity| !selected.contains(identity))
-            {
-                return unsupported(
-                    "temporary cleanup did not bind each selected claim exactly once",
-                );
-            }
-        }
-        Ok(actions)
     }
 }

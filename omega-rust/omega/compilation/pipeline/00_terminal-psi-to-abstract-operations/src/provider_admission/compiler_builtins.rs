@@ -21,9 +21,7 @@ mod proposals;
 mod retained;
 
 pub use proposals::CompilerIntrinsicPlanProvenance;
-pub(crate) use proposals::{
-    demanded_boundary_identities, derive_selected_intrinsic_settlement_proposals,
-};
+pub(crate) use proposals::derive_selected_intrinsic_settlement_proposals;
 pub(crate) use retained::prepare_retained_compiler_builtins;
 pub use retained::{TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement};
 
@@ -99,10 +97,17 @@ pub(super) fn settle_compiler_builtins<'request>(
             ))]
         })?;
         if !boundary_contract_matches_selected_schema(boundary, proposal.provider_plan, requirement)
-            || boundary.completion != compiler_builtin_completion(execution)
         {
             return Err(vec![Diagnostic::error(format!(
-                "compiler-builtin completion for `{requirement}` disagrees with its exact requirement contract"
+                "compiler-builtin boundary {:?} for `{requirement}` disagrees with its exact selected requirement contract (completion {:?}, unconditional termination {})",
+                boundary.id, boundary.completion, boundary.unconditional_termination,
+            ))]);
+        }
+        let completion = compiler_builtin_completion(execution);
+        if boundary.completion != completion {
+            return Err(vec![Diagnostic::error(format!(
+                "compiler-builtin boundary {:?} for `{requirement}` declares completion {:?}, but its exact native mechanism requires {:?}",
+                boundary.id, boundary.completion, completion,
             ))]);
         }
         let mechanism = compiler_intrinsic_execution_identity(execution);

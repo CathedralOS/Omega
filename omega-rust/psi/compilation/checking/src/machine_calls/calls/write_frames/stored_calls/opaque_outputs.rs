@@ -15,13 +15,13 @@ pub(super) fn effects(
     context: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-) -> Option<Vec<SlotEffect>> {
+) -> Option<SlotRelationTransfer> {
     if parameters.len() != arguments.len() {
         return None;
     }
-    let outputs = resolve_provider_outputs(program, parameters).ok()?;
+    let relation = resolve_provider_outputs(program, parameters).ok()?;
     let mut effects = Vec::new();
-    for output in outputs {
+    for output in relation.outputs {
         let ProviderOutputDestination::Parameter(parameter_index) = output.destination else {
             return None;
         };
@@ -115,13 +115,32 @@ pub(super) fn effects(
         effects.push(SlotEffect {
             root: destination.root,
             segments: destination.segments,
-            sources,
+            sources: Some(sources),
             incoming: false,
             may_select: false,
-            access: output.access,
+            kind: stored_origins::StoredOriginKind::Reference(output.access),
         });
     }
-    Some(effects)
+    if relation.readiness == crate::borrow_contracts::BorrowRelationReadiness::TemplateDependent {
+        let mut transfer =
+            SlotRelationTransfer::unknown(context, SymbolHandle::invalid(), true, true);
+        // The captured destination may not have an incoming inventory row.
+        // Its checked coordinate still becomes unknown at this completion.
+        for mut effect in effects {
+            effect.sources = None;
+            if !transfer.effects.iter().any(|prior| {
+                prior.root == effect.root
+                    && prior.segments == effect.segments
+                    && prior.kind == effect.kind
+                    && prior.may_select == effect.may_select
+            }) {
+                transfer.effects.push(effect);
+            }
+        }
+        Some(transfer)
+    } else {
+        Some(SlotRelationTransfer::complete(effects))
+    }
 }
 
 pub(super) fn owner_segments(

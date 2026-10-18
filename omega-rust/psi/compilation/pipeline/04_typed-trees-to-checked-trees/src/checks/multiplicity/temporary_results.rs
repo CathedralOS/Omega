@@ -42,6 +42,7 @@ pub(super) fn append_continuation_cleanup(
     machine: SymbolHandle,
     state: SymbolHandle,
     consumer: language_semantics::PermissionEventSource,
+    completion: typed_trees::expression::ExpressionHandle,
     evaluation: checked_trees::FlowPermissionEvaluation,
     owners: &[TemporaryOwner],
     places: &mut [super::linear_obligations::LinearPlace],
@@ -50,11 +51,11 @@ pub(super) fn append_continuation_cleanup(
     dispositions: &mut checked_trees::ContextualCleanupFacts,
 ) -> Result<Vec<facts::PlaceRoot>, Diagnostic> {
     let mut retired = Vec::new();
-    for owner in owners
-        .iter()
-        .rev()
-        .filter(|owner| owner.consumer == consumer && owner.evaluation == evaluation)
-    {
+    for owner in owners.iter().rev().filter(|owner| {
+        owner.consumer == consumer
+            && owner.completion == completion
+            && owner.evaluation == evaluation
+    }) {
         let mut diagnostics = Vec::new();
         match owner.consumption {
             owners::TemporaryConsumption::Borrow { .. } => {
@@ -249,28 +250,25 @@ pub(super) fn append_constructed_argument_transfers(
     }
 }
 
-pub(super) fn check_unselected_claims(
+/// Refuse a partial anonymous move before selecting its residual death. A
+/// contained claim outside the moved subtree cannot become automatic disposal.
+pub(super) fn unselected_claim_diagnostic(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     event: &crate::flow::DiscoveredMoveEvent,
     path: &[facts::PlaceSegment],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let Some(_) = event.root.as_expression() else {
-        return;
-    };
+) -> Option<Diagnostic> {
+    event.root.as_expression()?;
     let root = validation::CanonicalPlace {
         root: event.root,
         segments: Vec::new(),
     };
-    let Some(reference) = validation::canonical_place_type_reference(
+    let reference = validation::canonical_place_type_reference(
         program,
         state_symbol,
         event_statement_index(event.source).unwrap_or(0),
         &root,
-    ) else {
-        return;
-    };
+    )?;
     for claim in linear_claim_frontier(program, reference) {
         if claim.multiplicity != Multiplicity::Linear
             || claim.path.starts_with(path)
@@ -278,9 +276,9 @@ pub(super) fn check_unselected_claims(
         {
             continue;
         }
-        diagnostics.push(Diagnostic::error(
+        return Some(Diagnostic::error(
             "cannot partially move a temporary call result while an unselected linear claim remains; bind the result to a local and transfer or consume every claim",
         ));
-        break;
     }
+    None
 }

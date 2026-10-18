@@ -24,7 +24,8 @@ mod partial_affine_cleanup;
 mod replacements;
 mod residuals;
 pub(super) mod temporary_actions;
-pub(crate) use temporary_actions::finalize_scalar_actions;
+mod temporary_descriptors;
+pub(crate) use temporary_actions::finalize_completion_actions;
 
 pub(crate) use checked_trees::is_bounded_nominal_cleanup_record;
 pub(crate) use cleanup_evidence::machine_has_content_evidence;
@@ -40,8 +41,7 @@ use super::{
     CheckedUnitEffectOperationPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode,
-    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, TypeReferenceNode,
+    Multiplicity, PermissionEventSource, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_signature, structural_signature,

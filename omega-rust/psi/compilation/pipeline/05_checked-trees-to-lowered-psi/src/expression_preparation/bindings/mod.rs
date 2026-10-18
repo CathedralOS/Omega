@@ -68,6 +68,7 @@ pub(crate) struct StructuralLocalBinding {
 /// Result ordinals are aliases of the same source root, not additional locals.
 /// Control-flow and ownership frontiers, rather than this catalogue, decide
 /// whether an operation may use the home on a particular execution path.
+#[track_caller]
 pub(crate) fn retain_completed_structural_homes(
     locals: &mut Vec<StructuralLocalBinding>,
     homes: &[StructuralLocalBinding],
@@ -77,7 +78,16 @@ pub(crate) fn retain_completed_structural_homes(
             if existing.argument != home.argument
                 || existing.structural_type != home.structural_type
             {
-                return unsupported("computed storage has conflicting established homes");
+                let producer = std::panic::Location::caller();
+                return Err(LoweringError::ConflictingStructuralValueHome {
+                    root: home.root,
+                    established: existing.argument.clone(),
+                    established_type: existing.structural_type,
+                    requested: home.argument.clone(),
+                    requested_type: home.structural_type,
+                    producer_file: producer.file(),
+                    producer_line: producer.line(),
+                });
             }
             if let Some(ordinal) = home.result_binding_ordinal {
                 if existing
@@ -567,7 +577,7 @@ impl ScalarBindings {
         }
         Ok(
             crate::emission::operation_emission::calls::PreparedStructuralArgument {
-                place: source.place,
+                source: source.place.into(),
                 root_type: self.structural_place_type(source.place),
                 path,
                 selector_positions: Vec::new(),
@@ -946,17 +956,6 @@ impl ScalarBindings {
         self
     }
 
-    /// Resolve the actual incoming declaration for a deferred member operand.
-    pub(crate) fn structural_parameter_by_place(
-        &self,
-        place: PlaceId,
-    ) -> Option<&StructuralParameterDeclaration> {
-        self.structural_parameters
-            .iter()
-            .find(|(_, parameter)| parameter.place == place)
-            .map(|(_, parameter)| parameter)
-    }
-
     /// Register initialized primitive places supplied by the enclosing Unit producer.
     pub(crate) fn with_primitive_storage(
         mut self,
@@ -1114,13 +1113,6 @@ impl ScalarBindings {
         self
     }
 
-    pub(crate) fn retain_completed_homes(
-        &mut self,
-        homes: &[StructuralLocalBinding],
-    ) -> Result<(), LoweringError> {
-        retain_completed_structural_homes(&mut self.structural_locals, homes)
-    }
-
     /// Resolve the exact primitive endpoint of an already source-validated loan.
     /// A local reference owns a carrier, not a new primitive home: its retained
     /// `Referent` projection reaches the viewed type while the reference keeps
@@ -1149,7 +1141,7 @@ impl ScalarBindings {
             parameters,
         )?;
         Ok(StructuralArgument {
-            place: source.place,
+            place: source.source.known_place()?,
             access: source.access,
             path: structural_paths::emit_argument_path(
                 &source.path,
@@ -1295,35 +1287,6 @@ impl ScalarBindings {
                 structural_types,
             ),
         }
-    }
-
-    /// Argument preparation may add temporary results after the caller's
-    /// published storage. Their ordinals share one namespace and cannot alias.
-    pub(crate) fn owned_call_argument(
-        &self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-        results: &[(
-            u32,
-            crate::emission::operation_emission::buffer::StructuralBinding,
-        )],
-    ) -> Result<StructuralArgument, LoweringError> {
-        let Some(ordinal) = argument.source_structural_result_binding_ordinal() else {
-            return self.owned_argument(identities, argument);
-        };
-        let Some((_, binding)) = results.iter().find(|(candidate, _)| *candidate == ordinal) else {
-            return self.owned_argument(identities, argument);
-        };
-        // A prepared result is consumed whole; this lane has no route for an
-        // owned projection out of it.
-        if !argument.path.is_empty() {
-            return unsupported("computed owned operand cannot project a prepared call result");
-        }
-        Ok(StructuralArgument {
-            place: binding.place(),
-            path: Vec::new(),
-            access: StructuralAccess::Owned,
-        })
     }
 
     /// Resolve a source-validated owned home without inventing a loan. An

@@ -77,6 +77,13 @@ pub(super) fn update_state_loan_last_uses(
             if !loans.is_valid(tracker.handle) {
                 continue;
             }
+            // Anonymous backing borrows use the destination's name only for
+            // diagnostics. Reading a detached result does not observe that
+            // storage. Actual calls and retained aliases extend its lifetime
+            // through the storage-identity relations above and below.
+            if tracker.storage_owner != facts::PlaceRoot::Symbol(tracker.owner_symbol) {
+                continue;
+            }
             let used = if tracker.owner_path.is_empty() {
                 statement_uses_local_name(program, statement, tracker.owner_name.as_str())
                     || statement_uses_symbol(program, statement, tracker.owner_symbol)

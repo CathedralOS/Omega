@@ -271,7 +271,7 @@ impl OperationFrame<'_, '_> {
     /// publish its place in the evaluation's shared structural storage. The route
     /// keeps the returned referent in its own roster and declares its place.
     pub(super) fn establish_primitive_local(
-        self,
+        mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<PrimitiveLocal, LoweringError> {
@@ -307,22 +307,26 @@ impl OperationFrame<'_, '_> {
         // The initializer completes on the ordinary operand schedule: a
         // computation evaluates its calls and selections in authored order
         // before the storage exists, so it can never read its own local.
-        let initializer = self.evaluation.source_value(
-            identities,
-            self.checked,
-            self.machine,
-            self.state,
-            *statement_index,
-            CheckedScalarExpressionRole::StorageInitializer,
-            value,
-            self.source_value_count,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-            self.calls,
-        )?;
+        let initializer = {
+            let (mut environment, emission) = self.reborrow().split();
+            emission.evaluation.source_value(
+                identities,
+                environment.checked,
+                environment.machine,
+                environment.state,
+                *statement_index,
+                CheckedScalarExpressionRole::StorageInitializer,
+                value,
+                emission.source_value_count,
+                emission.values,
+                emission.next_value,
+                emission.next_block,
+                emission.next_edge,
+                emission.operations,
+                emission.calls,
+                &mut environment,
+            )
+        }?;
         let structural_type = lookup_type_id(self.type_ids, type_identity)?;
         let declarations: &[StructuralTypeDeclaration] = match &self.structural_types {
             StructuralTypeRoster::Owned(types) => types,

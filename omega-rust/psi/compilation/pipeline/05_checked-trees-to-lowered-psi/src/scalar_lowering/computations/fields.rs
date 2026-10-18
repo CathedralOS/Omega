@@ -60,7 +60,7 @@ impl super::Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn structural_field(
         &mut self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        computation: checked_trees::CheckedScalarComputationHandle,
         receiver_expression: typed_trees::expression::ExpressionHandle,
         receiver: checked_trees::CheckedStructuralValueHandle,
         subject: &CheckedUnitStructuralArgumentPlan,
@@ -72,7 +72,6 @@ impl super::Expansion<'_> {
         site: &super::Site<'_>,
     ) -> Result<usize, LoweringError> {
         let (machine, state) = crate::declarations::state_declaration(self.checked, site.state)?;
-        let mut completed = None;
         let established = self
             .established_values
             .iter()
@@ -96,126 +95,82 @@ impl super::Expansion<'_> {
                 }
             })
             .cloned();
-        let expression = if let Some(established) = established {
-            // This is an observation of a prior operand, not establishment or
-            // disposal. The owning call retains its normal cleanup frontier.
-            match established {
-                super::EstablishedValue::Produced { place, .. } if receiver.is_valid() => {
-                    completed_observation(
-                        self.fields,
-                        site.bindings,
-                        subject,
-                        field,
-                        primitive,
-                        place,
-                    )?
-                }
-                super::EstablishedValue::Produced {
-                    root,
-                    place,
-                    structural_type,
-                } => {
-                    let value = self.checked.facts.values.structural_values.nodes.get(root);
-                    let original = match &value.kind {
-                        checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
-                            source,
-                            ..
-                        }
-                        | checked_trees::CheckedStructuralValueKind::Place(source) => source,
-                        _ => {
-                            return unsupported(
-                                "captured field observation lost its established source",
-                            );
-                        }
-                    };
-                    let home = site
-                        .bindings
-                        .borrowed_structural_home(original, self.checked.state_parameters(state))?;
-                    let root_type = site.bindings.structural_argument_type(&home).ok_or(
-                        LoweringError::Unsupported(
-                            "captured field observation lost its established carrier",
-                        ),
-                    )?;
-                    let mut source =
-                        crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(
-                            home, Some(root_type),
-                        )?;
-                    source.path.extend(
-                        crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
-                            identities, self.checked, original, root_type, self.structural_types,
-                        )?,
-                    );
-                    copied_observation(
-                        self.fields,
-                        site.bindings,
-                        self.structural_types,
-                        subject,
-                        field,
-                        primitive,
-                        place,
-                        structural_type,
-                        &source,
-                    )?
-                }
-                super::EstablishedValue::Copied {
-                    place,
-                    structural_type,
-                    source,
-                    ..
-                } => copied_observation(
-                    self.fields,
-                    site.bindings,
-                    self.structural_types,
-                    subject,
-                    field,
-                    primitive,
-                    place,
-                    structural_type,
-                    &source,
-                )?,
-            }
-        } else if receiver.is_valid() {
-            let values = &self.checked.facts.values.structural_values;
-            let root = values
-                .root_for_expression(
-                    site.state,
-                    site.statement,
-                    values.nodes.get(receiver).expression,
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "computed receiver lost its complete value root",
-                ))?;
-            // Prepare the exact owner. Source production, not the read or its
-            // referent type, selects its normal completion. Reference carriers
-            // can die after this scalar snapshot; nominal owners retain their
-            // independently checked residual/hook continuation.
-            let prepared = structural_values::prepare_value(
-                identities,
-                self.checked,
-                self.qualifications,
-                site.state,
-                facts::PlaceRoot::Expression(values.nodes.get(receiver).expression),
-                site.statement,
-                receiver,
-                values.calls_for_root(receiver).unwrap_or(&[]),
-                root.type_reference,
-                site.bindings,
-                input_types,
-                self.structural_types,
-                receiver_storage(self.fields, subject, field)?,
-            )?;
-            let expression = completed_observation(
+        let produced = match &established {
+            Some(super::EstablishedValue::Produced { root, .. }) => Some(*root),
+            _ if receiver.is_valid() => Some(receiver),
+            _ => None,
+        };
+        if let Some(value) = produced {
+            use crate::scalar_lowering::branch_states::prepared::{
+                LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
+            };
+            // A captured outer operand keeps its consumer's lifetime. Only a
+            // freshly evaluated receiver uses this read's checked retirement.
+            let target = if established.is_none() && !normal_cleanup_actions.is_empty() {
+                let mut completed_types = input_types.to_vec();
+                completed_types.push(terminal_scalar_type(primitive)?.into());
+                self.push(LoweredScalarBranchState::jumping(
+                    target,
+                    Vec::new(),
+                    completed_types.clone(),
+                    &completed_types,
+                    vec![LoweredScalarEffect::CompleteObservationReceiver {
+                        actions: normal_cleanup_actions,
+                    }],
+                ))
+            } else {
+                target
+            };
+            let mut arguments = super::parameters(input_types);
+            arguments.push(super::parameter(
+                input_types.len(),
+                terminal_scalar_type(primitive)?.into(),
+            ));
+            let observe = self.push(LoweredScalarBranchState {
+                structural_parameters: Vec::new(),
+                structural_effects: vec![LoweredScalarEffect::ObserveStructuralValue {
+                    value,
+                    observation: computation,
+                }],
+                parameter_types: input_types.to_vec(),
+                erased_formal_types: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                bindings: Vec::new(),
+                terminator: LoweredScalarBranchTerminator::jump(target, arguments),
+            });
+            return match established {
+                Some(super::EstablishedValue::Produced { .. }) => Ok(observe),
+                _ => Ok((*receiver_request(self.fields, subject, field)?).finish(
+                    input_types,
+                    observe,
+                    self,
+                )),
+            };
+        }
+        let expression = match established {
+            Some(super::EstablishedValue::Copied {
+                place,
+                structural_type,
+                source,
+                ..
+            }) => copied_observation(
                 self.fields,
                 site.bindings,
+                self.structural_types,
                 subject,
                 field,
                 primitive,
-                prepared.place,
-            )?;
-            completed = Some(prepared);
-            expression
-        } else {
-            observation(
+                terminal_psi::StructuralArgument::whole(
+                    place,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                ),
+                structural_type,
+                &source,
+            )?,
+            Some(super::EstablishedValue::Produced { .. }) => {
+                return unsupported("produced observation lost its value dependency");
+            }
+            None => observation(
                 self.fields,
                 site.bindings,
                 machine,
@@ -223,22 +178,7 @@ impl super::Expansion<'_> {
                 subject,
                 field,
                 primitive,
-            )?
-        };
-        let target = if let Some(prepared) = &completed {
-            let mut parameters = input_types.to_vec();
-            parameters.push(terminal_scalar_type(primitive)?.into());
-            self.observation_completion(
-                identities,
-                receiver,
-                prepared,
-                normal_cleanup_actions,
-                parameters,
-                target,
-            )?
-        } else {
-            // A prior operand is still owned by its outer consuming call.
-            target
+            )?,
         };
         let mut arguments = super::parameters(input_types);
         arguments.push(super::parameter(
@@ -254,17 +194,7 @@ impl super::Expansion<'_> {
             bindings: vec![crate::emission::operation_emission::LoweredScalarBinding::Expression(expression)],
             terminator: crate::scalar_lowering::branch_states::prepared::LoweredScalarBranchTerminator::jump(target, arguments),
         });
-        match completed {
-            Some(value) => value.finish(
-                identities,
-                site.state,
-                site.bindings,
-                input_types,
-                observation,
-                self,
-            ),
-            None => Ok(observation),
-        }
+        Ok(observation)
     }
 }
 
@@ -272,7 +202,7 @@ impl super::Expansion<'_> {
 pub(crate) struct Binding {
     symbol: symbols::SymbolHandle,
     subject: CheckedUnitStructuralArgumentPlan,
-    receiver: Option<structural_values::Storage>,
+    receiver: Option<structural_values::ValueRequest>,
     /// The established place this read resolves through when the subject is a
     /// shared `&`-record loan local rather than an established place of its
     /// own. The captured place supplies the source and the canonical prefix
@@ -876,7 +806,6 @@ pub(crate) fn prepare(
     plan_machine: symbols::SymbolHandle,
     machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
-    next_place: &mut u64,
 ) -> Result<Vec<Binding>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let mut bindings: Vec<Binding> = Vec::new();
@@ -1091,12 +1020,11 @@ pub(crate) fn prepare(
                     symbol: *field,
                     subject: subject.clone(),
                     receiver: if receiver_value.is_valid() {
-                        Some(structural_values::Storage::reserve(
+                        Some(structural_values::ValueRequest::prepare(
                             identities,
                             checked,
                             *receiver_value,
                             types,
-                            next_place,
                         )?)
                     } else {
                         None
@@ -1185,12 +1113,11 @@ pub(crate) fn prepare(
                 symbol: *field,
                 subject: subject.clone(),
                 receiver: if receiver_value.is_valid() {
-                    Some(structural_values::Storage::reserve(
+                    Some(structural_values::ValueRequest::prepare(
                         identities,
                         checked,
                         *receiver_value,
                         types,
-                        next_place,
                     )?)
                 } else {
                     None
@@ -1214,11 +1141,11 @@ pub(crate) fn prepare(
     Ok(bindings)
 }
 
-pub(super) fn receiver_storage<'a>(
+pub(super) fn receiver_request<'a>(
     fields: &'a [Binding],
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
-) -> Result<&'a structural_values::Storage, LoweringError> {
+) -> Result<&'a structural_values::ValueRequest, LoweringError> {
     fields
         .iter()
         .find(|binding| binding.symbol == field && binding.subject == *subject)
@@ -1414,25 +1341,74 @@ pub(super) fn observation(
     observe(binding, bindings, source, None)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emitted_observation(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    fields: &[Binding],
+    bindings: &storage::ScalarBindings,
+    types: &[StructuralTypeDeclaration],
+    value: checked_trees::CheckedStructuralValueHandle,
+    receiver: checked_trees::CheckedStructuralValueHandle,
+    subject: &CheckedUnitStructuralArgumentPlan,
+    field: symbols::SymbolHandle,
+    primitive: PrimitiveType,
+    completed: &crate::emission::operation_emission::buffer::ComputedValueBinding,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    let mut argument = completed.argument.clone();
+    if !terminal_psi::StructuralAccess::SharedBorrow.admits(argument.access) {
+        return unsupported("computed observation requires readable completed custody");
+    }
+    argument.access = terminal_psi::StructuralAccess::SharedBorrow;
+    if receiver.is_valid() {
+        return completed_observation(fields, bindings, subject, field, primitive, argument);
+    }
+    let node = checked.facts.values.structural_values.nodes.get(value);
+    let original = match &node.kind {
+        checked_trees::CheckedStructuralValueKind::Place(source)
+        | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => source,
+        _ => return unsupported("captured field observation lost its established source"),
+    };
+    let (_, state) = crate::declarations::state_declaration(checked, node.state)?;
+    let home = bindings.borrowed_structural_home(original, checked.state_parameters(state))?;
+    let root_type = bindings
+        .structural_argument_type(&home)
+        .ok_or(LoweringError::Unsupported(
+            "captured field observation lost its established carrier",
+        ))?;
+    let mut source =
+        crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(
+            home,
+            Some(root_type),
+        )?;
+    source.path.extend(
+        crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
+            identities, checked, original, root_type, types,
+        )?,
+    );
+    copied_observation(
+        fields,
+        bindings,
+        types,
+        subject,
+        field,
+        primitive,
+        argument,
+        completed.structural_type,
+        &source,
+    )
+}
+
 pub(super) fn completed_observation(
     fields: &[Binding],
     bindings: &storage::ScalarBindings,
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
     primitive: PrimitiveType,
-    source: semantic_vocabulary::PlaceId,
+    source: terminal_psi::StructuralArgument,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let binding = field_binding(fields, subject, field, primitive)?;
-    observe(
-        binding,
-        bindings,
-        terminal_psi::StructuralArgument {
-            place: source,
-            path: Vec::new(),
-            access: terminal_psi::StructuralAccess::SharedBorrow,
-        },
-        None,
-    )
+    observe(binding, bindings, source, None)
 }
 
 /// A copied operand owns a subtree of the original observation root. Retain
@@ -1445,7 +1421,7 @@ fn copied_observation(
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
     primitive: PrimitiveType,
-    place: semantic_vocabulary::PlaceId,
+    source_binding: terminal_psi::StructuralArgument,
     structural_type: semantic_vocabulary::StructuralTypeId,
     source: &crate::emission::operation_emission::calls::PreparedStructuralArgument,
 ) -> Result<LoweredDirectExpression, LoweringError> {
@@ -1489,16 +1465,7 @@ fn copied_observation(
         ))?
         .to_vec();
     binding.observation_root_type = structural_type;
-    observe(
-        &binding,
-        bindings,
-        terminal_psi::StructuralArgument {
-            place,
-            path: Vec::new(),
-            access: terminal_psi::StructuralAccess::SharedBorrow,
-        },
-        Some(structural_type),
-    )
+    observe(&binding, bindings, source_binding, Some(structural_type))
 }
 
 fn field_binding<'a>(

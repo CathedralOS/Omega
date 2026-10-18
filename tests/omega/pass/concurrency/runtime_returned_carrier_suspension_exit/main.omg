@@ -3,11 +3,11 @@ pub boundary trait Scheduler {
     machine read(carrier: &Envelope<&i32>, nested: &Envelope<&i32>) -> i64 suspends;
 }
 
-data InlineScheduler {}
-machine InlineScheduler::read(carrier: &Envelope<&i32>, nested: &Envelope<&i32>) -> i64
-satisfies Scheduler::read {
-    (carrier.first as i64) + (carrier.second as i64)
-        + (nested.first as i64) + (nested.second as i64)
+InlineSchedulerImplementation satisfies Scheduler {
+    machine read(carrier: &Envelope<&i32>, nested: &Envelope<&i32>) -> i64 {
+        (carrier.first as i64) + (carrier.second as i64)
+            + (nested.first as i64) + (nested.second as i64)
+    }
 }
 
 pub data Envelope<T> { marker: i32; first: T; second: T; }
@@ -42,8 +42,4 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     }
     state done() {}
     state bad() { crash Trap; }
-}
-
-InlineSchedulerImplementation satisfies Scheduler {
-    Scheduler::read = InlineScheduler::read;
 }

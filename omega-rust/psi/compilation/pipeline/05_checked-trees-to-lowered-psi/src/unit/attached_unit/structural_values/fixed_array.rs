@@ -66,8 +66,8 @@ impl emission::Emission<'_, '_, '_> {
             operands.push(operand.argument);
         }
         claims.sort();
-        let place = place_id(allocate_dense(self.next_place)?);
-        self.temporary_places.push(emit_completed(
+        let place = place_id(allocate_dense(self.environment.next_place)?);
+        self.environment.private_places.push(emit_completed(
             place,
             parent_type,
             parent_multiplicity,
@@ -88,7 +88,7 @@ impl emission::Emission<'_, '_, '_> {
     /// image owns storage only, so a linear carrier's zero is presented as
     /// affine (`zeroed_image`).
     pub(super) fn establish_zeroed(&mut self) -> Result<PlaceId, LoweringError> {
-        let place = place_id(allocate_dense(self.next_place)?);
+        let place = place_id(allocate_dense(self.environment.next_place)?);
         let operation = self.operations.allocate();
         self.operations.push(Operation {
             static_reach_binding: None,
@@ -101,13 +101,15 @@ impl emission::Emission<'_, '_, '_> {
             ),
             kind: OperationKind::EstablishZeroedStructural {},
         });
-        self.temporary_places.push(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: operation,
-                structural_type: self.structural_type,
-            },
-        });
+        self.environment
+            .private_places
+            .push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: operation,
+                    structural_type: self.structural_type,
+                },
+            });
         Ok(place)
     }
 }
