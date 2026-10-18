@@ -3437,6 +3437,29 @@ fail/facts/disjoint_windows_through_target_body_overlap rejected 2362ms expected
 	statement 2 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
 	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
+fail/facts/erased_reference_contract_through_call_result_rejected rejected 1666ms expected @bc4f7059a402
+	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_const_name_rejected rejected 1837ms expected @bc4f7059a402
+	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_field_rejected rejected 1686ms expected @bc4f7059a402
+	cannot prove requires contract for call keep from exercise: holder.value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_local_rejected rejected 1491ms expected @bc4f7059a402
+	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_match_join_rejected rejected 1249ms expected @bc4f7059a402
+	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_other_machine_rejected rejected 1220ms expected @bc4f7059a402
+	cannot prove requires contract for call relay from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_other_state_rejected rejected 1276ms expected @bc4f7059a402
+	cannot prove requires contract for call exercise from run: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_parameter_rejected rejected 1254ms expected @bc4f7059a402
+	cannot prove requires contract for call exercise from run: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_target_body_rejected rejected 1223ms expected @bc4f7059a402
+	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_foreign_body_rejected rejected 1224ms expected @bc4f7059a402
+	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/exact_sub_guard_through_call_result_rejected rejected 669ms expected @9115912f0074
 	exact arithmetic in machine `walk` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `supply(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/exact_sub_guard_through_const_name_rejected rejected 648ms expected @9115912f0074
@@ -5863,10 +5886,21 @@ fail/relevance/erased_local_receiver_call rejected 889ms expected @a9ae30e1c334+
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 fail/relevance/erased_mutable_parameter rejected 868ms expected @a9ae30e1c334+wt
 	machine `Main::record::record` erased parameter `x` cannot be `mut`; an erased binding owns no runtime storage or custody
-fail/relevance/erased_nonscalar_parameter rejected 332ms expected @763aa6f05710+wt
-	machine `keep::entry` erased parameter `w` is not scalar; an erased formal on a runtime machine needs a scalar lane or a contract term carrier
 fail/relevance/erased_parameter_runtime_read rejected 827ms expected @a9ae30e1c334+wt
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+fail/relevance/erased_reference_distinct_subject rejected 1251ms expected @bc4f7059a402
+	cannot prove requires contract for call keep from forward: right == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/relevance/erased_reference_mutable_formal rejected 348ms expected @bc4f7059a402
+	machine `keep::entry` erased parameter `witness` cannot be `mut`; an erased binding owns no runtime storage or custody
+	machine `keep::entry` erased parameter `witness` is not scalar; an erased formal on a runtime machine needs a scalar lane or a contract term carrier
+fail/relevance/erased_reference_runtime_guard rejected 352ms expected @bc4f7059a402
+	erased parameter `witness` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+fail/relevance/erased_reference_runtime_result rejected 354ms expected @bc4f7059a402
+	erased parameter `witness` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+fail/relevance/erased_reference_stale_field rejected 1220ms expected @bc4f7059a402
+	cannot prove requires contract for call keep from main: holder.value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/relevance/erased_reference_stale_referent rejected 1233ms expected @bc4f7059a402
+	cannot prove requires contract for call keep from main: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/relevance/static_proof_borrow_requires_storage rejected 820ms expected @a9ae30e1c334+wt
 	machine `inspect` state `entry` parameter `value` mentions proof-only `Natural`, which has no runtime layout
 	machine `Namespace::inspect` state `inspect` parameter `value` mentions proof-only `Natural`, which has no runtime layout
@@ -8619,6 +8653,15 @@ pass/facts/disjoint_windows_through_other_machine_exit checked 15088ms check-tar
 pass/facts/disjoint_windows_through_other_state_exit checked 10811ms check-target:macos_arm64 @89bb9e0009e9
 pass/facts/disjoint_windows_through_parameter_exit checked 9568ms check-target:macos_arm64 @89bb9e0009e9
 pass/facts/disjoint_windows_through_target_body_exit checked 11855ms check-target:macos_arm64 @89bb9e0009e9
+pass/facts/erased_reference_contract_through_call_result_exit checked 7132ms check-target:linux_x86_64 @bc4f7059a402
+pass/facts/erased_reference_contract_through_const_name_exit checked 7138ms check-target:linux_x86_64 @bc4f7059a402
+pass/facts/erased_reference_contract_through_field_exit checked 7168ms check-target:linux_x86_64 @bc4f7059a402
+pass/facts/erased_reference_contract_through_local_exit checked 7088ms check-target:linux_x86_64 @bc4f7059a402
+pass/facts/erased_reference_contract_through_match_join_exit checked 7372ms check-target:linux_x86_64 @bc4f7059a402
+pass/facts/erased_reference_contract_through_other_machine_exit checked 7059ms check-target:linux_x86_64 @bc4f7059a402
+pass/facts/erased_reference_contract_through_other_state_exit checked 11004ms check-target:linux_x86_64 @bc4f7059a402
+pass/facts/erased_reference_contract_through_parameter_exit checked 10301ms check-target:linux_x86_64 @bc4f7059a402
+pass/facts/erased_reference_contract_through_target_body_exit checked 9168ms check-target:linux_x86_64 @bc4f7059a402
 pass/facts/exact_sub_guard_through_call_result_compile checked 3384ms @9115912f0074
 pass/facts/exact_sub_guard_through_const_name_compile checked 3159ms @9115912f0074
 pass/facts/exact_sub_guard_through_field_compile checked 3167ms @9115912f0074
@@ -9834,6 +9877,9 @@ pass/relevance/erased_parameter_proof_only checked 10945ms check-target:macos_ar
 pass/relevance/erased_receiver_proof_machine_call checked 1646ms @a9ae30e1c334+wt
 pass/relevance/erased_record_param checked 9721ms @5041ef1af684+wt
 pass/relevance/erased_record_parameter_exit checked 11902ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/relevance/erased_reference_parameter_exit checked 9017ms check-target:linux_x86_64 @bc4f7059a402
+pass/relevance/erased_reference_qualified_observation_exit checked 9099ms check-target:linux_x86_64 @bc4f7059a402
+pass/relevance/erased_reference_receiver_field_exit checked 9321ms check-target:linux_x86_64 @bc4f7059a402
 pass/relevance/erased_signature_param checked 9702ms @5041ef1af684+wt
 pass/relevance/erased_state_param checked 9483ms @5041ef1af684+wt
 pass/relevance/erased_subject_call checked 9446ms @5041ef1af684+wt
