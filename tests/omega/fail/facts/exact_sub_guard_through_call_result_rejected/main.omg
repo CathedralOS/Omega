@@ -1,0 +1,29 @@
+machine supply(remaining: u64) -> u64
+requires
+    remaining <= 5;
+ensures
+    result == remaining;
+{
+    remaining
+}
+
+machine walk(remaining: u64) -> u64
+requires
+    remaining <= 5;
+{
+    supply(remaining) - 2
+}
+
+data Main {
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    transition walk(4) == 2 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

@@ -3433,6 +3433,27 @@ fail/facts/disjoint_windows_through_target_body_overlap rejected 2362ms expected
 	statement 2 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
 	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
+fail/facts/exact_sub_guard_through_call_result_rejected rejected 669ms expected @9115912f0074
+	exact arithmetic in machine `walk` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `supply(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/exact_sub_guard_through_const_name_rejected rejected 648ms expected @9115912f0074
+	exact arithmetic in machine `walk` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/exact_sub_guard_through_field_rejected rejected 713ms expected @9115912f0074
+	exact arithmetic in machine `walk` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/exact_sub_guard_through_local_rejected rejected 623ms expected @9115912f0074
+	exact arithmetic in machine `walk` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/exact_sub_guard_through_match_join_rejected rejected 588ms expected @9115912f0074
+	exact arithmetic in machine `walk` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/exact_sub_guard_through_other_machine_rejected rejected 624ms expected @9115912f0074
+	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/exact_sub_guard_through_other_state_rejected rejected 641ms expected @9115912f0074
+	exact arithmetic in machine `walk` state `deduct` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/exact_sub_guard_through_parameter_rejected rejected 650ms expected @9115912f0074
+	exact arithmetic in machine `walk` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/exact_sub_guard_through_target_body_rejected rejected 607ms expected @9115912f0074
+	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/field_where_index_through_call_result_rejected rejected 1746ms expected @7f2341031b3c
 	cannot prove ensures contract for exit from current at statement 0: 0 <= result && result <= 3
 fail/facts/field_where_index_through_const_name_rejected rejected 1717ms expected @7f2341031b3c
@@ -8569,6 +8590,15 @@ pass/facts/disjoint_windows_through_other_machine_exit checked 15088ms check-tar
 pass/facts/disjoint_windows_through_other_state_exit checked 10811ms check-target:macos_arm64 @89bb9e0009e9
 pass/facts/disjoint_windows_through_parameter_exit checked 9568ms check-target:macos_arm64 @89bb9e0009e9
 pass/facts/disjoint_windows_through_target_body_exit checked 11855ms check-target:macos_arm64 @89bb9e0009e9
+pass/facts/exact_sub_guard_through_call_result_compile checked 3384ms @9115912f0074
+pass/facts/exact_sub_guard_through_const_name_compile checked 3159ms @9115912f0074
+pass/facts/exact_sub_guard_through_field_compile checked 3167ms @9115912f0074
+pass/facts/exact_sub_guard_through_local_compile checked 3461ms @9115912f0074
+pass/facts/exact_sub_guard_through_match_join_compile checked 3122ms @9115912f0074
+pass/facts/exact_sub_guard_through_other_machine_compile checked 3088ms @9115912f0074
+pass/facts/exact_sub_guard_through_other_state_compile checked 3334ms @9115912f0074
+pass/facts/exact_sub_guard_through_parameter_compile checked 3329ms @9115912f0074
+pass/facts/exact_sub_guard_through_target_body_compile checked 3066ms @9115912f0074
 pass/facts/field_where_index_through_call_result_compile checked 1897ms @7f2341031b3c
 pass/facts/field_where_index_through_const_name_compile checked 1946ms @7f2341031b3c
 pass/facts/field_where_index_through_field_compile checked 1741ms @7f2341031b3c

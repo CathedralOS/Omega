@@ -1,0 +1,25 @@
+machine walk(remaining: u64, flag: bool) -> u64
+requires
+    remaining <= 5;
+{
+    let value: u64 = match flag { true -> remaining, false -> remaining };
+    transition remaining >= 2 {
+        true -> finish(value - 2)
+        false -> value
+    }
+    state finish(value: u64) -> u64 { value }
+}
+
+data Main {
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    transition walk(4, true) == 2 && walk(1, false) == 1 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

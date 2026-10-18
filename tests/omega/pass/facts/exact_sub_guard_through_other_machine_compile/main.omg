@@ -1,0 +1,39 @@
+machine publish(remaining: u64) -> u64
+requires
+    remaining <= 5 && remaining >= 2;
+ensures
+    result == remaining;
+{
+    remaining
+}
+
+machine deduct(value: u64) -> u64
+requires
+    value <= 5 && value >= 2;
+{
+    value - 2
+}
+
+machine walk(remaining: u64) -> u64
+requires
+    remaining <= 5;
+{
+    transition remaining >= 2 {
+        true -> deduct(publish(remaining))
+        false -> remaining
+    }
+}
+
+data Main {
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    transition walk(4) == 2 && walk(1) == 1 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}

@@ -1,0 +1,22 @@
+const REMAINING: u64 = 1;
+
+machine walk() -> u64
+requires
+    REMAINING <= 5;
+{
+    REMAINING - 2
+}
+
+data Main {
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    transition walk() == 2 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    state pass(main: &mut Main) { main.hits = 1; }
+    state fail(main: &mut Main) { main.hits = -1; }
+}
