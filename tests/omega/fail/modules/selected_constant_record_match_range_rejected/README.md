@@ -1,1 +1,1 @@
-Both arms use the exact same nominal constructor. The skipped arm has an invalid qualified field, so selective execution cannot waive its result obligation. This distinguishes all-arm field checking from the sibling selected-array alias rejection.
+The selected arm constructs a Token with value 3, which violates its declared default-domain predicate where value <= 2.

@@ -1,1 +1,1 @@
-The selected source value has the right array and scalar carrier, but its element is 3. The receiving element range is 0..=2; an unused alias must prove that independent obligation before materialization. main.omg is unchanged from the pending witness.
+The selected source value has the right array and scalar carrier, but its element is 3. The receiving carrier requires elements[0] <= 2; an unused alias must prove that independent obligation before materialization.

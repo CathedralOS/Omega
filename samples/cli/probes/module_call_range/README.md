@@ -1,8 +1,8 @@
 # module_call_range
 
 First sample with a module-qualified machine call as a
-const range endpoint: `const GOOD: u64
-[0..=selected::limit()] = 2` — sibling files `other` /
+const contract endpoint: `const GOOD: u64 = 2` checked by
+`requires GOOD <= selected::limit()` — sibling files `other` /
 `selected` each define their own `limit()`; the qualified
 spelling selects one in const context.
 

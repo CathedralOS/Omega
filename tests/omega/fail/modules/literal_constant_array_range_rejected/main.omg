@@ -1,2 +1,3 @@
-const BAD:[u64 [0..=2];1]=[3];
-machine main(){}
+data Element [copy] where value <= 2 { value: u64; }
+const BAD: [Element; 1] = [Element { value: 3 }];
+machine main() {}

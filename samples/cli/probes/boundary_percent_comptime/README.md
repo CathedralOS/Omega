@@ -3,7 +3,7 @@
 First sample with a boundary-declared operator served by a
 provider during const evaluation: `boundary machine %
 Math::remainder` + `satisfies` impl computing `left | right`
-— a range endpoint `u64[0..=bounded(256)]` proves the
+— a callable precondition `requires value <= bounded(256)` proves the
 provider body ran at check time (builtin `%` would fold 1,
 the provider yields 7).
 

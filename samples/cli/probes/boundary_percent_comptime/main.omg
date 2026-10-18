@@ -8,7 +8,7 @@
 //   * `boundary machine % Math::remainder` — the operator
 //     surface is boundary-declared.
 //   * `satisfies Math::remainder` provider impl.
-//   * `u64[0..=bounded(256)]` — range endpoint is a machine
+//   * `requires value <= bounded(256)` — range endpoint is a machine
 //     call evaluated at check time.
 //
 // Compile-checked only: no standard-library dependency, no
@@ -32,7 +32,9 @@ requires value <= 512
     transition { _ -> (value) }
 }
 
-machine take_bounded(value: u64[0..=bounded(256)]) -> u64 { value }
+machine take_bounded(value: u64) -> u64
+requires value <= bounded(256)
+{ value }
 
 data Main { hits: i32 in Wrapping; }
 

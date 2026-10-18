@@ -6,8 +6,8 @@
 // Expected exit: 70.
 use omega_language_std::console;
 
-data Limits [copy] {
-    ceiling: i32 [0..=100];
+data Limits [copy] where ceiling >= 0 && ceiling <= 100 {
+    ceiling: i32;
 }
 
 const Limits::CEILING: i32 = 60;

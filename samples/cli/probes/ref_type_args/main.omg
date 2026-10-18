@@ -4,7 +4,7 @@
 // 7>` relays a reference type arg through a generic.
 //
 //   * `machine ceiling<Element>() -> u64`, `data Bounded<Element>`
-//     field bound `u64[0..=ceiling<&Element>()]`.
+//     field bound `where value <= ceiling<&Element>()`.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
@@ -12,8 +12,8 @@
 
 machine ceiling<Element>() -> u64 { 70 }
 
-data Bounded<Element> {
-    value: u64[0..=ceiling<&Element>()];
+data Bounded<Element> where value <= ceiling<&Element>() {
+    value: u64;
 }
 
 machine unused<Element, const Tag: u8>() -> u64 { 70 }
@@ -21,13 +21,13 @@ machine unused<Element, const Tag: u8>() -> u64 { 70 }
 machine relay<Element>() -> u64 { unused<&Element, 7>() }
 
 data Main {
-    bounded: Bounded<u8>;
     hits: i32 in Wrapping;
 }
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    transition relay<u8>() == 70 && main.bounded.value == 0 {
+    let bounded: Bounded<u8> = Bounded { value: 0 };
+    transition relay<u8>() == 70 && bounded.value == 0 {
         true -> pass(main)
         _ -> fail(main)
     }

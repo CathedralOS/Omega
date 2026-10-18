@@ -1,5 +1,6 @@
 use other;
 use selected;
-const GOOD: u64 [0..=selected::limit()] = 2;
+const GOOD: u64 = 2;
 machine limit() -> u64 { 0 }
-machine main() {}
+machine check_good() requires GOOD <= selected::limit() {}
+machine main() { check_good(); }

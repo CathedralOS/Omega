@@ -1,1 +1,1 @@
-constant initializer result does not prove its declared integer range
+data constant `ArrayHolder` violates its default-domain predicate

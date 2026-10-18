@@ -1,1 +1,1 @@
-constant initializer literal does not satisfy its declared integer range
+data constant `Element` violates its default-domain predicate

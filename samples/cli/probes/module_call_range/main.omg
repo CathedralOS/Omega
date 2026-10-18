@@ -1,13 +1,13 @@
-// Module-qualified machine calls as const range
-// endpoints: `const GOOD: u64 [0..=selected::limit()] =
-// 2` — the bound is a call into a sibling module's
+// Module-qualified machine calls as const contract
+// endpoints: `const GOOD: u64 = 2;` checked by
+// `requires GOOD <= selected::limit()` — the bound is a call into a sibling module's
 // `limit()`, evaluated in const context. Two sibling
 // files each define their own `limit()`; the qualified
 // spelling keeps them distinct.
 //
 //   * `use other;` + `use selected;` — sibling-file
 //     modules.
-//   * `u64 [0..=selected::limit()]` — module-qualified
+//   * `requires GOOD <= selected::limit()` — module-qualified
 //     call endpoint.
 //
 // Compile-checked only: no standard-library dependency, no
@@ -16,13 +16,16 @@
 use other;
 use selected;
 
-const GOOD: u64 [0..=selected::limit()] = 2;
+const GOOD: u64 = 2;
 
 machine limit() -> u64 { 0 }
+
+machine check_good() requires GOOD <= selected::limit() {}
 
 data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: &mut Main) {
+    check_good();
     main.hits = 0;
     transition GOOD == 2 {
         true -> pass(main)
