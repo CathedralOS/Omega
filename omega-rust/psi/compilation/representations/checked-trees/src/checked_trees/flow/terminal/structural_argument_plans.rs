@@ -70,6 +70,12 @@ impl CheckedCallScalarArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralArgumentSourcePlan {
+    /// The exact source home captured when this checked selection evaluated.
+    /// A later store to the declaration cannot redirect this occurrence's death.
+    CapturedStorage {
+        selection: arena::Handle<crate::FlowOwnedSelectionReceipt>,
+        source_ordinal: u32,
+    },
     /// Dense index into the caller's structural parameter list.
     Parameter { parameter_index: u32 },
     /// Dense scalar ingress whose original storage is established before lending.
@@ -275,7 +281,8 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                 Some(parameter_index)
             }
-            CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+            CheckedUnitStructuralArgumentSourcePlan::CapturedStorage { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
@@ -293,7 +300,8 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
                 declaration_ordinal,
             } => Some(declaration_ordinal),
-            CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+            CheckedUnitStructuralArgumentSourcePlan::CapturedStorage { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
@@ -311,7 +319,8 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
                 Some(binding_ordinal)
             }
-            CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+            CheckedUnitStructuralArgumentSourcePlan::CapturedStorage { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }
@@ -357,7 +366,8 @@ impl CheckedUnitStructuralArgumentPlan {
     pub fn byte_sequence_literal(&self) -> Option<&[u8]> {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => Some(bytes),
-            CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+            CheckedUnitStructuralArgumentSourcePlan::CapturedStorage { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { .. }

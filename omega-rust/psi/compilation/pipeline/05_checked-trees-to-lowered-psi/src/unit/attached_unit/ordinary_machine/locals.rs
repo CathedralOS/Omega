@@ -13,6 +13,7 @@ impl MachineEmission<'_> {
         let CheckedUnitEffectOperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine {
                 declaration_ordinal,
+                statement_index,
                 ..
             },
         ) = operation
@@ -28,6 +29,9 @@ impl MachineEmission<'_> {
             .ok_or(LoweringError::Unsupported(
                 "Unit local ordinal is not dense",
             ))?;
+        self.operations
+            .structural_declarations
+            .push((local.id, *statement_index));
         Ok(Some(OperationKind::EstablishTrivialAffineLocal {
             destination: local.id,
         }))

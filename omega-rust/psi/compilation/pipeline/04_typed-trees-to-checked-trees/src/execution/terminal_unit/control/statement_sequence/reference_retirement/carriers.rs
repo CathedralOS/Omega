@@ -237,6 +237,9 @@ impl Retirement<'_> {
             && transfers.possible.iter().all(|transfer| {
                 match &transfer.destination {
                     Destination::Holder(receiver, _) => self.carrier_retired(receiver, active),
+                    Destination::Backing(value, path) => {
+                        self.backing_retired(*value, path, &mut Vec::new())
+                    }
                     Destination::Storage {
                         statement_index,
                         captured_selection,

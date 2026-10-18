@@ -11,8 +11,8 @@ use super::super::{
 };
 use super::{
     Block, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
-    LoweringError, Operation, OperationKind, OperationResult, PlaceId, ScalarType,
-    StructuralMultiplicity, StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense,
+    LoweringError, OperationKind, OperationResult, PlaceId, ScalarType, StructuralMultiplicity,
+    StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense,
     direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
@@ -40,6 +40,7 @@ pub(crate) use scalar_control::ScalarReturnCleanup;
 /// A completed value retains its physical home and captured projection. The
 /// selected type interprets an authored suffix; it is not the home's type.
 /// Consumers select this subtree while preserving its siblings' custody.
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct StructuralValueStorage {
     pub(crate) place: PlaceId,
     pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
@@ -137,20 +138,21 @@ pub(crate) struct Evaluation {
     pub blocks: Vec<Block>,
 }
 
-/// Replace candidate slots only at their normal death edge. The join retains
-/// each source slot's residual parameter; a rebind can change establishment
-/// order without changing the historical producer roster. This is slot
-/// correspondence, not a fixed donor identity for an alternative residual.
-/// An ordinary move has no residual candidates and only rebinds survivors.
+/// Source candidates retain their physical homes until their checked normal
+/// death. Actual private continuations decide which occurrence remains; this
+/// inventory never reconstructs a donor from a compressed residual slot.
 #[derive(Clone)]
 pub(crate) struct SelectionCleanup {
     pub(crate) selection: arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
-    pub(crate) selected: PlaceId,
-    pub(crate) sources: Vec<PlaceId>,
-    pub(crate) remaining: Vec<(PlaceId, PlaceId)>,
+    pub(crate) sources: Vec<CapturedSelectionSource>,
     pub(crate) retired_reference_paths: Vec<(PlaceId, Vec<terminal_psi::StructuralPathSegment>)>,
-    pub(crate) pass_through: Vec<(PlaceId, PlaceId)>,
-    pub(crate) next_operation: u64,
+}
+
+/// Physical storage and its exact ordinal in the checked source roster.
+#[derive(Clone)]
+pub(crate) struct CapturedSelectionSource {
+    pub(crate) source_ordinal: u32,
+    pub(crate) storage: StructuralValueStorage,
 }
 
 /// Current physical owners in establishment order. An anonymous residual keeps
@@ -201,9 +203,6 @@ impl Evaluation {
             )
     }
 
-    /// Selected cleanup sources that are declared parameters, in descending
-    /// authored-position order and deduplicated by place.
-
     /// A full scalar-computation expansion populated from this
     /// evaluation's prepared tables.
     fn scalar_computation_expansion<'a>(
@@ -232,27 +231,6 @@ impl Evaluation {
         .enter_proof_scope(identities, &self.erased_proof_formals))
     }
 
-    pub(crate) fn cleanup_parameter_places(&self) -> Vec<PlaceId> {
-        let mut parameter_sources = Vec::new();
-        for cleanup in &self.selection_cleanups {
-            for source in &cleanup.sources {
-                if let Some((position, _)) = self
-                    .structural_parameters
-                    .iter()
-                    .find(|(_, declaration)| declaration.place == *source)
-                {
-                    parameter_sources.push((*position, *source));
-                }
-            }
-        }
-        parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
-        parameter_sources.dedup_by_key(|(_, place)| *place);
-        parameter_sources
-            .into_iter()
-            .map(|(_, place)| place)
-            .collect()
-    }
-
     /// Resolve a completed value's storage and selected subtree. Retirement
     /// and replacement share this identity join. Result registries differ
     /// between ordinary and graph bodies; the caller supplies its registry.
@@ -263,7 +241,25 @@ impl Evaluation {
         mut result: impl FnMut(u32) -> Result<StructuralValueStorage, LoweringError>,
     ) -> Result<StructuralValueStorage, LoweringError> {
         use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
-        let mut storage = match *source {
+        let storage = match *source {
+            CheckedUnitStructuralArgumentSourcePlan::CapturedStorage {
+                selection,
+                source_ordinal,
+            } => {
+                let mut captures = self
+                    .selection_cleanups
+                    .iter()
+                    .filter(|cleanup| cleanup.selection == selection)
+                    .flat_map(|cleanup| &cleanup.sources)
+                    .filter(|source| source.source_ordinal == source_ordinal);
+                let source = captures.next().ok_or(LoweringError::Unsupported(
+                    "selected cleanup lost its captured source home",
+                ))?;
+                if captures.next().is_some() {
+                    return unsupported("selected cleanup repeats its captured source home");
+                }
+                source.storage.clone()
+            }
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                 let parameter = self
                     .structural_parameters
@@ -308,8 +304,53 @@ impl Evaluation {
             }
             _ => return unsupported("value storage source has no owned structural storage"),
         };
-        storage.place = self.current_structural_place(storage.place);
         Ok(storage)
+    }
+
+    /// Preserve receipt-bound source storage emitted in a private scalar state.
+    /// This is the same completed-home catalog across the shared operation
+    /// pipeline, not a join of permissions or a new cleanup selection.
+    fn retain_selection_sources(
+        &mut self,
+        completed: &[SelectionCleanup],
+    ) -> Result<(), LoweringError> {
+        for incoming in completed {
+            if let Some(current) = self
+                .selection_cleanups
+                .iter_mut()
+                .find(|current| current.selection == incoming.selection)
+            {
+                if current.sources.len() != incoming.sources.len()
+                    || current.sources.iter().any(|source| {
+                        !incoming.sources.iter().any(|other| {
+                            other.source_ordinal == source.source_ordinal
+                                && other.storage == source.storage
+                        })
+                    })
+                {
+                    return unsupported(
+                        "selected cleanup receipt has different completed source homes",
+                    );
+                }
+                // Scalar effects publish completed values and their expression
+                // cleanup. Explicit checked reference retirement is emitted by
+                // the enclosing operation sequence, not these private states.
+                // Never turn a branch-local vacancy into an outer partition fact.
+                if current.retired_reference_paths != incoming.retired_reference_paths {
+                    return unsupported(
+                        "private scalar completion changed selected descriptor retirement",
+                    );
+                }
+            } else {
+                if !incoming.retired_reference_paths.is_empty() {
+                    return unsupported(
+                        "private scalar completion published selected descriptor retirement",
+                    );
+                }
+                self.selection_cleanups.push(incoming.clone());
+            }
+        }
+        Ok(())
     }
 
     /// Bind the emitted structural signature before evaluating any operands.
@@ -584,65 +625,6 @@ impl Evaluation {
         Ok(())
     }
 
-    /// Call operand resolvers retain authored result identities. Apply only
-    /// transports that precede the operation; earlier calls keep their places.
-    pub(crate) fn remap_transported_call_operands(&mut self, operations: &mut OperationBuffer) {
-        let cleanups = &self.selection_cleanups;
-        let remap = |operation: &mut Operation| {
-            let Some(arguments) = operation.kind.structural_arguments_mut() else {
-                return;
-            };
-            for cleanup in cleanups {
-                if operation.id.get() < cleanup.next_operation {
-                    continue;
-                }
-                for argument in arguments.iter_mut() {
-                    if let Some((_, target)) = cleanup
-                        .pass_through
-                        .iter()
-                        .find(|(source, _)| *source == argument.place)
-                    {
-                        argument.place = *target;
-                    }
-                }
-            }
-        };
-        for operation in &mut operations.operations {
-            remap(operation);
-        }
-        if let Some(completion) = &mut operations.external_completion {
-            for cleanup in cleanups {
-                for argument in &mut completion.structural_arguments {
-                    if let Some((_, target)) = cleanup
-                        .pass_through
-                        .iter()
-                        .find(|(source, _)| *source == argument.place)
-                    {
-                        argument.place = *target;
-                    }
-                }
-            }
-        }
-        for block in &mut self.blocks {
-            for operation in &mut block.operations {
-                remap(operation);
-            }
-        }
-    }
-
-    pub(crate) fn current_structural_place(&self, mut place: PlaceId) -> PlaceId {
-        for cleanup in &self.selection_cleanups {
-            if let Some((_, target)) = cleanup
-                .pass_through
-                .iter()
-                .find(|(source, _)| *source == place)
-            {
-                place = *target;
-            }
-        }
-        place
-    }
-
     /// Remove a retired physical occurrence from current source and transport
     /// rosters. Historical declarations and shared type geometry stay intact.
     pub(crate) fn retire_structural_home(&mut self, place: PlaceId) {
@@ -650,119 +632,7 @@ impl Evaluation {
             .retain(|owner| owner.value.place != place);
         self.structural_locals
             .retain(|local| local.argument.place != place);
-        let mut views = std::mem::take(&mut self.view_locals);
-        views.retain(|view| self.current_structural_place(view.place) != place);
-        self.view_locals = views;
-    }
-
-    pub(crate) fn selection_return_discards(
-        &self,
-        mut roots: Vec<(PlaceId, bool)>,
-    ) -> Result<Vec<PlaceId>, LoweringError> {
-        for cleanup in &self.selection_cleanups {
-            if cleanup.sources.is_empty() {
-                if !cleanup.remaining.is_empty() {
-                    return unsupported("owned move cannot fabricate residual cleanup roots");
-                }
-                // An ordinary move only transports surviving owners. Its
-                // result can leave directly from a return expression, without
-                // an operation-roster slot; no candidate row is substituted.
-                for (place, _) in &mut roots {
-                    if let Some((_, target)) = cleanup
-                        .pass_through
-                        .iter()
-                        .find(|(source, _)| source == place)
-                    {
-                        *place = *target;
-                    }
-                }
-                continue;
-            }
-            let selected = roots
-                .iter()
-                .position(|(place, _)| *place == cleanup.selected)
-                .ok_or(LoweringError::Unsupported(
-                    "selected cleanup result is absent from its operation roster",
-                ))?;
-            let start = roots
-                .iter()
-                .position(|(place, _)| cleanup.sources.contains(place))
-                .ok_or(LoweringError::Unsupported(
-                    "owned selection normal cleanup has no source roster",
-                ))?;
-            let end = roots
-                .iter()
-                .rposition(|(place, _)| cleanup.sources.contains(place))
-                .ok_or(LoweringError::Unsupported(
-                    "owned selection cleanup source is absent",
-                ))?
-                + 1;
-            if start <= selected
-                || cleanup
-                    .sources
-                    .iter()
-                    .any(|source| roots.iter().filter(|(place, _)| place == source).count() != 1)
-                || cleanup.remaining.len() + 1 != cleanup.sources.len()
-                || cleanup.remaining.iter().any(|(source, _)| {
-                    !cleanup.sources.contains(source)
-                        || cleanup
-                            .remaining
-                            .iter()
-                            .filter(|(other, _)| other == source)
-                            .count()
-                            != 1
-                })
-            {
-                return unsupported(
-                    "owned selection cleanup source roster does not match its receipt",
-                );
-            }
-            if roots[start..end]
-                .iter()
-                .any(|(place, discard)| cleanup.sources.contains(place) && *discard)
-            {
-                return unsupported("owned selection source retains conflicting return disposal");
-            }
-            // Replace slots by their recorded join correspondence, never by
-            // zipping declaration order with current storage order. Interleaved
-            // pass-through owners retain their own rows; the displaced slot
-            // has no residual because the selected result owns that position.
-            let replacement = roots[start..end]
-                .iter()
-                .filter_map(|(place, discard)| {
-                    if cleanup.sources.contains(place) {
-                        return cleanup
-                            .remaining
-                            .iter()
-                            .find(|(source, _)| source == place)
-                            .map(|(_, receiving)| (*receiving, true));
-                    }
-                    Some((
-                        cleanup
-                            .pass_through
-                            .iter()
-                            .find(|(source, _)| source == place)
-                            .map(|(_, target)| *target)
-                            .unwrap_or(*place),
-                        *discard,
-                    ))
-                })
-                .collect::<Vec<_>>();
-            roots.splice(start..end, replacement);
-            for (place, _) in &mut roots {
-                if let Some((_, target)) = cleanup
-                    .pass_through
-                    .iter()
-                    .find(|(source, _)| source == place)
-                {
-                    *place = *target;
-                }
-            }
-        }
-        Ok(roots
-            .into_iter()
-            .filter_map(|(place, discard)| discard.then_some(place))
-            .collect())
+        self.view_locals.retain(|view| view.place != place);
     }
 
     /// Preserve evaluated scalar bindings while committing only the dying
@@ -771,26 +641,13 @@ impl Evaluation {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
-        mut cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
+        cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &OperationBuffer,
     ) -> Result<semantic_vocabulary::EdgeId, LoweringError> {
-        for action in &mut cleanup_actions {
-            let place = match action {
-                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
-                | terminal_psi::TerminalAffineCleanupAction::RetireHome(place) => place,
-                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                    &mut discard.place
-                }
-                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                    &mut cleanup.place
-                }
-            };
-            *place = self.current_structural_place(*place);
-        }
         self.cleanup_emission(checked, &mut Vec::new())
             .continue_actions(
                 identities,
@@ -1586,6 +1443,7 @@ impl Evaluation {
                 &mut self.structural_locals,
                 &state_evaluation.structural_locals,
             )?;
+            self.retain_selection_sources(&state_evaluation.selection_cleanups)?;
             self.qualification_coercions
                 .append(&mut state_evaluation.qualification_coercions);
         }

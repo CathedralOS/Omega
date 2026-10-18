@@ -95,6 +95,12 @@ pub enum ContentsRequirement {
     /// those require the exact owner's independent custody and cleanup plans.
     /// References, slices and recursive by-value storage remain excluded.
     LinearOwned,
+    /// Finite materialized storage transported with its exact type, owned
+    /// claims and cleanup obligations. Reference leaves carry descriptors,
+    /// never ownership of their referees. This supplies no copying, borrowing,
+    /// claim discharge or retirement authority; the consuming operation must
+    /// retain the established occurrence and its complete loan frontier.
+    StoredValue,
     /// Owned storage a consuming machine may carry through a `drop(value)`
     /// call: like `NumericOwned` it forbids loans, recursive carriers, and
     /// unclassified storage, but the declaration may own an attached `::drop`
@@ -478,6 +484,7 @@ fn resolve(
                     || (!matches!(
                         requirement,
                         ContentsRequirement::LinearOwned
+                            | ContentsRequirement::StoredValue
                             | ContentsRequirement::BorrowFree
                             | ContentsRequirement::CleanupOwned
                             | ContentsRequirement::StructuralConstruction
@@ -515,7 +522,9 @@ fn resolve(
         TypeReferenceNode::Reference { .. }
             if matches!(
                 requirement,
-                ContentsRequirement::DescriptorCleanup | ContentsRequirement::BorrowedStorage
+                ContentsRequirement::DescriptorCleanup
+                    | ContentsRequirement::BorrowedStorage
+                    | ContentsRequirement::StoredValue
             ) =>
         {
             Some(ContentType::View)
@@ -619,6 +628,7 @@ fn resolve(
                     // predicates keep their codecs below.
                     if matches!(requirement,
                         ContentsRequirement::StructuralConstruction
+                            | ContentsRequirement::StoredValue
                             | ContentsRequirement::RepresentedOwned
                             | ContentsRequirement::BorrowedStorage
                             | ContentsRequirement::BorrowFree
@@ -650,6 +660,7 @@ fn resolve(
                         ContentsRequirement::StableObservation
                             | ContentsRequirement::SeamMarshal
                             | ContentsRequirement::LinearOwned
+                            | ContentsRequirement::StoredValue
                             | ContentsRequirement::OwnedOrSharedView
                     ) && is_plain_value_domain(program, domain))
                         // A complete scalar predicate adds no storage or
@@ -662,6 +673,7 @@ fn resolve(
                             requirement,
                             ContentsRequirement::NumericOwned
                                 | ContentsRequirement::RepresentedOwned
+                                    | ContentsRequirement::StoredValue
                                 | ContentsRequirement::BorrowFree
                                 | ContentsRequirement::StructuralConstruction
                                 | ContentsRequirement::BorrowedStorage
@@ -672,6 +684,7 @@ fn resolve(
                                     if crate::scalar_field_domain_predicate(program, domain, primitive).is_some())))
                         || (matches!(requirement,
                                 ContentsRequirement::RepresentedOwned
+                                    | ContentsRequirement::StoredValue
                                     | ContentsRequirement::BorrowFree
                                     | ContentsRequirement::StructuralConstruction
                                     | ContentsRequirement::BorrowedStorage)
@@ -829,6 +842,7 @@ fn check_contents(
         && !matches!(
             requirement,
             ContentsRequirement::LinearOwned
+                | ContentsRequirement::StoredValue
                 | ContentsRequirement::BorrowFree
                 | ContentsRequirement::StructuralConstruction
                 | ContentsRequirement::BorrowedStorage
@@ -840,6 +854,7 @@ fn check_contents(
         || (!matches!(
             requirement,
             ContentsRequirement::LinearOwned
+                | ContentsRequirement::StoredValue
                 | ContentsRequirement::BorrowFree
                 | ContentsRequirement::CleanupOwned
                 | ContentsRequirement::StructuralConstruction
@@ -873,6 +888,7 @@ fn check_contents(
                 ContentsRequirement::NumericOwned
                     | ContentsRequirement::CleanupOwned
                     | ContentsRequirement::StructuralConstruction
+                    | ContentsRequirement::StoredValue
                     | ContentsRequirement::BorrowedStorage
                     | ContentsRequirement::DescriptorCleanup
                     | ContentsRequirement::SeamMarshal

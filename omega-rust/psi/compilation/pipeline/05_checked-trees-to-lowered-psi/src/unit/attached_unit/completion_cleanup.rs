@@ -11,6 +11,10 @@ use crate::unit::unit_cleanup::CleanupRegion;
 use checked_trees::{CheckedScalarBranchDestination, FlowClaimJoinExit, FlowClaimJoinExitKind};
 use terminal_psi::StructuralParameterDeclaration;
 
+mod owner_order;
+mod remaining_partition;
+pub(crate) use owner_order::selection;
+
 /// Borrowed source authority common to sequence and graph completion.
 #[derive(Clone, Copy)]
 pub(crate) struct NormalExitSource<'a> {
@@ -87,69 +91,13 @@ pub(crate) fn scalar_returns(
                 identities, claims, checked, source, exit, catalog, parameters, evaluation,
                 operations,
             )?;
-            selection(evaluation, operations, &mut actions)?;
+            selection(source.operations, evaluation, operations, &mut actions)?;
             Ok(ScalarReturnCleanup {
                 destination,
                 actions,
             })
         })
         .collect()
-}
-
-/// Merge exit dispositions in reverse establishment order, including anonymous
-/// producers inside a checked value. A reference local alone is not the full
-/// roster: its backing can itself hold another temporary's descriptor. Retain
-/// each owner's authored action order and substitute selected storage at that
-/// same position. This grants no disposal authority to a production row.
-pub(crate) fn selection(
-    evaluation: &Evaluation,
-    operations: &OperationBuffer,
-    actions: &mut Vec<CleanupRegion>,
-) -> Result<(), LoweringError> {
-    let mut roots = Vec::new();
-    for place in operations.structural_establishments.iter().copied().rev() {
-        let disposed = actions
-            .iter()
-            .any(|region| region.action.place() == evaluation.current_structural_place(place));
-        roots.push((place, disposed));
-    }
-    roots.extend(
-        evaluation
-            .cleanup_parameter_places()
-            .into_iter()
-            .map(|place| (place, false)),
-    );
-    let mut action_roots = Vec::new();
-    for action in actions.iter() {
-        if !action_roots.contains(&action.action.place()) {
-            action_roots.push(action.action.place());
-        }
-    }
-    for place in action_roots {
-        if !roots
-            .iter()
-            .any(|(source, _)| evaluation.current_structural_place(*source) == place)
-        {
-            roots.push((place, true));
-        }
-    }
-    let selected = evaluation.selection_return_discards(roots)?;
-    let previous = std::mem::take(actions);
-    for place in selected {
-        let retained = previous
-            .iter()
-            .filter(|region| region.action.place() == place);
-        if retained.clone().next().is_some() {
-            actions.extend(retained.cloned());
-        } else {
-            actions.extend(evaluation.normal_discard_regions(
-                place,
-                &evaluation.structural_types,
-                operations,
-            )?);
-        }
-    }
-    Ok(())
 }
 
 /// The exit a state's normal cleanup row names at `statement_index`: its
@@ -210,14 +158,21 @@ pub(crate) fn for_exit_regions(
             "normal cleanup repeats its selected exit",
         ));
     }
-    let rows = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
+    let actions = crate::unit::unit_cleanup::outstanding_actions(
+        catalog.control.actions.span_or_empty(selected_exit.actions),
+        source.operations,
+        source.parameters,
+    );
+    let declaration_orders = actions
+        .iter()
+        .map(|action| {
+            owner_order::declaring_order(checked, exit.state_symbol, source, action.source())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut rows = crate::unit::unit_cleanup::lower_checked_cleanup_regions(
         identities,
         checked,
-        crate::unit::unit_cleanup::outstanding_actions(
-            catalog.control.actions.span_or_empty(selected_exit.actions),
-            source.operations,
-            source.parameters,
-        ),
+        actions,
         catalog
             .control
             .normal_exit_regions
@@ -261,6 +216,12 @@ pub(crate) fn for_exit_regions(
             Ok(action)
         },
     )?;
+    // Each checked action lowers to one region; preserve its declaring owner
+    // before partitioning or deferred descriptor completion adds physical rows.
+    for (row, order) in rows.iter_mut().zip(declaration_orders) {
+        row.declaration_order = order;
+    }
+    rows = remaining_partition::retain(evaluation, rows, catalog.types, operations)?;
     let mut regions = crate::unit::unit_cleanup::lower_reference_completion_regions(
         identities,
         checked,

@@ -235,6 +235,9 @@ pub(crate) struct OperationBuffer {
     /// completed joins. Cleanup uses this chronology, never local declarations
     /// alone; each selected exit still supplies its own disposal authority.
     pub(crate) structural_establishments: Vec<PlaceId>,
+    /// Storage-only declarations have no result binding. Their establishing
+    /// operation retains the checked statement coordinate for normal death.
+    pub(crate) structural_declarations: Vec<(PlaceId, u32)>,
     /// Literal operations have Unit results, so their emitting owner retains
     /// the carrier here rather than recovering it from a source-call shape.
     pub(crate) literal_types: Vec<(PlaceId, semantic_vocabulary::StructuralTypeId)>,
@@ -393,6 +396,7 @@ impl OperationBuffer {
             structural_values: Vec::new(),
             computed_values: Vec::new(),
             structural_establishments: Vec::new(),
+            structural_declarations: Vec::new(),
             literal_types: Vec::new(),
             scalar_block_invariants: Vec::new(),
             scalar_index_coordinates: Vec::new(),
@@ -411,20 +415,6 @@ impl OperationBuffer {
             source_checked_obligations: Vec::new(),
             claim_introductions: Vec::new(),
             selected_cleanup_groups: Vec::new(),
-        }
-    }
-
-    /// A genuine whole-owner continuation changes physical storage, not the
-    /// value's selected path or access. Keep completed dependencies at that
-    /// same frontier; the catalog grants neither liveness nor new custody.
-    pub(crate) fn transport_computed_values(&mut self, transfers: &[(PlaceId, PlaceId)]) {
-        for (_, binding) in &mut self.computed_values {
-            if let Some((_, target)) = transfers
-                .iter()
-                .find(|(source, _)| *source == binding.argument.place)
-            {
-                binding.argument.place = *target;
-            }
         }
     }
 

@@ -1345,6 +1345,9 @@ fn resolve_storage_address(
 /// The authored-facing name of a checked place, followed by its path segments.
 fn spell_place(plan: &CheckedUnitStructuralArgumentPlan) -> String {
     let mut spelling = match plan.source {
+        CheckedUnitStructuralArgumentSourcePlan::CapturedStorage { source_ordinal, .. } => {
+            format!("captured selection source#{source_ordinal}")
+        }
         CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { parameter_index } => {
             format!("scalar parameter#{parameter_index}")
         }

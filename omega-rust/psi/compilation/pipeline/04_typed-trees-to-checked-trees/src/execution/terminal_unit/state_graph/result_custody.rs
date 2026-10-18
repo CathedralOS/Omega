@@ -280,12 +280,11 @@ pub(super) fn account(
                     continuation,
                 )
         };
-        // An owned selection moved each candidate source's custody into
-        // the join's residual parameters, which die at the same authored
-        // exit. The receipt, not a transfer or disposal row on the dead
-        // source place, accounts for that consumption independently of the
-        // final control shape. Exact exit cleanup
-        // must still account for the selection's surviving result and residuals.
+        // A selected source has one exact alternative partition: transfer
+        // to the result when chosen, or conditional normal disposal at its
+        // original home otherwise. The checked receipt and candidate cleanup
+        // retain both alternatives independently of the final control shape.
+        // The surviving result still owes its own transfer or disposal.
         let selection_residual_source = result.multiplicity == Multiplicity::Affine
             && facts
                 .flow
@@ -977,6 +976,16 @@ pub(super) fn account(
         if total != 1 && !(total == 0 && abandons_custody) {
             trace.phase(if total == 0 {
                 "state graph: structural result has no selected disposition"
+            } else if construction_transfers != 0 && reference_releases != 0 {
+                "state graph: structural result has duplicate dispositions (owned construction and physical reference release)"
+            } else if construction_transfers != 0 && implicit_disposition {
+                "state graph: structural result has duplicate dispositions (owned construction and selected exit)"
+            } else if construction_transfers != 0 && cleanup_discards != 0 {
+                "state graph: structural result has duplicate dispositions (owned construction and continuation cleanup)"
+            } else if construction_transfers != 0 && call_transfers != 0 {
+                "state graph: structural result has duplicate dispositions (owned construction and call transfer)"
+            } else if construction_transfers != 0 && independent_view_releases != 0 {
+                "state graph: structural result has duplicate dispositions (owned construction and captured loan release)"
             } else {
                 "state graph: structural result has duplicate dispositions"
             });
@@ -1483,6 +1492,15 @@ fn construction_local_uses<'a, 'operation>(
                 }
                 CheckedStructuralValueKind::FixedArray { elements } => {
                     pending.extend(elements.iter().copied());
+                }
+                // An anonymous backing is constructed before being lent.
+                // Its fields own their completed operands; the outer borrow
+                // does not consume an existing named referent. The checked
+                // source_value names only that exact retained backing birth.
+                CheckedStructuralValueKind::Reference { source_value, .. }
+                    if source_value.is_valid() =>
+                {
+                    pending.push(*source_value);
                 }
                 // Whole-value ascription carries the same owned operand.
                 // Projected subtrees retain their separate typed partition.

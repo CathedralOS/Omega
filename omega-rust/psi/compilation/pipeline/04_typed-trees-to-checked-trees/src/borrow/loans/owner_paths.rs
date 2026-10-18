@@ -1,7 +1,7 @@
 use super::super::tracker::BorrowOwnerSegment;
 
 /// Retain unknown selections as unknown coordinates, never as absent loans.
-pub(super) fn owner_place_segments(path: &[BorrowOwnerSegment]) -> Vec<facts::PlaceSegment> {
+pub(crate) fn owner_place_segments(path: &[BorrowOwnerSegment]) -> Vec<facts::PlaceSegment> {
     path.iter()
         .map(|segment| match segment {
             BorrowOwnerSegment::Field(symbol) => facts::PlaceSegment::Field { symbol: *symbol },

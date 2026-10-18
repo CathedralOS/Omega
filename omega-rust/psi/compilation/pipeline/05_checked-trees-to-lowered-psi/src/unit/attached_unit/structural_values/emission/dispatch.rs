@@ -88,7 +88,7 @@ impl Emission<'_, '_, '_> {
             self.restore_fallback(fallback);
         }
         if is_root {
-            self.record_root_continuation(continuation);
+            self.record_root_continuation(continuation)?;
         }
         Ok(continuation.place)
     }

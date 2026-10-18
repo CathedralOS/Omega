@@ -21,13 +21,12 @@ fn classes(
     checked.facts.content_classes.classes(reference)
 }
 
-/// Claim-free owned storage, including shared-view descriptors at any depth.
-/// Carried loan custody stays with the independently checked value frontier.
-pub(crate) fn owned_or_shared_view_contents(
+/// Finite materialized storage transported with its exact owned/loan frontier.
+pub(crate) fn stored_value_contents(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
 ) -> bool {
-    classes(checked, reference).owned_or_shared_view_contents
+    classes(checked, reference).stored_value_contents
 }
 
 /// No-code owned storage that tolerates primitive numeric restrictions.

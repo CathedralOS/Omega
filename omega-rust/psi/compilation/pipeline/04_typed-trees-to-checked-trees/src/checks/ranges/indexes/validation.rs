@@ -24,6 +24,7 @@
 //!    `check_symbolic_extent_index`;
 //! 4. anything else, or an extent still bound through a pending application,
 //!    is `Unsupported`.
+//!
 //! An unresolved builtin-geometry judgment then asks the shared ordered
 //! normal-return owner for complete bounds, including endpoint non-negativity.
 //! This cost order avoids replaying an invocation prefix for every ordinary

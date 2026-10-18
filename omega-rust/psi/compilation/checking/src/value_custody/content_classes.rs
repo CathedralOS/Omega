@@ -48,6 +48,12 @@ fn content_classes(
             &[],
             crate::value_custody::storage_contents::ContentsRequirement::RepresentedOwned,
         ),
+        stored_value_contents: crate::has_contents(
+            program,
+            reference,
+            &[],
+            crate::value_custody::storage_contents::ContentsRequirement::StoredValue,
+        ),
         linear_owned_contents: crate::has_contents(
             program,
             reference,

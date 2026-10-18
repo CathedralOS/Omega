@@ -159,7 +159,7 @@ pub(super) fn emit(
             *values = selected_values;
             return Ok(Some(terminator));
         }
-        selected_evaluation.remap_transported_call_operands(operations);
+
         selected_evaluation.blocks.push(Block {
             id: selected_evaluation.current,
             parameters: selected_evaluation.parameters,
@@ -287,7 +287,7 @@ pub(super) fn complete_structural_return(
         .ok_or(LoweringError::Unsupported(
             "ordered return value was not established",
         ))?;
-    let source = evaluation.current_structural_place(binding.place());
+    let source = binding.place();
     let mut returned_claims = binding.claims().to_vec();
     // The returned value carries every claim it holds; the caller binds them
     // by path.
@@ -295,7 +295,7 @@ pub(super) fn complete_structural_return(
     let mut regions = super::cleanup::for_exit_regions(
         identities, claims, checked, state, exit, catalogs, parameters, evaluation, operations,
     )?;
-    super::cleanup::selection(evaluation, operations, &mut regions)?;
+    super::cleanup::selection(&state.operations, evaluation, operations, &mut regions)?;
     let completion = Terminator::ReturnStructural {
         edge: edge_id(allocate_dense(next_edge)?),
         source,

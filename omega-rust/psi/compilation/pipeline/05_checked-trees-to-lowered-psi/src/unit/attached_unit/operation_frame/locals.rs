@@ -8,7 +8,7 @@
 use super::super::view_ranges::ViewRangeSite;
 use super::{
     OperationFrame, StructuralResults, StructuralTypeRoster, allocate_structural_result,
-    operation_result_declaration, require_parameter_window_root,
+    operation_result_declaration,
 };
 use crate::emission::borrowed_window::{BorrowedWindowRepairValue, WindowEvaluation};
 use crate::emission::operation_emission::buffer::StructuralBinding;
@@ -433,7 +433,7 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         self.results
             .require_next(result, "borrowed-window move result binding is not dense")?;
-        require_parameter_window_root(&self.parameters, source, self.evaluation)?;
+
         let moved = self.emit_window_move(
             identities,
             result.statement_index,
@@ -1017,7 +1017,7 @@ impl OperationFrame<'_, '_> {
                     .map(|value| value.place)
             })
             .transpose()?;
-        require_parameter_window_root(&self.parameters, destination, self.evaluation)?;
+
         self.emit_window_store(identities, statement_index, destination, opening, repair)
     }
 
@@ -1038,7 +1038,7 @@ impl OperationFrame<'_, '_> {
                     .results
                     .repair_value(binding_ordinal, self.operations)?;
                 BorrowedWindowRepairValue {
-                    place: self.evaluation.current_structural_place(repair.place),
+                    place: repair.place,
                     structural_type: repair.structural_type,
                 }
             }

@@ -58,6 +58,10 @@ pub struct StorageWindowInvocation {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContextualCleanupDisposition {
+    /// Conditional complement of this exact owned value join. The source
+    /// occurrence proves its ordinary cleanup; receiving storage is selected
+    /// by the retained join, never by a still-available lexical alias.
+    pub selection: Handle<crate::FlowOwnedSelectionReceipt>,
     /// Stable source occurrence selected by the ownership producer. This is
     /// not a second permission ledger: finalized claims and provenance remain
     /// in flow ownership, including any conditional claim joins.

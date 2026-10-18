@@ -237,6 +237,14 @@ pub(crate) fn build_check_facts(
             &mut prepared.flow,
         )?;
         crate::checks::prepare_permission_events(program, &mut prepared)?;
+        if contextual_cleanup::retain_selected_receiver_loans(
+            program,
+            &mut prepared.borrow,
+            &prepared.flow.ownership,
+            &prepared.contextual_cleanup,
+        ) {
+            continue;
+        }
         if !contextual_cleanup::infer_entry_requirements(
             program,
             &mut prepared,

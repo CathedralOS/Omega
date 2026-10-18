@@ -4267,6 +4267,19 @@ fail/facts/range_fact_delivery_through_target_body_rejected rejected 992ms expec
 	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/reference_arrival_handoff_cleanup_receiver_order_held_residual rejected 1660ms expected @4030174fbc4e
+	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8 and it is released at state exit)
+	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8 and it is released at state exit)
+	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8 and it is released at state exit)
+	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8 and it is released at state exit)
+fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejected 1845ms expected @4030174fbc4e
+	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 4: Keeper does not establish Keeper::drop clause `keeper.code == 41`
+fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite rejected 1684ms expected @4030174fbc4e
+	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 3: Keeper does not establish Keeper::drop clause `keeper.code == 41`
+fail/facts/reference_arrival_handoff_cleanup_receiver_prerequisite rejected 1541ms expected @4030174fbc4e
+	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
+fail/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_prerequisite rejected 1672ms expected @4030174fbc4e
+	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/remainder_width_through_call_result_rejected rejected 3201ms expected @d070d134851d+wt
 	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
 fail/facts/remainder_width_through_const_name_rejected rejected 3244ms expected @d070d134851d+wt
@@ -4296,8 +4309,8 @@ fail/facts/reference_arrival_handoff_through_field_held_source rejected 2657ms e
 	statement 3 mutates `original` while local borrow `holder` is still active (borrowed at statement 2; its last use is at statement 5)
 fail/facts/reference_arrival_handoff_through_local_held_source rejected 2572ms expected @3424ad143d6e
 	statement 3 mutates `original` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 5)
-fail/facts/reference_arrival_handoff_through_match_join_held_source rejected 2529ms expected @3424ad143d6e
-	statement 4 mutates `backing` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/reference_arrival_handoff_through_match_join_held_source rejected 1522ms expected @4030174fbc4e
+	statement 6 mutates `backing` while local borrow `child` is still active (borrowed at statement 5; its last use is at statement 8)
 fail/facts/reference_arrival_handoff_through_other_machine_held_source rejected 2460ms expected @3424ad143d6e
 	state `forward` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/facts/reference_arrival_handoff_through_other_state_held_source rejected 2517ms expected @3424ad143d6e
@@ -7875,6 +7888,7 @@ pass/drops/result_cleanup_integer_exit checked 3768ms check-target:macos_arm64 @
 pass/drops/result_cleanup_named_boolean_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
 pass/drops/result_cleanup_original_exit checked 3637ms check-target:macos_arm64 @76ea4b8c7c50
 pass/drops/result_cleanup_replacement_exit checked 3635ms check-target:macos_arm64 @76ea4b8c7c50
+pass/drops/runtime_selected_transfer_nested_construction_exit checked 3451ms check-target:macos_arm64 @4030174fbc4e
 pass/drops/statement_result_cleanup_without_expression_home_exit checked 6424ms check-target:macos_arm64 @1a31c8fa5439
 pass/facts/address_count_partition_through_call_result_exit checked 4004ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_const_name_exit checked 3993ms check-target:macos_arm64 @70da601bb299+wt
@@ -9829,6 +9843,10 @@ pass/facts/range_fact_delivery_through_other_machine_exit checked 6765ms check-t
 pass/facts/range_fact_delivery_through_other_state_exit checked 7380ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/range_fact_delivery_through_parameter_exit checked 6810ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/range_fact_delivery_through_target_body_exit checked 7265ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/reference_arrival_handoff_cleanup_receiver_exit checked 3371ms check-target:macos_arm64 @4030174fbc4e
+pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit checked 3628ms check-target:macos_arm64 @4030174fbc4e
+pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit checked 3624ms check-target:macos_arm64 @4030174fbc4e
+pass/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_exit checked 3777ms check-target:macos_arm64 @4030174fbc4e
 pass/facts/remainder_width_through_call_result_exit checked 7565ms check-target:macos_arm64 @d070d134851d+wt
 pass/facts/remainder_width_through_const_name_exit checked 7523ms check-target:macos_arm64 @d070d134851d+wt
 pass/facts/remainder_width_through_field_exit checked 7512ms check-target:macos_arm64 @d070d134851d+wt

@@ -477,8 +477,7 @@ impl OperationFrame<'_, '_> {
             } else {
                 None
             };
-            if let Some((mut argument, structural_type)) = home {
-                argument.place = self.evaluation.current_structural_place(argument.place);
+            if let Some((argument, structural_type)) = home {
                 bindings
                     .structural
                     .push(lowered_psi::LoweredSourceStructuralBinding {

@@ -690,6 +690,37 @@ pub(crate) fn occurrence_contexts(
                 .collect(),
         )]);
     }
+    if disposition.selection.is_valid() {
+        // The receiving complement owns the captured pre-transfer occurrence.
+        // A new value later installed under its source symbol cannot prove
+        // prerequisites for that anonymous old owner.
+        let receipt = facts
+            .flow
+            .ownership
+            .owned_selections
+            .get(disposition.selection);
+        if receipt.machine != disposition.machine
+            || receipt.state != disposition.state
+            || !facts
+                .flow
+                .ownership
+                .selection_sources
+                .span_or_empty(receipt.sources)
+                .iter()
+                .any(|source| Some(source.symbol) == disposition.root.as_symbol())
+        {
+            return None;
+        }
+        let statement = receipt.statement_ordinal as usize;
+        let source = facts.flow.state_statement(state, statement)?;
+        return Some(vec![(
+            statement,
+            facts
+                .flow
+                .semantic_constraint_contexts(source.pre_store_constraints)
+                .collect(),
+        )]);
+    }
     let points = match disposition.source {
         PermissionEventSource::InstructionDisposition { .. }
         | PermissionEventSource::InstructionExitDisposition { .. } => return None,

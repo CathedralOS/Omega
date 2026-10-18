@@ -56,15 +56,21 @@ impl Evaluation {
     /// Rejoin the actual emitted carrier, independently of source copyability
     /// or referent multiplicity. Cleanup actions and descriptor releases use
     /// this same contract when choosing disposal versus home retirement.
-    pub(crate) fn carrier_multiplicity(
+    pub(crate) fn carrier_signature(
         &self,
         place: semantic_vocabulary::PlaceId,
         operations: &OperationBuffer,
-    ) -> Result<terminal_psi::StructuralMultiplicity, LoweringError> {
-        let mut multiplicities = self
+    ) -> Result<
+        (
+            semantic_vocabulary::StructuralTypeId,
+            terminal_psi::StructuralMultiplicity,
+        ),
+        LoweringError,
+    > {
+        let mut signatures = self
             .structural_root_parameters()
             .filter(|parameter| parameter.place == place)
-            .map(|parameter| parameter.multiplicity)
+            .map(|parameter| (parameter.structural_type, parameter.multiplicity))
             // Branches inherit the transported owner frontier, not their
             // parent's completed blocks. These are the actual receiving-home
             // declarations retained by transport, not inferred source types.
@@ -72,7 +78,7 @@ impl Evaluation {
                 self.structural_value_owners
                     .iter()
                     .filter(|owner| owner.value.place == place)
-                    .map(|owner| owner.value.multiplicity),
+                    .map(|owner| (owner.value.structural_type, owner.value.multiplicity)),
             )
             // Anonymous backing is an emitted result without an authored
             // local binding. Its declaration is authoritative too, including
@@ -83,26 +89,33 @@ impl Evaluation {
                     .chain(self.blocks.iter().flat_map(|block| block.operations.iter()))
                     .filter_map(|operation| operation.result.structural())
                     .filter(|result| result.place == place)
-                    .map(|result| result.multiplicity),
+                    .map(|result| (result.structural_type, result.multiplicity)),
             )
             .chain(
                 operations
                     .structural_values
                     .iter()
-                    .filter_map(|(_, binding)| {
-                        (binding.place() == place && binding.path().is_empty())
-                            .then(|| binding.multiplicity())
-                    }),
+                    .filter(|(_, binding)| binding.place() == place && binding.path().is_empty())
+                    .map(|(_, binding)| (binding.structural_type(), binding.multiplicity())),
             );
-        let multiplicity = multiplicities.next().ok_or(LoweringError::Unsupported(
+        let signature = signatures.next().ok_or(LoweringError::Unsupported(
             "descriptor retirement lost its emitted carrier declaration",
         ))?;
-        if multiplicities.any(|other| other != multiplicity) {
+        if signatures.any(|other| other != signature) {
             return Err(LoweringError::Unsupported(
                 "descriptor retirement has inconsistent carrier declarations",
             ));
         }
-        Ok(multiplicity)
+        Ok(signature)
+    }
+
+    pub(crate) fn carrier_multiplicity(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+        operations: &OperationBuffer,
+    ) -> Result<terminal_psi::StructuralMultiplicity, LoweringError> {
+        self.carrier_signature(place, operations)
+            .map(|(_, multiplicity)| multiplicity)
     }
 
     /// The exact emitted carrier roster available to a computation expansion.
@@ -183,7 +196,7 @@ impl Evaluation {
             .selection_cleanups
             .iter()
             .flat_map(|cleanup| &cleanup.retired_reference_paths)
-            .filter(|(source, _)| self.current_structural_place(*source) == place)
+            .filter(|(source, _)| *source == place)
             .map(|(_, path)| path.clone())
             .collect::<std::collections::BTreeSet<_>>();
         if moved.is_empty() {
@@ -195,13 +208,20 @@ impl Evaluation {
                 self.descriptor_retirement(place, operations)?,
             )]);
         }
-        let root_type = self
-            .structural_root_parameters()
-            .find(|declaration| declaration.place == place)
-            .map(|declaration| declaration.structural_type)
-            .ok_or(LoweringError::Unsupported(
-                "selected complement death lost its receiving declaration",
-            ))?;
+        let (root_type, _) = self.carrier_signature(place, operations)?;
+        // A retired root leaves an empty disposal partition. The partial
+        // geometry query deliberately accepts only strict descendants; do not
+        // manufacture a second whole-root discard for a completed partition.
+        if moved.iter().any(Vec::is_empty) {
+            if moved.len() != 1 {
+                return Err(LoweringError::Unsupported(
+                    "selected complement retirement overlaps its whole root",
+                ));
+            }
+            return Ok(vec![CleanupRegion::unconditional(
+                TerminalAffineCleanupAction::RetireHome(place),
+            )]);
+        }
         let residuals =
             terminal_semantics::partial_affine_residuals(types, root_type, &moved, usize::MAX)
                 .ok_or(LoweringError::Unsupported(
@@ -230,6 +250,7 @@ impl Evaluation {
                 });
             }
             regions.push(CleanupRegion {
+                declaration_order: None,
                 selected_region: None,
                 conditions,
                 action: TerminalAffineCleanupAction::DiscardResidual(
@@ -309,28 +330,13 @@ impl Evaluation {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &checked_trees::CheckedTrees,
-        mut regions: Vec<CleanupRegion>,
+        regions: Vec<CleanupRegion>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
-        for region in &mut regions {
-            if let Some(selected) = &mut region.selected_region {
-                selected.place = self.current_structural_place(selected.place);
-            }
-            let place = match &mut region.action {
-                TerminalAffineCleanupAction::DiscardRoot(place)
-                | TerminalAffineCleanupAction::RetireHome(place) => place,
-                TerminalAffineCleanupAction::DiscardResidual(discard) => &mut discard.place,
-                TerminalAffineCleanupAction::InvokeNominal(cleanup) => &mut cleanup.place,
-            };
-            *place = self.current_structural_place(*place);
-            for condition in &mut region.conditions {
-                condition.place = self.current_structural_place(condition.place);
-            }
-        }
         self.cleanup_emission(checked, &mut Vec::new()).emit(
             identities, &regions, values, next_value, next_block, next_edge, operations,
         )

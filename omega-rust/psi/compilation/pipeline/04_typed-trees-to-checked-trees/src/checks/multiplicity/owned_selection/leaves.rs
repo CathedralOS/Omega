@@ -1,30 +1,35 @@
 //! leaves slice of owned_selection.
 
 use super::operands::*;
-use super::{owned_contents, owned_source, unsupported};
+use super::{owned_source, source_multiplicity, stored_contents, unsupported};
 use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
-use crate::checks::type_multiplicity;
 use arena::Handle;
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern, TableMatchArm};
 use typed_trees::types::TypeReferenceHandle;
-use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn has_owned_leaf(
     program: &dyn ::validation::CheckingInput,
+    places: &[super::super::linear_obligations::LinearPlace],
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => reachable_arms(program, dispatch.arms)
-            .iter()
-            .any(|(_, arm)| has_owned_leaf(program, machine, state, statement_index, arm.value)),
+        ExpressionNode::Match(dispatch) => {
+            reachable_arms(program, dispatch.arms)
+                .iter()
+                .any(|(_, arm)| {
+                    has_owned_leaf(program, places, machine, state, statement_index, arm.value)
+                })
+        }
         ExpressionNode::Name(_) => {
             validation::expression_result_type_reference(program, machine, state, expression)
-                .is_some_and(|reference| owned_source(program, expression, reference).is_some())
+                .is_some_and(|reference| {
+                    owned_source(program, places, expression, reference).is_some()
+                })
         }
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             projected_leaf_source(program, machine, state, statement_index, expression).is_some()
@@ -36,7 +41,16 @@ pub(super) fn has_owned_leaf(
             .expression_table
             .struct_fields(literal.fields)
             .iter()
-            .any(|field| has_owned_leaf(program, machine, state, statement_index, field.value)),
+            .any(|field| {
+                has_owned_leaf(
+                    program,
+                    places,
+                    machine,
+                    state,
+                    statement_index,
+                    field.value,
+                )
+            }),
         _ => false,
     }
 }
@@ -94,7 +108,7 @@ pub(super) fn projected_leaf_source(
     // path cannot split, so the root itself must be affine.
     let leaf_reference =
         validation::canonical_place_type_reference(program, state.symbol, statement_index, &place)?;
-    let leaf_multiplicity = type_multiplicity(program, leaf_reference);
+    let leaf_multiplicity = source_multiplicity(program, leaf_reference);
     if !matches!(
         leaf_multiplicity,
         Multiplicity::Affine | Multiplicity::Linear
@@ -108,17 +122,7 @@ pub(super) fn projected_leaf_source(
     if linear_leaf && !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
         return None;
     }
-    let contents_ok = |type_reference| {
-        owned_contents(
-            program,
-            type_reference,
-            if linear_leaf {
-                validation::ContentsRequirement::LinearOwned
-            } else {
-                validation::ContentsRequirement::PlainOwned
-            },
-        )
-    };
+    let contents_ok = |type_reference| stored_contents(program, type_reference);
     let place_type_ok = |segments: &[facts::PlaceSegment], expected: Multiplicity| {
         validation::canonical_place_type_reference(
             program,
@@ -130,12 +134,8 @@ pub(super) fn projected_leaf_source(
             },
         )
         .is_some_and(|type_reference| {
-            matches!(
-                program.type_reference_table.type_reference(type_reference),
-                TypeReferenceNode::Named { .. }
-                    | TypeReferenceNode::Generic { .. }
-                    | TypeReferenceNode::FixedArray { .. }
-            ) && type_multiplicity(program, type_reference) == expected
+            validation::reference_result_custody::binding_multiplicity(program, type_reference)
+                == expected
                 && contents_ok(type_reference)
         })
     };
@@ -165,6 +165,7 @@ pub(super) fn projected_leaf_source(
 
 pub(super) fn collect_leaves(
     program: &dyn ::validation::CheckingInput,
+    places: &[super::super::linear_obligations::LinearPlace],
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -181,7 +182,7 @@ pub(super) fn collect_leaves(
 ) -> Result<(), Diagnostic> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) if source_arm.is_valid() => {
-            match owned_source(program, expression, type_reference) {
+            match owned_source(program, places, expression, type_reference) {
                 Some(symbol) => {
                     leaves.push((
                         expression,
@@ -224,6 +225,19 @@ pub(super) fn collect_leaves(
             // an exact owned child leaf. Moved fields join the roster so the
             // edge residual schedule names the precise complement; every
             // other field keeps the unrestricted-operand rule.
+            // Capturing borrowed ingress forms a descriptor; it does not consume an
+            // owned source slot. Reuse ordinary exact ingress/loan correspondence.
+            if validation::reference_shell(program, type_reference).is_some()
+                && validation::reference_result_custody::initializer_source(
+                    program,
+                    state,
+                    expression,
+                    type_reference,
+                )
+                .is_some()
+            {
+                return Ok(());
+            }
             let fields = fresh_leaf_shape(program, machine, state, expression, type_reference)?;
             for field in fields {
                 collect_field_leaves(
@@ -301,6 +315,7 @@ pub(super) fn collect_leaves(
             for (source_arm, arm) in reachable_arms(program, dispatch.arms) {
                 collect_leaves(
                     program,
+                    places,
                     machine,
                     state,
                     statement_index,
@@ -311,6 +326,9 @@ pub(super) fn collect_leaves(
                 )?;
             }
             Ok(())
+        }
+        ExpressionNode::Borrow(_) if source_arm.is_valid() => {
+            fresh_leaf(program, machine, state, expression, type_reference)
         }
         _ => Err(unsupported()),
     }
@@ -404,6 +422,19 @@ pub(super) fn fresh_leaf(
     expression: ExpressionHandle,
     type_reference: TypeReferenceHandle,
 ) -> Result<(), Diagnostic> {
+    // Capturing borrowed ingress forms a descriptor; it does not consume an
+    // owned source slot. Reuse ordinary exact ingress/loan correspondence.
+    if validation::reference_shell(program, type_reference).is_some()
+        && validation::reference_result_custody::initializer_source(
+            program,
+            state,
+            expression,
+            type_reference,
+        )
+        .is_some()
+    {
+        return Ok(());
+    }
     let fields = fresh_leaf_shape(program, machine, state, expression, type_reference)?;
     let operands = fields
         .into_iter()
@@ -458,15 +489,7 @@ pub(super) fn fresh_leaf_shape(
         } else {
             return Err(unsupported());
         };
-    let contents_ok = owned_contents(
-        program,
-        reference,
-        if program.type_multiplicity(type_reference) == Multiplicity::Linear {
-            validation::ContentsRequirement::LinearOwned
-        } else {
-            validation::ContentsRequirement::PlainOwned
-        },
-    );
+    let contents_ok = stored_contents(program, reference);
     if !contents_ok
         || program.normalized_type_identity(reference)
             != program.normalized_type_identity(type_reference)

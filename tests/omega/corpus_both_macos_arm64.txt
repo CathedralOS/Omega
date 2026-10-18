@@ -503,6 +503,7 @@ pass/drops/runtime_scalar_temporary_nominal_continuation_exit built 5663ms exit:
 pass/drops/runtime_scalar_temporary_residual_partition_exit built 1647ms exit:0 interpreter-exit:0 interpreter:agrees @8611f9d5adf1
 pass/drops/runtime_selected_transfer_fieldwise_construction_exit built 12981ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @212593d788a7
 pass/drops/runtime_selected_transfer_incomplete_construction_exit built 5270ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9bf00044985b
+pass/drops/runtime_selected_transfer_nested_construction_exit built 3642ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @4030174fbc4e
 pass/drops/runtime_temporary_integer_capture_cleanup_exit built 1685ms exit:0 interpreter-exit:0 interpreter:agrees @4cc11cbadf31+wt
 pass/drops/runtime_temporary_nominal_integer_contract_exit built 1685ms exit:0 interpreter-exit:0 interpreter:agrees @4cc11cbadf31+wt
 pass/drops/runtime_temporary_nominal_prerequisite_exit built 1723ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt
@@ -580,6 +581,10 @@ pass/facts/nominal_reference_cleanup_through_parameter_exit built 3732ms exit:0 
 pass/facts/nominal_reference_cleanup_through_target_body_exit built 3638ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
 pass/facts/qualified_borrowed_join_exit built 3982ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/qualified_owned_join_exit built 4711ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
+pass/facts/reference_arrival_handoff_cleanup_receiver_exit built 3543ms exit:0 interpreter-exit:0 interpreter:agrees @4030174fbc4e
+pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit built 3780ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @4030174fbc4e
+pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit built 3778ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @4030174fbc4e
+pass/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_exit built 3683ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @4030174fbc4e
 pass/facts/reference_arrival_handoff_through_call_result_exit built 6175ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_const_name_exit built 6175ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_field_exit built 6322ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e

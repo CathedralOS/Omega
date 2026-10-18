@@ -2178,6 +2178,21 @@ pub fn shared_place_borrowed_parts(
         .map(|shell| (shell.referee, CheckedStructuralAccess::SharedBorrow))
 }
 
+/// A nominal receiver owns its complete value until its hook runs. Ending a
+/// contained descriptor's observations cannot independently dismantle that
+/// receiver. Unknown projected types conservatively retain this obligation.
+pub fn path_has_nominal_receiver(
+    program: &dyn crate::CheckingInput,
+    root: TypeReferenceHandle,
+    path: &[facts::PlaceSegment],
+) -> bool {
+    (0..path.len()).any(|length| {
+        crate::project_type_reference_from_segments(program, root, &path[..length]).is_none_or(
+            |reference| crate::nominal_cleanup_machine_for_type(program, reference, &[]).is_some(),
+        )
+    })
+}
+
 /// Custody of a structural binding that denotes the referent directly.
 /// Shared aliases remain unrestricted observations; exclusive aliases retain
 /// affine loan custody. A stored reference value instead uses

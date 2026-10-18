@@ -50,13 +50,13 @@ use aggregate::borrowed_initializers;
 use owner_paths::owner_path_matches;
 pub(crate) use owner_paths::place_path_covers_owner;
 pub(crate) use owner_paths::{
-    owner_path_from_place_segments, owner_segment_matches_place_segment, store_destination_places,
+    owner_path_from_place_segments, owner_place_segments, owner_segment_matches_place_segment,
+    store_destination_places,
 };
 
 mod aggregate;
 mod owner_paths;
 mod returned_carriers;
-pub(crate) use returned_carriers::place_segments as owner_place_segments;
 pub(crate) use returned_carriers::{
     call_reference_lifetime_sources, call_reference_sources, returned_body_source_mismatch,
 };

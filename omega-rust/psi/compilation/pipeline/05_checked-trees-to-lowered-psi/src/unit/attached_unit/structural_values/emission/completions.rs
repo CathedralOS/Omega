@@ -1,8 +1,8 @@
 //! Result completion: the value-join that commits one selected place to
-//! its continuation, and whole-loan completion. The join binds owner slots
-//! positionally against the same roster both sides already read.
+//! its continuation, and whole-loan completion. Only the selected value moves;
+//! unselected candidate occurrences retain their original homes and death order.
 
-use super::super::super::super::{StructuralAccess, StructuralArgument};
+use super::super::super::super::StructuralArgument;
 use super::super::super::{LoweringError, PlaceId, lookup_type_id, unsupported};
 use super::{Emission, ProjectionSource, ValueContinuation};
 use crate::expression_preparation::bindings::LoanAccess;
@@ -89,83 +89,9 @@ impl Emission<'_, '_, '_> {
         projection: Option<&ProjectionSource>,
         continuation: &mut ValueContinuation,
     ) -> Result<(), LoweringError> {
-        // The join binds owner slots positionally, so arguments are built
-        // against the same roster: the displaced slot (the first candidate,
-        // or the moved root on an ordinary move) is absent, every other
-        // candidate slot receives the next still-unselected source in roster
-        // order, and owners interleaved between candidates keep their own
-        // places. A fresh result cannot occupy a source's residual slot, so
-        // the unselected source the result slot displaced dies on this edge.
-        // Plain-affine contents have no cleanup, making it a trivial discard,
-        // and the join frontier is identical on every incoming path.
-        let displaced = (!self.sources.is_empty()
-            && !self
-                .sources
-                .iter()
-                .any(|source| source.place == selected.place))
-        .then(|| self.first_candidate())
-        .flatten();
-        let displaced_place = displaced.map(|position| self.owners[position].value.place);
-        // The first candidate's owner slot is the one the result parameter
-        // displaced; a selected non-first candidate's slot is an ordinary
-        // residual slot filled by the surviving candidates. An ordinary move
-        // instead removes the moved root's own slot.
-        let removed = self.first_candidate().or_else(|| {
-            self.owners
-                .iter()
-                .position(|owner| owner.value.place == selected.place)
-        });
-        let mut unselected = self
-            .sources
-            .iter()
-            .map(|source| source.place)
-            .filter(|place| *place != selected.place && Some(*place) != displaced_place);
-        let mut structural_arguments = Vec::new();
-        for (position, owner) in self.owners.iter().enumerate() {
-            if Some(position) == removed {
-                continue;
-            }
-            let place = if self
-                .sources
-                .iter()
-                .any(|source| source.place == owner.value.place)
-            {
-                let residual = unselected.next().ok_or(LoweringError::Unsupported(
-                    "owned selection residual sources do not cover their slots",
-                ))?;
-                // A residual slot carries the surviving source at the slot's
-                // own type. The roster's ordered complement can only rebind a
-                // source of the same type: on an edge selecting a later
-                // alternative the survivor sequence shifts, so a differently
-                // typed root would land in its sibling's slot. Reject that
-                // custody join here rather than emit an edge the terminal
-                // verifier must refuse.
-                let residual_type = self
-                    .owners
-                    .iter()
-                    .find(|candidate| candidate.value.place == residual)
-                    .map(|candidate| candidate.value.structural_type)
-                    .ok_or(LoweringError::Unsupported(
-                        "owned selection residual source has no frontier type",
-                    ))?;
-                if residual_type != owner.value.structural_type {
-                    return unsupported(
-                        "owned selection residual sources need uniform custody types",
-                    );
-                }
-                residual
-            } else {
-                owner.value.place
-            };
-            structural_arguments.push(StructuralArgument {
-                place,
-                path: Vec::new(),
-                access: StructuralAccess::Owned,
-            });
-        }
-        if unselected.next().is_some() {
-            return unsupported("owned selection has untransported residual candidates");
-        }
+        // Candidate roots remain resident. Their source-authorized cleanup
+        // groups follow the actual owned transfer through private continuations,
+        // so neither an early discard nor a positional survivor slot is needed.
         // A projected move keeps the root's untouched structural complement
         // owned on this same edge. Reconstruction against the checked root
         // type yields the exact residual schedule in positional order; the
@@ -213,13 +139,9 @@ impl Emission<'_, '_, '_> {
             }
             None => Vec::new(),
         };
-        let mut trivial_affine_discards = Vec::new();
-        structural_arguments.push(selected);
+        let structural_arguments = vec![selected];
         if structural_arguments.len() != continuation.structural_parameters.len() {
             return unsupported("structural value has unequal residual ownership at its join");
-        }
-        if let Some(place) = displaced_place {
-            trivial_affine_discards.push(place);
         }
         self.join_memberships(&structural_arguments, continuation)?;
         let edge = self.edge(
@@ -229,14 +151,9 @@ impl Emission<'_, '_, '_> {
         )?;
         self.finish_jump(
             edge,
-            trivial_affine_discards
+            residual_affine_discards
                 .into_iter()
-                .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                .chain(
-                    residual_affine_discards
-                        .into_iter()
-                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
-                )
+                .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual)
                 .collect(),
         );
         Ok(())
@@ -255,10 +172,7 @@ impl Emission<'_, '_, '_> {
         continuation: &mut ValueContinuation,
         loan: LoanAccess,
     ) -> Result<(), LoweringError> {
-        if continuation.structural_parameters.len() != 1
-            || !continuation.pass_through.is_empty()
-            || !continuation.residuals.is_empty()
-        {
+        if continuation.structural_parameters.len() != 1 {
             return unsupported(match loan {
                 LoanAccess::Shared => "borrowed selection joined residual ownership",
                 LoanAccess::Mutable => "mutable borrowed selection joined residual ownership",

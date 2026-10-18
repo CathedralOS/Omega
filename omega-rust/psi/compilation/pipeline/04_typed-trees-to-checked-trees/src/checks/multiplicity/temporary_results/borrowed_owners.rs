@@ -89,6 +89,7 @@ pub(in crate::checks::multiplicity) fn append_borrow(
         dispositions
             .dispositions
             .append(checked_trees::ContextualCleanupDisposition {
+                selection: Default::default(),
                 establishment_ordered: false,
                 zero_image: false,
                 machine,

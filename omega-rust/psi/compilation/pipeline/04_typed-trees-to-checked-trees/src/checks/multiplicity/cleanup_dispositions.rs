@@ -110,6 +110,7 @@ impl RemainingCustody {
         program: &dyn ::validation::CheckingInput,
         root: PlaceRoot,
         later: &[Vec<PlaceSegment>],
+        receiving_writes: &[Vec<PlaceSegment>],
     ) -> bool {
         let Some((_, frontier)) = self
             .constructing
@@ -118,16 +119,7 @@ impl RemainingCustody {
         else {
             return true;
         };
-        let mut merged = frontier.clone();
-        for path in later {
-            // Union existing coverage, not storage-write events. Replaying an
-            // unchanged zero-seeded child could complete its gated parent even
-            // though no value was established there.
-            if !merged.contains(path) {
-                merged.establish(program, path);
-            }
-        }
-        merged.established.iter().any(Vec::is_empty)
+        frontier.completes_with(program, later, receiving_writes)
     }
 
     /// The reserved root's established subtrees in establishment order, or
@@ -415,6 +407,7 @@ impl RemainingCustody {
                 // deaths by establishment (`SelectedCleanup::finish`).
                 let establishment_ordered = establishment_ordered_roots.contains(&event.root);
                 let disposition = output.dispositions.append(ContextualCleanupDisposition {
+                    selection: Default::default(),
                     machine: event.machine_symbol,
                     state: event.state_symbol,
                     source: event.source,
@@ -533,6 +526,7 @@ impl RemainingCustody {
                 segments: Default::default(),
             }]);
             output.dispositions.append(ContextualCleanupDisposition {
+                selection: Default::default(),
                 machine,
                 state,
                 source,

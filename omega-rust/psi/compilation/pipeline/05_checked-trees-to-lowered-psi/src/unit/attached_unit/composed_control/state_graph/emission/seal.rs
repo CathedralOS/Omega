@@ -88,7 +88,12 @@ impl StateGraphEmission<'_, '_> {
                 &evaluation,
                 &operations,
             )?;
-            super::super::cleanup::selection(&evaluation, &operations, &mut regions)?;
+            super::super::cleanup::selection(
+                &state.operations,
+                &evaluation,
+                &operations,
+                &mut regions,
+            )?;
             let mut values = Vec::new();
             if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal,
@@ -97,7 +102,7 @@ impl StateGraphEmission<'_, '_> {
                 let binding =
                     super::super::case_emission::result(state, binding_ordinal, &operations)?
                         .into_owned();
-                let source = evaluation.current_structural_place(binding.place());
+                let source = binding.place();
                 let (completion, arrival) =
                     crate::unit::attached_unit::structural_returns::materialize(
                         identities,
@@ -175,7 +180,7 @@ impl StateGraphEmission<'_, '_> {
                 rank,
             );
         }
-        evaluation.remap_transported_call_operands(&mut operations);
+
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: evaluation.parameters,

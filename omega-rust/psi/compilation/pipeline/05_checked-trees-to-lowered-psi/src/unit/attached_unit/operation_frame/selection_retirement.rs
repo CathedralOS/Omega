@@ -3,7 +3,7 @@
 //! stays at normal death. Case paths are guarded against each residual's own
 //! active tag, because different predecessors may supply different cases.
 
-use super::{LoweringError, OperationFrame, StructuralAccess};
+use super::{LoweringError, OperationFrame};
 use crate::expression_preparation::bindings::{structural_cases, structural_paths};
 use crate::unit::unit_cleanup::{CleanupCaseCondition, CleanupRegion};
 use checked_trees::{CheckedUnitSelectedReferenceRetirementPlan, CheckedUnitStructuralPathSegment};
@@ -27,16 +27,9 @@ impl OperationFrame<'_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "selected reference retirement lost its join",
                 ))?;
-            for (_, residual) in &selection.remaining {
-                let place = self.evaluation.current_structural_place(*residual);
-                let root_type = self
-                    .evaluation
-                    .structural_root_parameters()
-                    .find(|declaration| declaration.place == place)
-                    .map(|declaration| declaration.structural_type)
-                    .ok_or(LoweringError::Unsupported(
-                        "selected residual lost its receiving declaration",
-                    ))?;
+            for residual in &selection.sources {
+                let place = residual.storage.place;
+                let (root_type, _) = self.evaluation.carrier_signature(place, self.operations)?;
                 let types = self.structural_types.declarations();
                 let path = structural_paths::lower_static_argument_path(
                     identities,
@@ -49,15 +42,9 @@ impl OperationFrame<'_, '_> {
                         .ok_or(LoweringError::Unsupported(
                             "selected residual lost its reference leaf",
                         ))?;
-                if !matches!(
-                    leaf.shape,
-                    StructuralTypeShape::Reference {
-                        access: StructuralAccess::SharedBorrow,
-                        ..
-                    }
-                ) {
+                if !matches!(leaf.shape, StructuralTypeShape::Reference { .. }) {
                     return Err(LoweringError::Unsupported(
-                        "selected complement retirement requires shared descriptor custody",
+                        "selected complement retirement requires descriptor custody",
                     ));
                 }
                 let mut conditions = Vec::new();
@@ -87,15 +74,28 @@ impl OperationFrame<'_, '_> {
                         case,
                     });
                 }
-                retired.push((complement.selection, *residual, path.clone()));
-                regions.push(CleanupRegion {
-                    selected_region: None,
-                    conditions,
-                    action: TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
+                retired.push((complement.selection, place, path.clone()));
+                let action = if path.is_empty() {
+                    // A standalone descriptor has no containing home to keep.
+                    // End it once; its later conditional death is then absent.
+                    self.evaluation
+                        .descriptor_retirement(place, self.operations)?
+                } else {
+                    TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
                         place,
                         path,
                         structural_type: leaf.id,
+                    })
+                };
+                regions.push(CleanupRegion {
+                    declaration_order: None,
+                    selected_region: Some(terminal_psi::StructuralArgument {
+                        place,
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
                     }),
+                    conditions,
+                    action,
                 });
             }
         }

@@ -126,6 +126,30 @@ impl ConstructionFrontier {
         }
     }
 
+    /// Join already established values without replaying their zero-filled
+    /// children as validated writes. Only complete direct children can finish
+    /// the containing value; a gated child's raw fields do not establish it.
+    pub(super) fn completes_with(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        later: &[Vec<PlaceSegment>],
+        receiving_writes: &[Vec<PlaceSegment>],
+    ) -> bool {
+        let mut combined = self.clone();
+        for path in later {
+            if !combined.contains(path) {
+                combined.replace_subtrees(path);
+            }
+        }
+        // A validated receiving write may complete nested parents against
+        // retained sibling values. Seeded zero leaves carry no such write:
+        // replaying those would invent a valid gated containing value.
+        for path in receiving_writes {
+            combined.establish(program, path);
+        }
+        combined.contains(&[])
+    }
+
     fn replace_subtrees(&mut self, path: &[PlaceSegment]) {
         self.established.retain(|prior| !prior.starts_with(path));
         self.established.push(path.to_vec());

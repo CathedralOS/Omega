@@ -82,6 +82,7 @@ pub(crate) fn lower_reference_completion_regions(
             .any(|region: &CleanupRegion| region.action == action)
         {
             carriers.push(CleanupRegion {
+                declaration_order: None,
                 selected_region: select_evaluated_storage.then(|| {
                     terminal_psi::StructuralArgument {
                         place,

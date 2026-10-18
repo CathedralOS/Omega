@@ -31,3 +31,11 @@ pub(crate) fn result_multiplicity(
 ) -> Multiplicity {
     custody(checked, reference).result_multiplicity
 }
+
+/// Source availability of an alias: shared observation or exclusive custody.
+pub(crate) fn binding_multiplicity(
+    checked: &CheckedTrees,
+    reference: TypeReferenceHandle,
+) -> Multiplicity {
+    custody(checked, reference).binding_multiplicity
+}

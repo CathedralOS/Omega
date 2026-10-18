@@ -273,6 +273,7 @@ pub(crate) fn prepare_permission_events(
                                 selection_diagnostics.push(diagnostic);
                                 return;
                             }
+                            let before_selection = places.clone();
                             match owned_selection::record_statement(
                                 program,
                                 facts,
@@ -283,11 +284,21 @@ pub(crate) fn prepare_permission_events(
                                 places,
                             ) {
                                 Ok(true) => {
-                                    if let Some((_, receipt)) = facts
+                                    if let Some((handle, receipt)) = facts
                                         .flow
                                         .ownership
                                         .owned_selection_at(state.symbol, statement_index as u32)
                                     {
+                                        if let Err(diagnostic) = selected_cleanup.observe_selection(
+                                            program,
+                                            handle,
+                                            &facts.flow.ownership,
+                                            &before_selection,
+                                            remaining,
+                                        ) {
+                                            selection_diagnostics.push(diagnostic);
+                                            return;
+                                        }
                                         selections.consume(program, &facts.flow.ownership, receipt);
                                         for place in selections.unavailable_places() {
                                             remaining.transfer_storage(place.root, &place.segments);

@@ -1,7 +1,7 @@
 //! availability slice of owned_selection.
 
 use super::{leaves::*, operands::*};
-use super::{owned_contents, place_paths_overlap, source_needs_loan_closure, unsupported};
+use super::{place_paths_overlap, source_needs_loan_closure, stored_contents, unsupported};
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use arena::Handle;
 use checked_trees::CheckFacts;
@@ -36,7 +36,14 @@ pub(in crate::checks::multiplicity) fn record_statement(
             matches!(
                 program.expression_table.expression(*expression),
                 ExpressionNode::Match(_)
-            ) && has_owned_leaf(program, machine, state, statement_index, *expression)
+            ) && has_owned_leaf(
+                program,
+                places,
+                machine,
+                state,
+                statement_index,
+                *expression,
+            )
         })
         .collect::<Vec<_>>();
     if selected.is_empty() {
@@ -58,20 +65,10 @@ pub(in crate::checks::multiplicity) fn record_statement(
     // than inventing a root claim. The carrier still owes the same finite
     // owned walls as a plain record. Shared-view members move their descriptor
     // storage, while loan checking retains their backing and lifetime relation.
-    let destination_ok = if linear_result {
-        owned_contents(
-            program,
-            type_reference,
-            validation::ContentsRequirement::LinearOwned,
-        )
-    } else {
-        program.type_multiplicity(type_reference) == Multiplicity::Affine
-            && owned_contents(
-                program,
-                type_reference,
-                validation::ContentsRequirement::LinearOwned,
-            )
-    };
+    let destination_ok = matches!(
+        validation::reference_result_custody::binding_multiplicity(program, type_reference),
+        Multiplicity::Affine | Multiplicity::Linear
+    ) && stored_contents(program, type_reference);
     if !selected.contains(&expression) || !destination_ok {
         return Err(unsupported());
     }
@@ -80,6 +77,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
     let mut leaves = Vec::new();
     collect_leaves(
         program,
+        places,
         machine,
         state,
         statement_index,
@@ -294,11 +292,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
             root_place.is_some_and(|place| place.multiplicity == Multiplicity::Affine)
         } else {
             true
-        } && owned_contents(
-            program,
-            source_reference,
-            validation::ContentsRequirement::LinearOwned,
-        );
+        } && stored_contents(program, source_reference);
         if !source_ok {
             return Err(Diagnostic::error(
                 "owned match source must be an available owned local or parameter claim of the exact result type",

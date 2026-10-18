@@ -167,14 +167,11 @@ pub(crate) fn initial_linear_places(
                     | typed_trees::types::TypeReferenceNode::FixedArray { .. }
             );
         if claims.is_empty()
-            && type_multiplicity(program, local.type_reference) == Multiplicity::Affine
+            && validation::reference_result_custody::binding_multiplicity(
+                program,
+                local.type_reference,
+            ) == Multiplicity::Affine
             && declaration_established
-            && matches!(
-                type_node,
-                typed_trees::types::TypeReferenceNode::Named { .. }
-                    | typed_trees::types::TypeReferenceNode::Generic { .. }
-                    | typed_trees::types::TypeReferenceNode::FixedArray { .. }
-            )
         {
             places.push(LinearPlace {
                 root: facts::PlaceRoot::Symbol(local.symbol),

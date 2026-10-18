@@ -297,7 +297,8 @@ pub(super) fn argument_needs_establishment(kind: &CheckedStructuralValueKind) ->
     };
     use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
     match &argument.source {
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+        CheckedUnitStructuralArgumentSourcePlan::CapturedStorage { .. }
+        | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
         | CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
         | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
         | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }

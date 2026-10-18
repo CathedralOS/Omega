@@ -23,35 +23,50 @@ mod occurrences;
 mod operands;
 pub(super) use occurrences::SelectionOccurrences;
 
-/// Storage that can travel on a selected owned edge. Finite linear storage
-/// keeps its claim frontier; shared-view carriers keep their descriptor loans.
-/// Neither content judgment supplies availability, loan closure or cleanup.
-fn owned_contents(
+/// Finite stored-value transport is independent of access, availability and
+/// retirement. Loan checking retains every descriptor's exact backing frontier.
+fn stored_contents(
     program: &dyn ::validation::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
-    requirement: validation::ContentsRequirement,
 ) -> bool {
-    validation::has_contents(program, reference, &[], requirement)
-        || validation::has_contents(
-            program,
-            reference,
-            &[],
-            validation::ContentsRequirement::OwnedOrSharedView,
-        )
+    validation::has_contents(
+        program,
+        reference,
+        &[],
+        validation::ContentsRequirement::StoredValue,
+    )
+}
+
+fn source_multiplicity(
+    program: &dyn ::validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> language_semantics::Multiplicity {
+    if validation::reference_shell(program, reference).is_some() {
+        validation::reference_result_custody::binding_multiplicity(program, reference)
+    } else {
+        program.type_multiplicity(reference)
+    }
 }
 
 fn owned_source(
     program: &dyn ::validation::CheckingInput,
+    places: &[super::linear_obligations::LinearPlace],
     expression: typed_trees::expression::ExpressionHandle,
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    validation::whole_owned_value_source(program, expression, reference).filter(|_| {
-        program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted
-            && owned_contents(
-                program,
-                reference,
-                validation::ContentsRequirement::LinearOwned,
-            )
+    validation::whole_owned_value_source(program, expression, reference).filter(|symbol| {
+        source_multiplicity(program, reference)
+            != language_semantics::Multiplicity::Unrestricted
+            && stored_contents(program, reference)
+            // A borrowed ingress denotes the referent. Only the permission
+            // inventory's installed descriptor occurrence is a stored source;
+            // otherwise ordinary reference capture forms a fresh arm carrier.
+            && (validation::reference_shell(program, reference).is_none()
+                || places.iter().any(|place| {
+                    place.root == facts::PlaceRoot::Symbol(*symbol)
+                        && place.path.is_empty()
+                        && place.ever_established
+                }))
     })
 }
 

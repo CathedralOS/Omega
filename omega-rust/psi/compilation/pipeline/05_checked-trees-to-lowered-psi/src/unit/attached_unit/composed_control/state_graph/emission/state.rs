@@ -439,7 +439,6 @@ impl StateGraphEmission<'_, '_> {
         let state_parameters = current_parameters.as_ref();
         if operations.external_completion.is_some() {
             sequence.require_closed()?;
-            evaluation.remap_transported_call_operands(&mut operations);
             let terminator = operations.take_external_completion(&mut next_edge)?.ok_or(
                 LoweringError::Unsupported("external completion lost its evaluated invocation"),
             )?;
@@ -1100,7 +1099,12 @@ impl StateGraphEmission<'_, '_> {
                     &evaluation,
                     &operations,
                 )?;
-                super::super::cleanup::selection(&evaluation, &operations, &mut regions)?;
+                super::super::cleanup::selection(
+                    &state.operations,
+                    &evaluation,
+                    &operations,
+                    &mut regions,
+                )?;
                 // Capture the authored result before hooks run. Private cleanup
                 // edges transport that value, never evaluate the result again.
                 let return_position = scalar_return.map(|value| {
@@ -1222,7 +1226,7 @@ impl StateGraphEmission<'_, '_> {
                 };
                 Terminator::ReturnStructural {
                     edge: edge_id(allocate_dense(&mut next_edge)?),
-                    source: evaluation.current_structural_place(source),
+                    source,
                     returned_claims,
                     cleanup_actions: Vec::new(),
                 }

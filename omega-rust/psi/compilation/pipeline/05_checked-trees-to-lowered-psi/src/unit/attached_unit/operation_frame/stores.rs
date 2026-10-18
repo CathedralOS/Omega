@@ -28,8 +28,7 @@
 
 use super::{
     OperationFrame, StructuralTypeRoster, allocate_structural_result, last_operation_id,
-    operation_result_declaration, require_parameter_window_root, structural_type_declaration,
-    window_place,
+    operation_result_declaration, structural_type_declaration, window_place,
 };
 use crate::emission::borrowed_window::BorrowedWindowRepairValue;
 use crate::emission::indexed_write::IndexedWriteTarget;
@@ -1505,7 +1504,7 @@ impl OperationFrame<'_, '_> {
             }
         };
         let hole = window_place(source, &store.destination.path, type_identity);
-        require_parameter_window_root(&self.parameters, &hole, self.evaluation)?;
+
         let displacement = self.windows.captured_displacement_expression(
             store.statement_index,
             &hole.source,
@@ -1574,7 +1573,7 @@ impl OperationFrame<'_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "structural case field store value names an unknown parameter",
                 ))?;
-        let source_place = self.evaluation.current_structural_place(value_root.place);
+        let source_place = value_root.place;
         let (copied_place, copy) = allocate_structural_result(
             self.operations,
             self.next_place,

@@ -25,6 +25,10 @@ pub(in crate::execution::terminal_unit) struct Transfer {
 
 pub(in crate::execution::terminal_unit) enum Destination {
     Holder(CheckedUnitStructuralResultBindingPlan, Vec<OwnerSegment>),
+    /// An independently registered anonymous home, constructed before a
+    /// descriptor lends it. Owned children move into this backing, never into
+    /// the reference carrier that observes it.
+    Backing(CheckedStructuralValueHandle, Vec<OwnerSegment>),
     /// The call consumes this source. A structural result can carry the
     /// consumed descriptors onward: its returned occurrences retain exact
     /// supplying-loan identities independently of result nesting. A call
@@ -708,11 +712,44 @@ impl Query<'_> {
                     output.append(self.computation(field.value)?);
                 }
             }
+            CheckedStructuralValueKind::Reference {
+                source,
+                source_value,
+                ..
+            } => {
+                if source_value.is_valid() {
+                    let backing = values.nodes.get(*source_value);
+                    if values
+                        .root_for_expression(
+                            backing.state,
+                            backing.statement_index,
+                            backing.expression,
+                        )?
+                        .root
+                        != *source_value
+                    {
+                        return None;
+                    }
+                    // Reference formation evaluates the entire backing before
+                    // selecting the borrowed path. Preserve each child's true
+                    // receiving home rather than projecting ownership through
+                    // the resulting reference shell.
+                    let mut transfers =
+                        self.value(*source_value, &[], true, result, &[], active)?;
+                    for transfer in &mut transfers.possible {
+                        if let Destination::Holder(receiver, path) = &transfer.destination
+                            && receiver == result
+                        {
+                            transfer.destination =
+                                Destination::Backing(*source_value, path.clone());
+                        }
+                    }
+                    output.append(transfers);
+                }
+                output.append(self.argument_computations(source)?);
+            }
             CheckedStructuralValueKind::Place(argument)
             | CheckedStructuralValueKind::CopiedStructuralPlace {
-                source: argument, ..
-            }
-            | CheckedStructuralValueKind::Reference {
                 source: argument, ..
             } => {
                 output.append(self.argument_computations(argument)?);

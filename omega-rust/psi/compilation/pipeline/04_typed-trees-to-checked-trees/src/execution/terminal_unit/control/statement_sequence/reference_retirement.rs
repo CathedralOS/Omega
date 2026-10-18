@@ -200,6 +200,7 @@ pub(super) fn returned_reference_binding(
 
 use crate::execution::terminal_unit::storage_transfers as transfers;
 use transfers::{Destination, transfers};
+mod backing;
 mod carriers;
 pub(super) mod selections;
 pub(super) mod stores;
@@ -930,6 +931,13 @@ impl Retirement<'_> {
             found = true;
             let (destination, mut path) = match transfer.destination {
                 Destination::Unknown => return false,
+                Destination::Backing(value, mut path) => {
+                    path.extend_from_slice(&owner_path[selected.len()..]);
+                    if !self.backing_retired(value, &path, active) {
+                        return false;
+                    }
+                    continue;
+                }
                 Destination::Call {
                     statement_index,
                     structural_result,

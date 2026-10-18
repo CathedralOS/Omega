@@ -800,6 +800,7 @@ impl OperationFrame<'_, '_> {
             identities,
             self.checked,
             vec![crate::unit::unit_cleanup::CleanupRegion {
+                declaration_order: None,
                 selected_region: select_evaluated_storage.then(|| {
                     terminal_psi::StructuralArgument {
                         place: source,
@@ -909,26 +910,6 @@ fn window_place(
         type_identity,
         access: checked_trees::CheckedStructuralAccess::Owned,
     }
-}
-
-/// The exclusive root a borrowed-storage window names, as the sequence
-/// currently holds it. An owned selection that transported a parameter root
-/// to a join parameter leaves that root undetermined; owned local roots have
-/// no parameter to transport and pass vacuously.
-fn require_parameter_window_root(
-    parameters: &[StructuralParameterDeclaration],
-    place: &CheckedUnitStructuralArgumentPlan,
-    evaluation: &Evaluation,
-) -> Result<(), LoweringError> {
-    let transported = place.source_parameter_index().is_some_and(|position| {
-        parameters.get(position as usize).is_some_and(|parameter| {
-            evaluation.current_structural_place(parameter.place) != parameter.place
-        })
-    });
-    if transported {
-        return unsupported("borrowed-window root was transported to a join parameter");
-    }
-    Ok(())
 }
 
 /// Mint the place and pushed operation for one structural result: every

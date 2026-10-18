@@ -5,6 +5,7 @@
 //! translate those leaves into the destination's checked storage paths. Runtime
 //! carrier equality erases regions and cannot equate prepared member symbols.
 use super::is_reference_type;
+use super::owner_paths::owner_place_segments as place_segments;
 use crate::borrow::BorrowOwnerSegment;
 use crate::borrow::loans::StatementBorrowLoan;
 use crate::borrow::loans::borrowed_initializer_loans;
@@ -675,21 +676,6 @@ pub(super) fn argument_loans(
             }
             loan.lineage = loan.lineage.derived();
             loan
-        })
-        .collect()
-}
-
-pub(crate) fn place_segments(path: &[BorrowOwnerSegment]) -> Vec<facts::PlaceSegment> {
-    path.iter()
-        .map(|segment| match segment {
-            BorrowOwnerSegment::Field(symbol) => facts::PlaceSegment::Field { symbol: *symbol },
-            BorrowOwnerSegment::Case(variant) => facts::PlaceSegment::Case { variant: *variant },
-            BorrowOwnerSegment::FixedIndex(index) => {
-                facts::PlaceSegment::FixedIndex { index: *index }
-            }
-            BorrowOwnerSegment::DynamicIndex => facts::PlaceSegment::Index {
-                expression: ExpressionHandle::invalid(),
-            },
         })
         .collect()
 }

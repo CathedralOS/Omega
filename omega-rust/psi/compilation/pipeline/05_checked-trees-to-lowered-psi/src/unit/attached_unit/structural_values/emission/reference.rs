@@ -221,7 +221,6 @@ impl Emission<'_, '_, '_> {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let mut selectors = selected.into_iter();
-                argument.place = self.evaluation.current_structural_place(argument.place);
                 // A view lends from its current descriptor. Its live extent
                 // and captured selectors belong to this reference formation's
                 // operand frame, just as they do for an ordinary call operand.

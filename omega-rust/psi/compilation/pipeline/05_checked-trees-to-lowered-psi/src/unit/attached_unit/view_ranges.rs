@@ -645,7 +645,7 @@ pub(crate) fn emit(
     let declaration = view_subslice::emit(
         source.family,
         terminal_psi::StructuralArgument {
-            place: evaluation.current_structural_place(source.place),
+            place: source.place,
             access: source.access,
             path,
         },

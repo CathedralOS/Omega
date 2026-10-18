@@ -18,6 +18,7 @@ pub(super) struct SelectedCleanup {
 
 #[derive(Clone)]
 struct Owner {
+    selection: arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
     root: PlaceRoot,
     path: Vec<PlaceSegment>,
     reference: typed_trees::types::TypeReferenceHandle,
@@ -27,6 +28,71 @@ struct Owner {
 }
 
 impl SelectedCleanup {
+    /// A value join transfers one candidate, while its complementary owners
+    /// remain owed. Keep the pre-transfer occurrences in the ordinary selected
+    /// cleanup inventory; all-path unavailability is not a disposal permit.
+    pub(super) fn observe_selection(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        selection: arena::Handle<checked_trees::FlowOwnedSelectionReceipt>,
+        ownership: &FlowOwnershipFacts,
+        places: &[LinearPlace],
+        remaining: &RemainingCustody,
+    ) -> Result<(), diagnostics::Diagnostic> {
+        let receipt = ownership.owned_selections.get(selection);
+        if receipt.sources.count() <= 1 {
+            // One source has no unselected whole owner. The chosen source's
+            // projected complement retains its separate incoming-edge debt.
+            return Ok(());
+        }
+        for source in ownership.selection_sources.span_or_empty(receipt.sources) {
+            let root = PlaceRoot::Symbol(source.symbol);
+            let reference = validation::canonical_place_type_reference(
+                program,
+                receipt.state,
+                receipt.statement_ordinal as usize,
+                &validation::CanonicalPlace {
+                    root,
+                    segments: Vec::new(),
+                },
+            )
+            .ok_or_else(|| {
+                diagnostics::Diagnostic::error(
+                    "selected complement has no exact established source type",
+                )
+            })?;
+            let established = places
+                .iter()
+                .filter(|place| place.root == root)
+                .cloned()
+                .collect();
+            self.owners.push(Owner {
+                selection,
+                root,
+                path: Vec::new(),
+                reference,
+                origin: FlowPermissionEventFact {
+                    machine_symbol: receipt.machine,
+                    state_symbol: receipt.state,
+                    source: PermissionEventSource::Statement {
+                        statement_index: receipt.statement_ordinal as usize,
+                    },
+                    expression: receipt.expression,
+                    kind: PermissionEventKind::Transfer,
+                    multiplicity: language_semantics::Multiplicity::Affine,
+                    access: PermissionAccess::Owned,
+                    provenance: source.provenance,
+                    claim_identity: source.claim_identity,
+                    root,
+                    ..Default::default()
+                },
+                places: established,
+                remaining: remaining.clone(),
+            });
+        }
+        Ok(())
+    }
+
     pub(super) fn observe(
         &mut self,
         program: &dyn validation::CheckingInput,
@@ -63,6 +129,12 @@ impl SelectedCleanup {
                 let destination = &establishment.destination;
                 let mut retired = Vec::new();
                 for (index, owner) in self.owners.iter().enumerate() {
+                    if owner.selection.is_valid() {
+                        // This captured occurrence is still conditionally owed.
+                        // A later write establishes a distinct occupant; it
+                        // cannot redirect the earlier candidate's death.
+                        continue;
+                    }
                     if owner.root != destination.root {
                         continue;
                     }
@@ -117,12 +189,15 @@ impl SelectedCleanup {
                 continue;
             }
             if !selected.contains(&event.expression) {
-                self.owners
-                    .retain(|owner| owner.root != event.root || !owner.path.starts_with(&path));
+                self.owners.retain(|owner| {
+                    owner.selection.is_valid()
+                        || owner.root != event.root
+                        || !owner.path.starts_with(&path)
+                });
                 for owner in self
                     .owners
                     .iter_mut()
-                    .filter(|owner| owner.root == event.root)
+                    .filter(|owner| !owner.selection.is_valid() && owner.root == event.root)
                 {
                     owner.remaining.transfer_storage(event.root, &path);
                 }
@@ -243,6 +318,7 @@ impl SelectedCleanup {
             // beside the root's later establishments: `finish` orders every
             // death of a reserved root by the merged establishment history.
             self.owners.push(Owner {
+                selection: Default::default(),
                 root: event.root,
                 path,
                 reference,
@@ -284,7 +360,10 @@ impl SelectedCleanup {
             selection.enter(routes.event(event, calls), &mut present, join)?;
             let path = ownership.segments.span_or_empty(event.segments);
             for (owner, present) in self.owners.iter().zip(&mut present) {
-                if owner.root == event.root && owner.path.starts_with(path) {
+                if !owner.selection.is_valid()
+                    && owner.root == event.root
+                    && owner.path.starts_with(path)
+                {
                     match event.kind {
                         PermissionEventKind::Transfer => *present = false,
                         PermissionEventKind::Establish | PermissionEventKind::Restore => {
@@ -316,11 +395,22 @@ impl SelectedCleanup {
         ownership: &mut FlowOwnershipFacts,
         output: &mut ContextualCleanupFacts,
     ) -> Result<(), diagnostics::Diagnostic> {
-        let mut deaths = ordinary
-            .iter()
-            .cloned()
-            .map(|event| (event, None))
-            .collect::<Vec<_>>();
+        let mut deaths = Vec::new();
+        for event in ordinary {
+            let path = ownership.segments.span_or_empty(event.segments);
+            let regions = remaining.disposal_paths(event.root, path);
+            if regions.is_empty() {
+                // The ordinary event may own only an empty home's retirement.
+                // Preserve that receipt without inventing a live subtree.
+                deaths.push((event.clone(), None));
+                continue;
+            }
+            for region in regions {
+                let mut death = event.clone();
+                death.segments = ownership.segments.insert_many(region);
+                deaths.push((death, None));
+            }
+        }
         for (index, owner) in self.owners.iter().enumerate() {
             let mut template = owner.origin.clone();
             template.source = PermissionEventSource::StateExit;
@@ -349,6 +439,9 @@ impl SelectedCleanup {
                         .map(|local| PlaceRoot::Symbol(local.symbol))
                 }),
         );
+        // Resolve the ordinary remainder before ordering it beside retained
+        // candidates: an incomplete root's empty path is a storage boundary,
+        // not the establishment coordinate of every subtree it still owns.
         // Within a root under construction, deaths follow reverse
         // establishment order. A retained selected region keeps its position
         // from the owner's pre-transfer frontier; subtrees established after
@@ -392,16 +485,54 @@ impl SelectedCleanup {
         // A root whose retained path never completes the aggregate dies in
         // reverse establishment order on every path; one that completes it
         // folds into a whole value and dies in declared order.
+        let execution_order = program
+            .statement_table
+            .admitted_execution_order(state.statement_nodes);
         let establishment_ordered_roots = roots
             .iter()
             .filter(|root| {
                 self.owners.iter().any(|owner| {
-                    owner.root == **root
-                        && !owner.remaining.completes_with(
-                            program,
-                            **root,
-                            remaining.established_paths(**root),
-                        )
+                    if owner.root != **root {
+                        return false;
+                    }
+                    let captured_at = match owner.origin.source {
+                        PermissionEventSource::Statement { statement_index }
+                        | PermissionEventSource::Call {
+                            statement_index, ..
+                        } => statement_index,
+                        _ => 0,
+                    };
+                    let receiving_writes = output
+                        .storage_establishments
+                        .iter()
+                        .filter_map(|(_, write)| {
+                            let statement = match write.source {
+                                PermissionEventSource::Statement { statement_index }
+                                | PermissionEventSource::Call {
+                                    statement_index, ..
+                                } => statement_index,
+                                _ => return None,
+                            };
+                            let path = output.segments.span_or_empty(write.destination.segments);
+                            if write.machine == owner.origin.machine_symbol
+                                && write.state == owner.origin.state_symbol
+                                && write.destination.root == **root
+                                && execution_order.at_or_before(captured_at, statement)
+                                && execution_order.at_or_before(statement, exit.statement_index)
+                                && remaining.is_present(**root, path)
+                            {
+                                Some(path.to_vec())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    !owner.remaining.completes_with(
+                        program,
+                        **root,
+                        remaining.established_paths(**root),
+                        &receiving_writes,
+                    )
                 })
             })
             .copied()
@@ -413,6 +544,7 @@ impl SelectedCleanup {
             .collect::<Vec<_>>();
         for (event, candidate) in deaths {
             if let Some(index) = candidate {
+                let first = output.dispositions.len();
                 candidate_remaining[index].observe(
                     program,
                     &[event],
@@ -423,6 +555,15 @@ impl SelectedCleanup {
                     true,
                     &establishment_ordered_roots,
                 );
+                let handles = output
+                    .dispositions
+                    .iter()
+                    .skip(first)
+                    .map(|(handle, _)| handle)
+                    .collect::<Vec<_>>();
+                for handle in handles {
+                    output.dispositions.get_mut(handle).selection = self.owners[index].selection;
+                }
             } else {
                 remaining.observe(
                     program,
@@ -513,6 +654,7 @@ impl Owner {
         for event in &events {
             ownership.selected_cleanup_permissions.append(event.clone());
         }
+        let first = output.dispositions.len();
         self.remaining.clone().observe(
             program,
             &events,
@@ -523,6 +665,15 @@ impl Owner {
             true,
             &[],
         );
+        let handles = output
+            .dispositions
+            .iter()
+            .skip(first)
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        for handle in handles {
+            output.dispositions.get_mut(handle).selection = self.selection;
+        }
         Ok(())
     }
 }

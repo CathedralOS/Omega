@@ -265,7 +265,7 @@ impl StateGraphEmission<'_, '_> {
                                             .chain(suffix).collect::<Vec<_>>();
                                         let mut calls = self.catalogs.scalar_calls.emission_context();
                                         argument_path = crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
-                                            &prepared, edge_evaluation.current_structural_place(place),
+                                            &prepared, place,
                                             Some(&edge_values), &mut std::iter::empty(), Some(&mut calls),
                                             Some((next_value, operations)),
                                         )?;
@@ -284,7 +284,7 @@ impl StateGraphEmission<'_, '_> {
                                         if let Some(backing) = loan_backing {
                                             let home = case_emission::result(state, backing.binding, operations)?.into_owned();
                                             captured_backing = Some((
-                                                edge_evaluation.current_structural_place(home.place()),
+                                                home.place(),
                                                 home.path().to_vec(),
                                             ));
                                             loan_backing_home = Some(home);
@@ -294,17 +294,17 @@ impl StateGraphEmission<'_, '_> {
                                     })
                             });
                             operations.structural_values = state_bindings;
-                            edge_evaluation.current_structural_place(emitted?)
+                            emitted?
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => {
                             let binding = case_emission::result(state, binding_ordinal, operations)?;
                             argument_path = binding.path().to_vec();
-                            edge_evaluation.current_structural_place(binding.place())
+                            binding.place()
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
-                            edge_evaluation.current_structural_place(state_parameters.get(index as usize).ok_or(
+                            state_parameters.get(index as usize).ok_or(
                                 LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),
-                            )?.place)
+                            )?.place
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ViewSubslice(_) => {
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
@@ -482,11 +482,11 @@ impl StateGraphEmission<'_, '_> {
                                     let parameter = state_parameters.get(parameter_index as usize).ok_or(
                                         LoweringError::Unsupported("Unit graph case-payload subject descriptor disappeared"),
                                     )?;
-                                    (edge_evaluation.current_structural_place(parameter.place), parameter.structural_type)
+                                    (parameter.place, parameter.structural_type)
                                 }
                                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
                                     let produced = case_emission::result(state, binding_ordinal, operations)?;
-                                    (edge_evaluation.current_structural_place(produced.place()), produced.structural_type())
+                                    (produced.place(), produced.structural_type())
                                 }
                                 _ => {
                                     return unsupported(
@@ -639,10 +639,7 @@ impl StateGraphEmission<'_, '_> {
                 {
                     let home =
                         case_emission::result(state, backing.binding, operations)?.into_owned();
-                    captured_backing = Some((
-                        edge_evaluation.current_structural_place(home.place()),
-                        home.path().to_vec(),
-                    ));
+                    captured_backing = Some((home.place(), home.path().to_vec()));
                     loan_backing_home = Some(home);
                 }
                 // A member of a later state's loan chain (`loan_chains`)
@@ -792,7 +789,7 @@ impl StateGraphEmission<'_, '_> {
                         // Both windows of one local share that local's home;
                         // recording each descriptor would look like two homes.
                         let lent_home = if subslice_view {
-                            edge_evaluation.current_structural_place(result.place())
+                            result.place()
                         } else {
                             captured_backing
                                 .as_ref()
@@ -816,12 +813,7 @@ impl StateGraphEmission<'_, '_> {
                         let homes = (result.multiplicity() == StructuralMultiplicity::Affine)
                             .then_some((binding_ordinal, lent_home))
                             .into_iter()
-                            .chain(backing.map(|(backing, home)| {
-                                (
-                                    backing,
-                                    edge_evaluation.current_structural_place(home.place()),
-                                )
-                            }));
+                            .chain(backing.map(|(backing, home)| (backing, home.place())));
                         // Each edge lends the local at its edge-current place;
                         // a value selection on one edge can move it to a join
                         // place. The entry route retains one home per local,
@@ -844,7 +836,7 @@ impl StateGraphEmission<'_, '_> {
                         "Unit graph transferred loan still requires its captured address",
                     ))?;
                     let descriptor = case_emission::result(state, carrier, operations)?;
-                    if edge_evaluation.current_structural_place(descriptor.place()) != place
+                    if descriptor.place() != place
                         || !descriptor.path().is_empty()
                         || argument_path.as_slice()
                             != [terminal_psi::StructuralPathSegment::Referent]
@@ -859,7 +851,7 @@ impl StateGraphEmission<'_, '_> {
                         .ok_or(LoweringError::Unsupported(
                             "Unit graph transferred loan lost its independent owned backing",
                         ))?;
-                    place = edge_evaluation.current_structural_place(home.place());
+                    place = home.place();
                     argument_path.clear();
                 }
                 let mut capture = StructuralParameterDeclaration {
@@ -1041,7 +1033,12 @@ impl StateGraphEmission<'_, '_> {
             &edge_evaluation,
             operations,
         )?;
-        super::super::cleanup::selection(&edge_evaluation, operations, &mut cleanup_regions)?;
+        super::super::cleanup::selection(
+            &state.operations,
+            &edge_evaluation,
+            operations,
+            &mut cleanup_regions,
+        )?;
         // Proof-only actuals never evaluate: each checked erased row
         // lowers to a term over the emitting state's scalar values and
         // erased formals, in the target's erased-roster order.

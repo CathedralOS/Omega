@@ -39,6 +39,9 @@ pub struct ContentClassRow {
     /// Finite owned storage a linear selection or call can carry whole,
     /// including nominal-cleanup owners.
     pub linear_owned_contents: bool,
+    /// Finite stored values, including all reference descriptor access kinds.
+    /// Exact owned and borrowed custody remains with the transport operation.
+    pub stored_value_contents: bool,
     /// Finite storage without retained reference descriptors. Linear custody,
     /// cleanup and represented predicates stay with its owner; lending that
     /// storage grants neither copying nor disposal authority.

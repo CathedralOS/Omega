@@ -415,7 +415,7 @@ pub(super) fn result_source_loans(
                 if projection.is_empty() {
                     place
                         .segments
-                        .extend(super::returned_carriers::place_segments(&field.source_path));
+                        .extend(super::owner_paths::owner_place_segments(&field.source_path));
                 } else {
                     place.segments.extend_from_slice(&projection);
                 }

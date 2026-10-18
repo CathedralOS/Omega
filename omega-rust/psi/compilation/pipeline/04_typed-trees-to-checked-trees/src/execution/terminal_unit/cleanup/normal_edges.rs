@@ -77,8 +77,9 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
         plan.machine,
         state,
         |root| {
+            let operations = &plan.operations;
             if root.as_expression().is_some() {
-                return expression_source(facts, state.symbol, &plan.operations, root).map(Some);
+                return expression_source(facts, state.symbol, operations, root).map(Some);
             }
             let position = program
                 .state_parameters(state)
@@ -88,7 +89,7 @@ pub(in crate::execution::terminal_unit) fn sequence_cleanups(
                 return Some(super::super::local_storage::source(
                     program,
                     state,
-                    &plan.operations,
+                    operations,
                     root.as_symbol()?,
                 ));
             };
@@ -175,7 +176,41 @@ fn cleanup_rows(
         if disposition.exit.state_symbol != state.symbol {
             return None;
         }
-        let Some(source) = source_for_owner(disposition.root)? else {
+        // Capture authority belongs to the selected receipt, not a mutable
+        // declaration namespace or a re-resolved prefix of its operation list.
+        let captured = if disposition.selection.is_valid() {
+            let receipt = facts
+                .flow
+                .ownership
+                .owned_selections
+                .get(disposition.selection);
+            if receipt.state != state.symbol || receipt.machine != machine {
+                return None;
+            }
+            let mut sources = facts
+                .flow
+                .ownership
+                .selection_sources
+                .span_or_empty(receipt.sources)
+                .iter()
+                .enumerate()
+                .filter(|(_, source)| Some(source.symbol) == disposition.root.as_symbol());
+            let (ordinal, _) = sources.next()?;
+            if sources.next().is_some() {
+                return None;
+            }
+            Some(CheckedUnitStructuralArgumentSourcePlan::CapturedStorage {
+                selection: disposition.selection,
+                source_ordinal: u32::try_from(ordinal).ok()?,
+            })
+        } else {
+            None
+        };
+        let source = match captured {
+            Some(source) => Some(source),
+            None => source_for_owner(disposition.root)?,
+        };
+        let Some(source) = source else {
             continue;
         };
         if disposition.establishment_ordered
@@ -259,8 +294,9 @@ fn owner_source(
     plan: &CheckedComposedUnitControlStatePlan,
     root: PlaceRoot,
 ) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
+    let operations = &plan.operations;
     if root.as_expression().is_some() {
-        return expression_source(facts, state.symbol, &plan.operations, root);
+        return expression_source(facts, state.symbol, operations, root);
     }
     let symbol = root.as_symbol()?;
     if let Some(position) =
@@ -274,7 +310,7 @@ fn owner_source(
             parameter_index: u32::try_from(index).ok()?,
         });
     }
-    super::super::local_storage::source(program, state, &plan.operations, symbol)
+    super::super::local_storage::source(program, state, operations, symbol)
 }
 
 pub(in crate::execution::terminal_unit) fn expression_source(

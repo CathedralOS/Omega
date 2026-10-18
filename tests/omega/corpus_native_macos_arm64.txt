@@ -1179,6 +1179,7 @@ pass/drops/runtime_selected_nominal_owner_cleanup_exit built 2884ms exit:0 stdou
 pass/drops/runtime_selected_partial_owner_cleanup_exit built 13675ms exit:0 stdout:match @8df1d091a810
 pass/drops/runtime_selected_transfer_fieldwise_construction_exit built 13168ms exit:0 stdout:match @212593d788a7
 pass/drops/runtime_selected_transfer_incomplete_construction_exit built 5331ms exit:0 stdout:match @9bf00044985b
+pass/drops/runtime_selected_transfer_nested_construction_exit built 3676ms exit:0 stdout:match @4030174fbc4e
 pass/drops/runtime_temporary_integer_capture_cleanup_exit built 1685ms exit:0 @4cc11cbadf31+wt
 pass/drops/runtime_temporary_nominal_integer_contract_exit built 1682ms exit:0 @4cc11cbadf31+wt
 pass/drops/runtime_temporary_nominal_prerequisite_exit built 1701ms exit:0 @c8b4e81e49fe
@@ -1300,6 +1301,10 @@ pass/facts/as_slice_views_through_other_state_exit built 3878ms exit:0 @8bcf9d86
 pass/facts/as_slice_views_through_parameter_exit built 3874ms exit:0 @8bcf9d86d52e
 pass/facts/as_slice_views_through_target_body_exit built 4360ms exit:0 @8bcf9d86d52e
 pass/facts/computed_record_window_original_exit built 8582ms exit:0 @408e4fc23fbc
+pass/facts/reference_arrival_handoff_cleanup_receiver_exit built 3597ms exit:0 @4030174fbc4e
+pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit built 3726ms exit:0 stdout:match @4030174fbc4e
+pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit built 3728ms exit:0 stdout:match @4030174fbc4e
+pass/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_exit built 3735ms exit:0 stdout:match @4030174fbc4e
 pass/facts/result_cleanup_guarantee_through_call_result_exit built 3769ms exit:0 @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_const_name_exit built 3788ms exit:0 @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_field_exit built 3786ms exit:0 @76ea4b8c7c50

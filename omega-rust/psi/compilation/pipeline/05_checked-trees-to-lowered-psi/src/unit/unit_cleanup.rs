@@ -41,6 +41,9 @@ pub(crate) struct CleanupCaseCondition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CleanupRegion {
+    /// Checked declaring owner, independent of a replacement's supplying home.
+    /// Locals follow parameters; each category keeps authored declaration order.
+    pub(crate) declaration_order: Option<(u8, u32)>,
     /// Source-authorized conditional death of this exact occurrence. Lowering
     /// specializes its enclosing continuation before publishing Terminal Psi.
     pub(crate) selected_region: Option<terminal_psi::StructuralArgument>,
@@ -51,6 +54,7 @@ pub(crate) struct CleanupRegion {
 impl CleanupRegion {
     pub(crate) fn unconditional(action: terminal_psi::TerminalAffineCleanupAction) -> Self {
         Self {
+            declaration_order: None,
             selected_region: None,
             conditions: Vec::new(),
             action,
@@ -258,6 +262,7 @@ pub(crate) fn prepare_checked_cleanup_regions<'action>(
                 }
             };
             Ok(PreparedNormalCleanupAction::Resolved(CleanupRegion {
+                declaration_order: None,
                 selected_region,
                 conditions,
                 action: lowered,
@@ -634,6 +639,7 @@ fn materialize_prepared_cleanup_regions(
                         consumed_claims,
                     )?;
                     CleanupRegion {
+                        declaration_order: None,
                         selected_region: selected_region.clone(),
                         conditions: conditions.clone(),
                         action: terminal_psi::TerminalAffineCleanupAction::InvokeNominal(action),

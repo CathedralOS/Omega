@@ -548,6 +548,7 @@ pub(super) fn prepare_storage_deaths(
             .contextual_cleanup
             .dispositions
             .append(checked_trees::ContextualCleanupDisposition {
+                selection: Default::default(),
                 establishment_ordered: false,
                 zero_image: false,
                 machine,

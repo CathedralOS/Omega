@@ -120,6 +120,39 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
             continue;
         };
         for (source, loans) in groups {
+            // The selected receiving cohort may finish before its skipped
+            // supplier's nominal receiver dies. That receiver still owns its
+            // complete descriptor fields; leaf expiry cannot dismantle it.
+            let retains_receiver = retirement.facts.borrow.loan_group(loans)?.any(|(_, loan)| {
+                let path = crate::borrow::owner_place_segments(
+                    retirement.facts.borrow.loan_owner_path(loan),
+                );
+                retirement
+                    .facts
+                    .flow
+                    .ownership
+                    .selection_sources
+                    .span_or_empty(receipt.sources)
+                    .iter()
+                    .any(|supplier| {
+                        validation::reference_result_custody::storage_owner_type_reference(
+                            retirement.program,
+                            retirement.state,
+                            supplier.symbol,
+                            receipt.statement_ordinal,
+                        )
+                        .is_none_or(|reference| {
+                            validation::reference_result_custody::path_has_nominal_receiver(
+                                retirement.program,
+                                reference,
+                                &path,
+                            )
+                        })
+                    })
+            });
+            if retains_receiver {
+                continue;
+            }
             if retirement
                 .operations
                 .iter()

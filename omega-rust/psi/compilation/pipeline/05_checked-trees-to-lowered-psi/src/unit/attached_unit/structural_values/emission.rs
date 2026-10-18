@@ -881,13 +881,15 @@ fn prepare_owners(
             }
             continue;
         }
-        if checked.type_multiplicity(local.declared_type) != Multiplicity::Affine {
+        if crate::reference_custody::binding_multiplicity(checked, local.declared_type)
+            != Multiplicity::Affine
+        {
             continue;
         }
         if local.statement_index >= statement
             || !argument.path.is_empty()
             || argument.access != StructuralAccess::Owned
-            || !crate::content_classes::owned_or_shared_view_contents(checked, local.declared_type)
+            || !crate::content_classes::stored_value_contents(checked, local.declared_type)
         {
             return unsupported("selection survivor requires whole plain-affine custody");
         }
@@ -952,10 +954,7 @@ fn prepare_owners(
             if declaration.access != StructuralAccess::Owned
                 || declaration.multiplicity != StructuralMultiplicity::Affine
                 || checked.type_multiplicity(parameter.type_reference) != Multiplicity::Affine
-                || !crate::content_classes::owned_or_shared_view_contents(
-                    checked,
-                    parameter.type_reference,
-                )
+                || !crate::content_classes::stored_value_contents(checked, parameter.type_reference)
             {
                 return unsupported(
                     "selection parameter source requires whole plain-affine custody",
@@ -999,7 +998,8 @@ fn prepare_owners(
         .iter()
         .take_while(|local| local.statement_index < statement)
     {
-        if checked.type_multiplicity(local.declared_type) == Multiplicity::Affine
+        if crate::reference_custody::binding_multiplicity(checked, local.declared_type)
+            == Multiplicity::Affine
             && !evaluation.structural_locals.iter().any(|binding| {
                 binding.root == facts::PlaceRoot::Symbol(local.symbol)
                     && outside_survivor_frontier(&binding.argument)
@@ -1062,8 +1062,6 @@ pub(super) struct ValueContinuation {
     structural_parameters: Vec<StructuralParameterDeclaration>,
     place: PlaceId,
     remaining_owners: Vec<argument_evaluation::StructuralValueOwner>,
-    pass_through: Vec<(PlaceId, PlaceId)>,
-    residuals: Vec<PlaceId>,
     /// Memberships are the intersection of completed incoming values, never
     /// facts inferred from the receiving annotation. An empty first roster is
     /// distinct from a join that has not received an edge yet.
@@ -1844,7 +1842,7 @@ impl Emission<'_, '_, '_> {
                     let mut selectors = self
                         .capture_projection_selectors(identities, node.expression, &source_plan)?
                         .into_iter();
-                    let root = self.evaluation.current_structural_place(projected.root);
+                    let root = projected.root;
                     let path =
                         crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
                             &prepared, root, Some(self.values.as_slice()), &mut selectors,
@@ -1907,7 +1905,7 @@ impl Emission<'_, '_, '_> {
                 };
                 self.complete_value(identities, selected, Some(&projected), continuation)?;
                 if is_root {
-                    self.record_root_continuation(continuation);
+                    self.record_root_continuation(continuation)?;
                 }
                 Ok(continuation.place)
             }
@@ -2273,12 +2271,6 @@ impl Emission<'_, '_, '_> {
         })
     }
 
-    fn first_candidate(&self) -> Option<usize> {
-        self.owners
-            .iter()
-            .position(|owner| self.source_at(owner.value.place).is_some())
-    }
-
     /// Value assignment uses ordinary owned edge transport. Returning the
     /// source place directly would alias unrestricted records instead of copying
     /// their backing, and would republish an earlier result's declaration.
@@ -2312,9 +2304,8 @@ impl Emission<'_, '_, '_> {
         let block = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.environment.next_place)?);
         if self.multiplicity == StructuralMultiplicity::Affine {
-            // The return frontier orders operation results before block owners.
-            // Transport surviving affine locals together so a moved result and
-            // its older survivors retain their declaration-ordered cleanup.
+            // Retain the complete surviving owner inventory without moving
+            // storage that this operation does not consume.
             self.owners = prepare_owners(
                 self.checked,
                 self.machine,
@@ -2326,31 +2317,11 @@ impl Emission<'_, '_, '_> {
                 Some(&source),
             )?;
         }
-        let mut remaining_owners = self.owners.clone();
-        let mut pass_through = Vec::new();
+        // Common owners retain their dominating homes. Forwarding their
+        // bytes would invalidate addresses captured by surviving descriptors.
+        // Only the actual moved value receives a new ownership binding.
+        let remaining_owners = self.owners.clone();
         let mut structural_parameters = Vec::new();
-        for owner in &mut remaining_owners {
-            let target = place_id(allocate_dense(self.environment.next_place)?);
-            let position = u32::try_from(structural_parameters.len()).map_err(|_| {
-                LoweringError::Unsupported("owned move parameter count exceeds u32")
-            })?;
-            self.environment
-                .private_places
-                .push(block_parameter_declaration(target, block, position));
-            structural_parameters.push(self.transported_parameter(
-                &StructuralArgument {
-                    place: owner.value.place,
-                    path: Vec::new(),
-                    access: StructuralAccess::Owned,
-                },
-                target,
-                position,
-                owner.value.structural_type,
-                owner.value.multiplicity,
-            )?);
-            pass_through.push((owner.value.place, target));
-            owner.value.place = target;
-        }
         let position = u32::try_from(structural_parameters.len())
             .map_err(|_| LoweringError::Unsupported("owned move parameter count exceeds u32"))?;
         structural_parameters
@@ -2368,8 +2339,6 @@ impl Emission<'_, '_, '_> {
             structural_parameters,
             place,
             remaining_owners,
-            pass_through,
-            residuals: Vec::new(),
             has_incoming_memberships: false,
         };
         self.complete_value(identities, source.clone(), None, &mut continuation)?;
@@ -2386,32 +2355,7 @@ impl Emission<'_, '_, '_> {
             );
         }
         if self.multiplicity == StructuralMultiplicity::Affine {
-            for crate::expression_preparation::bindings::StructuralLocalBinding {
-                argument, ..
-            } in &mut self.evaluation.structural_locals
-            {
-                if let Some((_, target)) = continuation
-                    .pass_through
-                    .iter()
-                    .find(|(source, _)| *source == argument.place)
-                {
-                    argument.place = *target;
-                }
-            }
-            self.operations
-                .transport_computed_values(&continuation.pass_through);
             self.evaluation.structural_value_owners = continuation.remaining_owners;
-            self.evaluation
-                .selection_cleanups
-                .push(argument_evaluation::SelectionCleanup {
-                    selection: arena::Handle::invalid(),
-                    selected: place,
-                    sources: Vec::new(),
-                    remaining: Vec::new(),
-                    retired_reference_paths: Vec::new(),
-                    pass_through: continuation.pass_through,
-                    next_operation: self.operations.next_identity,
-                });
         }
         *self.values = continuation.parameters.clone();
         self.evaluation.parameters = continuation.parameters;
@@ -2447,8 +2391,6 @@ impl Emission<'_, '_, '_> {
             structural_parameters,
             place,
             remaining_owners: Vec::new(),
-            pass_through: Vec::new(),
-            residuals: Vec::new(),
             has_incoming_memberships: false,
         };
         let loan = match argument.access {
@@ -2717,111 +2659,45 @@ impl Emission<'_, '_, '_> {
         })
     }
 
-    /// Root selection takes its result from the first candidate owner; every
-    /// other owner crosses the same continuation partition used by nested
-    /// selections. Dispatch and projection therefore retain identical cleanup
-    /// and result-arrival obligations without aliasing temporary storage.
+    /// Transfer only the selected value. Every candidate keeps its original
+    /// home until that actual edge transfers it or its checked death runs.
+    /// The existing private-continuation specialization retains the different
+    /// source frontiers; compressing N-1 survivors into positional slots would
+    /// lose original declaration order around interleaved common owners.
     fn root_value_continuation(
         &mut self,
         values: Vec<ValueDeclaration>,
     ) -> Result<ValueContinuation, LoweringError> {
-        let first_candidate = self.first_candidate();
-        let remaining_owners = self
-            .owners
-            .iter()
-            .enumerate()
-            .filter(|(position, _)| Some(*position) != first_candidate)
-            .map(|(_, owner)| owner.clone())
-            .collect();
-        self.joined_value_continuation(values, remaining_owners)
-    }
-
-    /// Mint fresh join identities and partition remaining owners into
-    /// pass-through and residual places. The trailing structural parameter
-    /// carries the selected result's own access, independently of its siblings.
-    fn joined_value_continuation(
-        &mut self,
-        values: Vec<ValueDeclaration>,
-        mut remaining_owners: Vec<argument_evaluation::StructuralValueOwner>,
-    ) -> Result<ValueContinuation, LoweringError> {
         let join = block_id(allocate_dense(self.next_block)?);
-        let joined_values = fresh_value_declarations(self.next_value, &values)?;
-        let mut structural_parameters = Vec::new();
-        let (pass_through, residuals) = self.partition_owner_continuation(
-            join,
-            &mut remaining_owners,
-            &mut structural_parameters,
-        )?;
-        let place = structural_parameters
-            .last()
-            .ok_or(LoweringError::Unsupported(
-                "structural continuation has no result",
-            ))?
-            .place;
+        let parameters = fresh_value_declarations(self.next_value, &values)?;
+        let place = place_id(allocate_dense(self.environment.next_place)?);
+        self.environment
+            .private_places
+            .push(block_parameter_declaration(place, join, 0));
         Ok(ValueContinuation {
             block: join,
-            parameters: joined_values,
-            structural_parameters,
+            parameters,
+            structural_parameters: vec![structural_parameter_declaration(
+                place,
+                0,
+                self.structural_type,
+                self.multiplicity,
+                self.result_access,
+            )],
             place,
-            remaining_owners,
-            pass_through,
-            residuals,
+            remaining_owners: self.owners.clone(),
             has_incoming_memberships: false,
         })
     }
 
-    fn partition_owner_continuation(
-        &mut self,
-        join: BlockId,
-        remaining_owners: &mut Vec<argument_evaluation::StructuralValueOwner>,
-        structural_parameters: &mut Vec<StructuralParameterDeclaration>,
-    ) -> Result<(Vec<(PlaceId, PlaceId)>, Vec<PlaceId>), LoweringError> {
-        let mut pass_through = Vec::new();
-        let mut residuals = Vec::new();
-        for position in 0..remaining_owners.len() + 1 {
-            let (structural_type, multiplicity) = remaining_owners
-                .get(position)
-                .map_or((self.structural_type, self.multiplicity), |owner| {
-                    (owner.value.structural_type, owner.value.multiplicity)
-                });
-            let is_result_slot = position == remaining_owners.len();
-            let owner = remaining_owners.get_mut(position);
-            let position = u32::try_from(position).map_err(|_| {
-                LoweringError::Unsupported("owned selection parameter count exceeds u32")
-            })?;
-            let place = place_id(allocate_dense(self.environment.next_place)?);
-            if let Some(owner) = owner {
-                if self.source_at(owner.value.place).is_some() {
-                    owner.symbol = symbols::SymbolHandle::invalid();
-                    residuals.push(place);
-                } else {
-                    pass_through.push((owner.value.place, place));
-                }
-                owner.value.place = place;
-            }
-            self.environment
-                .private_places
-                .push(block_parameter_declaration(place, join, position));
-            structural_parameters.push(structural_parameter_declaration(
-                place,
-                position,
-                structural_type,
-                multiplicity,
-                if is_result_slot {
-                    self.result_access
-                } else {
-                    StructuralAccess::Owned
-                },
-            ));
-        }
-        Ok((pass_through, residuals))
-    }
-
     /// Bookkeep a root selection continuation: install the join block's
     /// value and structural parameters on the evaluation state, publish the
-    /// completed custody roster, record cleanup for live sources, then repoint
-    /// structural locals through the continuation's pass-through mapping.
-    fn record_root_continuation(&mut self, continuation: &ValueContinuation) {
+    /// completed custody roster and retain candidate homes. Both common and
+    /// unselected owners keep their original storage through the continuation.
+    fn record_root_continuation(
+        &mut self,
+        continuation: &ValueContinuation,
+    ) -> Result<(), LoweringError> {
         self.start(continuation.block);
         *self.values = continuation.parameters.clone();
         self.evaluation.parameters = continuation.parameters.clone();
@@ -2834,41 +2710,63 @@ impl Emission<'_, '_, '_> {
         self.arrival_claims
             .push((continuation.place, self.completion_claims.clone()));
         if self.sources.is_empty() {
-            return;
+            return Ok(());
+        }
+        let (selection, receipt) = self
+            .checked
+            .facts
+            .flow
+            .ownership
+            .owned_selection_at(self.state, self.statement)
+            .ok_or(LoweringError::Unsupported(
+                "selected source storage has no checked receipt",
+            ))?;
+        let roster = self
+            .checked
+            .facts
+            .flow
+            .ownership
+            .selection_sources
+            .span_or_empty(receipt.sources);
+        let mut sources = Vec::new();
+        for owner in self
+            .owners
+            .iter()
+            .rev()
+            .filter(|owner| self.source_at(owner.value.place).is_some())
+        {
+            let mut matching = roster
+                .iter()
+                .enumerate()
+                .filter(|(_, source)| source.symbol == owner.symbol);
+            let (ordinal, _) = matching.next().ok_or(LoweringError::Unsupported(
+                "selected source home lost its checked declaration",
+            ))?;
+            if matching.next().is_some() {
+                return Err(LoweringError::Unsupported(
+                    "selected source declaration is ambiguous",
+                ));
+            }
+            sources.push(argument_evaluation::CapturedSelectionSource {
+                source_ordinal: u32::try_from(ordinal).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "selected source ordinal exceeds its checked representation",
+                    )
+                })?,
+                storage: argument_evaluation::StructuralValueStorage {
+                    place: owner.value.place,
+                    path: Vec::new(),
+                    selected_type: owner.value.structural_type,
+                },
+            });
         }
         self.evaluation
             .selection_cleanups
             .push(argument_evaluation::SelectionCleanup {
-                selection: self
-                    .checked
-                    .facts
-                    .flow
-                    .ownership
-                    .owned_selection_at(self.state, self.statement)
-                    .map(|(handle, _)| handle)
-                    .unwrap_or_default(),
-                selected: continuation.place,
-                sources: self
-                    .owners
-                    .iter()
-                    .rev()
-                    .filter(|owner| self.source_at(owner.value.place).is_some())
-                    .map(|owner| owner.value.place)
-                    .collect(),
-                remaining: self
-                    .owners
-                    .iter()
-                    .filter(|owner| self.source_at(owner.value.place).is_some())
-                    .skip(1)
-                    .zip(&continuation.residuals)
-                    .map(|(owner, receiving)| (owner.value.place, *receiving))
-                    .collect(),
+                selection,
+                sources,
                 retired_reference_paths: Vec::new(),
-                pass_through: continuation.pass_through.clone(),
-                next_operation: self.operations.next_identity,
             });
-        self.operations
-            .transport_computed_values(&continuation.pass_through);
         self.evaluation.structural_value_owners = continuation.remaining_owners.clone();
         self.evaluation.structural_locals.retain(
             |crate::expression_preparation::bindings::StructuralLocalBinding {
@@ -2880,17 +2778,7 @@ impl Emission<'_, '_, '_> {
                     .any(|source| source.place == argument.place)
             },
         );
-        for crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } in
-            &mut self.evaluation.structural_locals
-        {
-            if let Some((_, target)) = continuation
-                .pass_through
-                .iter()
-                .find(|(source, _)| *source == argument.place)
-            {
-                argument.place = *target;
-            }
-        }
+        Ok(())
     }
 }
 

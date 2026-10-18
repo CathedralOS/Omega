@@ -144,7 +144,7 @@ impl OperationFrame<'_, '_> {
         let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let home =
             bindings.borrowed_structural_home(source, self.checked.state_parameters(state))?;
-        let place = self.evaluation.current_structural_place(home.place);
+        let place = home.place;
         if source.path.is_empty() && home.path.is_empty() {
             return Ok(place);
         }

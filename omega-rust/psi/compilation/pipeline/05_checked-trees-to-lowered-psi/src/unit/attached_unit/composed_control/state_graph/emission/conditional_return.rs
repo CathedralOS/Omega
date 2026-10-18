@@ -142,7 +142,7 @@ impl StateGraphEmission<'_, '_> {
                     operations,
                     &mut sequence,
                 )?;
-                arm_evaluation.remap_transported_call_operands(operations);
+
                 if let Some(terminator) = operations.take_external_completion(next_edge)? {
                     terminator
                 } else {
@@ -309,7 +309,12 @@ impl StateGraphEmission<'_, '_> {
                 &arm_evaluation,
                 operations,
             )?;
-            super::super::cleanup::selection(&arm_evaluation, operations, &mut regions)?;
+            super::super::cleanup::selection(
+                &state.operations,
+                &arm_evaluation,
+                operations,
+                &mut regions,
+            )?;
             let temporary_discards = dispatch_discards
                 .iter()
                 .copied()
@@ -372,7 +377,7 @@ impl StateGraphEmission<'_, '_> {
             terminal_psi::terminator_return_pair_pattern!(..) => {}
             _ => return unsupported("return arm did not produce a completion terminator"),
         }
-        arm_evaluation.remap_transported_call_operands(operations);
+
         arm_evaluation.blocks.push(Block {
             id: arm_evaluation.current,
             parameters: arm_evaluation.parameters,

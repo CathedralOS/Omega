@@ -5,8 +5,10 @@
 //! spelling, declaration order, or generated machine names. The occurrence and
 //! its excluded subtrees still come from the one custody producer.
 pub(crate) mod entry_flow;
+mod receiver_loans;
 mod requirements;
 mod sequence;
+pub(crate) use receiver_loans::retain_selected_receiver_loans;
 pub(crate) use requirements::{
     check_cleanup_requirements, infer_entry_requirements, occurrence_contexts,
 };

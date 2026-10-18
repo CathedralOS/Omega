@@ -57,6 +57,11 @@ fn visit_owned_cleanup_events(
 ) {
     let evaluation = exit_evaluation(program, state, coordinate);
     let mut append = |root: facts::PlaceRoot, type_reference: TypeReferenceHandle| {
+        // Availability records a descriptor occurrence, not an independent
+        // cleanup owner. Its exact loan cohort owns direct-reference release.
+        if validation::reference_shell(program, type_reference).is_some() {
+            return;
+        }
         let tracked_root = tracked_places
             .iter()
             .find(|place| place.root == root && place.path.is_empty());
@@ -64,9 +69,8 @@ fn visit_owned_cleanup_events(
             if !place.live && !remaining.is_reserved(root) {
                 return;
             }
-        } else if validation::reference_shell(program, type_reference).is_some()
-            || validation::reference_result_custody::result_multiplicity(program, type_reference)
-                == Multiplicity::Unrestricted
+        } else if validation::reference_result_custody::result_multiplicity(program, type_reference)
+            == Multiplicity::Unrestricted
         {
             // Loan-release scheduling owns direct reference roots, including
             // local descriptors and borrowed formals. An owned aggregate

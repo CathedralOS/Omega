@@ -44,7 +44,7 @@ impl Emission<'_, '_, '_> {
         let mut selectors = self
             .capture_projection_selectors(identities, expression, source)?
             .into_iter();
-        let place = self.evaluation.current_structural_place(home.place);
+        let place = home.place;
         let prepared = home.path.into_iter().map(
             crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
         ).chain(prepared).collect::<Vec<_>>();
