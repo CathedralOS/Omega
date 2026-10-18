@@ -178,6 +178,15 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
                 .map(|(boundary, machine)| {
                     (boundary, AdmittedBoundarySupply::CheckedProvider(machine))
                 })
+                // These are runtime supplies under separately retained assumed
+                // contracts, not new checked provider conformances. Admission
+                // already rejects competing supplies and resolves the full path.
+                .chain(selected.assumed_bindings().iter().map(|relationship| {
+                    (
+                        relationship.required,
+                        AdmittedBoundarySupply::CheckedProvider(relationship.implementation),
+                    )
+                }))
                 .collect(),
             assumed_bindings: selected.assumed_bindings().to_vec(),
             target_machines: None,

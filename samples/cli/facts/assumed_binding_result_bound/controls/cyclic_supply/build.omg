@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "discovery");
+    Build::assume_binding_contract<Required::get, Supplied::get>(builder);
+    Build::assume_binding_contract<Supplied::get, Required::get>(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

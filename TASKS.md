@@ -4137,17 +4137,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
 
 - **ASSUMED-BINDING-CONTRACTS.** (new-scope) The root-only
   [`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`](wiki/spec/build/assumed_binding_contracts.md)
-  relationship is not delivered. Psi classifies the call
-  (`BuildOperation::AssumedBindingContract` in
-  `omega-rust/psi/foundation/language-semantics/src/declaration_selection/mod.rs`,
-  admitted in stage 04's `authored_selections/intrinsic_calls.rs`), the
-  terminal interpreter accepts an `AssumedBindingSelection` policy input
-  (`omega-rust/psi/interpreter/terminal-interpreter/src/effects.rs`), and
-  review evidence has an `AssumedBindingContract` row kind
-  (`omega-rust/omega/packages/review-evidence/src/record/rows.rs`). Build
-  evaluation (`omega-rust/omega/compilation/build-evaluation/`) does not
-  harvest the call, provider installation and native call custody do not
-  honor it, and no corpus fixture uses it.
+  delivers the bounded scalar-result link through public Build evaluation,
+  provider installation, native call custody and exact package risk consent.
+  `samples/cli/facts/assumed_binding_result_bound` exercises the same result
+  bound across nine places. Input-side authority issuance, broader invocation
+  correspondence and the complete acceptance below remain; unsupported
+  authority or independent compatibility relationships fail closed.
 
   Retain exact entry/exit assumptions, authorized issuer/subject mapping and
   the selected implementation closure through erasure and inlining. Both

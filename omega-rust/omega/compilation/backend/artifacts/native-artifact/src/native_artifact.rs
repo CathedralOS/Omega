@@ -610,6 +610,9 @@ pub struct NativeSelectedProviderPlan {
     /// Closed requirement identity paired with the template-keyed row that
     /// serves it, projected from the closure's specialization roster.
     closed_requirement_rows: Vec<(String, String)>,
+    assumed_requirement_rows: Vec<(String, String)>,
+    assumed_relationships: Vec<effects::AssumedBindingContractSelection>,
+    assumed_closure: Option<[u8; 32]>,
 }
 
 impl NativeSelectedProviderPlan {
@@ -672,6 +675,26 @@ impl NativeSelectedProviderPlan {
                     .filter(|row| row.provider_plan_report_identity == report_identity)
                     .cloned()
                     .collect();
+                projected.assumed_relationships = selection.assumed_bindings().to_vec();
+                if !projected.assumed_relationships.is_empty() {
+                    projected.assumed_closure = Some(*selection.identity_digest().as_bytes());
+                }
+                for row in selection.assumed_bindings() {
+                    if let Ok(supplied) = selection.assumed_supplier_identity(&row.required) {
+                        if projected
+                            .requirement_identities
+                            .iter()
+                            .any(|identity| identity == supplied)
+                        {
+                            projected
+                                .assumed_requirement_rows
+                                .push((row.required.clone(), supplied.to_owned()));
+                            projected.requirement_identities.push(row.required.clone());
+                        }
+                    }
+                }
+                projected.requirement_identities.sort();
+                projected.requirement_identities.dedup();
                 projected
             })
             .collect::<Vec<_>>();
@@ -696,7 +719,58 @@ impl NativeSelectedProviderPlan {
                 String::new(),
             ]),
             closed_requirement_rows: Vec::new(),
+            assumed_requirement_rows: Vec::new(),
+            assumed_relationships: Vec::new(),
+            assumed_closure: None,
         }
+    }
+
+    pub(crate) fn assumption_closure(&self) -> Option<[u8; 32]> {
+        self.assumed_closure
+    }
+
+    pub(crate) fn matches_assumption(
+        &self,
+        module: &terminal_psi::TerminalModule,
+        required: &str,
+        evidence: &installation_evidence::InstalledAssumedBindingEvidence,
+    ) -> bool {
+        let identity = |id| {
+            module
+                .boundary_machine(id)
+                .and_then(|row| module.identities.text(row.identity))
+        };
+        if identity(evidence.required) != Some(required) || self.assumed_closure.is_none() {
+            return false;
+        }
+        let mut current = required;
+        let mut path = Vec::new();
+        for _ in 0..=self.assumed_relationships.len() {
+            let Some(row) = self
+                .assumed_relationships
+                .iter()
+                .find(|row| row.required == current)
+            else {
+                return identity(evidence.selected_requirement) == Some(current)
+                    && path == evidence.supply_path;
+            };
+            if current == required {
+                if identity(evidence.supplied_requirement) != Some(row.supplied.as_str()) {
+                    return false;
+                }
+            } else {
+                let Some(boundary) = module
+                    .boundary_machines
+                    .iter()
+                    .find(|boundary| module.identities.text(boundary.identity) == Some(current))
+                else {
+                    return false;
+                };
+                path.push(boundary.id);
+            }
+            current = &row.supplied;
+        }
+        false
     }
 
     pub const fn report_identity(&self) -> u64 {
@@ -781,6 +855,14 @@ impl NativeSelectedProviderPlan {
     /// application of a requirement template resolves to the template row
     /// that serves it; any other requirement is its own authority.
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
+        if let Some((_, supplied)) = self
+            .assumed_requirement_rows
+            .iter()
+            .find(|(required, _)| required == requirement)
+        {
+            return supplied;
+        }
+
         if let Some(row) = self.external_requirement_applications.iter().find(|row| {
             self.family_realization_identities
                 .text(row.requirement_identity)

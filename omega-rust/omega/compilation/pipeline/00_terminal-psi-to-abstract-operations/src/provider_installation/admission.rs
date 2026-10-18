@@ -10,6 +10,7 @@ pub(crate) fn admit_provider_installation_with_projection(
     plan: &AbstractOperationPlan,
     artifact: terminal_codec::TerminalArtifactView<'_>,
     selected: &[SelectedProviderAdapter],
+    assumptions: &[terminal_installation::AssumedBindingSelection],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     if artifact.identity() != plan.psi {
         return Err(ProviderInstallationError::TerminalIdentityMismatch);
@@ -89,10 +90,15 @@ pub(crate) fn admit_provider_installation_with_projection(
         });
         installed_candidates.push((**candidate).clone());
     }
-    let installed_calls = replay_installed_provider_calls(plan, module, &installed_candidates)?;
     let installation =
-        terminal_installation::admit_provider_installation(artifact, &selections, &[])
+        terminal_installation::admit_provider_installation(artifact, &selections, assumptions)
             .map_err(ProviderInstallationError::PsiAdmission)?;
+    let installed_calls = replay_installed_provider_calls(
+        plan,
+        module,
+        &installed_candidates,
+        installation.assumed_bindings(),
+    )?;
     Ok(AdmittedProviderInstallation {
         psi: installation.terminal_psi(),
         terminal_selection: installation,

@@ -70,6 +70,7 @@ pub(crate) fn validate(
             let NativeCallOrigin::InstalledProvider {
                 boundary,
                 provider,
+                assumption,
                 completion_claim_sources,
                 completion_receipts,
             } = origin
@@ -126,6 +127,7 @@ pub(crate) fn validate(
             };
             if !result_matches
                 || &call.provider != provider
+                || &call.assumption != assumption
                 || call_target
                     != target_operations::NativeCallTarget::Machine(call.provider.candidate)
                 || scalar_arguments.len() != call.scalar_arguments.len()

@@ -7,9 +7,10 @@ use crate::symbols::expressions::{
 use crate::symbols::scope::MachineScope;
 use crate::symbols::scoped_paths::resolve_state_scoped_members;
 use crate::symbols::targets::{
-    assign_provider_selection_argument_symbol, assign_representation_selection_argument_symbol,
-    assign_runtime_subject_argument_symbol, assign_static_argument_symbols,
-    assign_transition_target_symbols, build_operand_route, resolve_call_target_symbol,
+    assign_assumed_binding_argument_symbol, assign_provider_selection_argument_symbol,
+    assign_representation_selection_argument_symbol, assign_runtime_subject_argument_symbol,
+    assign_static_argument_symbols, assign_transition_target_symbols, build_operand_route,
+    resolve_call_target_symbol,
 };
 use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints;
 use language_semantics::declaration_selection::BuildOperation;
@@ -184,6 +185,9 @@ pub(super) fn assign_statement_symbols(
             );
             for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
                 match operand_route {
+                    Some(BuildOperation::AssumedBindingContract) => {
+                        assign_assumed_binding_argument_symbol(symbols, argument);
+                    }
                     Some(BuildOperation::RepresentationSelection) => {
                         assign_representation_selection_argument_symbol(
                             symbols,

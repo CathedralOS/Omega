@@ -62,6 +62,7 @@ pub struct AdmittedAssumedBinding {
     /// side's selection and any nested assumed links — never the abstract
     /// requirement itself.
     pub implementation: MachineId,
+    pub selected_requirement: BoundaryMachineId,
     /// Requirements traversed through nested assumed links before reaching
     /// `implementation`, in traversal order. Empty when
     /// `supplied_requirement` had an ordinary checked selection.
@@ -186,6 +187,9 @@ pub enum AssumedBindingRejection {
     /// The assumed link resolves through itself or a cycle of assumed
     /// links — cyclic binding aliases reject.
     CyclicSupply,
+    IncompatibleRuntimeShape,
+    IncompatibleOperationalContract,
+    UnsupportedAssumedAuthority,
 }
 
 /// Decode a canonical artifact, then admit only selections that exactly name
@@ -349,6 +353,53 @@ fn admit_assumed_bindings(
         if !boundary_ids.contains(&assumption.supplied_requirement) {
             return Err(reject(AssumedBindingRejection::UnknownSuppliedRequirement));
         }
+        // Semantic entry/exit assumptions cannot recast carriers or grant
+        // custody, calling-mode or operational compatibility. Both declarations
+        // come from the independently verified catalog and retain their identities.
+        let required =
+            terminal_psi::find_boundary_machine(&module.boundary_machines, assumption.required)
+                .unwrap();
+        let supplied = terminal_psi::find_boundary_machine(
+            &module.boundary_machines,
+            assumption.supplied_requirement,
+        )
+        .unwrap();
+        let qualified_result = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
+            matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
+                if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty())
+        };
+        if !required.program_local_root_introductions.is_empty()
+            || !supplied.program_local_root_introductions.is_empty()
+            || !required.content_guarantees.is_empty()
+            || !supplied.content_guarantees.is_empty()
+            || required.requires != supplied.requires
+            || qualified_result(required)
+            || qualified_result(supplied)
+        {
+            return Err(reject(AssumedBindingRejection::UnsupportedAssumedAuthority));
+        }
+        if required.parameter_order != supplied.parameter_order
+            || required.scalar_parameters != supplied.scalar_parameters
+            || required.structural_parameters != supplied.structural_parameters
+            || required.result != supplied.result
+            || required.reference_outputs != supplied.reference_outputs
+            || required.attachment != supplied.attachment
+        {
+            return Err(reject(AssumedBindingRejection::IncompatibleRuntimeShape));
+        }
+        if required.kind != supplied.kind
+            || required.completion != supplied.completion
+            || (required.unconditional_termination && !supplied.unconditional_termination)
+            || required.crash_routes != supplied.crash_routes
+            || supplied.published_service_ceiling.iter().any(|service| {
+                Some(*service) != supplied.owning_service
+                    && !required.published_service_ceiling.contains(service)
+            })
+        {
+            return Err(reject(
+                AssumedBindingRejection::IncompatibleOperationalContract,
+            ));
+        }
         // Follow the supply side's links to the actual selected
         // implementation, retaining every traversed assumption. Cyclic
         // binding aliases reject rather than resolving through themselves.
@@ -372,6 +423,7 @@ fn admit_assumed_bindings(
             required: assumption.required,
             supplied_requirement: assumption.supplied_requirement,
             implementation,
+            selected_requirement: requirement,
             supply_path,
         });
     }

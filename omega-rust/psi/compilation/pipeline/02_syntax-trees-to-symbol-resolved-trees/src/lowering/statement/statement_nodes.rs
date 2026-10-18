@@ -235,6 +235,7 @@ pub(crate) fn lower_statement_node(
                 BuildOperation::from_call_target(call.target.as_str()),
                 Some(
                     BuildOperation::ProviderSelection
+                        | BuildOperation::AssumedBindingContract
                         | BuildOperation::ServiceExclusion
                         | BuildOperation::BoundaryAcceptance
                         | BuildOperation::WireCompatibilityRequest

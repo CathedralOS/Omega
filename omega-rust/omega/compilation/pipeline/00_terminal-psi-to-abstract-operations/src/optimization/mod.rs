@@ -157,6 +157,8 @@ fn source_checked_obligation_facts(
 pub struct VerifiedPsiOptimizationInput {
     pub(crate) plan: AbstractOperationPlan,
     pub(crate) context: VerifiedPsiOptimizationContext,
+    pub(crate) admitted_assumed_bindings:
+        Vec<installation_evidence::InstalledAssumedBindingEvidence>,
     pub(crate) admitted_native_callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
     pub(crate) target_machine_selections:
         Option<terminal_installation::AdmittedTargetMachineSelections>,
@@ -170,6 +172,12 @@ pub struct VerifiedPsiOptimizationInput {
 }
 
 impl VerifiedPsiOptimizationInput {
+    pub fn admitted_assumed_bindings(
+        &self,
+    ) -> &[installation_evidence::InstalledAssumedBindingEvidence] {
+        &self.admitted_assumed_bindings
+    }
+
     /// Immutable callback cohort admitted with this exact input. Proposals
     /// cannot be attached here or supplied independently to target lowering.
     ///

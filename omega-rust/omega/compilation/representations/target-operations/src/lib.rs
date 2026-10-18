@@ -39,3 +39,5 @@ pub use target_operations::{
     calls, control_flow, conventional_float_class_layout, operations, provenance,
     selector_carrier_type, storage, values,
 };
+
+pub use installation_evidence::InstalledAssumedBindingEvidence;

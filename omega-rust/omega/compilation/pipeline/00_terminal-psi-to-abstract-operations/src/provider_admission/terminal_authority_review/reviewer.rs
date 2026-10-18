@@ -73,6 +73,10 @@ impl<'a> Reviewer<'a> {
             .identities
             .text(declaration.identity)
             .unwrap_or_default();
+        let supplied_requirement = self
+            .context
+            .selected
+            .assumed_supplier_identity(requirement)?;
         let (selected_plan, selected_row, specialization) =
             self.context.selected_requirement(requirement)?;
         match &selected_row.binding {
@@ -107,8 +111,7 @@ impl<'a> Reviewer<'a> {
                     .installed_candidates
                     .iter()
                     .find(|candidate| {
-                        candidate.boundary == boundary
-                            && self.context.input.plan().identities.text(candidate.requirement_identity) == Some(requirement)
+                        self.context.input.plan().identities.text(candidate.requirement_identity) == Some(supplied_requirement)
                             && self.context.input.plan().identities.text(candidate.provider_identity) == Some(selected_plan.provider_type.as_str())
                             && self.context.input.plan().identities.text(candidate.candidate_identity) == Some(realization_identity)
                     })

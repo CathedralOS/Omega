@@ -264,7 +264,7 @@ pub(crate) fn finish_compilations(
                             .install()
                             .map_err(CompilationProductError::Production)
                             .and_then(|checked| {
-                                admit_permissions(&checked, permissions.as_ref())?;
+                                admit_permissions(&checked, permissions.as_ref(), false)?;
                                 prepare_product(checked, root, requested)
                             })
                             .and_then(|product| match product.settlement {
@@ -313,7 +313,7 @@ pub(crate) fn finish_compilations(
                     let checked = realization
                         .install()
                         .map_err(CompilationProductError::Production)?;
-                    admit_permissions(&checked, permissions.as_ref())?;
+                    admit_permissions(&checked, permissions.as_ref(), true)?;
                     let product = prepare_product(checked, root, requested)?;
                     let terminal = finish_terminal_application(
                         &product.checked,
@@ -340,7 +340,23 @@ pub(crate) fn finish_compilations(
 fn admit_permissions(
     checked: &CheckedCompilation,
     permissions: Option<&package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+    runtime_product: bool,
 ) -> Result<(), CompilationProductError> {
+    if runtime_product
+        && permissions.is_none()
+        && checked.sources().package_identity().is_some()
+        && !checked
+            .execution()
+            .selected_provider_plan_facts
+            .assumed_bindings()
+            .is_empty()
+    {
+        return Err(CompilationProductError::TrustAdmission(vec![
+            Diagnostic::error(
+                "assumed binding requires explicit accepted root Product risk rows; run omega update",
+            ),
+        ]));
+    }
     if let Some(permissions) = permissions {
         permissions
             .validate(checked)

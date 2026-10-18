@@ -205,7 +205,16 @@ pub(crate) fn produce_retained_terminal_artifacts(
                         .flat_map(|row| &row.selections)
                         .chain(&first.view.build.config.provider_selections),
                 )
-                .and_then(|boundary_roots| {
+                .and_then(|mut boundary_roots| {
+                    // Nonexecuting assumption operands retain both declarations,
+                    // including intermediate links without an authored call.
+                    // Installation still owns runtime supply and root consent.
+                    for relationship in &first.view.build.config.assumed_bindings {
+                        boundary_roots.extend([relationship.required, relationship.supplied]);
+                    }
+                    boundary_roots
+                        .sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+                    boundary_roots.dedup();
                     let mut machines = first.view.build.config.program_roots();
                     if machines.is_empty() {
                         machines.push(entry.selected_machine);
@@ -384,6 +393,10 @@ fn publish_target_providers(
         exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
         defaults: checked.provider_defaults(),
         overrides: &checked.build().config.provider_selections,
+        assumed_bindings: checked
+            .execution()
+            .selected_provider_plan_facts
+            .assumed_bindings(),
         settlement: checked.providers(),
         targets: &targets,
         optimization_selection: selections.identity(),

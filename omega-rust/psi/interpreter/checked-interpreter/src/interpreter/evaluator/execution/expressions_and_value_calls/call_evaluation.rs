@@ -245,7 +245,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             }
             return Ok(Value::Unit);
         }
-        if let Some(value) = self.try_provider_selection_value_call(handle, call, frame)? {
+        if let Some(value) = self.try_build_selection_value_call(handle, call, frame)? {
             if self.guard_depth > 0 {
                 frame.record_guard_call_result(handle, &value);
             }

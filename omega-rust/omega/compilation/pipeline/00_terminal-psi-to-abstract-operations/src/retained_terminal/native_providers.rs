@@ -134,6 +134,7 @@ impl TerminalNativeRealizationProposal {
             artifact,
             self.target_profile(),
             &self.providers().checked_adapters,
+            &self.providers().selection,
             &roots,
             &self.occurrences().callbacks,
         )

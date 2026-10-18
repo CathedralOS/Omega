@@ -98,12 +98,28 @@ pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin)
         NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
+            assumption,
             completion_claim_sources,
             completion_receipts,
         } => {
-            bytes.push(2);
+            bytes.push(if assumption.is_some() { 4 } else { 2 });
             crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
             encode_provider_candidate(bytes, provider);
+            if let Some(row) = assumption {
+                bytes.extend_from_slice(b"assumed-binding-contract\0");
+                for id in [
+                    row.required.get(),
+                    row.supplied_requirement.get(),
+                    row.selected_requirement.get(),
+                    row.implementation.get(),
+                ] {
+                    bytes.extend_from_slice(&id.to_le_bytes());
+                }
+                encode_len(bytes, row.supply_path.len());
+                for id in &row.supply_path {
+                    bytes.extend_from_slice(&id.get().to_le_bytes());
+                }
+            }
             encode_len(bytes, completion_claim_sources.len());
             for source in completion_claim_sources {
                 encode_completion_claim_source(bytes, source);

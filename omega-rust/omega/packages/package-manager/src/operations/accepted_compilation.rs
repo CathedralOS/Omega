@@ -130,7 +130,10 @@ fn prepare_accepted_project(
         identity::require_current_acceptance(&request.closure, accepted, compiler_identity)
             .map_err(|error| failure(root, error))?;
     }
-    let terminal_permissions = if matches!(request.product, CompilationProduct::Native(_)) {
+    let terminal_permissions = if matches!(
+        request.product,
+        CompilationProduct::Native(_) | CompilationProduct::Terminal(_)
+    ) {
         request.accepted.map(|accepted| {
             accepted.occurrences().iter().find(|occurrence| {
                 occurrence.acceptance().package() == root.identity()

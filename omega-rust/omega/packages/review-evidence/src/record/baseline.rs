@@ -38,5 +38,6 @@ pub struct PackagePolicyBaseline {
     /// before it executed, in issue order. Each retains as its own decision
     /// row so accepted meaning survives in `omega.lock` without host paths or
     /// live grant state.
+    pub(crate) assumed_bindings: Vec<String>,
     pub(crate) restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
 }

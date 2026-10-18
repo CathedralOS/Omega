@@ -19,6 +19,8 @@ pub struct BuildConfig {
     /// authoritative build machine. Provider settlement validates them against
     /// derived candidates before selection grants anything.
     pub provider_selections: Vec<ProviderSelection>,
+    /// Runtime-only root relationships; registration supplies no Build evidence.
+    pub assumed_bindings: Vec<build_time_evaluation::assumed_bindings::AssumedBindingContract>,
     /// Exact named conformances activated as physical carriers for
     /// boundary-opaque values. The compiler derives shape from each carrier.
     pub opaque_representation_selections: Vec<OpaqueRepresentationSelection>,

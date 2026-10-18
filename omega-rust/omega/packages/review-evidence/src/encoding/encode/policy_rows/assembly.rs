@@ -35,6 +35,7 @@ pub(super) fn count(policy: &PackagePolicyBaseline) -> Result<usize, PackageRevi
         policy.semantic_dependencies.len(),
         policy.boundary_applications.demands.len(),
         policy.restricted_build_requests.len(),
+        policy.assumed_bindings.len(),
     ];
     counts
         .into_iter()
@@ -71,6 +72,7 @@ pub(super) fn acceptance_count(
         policy.external_supplies.len(),
         policy.dangerous_capabilities.len(),
         policy.restricted_build_requests.len(),
+        policy.assumed_bindings.len(),
     ]
     .into_iter()
     .chain(
@@ -106,6 +108,7 @@ pub(super) fn project(
         semantic_dependencies,
         boundary_applications,
         restricted_build_requests,
+        assumed_bindings,
     } = policy;
     builder.push(
         PackagePolicyRowKind::Header,
@@ -122,6 +125,18 @@ pub(super) fn project(
             })
         },
     )?;
+    for (ordinal, row) in assumed_bindings.iter().enumerate() {
+        builder.push(
+            PackagePolicyRowKind::AssumedBindingContract,
+            true,
+            true,
+            |encoder| {
+                encoder.u64(ordinal as u64);
+                Ok(())
+            },
+            |encoder| encoder.string(row),
+        )?;
+    }
     declarations::project(builder, public_api)?;
     let PackagePolicyCallables {
         package: _,

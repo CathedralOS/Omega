@@ -895,6 +895,44 @@ fn derive_supplier_program_entry_binding(
 pub struct ReviewedFixtureCompilation {
     pub root_path: PathBuf,
     pub package_inputs: Option<PackageCompilationInputs>,
+    pub assumed_permissions:
+        Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+}
+
+/// Consume the fixture's explicit consent through the same package-product
+/// entrance as accepted-lock compilation. The caller may batch these requests
+/// for a target cohort; each target carries its own freshly projected rows.
+pub fn accepted_fixture_product_request(
+    prepared: ReviewedFixtureCompilation,
+    target: Option<&str>,
+    build_dir: PathBuf,
+    product: compiler::CompilationProduct,
+) -> Result<compiler::PackageCompilationRequest, Vec<Diagnostic>> {
+    let snapshot = fixture_build_snapshot(&prepared.root_path)?;
+    let mut request = CheckedCompileRequest::new(&prepared.root_path, target);
+    request.package_inputs = prepared.package_inputs;
+    request.build_snapshot = snapshot;
+    request.build_dir = Some(build_dir);
+    Ok(compiler::PackageCompilationRequest {
+        occurrences: vec![request],
+        product,
+        terminal_permissions: prepared.assumed_permissions,
+    })
+}
+
+pub fn produce_accepted_fixture(
+    request: compiler::PackageCompilationRequest,
+) -> Result<compiler::CompileReport, Vec<Diagnostic>> {
+    compiler::CompilationSession::default()
+        .compile_packages(vec![request])
+        .pop()
+        .expect("one fixture product")
+        .map_err(|error| error.failure.into_diagnostics())
+        .and_then(|output| {
+            output
+                .into_report()
+                .map_err(compiler::CompilationProductError::into_diagnostics)
+        })
 }
 
 /// Generic authored host-input fixtures: each immediate directory under
@@ -983,6 +1021,7 @@ pub fn reviewed_repository_fixture_package_inputs(
         return Ok(ReviewedFixtureCompilation {
             root_path,
             package_inputs: None,
+            assumed_permissions: None,
         });
     };
     if let Some(graph) = &graph {
@@ -1073,9 +1112,77 @@ pub fn reviewed_repository_fixture_package_inputs(
                 "cannot admit repository fixture semantic binding: {errors:?}"
             ))]
         })?;
+    // Explicit repository fixture consent, never inferred merely from Build
+    // registration. Retain the exact fresh root/target/source rows and replay
+    // them through ordinary package compilation; production lock admission is
+    // unchanged and a stale row still fails its normal comparison.
+    let consent = authored_project_root.join("accepted_assumed_bindings.txt");
+    let assumed_permissions = if consent.is_file() {
+        let text = fs::read_to_string(&consent)
+            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        if text.trim() != "Accept this fixture's exact checked root assumed binding contract rows."
+        {
+            return Err(vec![Diagnostic::error(
+                "invalid explicit assumed-binding fixture consent",
+            )]);
+        }
+        let profile = target::TargetProfile::from_omega_target_name(target_name)
+            .map_err(|error| vec![error])?;
+        let package = preliminary.sources().package_identity().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "assumed-binding fixture consent requires a root package",
+            )]
+        })?;
+        let policy =
+            package_evidence::project_checked_package_policy(&preliminary, profile, package)?;
+        let mut rows: Vec<_> =
+            policy
+                .acceptance_rows_with_limits(
+                    package_evidence::record::PackagePolicyRowLimits::default(),
+                )
+                .map_err(|error| vec![Diagnostic::error(error.to_string())])?
+                .0
+                .into_iter()
+                .filter(|row| {
+                    matches!(
+                        row.kind(),
+                        package_evidence::record::PackagePolicyRowKind::AssumedBindingContract
+                            | package_evidence::record::PackagePolicyRowKind::TerminalPermission
+                    )
+                })
+                .map(|row| {
+                    (
+                        optimization_core::digest_encoder::content_identity(row.key_bytes()),
+                        row.into_canonical_text(),
+                    )
+                })
+                .collect();
+        if preliminary
+            .execution()
+            .selected_provider_plan_facts
+            .assumed_bindings()
+            .is_empty()
+        {
+            return Err(vec![Diagnostic::error(
+                "assumed-binding fixture consent names no assumed contracts",
+            )]);
+        }
+        rows.sort_unstable_by_key(|(key, _)| *key);
+        Some(
+            package_evidence::permission_acceptance::TerminalPermissionAcceptance {
+                schema_version: package_evidence::record::PACKAGE_POLICY_ROW_VERSION,
+                package,
+                target: profile,
+                rows,
+            },
+        )
+    } else {
+        None
+    };
     Ok(ReviewedFixtureCompilation {
         root_path,
         package_inputs: Some(package_inputs),
+        assumed_permissions,
     })
 }
 

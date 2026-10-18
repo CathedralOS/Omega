@@ -1,4 +1,4 @@
-//! Match retained permission consent against fresh checked declarations.
+//! Match root runtime-policy consent against fresh checked declarations.
 //!
 //! The package manager selects the exact root Product occurrence. Compilation
 //! consumes its accepted rows as input; the caller need not receive checked
@@ -24,16 +24,31 @@ impl TerminalPermissionAcceptance {
     pub fn validate(&self, checked: &CheckedCompilation) -> Result<(), Vec<Diagnostic>> {
         if self.schema_version != PACKAGE_POLICY_ROW_VERSION {
             return Err(vec![Diagnostic::error(
-                "accepted terminal permissions use an obsolete schema; run omega update",
+                "accepted runtime policy uses an obsolete schema; run omega update",
             )]);
         }
-        let permissions =
-            crate::project_checked_terminal_permission_policy(checked, self.target, self.package)?;
-        let (rows, _) = permissions
-            .acceptance_rows_with_limits(PackagePolicyRowLimits::default())
-            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        let (rows, _) = if checked
+            .execution()
+            .selected_provider_plan_facts
+            .assumed_bindings()
+            .is_empty()
+        {
+            crate::project_checked_terminal_permission_policy(checked, self.target, self.package)?
+                .acceptance_rows_with_limits(PackagePolicyRowLimits::default())
+        } else {
+            crate::project_checked_package_policy(checked, self.target, self.package)?
+                .acceptance_rows_with_limits(PackagePolicyRowLimits::default())
+        }
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
         let mut rows: Vec<_> = rows
             .into_iter()
+            .filter(|row| {
+                matches!(
+                    row.kind(),
+                    crate::record::PackagePolicyRowKind::TerminalPermission
+                        | crate::record::PackagePolicyRowKind::AssumedBindingContract
+                )
+            })
             .map(|row| {
                 let key = optimization_core::digest_encoder::content_identity(row.key_bytes());
                 (key, row.into_canonical_text())
@@ -42,7 +57,7 @@ impl TerminalPermissionAcceptance {
         rows.sort_unstable_by_key(|(key, _)| *key);
         if rows != self.rows {
             return Err(vec![Diagnostic::error(
-                "checked terminal permissions differ from accepted root Product permissions; run omega update",
+                "checked runtime policy differs from accepted root Product permissions and assumed bindings; run omega update",
             )]);
         }
         Ok(())

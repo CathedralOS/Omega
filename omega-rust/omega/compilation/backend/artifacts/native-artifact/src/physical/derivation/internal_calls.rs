@@ -252,14 +252,22 @@ pub(crate) fn derive_boundary_internal_call_child(
         let legalized_operations::NativeCallOrigin::InstalledProvider {
             boundary: selected_boundary,
             provider,
+            assumption,
             completion_receipts: retained_receipts,
             ..
         } = &record.source
         else {
             return Err("installed provider internal call lost its exact selected origin");
         };
-        if selected_boundary != boundary
-            || provider.boundary != *boundary
+        if assumption
+            .as_ref()
+            .is_some_and(|row| !plan.matches_assumption(module, requirement_identity, row))
+            || selected_boundary != boundary
+            || assumption
+                .as_ref()
+                .map_or(provider.boundary != *boundary, |row| {
+                    !row.matches(*boundary, provider)
+                })
             || provider.candidate != call.target()
             || retained_receipts != completion_receipts
         {
@@ -275,7 +283,9 @@ pub(crate) fn derive_boundary_internal_call_child(
         let [conformance] = conformances.as_slice() else {
             return Err("installed provider internal call cannot rejoin one provider conformance");
         };
-        if module.identities.text(conformance.requirement_identity) != Some(requirement_identity) {
+        if module.identities.text(conformance.requirement_identity)
+            != Some(plan.selected_requirement_identity(requirement_identity))
+        {
             return Err("installed provider internal call changed its requirement");
         }
         InternalCallSelection::Provider { conformance, plan }
@@ -408,6 +418,7 @@ pub(crate) fn derive_boundary_internal_call_child(
                     .text(conformance.candidate_identity)
                     .unwrap_or_default(),
                 &custody,
+                plan.assumption_closure(),
             );
             let role = BoundaryTraitSettlementRole::InstalledProviderInternalCall {
                 boundary: *boundary,

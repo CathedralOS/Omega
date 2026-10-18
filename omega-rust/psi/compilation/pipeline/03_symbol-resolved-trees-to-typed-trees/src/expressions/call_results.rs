@@ -32,7 +32,17 @@ pub(crate) fn declared_call_return(
         return None;
     }
     match program.symbols.get(target).kind {
-        SymbolKind::State => declared_call_state(program, target)?.return_type.as_ref(),
+        SymbolKind::State => declared_call_state(program, target)
+            .and_then(|state| state.return_type.as_ref())
+            .or_else(|| {
+                program.traits.iter().find_map(|definition| {
+                    program
+                        .trait_machine_signatures(definition.machines)
+                        .iter()
+                        .find(|signature| signature.symbol == target)
+                        .and_then(|signature| signature.return_type.as_ref())
+                })
+            }),
         SymbolKind::Operator => program
             .operators
             .iter()

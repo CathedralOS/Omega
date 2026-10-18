@@ -487,6 +487,7 @@ fn form_call_selection(
                     | BuildOperation::WireCompatibilityRequest
                     | BuildOperation::RepresentationSelection
                     | BuildOperation::ServiceExclusion
+                    | BuildOperation::AssumedBindingContract
             )
         )
     {

@@ -20,6 +20,7 @@ pub struct TerminalTargetProviderSelection {
     /// Complete plans, including external or intrinsic rows. Checked candidates
     /// cannot masquerade as the whole plan or authorize its external bindings.
     pub plans: Vec<TerminalTargetProviderPlan>,
+    pub assumed_bindings: Vec<effects::AssumedBindingContractSelection>,
     pub checked_candidates: Vec<terminal_installation::ProviderInstallationSelection>,
 }
 
@@ -42,6 +43,7 @@ impl TerminalTargetProviderSelection {
         let checked_candidates = checked_candidate_roster(&plans, artifact)?;
         Ok(Self {
             plans,
+            assumed_bindings: Vec::new(),
             checked_candidates,
         })
     }
@@ -91,8 +93,27 @@ impl TerminalTargetProviderSelection {
                 }
             }
         }
-        terminal_installation::admit_provider_installation(artifact, &supplied, &[])
-            .map_err(|error| format!("catalog admission rejected: {error:?}"))
+        terminal_installation::admit_provider_installation(
+            artifact,
+            &supplied,
+            &effects::SelectedProviderPlanFacts::from_selected_plans(
+                self.plans
+                    .iter()
+                    .map(|selected| selected.plan.clone())
+                    .collect(),
+            )?
+            .with_assumed_bindings(self.assumed_bindings.clone())
+            .assumed_binding_coordinates(module)?
+            .into_iter()
+            .map(|(required, supplied_requirement)| {
+                terminal_installation::AssumedBindingSelection {
+                    required,
+                    supplied_requirement,
+                }
+            })
+            .collect::<Vec<_>>(),
+        )
+        .map_err(|error| format!("catalog admission rejected: {error:?}"))
     }
 }
 

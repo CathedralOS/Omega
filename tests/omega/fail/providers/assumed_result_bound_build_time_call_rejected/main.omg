@@ -1,0 +1,11 @@
+// Expected rejection: does not resolve to a callable machine entry or requirement
+boundary trait Required { machine get() -> u32 ensures result <= 1; }
+boundary trait Supplied { machine get() -> u32; }
+Actual satisfies Supplied { machine get() -> u32 { 1 } }
+machine main() reaches Required crashes Trap {
+    let values: [u32; 2] = [7, 11];
+    let observed: u32 = values[Required::get()];
+    transition observed == 11 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -65,6 +65,7 @@ pub fn admit_native_realization<'execution>(
             artifact,
             request.providers.profile,
             request.providers.checked_adapters,
+            request.providers.selected_provider_plans,
             request.receiving_provider_roots,
             &[],
         )
@@ -188,6 +189,28 @@ pub fn admit_prepared_native_realization<'execution>(
         .behavior_exclusions
         .validate_physical_authority_closure(&providers.terminal_authority_closure_review)?;
     let mut input = input;
+    input.retain_admitted_assumed_bindings(
+        providers
+            .installation
+            .as_ref()
+            .map(|installation| {
+                installation
+                    .terminal_selection()
+                    .assumed_bindings()
+                    .iter()
+                    .map(
+                        |row| installation_evidence::InstalledAssumedBindingEvidence {
+                            required: row.required,
+                            supplied_requirement: row.supplied_requirement,
+                            implementation: row.implementation,
+                            selected_requirement: row.selected_requirement,
+                            supply_path: row.supply_path.clone(),
+                        },
+                    )
+                    .collect()
+            })
+            .unwrap_or_default(),
+    );
     input.retain_admitted_native_callbacks(std::mem::take(&mut providers.native_callbacks));
     Ok(AdmittedNativeRealization {
         input,

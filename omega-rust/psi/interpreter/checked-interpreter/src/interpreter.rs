@@ -478,7 +478,7 @@ fn evaluate_observed_arguments(
                             observations,
                             std::mem::take(&mut evaluator.executed_root_bindings),
                             std::mem::take(&mut evaluator.executed_behavior_exclusions),
-                            std::mem::take(&mut evaluator.executed_provider_selections),
+                            std::mem::take(&mut evaluator.executed_build_selections),
                             std::mem::take(&mut evaluator.executed_wire_demands),
                         ))
                     }
@@ -629,7 +629,7 @@ fn evaluate_granted_arguments(
                             observations,
                             std::mem::take(&mut evaluator.executed_root_bindings),
                             std::mem::take(&mut evaluator.executed_behavior_exclusions),
-                            std::mem::take(&mut evaluator.executed_provider_selections),
+                            std::mem::take(&mut evaluator.executed_build_selections),
                             std::mem::take(&mut evaluator.executed_wire_demands),
                         ))
                     }

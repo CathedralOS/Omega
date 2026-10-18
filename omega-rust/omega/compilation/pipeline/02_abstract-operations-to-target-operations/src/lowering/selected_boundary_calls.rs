@@ -68,6 +68,7 @@ pub(crate) fn index(
                     NativeCallOrigin::InstalledProvider {
                         boundary: *boundary,
                         provider: call.provider.clone(),
+                        assumption: call.assumption.clone(),
                         completion_claim_sources: completion_claim_sources.clone(),
                         completion_receipts: completion_receipts.clone(),
                     },

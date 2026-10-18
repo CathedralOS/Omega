@@ -73,6 +73,7 @@ impl NativeExecutionScope {
     pub(crate) fn derive(
         input: &crate::VerifiedPsiOptimizationInput,
         selected: &[SelectedProviderAdapter],
+        assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
         receiving_provider_roots: &[BoundaryMachineId],
         callbacks: &[backend_plan::TerminalCallbackOccurrenceProposal],
     ) -> Result<Self, NativeExecutionScopeError> {
@@ -102,6 +103,7 @@ impl NativeExecutionScope {
             scope.retain_boundary(
                 input,
                 selected,
+                assumptions,
                 &function_positions,
                 *boundary,
                 &mut pending,
@@ -151,6 +153,7 @@ impl NativeExecutionScope {
                         scope.retain_boundary(
                             input,
                             selected,
+                            assumptions,
                             &function_positions,
                             *boundary,
                             &mut pending,
@@ -172,6 +175,7 @@ impl NativeExecutionScope {
         &mut self,
         input: &crate::VerifiedPsiOptimizationInput,
         selected: &[SelectedProviderAdapter],
+        assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
         function_positions: &[(MachineId, usize)],
         boundary: BoundaryMachineId,
         pending: &mut Vec<MachineId>,
@@ -184,6 +188,19 @@ impl NativeExecutionScope {
             return Err(NativeExecutionScopeError::MissingBoundary(boundary));
         }
         self.boundaries.push(boundary);
+        if let Some((_, supplied)) = assumptions
+            .iter()
+            .find(|(required, _)| *required == boundary)
+        {
+            return self.retain_boundary(
+                input,
+                selected,
+                assumptions,
+                function_positions,
+                *supplied,
+                pending,
+            );
+        }
         if let Some(terminal_psi::TargetMachineCallable::Machine(member)) = input
             .target_family_member(boundary)
             .map_err(NativeExecutionScopeError::TargetFamily)?

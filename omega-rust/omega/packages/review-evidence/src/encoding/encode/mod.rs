@@ -46,3 +46,19 @@ pub(super) fn type_identity(
     encoder.observe_type_identity(identity.canonical())?;
     encoder.field("canonical", |encoder| encoder.string(identity.canonical()))
 }
+
+impl crate::record::PackageReviewCallableContract {
+    /// Use the ordinary bounded semantic encoder for readable assumed-link
+    /// differences. Diagnostic spellings cannot omit proof clauses or choose
+    /// acceptance equality.
+    pub(crate) fn canonical_set_text(
+        contracts: &[Self],
+    ) -> Result<String, PackageReviewEncodingError> {
+        let writer = encoder::text::Writer::new(64 * 1024, None);
+        let mut encoder = encoder::Encoder::policy_text(writer);
+        encoder.field("contracts", |encoder| {
+            encoder.sequence(contracts, values::contracts::encode_callable_contract)
+        })?;
+        encoder.finish_text()
+    }
+}

@@ -3,32 +3,50 @@
 //! executes normally. Omega validates the retained operand identities and
 //! coverage after evaluation, keeping target policy out of this interpreter.
 
-use crate::ExecutedProviderSelection;
+use crate::ExecutedBuildSelection;
 use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value, trap,
 };
 use language_semantics::declaration_selection::BuildOperation;
 
 impl<'program> Evaluator<'program> {
-    pub(in crate::interpreter::evaluator) fn try_provider_selection_value_call(
+    pub(in crate::interpreter::evaluator) fn try_build_selection_value_call(
         &mut self,
         expression: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if BuildOperation::from_call_target(call.target.as_str())
-            != Some(BuildOperation::ProviderSelection)
-            || call.target_symbol.is_valid()
-        {
+        let Some(
+            operation
+            @ (BuildOperation::ProviderSelection | BuildOperation::AssumedBindingContract),
+        ) = BuildOperation::from_call_target(call.target.as_str())
+        else {
+            return Ok(None);
+        };
+        if call.target_symbol.is_valid() {
             return Ok(None);
         }
-        let composition_case = self.provider_composition_case(
-            self.program
-                .expression_table
-                .expression_handles(call.arguments),
-            frame,
-        )?;
-        self.record_provider_selection(expression, composition_case, frame)?;
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
+        let composition_case = match operation {
+            BuildOperation::ProviderSelection => {
+                self.provider_composition_case(arguments, frame)?
+            }
+            BuildOperation::AssumedBindingContract => {
+                let [builder] = arguments else {
+                    return trap(
+                        "assumed binding registration takes exactly the mutable Build argument",
+                    );
+                };
+                let builder = self.eval_read_cell(*builder, frame)?;
+                self.require_provider_selection_activation(self.deref_cell(builder))?;
+                SymbolHandle::invalid()
+            }
+            _ => unreachable!(),
+        };
+        self.record_build_selection(expression, operation, composition_case, frame)?;
         Ok(Some(Value::Unit))
     }
 
@@ -91,23 +109,22 @@ impl<'program> Evaluator<'program> {
         case.ok_or_else(|| Halt::Trap("provider selection requires an exact payload-free compiler-owned CompositionMode case".into()))
     }
 
-    fn record_provider_selection(
+    fn record_build_selection(
         &mut self,
         expression: ExpressionHandle,
+        operation: BuildOperation,
         composition_case: SymbolHandle,
         frame: &Frame,
     ) -> EvalResult<()> {
-        self.executed_provider_selections
-            .try_reserve(1)
-            .map_err(|_| {
-                Halt::Resource("provider-selection result allocation was refused".into())
-            })?;
-        self.executed_provider_selections
-            .push(ExecutedProviderSelection {
-                machine: frame.machine_symbol,
-                expression,
-                composition_case,
-            });
+        self.executed_build_selections.try_reserve(1).map_err(|_| {
+            Halt::Resource("provider-selection result allocation was refused".into())
+        })?;
+        self.executed_build_selections.push(ExecutedBuildSelection {
+            operation,
+            machine: frame.machine_symbol,
+            expression,
+            composition_case,
+        });
         Ok(())
     }
 }

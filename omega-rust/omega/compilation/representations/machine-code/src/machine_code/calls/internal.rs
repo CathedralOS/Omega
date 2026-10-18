@@ -151,6 +151,7 @@ pub enum InternalUnitCallSource {
     InstalledProvider {
         boundary: BoundaryMachineId,
         provider: Box<ProviderCandidateConformance>,
+        assumption: Option<target_operations::InstalledAssumedBindingEvidence>,
         completion_claim_sources: Vec<abstract_operations::CompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
     },

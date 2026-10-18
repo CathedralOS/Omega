@@ -38,10 +38,11 @@ pub(super) fn require_reached_providers(
                 .iter()
                 .find(|declaration| declaration.id == *boundary)?;
             let requirement = plan.identities.text(declaration.identity)?;
-            selected
+            (selected
                 .selected_requirement_row(requirement)
                 .is_none()
-                .then(|| {
+                && !selected.assumed_bindings().iter().any(|row| row.required == requirement)
+            ).then(|| {
                     Diagnostic::error(format!(
                         "no provider is selected for boundary requirement `{}`, which the program entry reaches on target `{}`",
                         requirement_path(requirement),

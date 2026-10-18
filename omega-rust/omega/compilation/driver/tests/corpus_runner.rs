@@ -467,6 +467,35 @@ fn produce_terminal_semantic(
     rollback: Option<&OptimizationRollback>,
 ) -> Result<TerminalSemanticLeg, Vec<diagnostics::Diagnostic>> {
     let prepared = reviewed_repository_fixture_package_inputs(root_path, target.as_deref())?;
+    if prepared.assumed_permissions.is_some() {
+        let request = fixture_package_inputs::accepted_fixture_product_request(
+            prepared,
+            target.as_deref(),
+            build_dir.clone(),
+            compiler::CompilationProduct::Terminal(rollback.cloned().unwrap_or_default()),
+        )?;
+        let report = fixture_package_inputs::produce_accepted_fixture(request)?;
+        let receipt = report
+            .optimization_rollback_receipt()
+            .map(std::string::ToString::to_string);
+        let artifact = report.into_retained_terminal_artifact().ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "Terminal product retained no artifact",
+            )]
+        })?;
+        let fingerprint = artifact
+            .artifact()
+            .manifest()
+            .semantic()
+            .program_fingerprint
+            .to_string();
+        let _ = fs::remove_dir_all(&build_dir);
+        return Ok(TerminalSemanticLeg {
+            fingerprint: fingerprint[..16].to_owned(),
+            artifact,
+            receipt,
+        });
+    }
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let options = CompileOptions {
         root_path: prepared.root_path,
@@ -569,7 +598,7 @@ fn declared_publication(fixture_dir: &Path) -> Option<Vec<String>> {
         .lines()
         .map(str::trim)
         .filter(|line| !line.is_empty())
-        .map(str::to_owned)
+        .map(std::string::ToString::to_string)
         .collect::<Vec<_>>();
     files.sort();
     Some(files)
@@ -590,6 +619,15 @@ fn published_files(
             root_path,
             declared_realization_target(root_path).as_deref(),
         )?;
+        if prepared.assumed_permissions.is_some() {
+            let request = fixture_package_inputs::accepted_fixture_product_request(
+                prepared,
+                declared_realization_target(root_path).as_deref(),
+                build_dir.clone(),
+                compiler::CompilationProduct::Terminal(rollback.cloned().unwrap_or_default()),
+            )?;
+            return fixture_package_inputs::produce_accepted_fixture(request);
+        }
         let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
         let options = CompileOptions {
             root_path: prepared.root_path,
@@ -1023,6 +1061,48 @@ fn build_native_fixture(
         }
     }
     let prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
+    let accepted_reports = if prepared.assumed_permissions.is_some() {
+        let requests = targets
+            .iter()
+            .map(|profile| {
+                let name = profile.map(|profile| profile.target_name());
+                let prepared = reviewed_repository_fixture_package_inputs(root_path, name)?;
+                fixture_package_inputs::accepted_fixture_product_request(
+                    prepared,
+                    name,
+                    build_dir.to_path_buf(),
+                    compiler::CompilationProduct::Native(
+                        compilation_products::NativeProductRequest {
+                            private_entry_ram: Vec::new(),
+                            terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+                            terminal_authority_permission_policy: None,
+                            optimization_rollback: rollback.cloned().unwrap_or_default(),
+                        },
+                    ),
+                )
+            })
+            .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?;
+        let outcomes = compiler::CompilationSession::default().compile_packages(requests);
+        Some(
+            targets
+                .iter()
+                .copied()
+                .zip(outcomes)
+                .map(|(profile, outcome)| {
+                    outcome
+                        .map_err(|error| error.failure.into_diagnostics())
+                        .and_then(|output| {
+                            output
+                                .into_report()
+                                .map_err(compiler::CompilationProductError::into_diagnostics)
+                        })
+                        .map(|report| (profile, report))
+                })
+                .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?,
+        )
+    } else {
+        None
+    };
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let mut request =
         CompileRequest::for_targets(prepared.root_path, build_dir.to_path_buf(), targets)
@@ -1036,19 +1116,24 @@ fn build_native_fixture(
     if let Some(snapshot) = build_snapshot {
         request = request.with_build_snapshot(snapshot);
     }
-    let outcomes = compiler::compile(request)?;
-    let mut reports = Vec::new();
-    let mut failures = Vec::new();
-    for outcome in outcomes.into_outcomes().into_vec() {
-        let profile = outcome.target_profile();
-        match outcome.into_result() {
-            Ok(report) => reports.push((profile, report)),
-            Err(diagnostics) => failures.extend(diagnostics),
+    let mut reports = if let Some(reports) = accepted_reports {
+        reports
+    } else {
+        let outcomes = compiler::compile(request)?;
+        let mut reports = Vec::new();
+        let mut failures = Vec::new();
+        for outcome in outcomes.into_outcomes().into_vec() {
+            let profile = outcome.target_profile();
+            match outcome.into_result() {
+                Ok(report) => reports.push((profile, report)),
+                Err(diagnostics) => failures.extend(diagnostics),
+            }
         }
-    }
-    if !failures.is_empty() {
-        return Err(failures);
-    }
+        if !failures.is_empty() {
+            return Err(failures);
+        }
+        reports
+    };
     let primary = reports
         .iter()
         .position(|(profile, _)| *profile == Some(target_profile))
@@ -1468,6 +1553,33 @@ fn realize_fixture(
         .target_name();
     let prepared = reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
+    if prepared.assumed_permissions.is_some() {
+        let product =
+            compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+                private_entry_ram: Vec::new(),
+                terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+                terminal_authority_permission_policy: None,
+                optimization_rollback: rollback.cloned().unwrap_or_default(),
+            });
+        let request = fixture_package_inputs::accepted_fixture_product_request(
+            prepared,
+            target_name.as_deref(),
+            build_dir.clone(),
+            product,
+        )?;
+        let result = fixture_package_inputs::produce_accepted_fixture(request).map(|report| {
+            if let Some((fixture_dir, observation)) = interpretation {
+                *observation = Some(interpret_native_report(
+                    &report,
+                    fixture_dir,
+                    runtime_target,
+                    &[],
+                ));
+            }
+        });
+        let _ = fs::remove_dir_all(&build_dir);
+        return result;
+    }
     let options = CompileOptions {
         root_path: prepared.root_path,
         build_dir: Some(build_dir.clone()),

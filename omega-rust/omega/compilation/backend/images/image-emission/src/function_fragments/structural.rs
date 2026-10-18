@@ -545,11 +545,13 @@ pub(super) fn populate(
             NativeCallOrigin::InstalledProvider {
                 boundary,
                 provider,
+                assumption,
                 completion_claim_sources,
                 completion_receipts,
             } => InternalUnitCallSource::InstalledProvider {
                 boundary: *boundary,
                 provider: Box::new(provider.clone()),
+                assumption: assumption.clone(),
                 completion_claim_sources: completion_claim_sources.clone(),
                 completion_receipts: completion_receipts.clone(),
             },

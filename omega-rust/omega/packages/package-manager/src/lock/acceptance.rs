@@ -128,7 +128,13 @@ impl PackagePolicyAcceptance {
             rows: self
                 .rows
                 .iter()
-                .filter(|row| row.kind == PackagePolicyRowKind::TerminalPermission)
+                .filter(|row| {
+                    matches!(
+                        row.kind,
+                        PackagePolicyRowKind::TerminalPermission
+                            | PackagePolicyRowKind::AssumedBindingContract
+                    )
+                })
                 .map(|row| (row.key, row.text.clone()))
                 .collect(),
         }

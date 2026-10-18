@@ -159,7 +159,11 @@ pub(super) fn validate_installed_provider_calls(
             || installed.structural_arguments != *structural_arguments
             || installed.completion_claim_sources != exact_sources
             || installed.completion_receipts != *completion_receipts
-            || installed.provider.boundary != key.2
+            || if let Some(assumption) = &installed.assumption {
+                !assumption.matches(key.2, &installed.provider)
+            } else {
+                installed.provider.boundary != key.2
+            }
             || !plan
                 .provider_candidates
                 .iter()

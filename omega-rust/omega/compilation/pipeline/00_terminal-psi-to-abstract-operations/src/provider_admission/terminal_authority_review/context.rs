@@ -95,6 +95,7 @@ impl<'a> ReviewContext<'a> {
         ),
         String,
     > {
+        let requirement = self.selected.assumed_supplier_identity(requirement)?;
         let specialization = self.selected.specialized_requirement_row(requirement);
         // The absent case stays a real refusal here: provider supply rejects
         // an unselected requirement the entry reaches before settlement, but a

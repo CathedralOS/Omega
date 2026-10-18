@@ -19,6 +19,7 @@
 // The build-time-evaluation tests' front-end pipelines, one file shared with
 // the integration targets; see its module documentation.
 
+pub mod assumed_bindings;
 mod build_time_evaluation;
 mod const_evaluation;
 mod fnv;

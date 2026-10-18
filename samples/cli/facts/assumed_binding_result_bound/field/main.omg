@@ -1,0 +1,13 @@
+// The root-assumed u32 result <= 1 survives this boundary and indexes [7, 11] of length 2, observing 11; Supplied::get retains its own contract.
+// Expected exit: 0.
+boundary trait Required { machine get() -> u32 ensures result <= 1; }
+boundary trait Supplied { machine get() -> u32; }
+Actual satisfies Supplied { machine get() -> u32 { 1 } }
+data Index [copy] where value <= 1 { value: u32; }
+machine read(index: Index) -> u32 { let values: [u32; 2] = [7, 11]; values[index.value] }
+machine main() reaches Required crashes Trap {
+    let observed: u32 = read(Index { value: Required::get() });
+    transition observed == 11 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

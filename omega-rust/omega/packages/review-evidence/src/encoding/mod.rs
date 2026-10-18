@@ -11,7 +11,7 @@ pub use encode::restricted_build_request_acceptance_text;
 pub use recovery::PackagePolicyRecoveryLimits;
 pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};
 
-pub(crate) const PACKAGE_POLICY_BASELINE_VERSION: u16 = 13;
+pub(crate) const PACKAGE_POLICY_BASELINE_VERSION: u16 = 14;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
 pub(crate) const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 7;

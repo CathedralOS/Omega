@@ -526,13 +526,9 @@ pub(in crate::symbols) fn assign_runtime_subject_argument_symbol(
 /// which happens to be spelled `select_provider` resolves as an ordinary
 /// target and keeps ordinary operands. Service exclusion follows the same
 /// rule, as does representation selection. The remaining build operations carry no
-/// static operands and route nothing here. `assume_binding_contract` also
-/// routes `None` for now: its two operands name exact requirement identities
-/// (`Required::operation`, `Supplied::operation`), which no declaration-path
-/// resolver can name yet, so they fall through to ordinary static-machine
-/// argument resolution and reject there — fail-closed until the
-/// relationship's compatibility admission owns their resolution
-/// (wiki/spec/build/assumed_binding_contracts.md).
+/// static operands and route nothing here. Assumed binding operands select exact
+/// boundary requirement declarations, never executable generic arguments. Their
+/// independently checked runtime installation owns compatibility and acceptance.
 pub(in crate::symbols) fn build_operand_route(
     target: &str,
     target_symbol: SymbolHandle,
@@ -543,6 +539,7 @@ pub(in crate::symbols) fn build_operand_route(
         | BuildOperation::BoundaryAcceptance
         | BuildOperation::WireCompatibilityRequest
         | BuildOperation::RepresentationSelection
+        | BuildOperation::AssumedBindingContract
             if target_symbol.is_valid() =>
         {
             None
@@ -551,12 +548,12 @@ pub(in crate::symbols) fn build_operand_route(
         | BuildOperation::ServiceExclusion
         | BuildOperation::BoundaryAcceptance
         | BuildOperation::WireCompatibilityRequest
-        | BuildOperation::RepresentationSelection) => Some(operation),
+        | BuildOperation::RepresentationSelection
+        | BuildOperation::AssumedBindingContract) => Some(operation),
         BuildOperation::OptimizationSelection
         | BuildOperation::OptimizationReportRequest
         | BuildOperation::IncludedSourceHandoff
-        | BuildOperation::LogWriteLine
-        | BuildOperation::AssumedBindingContract => None,
+        | BuildOperation::LogWriteLine => None,
     }
 }
 
@@ -651,6 +648,30 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
         // top-level operands; a named map is not a hidden receiver data type.
         descendant_selection_symbol(symbols, argument, kinds)
     };
+}
+
+/// A relationship names two exact requirement declarations, not callable bodies.
+/// Requirement members are State symbols beneath their boundary trait. Product
+/// visibility still gates both paths; later typed admission rejects other states.
+pub(in crate::symbols) fn assign_assumed_binding_argument_symbol(
+    symbols: &SymbolTable,
+    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+) {
+    let Some(rendered) = selection_argument_rendered_path(argument) else {
+        return;
+    };
+    let kinds = &[SymbolKind::State, SymbolKind::Machine];
+    argument.symbol = argument
+        .path
+        .last()
+        .and_then(|name| {
+            symbols.find_top_level_by_name_and_kinds_from_source(
+                &rendered,
+                kinds,
+                name.source_span(),
+            )
+        })
+        .unwrap_or_else(|| descendant_selection_symbol(symbols, argument, kinds));
 }
 
 /// Resolve `Build::select_representation` arguments as declaration identity,

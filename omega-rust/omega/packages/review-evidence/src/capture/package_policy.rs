@@ -3,6 +3,7 @@
 //! This does not construct a legacy review capsule, persist proof results, or
 //! admit the package. Every component retains its own checked association owner.
 
+mod assumed_bindings;
 mod authority;
 mod external;
 mod restricted_build;
@@ -65,6 +66,7 @@ pub fn project_checked_package_policy<'a>(
         semantic_dependencies,
         boundary_applications,
         restricted_build_requests: restricted_build::project(compilation),
+        assumed_bindings: assumed_bindings::project(compilation)?,
     };
     Ok(policy)
 }

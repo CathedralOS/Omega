@@ -20,7 +20,11 @@ pub fn is_build_declaration_selection(
     };
     matches!(
         super::classify_expression_call_intrinsic(program, call),
-        Some(Intrinsic::BuildProviderSelection | Intrinsic::BuildServiceExclusion)
+        Some(
+            Intrinsic::BuildProviderSelection
+                | Intrinsic::BuildServiceExclusion
+                | Intrinsic::BuildAssumedBindingContract
+        )
     )
 }
 
@@ -37,6 +41,15 @@ pub fn resolve_build_declaration_operand(
         return None;
     }
     let call = program.expression_table.call_node(expression)?;
+    if BuildOperation::from_call_target(call.target.as_str())
+        == Some(BuildOperation::AssumedBindingContract)
+    {
+        return typed_trees::product_operand::resolve_requirement_operand(
+            program.typed_program(),
+            call.machine_arguments.get(argument_index)?,
+            occurrence,
+        );
+    }
     let service = BuildOperation::from_call_target(call.target.as_str())
         == Some(BuildOperation::ServiceExclusion);
     let selected = resolve_product_operand(

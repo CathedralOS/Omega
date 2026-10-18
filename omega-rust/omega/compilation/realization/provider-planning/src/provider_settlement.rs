@@ -266,6 +266,7 @@ pub fn settle_checked_providers(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_provider_selections: &[ProviderSelection],
+    assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
@@ -419,6 +420,173 @@ pub fn settle_checked_providers(
         // retained candidate; the toolchain-settled plan is a real retained
         // candidate for the slot even though no package authored it.
         provider_plans.push(minted.plan);
+    }
+    for assumption in assumed_bindings {
+        let signature = |symbol| {
+            typed.traits().iter().find_map(|definition| {
+                typed
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|signature| signature.symbol == symbol)
+            })
+        };
+        let required_signature = signature(assumption.required)
+            .ok_or_else(|| vec![Diagnostic::error("assumed binding lost required signature")])?;
+        let supplied_signature = signature(assumption.supplied)
+            .ok_or_else(|| vec![Diagnostic::error("assumed binding lost supplied signature")])?;
+        let required_parameters = typed.state_signature_parameters(required_signature);
+        let supplied_parameters = typed.state_signature_parameters(supplied_signature);
+        if required_parameters.len() != supplied_parameters.len()
+            || typed.normalized_type_identity(required_signature.return_type)
+                != typed.normalized_type_identity(supplied_signature.return_type)
+            || required_parameters
+                .iter()
+                .zip(supplied_parameters)
+                .any(|(required, supplied)| {
+                    typed.normalized_type_identity(required.type_reference)
+                        != typed.normalized_type_identity(supplied.type_reference)
+                })
+        {
+            return Err(vec![Diagnostic::error("assumed binding has incompatible runtime carriers, parameter order or passing modes").with_source_span(assumption.source_span)]);
+        }
+        if (!required_signature.suspends && supplied_signature.suspends)
+            || (!required_signature.blocks && supplied_signature.blocks)
+            || required_signature.termination_guarantee != supplied_signature.termination_guarantee
+            || !required_signature.invokes.is_empty()
+            || !supplied_signature.invokes.is_empty()
+            || required_signature.lifetime_parameters.len()
+                != supplied_signature.lifetime_parameters.len()
+        {
+            return Err(vec![Diagnostic::error("assumed binding has incompatible or unsupported operational/lifetime correspondence").with_source_span(assumption.source_span)]);
+        }
+
+        // Runtime carrier identity erases regions. Compare the complete
+        // reference graph under an explicit positional alpha correspondence;
+        // equal binder counts alone cannot preserve a result/argument anchor.
+        let lifetime_mapping = required_signature
+            .lifetime_parameters
+            .iter()
+            .zip(&supplied_signature.lifetime_parameters)
+            .map(|(required, supplied)| {
+                (required.as_str().to_owned(), supplied.as_str().to_owned())
+            })
+            .collect::<Vec<_>>();
+        let scopes = [
+            checked_trees::typed_trees::type_identity::AppliedTypeIdentityScope {
+                declaration: required_signature.symbol,
+                arguments: &[],
+                lifetimes: &lifetime_mapping,
+            },
+        ];
+        let corresponding = |required, supplied| {
+            let required =
+                checked_trees::typed_trees::type_identity::applied_type_identity_in_scope(
+                    typed,
+                    required,
+                    required_signature.symbol,
+                    supplied_signature.symbol,
+                    &scopes,
+                );
+            let supplied = checked_trees::typed_trees::type_identity::applied_type_identity(
+                typed,
+                supplied,
+                supplied_signature.symbol,
+                &[],
+            );
+            required.is_some() && required == supplied
+        };
+        if !corresponding(
+            required_signature.return_type,
+            supplied_signature.return_type,
+        ) || required_parameters
+            .iter()
+            .zip(supplied_parameters)
+            .any(|(required, supplied)| {
+                !corresponding(required.type_reference, supplied.type_reference)
+            })
+        {
+            return Err(vec![
+                Diagnostic::error("assumed binding has incompatible lifetime subject mapping")
+                    .with_source_span(assumption.source_span),
+            ]);
+        }
+
+        let required = boundary_calling_plan_realizations
+            .iter()
+            .find(|row| row.requirement_machine == assumption.required);
+        let supplied = boundary_calling_plan_realizations
+            .iter()
+            .find(|row| row.requirement_machine == assumption.supplied);
+        let compatible = match (required, supplied) {
+            (None, None) => true,
+            (Some(required), Some(supplied)) => {
+                required.exact_boundary_entry_plan() == supplied.exact_boundary_entry_plan()
+                    && required.materialized_signature() == supplied.materialized_signature()
+            }
+            _ => false,
+        };
+        if !compatible {
+            return Err(vec![
+                Diagnostic::error(
+                    "assumed binding has incompatible validated layout or calling plan",
+                )
+                .with_source_span(assumption.source_span),
+            ]);
+        }
+    }
+    let identity = |symbol| {
+        typed
+            .traits()
+            .iter()
+            .find_map(|definition| {
+                typed
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|signature| signature.symbol == symbol)
+                    .map(|signature| {
+                        typed.trait_requirement_callable_identity_text(definition, signature)
+                    })
+            })
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "assumed binding lost exact requirement identity",
+                )]
+            })
+    };
+    let assumptions = assumed_bindings
+        .iter()
+        .map(|row| {
+            Ok(effects::AssumedBindingContractSelection {
+                required: identity(row.required)?,
+                supplied: identity(row.supplied)?,
+            })
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let mut required = std::collections::BTreeSet::new();
+    for row in &assumptions {
+        if !required.insert(row.required.as_str())
+            || selected_provider_plan_facts
+                .selected_requirement_row(&row.required)
+                .is_some()
+        {
+            return Err(vec![Diagnostic::error(
+                "assumed binding has competing explicit supply",
+            )]);
+        }
+    }
+    selected_provider_plan_facts = selected_provider_plan_facts.with_assumed_bindings(assumptions);
+    for row in selected_provider_plan_facts.assumed_bindings() {
+        let supplied = selected_provider_plan_facts
+            .assumed_supplier_identity(&row.required)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        if selected_provider_plan_facts
+            .selected_requirement_row(supplied)
+            .is_none()
+        {
+            return Err(vec![Diagnostic::error(
+                "assumed binding has no selected complete supplied provider",
+            )]);
+        }
     }
     Ok(CheckedProviderSelection {
         settlement: ProviderSettlement {

@@ -73,6 +73,7 @@ pub struct TargetProviderPublicationRequest<'program> {
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
     pub defaults: &'program [crate::TargetProviderDefaults],
     pub overrides: &'program [ProviderSelection],
+    pub assumed_bindings: &'program [effects::AssumedBindingContractSelection],
     pub settlement: &'program crate::ProviderSettlement,
     pub targets: &'program [String],
     pub optimization_selection: optimization_core::OptimizationSelectionIdentity,
@@ -177,6 +178,10 @@ impl TargetProviderPublicationRequest<'_> {
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         backend_plan::TerminalTargetProviderSelection::from_plans(plans, self.artifact)
+            .map(|mut selection| {
+                selection.assumed_bindings = self.assumed_bindings.to_vec();
+                selection
+            })
             .map_err(|reason| vec![Diagnostic::error(reason)])
     }
 

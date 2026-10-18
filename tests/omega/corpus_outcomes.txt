@@ -5550,6 +5550,52 @@ fail/providers/applied_entry_nested_binding_wrong_receiver rejected 3322ms expec
 	selected ProgramEntry Binding field `Main::session::parent` requires a selected Fused provider for boundary `Parent`
 fail/providers/applied_provider_declaration_operand rejected 568ms expected @80bdb14533eb+wt
 	provider selection operands must name bare declarations, not applied types, conformance applications, values or projections
+fail/providers/assumed_result_bound_bad_supplier_body_rejected rejected 2521ms expected @200c35a0fc75+wt
+	machine `Actual::get` realizes `Supplied::get` but does not guarantee its `ensures result == 0`; callers of the requirement assume it
+fail/providers/assumed_result_bound_blocking_rejected rejected 3517ms expected @200c35a0fc75+wt
+	assumed binding has incompatible or unsupported operational/lifetime correspondence
+fail/providers/assumed_result_bound_build_time_call_rejected rejected 416ms expected @200c35a0fc75+wt
+	machine `build` state `entry`: value call `Required.get(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+	machine `build` state `entry` uses `Required`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/providers/assumed_result_bound_call_result_rejected rejected 3220ms expected @200c35a0fc75+wt
+	cannot prove index `acquire()` is within length 2 in main::entry
+fail/providers/assumed_result_bound_carrier_mismatch_rejected rejected 3545ms expected @200c35a0fc75+wt
+	assumed binding has incompatible runtime carriers, parameter order or passing modes
+fail/providers/assumed_result_bound_competing_link_rejected rejected 3484ms expected @200c35a0fc75+wt
+	assumed binding has competing explicit supply
+fail/providers/assumed_result_bound_const_name_rejected rejected 3280ms expected @200c35a0fc75+wt
+	cannot prove index `Required.get()` is within length 2 in main::entry
+fail/providers/assumed_result_bound_cyclic_supply_rejected rejected 3583ms expected @200c35a0fc75+wt
+	cyclic assumed binding supply
+fail/providers/assumed_result_bound_direct_supplier_rejected rejected 3278ms expected @200c35a0fc75+wt
+	cannot prove index `Supplied.get()` is within length 2 in main::entry
+fail/providers/assumed_result_bound_equal_count_lifetime_mapping_rejected rejected 3451ms expected @200c35a0fc75+wt
+	assumed binding has incompatible lifetime subject mapping
+fail/providers/assumed_result_bound_field_rejected rejected 3371ms expected @200c35a0fc75+wt
+	cannot prove index `index.value` is within length 2 in read::entry
+fail/providers/assumed_result_bound_lifetime_mapping_rejected rejected 3591ms expected @200c35a0fc75+wt
+	assumed binding has incompatible or unsupported operational/lifetime correspondence
+fail/providers/assumed_result_bound_local_rejected rejected 3308ms expected @200c35a0fc75+wt
+	cannot prove index `index` is within length 2 in main::entry
+fail/providers/assumed_result_bound_match_join_rejected rejected 3311ms expected @200c35a0fc75+wt
+	cannot prove index `index` is within length 2 in read::entry
+fail/providers/assumed_result_bound_missing_supply_rejected rejected 3563ms expected @200c35a0fc75+wt
+	assumed binding has no selected complete supplied provider
+fail/providers/assumed_result_bound_other_machine_rejected rejected 3327ms expected @200c35a0fc75+wt
+	cannot prove index `index` is within length 2 in exercise::entry
+fail/providers/assumed_result_bound_other_state_rejected rejected 3288ms expected @200c35a0fc75+wt
+	cannot prove index `index` is within length 2 in main::read
+fail/providers/assumed_result_bound_parameter_order_rejected rejected 3528ms expected @200c35a0fc75+wt
+	assumed binding has incompatible runtime carriers, parameter order or passing modes
+fail/providers/assumed_result_bound_parameter_rejected rejected 3258ms expected @200c35a0fc75+wt
+	cannot prove index `index` is within length 2 in read::entry
+fail/providers/assumed_result_bound_passing_mode_rejected rejected 3508ms expected @200c35a0fc75+wt
+	assumed binding has incompatible runtime carriers, parameter order or passing modes
+fail/providers/assumed_result_bound_target_body_rejected rejected 3204ms expected @200c35a0fc75+wt
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
 fail/providers/authored_same_stack_checked_body rejected 6ms @fa0a8b1267bb+wt
 	tests/omega/fail/providers/authored_same_stack_checked_body/main.omg:5:65: `stack N bytes` admits demand only on a bodyless external realization
 fail/providers/authored_same_stack_duplicate rejected 4ms @fa0a8b1267bb+wt
@@ -9641,6 +9687,15 @@ pass/providers/applied_binding_field_telescopes_exit checked 6307ms check-target
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
 pass/providers/applied_header_dependent_const_carrier_exit checked 12536ms check-target:macos_arm64 @37afc401493b+wt
 pass/providers/applied_requirement_calls_exit checked 6806ms check-target:macos_arm64 @308fbdc54ba0
+pass/providers/assumed_result_bound_call_result_exit checked 7479ms check-target:linux_x86_64 @200c35a0fc75+wt
+pass/providers/assumed_result_bound_const_name_exit checked 7552ms check-target:linux_x86_64 @200c35a0fc75+wt
+pass/providers/assumed_result_bound_field_exit checked 7262ms check-target:linux_x86_64 @200c35a0fc75+wt
+pass/providers/assumed_result_bound_local_exit checked 7183ms check-target:linux_x86_64 @200c35a0fc75+wt
+pass/providers/assumed_result_bound_match_join_exit checked 7315ms check-target:linux_x86_64 @200c35a0fc75+wt
+pass/providers/assumed_result_bound_other_machine_exit checked 7331ms check-target:linux_x86_64 @200c35a0fc75+wt
+pass/providers/assumed_result_bound_other_state_exit checked 7035ms check-target:linux_x86_64 @200c35a0fc75+wt
+pass/providers/assumed_result_bound_parameter_exit checked 6869ms check-target:linux_x86_64 @200c35a0fc75+wt
+pass/providers/assumed_result_bound_target_body_exit checked 6962ms check-target:linux_x86_64 @200c35a0fc75+wt
 pass/providers/authored_same_stack_demand checked 1130ms @fa0a8b1267bb+wt
 pass/providers/authored_same_stack_import checked 6207ms check-target:linux_x86_64 @fa0a8b1267bb+wt
 pass/providers/bare_byte_array_boundary_argument checked 8204ms check-target:macos_arm64 @03d6ab4d9d4c

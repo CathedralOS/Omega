@@ -44,6 +44,7 @@ impl PackagePolicyBaseline {
             semantic_dependencies: reader.sequence(1, dependencies::semantic_dependency)?,
             boundary_applications: boundary::applications(&mut reader)?,
             restricted_build_requests: restricted_build::requests(&mut reader)?,
+            assumed_bindings: reader.sequence(1, |reader| reader.string())?,
         };
         reader.finish()?;
         policy

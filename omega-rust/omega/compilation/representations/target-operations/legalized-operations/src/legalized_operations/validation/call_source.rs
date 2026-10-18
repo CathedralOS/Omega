@@ -23,10 +23,17 @@ pub(super) fn validate(
         NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
+            assumption,
             completion_claim_sources,
             completion_receipts,
         } => {
-            if provider.boundary != *boundary || call.target.machine() != Some(provider.candidate) {
+            if assumption
+                .as_ref()
+                .map_or(provider.boundary != *boundary, |row| {
+                    !row.matches(*boundary, provider)
+                })
+                || call.target.machine() != Some(provider.candidate)
+            {
                 return Err(LegalizedCallSourceError::ProviderIdentityMismatch);
             }
             let structural_arguments = call

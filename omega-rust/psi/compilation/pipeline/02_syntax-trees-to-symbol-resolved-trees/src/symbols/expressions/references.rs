@@ -15,8 +15,9 @@ use super::super::scoped_paths::{
     resolve_state_scoped_table_path_member_symbols,
 };
 use super::super::targets::{
-    assign_provider_selection_argument_symbol, assign_representation_selection_argument_symbol,
-    assign_runtime_subject_argument_symbol, assign_static_argument_symbols, build_operand_route,
+    assign_assumed_binding_argument_symbol, assign_provider_selection_argument_symbol,
+    assign_representation_selection_argument_symbol, assign_runtime_subject_argument_symbol,
+    assign_static_argument_symbols, build_operand_route,
 };
 use language_semantics::declaration_selection::BuildOperation;
 
@@ -235,6 +236,9 @@ pub(super) fn assign_call_symbol(
         let operand_route = build_operand_route(call.target.as_str(), target_symbol);
         for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
             match operand_route {
+                Some(BuildOperation::AssumedBindingContract) => {
+                    assign_assumed_binding_argument_symbol(symbols, argument);
+                }
                 Some(BuildOperation::RepresentationSelection) => {
                     assign_representation_selection_argument_symbol(symbols, argument, index == 0);
                 }

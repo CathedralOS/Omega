@@ -16,3 +16,5 @@ task-plans = { path = "../../backend/runtime/task-plans" }
 abstract-operations = { path = "../abstract-operations" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+
+installation-evidence = { path = "../../backend/runtime/installation-evidence" }

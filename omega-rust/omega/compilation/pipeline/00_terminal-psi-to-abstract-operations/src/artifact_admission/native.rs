@@ -122,6 +122,7 @@ impl VerifiedNativeArtifactInput {
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         profile: target::TargetProfile,
         selected: &[crate::SelectedProviderAdapter],
+        assumptions: &effects::SelectedProviderPlanFacts,
         receiving_provider_roots: &[semantic_vocabulary::BoundaryMachineId],
         callbacks: &[backend_plan::TerminalCallbackOccurrenceProposal],
     ) -> Result<Self, crate::NativeExecutionScopeError> {
@@ -132,6 +133,7 @@ impl VerifiedNativeArtifactInput {
         // Selection can change the executable scope. It grants no callback
         // authority; only admission of the newly selected input can restore it.
         input.optimization_input.admitted_native_callbacks.clear();
+        input.optimization_input.admitted_assumed_bindings.clear();
         let selections = terminal_installation::admit_target_machine_selections(
             artifact.view(),
             profile.target_name(),
@@ -164,6 +166,9 @@ impl VerifiedNativeArtifactInput {
         let scope = crate::native_execution_scope::NativeExecutionScope::derive(
             &input.optimization_input,
             selected,
+            &assumptions
+                .assumed_binding_coordinates(artifact.semantic_module())
+                .map_err(crate::NativeExecutionScopeError::TargetFamily)?,
             receiving_provider_roots,
             callbacks,
         )?;
@@ -278,6 +283,13 @@ impl VerifiedNativeArtifactInput {
         self.optimization_input.context()
     }
 
+    pub(crate) fn retain_admitted_assumed_bindings(
+        &mut self,
+        calls: Vec<installation_evidence::InstalledAssumedBindingEvidence>,
+    ) {
+        self.optimization_input.admitted_assumed_bindings = calls;
+    }
+
     pub(crate) fn retain_admitted_native_callbacks(
         &mut self,
         callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
@@ -377,6 +389,7 @@ pub(super) fn lower_decoded_native_module(
             plan,
             context,
             admitted_native_callbacks: Vec::new(),
+            admitted_assumed_bindings: Vec::new(),
             target_machine_selections: selections,
             target_layout_selections: None,
             target_family_realizations: Vec::new(),

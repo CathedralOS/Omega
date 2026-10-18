@@ -55,7 +55,8 @@ pub use provider_evidence::providers::foreign_locator::{
 };
 pub use provider_evidence::providers::provider_plan;
 pub use provider_evidence::{
-    InstallationReachResolution, SelectedExternalRequirementApplication, SelectedProviderPlanFacts,
+    AssumedBindingContractSelection, InstallationReachResolution,
+    SelectedExternalRequirementApplication, SelectedProviderPlanFacts,
     SelectedRequirementSpecialization, SelectedTargetFamilyRealization,
 };
 

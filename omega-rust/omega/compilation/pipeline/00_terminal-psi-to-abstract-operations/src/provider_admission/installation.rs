@@ -20,6 +20,18 @@ pub(crate) fn admit_checked_provider_installation(
         plan,
         view,
         request.checked_adapters,
+        &request
+            .selected_provider_plans
+            .assumed_binding_coordinates(view.module())
+            .map_err(|reason| realization_error("assumed binding installation", reason))?
+            .into_iter()
+            .map(|(required, supplied_requirement)| {
+                terminal_installation::AssumedBindingSelection {
+                    required,
+                    supplied_requirement,
+                }
+            })
+            .collect::<Vec<_>>(),
     )
     .map_err(|error| realization_error("checked-provider installation", format!("{error:?}")))?;
     Ok(Some(installation))

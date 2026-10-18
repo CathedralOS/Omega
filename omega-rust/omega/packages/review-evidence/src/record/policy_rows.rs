@@ -31,6 +31,7 @@ pub enum PackagePolicyRowKind {
     SemanticDependency,
     SymbolicBoundaryDemand,
     RestrictedBuildRequest,
+    AssumedBindingContract,
 }
 
 impl PackagePolicyRowKind {
@@ -59,6 +60,7 @@ impl PackagePolicyRowKind {
             Self::SemanticDependency => 20,
             Self::SymbolicBoundaryDemand => 21,
             Self::RestrictedBuildRequest => 22,
+            Self::AssumedBindingContract => 23,
         }
     }
 
@@ -87,6 +89,7 @@ impl PackagePolicyRowKind {
             Self::SemanticDependency => "semantic_dependency",
             Self::SymbolicBoundaryDemand => "symbolic_boundary_demand",
             Self::RestrictedBuildRequest => "restricted_build_request",
+            Self::AssumedBindingContract => "assumed_binding_contract",
         }
     }
 
@@ -99,7 +102,8 @@ impl PackagePolicyRowKind {
             | Self::DangerousSlack
             | Self::ExternalSupply
             | Self::DangerousCapability
-            | Self::RestrictedBuildRequest => true,
+            | Self::RestrictedBuildRequest
+            | Self::AssumedBindingContract => true,
             Self::Header
             | Self::RepresentationTarget
             | Self::PublicTrait

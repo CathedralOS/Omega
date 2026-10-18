@@ -84,3 +84,34 @@ pub fn resolve_product_operand(
         &token_bound_machines,
     )
 }
+
+/// Exact boundary members used by an assumed runtime relationship. The lookup
+/// has the same source/package visibility boundary as other Build operands;
+/// ordinary helper machines and same-spelled states are never requirements.
+pub fn resolve_requirement_operand(
+    typed: &TypedTrees,
+    argument: &StaticMachineArgument,
+    occurrence: source::SourceSpan,
+) -> Option<symbols::SymbolHandle> {
+    if !is_declaration_operand(argument) {
+        return None;
+    }
+    let program = typed.product_declarations();
+    let candidates = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .flat_map(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .map(move |requirement| (requirement.symbol, definition.is_public))
+        })
+        .collect::<Vec<_>>();
+    program.symbols.find_build_subject_declaration_from_source(
+        &argument.path.joined_path(),
+        occurrence,
+        candidates,
+        &[],
+    )
+}

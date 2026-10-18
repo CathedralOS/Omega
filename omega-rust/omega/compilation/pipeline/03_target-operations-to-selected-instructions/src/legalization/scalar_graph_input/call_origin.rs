@@ -19,6 +19,23 @@ pub(in crate::legalization) fn validate_boundary_origins(
 ) -> Result<(), LegalizationError> {
     for function in &native.functions {
         for operation in function.graph.operations() {
+            if let TargetUnitOperation::Call {
+                origin:
+                    NativeCallOrigin::InstalledProvider {
+                        assumption: Some(assumption),
+                        ..
+                    },
+                ..
+            } = operation
+            {
+                // Relationships are artifact-global policy, independent of an
+                // occurrence's caller after legal inlining. Rejoin the complete
+                // sealed relationship, not just its final candidate IDs.
+                let input = input.ok_or_else(LegalizationError::custody)?;
+                if !input.admitted_assumed_bindings().contains(assumption) {
+                    return Err(LegalizationError::custody());
+                }
+            }
             let TargetUnitOperation::Call {
                 psi_operation,
                 origin:
@@ -173,11 +190,16 @@ pub(in crate::legalization) fn selected_boundary_operation(
         NativeCallOrigin::InstalledProvider {
             boundary: selected_boundary,
             provider,
+            assumption,
             completion_claim_sources: retained_sources,
             completion_receipts: retained_receipts,
         } => {
             if selected_boundary != boundary
-                || provider.boundary != *boundary
+                || assumption
+                    .as_ref()
+                    .map_or(provider.boundary != *boundary, |row| {
+                        !row.matches(*boundary, provider)
+                    })
                 || provider.candidate != callee
                 || retained_sources != completion_claim_sources
                 || retained_receipts != completion_receipts
@@ -198,7 +220,18 @@ pub(in crate::legalization) fn selected_boundary_operation(
     let candidate = plan
         .function(callee)
         .ok_or_else(|| LegalizationError::custody())?;
-    if provider.is_some_and(|provider| declaration.identity != provider.requirement_identity)
+    let provider_declaration = if let NativeCallOrigin::InstalledProvider {
+        assumption: Some(row),
+        ..
+    } = origin
+    {
+        plan.boundary_machine(row.selected_requirement)
+            .ok_or_else(|| LegalizationError::custody())?
+    } else {
+        declaration
+    };
+    if provider
+        .is_some_and(|provider| provider_declaration.identity != provider.requirement_identity)
         || declaration.scalar_parameters.len() != arguments.len()
         || candidate.parameters.len() != arguments.len()
         || declaration

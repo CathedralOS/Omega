@@ -41,7 +41,9 @@ pub struct AdmittedInstalledProviderCall {
     pub(crate) caller: MachineId,
     pub(crate) psi_operation: OperationId,
     pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
+    /// Supplied requirement's real checked conformance, never relabelled.
     pub(crate) provider: ProviderCandidateConformance,
+    pub(crate) assumption: Option<terminal_installation::AdmittedAssumedBinding>,
     pub(crate) result: terminal_psi::OperationResult,
     pub(crate) scalar_arguments: Vec<semantic_vocabulary::ValueId>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
@@ -132,6 +134,15 @@ impl installation_evidence::ProviderInstallationEvidence for AdmittedProviderIns
                     psi_operation: call.psi_operation,
                     boundary: call.boundary,
                     provider: call.provider.clone(),
+                    assumption: call.assumption.as_ref().map(|row| {
+                        installation_evidence::InstalledAssumedBindingEvidence {
+                            required: row.required,
+                            supplied_requirement: row.supplied_requirement,
+                            implementation: row.implementation,
+                            selected_requirement: row.selected_requirement,
+                            supply_path: row.supply_path.clone(),
+                        }
+                    }),
                     result: call.result.clone(),
                     scalar_arguments: call.scalar_arguments.clone(),
                     structural_arguments: call.structural_arguments.clone(),

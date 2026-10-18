@@ -353,6 +353,23 @@ pub(crate) fn callee_entry_contract(
             leading_operands: 0,
         });
     }
+    // A direct boundary call enters its own selected requirement contract.
+    // It never borrows the private implementation's stronger guarantees.
+    if let Some(return_type) = requirement_call_result_type(program, target) {
+        let requirement = program
+            .closed_requirement_application(target)
+            .map(|application| application.signature)
+            .or_else(|| {
+                selected_requirement_signature(program, target).map(|(_, signature)| signature)
+            })?;
+        return Some(CalleeContract {
+            callable: requirement.symbol,
+            return_type,
+            parameters: program.state_signature_parameters(requirement),
+            contracts: program.state_signature_contracts(requirement),
+            leading_operands: 0,
+        });
+    }
     let slot = program.dynamic_slot_by_symbol(target)?;
     let requirement = program.dynamic_slot_requirement(slot)?;
     Some(CalleeContract {

@@ -17,6 +17,7 @@ pub(super) fn replay_installed_provider_calls(
     plan: &AbstractOperationPlan,
     module: &terminal_psi::TerminalModule,
     installed: &[ProviderCandidateConformance],
+    assumed: &[terminal_installation::AdmittedAssumedBinding],
 ) -> Result<Vec<AdmittedInstalledProviderCall>, ProviderInstallationError> {
     let mut calls = Vec::new();
     for caller in &plan.functions {
@@ -33,7 +34,19 @@ pub(super) fn replay_installed_provider_calls(
             else {
                 continue;
             };
-            let Some(provider) = installed.iter().find(|row| row.boundary == *boundary) else {
+            let assumption = assumed.iter().find(|row| row.required == *boundary);
+            let Some(provider) = installed
+                .iter()
+                .find(|row| row.boundary == *boundary)
+                .or_else(|| {
+                    assumption.and_then(|link| {
+                        installed.iter().find(|row| {
+                            row.candidate == link.implementation
+                                && row.boundary == link.selected_requirement
+                        })
+                    })
+                })
+            else {
                 continue;
             };
             let malformed = || ProviderInstallationError::InstalledCallReplayMismatch {
@@ -66,7 +79,8 @@ pub(super) fn replay_installed_provider_calls(
                 _ => false,
             };
             if !exact_result
-                || boundary_declaration.identity != provider.requirement_identity
+                || (assumption.is_none()
+                    && boundary_declaration.identity != provider.requirement_identity)
                 || !replays_result(
                     &terminal_operation.result,
                     &boundary_declaration.result,
@@ -215,6 +229,7 @@ pub(super) fn replay_installed_provider_calls(
                 result: terminal_operation.result.clone(),
                 boundary: *boundary,
                 provider: provider.clone(),
+                assumption: assumption.cloned(),
                 scalar_arguments: arguments.clone(),
                 structural_arguments: structural_arguments.clone(),
                 completion_claim_sources: completion_claim_sources.clone(),

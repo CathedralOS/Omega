@@ -139,7 +139,7 @@ struct ProviderSelectionCall<'a> {
 /// selection does not become configuration merely because its text exists.
 pub fn collect_executed_provider_selections(
     context: ProviderPlanningContext<'_>,
-    executed: &[checked_interpreter::ExecutedProviderSelection],
+    executed: &[checked_interpreter::ExecutedBuildSelection],
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
     let typed = context.typed;
     // Executed Build operations select product descriptions. The selecting
@@ -151,6 +151,7 @@ pub fn collect_executed_provider_selections(
     }
     let requests = executed
         .iter()
+        .filter(|row| row.operation == language_semantics::declaration_selection::BuildOperation::ProviderSelection)
         .map(|row| {
             let handle = row.expression;
             let request = match typed.expression_table.expression(handle) {

@@ -119,6 +119,11 @@ pub(super) fn admitted_build_declaration_call(
     };
     let (intrinsic, static_count, value_count) =
         match BuildOperation::from_call_target(call.target.as_str()) {
+            Some(BuildOperation::AssumedBindingContract) => (
+                AuthoredDeclarationSelectionIntrinsic::BuildAssumedBindingContract,
+                2..=2,
+                1..=1,
+            ),
             Some(BuildOperation::ProviderSelection) => (
                 AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection,
                 2..=2,

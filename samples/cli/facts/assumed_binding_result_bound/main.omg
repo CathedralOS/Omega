@@ -1,0 +1,11 @@
+// Expected exit: 0. Explicit root-assumed result bound <=1 indexes length2.
+boundary trait Required { machine get() -> u32 ensures result <= 1; }
+boundary trait Supplied { machine get() -> u32; }
+Actual satisfies Supplied { machine get() -> u32 { 1 } }
+machine main() reaches Required crashes Trap {
+    let values: [u32; 2] = [7, 11];
+    let observed: u32 = values[Required::get()];
+    transition observed == 11 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

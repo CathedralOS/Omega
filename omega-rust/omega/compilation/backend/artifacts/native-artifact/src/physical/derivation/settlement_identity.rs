@@ -242,6 +242,7 @@ pub(crate) fn installed_provider_internal_call_identity(
     provider_identity: &str,
     candidate_identity: &str,
     call: &BoundaryInternalCallCustody,
+    assumption_closure: Option<[u8; 32]>,
 ) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
         b"omega.d41-boundary-trait-settlement.sha256.v6\0",
@@ -256,6 +257,10 @@ pub(crate) fn installed_provider_internal_call_identity(
     hash_bytes(&mut digest, provider_identity.as_bytes());
     hash_bytes(&mut digest, candidate_identity.as_bytes());
     hash_internal_call_custody(&mut digest, call);
+    if let Some(closure) = assumption_closure {
+        digest.raw(b"assumed-binding-closure\0");
+        digest.raw(&closure);
+    }
     digest.finish()
 }
 

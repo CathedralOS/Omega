@@ -77,8 +77,15 @@ evidence_digest!(
 /// name order, so later provider execution and generated-machine lowering do
 /// not have to rediscover selection from source declarations.
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssumedBindingContractSelection {
+    pub required: String,
+    pub supplied: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProviderPlanFacts {
     plans: Vec<ProviderPlan>,
+    assumed_bindings: Vec<AssumedBindingContractSelection>,
     /// Compact report coordinate. Authority retains `plans` and is exposed by
     /// `identity_digest()`.
     report_fingerprint: u64,
@@ -105,6 +112,7 @@ impl Default for SelectedProviderPlanFacts {
     fn default() -> Self {
         Self {
             plans: Vec::new(),
+            assumed_bindings: Vec::new(),
             report_fingerprint: selected_plans_report_fingerprint(&[]),
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
@@ -119,6 +127,65 @@ impl Default for SelectedProviderPlanFacts {
 }
 
 impl SelectedProviderPlanFacts {
+    /// Root-selected conditional relationships stay beside ordinary plans.
+    /// They never become checked conformance rows or direct-supplier guarantees.
+    pub fn with_assumed_bindings(mut self, rows: Vec<AssumedBindingContractSelection>) -> Self {
+        self.assumed_bindings = rows;
+        self
+    }
+
+    pub fn assumed_supplier_identity<'a>(
+        &'a self,
+        requirement: &'a str,
+    ) -> Result<&'a str, String> {
+        let mut current = requirement;
+        for _ in 0..=self.assumed_bindings.len() {
+            if let Some(row) = self
+                .assumed_bindings
+                .iter()
+                .find(|row| row.required == current)
+            {
+                current = &row.supplied;
+            } else {
+                return Ok(current);
+            }
+        }
+        Err("cyclic assumed binding supply".to_owned())
+    }
+
+    pub fn assumed_bindings(&self) -> &[AssumedBindingContractSelection] {
+        &self.assumed_bindings
+    }
+
+    pub fn assumed_binding_coordinates(
+        &self,
+        module: &terminal_psi::TerminalModule,
+    ) -> Result<
+        Vec<(
+            semantic_vocabulary::BoundaryMachineId,
+            semantic_vocabulary::BoundaryMachineId,
+        )>,
+        String,
+    > {
+        let find = |identity: &str| {
+            let mut rows = module
+                .boundary_machines
+                .iter()
+                .filter(|row| module.identities.text(row.identity) == Some(identity));
+            let row = rows
+                .next()
+                .ok_or("assumed binding requirement absent from canonical artifact")?;
+            if rows.next().is_some() {
+                return Err("assumed binding requirement is ambiguous");
+            }
+            Ok(row.id)
+        };
+        self.assumed_bindings
+            .iter()
+            .map(|row| Ok((find(&row.required)?, find(&row.supplied)?)))
+            .collect()
+    }
+
     /// Retain already-resolved provider plans without rejoining them through a
     /// readable plan name. Authored selection paths belong before this
     /// boundary; every plan here already carries its package-qualified slot,
@@ -179,6 +246,7 @@ impl SelectedProviderPlanFacts {
         }
         Ok(Self {
             plans,
+            assumed_bindings: Vec::new(),
             report_fingerprint,
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
@@ -365,6 +433,11 @@ impl SelectedProviderPlanFacts {
         encoder.len(self.plans.len());
         for plan in &self.plans {
             encoder.bytes(plan.identity_digest().as_bytes());
+        }
+        encoder.len(self.assumed_bindings.len());
+        for row in &self.assumed_bindings {
+            encoder.string(&row.required);
+            encoder.string(&row.supplied);
         }
         encoder.execution_scope(self.execution_scope);
 

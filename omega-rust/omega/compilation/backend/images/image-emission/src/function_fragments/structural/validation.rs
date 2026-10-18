@@ -160,17 +160,20 @@ pub(in crate::function_fragments) fn validate_function(
                 InternalUnitCallSource::InstalledProvider {
                     boundary,
                     provider,
+                    assumption,
                     completion_claim_sources,
                     completion_receipts,
                 },
                 NativeCallOrigin::InstalledProvider {
                     boundary: wanted_boundary,
                     provider: wanted_provider,
+                    assumption: wanted_assumption,
                     completion_claim_sources: wanted_sources,
                     completion_receipts: wanted_receipts,
                 },
             ) if boundary == wanted_boundary
                 && provider.as_ref() == wanted_provider
+                && assumption == wanted_assumption
                 && completion_claim_sources == wanted_sources
                 && completion_receipts == wanted_receipts => {}
             _ => return Err(invalid()),

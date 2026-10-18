@@ -243,7 +243,7 @@ pub(crate) struct Evaluator<'program> {
     /// Executed `exclude_crash`/`exclude_service` selections on the root
     /// Build, in evaluation order.
     pub(super) executed_behavior_exclusions: Vec<crate::ExecutedBehaviorExclusion>,
-    pub(super) executed_provider_selections: Vec<crate::ExecutedProviderSelection>,
+    pub(super) executed_build_selections: Vec<crate::ExecutedBuildSelection>,
     pub(super) executed_wire_demands: Vec<typed_trees::expression::ExpressionHandle>,
     /// Compiler-issued product-entry descriptions handed to evaluated code as
     /// opaque `ProductEntryRef` markers. The marker value indexes this table;

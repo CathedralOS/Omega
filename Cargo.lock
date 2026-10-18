@@ -2155,6 +2155,7 @@ dependencies = [
  "abstract-operations",
  "calling-conventions",
  "function-identity",
+ "installation-evidence",
  "semantic-vocabulary",
  "target",
  "task-plans",

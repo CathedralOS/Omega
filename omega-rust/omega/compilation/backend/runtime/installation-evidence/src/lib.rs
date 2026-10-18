@@ -53,11 +53,35 @@ pub struct InstalledProviderCompletionClaimSource {
 /// Read-only projection of one boundary occurrence admitted as a call to an
 /// exact checked provider machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledAssumedBindingEvidence {
+    pub required: semantic_vocabulary::BoundaryMachineId,
+    pub supplied_requirement: semantic_vocabulary::BoundaryMachineId,
+    pub implementation: semantic_vocabulary::MachineId,
+    pub selected_requirement: semantic_vocabulary::BoundaryMachineId,
+    pub supply_path: Vec<semantic_vocabulary::BoundaryMachineId>,
+}
+
+impl InstalledAssumedBindingEvidence {
+    /// Correspondence only. Root authorization and compatibility are admitted
+    /// before projection; retaining this value cannot create either authority.
+    pub fn matches(
+        &self,
+        required: semantic_vocabulary::BoundaryMachineId,
+        provider: &terminal_psi::ProviderCandidateConformance,
+    ) -> bool {
+        self.required == required
+            && self.implementation == provider.candidate
+            && self.selected_requirement == provider.boundary
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledProviderCallEvidence {
     pub caller: semantic_vocabulary::MachineId,
     pub psi_operation: semantic_vocabulary::OperationId,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub provider: terminal_psi::ProviderCandidateConformance,
+    pub assumption: Option<InstalledAssumedBindingEvidence>,
     /// Exact caller-local result established by successful provider completion.
     pub result: terminal_psi::OperationResult,
     /// Ordered scalar values supplied by the exact admitted call occurrence.

@@ -217,10 +217,25 @@ pub(super) fn encode_call_source(
         NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
+            assumption,
             completion_claim_sources,
             completion_receipts,
         } => {
-            bytes.push(2);
+            bytes.push(if assumption.is_some() { 4 } else { 2 });
+            if let Some(row) = assumption {
+                for id in [
+                    row.required.get(),
+                    row.supplied_requirement.get(),
+                    row.selected_requirement.get(),
+                    row.implementation.get(),
+                ] {
+                    bytes.extend_from_slice(&id.to_le_bytes());
+                }
+                length(bytes, row.supply_path.len());
+                for id in &row.supply_path {
+                    bytes.extend_from_slice(&id.get().to_le_bytes());
+                }
+            }
             crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
             provider::encode(bytes, provider, retain_projected_qualifications);
             length(bytes, completion_claim_sources.len());
@@ -255,7 +270,20 @@ pub(super) fn decode_call_source(
                 completion_receipts,
             })
         }
-        2 => {
+        tag @ (2 | 4) => {
+            let assumption = if tag == 4 {
+                Some(target_operations::InstalledAssumedBindingEvidence {
+                    required: decode_id(cursor, BoundaryMachineId::new)?,
+                    supplied_requirement: decode_id(cursor, BoundaryMachineId::new)?,
+                    selected_requirement: decode_id(cursor, BoundaryMachineId::new)?,
+                    implementation: decode_id(cursor, MachineId::new)?,
+                    supply_path: decode_list(cursor, |cursor| {
+                        decode_id(cursor, BoundaryMachineId::new)
+                    })?,
+                })
+            } else {
+                None
+            };
             let boundary = decode_id(cursor, BoundaryMachineId::new)?;
             let provider = provider::decode(cursor, retain_projected_qualifications)?;
             let source_count = cursor.length()?;
@@ -268,6 +296,7 @@ pub(super) fn decode_call_source(
             Ok(NativeCallOrigin::InstalledProvider {
                 boundary,
                 provider,
+                assumption,
                 completion_claim_sources,
                 completion_receipts,
             })
