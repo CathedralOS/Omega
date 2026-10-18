@@ -1122,6 +1122,12 @@ fail/core/scoped_integer_call_guarantees_cannot_form_cycle rejected 1540ms expec
 fail/core/scoped_integer_call_inherited_trait_operator_requires_formation rejected 2120ms expected @a9ae30e1c334+wt
 fail/core/scoped_integer_call_primitive_operator_requires_formation rejected 1951ms expected @a9ae30e1c334+wt
 fail/core/scoped_integer_call_wrapping_actual_requires_formation rejected 2009ms expected @a9ae30e1c334+wt
+fail/core/terminal_call_guard_evaluation_not_selected rejected 633ms expected @45cbafd80d9c+wt
+	call from `choose` to `risky` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/core/terminal_call_wrong_selected_crash_guard rejected 633ms expected @45cbafd80d9c+wt
+	call from `choose` to `stop` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/core/terminal_private_call_crash_ceiling rejected 637ms expected @45cbafd80d9c+wt
+	call from `main` to `relay` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/core/translation_unmap_before_activation rejected 887ms expected @a9ae30e1c334+wt
 fail/data/bare_payload_case_equality_suggests_in rejected 43ms expected @a9ae30e1c334+wt
 fail/data/boundary_data_construction_rejected rejected 871ms expected @a9ae30e1c334+wt
@@ -2774,6 +2780,8 @@ fail/ownership/linear_mixed_common_payload_duplicate_operand rejected 1170ms exp
 fail/ownership/linear_qualified_field_observation_after_transfer rejected 1257ms expected @a9ae30e1c334+wt
 fail/ownership/linear_qualified_result_requires_membership rejected 921ms expected @acf418e4dcb4+wt
 fail/ownership/linear_replaced_field_second_use rejected 1247ms expected @a9ae30e1c334+wt
+fail/ownership/linear_result_crash_ceiling_uncovered rejected 1729ms expected @45cbafd80d9c+wt
+	call from `choose` to `stop` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/ownership/linear_result_member_argument_scope_loss rejected 1603ms expected @a9ae30e1c334+wt
 fail/ownership/linear_result_member_argument_second_use rejected 1188ms expected @a9ae30e1c334+wt
 fail/ownership/linear_scope_loss rejected 1599ms expected @a9ae30e1c334+wt
@@ -7950,6 +7958,8 @@ run/layouts/placed_ram_capture_return checked 60512ms check-target:macos_arm64 @
 run/layouts/placed_ram_stored_field_return checked 92970ms check-target:macos_arm64 @c48489ea6ad6
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/ownership/declared_record_selected_exit_disposal checked 11660ms check-target:macos_arm64 @93ba1f664f65+wt
+run/ownership/linear_result_crash_ceiling checked 3661ms check-target:macos_arm64 @45cbafd80d9c+wt
+run/ownership/linear_result_guarded_terminal_call checked 3661ms check-target:macos_arm64 @45cbafd80d9c+wt
 run/ownership/owned_parameter_member_moves_exit checked 9269ms check-target:macos_arm64 @4a0ccff8236e+wt
 run/ownership/owned_parameter_narrow_member_moves_exit checked 9238ms check-target:macos_arm64 @e47dcb1ff6d8+wt
 run/ownership/sequence_owned_local_cleanup checked 6945ms check-target:macos_arm64 @8e4a9b2fb97a

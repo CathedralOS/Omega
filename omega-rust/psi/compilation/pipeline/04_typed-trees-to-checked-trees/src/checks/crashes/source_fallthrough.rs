@@ -1,4 +1,4 @@
-//! Stable source-site consequences of earlier, unselected transition arms.
+//! Stable source-site consequences of selected and earlier unselected arms.
 //!
 //! A guard an unselected arm leaves behind is a fact about the values its
 //! reads held at that statement. A leaf still speaks for an invocation-entry
@@ -21,6 +21,56 @@ use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode}
 pub(super) struct SiteFallthrough {
     pub location: CrashSiteLocation,
     pub guards: Vec<(ExpressionHandle, bool)>,
+}
+
+/// A call in a selected target (including its argument evaluation) observes
+/// that edge's guard. Calls evaluating the guard itself do not. Resolve the
+/// occurrence with the shared call traversal, then retain only entry-stable
+/// consequences captured where the guard was evaluated.
+pub(super) fn selected_call_guards(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    location: checked_trees::CrashCallSiteLocation,
+    parameter_names: &[String],
+    content_conservation: &[validation::ContentConservationSourcePlan],
+) -> Vec<(ExpressionHandle, bool)> {
+    let mut guards = Vec::new();
+    let Some(state) = program.state_in_machine(machine, location.state()) else {
+        return guards;
+    };
+    let ordinal = location.statement_ordinal() as usize;
+    let Some(transition) = program
+        .statement_table
+        .statement_at(state, ordinal)
+        .and_then(|statement| statement.as_transition())
+    else {
+        return guards;
+    };
+    let TransitionGuardNode::When(guard) = transition.guard else {
+        return guards;
+    };
+    let Some(target) = validation::transition_call_target(
+        program,
+        machine,
+        state,
+        ordinal,
+        location.call_ordinal() as usize,
+    )
+    .filter(|target| target.is_valid()) else {
+        return guards;
+    };
+    collect_stable_consequences(
+        program,
+        machine.symbol,
+        state.symbol,
+        ordinal,
+        guard,
+        target != transition.target,
+        parameter_names,
+        content_conservation,
+        &mut guards,
+    );
+    guards
 }
 
 pub(super) fn collect(

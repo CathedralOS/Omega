@@ -67,11 +67,15 @@ pub(super) fn result_plan(
         &crate::execution::terminal_unit::types::machine_binders(program, machine),
     )?;
     // Parameter qualifications are transported exactly. Additional authored
-    // contracts on a linear result still need their own retained proof
-    // obligations.
+    // value contracts on a linear result need their own retained proof
+    // obligations. A crash ceiling constrains effects, not the returned
+    // value; its checked crash edges use the same graph for every carrier.
     (!(matches!(&result, checked_trees::CheckedControlResultPlan::Structural(result)
         if result.multiplicity == Multiplicity::Linear)
-        && !program.machine_contracts(machine).is_empty()))
+        && program
+            .machine_contracts(machine)
+            .iter()
+            .any(|contract| !contract.is_crashes())))
     .then_some(result)
 }
 

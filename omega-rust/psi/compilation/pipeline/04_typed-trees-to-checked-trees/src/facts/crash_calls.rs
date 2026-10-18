@@ -362,10 +362,9 @@ pub(super) fn attach_checked_crash_calls(
                     capsule.target_contract_commitment(),
                 )
             };
-            if matches!(call_site, validation::CallSite::TransitionNamed { .. }) {
-                // A named transition moves dispatch state inside the fused
-                // graph; it is not an invocation of a machine's public crash
-                // ceiling, so it keeps no refinement row here.
+            if call_site.is_internal_state_transfer(program, state_flow.machine_symbol) {
+                // Only local state arrivals stay inside this invocation.
+                // Terminal machine calls retain ordinary crash obligations.
                 continue;
             }
             let arguments = validation::call_site_argument_expressions(program, &call_site);

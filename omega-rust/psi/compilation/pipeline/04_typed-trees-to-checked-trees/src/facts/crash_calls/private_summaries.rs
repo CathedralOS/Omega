@@ -93,7 +93,7 @@ fn unviable_member_dependency(
             return None;
         }
         let member_name = program.symbols.display_path(*member, "::");
-        let sites = match machine_non_transition_invocation_sites(program, operators, flow, plan) {
+        let sites = match machine_invocation_sites(program, operators, flow, plan) {
             Ok(sites) => sites,
             Err(reason) => return Some(format!("retained member `{member_name}` {reason}")),
         };
@@ -152,10 +152,7 @@ fn prepare_summary_nodes(
                     inferred_direct_body_crash_buckets(target)
                 },
                 family_members,
-                invocations: machine_non_transition_invocation_sites(
-                    program, operators, flow, target,
-                )
-                .ok()?,
+                invocations: machine_invocation_sites(program, operators, flow, target).ok()?,
             })
         })
         .collect::<Vec<_>>();
@@ -461,7 +458,7 @@ pub(crate) fn solve_private_summary_fixed_point(
 }
 
 /// Every machine edge of one body, or why one call cannot become an edge.
-fn machine_non_transition_invocation_sites(
+fn machine_invocation_sites(
     program: &dyn ::validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     flow: &checked_trees::FlowFacts,
@@ -483,7 +480,7 @@ fn machine_non_transition_invocation_sites(
                     call.statement_index, call.call_ordinal
                 )
             })?;
-            if matches!(site, validation::CallSite::TransitionNamed { .. }) {
+            if site.is_internal_state_transfer(program, state.machine_symbol) {
                 continue;
             }
             // A checked register transfer is a compiler-owned instruction,

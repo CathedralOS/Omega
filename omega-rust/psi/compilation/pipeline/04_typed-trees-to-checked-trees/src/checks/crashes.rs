@@ -278,18 +278,35 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             .iter()
             .map(|call| {
                 let classification = &state_classifications[&call.location().state()];
-                // A call inside a statement holds the same unselected-arm
-                // facts a crash exit there does: each leaf's entry provenance
-                // was already resolved where the guard ran.
+                // Calls inherit earlier unselected-arm facts and their own
+                // selected target's guard, but never assume a guard while
+                // evaluating it. Each leaf must retain entry provenance.
                 let fallthrough = source_fallthrough.iter().find(|fallthrough| {
                     fallthrough.location.state() == call.location().state()
                         && fallthrough.location.statement_ordinal()
                             == call.location().statement_ordinal()
                 });
+                let mut guards = fallthrough
+                    .map(|site| site.guards.clone())
+                    .unwrap_or_default();
+                guards.extend(source_fallthrough::selected_call_guards(
+                    program,
+                    machine,
+                    call.location(),
+                    &parameter_names,
+                    &content_conservation,
+                ));
+                let call_path = source_fallthrough::SiteFallthrough {
+                    location: checked_trees::CrashSiteLocation::new(
+                        call.location().state(),
+                        call.location().statement_ordinal(),
+                    ),
+                    guards,
+                };
                 let (path_guard_conjuncts, path_guard_consequences) = site_path_classification(
                     program,
                     classification,
-                    fallthrough,
+                    Some(&call_path),
                     &entry_requirements,
                     &parameter_names,
                     &content_conservation,

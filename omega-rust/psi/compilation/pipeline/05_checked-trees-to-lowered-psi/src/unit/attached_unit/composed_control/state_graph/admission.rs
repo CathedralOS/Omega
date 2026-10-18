@@ -61,9 +61,13 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     }
     // Whole linear transport retains declaration qualifications and claim
     // conservation, not an arbitrary authored machine precondition package.
+    // A crash ceiling is an operational effect contract, not a value predicate.
     if matches!(&plan.result, checked_trees::CheckedControlResultPlan::Structural(result)
         if result.multiplicity == Multiplicity::Linear)
-        && !checked.machine_contracts(machine).is_empty()
+        && checked
+            .machine_contracts(machine)
+            .iter()
+            .any(|contract| !contract.is_crashes())
     {
         return unsupported("linear structural graph has unrepresented authored machine contracts");
     }
