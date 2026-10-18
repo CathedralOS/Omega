@@ -10,9 +10,9 @@ ensures result >= 0.0 && result <= 0.25
 { reading.value }
 machine probe(reading: Reading) -> f64 { admit(source(reading)) }
 machine main() crashes Trap {
-    let reading: Reading = Reading { value: 0.25 };
-    let observed: f64 = probe(reading);
-    transition observed == 0.25 { true -> done() _ -> bad() }
+    let low: Reading = Reading { value: 0.125 };
+    let high: Reading = Reading { value: 0.25 };
+    transition probe(low) == 0.125 && probe(high) == 0.25 { true -> done() _ -> bad() }
     state done() { }
     state bad() { crash Trap; }
 }

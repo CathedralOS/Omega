@@ -2,8 +2,7 @@
 
 The same-format inclusive f64 fact `0.0 <= value && value <= 0.25`
 proves the wider requirement `0.0 <= value && value <= 0.5` at `admit(value)`.
-No conversion is inserted. The original root bracket-syntax check probe is
-preserved as historical coverage; the nine current witnesses use canonical
+No conversion is inserted. The root witness and nine place witnesses use canonical
 `where`, `requires`, `ensures`, and established flow facts.
 
 | Place | Positive | Fact-sensitive reject twin |
@@ -18,8 +17,9 @@ preserved as historical coverage; the nine current witnesses use canonical
 | other_machine | `other_machine/main.omg` | `other_machine/invalid/main.omg` |
 | target_body | `target_body/main.omg` | `target_body/invalid/main.omg` |
 
-Every positive has an authored native exit oracle of zero and exercises the
-inclusive upper endpoint 0.25. The match also exercises its other arm at 0.125.
+Every positive has an authored native exit oracle of zero and exercises both
+an interior payload 0.125 and the inclusive upper endpoint 0.25. The match also
+exercises its arms across both values.
 Every twin removes only the narrow upper premise and must reject at the same
 `admit` operation; target_body checks all four authored target bodies.
 The const-name witness names the scalar endpoints: floats and records containing

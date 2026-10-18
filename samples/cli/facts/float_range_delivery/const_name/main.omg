@@ -10,8 +10,9 @@ machine probe(value: f64) -> f64
 requires value >= LOWER && value <= NARROW_UPPER
 { admit(value) }
 machine main() crashes Trap {
-    let observed: f64 = probe(0.25);
-    transition observed == 0.25 { true -> done() _ -> bad() }
+    let low: f64 = 0.125;
+    let high: f64 = 0.25;
+    transition probe(low) == 0.125 && probe(high) == 0.25 { true -> done() _ -> bad() }
     state done() { }
     state bad() { crash Trap; }
 }
