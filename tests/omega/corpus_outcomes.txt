@@ -3690,6 +3690,24 @@ fail/facts/remainder_width_through_target_body_rejected rejected 3256ms expected
 	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
 	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
 	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
+fail/facts/reference_arrival_handoff_through_call_result_held_source rejected 3345ms expected @3424ad143d6e
+	statement 3 mutates `original` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/reference_arrival_handoff_through_const_name_held_source rejected 3207ms expected @3424ad143d6e
+	statement 3 mutates `original` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/reference_arrival_handoff_through_field_held_source rejected 2657ms expected @3424ad143d6e
+	statement 3 mutates `original` while local borrow `holder` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/reference_arrival_handoff_through_local_held_source rejected 2572ms expected @3424ad143d6e
+	statement 3 mutates `original` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/reference_arrival_handoff_through_match_join_held_source rejected 2529ms expected @3424ad143d6e
+	statement 4 mutates `backing` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/reference_arrival_handoff_through_other_machine_held_source rejected 2460ms expected @3424ad143d6e
+	state `forward` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/reference_arrival_handoff_through_other_state_held_source rejected 2517ms expected @3424ad143d6e
+	state `write` receives `original` while local borrow `held` is still active
+fail/facts/reference_arrival_handoff_through_parameter_held_source rejected 2539ms expected @3424ad143d6e
+	state `write` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/reference_arrival_handoff_through_target_body_held_source rejected 2479ms expected @3424ad143d6e
+	state `write` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/facts/returned_write_destination_through_call_result_read rejected 2165ms expected @2ef2ab353498+wt
 	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_const_name_read rejected 2281ms expected @2ef2ab353498+wt
@@ -8794,6 +8812,15 @@ pass/facts/remainder_width_through_other_machine_exit checked 7462ms check-targe
 pass/facts/remainder_width_through_other_state_exit checked 7481ms check-target:macos_arm64 @d070d134851d+wt
 pass/facts/remainder_width_through_parameter_exit checked 7460ms check-target:macos_arm64 @d070d134851d+wt
 pass/facts/remainder_width_through_target_body_exit checked 7459ms check-target:macos_arm64 @d070d134851d+wt
+pass/facts/reference_arrival_handoff_through_call_result_exit checked 6956ms check-target:macos_arm64 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_const_name_exit checked 7151ms check-target:macos_arm64 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_field_exit checked 6893ms check-target:macos_arm64 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_local_exit checked 7357ms check-target:macos_arm64 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_match_join_exit checked 7034ms check-target:macos_arm64 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_other_machine_exit checked 7091ms check-target:macos_arm64 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_other_state_exit checked 6889ms check-target:macos_arm64 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_parameter_exit checked 7005ms check-target:macos_arm64 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_target_body_exit checked 6910ms check-target:macos_arm64 @3424ad143d6e
 pass/facts/returned_write_destination_through_call_result_exit checked 6783ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_const_name_exit checked 6674ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_field_exit checked 7303ms check-target:macos_arm64 @2ef2ab353498+wt

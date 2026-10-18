@@ -1,0 +1,1 @@
+state `write` receives `original` while local borrow `held` is still active

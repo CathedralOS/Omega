@@ -1,0 +1,17 @@
+// An exclusive reference moves into another binding. Writing through the receiving binding changes the original backing; the following read must see 41.
+// Place: call result.
+// Expected exit: 0.
+machine hand<'owner>(source: &'owner mut i64) -> &'owner mut i64 { source }
+machine main() crashes Trap {
+    let mut backing: i64 = 17;
+    let original: &mut i64 = &mut backing;
+    let child: &mut i64 = hand(original);
+    child = 41;
+    let observed: i64 = child;
+    transition observed == 41 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

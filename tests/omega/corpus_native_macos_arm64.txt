@@ -1288,6 +1288,15 @@ pass/facts/runtime_count_index_through_other_machine_exit built 15058ms exit:0 @
 pass/facts/runtime_count_index_through_other_state_exit built 15268ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_parameter_exit built 15311ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_target_body_exit built 15184ms exit:0 @ce5f8c9f2f5f
+pass/facts/reference_arrival_handoff_through_call_result_exit built 6303ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_const_name_exit built 6516ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_field_exit built 6491ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_local_exit built 6491ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_match_join_exit built 6407ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_other_machine_exit built 6277ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_other_state_exit built 6315ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_parameter_exit built 6349ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_target_body_exit built 6344ms exit:0 @3424ad143d6e
 pass/filesystem/cross_linux_value_syscalls checked 24317ms @e01f73c689de+wt
 pass/filesystem/dir_walk_wrappers_exit built 18777ms exit:70 @cc43b6679d2a+wt
 pass/filesystem/native_canonicalize built 18026ms exit:0 stdout:match @cc43b6679d2a+wt

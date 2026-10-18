@@ -513,6 +513,15 @@ pass/facts/bound_through_other_machine_exit built 3834ms exit:0 interpreter-exit
 pass/facts/bound_through_other_state_exit built 3824ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/bound_through_parameter_exit built 3868ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/bound_through_target_body_exit built 3875ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
+pass/facts/reference_arrival_handoff_through_call_result_exit built 6175ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_const_name_exit built 6175ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_field_exit built 6322ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_local_exit built 6200ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_match_join_exit built 6260ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_other_machine_exit built 6250ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_other_state_exit built 6260ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_parameter_exit built 6299ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_target_body_exit built 6167ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
 pass/float/admitted_float_conversion_crash built 5538ms exit:signal signal:5 stdout:match interpreter:trapped interpreter-stdout:match @bbd81a11e6f3+wt
 pass/float/admitted_float_lower_boundary_crash built 5631ms exit:signal signal:5 stdout:match interpreter:trapped interpreter-stdout:match @bbd81a11e6f3+wt
 pass/float/admitted_numeric_imports_preserve_semantics built 8261ms exit:70 interpreter-exit:70 interpreter:agrees @bbd81a11e6f3+wt
