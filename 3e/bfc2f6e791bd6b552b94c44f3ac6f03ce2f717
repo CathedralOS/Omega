@@ -1,0 +1,4 @@
+owner: Antigravity / model=gemini-3.8-flash, reasoning_effort=medium / abi_multi_arg_spill
+provenance: model=gemini-3.8-flash reasoning_effort=medium reviewer=gemini-4-argon-medium
+ticket: 2276ac4a7efc4819b05ee184e99692d7
+published_utc: 2026-10-18T21:15:42.268512+00:00
