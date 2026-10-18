@@ -162,9 +162,17 @@ pub(in crate::legalization) fn argument_at(
         return Ok(argument);
     }
     // Whole borrowed descriptors have one source/placement join regardless of
-    // whether the caller lends shared or exclusive access. Referent projections
-    // continue through their storage-geometry owner below.
+    // whether the caller lends shared or exclusive access. Only unchanged
+    // descriptor presentations belong here: array backing needs the ordinary
+    // projection route below to reconstruct its pointer and exact extent.
     if semantic.path.is_empty()
+        && root_type.is_some_and(|root| {
+            terminal_semantics::borrowed_referent_presentation(
+                plan.structural_types.iter(),
+                root,
+                destination_parameter.structural_type,
+            ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
+        })
         && plan.structural_types.iter().any(|declaration| {
             declaration.id == destination_parameter.structural_type
                 && (declaration.shape.is_borrowed_byte_carrier()

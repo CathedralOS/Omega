@@ -9971,6 +9971,7 @@ pass/providers/runtime_boundary_linear_result_exit checked 9075ms check-target:m
 pass/providers/runtime_boundary_owned_array_cycle_exit checked 11933ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 11479ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_qualified_state_exit checked 3879ms check-target:macos_arm64 @d75fe4ba5012+wt
+pass/providers/runtime_closed_provider_and_assumed_chain_exit checked 3774ms check-target:macos_arm64 @8bcf9d86d52e
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 9447ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit checked 16098ms check-target:macos_arm64 @7e6c0ae564d2+wt
 pass/providers/runtime_generic_boundary_relay_exit checked 7246ms check-target:linux_x86_64 @ff34e63b5705+wt

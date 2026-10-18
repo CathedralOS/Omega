@@ -283,15 +283,20 @@ pub(crate) fn derive_boundary_internal_call_child(
         let [conformance] = conformances.as_slice() else {
             return Err("installed provider internal call cannot rejoin one provider conformance");
         };
-        // The retained conformance spells either the occurrence's authored
-        // requirement or its selected authority: an assumed binding records
-        // the supplied requirement, while a closed specialization keeps the
-        // closed identity the occurrence already carries.
-        let conformance_requirement = module.identities.text(conformance.requirement_identity);
-        if conformance_requirement != Some(requirement_identity)
-            && conformance_requirement
-                != Some(plan.selected_requirement_identity(requirement_identity))
-        {
+        // The call retains a closed requirement, while the plan's selected
+        // row can name its generic template. Rejoin the actual supplied
+        // boundary here; an assumed crossing has already authenticated its
+        // distinct required/supplied relationship above.
+        let supplied_requirement = if let Some(assumption) = assumption {
+            module
+                .boundary_machine(assumption.selected_requirement)
+                .and_then(|row| module.identities.text(row.identity))
+                .filter(|identity| !identity.is_empty())
+                .ok_or("installed provider internal call lost its supplied requirement")?
+        } else {
+            requirement_identity
+        };
+        if module.identities.text(conformance.requirement_identity) != Some(supplied_requirement) {
             return Err("installed provider internal call changed its requirement");
         }
         InternalCallSelection::Provider { conformance, plan }

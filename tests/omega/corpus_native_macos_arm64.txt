@@ -1279,6 +1279,15 @@ pass/expressions/runtime_widened_comparison_exit built 853ms exit:70
 pass/expressions/scalar_match_boundary_composition_exit built 1964ms exit:70 @de036fe72b0b
 pass/expressions/seq_consuming_combinators checked 9993ms @fcc053dc7014+wt
 pass/expressions/unit_case_return_call_product built 17056ms exit:70 @589aedee8ebc+wt
+pass/facts/as_slice_views_through_call_result_exit built 4038ms exit:0 @8bcf9d86d52e
+pass/facts/as_slice_views_through_const_name_exit built 4121ms exit:0 @8bcf9d86d52e
+pass/facts/as_slice_views_through_field_exit built 3872ms exit:0 @8bcf9d86d52e
+pass/facts/as_slice_views_through_local_exit built 3870ms exit:0 @8bcf9d86d52e
+pass/facts/as_slice_views_through_match_join_exit built 3876ms exit:0 @8bcf9d86d52e
+pass/facts/as_slice_views_through_other_machine_exit built 3878ms exit:0 @8bcf9d86d52e
+pass/facts/as_slice_views_through_other_state_exit built 3878ms exit:0 @8bcf9d86d52e
+pass/facts/as_slice_views_through_parameter_exit built 3874ms exit:0 @8bcf9d86d52e
+pass/facts/as_slice_views_through_target_body_exit built 4360ms exit:0 @8bcf9d86d52e
 pass/facts/runtime_count_index_through_call_result_exit built 15058ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_const_name_exit built 15315ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_field_exit built 15148ms exit:0 @ce5f8c9f2f5f
@@ -1949,6 +1958,7 @@ pass/providers/runtime_boundary_linear_borrowed_argument_exit built 4951ms exit:
 pass/providers/runtime_boundary_linear_result_exit built 4902ms exit:70 @20ad71d6e3a6+wt
 pass/providers/runtime_boundary_owned_array_cycle_exit built 1029ms exit:70 @cba4afbf6f2f+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit built 901ms exit:70
+pass/providers/runtime_closed_provider_and_assumed_chain_exit built 6823ms exit:0 @8bcf9d86d52e
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit built 15681ms exit:70 @7e6c0ae564d2+wt
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit built 15074ms exit:70 @7e6c0ae564d2+wt
 pass/providers/runtime_linear_provider_results_exit built 12448ms exit:0 @83314997c2b2
