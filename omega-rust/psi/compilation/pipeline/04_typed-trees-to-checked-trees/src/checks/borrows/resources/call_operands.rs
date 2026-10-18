@@ -348,6 +348,50 @@ fn retained_places(
             );
         }
         if !crossed {
+            // Current loan rows above own every replacement of a stored
+            // descriptor. An otherwise unchanged incoming carrier already has
+            // opaque reference permissions from its parameter contract; join
+            // those exact identities instead of treating its fields as local
+            // descriptors with missing provenance. This retains lifetime only:
+            // the invocation's captured access and geometry remain unchanged.
+            for (incoming_reference, incoming) in facts.borrow.incoming_references.iter() {
+                if incoming.machine_symbol != state.machine_symbol
+                    || incoming.state_symbol != state.state_symbol
+                {
+                    continue;
+                }
+                let checked_trees::IncomingReferenceOrigin::Parameter { symbol } = incoming.origin
+                else {
+                    continue;
+                };
+                let root = facts::PlaceRoot::Symbol(symbol);
+                let destinations = crate::borrow::store_destination_places(
+                    program,
+                    typed_state,
+                    place.clone(),
+                    true,
+                    std::iter::once((
+                        root,
+                        facts
+                            .borrow
+                            .owner_segments
+                            .span_or_empty(incoming.owner_path),
+                        incoming_reference,
+                        root,
+                        &[][..],
+                    )),
+                );
+                if destinations.as_slice() != [place.clone()] {
+                    crossed = true;
+                    pending.extend(
+                        destinations
+                            .into_iter()
+                            .map(|place| (place, ancestors.clone())),
+                    );
+                }
+            }
+        }
+        if !crossed {
             if !terminal_storage_is_resolved(program, typed_state, &place)? {
                 return None;
             }
