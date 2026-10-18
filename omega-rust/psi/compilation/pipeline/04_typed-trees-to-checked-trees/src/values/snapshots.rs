@@ -330,3 +330,52 @@ pub(crate) fn prepare_assignment_observations(
         })
         .collect()
 }
+
+/// The immutable owned storage whose retained scalar observation remains valid
+/// throughout a statement. An immutable reference binding freezes its descriptor,
+/// not its referent, so every projection prefix must remain in owned storage.
+/// Range and borrow consumers share this fence before using entry observations:
+/// operand effects cannot then retarget the observed value within the statement.
+pub(crate) fn immutable_owned_place_root(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement: usize,
+    place: &validation::CanonicalPlace,
+) -> Option<symbols::SymbolHandle> {
+    let symbol = place.root.as_symbol()?;
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement)
+        .filter_map(|statement| statement.as_local_data())
+        .find(|local| local.symbol == symbol && !local.is_mutable)?;
+    // Every prefix must stay in owned storage: an immutable descriptor does
+    // not freeze the referent it names. Reuse the type owner's exact projection
+    // walk, preserving generic field substitutions rather than guessing by name.
+    let mut prefix = validation::CanonicalPlace {
+        root: facts::PlaceRoot::Symbol(symbol),
+        segments: Vec::new(),
+    };
+    for segment in place.segments.iter().map(Some).chain(std::iter::once(None)) {
+        let reference =
+            validation::canonical_place_type_reference(program, state.symbol, statement, &prefix)?;
+        let reference = validation::peel_declared_constraints(program, reference);
+        if matches!(
+            program.type_reference_table.type_reference(reference),
+            typed_trees::types::TypeReferenceNode::Reference { .. }
+        ) {
+            return None;
+        }
+        if let Some(segment) = segment {
+            if !matches!(
+                segment,
+                facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+            ) {
+                return None;
+            }
+            prefix.segments.push(*segment);
+        }
+    }
+    Some(symbol)
+}

@@ -79,6 +79,7 @@ pub(crate) fn check_indexed_accesses(
     operators: &checked_trees::CheckedOperatorFacts,
     borrows: &checked_trees::BorrowFacts,
     flow: &checked_trees::FlowFacts,
+    semantic: &::facts::FactPlan,
     expression_intervals: &[validation::ExpressionInterval],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
@@ -101,7 +102,9 @@ pub(crate) fn check_indexed_accesses(
         let calls: Vec<_> = program
             .machine_states(machine)
             .iter()
-            .map(|state| facts::RangeCallContext::new(machine, state, borrows, flow, call_frames))
+            .map(|state| {
+                facts::RangeCallContext::new(machine, state, borrows, flow, semantic, call_frames)
+            })
             .collect();
         let state_argument_facts = collect_state_argument_facts(
             program,

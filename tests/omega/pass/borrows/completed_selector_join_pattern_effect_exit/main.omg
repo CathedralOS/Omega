@@ -1,0 +1,31 @@
+// Expected exit: 0
+// For an exclusive four-element base, split == 2 makes [0,2) and [split,4)
+// disjoint, permitting simultaneous exclusive loans and writes a[0] = 11, b[1] = 41.
+// Both loans remain live through the writes and readback.
+machine changed_pattern(value: &mut u64) -> bool
+requires value == 2
+ensures result == false && value == 3
+{ value = value + 1; false }
+machine exercise(items: &mut [i32], flag: bool) -> bool
+requires items.len == 4
+{
+    let mut source: u64 = 2;
+    let split: u64 = match flag {
+        true -> source,
+        changed_pattern(&mut source) -> 2,
+        _ -> 2,
+    };
+    let a: &mut [i32] = &mut items[0..2];
+    let b: &mut [i32] = &mut items[split..4];
+    a[0] = 11;
+    b[1] = 41;
+    a[0] == 11 && b[1] == 41 && (flag && source == 2 || !flag && source == 3)
+}
+machine main() crashes Trap {
+    let mut entries: [i32; 4] = [10, 20, 30, 40];
+    let written: bool = exercise(&mut entries[..], true) && exercise(&mut entries[..], false);
+    transition written && entries[0] == 11 && entries[1] == 20
+        && entries[2] == 30 && entries[3] == 41 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

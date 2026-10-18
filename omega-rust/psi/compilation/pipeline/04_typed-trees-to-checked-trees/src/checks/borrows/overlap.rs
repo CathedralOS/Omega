@@ -9,7 +9,7 @@ mod indexes;
 mod premises;
 mod segments;
 
-pub(super) use self::premises::append_call_premises;
+pub(super) use self::premises::append_statement_premises;
 pub(super) use self::premises::{StatedOrderingPremise, stated_ordering_premises};
 use self::segments::place_segments_compatibility;
 

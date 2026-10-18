@@ -200,6 +200,7 @@ pub(crate) fn check_checked_facts_recording(
         &facts.operators,
         &facts.borrow,
         &facts.flow,
+        &facts.semantic,
         expression_intervals,
         call_frames.as_ref(),
         incoming_guards,

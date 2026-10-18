@@ -1,0 +1,1 @@
+creates local borrow `b` while local borrow `a` is still active

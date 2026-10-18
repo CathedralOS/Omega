@@ -47,6 +47,7 @@ pub(super) enum BorrowCompatibilityPremiseRelation {
 
 mod domains;
 mod propositions;
+mod stored_values;
 
 #[derive(Clone)]
 enum PremiseScope<'program> {
@@ -442,9 +443,10 @@ pub fn stated_ordering_premises<'p>(
     premises
 }
 
-/// Extend entry premises at the exact statement entry. Later calls and
-/// invalidated captures cannot license earlier loan formation or mutation.
-pub(in crate::checks::borrows) fn append_call_premises<'p>(
+/// Extend entry premises with completed immutable values and call guarantees
+/// at the exact statement entry. Later calls and invalidated captures cannot
+/// license earlier loan formation or mutation.
+pub(in crate::checks::borrows) fn append_statement_premises<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     state_flow: &checked_trees::FlowStateFact,
@@ -453,9 +455,6 @@ pub(in crate::checks::borrows) fn append_call_premises<'p>(
     premises: &mut Vec<StatedOrderingPremise>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    let Some(frames) = call_frames else {
-        return;
-    };
     let Some(state) = validation::find_state_in_machine(
         program,
         state_flow.machine_symbol,
@@ -479,6 +478,10 @@ pub(in crate::checks::borrows) fn append_call_premises<'p>(
         .flow
         .semantic_constraint_contexts(statement_flow.entry_constraints)
         .collect();
+    stored_values::append(program, facts, state, statement, &contexts, premises);
+    let Some(frames) = call_frames else {
+        return;
+    };
     for guarantee in call_guarantees::available(
         program,
         facts,

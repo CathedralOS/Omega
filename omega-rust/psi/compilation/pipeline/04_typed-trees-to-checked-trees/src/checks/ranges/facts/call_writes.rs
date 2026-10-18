@@ -16,6 +16,7 @@ pub(in crate::checks::ranges) struct RangeCallContext<'program> {
     flow_calls: &'program [checked_trees::FlowCallFact],
     flow_statements: &'program [checked_trees::FlowStatementFact],
     flow: &'program checked_trees::FlowFacts,
+    semantic: &'program facts::FactPlan,
     call_frames: Option<&'program validation::CallFrameResolver<'program>>,
 }
 
@@ -25,6 +26,7 @@ impl<'program> RangeCallContext<'program> {
         state: &'program State,
         borrows: &'program checked_trees::BorrowFacts,
         flow: &'program checked_trees::FlowFacts,
+        semantic: &'program facts::FactPlan,
         call_frames: Option<&'program validation::CallFrameResolver<'program>>,
     ) -> Self {
         let borrow_calls = crate::flow::borrow_state_fact(borrows, machine.symbol, state.symbol)
@@ -45,8 +47,51 @@ impl<'program> RangeCallContext<'program> {
             flow_calls,
             flow_statements,
             flow,
+            semantic,
             call_frames,
         }
+    }
+
+    /// Completed immutable values do not depend on a source initializer's
+    /// spelling. Their shared observation survives calls, copies and joins;
+    /// mutable contents and reference paths keep the ordinary live range rules.
+    pub(in crate::checks::ranges) fn immutable_integer_value(
+        &self,
+        program: &dyn validation::CheckingInput,
+        statement_index: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<i64> {
+        if !validation::place_has_builtin_coordinates(
+            program,
+            self.machine,
+            Some(self.state),
+            expression,
+        ) {
+            return None;
+        }
+        let place = validation::canonical_place_from_expression_in_state(
+            program,
+            self.state.symbol,
+            statement_index,
+            expression,
+        )?;
+        crate::values::immutable_owned_place_root(program, self.state, statement_index, &place)?;
+        let statement = self
+            .flow_statements
+            .iter()
+            .find(|statement| statement.statement_index == statement_index)?;
+        let facts::ScalarValue::Integer(value) = crate::values::scalar_value_at_place(
+            program,
+            self.semantic,
+            self.flow
+                .semantic_constraint_contexts(statement.entry_constraints)
+                .map(|context| self.semantic.contexts.get(context)),
+            &place,
+        )?
+        else {
+            return None;
+        };
+        value.to_i64()
     }
 
     /// The pass-shared resolver this context already borrows; `None` leaves a

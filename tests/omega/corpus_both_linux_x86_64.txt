@@ -47,6 +47,8 @@ pass/borrow/runtime_signed_element_window_exit built 20907ms exit:0 interpreter-
 pass/borrow/runtime_static_callable_preserves_readonly_subject_exit built 48184ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/borrows/callee_returned_shared_reborrow_chain_exit built 12938ms exit:0 interpreter-exit:0 interpreter:agrees @f474fcca89fe
 pass/borrows/collection_element_loans_exit built 14209ms exit:0 interpreter-exit:0 interpreter:agrees @8a14e9db1e32
+pass/borrows/completed_selector_join_pattern_effect_exit built 12600ms exit:0 interpreter-exit:0 interpreter:agrees @89bb9e0009e9
+pass/borrows/completed_selector_value_composition_exit built 11634ms exit:0 interpreter-exit:0 interpreter:agrees @89bb9e0009e9
 pass/borrows/dynamic_window_return_custody_exit built 49748ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/borrows/fixed_array_reference_results_exit built 12891ms exit:0 interpreter-exit:0 interpreter:agrees @b7c17b88b59d
 pass/borrows/linear_call_result_shared_observation_exit built 12053ms exit:70 interpreter-exit:70 interpreter:agrees @815ea0247677

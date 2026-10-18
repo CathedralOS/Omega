@@ -1,0 +1,12 @@
+// A completed anonymous join must still land in its explicit destination.
+machine exercise(flag: bool) -> u8 {
+    let split: u8 = match flag {
+        true -> 256,
+        false -> 256,
+    };
+    split
+}
+
+machine main() {
+    let result: u8 = exercise(true);
+}

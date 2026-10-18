@@ -7,6 +7,9 @@
 //! persistence.
 //! Resource rows are prepared before this pass for lowering. Compatibility
 //! results are transient judgments, not certificates to serialize and replay.
+//! Compatibility also consumes completed scalar observations at each use;
+//! immutable owned values retain identity, while mutable storage and borrowed
+//! referents require their existing version and lineage evidence.
 
 // Checks over signatures and bodies that retain no evidence.
 mod elision;

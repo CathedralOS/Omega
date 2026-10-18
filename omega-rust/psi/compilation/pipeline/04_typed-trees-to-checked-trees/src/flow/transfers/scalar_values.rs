@@ -89,6 +89,18 @@ pub(super) fn capture_statement(
     ) {
         return captured;
     }
+    if let Some(value) = completed_statement_scalar(
+        program,
+        semantic,
+        context,
+        state,
+        statement_index,
+        statement,
+        source,
+        active,
+    ) {
+        return Some(value);
+    }
     let builtin = builtin_bound_meaning_source(program, context, machine_symbol, state, source);
     if let Some((expression, symbols)) =
         selected_statement(program, context, state, statement_index, statement)
@@ -125,6 +137,69 @@ pub(super) fn capture_statement(
         statement_index,
         source,
     )
+}
+
+/// A completed scalar expression can carry its value before it has a named
+/// source carrier, as with an anonymous-literal match. Consume that snapshot,
+/// then use the existing explicit destination admission. This is not source
+/// replay, a carrier guess, or a way to turn a reference result into a value.
+#[allow(clippy::too_many_arguments)]
+fn completed_statement_scalar(
+    program: &dyn validation::CheckingInput,
+    semantic: &FactPlan,
+    context: &FlowBuildContext<'_>,
+    state: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+    source: ExpressionHandle,
+    active: HandleSpan<FlowSemanticContextRef>,
+) -> Option<ScalarValue> {
+    let place = validation::canonical_place_from_expression_in_state(
+        program,
+        state,
+        statement_index,
+        source,
+    )?;
+    if place.root != facts::PlaceRoot::Expression(source) || !place.segments.is_empty() {
+        return None;
+    }
+    let destination = match statement {
+        StatementNode::LocalData(local) => local.type_reference,
+        StatementNode::Assignment(assignment) => validation::expression_type_reference_in_state(
+            program,
+            state,
+            statement_index,
+            assignment.target,
+        )?,
+        _ => return None,
+    };
+    let destination = validation::peel_declared_constraints(program, destination);
+    if matches!(
+        program.type_reference_table.type_reference(destination),
+        typed_trees::types::TypeReferenceNode::Reference { .. }
+    ) {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(destination)?;
+    let value = crate::values::scalar_value_at_place(
+        program,
+        semantic,
+        context
+            .contexts
+            .semantic_context_refs
+            .span_or_empty(active)
+            .iter()
+            .map(|reference| semantic.contexts.get(reference.context)),
+        &place,
+    )?;
+    match &value {
+        ScalarValue::Integer(value) => {
+            crate::values::admitted_integer(crate::values::integer_type(primitive)?, value)?;
+        }
+        ScalarValue::Boolean(_) if primitive == typed_trees::types::PrimitiveType::Bool => {}
+        _ => return None,
+    }
+    Some(value)
 }
 
 #[allow(clippy::too_many_arguments)]

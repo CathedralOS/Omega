@@ -1,0 +1,21 @@
+// Rejected: the second exclusive loan overlaps the still-live first loan.
+// For an exclusive four-element base, split == 2 makes [0,2) and [split,4)
+// disjoint, permitting simultaneous exclusive loans and writes a[0] = 11, b[1] = 41.
+// Both loans remain live through the writes and readback.
+machine exercise(items: &mut [i32], split: u64) -> bool
+requires items.len == 4 && split == 1
+{
+    let a: &mut [i32] = &mut items[0..2];
+    let b: &mut [i32] = &mut items[split..4];
+    a[0] = 11;
+    b[1] = 41;
+    a[0] == 11 && b[1] == 41
+}
+machine main() crashes Trap {
+    let mut entries: [i32; 4] = [10, 20, 30, 40];
+    let written: bool = exercise(&mut entries[..], 1);
+    transition written && entries[0] == 11 && entries[1] == 20
+        && entries[2] == 30 && entries[3] == 41 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

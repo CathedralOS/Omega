@@ -683,11 +683,16 @@ impl ContractPredicates<'_, '_> {
         {
             return Some(membership);
         }
+        // A primitive formal/result already has an authenticated dense scalar
+        // coordinate, as numeric_term uses. Trying storage first would invent
+        // a structural result formal after the authored telescope. Borrowed
+        // referents and projected leaves still use their declared storage path.
         if matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
-        ) && let Some((CheckedScalarExpression::Boolean(predicate), _)) =
-            self.structural_observation(expression, depth + 1)
+        ) && self.subject(expression).is_none()
+            && let Some((CheckedScalarExpression::Boolean(predicate), _)) =
+                self.structural_observation(expression, depth + 1)
         {
             return Some(*predicate);
         }

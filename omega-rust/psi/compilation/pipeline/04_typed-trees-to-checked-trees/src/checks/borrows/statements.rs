@@ -48,7 +48,7 @@ pub(super) fn check_statement_borrows<'p>(
         .span_or_empty(state_flow.statements)
     {
         let mut available_premises = stated_premises.to_vec();
-        super::overlap::append_call_premises(
+        super::overlap::append_statement_premises(
             program,
             facts,
             state_flow,
@@ -432,7 +432,7 @@ fn check_call_mutation_borrows<'p>(
             continue;
         }
         let mut available_premises = stated_premises.to_vec();
-        super::overlap::append_call_premises(
+        super::overlap::append_statement_premises(
             program,
             facts,
             state_flow,

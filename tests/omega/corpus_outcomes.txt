@@ -742,6 +742,26 @@ fail/borrows/case_reference_through_shared_container rejected 790ms expected @a9
 	construction of `MutableChoice` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/clock_out_parameter_mutable_from_shared rejected 3759ms expected @a9ae30e1c334+wt
 	argument `instant` for state `read` is declared `&mut` (`&mut Instant`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/borrows/completed_selector_boolean_result_wrong_value rejected 2556ms expected @89bb9e0009e9
+	cannot prove ensures contract for exit from changed_pattern at statement 1: result == false && value == 3
+fail/borrows/completed_selector_join_out_of_range_destination rejected 530ms expected @89bb9e0009e9
+	anonymous integer value `256` does not fit destination `u8` in machine `exercise` state `entry` local `split`
+	anonymous integer value `256` does not fit destination `u8` in machine `exercise` state `entry` local `split`
+	narrowing store in machine `exercise` state `entry` local `split` may not fit `u8`: the value is not provably in range (decision 17 -- a narrowing store is a proof obligation, like exact arithmetic). Truncate explicitly with an `as` cast, or constrain the source's range.
+fail/borrows/completed_selector_join_requires_all_arms rejected 1669ms expected @89bb9e0009e9
+	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 3 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 5 reads `a[0]` while local borrow `b` is still active (borrowed at statement 2)
+	cannot prove index `1` is within unknown slice length of `b` in exercise::entry
+	cannot prove index `1` is within unknown slice length of `b` in exercise::entry
+fail/borrows/completed_selector_join_unknown_arm rejected 1980ms expected @89bb9e0009e9
+	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 3 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 5 reads `a[0]` while local borrow `b` is still active (borrowed at statement 2)
+	cannot prove index `1` is within unknown slice length of `b` in exercise::entry
+	cannot prove index `1` is within unknown slice length of `b` in exercise::entry
 fail/borrows/computed_case_copy_requires_live_bounds rejected 428ms expected @6043bf4a18bd+wt
 	cannot prove index `select()` is within unknown slice length of `cells` in copy::entry
 fail/borrows/conditional_overlapping_field_loans rejected 4727ms expected @16ed47526a08
@@ -932,6 +952,11 @@ fail/borrows/mutable_reference_borrow_through_shared_container rejected 834ms ex
 	construction of `MutableChoice` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/mutable_reference_match_shared_arm_requires_exclusive_access rejected 986ms expected @a9ae30e1c334+wt
 	machine `exercise` state `entry` local `selected` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/mutable_selector_does_not_retarget_live_range rejected 1542ms expected @89bb9e0009e9
+	statement 3 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 6 and it is released at state exit)
+	statement 4 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
+	statement 5 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 6 and it is released at state exit)
+	statement 6 reads `a[0]` while local borrow `b` is still active (borrowed at statement 3)
 fail/borrows/mutable_view_binding_does_not_own_backing rejected 858ms expected @a9ae30e1c334+wt
 	argument `values` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/mutable_view_constructor_duplicate rejected 625ms expected @f329f97f57f7+wt
@@ -3152,6 +3177,63 @@ fail/facts/dependent_subtract_through_target_body_rejected rejected 290ms expect
 	exact arithmetic in machine `gap` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `gap` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `gap` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/disjoint_windows_through_call_result_overlap rejected 1847ms expected @89bb9e0009e9
+	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 3 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 5 reads `a[0]` while local borrow `b` is still active (borrowed at statement 2)
+fail/facts/disjoint_windows_through_const_name_overlap rejected 1428ms expected @89bb9e0009e9
+	statement 1 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 2 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
+fail/facts/disjoint_windows_through_field_overlap rejected 1460ms expected @89bb9e0009e9
+	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 3 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 5 reads `a[0]` while local borrow `b` is still active (borrowed at statement 2)
+fail/facts/disjoint_windows_through_local_overlap rejected 1929ms expected @89bb9e0009e9
+	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 3 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 5 reads `a[0]` while local borrow `b` is still active (borrowed at statement 2)
+fail/facts/disjoint_windows_through_match_join_overlap rejected 1554ms expected @89bb9e0009e9
+	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 3 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 5 reads `a[0]` while local borrow `b` is still active (borrowed at statement 2)
+fail/facts/disjoint_windows_through_other_machine_overlap rejected 1965ms expected @89bb9e0009e9
+	statement 1 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 2 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
+fail/facts/disjoint_windows_through_other_state_overlap rejected 1484ms expected @89bb9e0009e9
+	statement 1 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 2 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
+fail/facts/disjoint_windows_through_parameter_overlap rejected 2301ms expected @89bb9e0009e9
+	statement 1 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 2 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
+fail/facts/disjoint_windows_through_target_body_overlap rejected 2362ms expected @89bb9e0009e9
+	statement 1 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 2 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
+	statement 1 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 2 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
+	statement 1 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 2 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
+	statement 1 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 2 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 4 reads `a[0]` while local borrow `b` is still active (borrowed at statement 1)
 fail/facts/float_delivery_through_call_result_rejected rejected 6539ms expected @1dcced2fa00f+wt
 	cannot prove requires contract for call admit from probe: source(reading) >= 0.0 && source(reading) <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/float_delivery_through_const_name_rejected rejected 7872ms expected @1dcced2fa00f+wt
@@ -6584,6 +6666,8 @@ pass/borrows/carry_property_declared checked 9707ms @5041ef1af684+wt
 pass/borrows/case_payload_shared_transition_exit checked 11172ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/case_payload_state_loan_exit checked 10970ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/collection_element_loans_exit checked 5787ms check-target:macos_arm64 @d840c6ae9019+wt
+pass/borrows/completed_selector_join_pattern_effect_exit checked 13025ms check-target:macos_arm64 @89bb9e0009e9
+pass/borrows/completed_selector_value_composition_exit checked 13787ms check-target:macos_arm64 @89bb9e0009e9
 pass/borrows/constant_shared_boundary_exit checked 3644ms check-target:macos_arm64 @1bce9ab2e5d5+wt
 pass/borrows/constructor_reference_access checked 1653ms @a9ae30e1c334+wt
 pass/borrows/data_copy_property checked 9605ms @5041ef1af684+wt
@@ -8084,6 +8168,15 @@ pass/facts/dependent_subtract_through_other_machine_compile checked 1231ms @fd94
 pass/facts/dependent_subtract_through_other_state_compile checked 1236ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_parameter_compile checked 1237ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_target_body_compile checked 1244ms @fd94a7b8095c+wt
+pass/facts/disjoint_windows_through_call_result_exit checked 11725ms check-target:macos_arm64 @89bb9e0009e9
+pass/facts/disjoint_windows_through_const_name_exit checked 9540ms check-target:macos_arm64 @89bb9e0009e9
+pass/facts/disjoint_windows_through_field_exit checked 8853ms check-target:macos_arm64 @89bb9e0009e9
+pass/facts/disjoint_windows_through_local_exit checked 9945ms check-target:macos_arm64 @89bb9e0009e9
+pass/facts/disjoint_windows_through_match_join_exit checked 8692ms check-target:macos_arm64 @89bb9e0009e9
+pass/facts/disjoint_windows_through_other_machine_exit checked 15088ms check-target:macos_arm64 @89bb9e0009e9
+pass/facts/disjoint_windows_through_other_state_exit checked 10811ms check-target:macos_arm64 @89bb9e0009e9
+pass/facts/disjoint_windows_through_parameter_exit checked 9568ms check-target:macos_arm64 @89bb9e0009e9
+pass/facts/disjoint_windows_through_target_body_exit checked 11855ms check-target:macos_arm64 @89bb9e0009e9
 pass/facts/float_delivery_through_call_result_exit checked 18900ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/facts/float_delivery_through_const_name_exit checked 16893ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/facts/float_delivery_through_field_exit checked 22490ms check-target:macos_arm64 @1dcced2fa00f+wt

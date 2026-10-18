@@ -60,7 +60,7 @@ pub(super) fn check_compatibility<'p>(
         .unwrap_or_default();
         for call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
             let mut available_premises = premises.clone();
-            super::overlap::append_call_premises(
+            super::overlap::append_statement_premises(
                 program,
                 facts,
                 state_flow,

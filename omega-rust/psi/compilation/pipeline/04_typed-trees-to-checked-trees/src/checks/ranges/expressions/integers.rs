@@ -56,6 +56,16 @@ pub(in crate::checks::ranges) fn expression_integer_value(
         return None;
     }
 
+    // Reuse completed immutable observations before the branch-local symbolic
+    // range rules. The shared owned-path fence excludes storage that operand
+    // evaluation could change, so a statement-entry value remains exact here.
+    if let Some(value) = facts
+        .checked_calls
+        .and_then(|calls| calls.immutable_integer_value(program, facts.statement_index, expression))
+    {
+        return Some(value);
+    }
+
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
             let left = expression_integer_value(program, facts, binary.left)?;

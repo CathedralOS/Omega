@@ -2,7 +2,10 @@
 //! A saved subject is not a promise about its storage after a pattern writes it;
 //! only unchanged stable inputs can publish branch-local comparison evidence.
 //!
-//! Predicate-only domains and positive IEEE observations join with that result. Each covered arm
+//! Completed scalars, predicate-only domains and positive IEEE observations join
+//! with the result. Scalars must agree when each arm finishes, before a later
+//! pattern or sibling can mutate their former storage; unknown arms publish none.
+//! Each covered arm
 //! contributes the predicates already carried by the value it yields, and
 //! the match result keeps only the consequences every arm carries. A fact
 //! about some other place in the surrounding context does not move onto the
@@ -31,6 +34,7 @@ impl Execution<'_, '_, '_> {
         let mut completed_writes = Vec::new();
         let mut boolean_coverage = [false; 2];
         let mut shared_predicates: Option<Vec<JoinedPredicate>> = None;
+        let mut shared_scalar: Option<Option<facts::ScalarValue>> = None;
         let mut value_coverage = false;
         for (ordinal, arm) in self
             .program
@@ -96,6 +100,11 @@ impl Execution<'_, '_, '_> {
                 }
             }
             self.expression(arm.value, &mut selected_contexts, &mut selected_constraints);
+            let scalar = self.scalar_value_on_value(arm.value, &selected_contexts);
+            shared_scalar = Some(match shared_scalar {
+                None => scalar,
+                Some(previous) => previous.filter(|previous| scalar.as_ref() == Some(previous)),
+            });
             let yielded = self.predicates_on_value(arm.value, &selected_contexts);
             match shared_predicates.as_mut() {
                 Some(shared) => shared.retain_mut(|predicate| {
@@ -138,9 +147,71 @@ impl Execution<'_, '_, '_> {
         }
         if value_coverage {
             if let Some(shared) = shared_predicates {
-                self.publish_joined_predicates(expression, &shared, contexts, constraints);
+                self.publish_joined_values(
+                    expression,
+                    &shared,
+                    shared_scalar.flatten(),
+                    contexts,
+                    constraints,
+                );
             }
         }
+    }
+
+    /// Read this completed arm's owned scalar, preserving the selected source
+    /// meaning. A reference arm carries a descriptor, not its referent's scalar;
+    /// an authored indexing operation likewise needs its own result snapshot.
+    fn scalar_value_on_value(
+        &self,
+        value: ExpressionHandle,
+        contexts: &HandleSpan<FlowSemanticContextRef>,
+    ) -> Option<facts::ScalarValue> {
+        // Anonymous literals already own their exact denotation, even before
+        // a declaration-backed carrier exists. A later destination checks
+        // representability; inventing a source type here would move landing.
+        if !crate::values::is_assignment_literal(self.program, value) {
+            let reference = validation::expression_result_type_reference(
+                self.program,
+                self.machine,
+                self.state,
+                value,
+            )?;
+            let reference = validation::peel_declared_constraints(self.program, reference);
+            if matches!(
+                self.program.type_reference_table.type_reference(reference),
+                typed_trees::types::TypeReferenceNode::Reference { .. }
+            ) || self.program.primitive_type_reference(reference).is_none()
+            {
+                return None;
+            }
+        }
+        let source = validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state.symbol,
+            self.statement_index,
+            value,
+        )?;
+        if matches!(source.root, facts::PlaceRoot::Symbol(_))
+            && !validation::place_has_builtin_coordinates(
+                self.program,
+                self.machine,
+                Some(self.state),
+                value,
+            )
+        {
+            return None;
+        }
+        crate::values::scalar_value_at_place(
+            self.program,
+            self.semantic,
+            self.context
+                .contexts
+                .semantic_context_refs
+                .span_or_empty(*contexts)
+                .iter()
+                .map(|reference| self.semantic.contexts.get(reference.context)),
+            &source,
+        )
     }
 
     /// Transportable predicates whose place is this arm value.
@@ -207,14 +278,15 @@ impl Execution<'_, '_, '_> {
         predicates
     }
 
-    fn publish_joined_predicates(
+    fn publish_joined_values(
         &mut self,
         expression: ExpressionHandle,
         domains: &[JoinedPredicate],
+        scalar: Option<facts::ScalarValue>,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
-        if domains.is_empty() {
+        if domains.is_empty() && scalar.is_none() {
             return;
         }
         let place = self.semantic.append_expression_place(expression);
@@ -224,6 +296,20 @@ impl Execution<'_, '_, '_> {
             statement_index: self.statement_index,
         };
         let mut refs = HandleSpan::empty();
+        if let Some(scalar) = scalar {
+            let value = self.semantic.scalar_values.append(scalar);
+            let fact = self.semantic.append_fact(facts::Fact {
+                place: facts::FactPlace::Place(place),
+                point,
+                origin: facts::FactOrigin::StatementTransfer,
+                evidence: facts::QualificationEvidence::from_origin(
+                    language_semantics::QualificationEvidenceOrigin::Propagated,
+                    self.state.symbol,
+                ),
+                payload: FactPayload::AssignedScalarValue { value },
+            });
+            self.semantic.append_ref(&mut refs, fact);
+        }
         for domain in domains {
             let fact = self.semantic.append_fact(facts::Fact {
                 place: facts::FactPlace::Place(place),

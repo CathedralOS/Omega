@@ -183,7 +183,7 @@ fn check_formed_leaves<'p>(
             // formation point, as they do for that statement's calls.
             let premises = premises.get_or_insert_with(|| {
                 let mut available = stated_premises.to_vec();
-                super::overlap::append_call_premises(
+                super::overlap::append_statement_premises(
                     program,
                     facts,
                     state_flow,
