@@ -168,6 +168,12 @@ def main():
         run(["git", "-C", str(ROOT), "fetch", "-q", "origin"], check=False)
     revision = run(["git", "-C", str(ROOT), "rev-parse", options.ref]).stdout.strip()
     STATE.mkdir(parents=True, exist_ok=True)
+    temp_dir = STATE / "temp"
+    if temp_dir.exists():
+        for pattern in ("omega-native-watch-*", "omega-native-bisect-*"):
+            for stale in temp_dir.glob(pattern):
+                if stale.is_dir():
+                    forget_checkout(stale)
     record_path = STATE / f"{revision[:12]}.json"
     checkout = None
     try:
@@ -182,6 +188,26 @@ def main():
     finally:
         if checkout:
             forget_checkout(checkout)
+
+
+def render_report(previous_revision, revision, before, after, why,
+                  violations, sanctioned, flaky, arrived_red, turned_green, added_green, culprits):
+    lines = [f"# Native regression watch: {previous_revision[:12]}..{revision[:12]}", "",
+             f"{len(green(after))} of {len(after)} fixtures green (was {len(green(before))} of {len(before)}).", ""]
+    for title, fixtures in (("Regressed", violations), ("Sanctioned debt (unimplemented:)", sanctioned),
+                            ("Flaky (green on isolated retry)", flaky), ("Arrived red", arrived_red),
+                            ("Turned green", turned_green), ("Added green", added_green)):
+        lines.append(f"## {title}: {len(fixtures)}")
+        for fixture in fixtures:
+            note = ""
+            if title == "Regressed":
+                note = f" — {after[fixture]}: {why.get(fixture, '')[:160]}" + (
+                    f"; first bad commit {culprits[fixture]}" if culprits.get(fixture) else "")
+            elif title.startswith(("Sanctioned", "Flaky")):
+                note = f" — {after[fixture]}: {why.get(fixture, '')[:160]}"
+            lines.append(f"- `{fixture}`{note}")
+        lines.append("")
+    return lines
 
 
 def report(options, revision, current, checkout):
@@ -208,29 +234,20 @@ def report(options, revision, current, checkout):
     added_green = sorted(f for f in green(after) if f not in before)
     arrived_red = sorted(f for f, value in after.items() if value == "oracle-fail" and f not in green(before))
 
+    path = STATE / f"report-{revision[:12]}.md"
     culprits = {}
+    lines = render_report(previous_revision, revision, before, after, why,
+                          violations, sanctioned, flaky, arrived_red, turned_green, added_green, culprits)
+    path.write_text("\n".join(lines))
+    latest.write_text(revision + "\n")
+
     if violations and not options.no_bisect:
         for fixture in violations[:BISECT_LIMIT]:
             culprits[fixture] = first_bad_commit(fixture, previous_revision, revision)
+            lines = render_report(previous_revision, revision, before, after, why,
+                                  violations, sanctioned, flaky, arrived_red, turned_green, added_green, culprits)
+            path.write_text("\n".join(lines))
 
-    lines = [f"# Native regression watch: {previous_revision[:12]}..{revision[:12]}", "",
-             f"{len(green(after))} of {len(after)} fixtures green (was {len(green(before))} of {len(before)}).", ""]
-    for title, fixtures in (("Regressed", violations), ("Sanctioned debt (unimplemented:)", sanctioned),
-                            ("Flaky (green on isolated retry)", flaky), ("Arrived red", arrived_red),
-                            ("Turned green", turned_green), ("Added green", added_green)):
-        lines.append(f"## {title}: {len(fixtures)}")
-        for fixture in fixtures:
-            note = ""
-            if title == "Regressed":
-                note = f" — {after[fixture]}: {why.get(fixture, '')[:160]}" + (
-                    f"; first bad commit {culprits[fixture]}" if culprits.get(fixture) else "")
-            elif title.startswith(("Sanctioned", "Flaky")):
-                note = f" — {after[fixture]}: {why.get(fixture, '')[:160]}"
-            lines.append(f"- `{fixture}`{note}")
-        lines.append("")
-    path = STATE / f"report-{revision[:12]}.md"
-    path.write_text("\n".join(lines))
-    latest.write_text(revision + "\n")
     print("\n".join(lines[:3] + [f"{len(violations)} regressed, {len(sanctioned)} sanctioned, {len(flaky)} flaky, "
                                  f"{len(arrived_red)} arrived red, {len(turned_green)} turned green, "
                                  f"{len(added_green)} added green -> {path}"]))

@@ -370,6 +370,25 @@ def command_row(command, argv, exit_code, elapsed_ms, output, incomplete,
     }
 
 
+def kill_process_tree(process):
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+        )
+    else:
+        import signal
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+    try:
+        process.kill()
+    except OSError:
+        pass
+
+
 def run_command(command, selected_runner, timeout=None, log_path=None):
     """Run one command and keep its evidence; never raise on its failure.
 
@@ -383,16 +402,23 @@ def run_command(command, selected_runner, timeout=None, log_path=None):
     exit_code = None
     incomplete = None
     try:
-        completed = subprocess.run(
-            argv, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            encoding="utf-8", errors="replace", check=False, timeout=timeout,
-            env={**os.environ, **NAMED_SKIP_ENVIRONMENT})
-        exit_code = completed.returncode
-        output = output_text(completed.stdout)
-    except subprocess.TimeoutExpired as expired:
-        # The contract: a timeout leaves the row open; it is not a pass.
-        output = output_text(expired.output)
-        incomplete = "timeout after {:g} s".format(timeout)
+        with subprocess.Popen(
+            argv, cwd=ROOT, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            encoding="utf-8", errors="replace",
+            start_new_session=(os.name != "nt"),
+            env={**os.environ, **NAMED_SKIP_ENVIRONMENT},
+        ) as process:
+            try:
+                stdout, _ = process.communicate(timeout=timeout)
+                exit_code = process.returncode
+                output = output_text(stdout)
+            except subprocess.TimeoutExpired:
+                # The contract: a timeout leaves the row open; it is not a pass.
+                kill_process_tree(process)
+                stdout, _ = process.communicate()
+                output = output_text(stdout)
+                incomplete = "timeout after {:g} s".format(timeout)
     except OSError as error:
         output = ""
         incomplete = "could not start: {}".format(error)

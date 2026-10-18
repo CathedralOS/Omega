@@ -171,6 +171,25 @@ def site_of(message: str) -> str | None:
     return f"state {found.group(1)}, statement {found.group(2)}" if found else None
 
 
+def kill_process_tree(process: subprocess.Popen) -> None:
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+        )
+    else:
+        import signal
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+    try:
+        process.kill()
+    except OSError:
+        pass
+
+
 def check_one(cli: Path, scratch: Path, directory: Path, timeout: int = 300) -> dict:
     project = project_at(directory, ROOT)
     relative = directory.relative_to(ROOT).as_posix()
@@ -178,16 +197,28 @@ def check_one(cli: Path, scratch: Path, directory: Path, timeout: int = 300) -> 
     record = {"sample": relative, "role": project.role, "checked": False}
     if project.entry is None:
         return dict(record, diagnostic="missing unambiguous entry; declare sample.json entry", cluster="discovery")
-    try:
-        proc = subprocess.run(
-            [str(cli), "--check", "--build-dir", str(build_dir), str(project.entry)],
-            cwd=ROOT, capture_output=True, text=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        return dict(record, diagnostic=f"check timed out after {timeout}s", cluster="infrastructure")
-    output = proc.stdout + proc.stderr
+    command = [str(cli), "--check", "--build-dir", str(build_dir), str(project.entry)]
+    with subprocess.Popen(
+        command,
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        start_new_session=(os.name != "nt"),
+    ) as proc:
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            kill_process_tree(proc)
+            proc.communicate()
+            return dict(record, diagnostic=f"check timed out after {timeout}s", cluster="infrastructure")
+    output = stdout + stderr
     checked = proc.returncode == 0
     if project.role == "intended-invalid":
-        matched, detail = rejection_verdict(project, proc.returncode, proc.stderr)
+        matched, detail = rejection_verdict(project, proc.returncode, stderr)
         return dict(record, checked=matched, rejected=matched, diagnostic=detail,
                     cluster="intended rejection" if matched else "invalid-control failure")
     record["checked"] = checked

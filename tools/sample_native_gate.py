@@ -185,17 +185,54 @@ def phase_of(command):
     return {"update": "review", "--check": "check", "run": "run"}.get(word, "build")
 
 
+_STDLIB_SUBPROCESS_RUN = subprocess.run
+
+
+def kill_process_tree(process):
+    if os.name == "nt":
+        _STDLIB_SUBPROCESS_RUN(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+        )
+    else:
+        import signal
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(process.pid, signal.SIGKILL)
+    with contextlib.suppress(OSError):
+        process.kill()
+
+
 def run(command, timeout, stdin=subprocess.DEVNULL, cwd=None):
     start = time.monotonic()
     try:
-        return subprocess.run(
+        if subprocess.run is not _STDLIB_SUBPROCESS_RUN:
+            return subprocess.run(
+                command,
+                capture_output=True,
+                timeout=timeout,
+                stdin=stdin,
+                cwd=cwd,
+                **CHILD_TEXT,
+            )
+        with subprocess.Popen(
             command,
-            capture_output=True,
-            timeout=timeout,
             stdin=stdin,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             cwd=cwd,
+            start_new_session=(os.name != "nt"),
             **CHILD_TEXT,
-        )
+        ) as process:
+            try:
+                stdout, stderr = process.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                kill_process_tree(process)
+                process.communicate()
+                return None
+            return subprocess.CompletedProcess(
+                process.args, process.returncode, stdout, stderr
+            )
     except subprocess.TimeoutExpired:
         return None
     finally:

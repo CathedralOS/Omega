@@ -155,6 +155,7 @@ from __future__ import annotations
 import argparse
 
 import collections
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -501,6 +502,58 @@ def shutil_which(name: str):
     return which(name)
 
 
+@contextlib.contextmanager
+def windows_runner_job(process):
+    """Tie a Windows runner tree to this gate's lifetime and cap its committed memory."""
+    handle = getattr(process, "_handle", None)
+    if os.name != "nt" or not isinstance(handle, int):
+        yield
+        return
+    import ctypes
+    kernel32 = ctypes.windll.kernel32
+    job = kernel32.CreateJobObjectW(None, None)
+    if not job:
+        yield
+        return
+    try:
+        class BasicLimits(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64),
+                        ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", ctypes.c_uint32),
+                        ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t),
+                        ("ActiveProcessLimit", ctypes.c_uint32),
+                        ("Affinity", ctypes.c_size_t),
+                        ("PriorityClass", ctypes.c_uint32),
+                        ("SchedulingClass", ctypes.c_uint32)]
+
+        class IoCounters(ctypes.Structure):
+            _fields_ = [(name, ctypes.c_uint64) for name in (
+                "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                "ReadTransferCount", "WriteTransferCount", "OtherTransferCount")]
+
+        class ExtendedLimits(ctypes.Structure):
+            _fields_ = [("BasicLimitInformation", BasicLimits),
+                        ("IoInfo", IoCounters),
+                        ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t),
+                        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                        ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        limits = ExtendedLimits()
+        flags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        max_gb = int(os.environ.get("OMEGA_CORPUS_MAX_MEMORY_GB", "32") or "0")
+        if max_gb > 0:
+            flags |= 0x200  # JOB_OBJECT_LIMIT_JOB_MEMORY
+            limits.JobMemoryLimit = max_gb * (1024 ** 3)
+        limits.BasicLimitInformation.LimitFlags = flags
+        if kernel32.SetInformationJobObject(job, 9, ctypes.byref(limits), ctypes.sizeof(limits)):
+            kernel32.AssignProcessToJobObject(job, ctypes.c_void_p(handle))
+        yield
+    finally:
+        kernel32.CloseHandle(job)
+
+
 def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[dict]:
     env = dict(os.environ)
     env.pop("NEXTEST", None)
@@ -539,15 +592,17 @@ def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[
             else:
                 buffered_stderr.append(line)
 
-    progress = threading.Thread(target=stream_progress, daemon=True)
-    progress.start()
-    stdout = proc.stdout.read()
-    progress.join()
-    proc.wait()
     try:
+        with windows_runner_job(proc):
+            progress = threading.Thread(target=stream_progress, daemon=True)
+            progress.start()
+            stdout = proc.stdout.read()
+            progress.join()
+            proc.wait()
         records = Path(records_file.name).read_text(encoding="utf-8")
     finally:
-        os.unlink(records_file.name)
+        if os.path.exists(records_file.name):
+            os.unlink(records_file.name)
     if proc.returncode != 0:
         sys.stderr.write(stdout[-2000:])
         sys.stderr.writelines(list(buffered_stderr)[-200:])
