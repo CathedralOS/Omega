@@ -1,0 +1,4 @@
+owner: Codex / normal result cleanup guarantees
+provenance: agent=codex model=gpt-6-astra effort=xhigh role=result-cleanup-guarantees independent-review=sdk_recast_fixture
+ticket: f5f9245f348f4ebf9d4949e52691970e
+published_utc: 2026-10-18T12:34:24.560306+00:00
