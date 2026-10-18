@@ -4037,6 +4037,27 @@ fail/facts/integer_range_delivery_through_target_body_missing_bound rejected 478
 	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/length_through_call_result_rejected rejected 893ms expected @b2d507c5ddab+wt
+	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::entry
+fail/facts/length_through_const_name_rejected rejected 910ms expected @b2d507c5ddab+wt
+	cannot prove index `3 - 1` is within length 2
+fail/facts/length_through_field_rejected rejected 924ms expected @b2d507c5ddab+wt
+	cannot prove index `meter.length - 1` is within unknown slice length of `window` in last_byte::entry
+fail/facts/length_through_local_rejected rejected 901ms expected @b2d507c5ddab+wt
+	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::entry
+fail/facts/length_through_match_join_rejected rejected 894ms expected @b2d507c5ddab+wt
+	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::entry
+fail/facts/length_through_other_machine_rejected rejected 897ms expected @b2d507c5ddab+wt
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
+fail/facts/length_through_other_state_rejected rejected 888ms expected @b2d507c5ddab+wt
+	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::pick
+fail/facts/length_through_parameter_rejected rejected 900ms expected @b2d507c5ddab+wt
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
+fail/facts/length_through_target_body_rejected rejected 932ms expected @b2d507c5ddab+wt
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
 fail/facts/matched_window_through_call_result_rejected rejected 664ms expected @a48b0ac286f5
 	cannot prove ensures contract for exit from from_call at statement 0: result.len == 2
 fail/facts/matched_window_through_const_name_rejected rejected 659ms expected @a48b0ac286f5
@@ -9544,6 +9565,15 @@ pass/facts/integer_range_delivery_through_other_machine_exit checked 23468ms che
 pass/facts/integer_range_delivery_through_other_state_exit checked 14796ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_parameter_exit checked 12770ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_target_body_exit checked 14948ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/matched_window_through_call_result_exit checked 5499ms check-target:macos_arm64 @b2d507c5ddab+wt
+pass/facts/matched_window_through_const_name_exit checked 5400ms check-target:macos_arm64 @b2d507c5ddab+wt
+pass/facts/matched_window_through_field_exit checked 5711ms check-target:macos_arm64 @b2d507c5ddab+wt
+pass/facts/matched_window_through_local_exit checked 5668ms check-target:macos_arm64 @b2d507c5ddab+wt
+pass/facts/matched_window_through_match_join_exit checked 5672ms check-target:macos_arm64 @b2d507c5ddab+wt
+pass/facts/matched_window_through_other_machine_exit checked 5396ms check-target:macos_arm64 @b2d507c5ddab+wt
+pass/facts/matched_window_through_other_state_exit checked 5647ms check-target:macos_arm64 @b2d507c5ddab+wt
+pass/facts/matched_window_through_parameter_exit checked 5559ms check-target:macos_arm64 @b2d507c5ddab+wt
+pass/facts/matched_window_through_target_body_exit checked 5406ms check-target:macos_arm64 @b2d507c5ddab+wt
 pass/facts/nested_result_extent_captured_scalar_exit checked 3416ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_call_result_exit checked 3401ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_const_name_exit checked 3333ms check-target:macos_arm64 @8a884ecc43d5+wt

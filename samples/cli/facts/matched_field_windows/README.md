@@ -31,3 +31,7 @@ Every place has a reject twin at
 `tests/omega/fail/facts/matched_window_through_<place>_rejected`. The twin
 changes one selected extent from 2 to 1 while retaining the required length 2.
 The target-body twin changes only Windows, which must reject on every host.
+
+The positive side is pinned at
+`tests/omega/pass/facts/matched_window_through_<place>_exit`, one native
+exit-0 fixture per place.
