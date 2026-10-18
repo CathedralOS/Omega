@@ -8,6 +8,52 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 32, "jobs": "8", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+	`Loader::run` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: jump successor: loan transfer); in state `Loader::run::run`, statement 0
+	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site); in state `Main::main::main`, statement 0
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state); in state `Main::main::main`, statement 0
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 1
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::observe`, statement 0
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::observe`, statement 1
+	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::again`, statement 0
+	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
+	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 2
+	a boundary call requires an explicit shared `&Binding<R>` authority argument
+	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
+	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
+	call to `entry` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+	generic data `Box` retains unsolved type equations; its application requires closed instance specialization
+	generic data `Inferred` retains unsolved type equations; its application requires closed instance specialization
+	generic data `Recovered` retains unsolved type equations; its application requires closed instance specialization
+	machine `FailedOpen::main` declares unknown boundary service `FilesystemHost`
+	machine `LabelMessage::decode` state `field_1_view_validate` statement 0: call stores a borrowed value without a complete destination/backing relation
+	machine `Main::main` state `main` statement 2 cannot lower structural value: computed owned operand requires an existing parameter
+	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	machine `converges_together_at_symmetric` cites `rat_close_symmetric`, but the callee's requires fact `rat_close(p, q, precision) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+	machine `converges_together_at_symmetric` ensures contract proof fact `converges_together_at<Right, Left, Modulus>(precision, right_index, left_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	machine `doubled_nat_max_threshold` ensures contract proof fact `saturating_sub(doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision), index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	native artifact physical program entry failed: semantic entry requires a source bootstrap and installed-root physical bridge before executable publication
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Task::finish$specialized$f1a34b3b312b5f65$0),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,generic\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Task\\\\\\)\\\\\\)\\)\\,named\\(name\\(i32\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(c_strnlen),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(u8\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(external_absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
+	retained machine declaration differs from its indexed root child
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+	selected ProgramEntry Binding field `Main::host` requires a selected Fused provider for boundary `TimeHost`
+	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_dir", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_dir` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, statement 3)") })
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "consume_envelope", reason: "ordinary sequence return has no unique source cleanup coordinate", gap: None })
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "extract", reason: "ordinary sequence return has no unique source cleanup coordinate", gap: None })
+	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
+	terminal-artifact production failed: Lowering(Unsupported("constructed operand names another completed owner"))
+	terminal-artifact production failed: Lowering(Unsupported("suspension frontier source position has no storage binding"))
+	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("mutable element-view establishment requires its exact borrowed result place")))
 pass/arithmetic/addr_algebra checked 8379ms @91bbf3e29aa9
 pass/arithmetic/anonymous_integer_arith checked 8328ms @91bbf3e29aa9
 pass/arithmetic/anonymous_rational_arguments checked 1130ms @6c49683ce714
@@ -330,19 +376,6 @@ pass/build/build_log_line_written built 12423ms @91bbf3e29aa9
 pass/build/build_no_entry checked 11978ms @91bbf3e29aa9
 pass/build/build_package_root checked 12657ms @91bbf3e29aa9
 pass/build/build_source_gen rejected 2059ms @91bbf3e29aa9
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
 pass/build/build_state_machine checked 11792ms @91bbf3e29aa9
 pass/build/conditional_root_binding built 5911ms @6c49683ce714
 pass/build/const_index_dependency_order_exit built 12534ms exit:0 @91bbf3e29aa9
@@ -367,864 +400,12 @@ pass/build/runtime_static_service_exclusion_exit built 15644ms exit:0 @91bbf3e29
 pass/build/same_leaf_runner_entry_left_exit built 12953ms exit:11 @91bbf3e29aa9
 pass/build/same_leaf_runner_entry_right_exit built 12440ms exit:37 @91bbf3e29aa9
 pass/build/selected_const_array_length_exit rejected 2584ms @91bbf3e29aa9
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
 pass/build/sibling_module_service_exclusion_exit built 13072ms exit:0 @91bbf3e29aa9
 pass/build/sibling_module_slot_family_rows_exit built 12867ms exit:70 @91bbf3e29aa9
 pass/build/static_assumed_binding_spelling_exit built 13127ms exit:0 @91bbf3e29aa9
 pass/build/uefi_entry_schema_same_leaf rejected 7872ms @a5c430559a50
-	native artifact physical program entry failed: semantic entry requires a source bootstrap and installed-root physical bridge before executable publication
 pass/build/uefi_os_handoff_invocation incomplete 12882ms @e3eb5bdd566b
-	`Loader::run` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: jump successor: loan transfer); in state `Loader::run::run`, statement 0
 pass/build/uefi_provisioned_context_roots rejected 4912ms @a5c430559a50
-	native artifact physical program entry failed: semantic entry requires a source bootstrap and installed-root physical bridge before executable publication
 pass/calls/ambient_receiver_scalar_return_exit built 12679ms exit:70 @91bbf3e29aa9
 pass/calls/borrowed_binding_field_authority_exit built 13149ms exit:0 @91bbf3e29aa9
 pass/calls/borrowed_case_dispatch_member_leaf_reads built 12744ms exit:70 @91bbf3e29aa9
@@ -1236,27 +417,17 @@ pass/calls/builtin_named_machine_call_exit built 12594ms exit:7 @91bbf3e29aa9
 pass/calls/by_value_case_param_self_write_exit built 5993ms exit:70 @6c49683ce714
 pass/calls/call_local_reassign checked 12943ms @91bbf3e29aa9
 pass/calls/callback_borrowed_record_entry rejected 5396ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_borrowed_scalar_entry rejected 5411ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_future_registration_cycle rejected 5442ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_mixed_formal_entry rejected 5185ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_owned_float_record rejected 4230ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_owned_float_record_packing rejected 4299ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_owned_indirect_float_record rejected 4299ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_owned_indirect_record rejected 1283ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_owned_overaligned_record rejected 1434ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/callback_private_deep_forwarded_record built 21679ms exit:70 @e74967d11875
 pass/calls/callback_private_materialization built 11198ms exit:0 @e74967d11875
 pass/calls/callback_scalar_loan_permutation rejected 1300ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/caller_result_binding_mutable_loan_exit built 12491ms exit:70 @91bbf3e29aa9
 pass/calls/caller_structural_result_indexed_borrow_exit built 12433ms exit:171 @91bbf3e29aa9
 pass/calls/case_arm_payload_receiver_arg built 18169ms exit:70 @e3eb5bdd566b
@@ -1324,14 +495,12 @@ pass/calls/owned_overaligned_local_call built 16684ms exit:0 @91bbf3e29aa9
 pass/calls/owned_state_parameter_call_exit built 12654ms exit:70 @91bbf3e29aa9
 pass/calls/prefix_effectful_call checked 12791ms @91bbf3e29aa9
 pass/calls/private_callback_call_closure rejected 1321ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/projected_receiver_callee checked 13083ms @91bbf3e29aa9
 pass/calls/qualified_record_call_result_field_exit built 12708ms exit:70 @91bbf3e29aa9
 pass/calls/requires_carrier_ceiling_vacuous built 12545ms exit:70 @91bbf3e29aa9
 pass/calls/requires_operand_flip_discharge built 12584ms exit:70 @91bbf3e29aa9
 pass/calls/result_overload_terminal_arm_exit built 13174ms exit:0 @91bbf3e29aa9
 pass/calls/resultless_native_callback_compile rejected 5069ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/calls/retained_receiver_argument_order_exit built 12614ms exit:70 @91bbf3e29aa9
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 5646ms exit:70 @6c49683ce714
 pass/calls/runtime_anonymous_result_local_namespace_exit built 12853ms exit:70 @91bbf3e29aa9
@@ -1342,7 +511,6 @@ pass/calls/runtime_authored_numeric_names_exit built 12913ms exit:0 @91bbf3e29aa
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 5889ms exit:70 stdout:match @6c49683ce714
 pass/calls/runtime_borrowed_float_formal_exchange_exit built 26198ms exit:70 @91bbf3e29aa9
 pass/calls/runtime_boundary_computed_selector_order_exit rejected 12844ms @91bbf3e29aa9
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(c_strnlen),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(u8\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/runtime_boundary_loop_projected_subslice_exit built 12928ms exit:70 @91bbf3e29aa9
 pass/calls/runtime_boundary_projected_mutable_subslice_exit built 12709ms exit:70 @91bbf3e29aa9
 pass/calls/runtime_call_result_element_guard_exit built 12711ms exit:70 @91bbf3e29aa9
@@ -1397,7 +565,6 @@ pass/calls/runtime_heterogeneous_case_argument_exit built 12523ms exit:0 @91bbf3
 pass/calls/runtime_indexed_scalar_calls_exit built 5812ms exit:70 @6c49683ce714
 pass/calls/runtime_inherited_membership_argument_snapshot_exit built 11452ms exit:0 @91bbf3e29aa9
 pass/calls/runtime_large_frame_foreign_call_floating_control_exit rejected 12143ms @91bbf3e29aa9
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(external_absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/runtime_large_structural_frame_exit built 13116ms exit:70 @91bbf3e29aa9
 pass/calls/runtime_let_mut_reassign_exit built 6061ms exit:2 @6c49683ce714
 pass/calls/runtime_lifetime_only_constructor_result_exit built 5705ms exit:70 @6c49683ce714
@@ -1414,7 +581,6 @@ pass/calls/runtime_mutable_call_before_transition_args_exit built 5543ms exit:70
 pass/calls/runtime_mutable_call_empty_input_exit built 5933ms exit:72 @6c49683ce714
 pass/calls/runtime_mutable_call_short_input_exit built 5959ms exit:72 @6c49683ce714
 pass/calls/runtime_mutable_local_external_scalar_call_exit rejected 17348ms @91bbf3e29aa9
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(external_absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/runtime_mutable_local_parameter_write_exit built 11163ms exit:171 @e3eb5bdd566b
 pass/calls/runtime_mutual_unit_borrowed_continuation_exit built 17859ms exit:70 stdout:match stderr:match @91bbf3e29aa9
 pass/calls/runtime_nested_case_argument_exit built 5696ms exit:70 @6c49683ce714
@@ -1496,7 +662,6 @@ pass/capabilities/aarch64_hfa_import_compile checked 3049ms @6c49683ce714
 pass/capabilities/acquires_through_helper_return built 6153ms exit:0 @6c49683ce714
 pass/capabilities/boundary_trait_multiple_effects checked 1368ms @6c49683ce714
 pass/capabilities/callback_direct_install_compile rejected 4751ms @e3eb5bdd566b
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/capabilities/derives_through_helper built 6962ms @6c49683ce714
 pass/capabilities/external_leaf_binding_forms built 6738ms @6c49683ce714
 pass/capabilities/runtime_qualified_record_return_exit built 12948ms exit:0 @91bbf3e29aa9
@@ -1645,7 +810,6 @@ pass/comptime/selected_float_array_length_exit built 15272ms exit:70 @6c49683ce7
 pass/comptime/selected_float_array_length_layout_query_exit built 23348ms exit:70 @91bbf3e29aa9
 pass/concurrency/ref_array_suspend checked 8351ms @91bbf3e29aa9
 pass/concurrency/runtime_retained_reference_boundary_exit rejected 8428ms @91bbf3e29aa9
-	terminal-artifact production failed: Lowering(Unsupported("suspension frontier source position has no storage binding"))
 pass/concurrency/suspend_after_last_use_compile checked 1580ms @6c49683ce714
 pass/concurrency/suspend_carry_task checked 8334ms @91bbf3e29aa9
 pass/concurrency/suspend_explicit_parameter_after_last_use checked 2636ms @91bbf3e29aa9
@@ -1735,7 +899,6 @@ pass/control_flow/projected_loan_state_argument_exit built 12254ms exit:11 @91bb
 pass/control_flow/record_pattern_arm_rename_guard_exit built 6383ms exit:70 @6c49683ce714
 pass/control_flow/runtime_boolean_equality_copied_record_instances_exit built 12000ms exit:70 @91bbf3e29aa9
 pass/control_flow/runtime_boundary_case_subject_exit incomplete 6276ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
 pass/control_flow/runtime_branch_parameter_cleanup_exit built 12376ms exit:0 @91bbf3e29aa9
 pass/control_flow/runtime_branch_transfer_owned_record_exit built 11944ms exit:70 @91bbf3e29aa9
 pass/control_flow/runtime_branching_helper_string built 11623ms @e3eb5bdd566b
@@ -1744,9 +907,7 @@ pass/control_flow/runtime_captured_case_reference_child_arm_forwarding_exit buil
 pass/control_flow/runtime_captured_local_remutated_field_exit built 5862ms exit:70 @6c49683ce714
 pass/control_flow/runtime_compare_pair_dispatch_exit built 5848ms exit:70 @6c49683ce714
 pass/control_flow/runtime_computed_case_subject_call_operand_exit incomplete 6250ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 2
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit incomplete 6066ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state graph: structural result has no selected disposition); in state `Main::main::again`, statement 0
 pass/control_flow/runtime_computed_index_state_loan_exit built 12186ms exit:0 @91bbf3e29aa9
 pass/control_flow/runtime_conditional_index_state_loan_exit built 11657ms exit:0 @91bbf3e29aa9
 pass/control_flow/runtime_copy_result_conditional_successor_reuse_exit built 11696ms exit:0 @91bbf3e29aa9
@@ -1833,7 +994,6 @@ pass/core/runtime_guarded_trapping_conversion_exit built 9561ms exit:70 @91bbf3e
 pass/core/runtime_natural_termination_exit built 7042ms exit:0 @6c49683ce714
 pass/core/self_read_only_receiver_compile checked 1211ms @6c49683ce714
 pass/core/task_lifecycle_operations rejected 11539ms @e3eb5bdd566b
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Task::finish$specialized$f1a34b3b312b5f65$0),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,generic\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Task\\\\\\)\\\\\\)\\)\\,named\\(name\\(i32\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/core/zii_default_composite_exit built 5371ms exit:70 @6c49683ce714
 pass/data/case_first_payload_zero_established checked 1316ms @6c49683ce714
 pass/data/case_membership_union_guard_exit built 5704ms exit:70 @6c49683ce714
@@ -2009,9 +1169,7 @@ pass/drops/runtime_scalar_temporary_residual_partition_exit built 6606ms exit:0 
 pass/drops/runtime_selected_nominal_owner_cleanup_exit built 14107ms exit:0 stdout:match @91bbf3e29aa9
 pass/drops/runtime_selected_partial_owner_cleanup_exit built 14269ms exit:0 stdout:match @91bbf3e29aa9
 pass/drops/runtime_selected_transfer_fieldwise_construction_exit rejected 2050ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/drops/runtime_selected_transfer_incomplete_construction_exit rejected 2015ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/drops/runtime_temporary_integer_capture_cleanup_exit built 5675ms exit:0 @6c49683ce714
 pass/drops/runtime_temporary_nominal_integer_contract_exit built 5972ms exit:0 @6c49683ce714
 pass/drops/runtime_temporary_nominal_prerequisite_exit built 6683ms exit:0 @6c49683ce714
@@ -2023,7 +1181,6 @@ pass/drops/snapshot_drop_reassign checked 13206ms @91bbf3e29aa9
 pass/drops/statically_skipped_claim_bearing_temporary checked 867ms @6c49683ce714
 pass/drops/structural_return_drop_local checked 12841ms @91bbf3e29aa9
 pass/drops/structural_return_drops_unreturned_local_exit rejected 1982ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/drops/transfer_cleanup_into_state checked 1360ms @6c49683ce714
 pass/drops/transfer_cleanup_state checked 13167ms @91bbf3e29aa9
 pass/dungeon/runtime_ordered_room_dispatch_exit built 5084ms exit:73 @6c49683ce714
@@ -2241,45 +1398,27 @@ pass/facts/view_extent_after_write_through_parameter_exit built 5903ms exit:0 @1
 pass/facts/view_extent_after_write_through_target_body_exit built 5971ms exit:0 @17acd2776c21
 pass/filesystem/cross_linux_value_syscalls checked 25559ms @6c49683ce714
 pass/filesystem/dir_walk_wrappers_exit rejected 48831ms @e3eb5bdd566b
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/native_canonicalize rejected 8665ms @e3eb5bdd566b
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/native_close built 12374ms @e3eb5bdd566b
 pass/filesystem/native_crud rejected 6515ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(Unsupported("case argument constructor lost whole owned custody"))
 pass/filesystem/native_errno rejected 6475ms @a23a13432354+wt
-	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("mutable element-view establishment requires its exact borrowed result place")))
 pass/filesystem/native_filetype rejected 7594ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
 pass/filesystem/native_fs_workflow rejected 7740ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
 pass/filesystem/native_metadata_blocks rejected 7644ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
 pass/filesystem/native_metadata_ctime_dev rejected 7637ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
 pass/filesystem/native_metadata_ino built 17132ms @e3eb5bdd566b
 pass/filesystem/native_metadata_nlink rejected 7616ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_metadata", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_metadata` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, state 0, statement 4)") })
 pass/filesystem/native_read_dir_iter rejected 6225ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "PosixFilesystemNativeProvider::read_dir", reason: "scalar callee has no checked executable body", omission: Some("`PosixFilesystemNativeProvider::read_dir` has no admitted body (local construction stopped at call operation: structural arguments: caller structural result, statement 3)") })
 pass/filesystem/native_wrapper_write_all_result rejected 43663ms @e3eb5bdd566b
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/runtime_local_host_result_dispatch_exit built 14775ms @e3eb5bdd566b
 pass/filesystem/runtime_posix_borrowed_view_io_exit rejected 5522ms @a23a13432354+wt
-	terminal-artifact production failed: Lowering(Unsupported("constructed operand names another completed owner"))
 pass/filesystem/windows_canonicalize_exit rejected 441ms @e3eb5bdd566b
-	machine `FailedOpen::main` declares unknown boundary service `FilesystemHost`
 pass/filesystem/windows_native_create_write_close_exit built 17101ms exit:70 @91bbf3e29aa9
 pass/filesystem/windows_raw_breadth_exit rejected 10785ms @e3eb5bdd566b
-	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_set_file_time_exit rejected 10802ms @e3eb5bdd566b
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_wrapper_results_exit rejected 43986ms @e3eb5bdd566b
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_lock_metadata_exit rejected 44079ms @e3eb5bdd566b
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_open_with_exit rejected 43749ms @e3eb5bdd566b
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/float/admitted_float_conversion_crash built 26724ms exit:-1073741795 stdout:match @91bbf3e29aa9
 pass/float/admitted_float_lower_boundary_crash built 25641ms exit:-1073741795 stdout:match @91bbf3e29aa9
 pass/float/admitted_numeric_imports_preserve_semantics timeout 120009ms @91bbf3e29aa9
@@ -2385,18 +1524,14 @@ pass/generics/runtime_const_data_multiple_instances_exit built 5972ms exit:70 @6
 pass/generics/runtime_const_data_symbolic_expression_exit built 5671ms exit:70 @6c49683ce714
 pass/generics/runtime_const_data_where_fact_exit built 5379ms exit:70 @6c49683ce714
 pass/generics/runtime_constructor_equation_binder_carriers_exit rejected 61ms @91bbf3e29aa9
-	generic data `Box` retains unsolved type equations; its application requires closed instance specialization
 pass/generics/runtime_container_setter_matrix_exit built 5375ms exit:1 @6c49683ce714
 pass/generics/runtime_copied_indexed_case_subject_exit built 13470ms exit:70 @91bbf3e29aa9
 pass/generics/runtime_equation_constructor_selected_const_exit rejected 66ms @91bbf3e29aa9
-	generic data `Recovered` retains unsolved type equations; its application requires closed instance specialization
 pass/generics/runtime_equation_named_array_actual_exit rejected 73ms @91bbf3e29aa9
-	generic data `Inferred` retains unsolved type equations; its application requires closed instance specialization
 pass/generics/runtime_forwarded_value_contract_exit built 13348ms exit:0 @91bbf3e29aa9
 pass/generics/runtime_generic_carrier_binder_equation_exit built 13207ms exit:0 @91bbf3e29aa9
 pass/generics/runtime_generic_carrier_equation_context_exit built 13208ms exit:0 @91bbf3e29aa9
 pass/generics/runtime_generic_carrier_equation_exit rejected 432ms @91bbf3e29aa9
-	generic data `Box` retains unsolved type equations; its application requires closed instance specialization
 pass/generics/runtime_generic_composite_field_arguments_exit built 12966ms exit:0 @91bbf3e29aa9
 pass/generics/runtime_generic_multiple_specializations_exit built 5948ms exit:14 @6c49683ce714
 pass/generics/runtime_generic_qualified_constructor_shadow_exit built 13145ms exit:0 @91bbf3e29aa9
@@ -2404,48 +1539,14 @@ pass/generics/runtime_generic_selected_extent_fields_exit built 13205ms exit:0 @
 pass/generics/runtime_grouped_decimal_const_argument_exit built 12713ms exit:0 @91bbf3e29aa9
 pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit built 12526ms exit:0 @91bbf3e29aa9
 pass/generics/runtime_machine_equation_nested_boolean_exit rejected 2104ms @91bbf3e29aa9
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
 pass/generics/runtime_machine_equation_nested_const_exit rejected 2068ms @91bbf3e29aa9
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
 pass/generics/runtime_machine_equation_selected_boolean_exit rejected 2118ms @91bbf3e29aa9
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
-	retained machine declaration differs from its indexed root child
 pass/generics/runtime_machine_equation_selected_const_exit built 12963ms exit:0 @91bbf3e29aa9
 pass/generics/runtime_mixed_generic_erased_sum_exit built 5890ms exit:70 @6c49683ce714
 pass/generics/runtime_nested_array_extent_binder_exit built 12126ms exit:0 @91bbf3e29aa9
 pass/generics/runtime_nested_generic_instantiations_exit built 5637ms exit:30 @6c49683ce714
 pass/generics/runtime_qualified_closed_equation_exit built 12698ms exit:0 @91bbf3e29aa9
 pass/generics/runtime_selected_operator_body_exit rejected 2717ms @91bbf3e29aa9
-	call to `entry` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `entry` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 pass/generics/runtime_value_generic_subject_exit built 5863ms exit:17 @6c49683ce714
 pass/generics/seq_map_filter checked 13153ms @91bbf3e29aa9
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 4297ms @91bbf3e29aa9
@@ -2481,7 +1582,6 @@ pass/host/runtime_windows_gui_argument_failures_exit built 5124ms exit:70 @c6b29
 pass/host/std_clock_sleep_exit built 5655ms exit:70 @6c49683ce714
 pass/host/user32_window_procedure_registration built 20755ms exit:70 @e74967d11875
 pass/inline_asm/asm_aarch64_system_registers_compile incomplete 11555ms @e3eb5bdd566b
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state); in state `Main::main::main`, statement 0
 pass/inline_asm/asm_block_jmp_state built 6662ms @6c49683ce714
 pass/inline_asm/asm_exact_clobbers checked 12162ms @91bbf3e29aa9
 pass/inline_asm/asm_machine_control_wrapper_reach checked 6357ms @6c49683ce714
@@ -2491,11 +1591,9 @@ pass/inline_asm/asm_msr_multi checked 12338ms @91bbf3e29aa9
 pass/inline_asm/asm_port_contract checked 12108ms @91bbf3e29aa9
 pass/inline_asm/asm_port_immediate checked 12764ms @91bbf3e29aa9
 pass/inline_asm/asm_port_out_final_validation rejected 10647ms @e3eb5bdd566b
-	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
 pass/inline_asm/asm_reach_inherit checked 12613ms @91bbf3e29aa9
 pass/inline_asm/asm_reach_wrapper checked 12058ms @91bbf3e29aa9
 pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 11395ms @e3eb5bdd566b
-	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site); in state `Main::main::main`, statement 0
 pass/inline_asm/asm_state_jmp checked 12610ms @91bbf3e29aa9
 pass/inline_asm/asm_sysreg_rw checked 12520ms @91bbf3e29aa9
 pass/inline_asm/asm_sysregs checked 12334ms @91bbf3e29aa9
@@ -2669,7 +1767,6 @@ pass/ownership/linear_domain_forward checked 12581ms @91bbf3e29aa9
 pass/ownership/linear_entry_handoff checked 12976ms @91bbf3e29aa9
 pass/ownership/linear_inline_constructed_argument_claims_exit built 13594ms exit:0 @91bbf3e29aa9
 pass/ownership/linear_qualified_call_result_claims rejected 1901ms @91bbf3e29aa9
-	a boundary call requires an explicit shared `&Binding<R>` authority argument
 pass/ownership/linear_result_member_projection_arguments_exit built 12603ms exit:0 @91bbf3e29aa9
 pass/ownership/linear_result_owners_residual_cleanup_exit built 12104ms exit:0 @91bbf3e29aa9
 pass/ownership/linear_self_receiver_disposition checked 1230ms @6c49683ce714
@@ -2708,11 +1805,9 @@ pass/ownership/runtime_linear_case_payload_forward_exit built 13225ms exit:0 @91
 pass/ownership/runtime_nested_borrowed_consumption_exit built 13467ms exit:0 @91bbf3e29aa9
 pass/ownership/runtime_nested_projected_claim_return_exit built 13175ms exit:0 @91bbf3e29aa9
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit rejected 12476ms @91bbf3e29aa9
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "extract", reason: "ordinary sequence return has no unique source cleanup coordinate", gap: None })
 pass/ownership/runtime_repeated_linear_result_forwarding_exit built 12994ms exit:0 @91bbf3e29aa9
 pass/ownership/runtime_retained_alias_referent_transform_exit built 12672ms exit:42 @91bbf3e29aa9
 pass/ownership/runtime_selected_linear_temporary_exit rejected 13344ms @91bbf3e29aa9
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "consume_envelope", reason: "ordinary sequence return has no unique source cleanup coordinate", gap: None })
 pass/ownership/runtime_selected_reference_local_exit built 13357ms exit:0 @91bbf3e29aa9
 pass/ownership/runtime_selective_constructed_owner_custody_exit built 13686ms exit:0 @91bbf3e29aa9
 pass/ownership/runtime_view_parameter_element_window_exit built 13355ms exit:0 @91bbf3e29aa9
@@ -2729,12 +1824,6 @@ pass/proofs/accumulator_guarantee_exit built 5790ms exit:70 @6c49683ce714
 pass/proofs/axiom_citation checked 12784ms @91bbf3e29aa9
 pass/proofs/case_call_premises checked 1287ms @6c49683ce714
 pass/proofs/cauchy_predicates_compile rejected 628ms @e3eb5bdd566b
-	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `converges_together_at_symmetric` cites `rat_close_symmetric`, but the callee's requires fact `rat_close(p, q, precision) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `converges_together_at_symmetric` ensures contract proof fact `converges_together_at<Right, Left, Modulus>(precision, right_index, left_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `doubled_nat_max_threshold` ensures contract proof fact `saturating_sub(doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision), index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 pass/proofs/citation_requires_discharged checked 5813ms @6c49683ce714
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 4453ms @91bbf3e29aa9
 pass/proofs/defined_proposition_premises checked 4171ms @91bbf3e29aa9
@@ -2819,7 +1908,6 @@ pass/providers/const_generic_entry_record_field_exit built 22733ms exit:70 @91bb
 pass/providers/consuming_trait_requirement_external_sink_exit built 12401ms exit:0 @91bbf3e29aa9
 pass/providers/direct_boundary_array_snapshot_exit built 15932ms exit:70 @91bbf3e29aa9
 pass/providers/external_boundary_contract_exit rejected 15401ms @91bbf3e29aa9
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(absolute),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/providers/external_boundary_requirement_via_exit built 11923ms exit:21 @e3eb5bdd566b
 pass/providers/external_leaf_dllimport_compile built 6745ms @6c49683ce714
 pass/providers/foreign_address_result_release_exit built 15755ms @91bbf3e29aa9
@@ -2832,17 +1920,9 @@ pass/providers/generic_provider_structural_result_composition_exit built 15833ms
 pass/providers/kernel_import_result_chain_exit built 16362ms @91bbf3e29aa9
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 6151ms exit:41 @6c49683ce714
 pass/providers/linear_structural_provider_return_exit rejected 20203ms @91bbf3e29aa9
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(ConsoleNativeProvider::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/providers/occurrence_region_binding_exit rejected 2967ms @91bbf3e29aa9
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
 pass/providers/occurrence_region_binding_forwarding_exit rejected 3001ms @91bbf3e29aa9
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
 pass/providers/occurrence_region_binding_projected_type_exit rejected 5252ms @91bbf3e29aa9
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `member access`
-	argument `reading` for state `entry` expects `&Binding<Reading<&i32>>`, got `named value`
 pass/providers/owned_array_operand_epochs_exit built 17503ms exit:0 @91bbf3e29aa9
 pass/providers/portable_contract checked 16402ms @91bbf3e29aa9
 pass/providers/provider_const_endpoint checked 28962ms @91bbf3e29aa9
@@ -3252,7 +2332,6 @@ pass/text/plain_byte_field_and_qualified_state_loan_exit built 12541ms exit:70 @
 pass/text/qualified_byte_owner_state_loan_cycle_exit built 10520ms exit:70 stdout:match @e3eb5bdd566b
 pass/text/qualified_byte_state_snapshot_exit built 12632ms exit:70 @91bbf3e29aa9
 pass/text/qualified_byte_value_forwarding_exit rejected 13317ms @91bbf3e29aa9
-	machine `Main::main` state `main` statement 2 cannot lower structural value: computed owned operand requires an existing parameter
 pass/text/runtime_alias_string_write built 469ms @7fc7a3a06d34
 pass/text/runtime_bounded_carrier_alias_concat_exit built 6160ms exit:70 @6c49683ce714
 pass/text/runtime_bounded_carrier_concat_exit built 6141ms exit:70 @6c49683ce714
@@ -3282,30 +2361,19 @@ pass/text/runtime_text_builder built 10934ms exit:0 @e3eb5bdd566b
 pass/text/runtime_text_not_equals_exit built 11172ms exit:70 @e3eb5bdd566b
 pass/text/runtime_utf16_literal_exit built 5956ms exit:70 @6c49683ce714
 pass/text/runtime_view_local_boundary_write_exit incomplete 3269ms @6c49683ce714
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 1
 pass/text/runtime_view_local_call_argument_exit incomplete 6377ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
 pass/text/runtime_view_local_call_initialized_exit incomplete 6586ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
 pass/text/runtime_view_local_call_result_store_exit incomplete 6440ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
 pass/text/runtime_view_local_field_store_exit incomplete 5848ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::observe`, statement 0
 pass/text/runtime_view_local_first_store_exit incomplete 5810ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
 pass/text/runtime_view_local_qualified_argument_exit incomplete 6381ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 1
 pass/text/runtime_view_local_reassign_exit incomplete 6368ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
 pass/text/runtime_view_local_record_local_field_store_exit incomplete 6243ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::observe`, statement 1
 pass/text/runtime_view_local_state_transfer_exit incomplete 6670ms @91bbf3e29aa9
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has no selected disposition); in state `Main::main::main`, statement 0
 pass/text/state_parameter_byte_replacement_exit built 12965ms exit:70 @91bbf3e29aa9
 pass/text/text_concat_assign checked 13191ms @91bbf3e29aa9
 pass/text/utf8_boundary_established checked 446ms @0484de104502
 pass/text/utf8_member_verdict rejected 6447ms @91bbf3e29aa9
-	machine `LabelMessage::decode` state `field_1_view_validate` statement 0: call stores a borrowed value without a complete destination/backing relation
 pass/text/view_field_literal_store_outlives_helper_exit built 12232ms exit:70 @91bbf3e29aa9
 pass/text/zii_default_string_equality_exit built 11349ms exit:70 @e3eb5bdd566b
 pass/time/runtime_checked_time_arith_exit built 16428ms exit:70 @6c49683ce714
@@ -3314,7 +2382,6 @@ pass/time/runtime_fs_mtime_system_time_interop_exit built 32435ms @e3eb5bdd566b
 pass/time/runtime_kernel_clock_wait_loans_exit built 13080ms @91bbf3e29aa9
 pass/time/runtime_time_elapsed_since_exit built 23218ms exit:70 @e3eb5bdd566b
 pass/time/runtime_time_host_native_darwin_exit rejected 1067ms @0484de104502
-	selected ProgramEntry Binding field `Main::host` requires a selected Fused provider for boundary `TimeHost`
 pass/time/runtime_time_host_native_darwin_x86_64_exit built 13676ms exit:1 @91bbf3e29aa9
 pass/time/runtime_time_host_virtual_exit checked 6184ms @6c49683ce714
 pass/time/static_duration_accessors built 30705ms exit:70 @91bbf3e29aa9
@@ -3376,7 +2443,6 @@ pass/wire/runtime_wire_exact_array_without_count_exit built 9031ms exit:70 @e3eb
 pass/wire/runtime_wire_policy_authored_plan_exit built 9511ms exit:70 @e3eb5bdd566b
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 10517ms exit:70 @e3eb5bdd566b
 pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 7047ms @e3eb5bdd566b
-	machine `LabelMessage::decode` state `field_1_view_validate` statement 0: call stores a borrowed value without a complete destination/backing relation
 pass/wire/wire_compatibility_migration_across_shapes built 4802ms exit:0 @6c49683ce714
 pass/wire/wire_data_reserved_field built 6583ms @6c49683ce714
 pass/wire/wire_field_numbers checked 13150ms @91bbf3e29aa9
