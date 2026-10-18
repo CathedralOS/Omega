@@ -1064,6 +1064,17 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // recording an invocation here would invent a missing machine.
                 return None;
             }
+            ExpressionNode::Call(call)
+                if validation::compiler_operations::storage_address_operand(self.program, call)
+                    .is_some() =>
+            {
+                // The ordinary argument forms its loan here. Exposure does not
+                // invoke a machine or retain that loan in its numeric result.
+                let operand =
+                    validation::compiler_operations::storage_address_operand(self.program, call)?;
+                self.evaluated_operand(operand, contexts, constraints);
+                return None;
+            }
             ExpressionNode::Call(call) => {
                 // Named uses need their own operand-time evidence even when
                 // a boundary operator also has an ordinary call row. Each

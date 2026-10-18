@@ -173,6 +173,7 @@ impl LegalizedScalarInstruction {
             }
             LegalizedScalarInstructionKind::ByteSequenceLength { indices, .. }
             | LegalizedScalarInstructionKind::ElementViewLength { indices, .. }
+            | LegalizedScalarInstructionKind::StorageAddress { indices, .. }
             | LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
                 indices, ..
@@ -393,6 +394,11 @@ pub enum LegalizedScalarInstructionKind {
     },
     ProgramImageAddress {
         boundary: semantic_vocabulary::BoundaryMachineId,
+    },
+    StorageAddress {
+        source: semantic_vocabulary::PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     RegisterAccess {
         service: semantic_vocabulary::ServiceId,
@@ -1029,6 +1035,7 @@ impl LegalizedScalarInstructionKind {
             | Self::NearestIeeeFloatArithmetic { .. }
             | Self::ReleaseReference { .. }
             | Self::PrimitiveLocalStore { .. }
+            | Self::StorageAddress { .. }
             | Self::PrimitiveScalarRead { .. }
             | Self::StructuralScalarFieldRead { .. }
             | Self::StructuralByteSequenceFieldRead { .. }

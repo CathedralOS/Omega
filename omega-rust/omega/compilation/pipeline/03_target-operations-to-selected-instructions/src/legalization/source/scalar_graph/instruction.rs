@@ -338,6 +338,9 @@ pub(super) fn project(
                 place: *place,
                 structural_type: structural_type.clone(),
             },
+            AbstractOperation::StorageAddress { .. } => {
+                storage_instructions::project_storage_address(node, optimized, unit)?
+            }
             AbstractOperation::PrimitiveScalarRead { .. } => {
                 storage_instructions::project_primitive_scalar_read(node, optimized, unit)?
             }

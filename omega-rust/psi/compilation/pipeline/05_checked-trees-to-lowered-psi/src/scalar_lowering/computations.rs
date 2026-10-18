@@ -591,6 +591,34 @@ impl<'a> Expansion<'a> {
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
         let entry = match node.kind {
+            CheckedScalarComputationKind::StorageAddress { subject, .. } => {
+                let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
+                let source = site
+                    .bindings
+                    .borrowed_structural_home(&subject, self.checked.state_parameters(state))?;
+                let root_type = site.bindings.structural_argument_type(&source).ok_or(
+                    LoweringError::Unsupported("address query lost its referent carrier"),
+                )?;
+                let mut path = source.path.into_iter().map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static).collect::<Vec<_>>();
+                path.extend(crate::expression_preparation::bindings::structural_paths::prepare_structural_argument_path(
+                    identities, self.checked, &subject, root_type, self.structural_types)?);
+                self.binding(
+                    input_types,
+                    input_types.len(),
+                    target,
+                    LoweredScalarBinding::StorageAddress(
+                        crate::emission::operation_emission::calls::PreparedStructuralArgument {
+                            place: source.place,
+                            root_type: Some(root_type),
+                            access: source.access,
+                            path,
+                            selector_positions: Vec::new(),
+                        },
+                        result_type.scalar_type,
+                    ),
+                )
+            }
+
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
                 literal,
                 maximum_length,

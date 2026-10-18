@@ -70,6 +70,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 }
                 | AbstractOperation::ReturnStructural { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
+                | AbstractOperation::StorageAddress { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
                 | AbstractOperation::WriteOnlyPrimitiveStore { .. }
                 | AbstractOperation::StructuralScalarFieldRead { .. }
@@ -327,7 +328,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                             &current.optimized_target().optimized().plan().structural_types,
                         )
                 }
-                AbstractOperation::PrimitiveScalarRead { .. }
+                AbstractOperation::StorageAddress { .. }
+                | AbstractOperation::PrimitiveScalarRead { .. }
                 | AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
                     primitive_accesses::retained(operation, targeted)
                 }

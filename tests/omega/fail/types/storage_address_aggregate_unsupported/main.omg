@@ -1,0 +1,4 @@
+machine main() {
+    let items: [u64; 2] = [7, 11];
+    let address: addr = address_of(&items);
+}

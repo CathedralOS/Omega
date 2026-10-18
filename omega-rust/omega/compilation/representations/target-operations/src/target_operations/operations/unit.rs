@@ -191,6 +191,13 @@ pub enum TargetUnitOperation {
     /// beneath a readable borrowed root. `path` is the verified Terminal
     /// projection; `indices` resolves each of its `RuntimeIndex` segments, in
     /// path order, to the operand the address scales by its array stride.
+    StorageAddress {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        indices: Vec<TargetStructuralRuntimeIndex>,
+    },
     PrimitiveScalarRead {
         psi_operation: OperationId,
         result: AbstractResult,

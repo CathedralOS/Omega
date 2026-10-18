@@ -285,9 +285,13 @@ fn operation_effect(
         | abstract_operations::bitwise_or_xor_pair_pattern!(..)
         | O::IntegerShift { .. }
         | O::IntegerArithmetic { .. } => (EffectClass::PureScalar, No, No, No, No),
+        // A storage query is read-only, but exposes runtime occurrence identity.
+        // Value-only motion and transitive call purity cannot erase this axis.
+        O::StorageAddress { .. } => (EffectClass::StructuralState, Yes, Yes, No, No),
         O::EstablishNativeCodeLayout { .. } | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
-        | abstract_operations::scalar_read_or_membership_pattern!(..)
+        | O::PrimitiveScalarRead { .. }
+        | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( .. )

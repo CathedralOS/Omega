@@ -24,10 +24,15 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub(crate) struct ByteSequenceView {
-    backing: Arc<[u8]>,
+    backing: Arc<ByteSequenceBacking>,
     window: Range<usize>,
     /// Exact metadata of a projected binding; absent for a newly owned descriptor.
     descriptor_home: Option<crate::values::TerminalStructuralValue>,
+}
+
+struct ByteSequenceBacking {
+    bytes: Vec<u8>,
+    exposure_namespace: Option<u64>,
 }
 
 /// Two views are the same storage when they share backing and window. Equal
@@ -44,7 +49,10 @@ impl ByteSequenceView {
     pub(crate) fn new(bytes: Vec<u8>) -> Self {
         let length = bytes.len();
         Self {
-            backing: bytes.into(),
+            backing: Arc::new(ByteSequenceBacking {
+                bytes,
+                exposure_namespace: crate::structural_identities::new_exposure_namespace(),
+            }),
             window: 0..length,
             descriptor_home: None,
         }
@@ -88,12 +96,22 @@ impl ByteSequenceView {
         same_home(binding) && self.descriptor_home.as_ref().is_none_or(same_home)
     }
 
+    pub(crate) fn storage_address_coordinate(&self, index: usize) -> Option<(u64, u64)> {
+        if index >= self.len() {
+            return None;
+        }
+        Some((
+            self.backing.exposure_namespace?,
+            u64::try_from(self.window.start.checked_add(index)?).ok()?,
+        ))
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.window.end - self.window.start
     }
 
     pub(crate) fn bytes(&self) -> &[u8] {
-        &self.backing[self.window.clone()]
+        &self.backing.bytes[self.window.clone()]
     }
 
     pub(crate) fn get(&self, index: usize) -> Option<&u8> {
@@ -108,7 +126,7 @@ impl ByteSequenceView {
         }
         let storage_index = self.window.start.checked_add(byte_index)?;
         if let Some(bytes) = Arc::get_mut(&mut self.backing) {
-            *bytes.get_mut(storage_index)? = value;
+            *bytes.bytes.get_mut(storage_index)? = value;
         } else {
             let mut bytes = self.bytes().to_vec();
             *bytes.get_mut(byte_index)? = value;

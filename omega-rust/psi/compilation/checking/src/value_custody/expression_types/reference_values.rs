@@ -445,12 +445,6 @@ pub(super) fn declared_value_matches_reference(
 ) -> bool {
     let (required, required_substitutions) =
         substituted_required_reference(program, required, required_substitutions);
-    let actual_identity = |reference| {
-        program.type_identity(TypeIdentityRequest {
-            substitutions,
-            ..TypeIdentityRequest::ordinary(reference)
-        })
-    };
     let TypeReferenceNode::Reference {
         access: required_access,
         referee: required_referee,
@@ -471,35 +465,50 @@ pub(super) fn declared_value_matches_reference(
             required_substitutions,
         );
     }
-    // The existing implicit shared borrow of an owned field still needs that
-    // field's actual type. Member syntax alone cannot match an arbitrary referee.
+    // Implicit lending forms only shared access. Explicit borrow formation
+    // checks its own access and then uses the same owned referee judgment.
     *required_access == ReferenceAccess::Shared
-        && (actual_identity(actual)
-            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-                substitutions: required_substitutions,
-                ..TypeIdentityRequest::ordinary(*required_referee)
-            })
-            || owned_array_projects_to_slice(
-                program,
-                actual,
-                *required_referee,
-                substitutions,
-                required_substitutions,
-            )
-            || owned_array_satisfies_constrained_referee(
-                program,
-                actual,
-                *required_referee,
-                substitutions,
-                required_substitutions,
-            )
-            || fixed_array_binds_open_length(
-                program,
-                actual,
-                *required_referee,
-                substitutions,
-                required_substitutions,
-            ))
+        && owned_value_matches_referee(
+            program,
+            actual,
+            *required_referee,
+            substitutions,
+            required_substitutions,
+        )
+}
+
+pub(super) fn owned_value_matches_referee(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    required_referee: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    program.type_identity(TypeIdentityRequest {
+        substitutions,
+        ..TypeIdentityRequest::ordinary(actual)
+    }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+        substitutions: required_substitutions,
+        ..TypeIdentityRequest::ordinary(required_referee)
+    }) || owned_array_projects_to_slice(
+        program,
+        actual,
+        required_referee,
+        substitutions,
+        required_substitutions,
+    ) || owned_array_satisfies_constrained_referee(
+        program,
+        actual,
+        required_referee,
+        substitutions,
+        required_substitutions,
+    ) || fixed_array_binds_open_length(
+        program,
+        actual,
+        required_referee,
+        substitutions,
+        required_substitutions,
+    )
 }
 
 /// Shape correspondence for a shared view, not a loan or a domain proof.

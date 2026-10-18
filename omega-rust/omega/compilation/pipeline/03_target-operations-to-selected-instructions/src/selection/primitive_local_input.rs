@@ -1,6 +1,7 @@
 //! Primitive referent geometry and original local producer identity.
 //!
-//! Observation copies the selected primitive leaf, not its containing owner.
+//! Reads copy the selected primitive leaf; address exposure observes its
+//! original location. Neither operation copies the containing owner.
 //! The original place declaration and complete projection determine access and
 //! layout. An owner's claims, linearity or domains do not turn an admitted
 //! scalar read into a whole-owner copy. Keep those records on the owner; do not
@@ -317,6 +318,28 @@ pub(super) fn read_geometry(
         // A projection through runtime elements returns its static offset;
         // the row's traversals must be exactly the path's runtime elements,
         // which the read scales into the address before the load.
+        Instruction::StorageAddress {
+            source: place,
+            path,
+            indices,
+        } => {
+            if !matches!(scalar, ScalarType::Integer(integer) if integer.is_address()) {
+                return None;
+            }
+            let signature = source.structural.as_ref()?;
+            let root = super::reference_input::root_type(source, *place)?;
+            let geometry =
+                crate::structural_inputs::structural_reference_input::reference_source_geometry(
+                    root,
+                    path,
+                    &signature.structural_types,
+                )?;
+            crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                indices,
+                &geometry.elements,
+            )
+            .then_some((*place, geometry.byte_offset, geometry.pointer_slots))
+        }
         Instruction::PrimitiveScalarRead {
             source: place,
             path,

@@ -386,9 +386,9 @@ fn operation_observations(
         | abstract_operations::bitwise_or_xor_pair_pattern!(..)
         | O::IntegerShift { .. }
         | O::IntegerArithmetic { .. } => (Vec::new(), No, No),
-        O::EstablishNativeCodeLayout { .. } | O::EstablishPrimitiveLocal { .. }
+        O::StorageAddress { .. } | O::EstablishNativeCodeLayout { .. } | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
-        | abstract_operations::scalar_read_or_membership_pattern!(..)
+        | abstract_operations::primitive_storage_observation_pattern!(..)
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( .. )

@@ -53,6 +53,8 @@ pub(crate) fn operation_scalar_types_match(
         return false;
     }
     match operation {
+        O::StorageAddress { result, .. } => matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
+            && scalar(result.value) == Some(result.scalar_type),
         O::RegisterAccess { event, result, .. } => {
             let matches_carrier = |scalar, bits| matches!(scalar, ScalarType::Integer(integer)
                 if fixed(integer) && integer.bits() == bits

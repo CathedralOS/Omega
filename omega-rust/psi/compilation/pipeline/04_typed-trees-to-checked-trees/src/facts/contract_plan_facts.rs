@@ -871,7 +871,8 @@ fn computation_contains_trapping_operation(
                 }
                 pending.extend(plans.operands.span_or_empty(*operands).iter().copied());
             }
-            Kind::ByteSequenceLiteralComparison { subject, .. }
+            Kind::StorageAddress { subject, .. }
+            | Kind::ByteSequenceLiteralComparison { subject, .. }
             | Kind::ByteSequencePredicate { subject, .. } => {
                 if push_place(subject, &mut pending) {
                     return true;

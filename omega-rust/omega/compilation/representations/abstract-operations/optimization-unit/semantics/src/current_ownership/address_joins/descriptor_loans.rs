@@ -637,7 +637,7 @@ fn operation_observations(
             observe_byte_operand(right);
         }
         O::ByteSequencePredicate { operand, .. } => observe_byte_operand(operand),
-        abstract_operations::scalar_read_or_membership_pattern!(source, path, ..) => {
+        abstract_operations::primitive_storage_observation_pattern!(source, path, ..) => {
             retain(*source, projected(*source, path, None));
         }
         O::StructuralScalarFieldRead {

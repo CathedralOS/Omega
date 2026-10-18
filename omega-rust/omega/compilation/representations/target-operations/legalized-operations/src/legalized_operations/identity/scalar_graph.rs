@@ -483,6 +483,16 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     super::structural_types::encode_structural_place(bytes, *place);
                     super::structural_types::encode_structural_type(bytes, structural_type);
                 }
+                LegalizedScalarInstructionKind::StorageAddress {
+                    source,
+                    path,
+                    indices,
+                } => {
+                    bytes.push(122);
+                    crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+                    super::structural_types::encode_structural_path(bytes, path);
+                    encode_runtime_indices(bytes, indices);
+                }
                 LegalizedScalarInstructionKind::PrimitiveScalarRead {
                     source,
                     path,

@@ -21,6 +21,18 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             bytes.id(*machine);
             encode_structural_operation_result(bytes, result);
+        },
+        O::StorageAddress {
+            psi_operation,
+            result,
+            source,
+            path,
+        } => {
+            bytes.u8(122);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            bytes.id(*source);
+            bytes.slice(path, encode_structural_path_segment);
         }
         O::EstablishByteSequenceConcatenation {
             psi_operation,

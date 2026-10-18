@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "argument `value` for state `entry` expects `&u64`"
+  ]
+}

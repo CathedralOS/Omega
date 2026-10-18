@@ -118,7 +118,8 @@ pub(crate) fn rewrite_value_operands(operation: &mut O, mut replace: impl FnMut(
         | O::PortWrite { .. }
         | O::SelectImplementation { .. }
         | abstract_operations::constant_value_triple_pattern!(..)
-        | abstract_operations::scalar_read_or_membership_pattern!(..)
+        | O::StorageAddress { .. }
+        | abstract_operations::primitive_storage_observation_pattern!(..)
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceWrite { .. }
         | abstract_operations::byte_sequence_store_pair_pattern!( .. )

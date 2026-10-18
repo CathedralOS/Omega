@@ -105,6 +105,7 @@ pub enum StructuralEffectCustody {
     ExactReferenceCarrier,
     ExactPrimitiveLocal,
     ExactReadablePrimitiveRoot,
+    ExactAddressableReferent,
     ExactReadableSumProjection,
     ExactWriteOnlyPrimitiveRoot,
     ExactStructuralScalarField,
@@ -137,6 +138,7 @@ pub enum StructuralEffectAction {
     ReleaseReference,
     EstablishPrimitiveLocal,
     ReadPrimitive,
+    ExposeStorageAddress,
     ObserveCaseMembership,
     StorePrimitive,
     StoreScalarField,
@@ -344,6 +346,7 @@ macro_rules! structural_effect_rows {
 }
 
 structural_effect_rows! {
+    StorageAddress => (Scalar, ExactAddressableReferent, ExposeStorageAddress, None, RequiresAndKeepsStructuralPlace),
     EstablishPlacedReference => (Structural, ExactReferenceSource, EstablishPlacedReference, None, CapturesLoanAndAddsReferenceCarrier),
     EstablishReference => (Structural, ExactReferenceSource, EstablishReference, None, CapturesLoanAndAddsReferenceCarrier),
     ReleaseReference => (Unit, ExactReferenceCarrier, ReleaseReference, None, ReleasesReferenceCarrier),
@@ -426,6 +429,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::ReleaseReference,
         OperationSemanticTag::EstablishPrimitiveLocal,
         OperationSemanticTag::PrimitiveScalarRead,
+        OperationSemanticTag::StorageAddress,
         OperationSemanticTag::StructuralCaseMembership,
         OperationSemanticTag::WriteOnlyPrimitiveStore,
         OperationSemanticTag::StructuralScalarFieldStore,
@@ -482,6 +486,7 @@ fn validate_structural_effect_schema(
             OperationSemanticTag::EstablishPrimitiveLocal
         }
         StructuralEffectAction::ReadPrimitive => OperationSemanticTag::PrimitiveScalarRead,
+        StructuralEffectAction::ExposeStorageAddress => OperationSemanticTag::StorageAddress,
         StructuralEffectAction::ObserveCaseMembership => {
             OperationSemanticTag::StructuralCaseMembership
         }
@@ -600,6 +605,13 @@ fn validate_structural_effect_schema(
                         && schema.custody == StructuralEffectCustody::ExactPrimitiveLocal
                         && schema.external_effect == StructuralEffectExternalEffect::None
                         && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
+                }
+                StructuralEffectAction::ExposeStorageAddress => {
+                    schema.result == StructuralEffectResultShape::Scalar
+                        && schema.custody == StructuralEffectCustody::ExactAddressableReferent
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
                 }
                 StructuralEffectAction::ReadPrimitive => {
                     schema.result == StructuralEffectResultShape::Scalar

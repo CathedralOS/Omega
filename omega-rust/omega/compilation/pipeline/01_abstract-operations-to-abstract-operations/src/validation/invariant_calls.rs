@@ -1251,7 +1251,7 @@ fn member_call_target(operation: &O) -> Option<MachineId> {
 /// callee whose transitive summary is pure under the same rule the relocated
 /// call obeys. A member node absent from the summary refuses: the gate fails
 /// closed rather than trusting a drifted table.
-fn component_members_unobservable(
+pub(crate) fn component_members_unobservable(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     effects: &crate::EffectSummaryAnalysis,

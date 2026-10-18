@@ -274,3 +274,64 @@ pub(super) fn normalize_signed_load(
     )?;
     Ok(normalized)
 }
+
+/// Expose the original referent pointer. Reference descriptors carry both an
+/// address and an encoding; only the address is observed, never the codec or
+/// the descriptor's own frame home. Offset application matches ordinary reads.
+pub(super) fn address(
+    source: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let (place, byte_offset, slots) =
+        crate::selection::primitive_local_input::read_geometry(source, row).ok_or_else(|| {
+            SelectedInstructionError::custody_because(
+                "storage address lost its checked referent geometry",
+            )
+        })?;
+    let LegalizedScalarInstructionKind::StorageAddress { indices, .. } = &row.kind else {
+        return Err(invalid());
+    };
+    let (pointer, slots) = super::runtime_address::projection_origin(
+        source,
+        builder,
+        row,
+        place,
+        byte_offset,
+        &slots,
+    )?;
+    let pointer = match pointer {
+        Some(pointer) => pointer,
+        // The common resolver authenticates a completed local home. It cannot
+        // create storage for missing ABI fragments or an unavailable loan.
+        None => super::place_pointer(builder, row, place, 0)?,
+    };
+    let address = if let Some((address, _)) = super::runtime_address::scalar_reference(
+        source, builder, row, place, pointer, indices, slots,
+    )? {
+        if byte_offset != 0 {
+            return Err(invalid());
+        }
+        address
+    } else {
+        let (pointer, leaf) =
+            super::runtime_address::cross_references(builder, row, place, pointer, indices, slots)?;
+        let pointer = super::runtime_address::scale(
+            builder,
+            row,
+            place,
+            byte_offset,
+            pointer,
+            &indices[leaf..],
+        )?;
+        super::encoded_scalar::backing_address(builder, row, place, pointer, byte_offset)?
+    };
+    let result = row.result.ok_or_else(|| {
+        SelectedInstructionError::custody_because("storage address lost its declared addr result")
+    })?;
+    let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
+    // ABI pointers use their transport carrier internally. The representation
+    // query publishes those bits as its declared addr value, not a value cast.
+    builder.emit_copy_i64(address, output, super::provenance(row))?;
+    Ok(output)
+}

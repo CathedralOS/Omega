@@ -33,9 +33,10 @@ pub(super) fn producer(
 
 pub(super) fn primitive_size(scalar: ScalarType) -> Option<u8> {
     match scalar {
-        ScalarType::Integer(integer)
-            if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
-        {
+        // Address data is an ordinary scalar carrier too. The enclosing
+        // publication contract already requires an eight-byte target pointer;
+        // exact declared/register types remain checked by establishment.
+        ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 16 | 32 | 64) => {
             Some((integer.bits() / 8) as u8)
         }
         ScalarType::Boolean => Some(1),

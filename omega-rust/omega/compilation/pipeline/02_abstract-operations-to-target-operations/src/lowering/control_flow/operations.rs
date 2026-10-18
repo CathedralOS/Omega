@@ -396,6 +396,7 @@ pub(super) fn lower_operation(
         }
         AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
+        | AbstractOperation::StorageAddress { .. }
         | AbstractOperation::PrimitiveScalarRead { .. }
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | AbstractOperation::StructuralScalarFieldRead { .. } => super::primitive_storage::lower(

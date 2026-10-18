@@ -271,6 +271,11 @@ pub enum OperationKind {
     EstablishNativeCodeLayout {
         machine: MachineId,
     },
+    /// Numeric exposure of an addressable referent under ordinary borrowed
+    /// access. The result grants no loan, ownership, or memory access.
+    StorageAddress {
+        source: StructuralArgument,
+    },
     /// Interpret initialized ordinary RAM through one exact retained placement.
     /// The result's reference referee selects the catalog; neither an offset
     /// nor a caller-supplied profile can establish this interpretation.
@@ -1133,7 +1138,7 @@ impl OperationKind {
             }
             // Runtime selectors were mapped through the shared source path
             // inventory above; placement contributes no scalar operands.
-            Self::EstablishPlacedReference { .. } => {}
+            Self::EstablishPlacedReference { .. } | Self::StorageAddress { .. } => {}
             Self::EstablishByteSequenceConcatenation { left, right, .. } => {
                 left.remap_length(map);
                 right.remap_length(map);

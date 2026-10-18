@@ -337,6 +337,27 @@ fn argument_matches_type_reference_using(
                 required_substitutions,
             );
         }
+        if let Some(actual) =
+            delivered_types::delivered_value_type(program, inner_expression.target)
+        {
+            return if *access == language_semantics::ReferenceAccess::Shared {
+                correspondence(
+                    program,
+                    actual.reference,
+                    type_reference,
+                    &actual.substitutions,
+                    required_substitutions,
+                )
+            } else {
+                reference_values::owned_value_matches_referee(
+                    program,
+                    actual.reference,
+                    *referee,
+                    &actual.substitutions,
+                    required_substitutions,
+                )
+            };
+        }
         return argument_matches_type_reference_using(
             program,
             scope,
@@ -478,6 +499,19 @@ fn argument_matches_type_reference_using(
         TypeReferenceNode::Reference {
             referee, access, ..
         } => {
+            // Implicit shared lending keeps the completed value's referee
+            // carrier. The primitive syntax fallback below intentionally
+            // accepts names for ordinary scalar checking, but cannot decide
+            // whether an addr (or any other carrier) lends a u64 referent.
+            if let Some(actual) = delivered_types::delivered_value_type(program, argument) {
+                return correspondence(
+                    program,
+                    actual.reference,
+                    type_reference,
+                    &actual.substitutions,
+                    required_substitutions,
+                );
+            }
             // Shared lending observes a completed value, including an anonymous
             // constructor. Its carrier must correspond; loan formation and
             // temporary lifetime belong to the independent custody checks, not

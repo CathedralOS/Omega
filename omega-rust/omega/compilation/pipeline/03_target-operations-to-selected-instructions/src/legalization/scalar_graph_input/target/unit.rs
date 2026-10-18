@@ -898,6 +898,43 @@ pub(super) fn validate_operation(
                 *identity == value.value && source.scalar_type() == value.scalar_type
             }) => {}
         (
+            TargetUnitOperation::StorageAddress {
+                psi_operation,
+                result,
+                source,
+                path,
+                indices,
+            },
+            AbstractOperation::StorageAddress {
+                psi_operation: expected_operation,
+                result: expected,
+                source: expected_source,
+                path: expected_path,
+            },
+        ) if psi_operation == expected_operation
+            && result == expected
+            && source == expected_source
+            && path == expected_path =>
+        {
+            let root = crate::legalization::scalar_graph_input::primitive_locals::read_root_type(
+                optimized, *source,
+            )
+            .ok_or(LegalizationError::custody())?;
+            let geometry =
+                crate::structural_inputs::structural_reference_input::reference_source_geometry(
+                    root,
+                    path,
+                    &unit.structural_types,
+                )
+                .ok_or(LegalizationError::custody())?;
+            if !matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
+                || !runtime_indices_rejoin(indices, &geometry.elements, sources)
+            {
+                return Err(LegalizationError::custody());
+            }
+            sources.push(scalar_home(psi_operation, result)?);
+        }
+        (
             TargetUnitOperation::PrimitiveScalarRead {
                 psi_operation,
                 result,

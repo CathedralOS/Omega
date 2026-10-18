@@ -12,6 +12,31 @@ use target_operations::{TargetFunction, TargetUnitOperation};
 
 pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> bool {
     match source {
+        AbstractOperation::StorageAddress {
+            psi_operation,
+            result,
+            source,
+            path,
+        } => {
+            let mut queries = target
+                .graph
+                .operations()
+                .filter_map(|operation| match operation {
+                    TargetUnitOperation::StorageAddress {
+                        psi_operation: retained,
+                        result,
+                        source,
+                        path,
+                        indices,
+                    } if retained == psi_operation => Some((result, source, path, indices)),
+                    _ => None,
+                });
+            matches!(queries.next(), Some((retained_result, retained_source, retained_path, indices))
+                if retained_result == result && retained_source == source && retained_path == path
+                    && super::structural_fields::retained_selectors(path, indices))
+                && queries.next().is_none()
+        }
+
         AbstractOperation::PrimitiveScalarRead {
             psi_operation,
             result,

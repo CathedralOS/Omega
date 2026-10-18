@@ -7,6 +7,12 @@ pub enum StructuralEffectObservation {
         destination: semantic_vocabulary::PlaceId,
         machine: semantic_vocabulary::MachineId,
     },
+    /// Numeric observation of an existing referent; no content equation or
+    /// retained reference resource follows from the scalar result.
+    StorageAddressExposed {
+        source: StructuralArgument,
+        result: ValueId,
+    },
     ReferenceEstablished {
         source: terminal_psi::StructuralArgument,
         destination: PlaceId,
@@ -296,6 +302,23 @@ pub fn structural_effect_leaf_observation_in(
                 destination: result.place,
                 value: *value,
                 range_obligation: *range_obligation,
+            }
+        }
+        (
+            StructuralEffectAction::ExposeStorageAddress,
+            OperationKind::StorageAddress { source },
+        ) => {
+            let result = operation.result.scalar().filter(|result|
+                matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address()))
+                .ok_or(OperationSemanticError::StructuralEffectResultShapeMismatch(tag))?;
+            if source.access != terminal_psi::StructuralAccess::SharedBorrow {
+                return Err(OperationSemanticError::StructuralEffectResultShapeMismatch(
+                    tag,
+                ));
+            }
+            StructuralEffectObservation::StorageAddressExposed {
+                source: source.clone(),
+                result: result.id,
             }
         }
         (

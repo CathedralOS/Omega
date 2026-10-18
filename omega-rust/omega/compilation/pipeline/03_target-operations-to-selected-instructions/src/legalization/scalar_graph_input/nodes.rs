@@ -138,7 +138,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             ..
         } => Ok((*psi_operation, *result)),
-        abstract_operations::scalar_read_membership_triple_pattern!(psi_operation, result, ..) => {
+        abstract_operations::scalar_storage_observation_pattern!(psi_operation, result, ..) => {
             Ok((*psi_operation, result.value))
         }
         AbstractOperation::IeeeFloatConstant {
@@ -862,6 +862,15 @@ pub(super) fn validate(
                 ..
             } => result.scalar_type,
             AbstractOperation::SelectImplementation { result, .. } => result.scalar_type,
+            AbstractOperation::StorageAddress { result, .. } => {
+                // The target/source operation join separately authenticates the
+                // referent and runtime selectors; this node retains addr exactly.
+                if !matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
+                {
+                    return Err(LegalizationError::custody());
+                }
+                result.scalar_type
+            }
             AbstractOperation::AtomicEvent { event, .. } => {
                 super::atomic_access::event(event)
                     .and_then(|(_, result)| result)

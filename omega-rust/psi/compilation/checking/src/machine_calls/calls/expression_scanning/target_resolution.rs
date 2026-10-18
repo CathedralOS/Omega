@@ -173,6 +173,22 @@ pub(super) fn report_unresolved_value_call(
         }
         return;
     }
+    if crate::machine_calls::compiler_operations::classify_expression_call_intrinsic(program, call)
+        == Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::StorageAddress)
+    {
+        let valid = crate::machine_calls::compiler_operations::storage_address_operand(program, call)
+            .and_then(|operand| crate::expression_result_type_reference(program, current_machine, current_state, operand))
+            .and_then(|target| crate::reference_shell(program, target));
+        match valid {
+            None => diagnostics.push(Diagnostic::error("storage address_of requires exactly one ordinary storage reference and no static arguments")),
+            Some(shell) if program.primitive_type_reference(shell.referee).is_none() =>
+                diagnostics.push(Diagnostic::error("storage address_of for non-scalar referents is not implemented")),
+            Some(shell) if shell.access == language_semantics::ReferenceAccess::WriteOnly =>
+                diagnostics.push(Diagnostic::error("storage address_of for write-only references is not implemented")),
+            Some(_) => {}
+        }
+        return;
+    }
     let target = call.target.as_str();
     // Named operators are callable requirements too. Use the same exact-symbol
     // or unique path+arity resolution as checked-flow analysis; a leaf spelling

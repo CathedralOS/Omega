@@ -145,7 +145,7 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         }
         O::ElementViewWrite { destination, .. } => vec![destination.place],
         O::ReleaseReference { source, .. } => vec![*source],
-        abstract_operations::scalar_read_or_membership_pattern!(source, ..)
+        abstract_operations::primitive_storage_observation_pattern!(source, ..)
         | O::StructuralCase { source, .. }
         | O::ByteSequenceRead { source, .. }
         | O::ByteSequenceWrite {

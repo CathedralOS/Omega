@@ -86,7 +86,7 @@ pub(in crate::legalization) fn read_parameter(
 }
 
 /// The declared storage type beneath a primitive read: an owned
-/// establishment's result, else the parameter `read_parameter` finds.
+/// establishment's result, parameter, or authenticated immutable literal.
 pub(in crate::legalization) fn read_root_type(
     function: &PsiOptimizationFunction,
     place: PlaceId,
@@ -95,6 +95,9 @@ pub(in crate::legalization) fn read_root_type(
         .ok()
         .map(|(_, result)| result.structural_type)
         .or_else(|| read_parameter(function, place).map(|parameter| parameter.structural_type))
+        .or_else(|| {
+            super::literals::declaration_producer(function, place).map(|(_, identity)| identity)
+        })
 }
 
 pub(super) fn validate(

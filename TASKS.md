@@ -4100,16 +4100,16 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   writes and nested/generic cases with the same normalized fragment across
   ISAs.
 
-- **ADDRESS-EXPOSURE.** (new-scope) The settled
-  [`address_of` queries](wiki/spec/language/counts_and_addresses.md#address-exposure)
-  have no `AuthoredDeclarationSelectionIntrinsic` or admission in
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/authored_selections/intrinsic_calls.rs`,
-  nor any Terminal, interpreter or native support.
+- **ADDRESS-EXPOSURE.** (new-scope) Remaining settled
+  [`address_of` queries](wiki/spec/language/counts_and_addresses.md#address-exposure):
+  selected machine applications and nonprimitive or write-only storage
+  operands. Readable primitive storage queries retain their original referents;
+  extend that admission and realization without weakening loan or access rules.
   - Retain the selected machine application or original referent; a machine
     query adds ordinary executable demand even without a direct call, which
     survives specialization/inlining and keeps the interpreted body.
-  - Native entry/storage addresses use normal realization and relocations;
-    preserve private callback ABI selection and custody.
+  - Native selected-entry and remaining aggregate storage addresses use normal
+    realization and relocations; preserve private callback ABI selection and custody.
   - The interpreter's `StructuralRuntimePlace` and `LocalStructuralIdentities`
     identify storage within one execution. Exposure needs disjoint code/storage
     encodings covering loaded instances, runtime occurrences and subplaces,

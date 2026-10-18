@@ -16,12 +16,13 @@ mod structural;
 pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
-        O::ByteSequenceSubslice { .. }
+        O::StorageAddress { .. }
+        | O::ByteSequenceSubslice { .. }
         | O::EstablishElementView { .. }
         | O::ElementViewSubslice { .. }
         | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
-        | abstract_operations::scalar_read_or_membership_pattern!(..)
+        | abstract_operations::primitive_storage_observation_pattern!(..)
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::EstablishScalarArray { .. }

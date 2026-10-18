@@ -584,6 +584,11 @@ impl Builder<'_, '_> {
         {
             return Some(comparison);
         }
+        if expected_type == PrimitiveType::Addr
+            && let Some(address) = self.storage_address(expression)
+        {
+            return Some(address);
+        }
         if expected_type == PrimitiveType::Bool
             && let Some(predicate) = self.byte_predicate(expression)
         {

@@ -25,6 +25,7 @@ pub(crate) fn plan(
     statement_index: usize,
     operand: ExpressionHandle,
     target: TypeReferenceHandle,
+    observe_referent: bool,
     dense_parameter: &dyn Fn(usize) -> Option<u32>,
     selector: &dyn Fn(ExpressionHandle) -> Option<CheckedRuntimeIndex>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
@@ -38,6 +39,7 @@ pub(crate) fn plan(
         statement_index,
         operand,
         target,
+        observe_referent,
         dense_parameter,
         selector,
     ) {
@@ -81,6 +83,7 @@ fn place(
     statement_index: usize,
     operand: ExpressionHandle,
     target: TypeReferenceHandle,
+    observe_referent: bool,
     dense_parameter: &dyn Fn(usize) -> Option<u32>,
     selector: &dyn Fn(ExpressionHandle) -> Option<CheckedRuntimeIndex>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
@@ -103,7 +106,12 @@ fn place(
     } else {
         Source::StructuralLocal { symbol: root }
     };
-    let (projected, path) = calls::projected_selected_path(
+    let projector = if observe_referent {
+        calls::projected_observed_path
+    } else {
+        calls::projected_selected_path
+    };
+    let (projected, path) = projector(
         program,
         machine.symbol,
         state.symbol,

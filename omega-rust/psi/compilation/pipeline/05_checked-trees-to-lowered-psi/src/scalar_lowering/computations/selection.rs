@@ -200,7 +200,8 @@ impl Expansion<'_> {
                 checked_trees::cast_or_qualification_triple_pattern!(operand, ..) => {
                     pending.push((*operand, false))
                 }
-                CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
+                CheckedScalarComputationKind::StorageAddress { .. }
+                | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
                 | CheckedScalarComputationKind::ByteSequencePredicate { .. }
                 | CheckedScalarComputationKind::RetainedConstant { .. }
                 | CheckedScalarComputationKind::Value(_)

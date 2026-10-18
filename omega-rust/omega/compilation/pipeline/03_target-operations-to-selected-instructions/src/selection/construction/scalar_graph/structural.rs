@@ -674,3 +674,11 @@ pub(super) fn transport_at_byte_offset(
     )?;
     Ok(output)
 }
+
+pub(super) fn storage_address(
+    source: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    primitive_locals::address(source, builder, row)
+}

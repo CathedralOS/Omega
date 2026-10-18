@@ -654,7 +654,7 @@ fn shared_join_live_blocks(
                 continue;
             }
             let cannot_retain_alias = match &node.operation {
-                abstract_operations::scalar_read_membership_triple_pattern!(..)
+                abstract_operations::scalar_storage_observation_pattern!(..)
                 | O::ByteSequenceLength { .. }
                 | O::ElementViewLength { .. }
                 | O::ByteSequenceRead { .. }

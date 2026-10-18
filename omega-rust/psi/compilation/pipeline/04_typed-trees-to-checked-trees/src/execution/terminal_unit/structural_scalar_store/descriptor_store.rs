@@ -128,6 +128,7 @@ pub(super) fn descriptor_store(
             statement_index as usize,
             expression,
             target,
+            false,
             dense_parameter,
             &|selector| {
                 let checked_trees::CheckedScalarExpression::Local { position, .. } =

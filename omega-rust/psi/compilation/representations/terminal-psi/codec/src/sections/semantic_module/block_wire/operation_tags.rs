@@ -249,3 +249,5 @@ pub(super) const REGISTER_ACCESS: u8 = 121;
 
 /// Late native metadata for one exact executable realization.
 pub(super) const ESTABLISH_NATIVE_CODE_LAYOUT: u8 = 122;
+/// Numeric exposure of one checked storage referent.
+pub(super) const STORAGE_ADDRESS: u8 = 123;

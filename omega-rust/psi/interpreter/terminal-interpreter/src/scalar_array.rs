@@ -17,6 +17,9 @@ pub(crate) use loans::borrowed_array_memberships_match;
 /// Exact row-major primitive payload; the type retains all array dimensions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarArrayValue {
+    /// Allocated from the ordinary referent allocator when this payload's
+    /// location is first observed. Snapshots clear it: a copy has new storage.
+    pub(crate) storage_identity: Option<u64>,
     pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub structural_type: StructuralTypeId,
     pub elements: Vec<TerminalScalarValue>,
@@ -157,7 +160,9 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        Ok(value.clone())
+        let mut snapshot = value.clone();
+        snapshot.storage_identity = None;
+        Ok(snapshot)
     }
 
     /// Read every leaf of the array `argument` selects, in row-major order,
@@ -203,6 +208,7 @@ impl TerminalExecution<'_> {
             elements.push(self.read_primitive_place(argument.place, &path, scalar_type)?);
         }
         Ok(TerminalScalarArrayValue {
+            storage_identity: None,
             qualifications: Vec::new(),
             structural_type,
             elements,
@@ -242,6 +248,7 @@ impl TerminalExecution<'_> {
             contents.push(value);
         }
         let snapshot = TerminalScalarArrayValue {
+            storage_identity: None,
             qualifications: result.qualifications.clone(),
             structural_type: result.structural_type,
             elements: contents,

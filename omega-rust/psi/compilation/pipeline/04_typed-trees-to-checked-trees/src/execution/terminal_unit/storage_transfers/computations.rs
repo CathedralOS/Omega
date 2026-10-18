@@ -219,7 +219,8 @@ impl Query<'_> {
             CheckedScalarComputationKind::CaseMembership { subject, .. } => {
                 output.append(self.structural_operand_computations(subject)?)
             }
-            CheckedScalarComputationKind::StructuralField { subject, .. }
+            CheckedScalarComputationKind::StorageAddress { subject, .. }
+            | CheckedScalarComputationKind::StructuralField { subject, .. }
             | CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. }
             | CheckedScalarComputationKind::ByteSequencePredicate { subject, .. } => {
                 output.append(self.argument_computations(subject)?)

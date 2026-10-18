@@ -14,6 +14,7 @@ use crate::values::TerminalStructuralValue;
 pub(crate) struct LocalStructuralIdentities {
     reserved: BTreeSet<u64>,
     next: Option<u64>,
+    pub(crate) exposure_namespace: Option<u64>,
 }
 
 impl LocalStructuralIdentities {
@@ -32,6 +33,9 @@ impl LocalStructuralIdentities {
                 .chain(arguments.iter().map(|value| value.opaque_identity))
                 .collect(),
             next: Some(0),
+            // A process-wide occurrence namespace lets addresses from separately
+            // loaded programs meet without reusing a compiler-local identity.
+            exposure_namespace: new_exposure_namespace(),
         }
     }
 
@@ -88,4 +92,16 @@ impl LocalStructuralIdentities {
         self.reserved.insert(identity);
         Ok(())
     }
+}
+
+/// Unique occurrence namespaces for executions and independently owned byte
+/// backings. This is an allocator, not an address-to-storage lookup registry.
+pub(crate) fn new_exposure_namespace() -> Option<u64> {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    NEXT.try_update(
+        std::sync::atomic::Ordering::Relaxed,
+        std::sync::atomic::Ordering::Relaxed,
+        |next| next.checked_add(1),
+    )
+    .ok()
 }

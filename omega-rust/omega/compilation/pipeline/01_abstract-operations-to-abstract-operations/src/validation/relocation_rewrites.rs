@@ -193,7 +193,7 @@ pub(crate) fn scalar_case_result_contained(
                 // observe a place whose one consumption the relocation
                 // collapses into the preheader.
                 O::StructuralCase { source, .. }
-                | abstract_operations::scalar_read_membership_triple_pattern!(source, ..)
+                | abstract_operations::scalar_storage_observation_pattern!(source, ..)
                 | O::ByteSequenceRead { source, .. }
                 | O::StructuralByteSequenceFieldLength { source, .. }
                     if *source == picked =>
@@ -674,7 +674,7 @@ pub(crate) fn substitute_invariant_place_root(
     representative: PlaceId,
 ) -> bool {
     let source = match operation {
-        abstract_operations::scalar_read_or_membership_pattern!(source, ..)
+        abstract_operations::primitive_storage_observation_pattern!(source, ..)
         | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. } => source,

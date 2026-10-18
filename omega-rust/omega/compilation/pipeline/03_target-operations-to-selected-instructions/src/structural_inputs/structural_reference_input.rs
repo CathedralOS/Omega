@@ -175,6 +175,7 @@ pub(crate) struct PointerSlot {
 pub(crate) struct ReferenceSourceGeometry<Endpoint = StructuralTypeId> {
     /// The final contiguous storage region, distinct from the descriptor root.
     pub(crate) region_root: StructuralTypeId,
+    pub(crate) uses_borrowed_backing: bool,
     /// Declared read permission at every crossing, not a liveness judgment.
     pub(crate) readable: bool,
     pub(crate) selected: Endpoint,
@@ -317,6 +318,7 @@ fn reference_geometry<Endpoint>(
     elements.extend(leaf_elements);
     Some(ReferenceSourceGeometry {
         region_root: regions.root,
+        uses_borrowed_backing: regions.uses_borrowed_backing,
         readable: regions.readable,
         selected,
         byte_offset,

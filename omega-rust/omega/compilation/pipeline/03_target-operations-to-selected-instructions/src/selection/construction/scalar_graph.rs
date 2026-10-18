@@ -411,6 +411,9 @@ fn select_function(
                     LegalizedScalarInstructionKind::FloatResultPolicy { .. } => {
                         float_result_policy::emit(operation, &mut builder)?
                     }
+                    LegalizedScalarInstructionKind::StorageAddress { .. } => {
+                        structural::storage_address(source, &mut builder, operation)?
+                    }
                     LegalizedScalarInstructionKind::StructuralCaseMembership { .. } => {
                         structural::observe(source, &mut builder, operation)?
                     }

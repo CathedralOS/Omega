@@ -1496,6 +1496,7 @@ impl TerminalExecution<'_> {
                     self.scalar_array_values.insert(
                         result.place,
                         crate::scalar_array::TerminalScalarArrayValue {
+                            storage_identity: None,
                             qualifications: Vec::new(),
                             structural_type: result.structural_type,
                             elements,

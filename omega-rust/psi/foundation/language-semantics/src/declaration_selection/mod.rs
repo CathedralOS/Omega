@@ -301,6 +301,8 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     /// particular predicate prevents later evidence consumers from having to
     /// reconstruct semantic identity from the call's diagnostic spelling.
     ByteSequencePredicate(crate::byte_predicates::ByteSequencePredicate),
+    /// Runtime storage referent exposure; carries no retained loan or access authority.
+    StorageAddress,
     BuildProviderSelection,
     /// `Build::assume_binding_contract<Required::operation, Supplied::operation>(b)`:
     /// the consuming root's runtime-only authorization of one boundary

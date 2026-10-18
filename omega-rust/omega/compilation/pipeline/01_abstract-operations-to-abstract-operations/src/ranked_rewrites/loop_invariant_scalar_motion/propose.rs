@@ -207,6 +207,31 @@ fn admit_member_node(
 ) -> Option<MemberAdmission> {
     let function = evidence.function;
     let component = evidence.component;
+    // Equal contents do not establish equal storage occurrences. Fresh storage
+    // may leave a cycle only when no member (including a transitive callee)
+    // observes identity. Freeze validation replays this same admission.
+    let produces_storage =
+        crate::validation::invariant_operations::admissible_invariant_byte_literal(node)
+            || crate::validation::invariant_operations::admissible_invariant_primitive_local(node)
+                .is_some()
+            || crate::validation::invariant_operations::admissible_invariant_record(node).is_some()
+            || crate::validation::invariant_operations::admissible_invariant_scalar_array(node)
+                .is_some()
+            || crate::validation::invariant_operations::admissible_invariant_scalar_case(node)
+                .is_some()
+            || crate::validation::invariant_operations::admissible_invariant_trivial_affine_local(
+                node,
+            )
+            .is_some();
+    if produces_storage
+        && !crate::validation::invariant_calls::component_members_unobservable(
+            function,
+            component,
+            evidence.call_effects,
+        )
+    {
+        return None;
+    }
     let mut root_rewrite = None;
     let mut argument_rewrites = Vec::new();
     // The call-family arms' shared tail: the admitted substitution and

@@ -545,7 +545,8 @@ impl<'facts> CallTransfers<'facts> {
                         0
                     }
             }
-            CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. }
+            CheckedScalarComputationKind::StorageAddress { subject, .. }
+            | CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. }
             | CheckedScalarComputationKind::ByteSequencePredicate { subject, .. } => {
                 self.argument_evaluation(subject)
             }

@@ -99,6 +99,16 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         }
     }
     match operation.kind.clone() {
+        OperationKind::StorageAddress { source } => {
+            writer.u8(operation_tags::STORAGE_ADDRESS);
+            writer.id(source.place);
+            super::structural_signature_wire::encode_structural_access(writer, source.access);
+            super::structural_place_wire::encode_structural_path(
+                writer,
+                "storage address source path",
+                &source.path,
+            )?;
+        }
         OperationKind::EstablishPlacedReference { source } => {
             storage_operations::encode_establish_placed_reference(writer, source)?
         }
@@ -760,6 +770,13 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
     let kind = match reader.u8()? {
         operation_tags::ESTABLISH_NATIVE_CODE_LAYOUT => OperationKind::EstablishNativeCodeLayout {
             machine: reader.id("native code layout machine")?,
+        },
+        operation_tags::STORAGE_ADDRESS => OperationKind::StorageAddress {
+            source: terminal_psi::StructuralArgument {
+                place: reader.id("PlaceId")?,
+                access: super::structural_signature_wire::decode_structural_access(reader)?,
+                path: super::structural_place_wire::decode_structural_path(reader)?,
+            },
         },
         operation_tags::BYTE_SEQUENCE_SUBSLICE => {
             storage_operations::decode_byte_sequence_subslice(reader)?

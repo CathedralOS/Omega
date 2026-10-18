@@ -594,6 +594,11 @@ fn scan_operation(
             // ordinary accesses to one place that an alias summary can narrow.
             pending.unsummarized = true;
         }
+        O::StorageAddress { source, path, .. } => {
+            // Exposing a location forbids replacing its original live home
+            // with a copied value even though no contents are loaded here.
+            pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
+        }
         O::PrimitiveScalarRead { source, path, .. } => {
             pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
         }

@@ -189,7 +189,9 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::IntegerArithmetic { .. }
         | O::IeeeFloatCompare { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
-        | abstract_operations::scalar_read_or_membership_pattern!(..)
+        // Content invariance does not prove runtime storage identity.
+        | O::PrimitiveScalarRead { .. }
+        | O::StructuralCaseMembership { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ElementViewSubslice { .. }
@@ -435,7 +437,7 @@ fn borrowed_roots_exclusive(
 /// distinguish declaration from observation.
 pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<PlaceId>) -> bool {
     match operation {
-        abstract_operations::scalar_read_or_membership_pattern!(source, ..)
+        abstract_operations::primitive_storage_observation_pattern!(source, ..)
         | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. }

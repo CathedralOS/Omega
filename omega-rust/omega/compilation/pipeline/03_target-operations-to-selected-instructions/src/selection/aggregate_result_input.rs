@@ -112,7 +112,8 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             LegalizedScalarInstructionKind::StructuralCaseMembership { source, path, .. } => *source == place && !path.is_empty(),
             // Projected primitive reads need the same addressable owned home
             // as field observations, including arrays passed in ABI registers.
-            LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
+            LegalizedScalarInstructionKind::StorageAddress { source, .. }
+            | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => *source == place,
             LegalizedScalarInstructionKind::EstablishStructuralArray { elements, .. } => elements.iter().any(|argument|

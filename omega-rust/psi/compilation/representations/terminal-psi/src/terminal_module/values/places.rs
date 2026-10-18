@@ -246,7 +246,8 @@ impl OperationKind {
     ) {
         match self {
             Self::EstablishNativeCodeLayout { .. } => {}
-            Self::EstablishPlacedReference { source }
+            Self::StorageAddress { source }
+            | Self::EstablishPlacedReference { source }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. } => {
@@ -382,7 +383,8 @@ impl OperationKind {
             Self::ByteSequencePredicate { operand, .. } => {
                 projections.push(argument_projection(operand.argument()));
             }
-            Self::EstablishPlacedReference { source }
+            Self::StorageAddress { source }
+            | Self::EstablishPlacedReference { source }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. }
@@ -495,7 +497,8 @@ impl OperationKind {
             Self::ByteSequencePredicate { operand, .. } => {
                 paths.push(&mut operand.argument_mut().path);
             }
-            Self::EstablishPlacedReference { source }
+            Self::StorageAddress { source }
+            | Self::EstablishPlacedReference { source }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
             | Self::EstablishMutableElementView { source, .. }

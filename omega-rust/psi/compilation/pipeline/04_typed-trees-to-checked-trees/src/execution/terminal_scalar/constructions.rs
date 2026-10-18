@@ -137,6 +137,7 @@ pub(crate) fn retain_shapes(
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
                 operand_type, ..
             }
+            | CheckedScalarComputationKind::StorageAddress { operand_type, .. }
             | CheckedScalarComputationKind::ByteSequencePredicate { operand_type, .. } => {
                 retain_declarations(
                     shapes,

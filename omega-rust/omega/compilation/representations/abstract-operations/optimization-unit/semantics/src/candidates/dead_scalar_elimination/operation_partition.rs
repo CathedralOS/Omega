@@ -26,10 +26,11 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         O::IntegerArithmetic { arithmetic, .. } => {
             Some(obligation_family(arithmetic.obligation()))
         }
-        O::SelectImplementation { .. }
+        O::StorageAddress { .. }
+        | O::SelectImplementation { .. }
         | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
-        | abstract_operations::scalar_read_or_membership_pattern!(..)
+        | abstract_operations::primitive_storage_observation_pattern!(..)
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::AtomicEvent { .. }

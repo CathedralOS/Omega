@@ -30,6 +30,7 @@ use terminal_psi::{Operation, OperationKind, ValueDeclaration};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarBinding {
+    StorageAddress(calls::PreparedStructuralArgument, ScalarType),
     SelectedComparison {
         occurrence: crate::emission::selected_comparison::SelectedComparison,
         left: LoweredDirectExpression,
@@ -49,6 +50,7 @@ impl LoweredScalarBinding {
         parameters: &[QualifiedScalarType],
     ) -> Result<QualifiedScalarType, LoweringError> {
         match self {
+            Self::StorageAddress(_, scalar_type) => Ok((*scalar_type).into()),
             Self::SelectedComparison { .. } => Ok(ScalarType::Boolean.into()),
             Self::Expression(expression) => expression.value_type(parameters),
             Self::DirectCall(call) => Ok(call.result_type),
@@ -58,6 +60,7 @@ impl LoweredScalarBinding {
     }
     pub(crate) const fn scalar_type(&self) -> ScalarType {
         match self {
+            Self::StorageAddress(_, scalar_type) => *scalar_type,
             Self::SelectedComparison { .. } => ScalarType::Boolean,
             Self::Expression(expression) => expression.scalar_type(),
             Self::DirectCall(call) => call.result_type.scalar_type,
@@ -78,6 +81,27 @@ pub(crate) fn emit_scalar_binding(
     call_emission: &mut CallEmissionContext<'_>,
 ) -> Result<ValueId, LoweringError> {
     let result = match binding {
+        LoweredScalarBinding::StorageAddress(argument, scalar_type) => {
+            let source =
+                argument.emit(parameters, call_emission, next_value_identity, operations)?;
+            let id = value_id(*next_value_identity);
+            *next_value_identity =
+                next_value_identity
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "address result identity overflow",
+                    ))?;
+            let operation = operations.allocate();
+            operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation,
+                result: buffer::scalar_result_declaration(id, *scalar_type),
+                kind: OperationKind::StorageAddress { source },
+            });
+            Ok(id)
+        }
+
         LoweredScalarBinding::SelectedComparison {
             occurrence,
             left,

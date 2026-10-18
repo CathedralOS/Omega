@@ -193,7 +193,7 @@ pub(crate) fn validate_operation_places(
             require(*destination, known)?;
             require(*source, known)?;
         }
-        abstract_operations::scalar_read_or_membership_pattern!(source, ..)
+        abstract_operations::primitive_storage_observation_pattern!(source, ..)
         | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_sequence_write_pair_pattern!(destination: source, ..)
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)

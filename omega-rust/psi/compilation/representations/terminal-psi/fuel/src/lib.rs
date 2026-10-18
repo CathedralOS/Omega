@@ -110,7 +110,8 @@ impl TerminalFuelSchedule {
             // A Trapping primitive charges its one unit before deciding
             // whether it traps; the trap outcome takes no edge.
             | OperationKind::TrappingInteger { .. }
-            | OperationKind::FloatResultPolicy { .. } => 1,
+            | OperationKind::FloatResultPolicy { .. }
+            | OperationKind::StorageAddress { .. } => 1,
         }
     }
 

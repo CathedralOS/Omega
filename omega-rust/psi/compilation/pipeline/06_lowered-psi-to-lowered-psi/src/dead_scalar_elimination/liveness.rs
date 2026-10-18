@@ -177,7 +177,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         O::RegisterAccess { event, .. } => values.extend(event.inputs()),
         // This pass never removes structural storage. A primitive read has no
         // scalar operand, but remains an observation even when its result dies.
-        O::PrimitiveScalarRead { .. } => {}
+        O::StorageAddress { .. } | O::PrimitiveScalarRead { .. } => {}
         O::StructuralByteSequenceFieldByteStore {
             index,
             value,

@@ -35,6 +35,12 @@ pub enum AbstractOperation {
         result: StructuralOperationResult,
         machine: semantic_vocabulary::MachineId,
     },
+    StorageAddress {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        path: Vec<StructuralPathSegment>,
+    },
     /// Establish one exact recursive fixed array from row-major scalar leaves.
     /// Empty dimensions retain their declared type; physical storage is chosen
     /// downstream, independently of this complete semantic payload.
@@ -946,7 +952,8 @@ impl AbstractOperation {
                 .location()
                 .map(|location| vec![location.path.as_slice()])
                 .unwrap_or_default(),
-            Self::PrimitiveScalarRead { path, .. }
+            Self::StorageAddress { path, .. }
+            | Self::PrimitiveScalarRead { path, .. }
             | Self::ElementViewRead { path, .. }
             | Self::ReleaseReference { path, .. }
             | Self::WriteOnlyPrimitiveStore { path, .. }
@@ -1055,6 +1062,7 @@ impl AbstractOperation {
             | Self::StructuralByteViewFieldStore { psi_operation, .. }
             | Self::EstablishPrimitiveLocal { psi_operation, .. }
             | Self::PrimitiveLocalStore { psi_operation, .. }
+            | Self::StorageAddress { psi_operation, .. }
             | Self::PrimitiveScalarRead { psi_operation, .. }
             | Self::StructuralCaseMembership { psi_operation, .. }
             | Self::StructuralByteSequenceFieldLength { psi_operation, .. }
@@ -1404,9 +1412,10 @@ macro_rules! boolean_not_or_equal_pair_pattern {
 }
 
 #[macro_export]
-macro_rules! scalar_read_or_membership_pattern {
+macro_rules! primitive_storage_observation_pattern {
     ($($fields:tt)*) => {
-        $crate::AbstractOperation::PrimitiveScalarRead { $($fields)* }
+        $crate::AbstractOperation::StorageAddress { $($fields)* }
+            | $crate::AbstractOperation::PrimitiveScalarRead { $($fields)* }
             | $crate::AbstractOperation::StructuralCaseMembership { $($fields)* }
     };
 }
@@ -1568,9 +1577,10 @@ macro_rules! establish_set_quint_pattern {
 }
 
 #[macro_export]
-macro_rules! scalar_read_membership_triple_pattern {
+macro_rules! scalar_storage_observation_pattern {
     ($($fields:tt)*) => {
-        $crate::AbstractOperation::PrimitiveScalarRead { $($fields)* }
+        $crate::AbstractOperation::StorageAddress { $($fields)* }
+            | $crate::AbstractOperation::PrimitiveScalarRead { $($fields)* }
             | $crate::AbstractOperation::StructuralCaseMembership { $($fields)* }
             | $crate::AbstractOperation::StructuralScalarFieldRead { $($fields)* }
     };

@@ -815,6 +815,7 @@ pub(super) fn collect(
             subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
             ..
         }
+        | CheckedScalarComputationKind::StorageAddress { subject, .. }
         | CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. } => {
             collect_structural_argument_calls(
                 program,

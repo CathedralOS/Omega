@@ -62,6 +62,35 @@ pub(super) fn lower(
         OperationKind::SelectImplementation { .. } | OperationKind::CallDynamic { .. } => {
             calls::lower(operation, machine)
         }
+        OperationKind::StorageAddress { source } => {
+            let result = operation.result.scalar()
+                .filter(|result| matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address()))
+                .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+            if source.access != terminal_psi::StructuralAccess::SharedBorrow {
+                return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
+            }
+            let root = super::primitive_storage::parameter(machine, source.place)
+                .map(|parameter| parameter.structural_type)
+                .or_else(|| {
+                    machine
+                        .structural_place(source.place)?
+                        .kind
+                        .produced_structural_type()
+                })
+                .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+            terminal_semantics::primitive_read_projection_type(
+                structural_types.iter(),
+                root,
+                &source.path,
+            )
+            .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+            Ok(AbstractOperation::StorageAddress {
+                psi_operation: operation.id,
+                result: result.into(),
+                source: source.place,
+                path: source.path.clone(),
+            })
+        }
         OperationKind::EstablishReference { source, storage } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedReferenceCustody(operation.id));

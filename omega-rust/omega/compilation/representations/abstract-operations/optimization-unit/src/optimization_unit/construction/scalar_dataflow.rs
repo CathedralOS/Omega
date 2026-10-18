@@ -28,7 +28,7 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
             ..
         }
         | O::SelectImplementation { result, .. }
-        | abstract_operations::scalar_read_or_membership_pattern!(result, ..)
+        | abstract_operations::primitive_storage_observation_pattern!(result, ..)
         | abstract_operations::byte_read_predicate_equal_pattern!(result, ..)
         | O::ByteSequenceLength { result, .. }
         | O::ElementViewLength { result, .. }

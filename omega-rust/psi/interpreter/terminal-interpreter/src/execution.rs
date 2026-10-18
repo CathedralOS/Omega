@@ -705,6 +705,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     OperationKind::EstablishNativeCodeLayout { machine } => {
                                         return Err(TerminalInterpretError::UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability::NativeCodeLayout { machine }));
                                     }
+                                    OperationKind::StorageAddress { ref source } => {
+                                        self.execute_storage_address(operation, source)?;
+                                        OperationFlow::Advance
+                                    }
                                     OperationKind::EstablishPlacedReference { ref source } => {
                                         self.establish_placed_reference(operation, source)?;
                                         OperationFlow::Advance

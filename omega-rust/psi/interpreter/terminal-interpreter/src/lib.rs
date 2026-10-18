@@ -54,6 +54,7 @@ mod runtime_indexes;
 mod scalar_array;
 mod scalar_operations;
 mod semantic_value_comparison;
+mod storage_addresses;
 mod structural_identities;
 mod structural_inputs;
 mod structural_operations;

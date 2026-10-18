@@ -265,6 +265,7 @@ pub(super) fn lower(
             | AbstractOperation::Call { result, .. } => Some(*result),
             AbstractOperation::ByteSequenceLength { result, .. }
             | AbstractOperation::ByteSequenceRead { result, .. }
+            | AbstractOperation::StorageAddress { result, .. }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
             | AbstractOperation::StructuralScalarFieldRead { result, .. }
             | abstract_operations::byte_len_or_field_read_pattern!(result, ..)

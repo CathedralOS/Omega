@@ -244,6 +244,7 @@ pub(crate) fn map_obligations(
         | OperationKind::EstablishStructuralArray { .. }
         | OperationKind::EstablishZeroedStructural { .. }
         | OperationKind::EstablishStructuralLocal { .. }
+        | OperationKind::StorageAddress { .. }
         | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::MoveStructuralField { .. }

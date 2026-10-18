@@ -226,6 +226,30 @@ fn access_coordinates(
         .ok_or(SelectedInstructionError::custody())?;
     let coordinates = match &row.kind {
         I::ByteSequenceRead { source, .. } => vec![whole(*source)],
+        I::StorageAddress { source, path, .. } => {
+            let signature = function
+                .structural
+                .as_ref()
+                .ok_or(SelectedInstructionError::custody())?;
+            let root = super::reference_input::root_type(function, *source)
+                .ok_or(SelectedInstructionError::custody())?;
+            let selected =
+                crate::structural_inputs::structural_reference_input::reference_source_geometry(
+                    root,
+                    path,
+                    &signature.structural_types,
+                )
+                .ok_or(SelectedInstructionError::custody())?;
+            if selected.uses_borrowed_backing {
+                vec![StructuralArgument {
+                    place: *source,
+                    path: path.clone(),
+                    access: StructuralAccess::SharedBorrow,
+                }]
+            } else {
+                Vec::new()
+            }
+        }
         I::PrimitiveScalarRead { source, path, .. } => {
             let signature = function
                 .structural

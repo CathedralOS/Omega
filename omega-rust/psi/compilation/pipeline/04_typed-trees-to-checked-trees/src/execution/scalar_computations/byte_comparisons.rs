@@ -45,7 +45,7 @@ impl Builder<'_, '_> {
             ) => Some(capacity),
             _ => None,
         };
-        let subject = self.byte_operand_subject(operand, target)?;
+        let subject = self.byte_operand_subject(operand, target, false)?;
         Some(self.insert(
             PrimitiveType::Bool,
             CheckedScalarComputationKind::ByteSequenceLiteralComparison {
@@ -74,11 +74,34 @@ impl Builder<'_, '_> {
             self.program,
             target,
         )?;
-        let subject = self.byte_operand_subject(operand, target)?;
+        let subject = self.byte_operand_subject(operand, target, false)?;
         Some(self.insert(
             PrimitiveType::Bool,
             CheckedScalarComputationKind::ByteSequencePredicate {
                 predicate,
+                operand_type: target,
+                source_expression: expression,
+                subject,
+            },
+        ))
+    }
+
+    pub(super) fn storage_address(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let call = self.program.expression_table.call_node(expression)?;
+        let operand = validation::compiler_operations::storage_address_operand(self.program, call)?;
+        let target = semantic_casts::result_type(self.program, self.state, operand)?;
+        let shell = validation::reference_shell(self.program, target)?;
+        self.program.primitive_type_reference(shell.referee)?;
+        if shell.access == language_semantics::ReferenceAccess::WriteOnly {
+            return None;
+        }
+        let subject = self.byte_operand_subject(operand, target, true)?;
+        Some(self.insert(
+            PrimitiveType::Addr,
+            CheckedScalarComputationKind::StorageAddress {
                 operand_type: target,
                 source_expression: expression,
                 subject,
@@ -91,6 +114,7 @@ impl Builder<'_, '_> {
         &mut self,
         operand: ExpressionHandle,
         target: typed_trees::types::TypeReferenceHandle,
+        observe_referent: bool,
     ) -> Option<CheckedUnitStructuralArgumentPlan> {
         let (machine, state) = validation::find_state(self.program, self.state)?;
         crate::execution::terminal_unit::byte_operands::plan(
@@ -104,6 +128,7 @@ impl Builder<'_, '_> {
             self.statement_index,
             operand,
             target,
+            observe_referent,
             &|position| self.dense_structural_parameter_index(position),
             &|selector| self.local_selector(selector),
         )

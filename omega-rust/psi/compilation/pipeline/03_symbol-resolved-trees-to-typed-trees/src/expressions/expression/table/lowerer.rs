@@ -168,6 +168,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             self.target()
                 .set_constructed_value_type_reference(lowered, result);
         }
+        if matches!(self.target().expression(lowered), typed::expression::ExpressionNode::Call(call)
+            if !call.target_symbol.is_valid() && !call.receiver.is_valid()
+                && call.target.as_str() == "address_of"
+                && call.machine_arguments.is_empty() && call.arguments.len() == 1)
+        {
+            let result = self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::Address)?;
+            self.target()
+                .set_constructed_value_type_reference(lowered, result);
+        }
         self.target().set_source_span(lowered, source_span);
         self.target()
             .attach_authored_selection_occurrences(lowered, authored_selection_occurrences);

@@ -81,7 +81,8 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => {
                     destination.place() == place
                 }
-                LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
+                LegalizedScalarInstructionKind::StorageAddress { source, .. }
+                | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
                 | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }
                 | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
                 | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }

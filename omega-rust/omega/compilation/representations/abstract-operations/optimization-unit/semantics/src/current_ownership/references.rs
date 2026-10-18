@@ -1235,7 +1235,7 @@ pub(super) fn apply_operation(
                 live,
             );
         }
-        O::PrimitiveScalarRead { source, path, .. }
+        O::StorageAddress { source, path, .. } | O::PrimitiveScalarRead { source, path, .. }
             if path.contains(&terminal_psi::StructuralPathSegment::Referent) =>
         {
             access_reference_custody(
@@ -1251,7 +1251,7 @@ pub(super) fn apply_operation(
                 },
             )?;
         }
-        abstract_operations::scalar_read_or_membership_pattern!(source, path, ..) => {
+        abstract_operations::primitive_storage_observation_pattern!(source, path, ..) => {
             let region =
                 super::storage_regions::projected(function, structural_types, *source, path, None);
             check_observation_access(

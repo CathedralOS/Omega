@@ -866,6 +866,22 @@ impl TerminalExecution<'_> {
         let (structural_type, shared_view) = local_type(machine, place)
             .map(|structural_type| (structural_type, false))
             .or_else(|| {
+                // A literal has an authenticated immutable descriptor home,
+                // not an operation-result allocation. Its element observation
+                // keeps shared access; this cannot grant a writable home.
+                if writing {
+                    return None;
+                }
+                let semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                    structural_type,
+                    ..
+                } = machine.structural_place(place)?.kind
+                else {
+                    return None;
+                };
+                Some((structural_type, true))
+            })
+            .or_else(|| {
                 machine
                     .structural_parameter(place)
                     .filter(|parameter| {

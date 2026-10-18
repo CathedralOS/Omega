@@ -187,6 +187,8 @@ fn checked_call_intrinsic(
         language_semantics::byte_predicates::ByteSequencePredicate::from_name(target)
     {
         Some(Intrinsic::ByteSequencePredicate(predicate))
+    } else if target == "address_of" {
+        Some(Intrinsic::StorageAddress)
     } else if target.starts_with("asm#") {
         Some(Intrinsic::InlineAssemblyOperation)
     } else {
@@ -230,4 +232,19 @@ pub fn exact_build_prelude_data(
             .data_definitions()
             .iter()
             .any(|data| data.symbol == type_symbol && data.name.as_str() == name)
+}
+
+/// The storage form has one runtime reference operand. A selected ordinary
+/// declaration wins over the core spelling; downstream consumers retain this
+/// intrinsic selection rather than treating arbitrary calls as address queries.
+pub fn storage_address_operand(
+    program: &dyn crate::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    (classify_expression_call_intrinsic(program, call)
+        == Some(AuthoredDeclarationSelectionIntrinsic::StorageAddress)
+        && call.machine_arguments.is_empty())
+    .then(|| program.expression_table.expression_handles(call.arguments))
+    .filter(|arguments| arguments.len() == 1)
+    .map(|arguments| arguments[0])
 }

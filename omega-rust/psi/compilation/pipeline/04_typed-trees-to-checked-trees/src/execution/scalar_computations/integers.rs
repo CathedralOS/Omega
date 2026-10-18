@@ -102,6 +102,19 @@ impl Builder<'_, '_> {
             });
         }
 
+        // Core storage observations have no declaration return telescope.
+        // Retain the same checked operation used at a direct scalar delivery
+        // before the ordinary-call path asks a callee for its carrier. This
+        // keeps a query inside a comparison at its selective evaluation point.
+        if let Some(computation) = self.storage_address(expression) {
+            return Some(IntegerOperand {
+                value: parameter(0, PrimitiveType::Addr),
+                value_source: ExpressionHandle::invalid(),
+                domain: ArithmeticDomain::Exact,
+                computation,
+            });
+        }
+
         if let Some(field) = self.structural_scalar_field(expression) {
             if !is_integer(field.primitive_type) {
                 return None;

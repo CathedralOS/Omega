@@ -14,6 +14,15 @@ pub(crate) fn borrowed_arguments_from_roots<'checked>(
     let mut arguments = Vec::new();
     let mut structural_roots = Vec::new();
     for handle in collect_reachable_nodes(checked, roots, &mut structural_roots)? {
+        if let CheckedScalarComputationKind::StorageAddress { subject, .. } =
+            &plans.nodes.get(handle).kind
+        {
+            // Address observation demands the original completed scalar home
+            // just as an ordinary call borrowing that scalar does. A query
+            // itself retains no loan, so no later loan roster can supply this
+            // demand on its behalf.
+            arguments.push(subject);
+        }
         if let CheckedScalarComputationKind::Call {
             structural_arguments,
             ..
@@ -289,7 +298,8 @@ fn collect_reachable_nodes(
                     pending.push(arm.value);
                 }
             }
-            CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. }
+            CheckedScalarComputationKind::StorageAddress { subject, .. }
+            | CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. }
             | CheckedScalarComputationKind::ByteSequencePredicate { subject, .. } => {
                 extend_range(subject, &mut pending);
             }

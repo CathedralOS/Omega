@@ -622,6 +622,55 @@ pub(super) fn lower(
                 },
             )
         }
+        AbstractOperation::StorageAddress {
+            psi_operation,
+            result,
+            source,
+            path,
+        } => {
+            let identity = live
+                .structural_homes
+                .get(source)
+                .map(|home| home.structural_type())
+                // Literal and borrowed byte descriptors retain their typed
+                // backing in the view roster rather than an owned home.
+                // Their element address must follow that same descriptor.
+                .or_else(|| live.views.get(source).map(|(_, identity)| *identity))
+                .or_else(|| {
+                    function
+                        .structural_parameters
+                        .iter()
+                        .chain(function.block_structural_parameters())
+                        .find(|parameter| parameter.place == *source)
+                        .map(|parameter| parameter.structural_type)
+                })
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let (_, _, _, runs) = crate::lowering::structural_layout::runtime_borrowed_projection(
+                identity,
+                path,
+                StructuralAccess::SharedBorrow,
+                None,
+                types,
+                &mut std::collections::BTreeMap::new(),
+                &mut std::collections::BTreeSet::new(),
+            )?;
+            let indices = super::scalar_sources::runtime_indices(
+                runs,
+                function,
+                &super::scalar_sources::ScalarSources::from(&*live),
+            )?;
+            retain_result(*psi_operation, *result, live)?;
+            (
+                *psi_operation,
+                TargetUnitOperation::StorageAddress {
+                    psi_operation: *psi_operation,
+                    result: *result,
+                    source: *source,
+                    path: path.clone(),
+                    indices,
+                },
+            )
+        }
         AbstractOperation::PrimitiveScalarRead {
             psi_operation,
             result,
