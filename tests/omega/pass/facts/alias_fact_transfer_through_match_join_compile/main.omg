@@ -1,6 +1,6 @@
 // A match join keeps Alive when every arm copies an Alive player.
 // The joined alias carries that fact into inspect's requires.
-// Compile-checked only: no ProcessExit provider.
+// Expected exit: 0
 
 data Player [copy] {
     health: i32;
@@ -13,15 +13,17 @@ requires
 data Main {
     player: Player;
     spare: Player;
+    observed: i32;
 }
 
-machine Main::inspect(player: Player)
+machine Main::inspect(player: Player) -> i32
 requires
     player in Player::Alive
 {
+    player.health
 }
 
-machine Main::choose(main: &Main, flag: bool)
+machine Main::choose(main: &Main, flag: bool) -> i32
 requires
     main.player in Player::Alive,
     main.spare in Player::Alive
@@ -30,7 +32,7 @@ requires
         true -> main.player,
         false -> main.spare,
     };
-    Main::inspect(copy);
+    Main::inspect(copy)
 }
 
 machine Main::main(main: &mut Main)
@@ -38,5 +40,20 @@ requires
     main.player in Player::Alive,
     main.spare in Player::Alive
 {
-    Main::choose(main, true);
+    main.observed = Main::choose(main, true);
+}
+
+machine entry() crashes Trap {
+    let mut a: Main = Main { player: Player { health: 42 }, spare: Player { health: 99 }, observed: 0 };
+    Main::main(&mut a);
+    let mut b: Main = Main { player: Player { health: 1 }, spare: Player { health: 99 }, observed: 0 };
+    Main::main(&mut b);
+    transition a.observed == 42 && b.observed == 1 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() {
+        crash Trap;
+    }
 }

@@ -1,13 +1,12 @@
 # alias fact transfer
 
-Compile-scope fact. No standard-library dependency and no ProcessExit
-provider. An entry `requires` on `main.player` transfers through a bare
-`Player` alias, and that alias carries `Alive` into `inspect`'s `requires`.
+An entry `requires` on `main.player` transfers through a bare `Player` alias,
+and that alias carries `Alive` into `inspect`'s `requires`.
 
-The fact is checked at nine places. Each place is its own project. The
-oracle is `omega check` plus a native compile: every place binds
-`ProgramEntry` for the host targets and must compile, though these
-programs declare no exit code.
+The fact is checked at nine places. Each place is its own project. Every place
+binds `ProgramEntry` for the host targets to `entry`, exercises an interior
+case (`health: 42`) and the minimum boundary case (`health: 1`), and declares
+`Expected exit: 0`.
 
 - `local/` — `let mut copy: Player` carries the entry fact into `inspect`.
 - `field/` — the alias stored in a field still carries `Alive`.
@@ -21,10 +20,3 @@ programs declare no exit code.
 
 Each place has `controls/invalid_alias`. That control must reject because
 the alias does not carry `Alive`.
-
-```sh
-mbx run -p omega -- --check samples/cli/facts/alias_fact_transfer/local/main.omg
-```
-
-Repeat `--check` for `field`, `parameter`, `call_result`, `match_join`,
-`const_name`, `other_state`, `other_machine`, and `target_body`.

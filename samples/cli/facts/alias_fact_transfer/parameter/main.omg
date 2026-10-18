@@ -1,6 +1,6 @@
 // Alive on a copied player transfers into a bare parameter, and that
 // parameter carries the fact into inspect's requires.
-// Compile-checked only: no ProcessExit provider.
+// Expected exit: 0
 
 data Player [copy] {
     health: i32;
@@ -12,19 +12,21 @@ requires
 
 data Main {
     player: Player;
+    observed: i32;
 }
 
-machine Main::inspect(player: Player)
+machine Main::inspect(player: Player) -> i32
 requires
     player in Player::Alive
 {
+    player.health
 }
 
-machine Main::carry(player: Player)
+machine Main::carry(player: Player) -> i32
 requires
     player in Player::Alive
 {
-    Main::inspect(player);
+    Main::inspect(player)
 }
 
 machine Main::main(main: &mut Main)
@@ -32,5 +34,20 @@ requires
     main.player in Player::Alive
 {
     let mut copy: Player = main.player;
-    Main::carry(copy);
+    main.observed = Main::carry(copy);
+}
+
+machine entry() crashes Trap {
+    let mut a: Main = Main { player: Player { health: 42 }, observed: 0 };
+    Main::main(&mut a);
+    let mut b: Main = Main { player: Player { health: 1 }, observed: 0 };
+    Main::main(&mut b);
+    transition a.observed == 42 && b.observed == 1 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() {
+        crash Trap;
+    }
 }

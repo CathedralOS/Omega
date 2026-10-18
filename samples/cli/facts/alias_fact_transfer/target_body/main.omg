@@ -1,5 +1,5 @@
 // Every target body receives the Alive alias and passes it to inspect.
-// Compile-checked only: no ProcessExit provider.
+// Expected exit: 0
 
 data Player [copy] {
     health: i32;
@@ -11,40 +11,42 @@ requires
 
 data Main {
     player: Player;
+    observed: i32;
 }
 
-machine Main::inspect(player: Player)
+machine Main::inspect(player: Player) -> i32
 requires
     player in Player::Alive
 {
+    player.health
 }
 
-linux_x86_64 machine inspect_target(player: Player)
+linux_x86_64 machine inspect_target(player: Player) -> i32
 requires
     player in Player::Alive
 {
-    Main::inspect(player);
+    Main::inspect(player)
 }
 
-linux_arm64 machine inspect_target(player: Player)
+linux_arm64 machine inspect_target(player: Player) -> i32
 requires
     player in Player::Alive
 {
-    Main::inspect(player);
+    Main::inspect(player)
 }
 
-macos_arm64 machine inspect_target(player: Player)
+macos_arm64 machine inspect_target(player: Player) -> i32
 requires
     player in Player::Alive
 {
-    Main::inspect(player);
+    Main::inspect(player)
 }
 
-windows_x86_64 machine inspect_target(player: Player)
+windows_x86_64 machine inspect_target(player: Player) -> i32
 requires
     player in Player::Alive
 {
-    Main::inspect(player);
+    Main::inspect(player)
 }
 
 machine Main::main(main: &mut Main)
@@ -52,5 +54,20 @@ requires
     main.player in Player::Alive
 {
     let mut copy: Player = main.player;
-    inspect_target(copy);
+    main.observed = inspect_target(copy);
+}
+
+machine entry() crashes Trap {
+    let mut a: Main = Main { player: Player { health: 42 }, observed: 0 };
+    Main::main(&mut a);
+    let mut b: Main = Main { player: Player { health: 1 }, observed: 0 };
+    Main::main(&mut b);
+    transition a.observed == 42 && b.observed == 1 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() {
+        crash Trap;
+    }
 }

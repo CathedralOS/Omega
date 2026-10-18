@@ -1,5 +1,5 @@
 // Alive copied into a field still reaches inspect through that field.
-// Compile-checked only: no ProcessExit provider.
+// Expected exit: 0
 
 data Player [copy] {
     health: i32;
@@ -15,12 +15,14 @@ data Roster {
 
 data Main {
     player: Player;
+    observed: i32;
 }
 
-machine Main::inspect(player: Player)
+machine Main::inspect(player: Player) -> i32
 requires
     player in Player::Alive
 {
+    player.health
 }
 
 machine Main::main(main: &mut Main)
@@ -28,5 +30,20 @@ requires
     main.player in Player::Alive
 {
     let roster: Roster = Roster { member: main.player };
-    Main::inspect(roster.member);
+    main.observed = Main::inspect(roster.member);
+}
+
+machine entry() crashes Trap {
+    let mut a: Main = Main { player: Player { health: 42 }, observed: 0 };
+    Main::main(&mut a);
+    let mut b: Main = Main { player: Player { health: 1 }, observed: 0 };
+    Main::main(&mut b);
+    transition a.observed == 42 && b.observed == 1 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() {
+        crash Trap;
+    }
 }
