@@ -187,6 +187,9 @@ pub(super) fn validate(
             .sum::<usize>();
     // Byte-literal records trail the import rows; their own replay owns them.
     let expected_records = expected_records
+        + super::image_residence::relocation_count(
+            &source.source().text_section().unresolved_image_addresses,
+        )
         + super::byte_literals::relocation_count(artifact.byte_literal_pool.as_ref())
         + super::implementation_tables::relocation_count(
             artifact.implementation_table_pool.as_ref(),
@@ -207,6 +210,7 @@ pub(super) fn validate(
         artifact.functions.len()
             + layout.function_symbols.len()
             + usize::from(artifact.byte_literal_pool.is_some())
+            + usize::from(artifact.retained_entry_storage.is_valid())
             + artifact
                 .implementation_table_pool
                 .as_ref()

@@ -549,7 +549,7 @@ macro_rules! effect_tag_arms {
             $enum::Load8Indexed => 21,
             $enum::Store64 => 17,
             $enum::FrameAddress => 18,
-            $enum::ImmutableImageAddress => 232,
+            $enum::ImageAddress => 232,
             $enum::CallUnit => 19,
             $enum::ExactAddI64 => 3,
             $enum::BitwiseAndI64 => 51,

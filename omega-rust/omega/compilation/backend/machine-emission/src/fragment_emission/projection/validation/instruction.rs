@@ -25,7 +25,7 @@ pub(super) fn check(
     )?;
     control::check(function, block, selected, &span.control)?;
     let reference = match selected.kind {
-        SelectedInstructionKind::ImmutableImageAddress { reference } => Some(reference),
+        SelectedInstructionKind::ImageAddress { reference } => Some(reference),
         _ => None,
     };
     match (row.image_address_fixup, span.image_address_fixup, reference) {

@@ -17,14 +17,14 @@ fn byte_literal_address_is_an_unresolved_page_pair_into_its_destination() {
     let physical =
         validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
     let views = ["x5", "x6"].map(|name| physical.model().view_named(name).unwrap().id);
-    let kind = SelectedInstructionKind::ImmutableImageAddress {
+    let kind = SelectedInstructionKind::ImageAddress {
         reference: selected_instructions::SelectedImageAddressReference::ByteLiteral {
             operation: OperationId::new(7).unwrap(),
             place: PlaceId::new(3).unwrap(),
         },
     };
     let key = MachineAlternativeKey {
-        family: MachineAlternativeFamily::ImmutableImageAddress,
+        family: MachineAlternativeFamily::ImageAddress,
         variant: 0,
     };
     let encoded = encode_aarch64_selected_form(&physical, kind, key, &views[..1]).unwrap();

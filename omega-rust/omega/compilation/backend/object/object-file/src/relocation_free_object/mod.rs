@@ -618,6 +618,7 @@ fn decode_image_address(
     let block = SelectedBlockId(cursor.u32()?);
     let instruction = SelectedInstructionId(cursor.u32()?);
     let reference = match cursor.byte()? {
+        3 => selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart,
         0 => selected_instructions::SelectedImageAddressReference::ByteLiteral {
             operation: OperationId::new(cursor.u64()?)
                 .ok_or(RelocationFreeObjectDecodeError::InvalidOperation)?,
@@ -1249,7 +1250,33 @@ mod tests {
         object.text_section.byte_count = 16;
         object.symbols[0].byte_count = 16;
         object.unresolved_image_addresses.push(table);
-        object.relocation_record_count = 2;
+        let mut residence = table;
+        residence.reference =
+            selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart;
+        residence.operation = OperationId::new(13).unwrap();
+        residence.instruction = SelectedInstructionId(2);
+        residence.instruction_function_offset = 16;
+        residence.instruction_section_offset = 16;
+        residence.fields = residence.fields.shifted(8).unwrap();
+        object.text_section.bytes.extend_from_within(..8);
+        object.text_section.byte_count = 24;
+        object.symbols[0].byte_count = 24;
+        object.unresolved_image_addresses.push(residence);
+        let mut native_layout = residence;
+        native_layout.reference =
+            selected_instructions::SelectedImageAddressReference::NativeCodeLayout {
+                machine: object.semantic_entry,
+            };
+        native_layout.operation = OperationId::new(14).unwrap();
+        native_layout.instruction = SelectedInstructionId(3);
+        native_layout.instruction_function_offset = 24;
+        native_layout.instruction_section_offset = 24;
+        native_layout.fields = native_layout.fields.shifted(8).unwrap();
+        object.text_section.bytes.extend_from_within(..8);
+        object.text_section.byte_count = 32;
+        object.symbols[0].byte_count = 32;
+        object.unresolved_image_addresses.push(native_layout);
+        object.relocation_record_count = 4;
         object.identity = object.recomputed_identity().unwrap();
         let container = encode_relocation_free_object(&object).unwrap();
         assert_eq!(

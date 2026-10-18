@@ -210,7 +210,7 @@ pub(crate) fn validate(
             }
             Ok(())
         }
-        kind @ SelectedInstructionKind::ImmutableImageAddress { reference } => {
+        kind @ SelectedInstructionKind::ImageAddress { reference } => {
             // The field coordinates come from the target's own declaration,
             // never from the producer's fixup.
             let fields = match architecture {

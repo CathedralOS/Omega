@@ -16,6 +16,9 @@ use terminal_psi::TerminalPsiIdentity;
 pub struct ObjectArtifact {
     pub(crate) hosted_receiver: Option<HostedReceiverBinding>,
     pub(crate) physical_entry: Option<crate::PhysicalEntryBinding>,
+    /// Unresolved entry-residence address symbol; defined by physical image preparation.
+    /// Zero means no operation in this object observes that boundary.
+    pub(crate) retained_entry_storage: ObjectSymbolHandle,
     /// Primitive storage operations require retained initialization and access
     /// evidence even when no borrowed call exposes their local residence.
     pub(crate) requires_graph_storage_replay: bool,

@@ -49,6 +49,9 @@ const fn project_execution_identity(
     identity: CompilerIntrinsicExecutionIdentity,
 ) -> PackageReviewCompilerIntrinsicExecution {
     match identity {
+        CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
+            PackageReviewCompilerIntrinsicExecution::ProgramImageRetainedSuffixStart
+        }
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
             PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32
         }
@@ -99,6 +102,9 @@ const fn project_execution_identity(
 
 fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> String {
     match identity {
+        CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
+            "Numeric address of this program image's retained entry-storage suffix".to_owned()
+        }
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
             "Hosted process exit with one `i32` argument".to_owned()
         }

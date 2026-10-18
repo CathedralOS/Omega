@@ -6,6 +6,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
     execution: &PackageReviewCompilerIntrinsicExecution,
 ) -> Result<(), PackageReviewEncodingError> {
     match execution {
+        PackageReviewCompilerIntrinsicExecution::ProgramImageRetainedSuffixStart => {
+            encoder.tag("program_image_retained_suffix_start", 9);
+        }
         PackageReviewCompilerIntrinsicExecution::HostedExitProcessI32 => {
             encoder.tag("hosted_exit_process_i32", 4);
         }

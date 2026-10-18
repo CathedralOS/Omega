@@ -32,6 +32,12 @@ pub(super) fn project(
         target_operations::TargetUnitOperation::Call { .. }
     ) {
         call_instructions::project_call(optimized, unit, targeted, native, plan)?
+    } else if let target_operations::TargetUnitOperation::ProgramImageAddress { boundary, .. } =
+        targeted
+    {
+        LegalizedScalarInstructionKind::ProgramImageAddress {
+            boundary: *boundary,
+        }
     } else if let target_operations::TargetUnitOperation::PlacedScalarAccess {
         boundary,
         realization,

@@ -108,7 +108,8 @@ pub(super) fn settle_boundary<'request>(
                         semantic_vocabulary::ExternalCompletionKind::ProcessExit,
                     )
                 }
-                target_operations::BoundaryRealization::MetadataOnlyPort(_)
+                target_operations::BoundaryRealization::ProgramImageRetainedSuffixStart
+                | target_operations::BoundaryRealization::MetadataOnlyPort(_)
                 | target_operations::BoundaryRealization::DirectPortReadU8(_)
                 | target_operations::BoundaryRealization::LinuxWriteLine(_)
                 | target_operations::BoundaryRealization::HostedReadByte(_)

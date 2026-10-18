@@ -1,0 +1,12 @@
+// Numeric observation of this executing program image's private residence.
+// This grants neither a borrow nor storage ownership. The loader/provider must
+// independently establish correspondence to this actual image invocation.
+// Exclude the entire suffix, including alignment and image padding, before
+// passing the remaining image extent to the semantic continuation.
+pub boundary trait ProgramImage {
+    machine retained_suffix_start() -> addr;
+}
+
+pub data ProgramImageNativeProvider {}
+pub uefi_x86_64 boundary machine ProgramImageNativeProvider::retained_suffix_start() -> addr
+satisfies ProgramImage::retained_suffix_start;

@@ -81,6 +81,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
                     super::calling::encode_shape(bytes, *shape);
                 }
+                LegalizedScalarInstructionKind::ProgramImageAddress { boundary } => {
+                    bytes.push(173);
+                    crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::RegisterAccess { service, event } => {
                     bytes.push(247);
                     crate::codec_bytes::push_encoded(bytes, service.get().to_le_bytes());

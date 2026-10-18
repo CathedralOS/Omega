@@ -145,6 +145,40 @@ pub(crate) fn row_execution_identity(
             SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
         ));
     };
+    // Only the byte-exact toolchain declaration closes this image observation.
+    // Its scalar result is not a storage grant and identifies no firmware object.
+    if selected_target == Some("uefi_x86_64")
+        && plan.target == "uefi_x86_64"
+        && [trait_symbol, requirement_symbol, realization_symbol]
+            .into_iter()
+            .all(|symbol| {
+                checked.symbols.symbol_source_origin(symbol)
+                    == Some(source::SourceOrigin::Toolchain)
+                    && exact_bundled_standalone_source(
+                        checked,
+                        symbol,
+                        "program_image.omg",
+                        BUNDLED_PROGRAM_IMAGE,
+                    )
+            })
+        && boundary_row_shape(
+            checked,
+            plan,
+            row,
+            trait_symbol,
+            requirement_symbol,
+            realization_symbol,
+            "ProgramImage",
+            true,
+            "retained_suffix_start",
+            "ProgramImageNativeProvider::retained_suffix_start",
+            BoundaryIntrinsicShape::UnitToAddress,
+        )?
+    {
+        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+            CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart,
+        )));
+    }
     let Some((selected_target, bundle)) = selected_hosted_bundle(selected_target) else {
         return Ok(Some(
             SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
@@ -271,9 +305,10 @@ impl HostedService {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum ConsoleIntrinsicShape {
+enum BoundaryIntrinsicShape {
     I32ToUnit,
     UnitToByteRead,
+    UnitToAddress,
 }
 
 /// One hosted row the compiler realizes itself: the service requirement and
@@ -283,7 +318,7 @@ struct HostedIntrinsicRow {
     service: HostedService,
     requirement: &'static str,
     realization: &'static str,
-    shape: ConsoleIntrinsicShape,
+    shape: BoundaryIntrinsicShape,
     identity: CompilerIntrinsicExecutionIdentity,
 }
 
@@ -295,28 +330,28 @@ const HOSTED_INTRINSIC_ROWS: [HostedIntrinsicRow; 4] = [
         service: HostedService::Console,
         requirement: "exit_process",
         realization: "ConsoleNativeProvider::exit_process",
-        shape: ConsoleIntrinsicShape::I32ToUnit,
+        shape: BoundaryIntrinsicShape::I32ToUnit,
         identity: CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
     },
     HostedIntrinsicRow {
         service: HostedService::ProcessExit,
         requirement: "exit_process",
         realization: "ProcessExitNativeProvider::exit_process",
-        shape: ConsoleIntrinsicShape::I32ToUnit,
+        shape: BoundaryIntrinsicShape::I32ToUnit,
         identity: CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
     },
     HostedIntrinsicRow {
         service: HostedService::Console,
         requirement: "write_byte",
         realization: "ConsoleNativeProvider::write_byte",
-        shape: ConsoleIntrinsicShape::I32ToUnit,
+        shape: BoundaryIntrinsicShape::I32ToUnit,
         identity: CompilerIntrinsicExecutionIdentity::HostedWriteByteI32,
     },
     HostedIntrinsicRow {
         service: HostedService::Console,
         requirement: "read_byte",
         realization: "ConsoleNativeProvider::read_byte",
-        shape: ConsoleIntrinsicShape::UnitToByteRead,
+        shape: BoundaryIntrinsicShape::UnitToByteRead,
         identity: CompilerIntrinsicExecutionIdentity::HostedReadByte,
     },
 ];
@@ -368,13 +403,18 @@ impl HostedIntrinsicRow {
             requirement_symbol,
             realization_symbol,
             self.service.trait_name(),
-            self.shape == ConsoleIntrinsicShape::I32ToUnit,
+            self.shape == BoundaryIntrinsicShape::I32ToUnit,
             self.requirement,
             self.realization,
             self.shape,
         )
     }
 }
+
+const BUNDLED_PROGRAM_IMAGE: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../source/library/core/program_image.omg"
+));
 
 const BUNDLED_CONSOLE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -534,7 +574,7 @@ fn boundary_row_shape(
     require_inferred_supply: bool,
     requirement_name: &str,
     realization_name: &str,
-    shape: ConsoleIntrinsicShape,
+    shape: BoundaryIntrinsicShape,
 ) -> Result<bool, Diagnostic> {
     let typed = checked;
 
@@ -592,7 +632,7 @@ fn boundary_row_shape(
         || method.requirement_owner != typed.trait_declaration_path(definition)
         || plan.schema.identity_text(method.requirement_identity) != requirement_identity
         || plan.identities.text(row.requirement_identity) != requirement_identity
-        || !exact_console_signature(typed, requirement, requirement_name, trait_symbol, shape)
+        || !exact_boundary_signature(typed, requirement, requirement_name, trait_symbol, shape)
     {
         return Ok(false);
     }
@@ -624,7 +664,7 @@ fn boundary_row_shape(
     // as its requirement: the hosted byte-input leaf may occupy the worker
     // while it waits and traps on a failed read; byte output and process
     // exit keep their nonblocking, crash-free ceiling on this leg.
-    let expect_blocking_trap = matches!(shape, ConsoleIntrinsicShape::UnitToByteRead);
+    let expect_blocking_trap = matches!(shape, BoundaryIntrinsicShape::UnitToByteRead);
     if realization.suspends
         || realization.blocks != expect_blocking_trap
         || !exact_realization_contracts(typed, realization, expect_blocking_trap)
@@ -665,7 +705,7 @@ fn boundary_row_shape(
     let [entry] = typed.machine_states(realization) else {
         return Ok(false);
     };
-    if !exact_console_state(typed, entry, trait_symbol, shape) {
+    if !exact_boundary_state(typed, entry, trait_symbol, shape) {
         return Ok(false);
     }
     let conformances = typed
@@ -719,12 +759,12 @@ pub(crate) fn accepted_binding_matches_selected_row_identity(
         && binding.selected_provider_plan_digest() == Some(plan.identity_digest())
 }
 
-fn exact_console_signature(
+fn exact_boundary_signature(
     typed: &typed_trees::TypedTrees,
     signature: &typed_trees::signature::StateSignature,
     requirement_name: &str,
     trait_symbol: SymbolHandle,
-    shape: ConsoleIntrinsicShape,
+    shape: BoundaryIntrinsicShape,
 ) -> bool {
     if signature.name.as_str() != requirement_name
         || !signature.lifetime_parameters.is_empty()
@@ -735,7 +775,13 @@ fn exact_console_signature(
         return false;
     }
     match shape {
-        ConsoleIntrinsicShape::I32ToUnit => {
+        BoundaryIntrinsicShape::UnitToAddress => {
+            !signature.blocks
+                && typed.state_signature_contracts(signature).is_empty()
+                && typed.state_signature_parameters(signature).is_empty()
+                && exact_address_type(typed, signature.return_type)
+        }
+        BoundaryIntrinsicShape::I32ToUnit => {
             // Hosted byte output and process exit still publish a nonblocking,
             // non-crashing ceiling; this leg does not widen their envelope.
             !signature.blocks
@@ -747,7 +793,7 @@ fn exact_console_signature(
                     TypeReferenceNode::Unit
                 )
         }
-        ConsoleIntrinsicShape::UnitToByteRead => {
+        BoundaryIntrinsicShape::UnitToByteRead => {
             // Hosted input may occupy the worker while it waits for a byte and
             // traps on a failed host read: the exact `read_byte` identity is the
             // requirement that publishes `blocks;` plus one unconditional
@@ -786,25 +832,37 @@ fn exact_unconditional_trap_crash_contract(
     sole_unconditional_trap(typed.state_signature_contracts(signature))
 }
 
-fn exact_console_state(
+fn exact_boundary_state(
     typed: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
     trait_symbol: SymbolHandle,
-    shape: ConsoleIntrinsicShape,
+    shape: BoundaryIntrinsicShape,
 ) -> bool {
     match shape {
-        ConsoleIntrinsicShape::I32ToUnit => {
+        BoundaryIntrinsicShape::UnitToAddress => {
+            typed.state_parameters(state).is_empty() && exact_address_type(typed, state.return_type)
+        }
+        BoundaryIntrinsicShape::I32ToUnit => {
             exact_i32_parameter(typed, typed.state_parameters(state))
                 && matches!(
                     typed.type_reference_table.type_reference(state.return_type),
                     TypeReferenceNode::Unit
                 )
         }
-        ConsoleIntrinsicShape::UnitToByteRead => {
+        BoundaryIntrinsicShape::UnitToByteRead => {
             typed.state_parameters(state).is_empty()
                 && exact_byte_read_type(typed, state.return_type, trait_symbol)
         }
     }
+}
+
+fn exact_address_type(
+    typed: &typed_trees::TypedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    matches!(typed.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Named { symbol, .. }
+        if typed.symbols.builtin_type_atom(*symbol) == Some(BuiltinTypeAtom::Address))
 }
 
 fn exact_byte_read_type(

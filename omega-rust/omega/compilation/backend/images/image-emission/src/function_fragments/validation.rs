@@ -59,6 +59,7 @@ fn validate(
     super::byte_literals::validate(source, artifact, code_text_len)?;
     super::implementation_tables::validate(source, artifact)?;
     super::native_code_layouts::validate(source, artifact)?;
+    super::image_residence::validate(source, artifact)?;
     let table_count = artifact
         .implementation_table_pool
         .as_ref()
@@ -99,6 +100,7 @@ fn validate(
                 + usize::from(pool.is_some())
                 + table_count
                 + native_count
+                + usize::from(artifact.retained_entry_storage.is_valid())
                 + layout.normalized_imports.len()
         || artifact.functions.len() != text.functions.len()
     {

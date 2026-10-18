@@ -160,6 +160,14 @@ pub enum TargetUnitOperation {
         result_home: TargetStructuralHomeRequirement,
         argument: TargetUnitScalarArgumentSource,
     },
+    /// One admitted numeric image observation, lowered to an image-address
+    /// relocation. The retained boundary identity supplies no memory custody.
+    ProgramImageAddress {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        execution: BoundaryExecutionBinding,
+        result_home: TargetUnitScalarHomeRequirement,
+    },
     NearestIeeeFloatArithmetic {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,

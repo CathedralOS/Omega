@@ -117,7 +117,7 @@ fn validate_image_address_fixup(
     bytes: &[u8],
     fixup: machine_code::SelectedFormImageAddressFixup,
 ) -> Result<machine_code::SelectedFormImageAddressFixup, OptimizedResolvedSelectedFormLayoutError> {
-    let SelectedInstructionKind::ImmutableImageAddress { reference } = instruction.kind else {
+    let SelectedInstructionKind::ImageAddress { reference } = instruction.kind else {
         return unexpected(instruction.id);
     };
     let row_len = u64::try_from(bytes.len())

@@ -76,12 +76,15 @@ impl SelectedCallTarget {
     }
 }
 
-/// Immutable image storage is selected by identity, independent of its owner.
+/// Image address referents are selected by identity, independent of ownership.
+/// Materializing their numeric address grants no access to their storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedImageAddressReference {
     NativeCodeLayout {
         machine: MachineId,
     },
+    /// Start of the retained entry suffix, before its first alignment padding.
+    RetainedEntryStorageStart,
     ByteLiteral {
         operation: OperationId,
         place: PlaceId,
@@ -94,6 +97,7 @@ pub enum SelectedImageAddressReference {
 impl SelectedImageAddressReference {
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         match self {
+            Self::RetainedEntryStorageStart => bytes.push(3),
             Self::ByteLiteral { operation, place } => {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
@@ -244,7 +248,7 @@ pub enum SelectedInstructionKind {
     },
     /// Address of exact immutable image storage. Its owner's relocation
     /// binds the same PC-relative address form at object construction.
-    ImmutableImageAddress {
+    ImageAddress {
         reference: SelectedImageAddressReference,
     },
     CallUnit {

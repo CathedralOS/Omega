@@ -10,6 +10,9 @@ pub fn encode_boundary_execution_identity(
 ) {
     match execution {
         BoundaryExecutionBinding::CompilerBuiltin(
+            CompilerBuiltinExecution::ProgramImageRetainedSuffixStart,
+        ) => bytes.push(6),
+        BoundaryExecutionBinding::CompilerBuiltin(
             CompilerBuiltinExecution::PlacedScalarAccess {
                 contract,
                 placement_commitment,
@@ -59,6 +62,7 @@ pub(super) fn encode_binding(bytes: &mut Vec<u8>, binding: &BoundarySettlementBi
             super::normalized_foreign::encode_call_binding(bytes, call);
         }
         BoundarySettlementRealization::Builtin(realization) => match realization {
+            BoundaryRealization::ProgramImageRetainedSuffixStart => bytes.push(10),
             BoundaryRealization::PlacedScalarAccess(access) => {
                 bytes.push(9);
                 bytes.extend_from_slice(&access.contract);

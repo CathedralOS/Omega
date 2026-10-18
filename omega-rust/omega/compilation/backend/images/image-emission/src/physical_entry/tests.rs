@@ -5,6 +5,29 @@ use machine_emission::native_entry_bridge::{
 };
 
 #[test]
+fn retained_suffix_includes_alignment_after_nonempty_program_bss() {
+    for existing in [0, 1, 15, 16, 17, 255, 4097] {
+        let partitions = super::PhysicalEntryPartitions::derive(existing, 16, 131_073)
+            .expect("bounded partition geometry");
+        assert_eq!(partitions.retained_start_offset, existing);
+        assert!(partitions.retained_start_offset <= partitions.saved_state_offset);
+        assert!(partitions.saved_state_offset + 24 <= partitions.stack_offset);
+        assert_eq!(partitions.stack_byte_count, 131_088);
+        assert_eq!(partitions.end_offset, partitions.stack_offset + 131_088);
+        for aligned in [
+            partitions.saved_state_offset,
+            partitions.stack_offset,
+            partitions.end_offset,
+        ] {
+            assert!(aligned.is_multiple_of(16));
+        }
+    }
+    assert!(super::PhysicalEntryPartitions::derive(u64::MAX, 16, 128).is_err());
+    assert!(super::PhysicalEntryPartitions::derive(17, 3, 128).is_err());
+    assert!(super::PhysicalEntryPartitions::derive(17, 16, u64::MAX).is_err());
+}
+
+#[test]
 fn private_stack_prefix_copies_abi_stack_arguments_and_preserves_return() {
     use iced_x86::{Decoder, DecoderOptions, Mnemonic, Register};
     for parameter_count in [2, 6] {

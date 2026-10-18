@@ -214,7 +214,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
         SelectedInstructionKind::CallUnit { .. } => 19,
-        SelectedInstructionKind::ImmutableImageAddress { .. } => 232,
+        SelectedInstructionKind::ImageAddress { .. } => 232,
     });
     match kind {
         SelectedInstructionKind::RegisterAccess { operation } => {
@@ -414,7 +414,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, ordinal.to_le_bytes());
         }
-        SelectedInstructionKind::ImmutableImageAddress { reference } => {
+        SelectedInstructionKind::ImageAddress { reference } => {
             reference.encode_identity(bytes);
         }
     }

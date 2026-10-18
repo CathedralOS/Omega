@@ -38,6 +38,7 @@ mod operations;
 mod owned_arguments;
 mod placed_scalar_access;
 mod primitive_storage;
+mod program_image;
 mod records;
 pub(super) mod references;
 pub(super) mod scalar_arrays;

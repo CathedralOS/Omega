@@ -168,7 +168,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CallScalar { .. } => 12,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
         SelectedInstructionKind::NormalizedForeignCall { .. } => 87,
-        SelectedInstructionKind::ImmutableImageAddress { .. } => 232,
+        SelectedInstructionKind::ImageAddress { .. } => 232,
         SelectedInstructionKind::ScanByteSequence { .. } => 233,
         SelectedInstructionKind::LoadEncodedScalar => 236,
         SelectedInstructionKind::StoreEncodedScalar => 237,
@@ -328,7 +328,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, ordinal.to_le_bytes());
         }
-        SelectedInstructionKind::ImmutableImageAddress { reference } => {
+        SelectedInstructionKind::ImageAddress { reference } => {
             reference.encode_identity(bytes);
         }
         SelectedInstructionKind::ScanByteSequence { predicate } => {
@@ -533,8 +533,14 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
             boundary: decode_id(cursor, BoundaryMachineId::new)?,
             ordinal: cursor.u32()?,
         },
-        232 => SelectedInstructionKind::ImmutableImageAddress {
+        232 => SelectedInstructionKind::ImageAddress {
             reference: match cursor.byte()? {
+                3 => {
+                    selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart
+                }
+                2 => selected_instructions::SelectedImageAddressReference::NativeCodeLayout {
+                    machine: decode_id(cursor, MachineId::new)?,
+                },
                 0 => selected_instructions::SelectedImageAddressReference::ByteLiteral {
                     operation: decode_id(cursor, OperationId::new)?,
                     place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,

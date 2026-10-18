@@ -850,7 +850,7 @@ const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 132] = [
     (MachineAlternativeFamily::Load64, 16),
     (MachineAlternativeFamily::Store64, 17),
     (MachineAlternativeFamily::FrameAddress, 18),
-    (MachineAlternativeFamily::ImmutableImageAddress, 232),
+    (MachineAlternativeFamily::ImageAddress, 232),
     (MachineAlternativeFamily::ScanByteSequence, 233),
     (MachineAlternativeFamily::CompareByteSequences, 234),
     (MachineAlternativeFamily::ZeroBytes, 235),

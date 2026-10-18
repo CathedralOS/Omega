@@ -219,7 +219,7 @@ fn instruction_size(
         SelectedFormEncodingState::UnresolvedImageAddress { .. } => {
             if !matches!(
                 instruction.kind,
-                SelectedInstructionKind::ImmutableImageAddress { .. }
+                SelectedInstructionKind::ImageAddress { .. }
             ) {
                 return unexpected(instruction.id);
             }

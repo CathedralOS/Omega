@@ -361,7 +361,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     super::structural::primitive_operation_retained(abstracted, selected, operation)
                 }
                 AbstractOperation::SelectImplementation {psi_operation,table,..} => selected.instructions().filter(|instruction|
-                    matches!(instruction.kind,selected_instructions::SelectedInstructionKind::ImmutableImageAddress {reference:selected_instructions::SelectedImageAddressReference::ImplementationTable {table:retained}} if retained==*table)
+                    matches!(instruction.kind,selected_instructions::SelectedInstructionKind::ImageAddress {reference:selected_instructions::SelectedImageAddressReference::ImplementationTable {table:retained}} if retained==*table)
                     && instruction.provenance.operations.contains(psi_operation)).count()==1,
                 AbstractOperation::CallStructural {psi_operation,callee:abstract_operations::AbstractCallTarget::Dynamic {selector,interface,slot},result:AbstractStructuralCallResult::Scalar(result),..} => {
                     let catalog=&current.optimized_target().optimized().plan().dynamic_dispatch;
@@ -482,6 +482,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     ..
                 } => selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && call_target_matches(*callee,row.call.target) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
                 AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
+                    || program_image_retained(operation, targeted, selected)
                     || ieee_float_builtin_retained(operation, targeted, selected)
                     || placed_scalar_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. }))
@@ -648,6 +649,30 @@ fn ieee_float_builtin_retained(
             })
             .count()
             == 1
+}
+
+fn program_image_retained(
+    operation: &AbstractOperation,
+    targeted: &target_operations::TargetFunction,
+    selected: &selected_instructions::SelectedFunction,
+) -> bool {
+    let AbstractOperation::BoundaryCall {
+        psi_operation,
+        boundary,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    targeted.graph.operations().filter(|row| matches!(row,
+        target_operations::TargetUnitOperation::ProgramImageAddress {
+            psi_operation: actual, boundary: actual_boundary, ..
+        } if actual == psi_operation && actual_boundary == boundary)).count() == 1
+        && selected.instructions().filter(|instruction|
+            instruction.kind == selected_instructions::SelectedInstructionKind::ImageAddress {
+                reference: selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart,
+            } && instruction.provenance.operations == [*psi_operation]
+        ).count() == 1
 }
 
 fn ieee_literal_retained<'operation>(

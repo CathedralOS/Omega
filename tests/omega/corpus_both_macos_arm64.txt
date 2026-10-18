@@ -69,6 +69,7 @@ pass/cases/runtime_refuted_generic_case_dispatch_exit built 7462ms exit:70 inter
 pass/collections/runtime_state_indexed_scalar_field_store_exit built 5374ms exit:0 interpreter-exit:0 interpreter:agrees @fd59b9d3fe3a
 pass/contracts/current_computed_scalar_guard_exit built 5270ms exit:70 interpreter-exit:70 interpreter:agrees @635eb3f2e180+wt
 pass/contracts/float_guard_disjoint_operand_write built 6882ms exit:0 interpreter-exit:0 interpreter:agrees @9a1008d23dee+wt
+pass/contracts/opaque_call_preserves_model built 6930ms exit:0 interpreter-exit:0 interpreter:agrees @8fd8af53161a+wt
 pass/contracts/runtime_literal_view_extent_calls_exit built 5611ms exit:0 interpreter-exit:0 interpreter:agrees @81a0434130f9bfb47b3bec8ac9b47181a4ae96d2+wt
 # context: {"cpus": 10, "jobs": "2", "load1_end": 8.75, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit built 7965ms exit:112 interpreter-exit:112 interpreter:agrees @97705f5a651d
@@ -896,7 +897,7 @@ pass/traits/runtime_selected_reference_region built 4194ms exit:0 interpreter-ex
 pass/traits/runtime_selected_slice_reference_exit built 4449ms exit:0 interpreter-exit:0 interpreter:agrees @dd6871ed0476
 pass/traits/structural_array_crash_identity_exit built 10843ms exit:70 interpreter-exit:70 interpreter:agrees @6d0b8da07bdd+wt
 pass/traits/structural_identity_crash_contract checked 890ms @6d0b8da07bdd+wt
-pass/types/address_model_conversion built 3733ms exit:0 interpreter-exit:0 interpreter:agrees @8eeea22df054+wt
+pass/types/address_model_conversion built 7148ms exit:0 interpreter-exit:0 interpreter:agrees @8fd8af53161a+wt
 pass/types/exact_address_conversion built 3773ms exit:0 interpreter-exit:0 interpreter:agrees @3b422f31da30+wt
 pass/types/runtime_addr_conversion_trap_exit built 2731ms exit:signal signal:5 interpreter:trapped @cba4ef8c9ab1
 pass/types/runtime_addr_field_exit built 2703ms exit:88 interpreter-exit:88 interpreter:agrees @cba4ef8c9ab1

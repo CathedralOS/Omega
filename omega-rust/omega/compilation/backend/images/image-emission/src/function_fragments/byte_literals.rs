@@ -13,12 +13,12 @@
 //! Replay recomputes the pool from the same retained source and compares the
 //! symbol, bytes, carriers and relocation rows exactly.
 
-use super::{Error, host, source};
+use super::{Error, source};
 use crate::{ObjectArtifact, ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectFunction};
 use abstract_operations::AbstractOperation;
 use machine_code::{ImageAddressFields, PlacedImageAddress};
 use object_file::{
-    ObjectPlan, RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
+    ObjectPlan, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
     StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
 };
 use std::collections::BTreeMap;
@@ -166,33 +166,7 @@ fn expected_records(
         operation_identity: address.literal.operation.get(),
     };
     let addend = i64::try_from(address.pool_offset).map_err(|_| Error::Overflow)?;
-    let record = |offset: u64, kind: RelocationKind| -> Result<RelocationRecord, Error> {
-        Ok(RelocationRecord {
-            origin,
-            section: SectionKind::Text,
-            offset: host(offset)?,
-            byte_width: 4,
-            symbol_handle: pool.symbol,
-            addend,
-            kind,
-        })
-    };
-    match address.fields {
-        ImageAddressFields::X86_64Relative32 { patch_offset } => Ok(vec![record(
-            patch_offset,
-            RelocationKind::X86_64Relative32,
-        )?]),
-        ImageAddressFields::Aarch64PageAddress {
-            page_patch_offset,
-            page_offset_patch_offset,
-        } => Ok(vec![
-            record(page_patch_offset, RelocationKind::Aarch64Page21)?,
-            record(
-                page_offset_patch_offset,
-                RelocationKind::Aarch64PageOffset12,
-            )?,
-        ]),
-    }
+    super::image_addresses::records(address.fields, origin, pool.symbol, addend)
 }
 
 /// The padded pool bytes and one carrier row per placed address, in text

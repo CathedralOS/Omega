@@ -191,6 +191,10 @@ pub fn build_function_fragment_object_artifact(
         &mut object,
         &mut data_bytes,
     )?;
+    let retained_entry_storage = super::image_residence::declare(
+        &source.source().text_section().unresolved_image_addresses,
+        &mut object,
+    )?;
     // The text section is sized last: it covers program, private and pool bytes.
     object.layout.sections.insert(SectionPlan {
         kind: SectionKind::Text,
@@ -215,9 +219,16 @@ pub fn build_function_fragment_object_artifact(
         &functions,
         &mut relocations,
     )?;
+    super::image_residence::publish_relocations(
+        &source.source().text_section().unresolved_image_addresses,
+        retained_entry_storage,
+        &functions,
+        &mut relocations,
+    )?;
     let artifact = ObjectArtifact {
         hosted_receiver: None,
         physical_entry: None,
+        retained_entry_storage,
         requires_graph_storage_replay,
         fragment_replay: Some(super::replay::FragmentReplay(Arc::clone(&replay))),
         composition_source: None,

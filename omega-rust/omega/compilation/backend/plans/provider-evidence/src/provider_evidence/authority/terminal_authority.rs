@@ -21,6 +21,9 @@ pub enum CompilerIntrinsicExecutionIdentity {
     /// Exact toolchain-owned `Console::read_byte() -> ByteRead` execution
     /// selected for one canonical hosted target.
     HostedReadByte,
+    /// Numeric address observation of this image's retained entry-storage suffix.
+    /// This grants no memory access, root custody or firmware correspondence.
+    ProgramImageRetainedSuffixStart,
     /// Parameter-rooted scalar access to an exact sealed placed declaration.
     /// This describes the execution child; actual RAM custody is separately
     /// required at each occurrence and every activation boundary.
@@ -136,6 +139,7 @@ pub fn compiler_intrinsic_execution_identity_bytes(
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => bytes[0] = 0,
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => bytes[0] = 5,
         CompilerIntrinsicExecutionIdentity::HostedReadByte => bytes[0] = 6,
+        CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => bytes[0] = 9,
         CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
             contract,
             placement_commitment,

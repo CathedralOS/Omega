@@ -611,6 +611,26 @@ pub(super) fn lower_operation(
             )
         }
         AbstractOperation::BoundaryCall { boundary, .. }
+            if settlements.get(boundary).is_some_and(|binding| {
+                matches!(
+                    binding.realization,
+                    target_operations::BoundarySettlementRealization::Builtin(
+                        BoundaryRealization::ProgramImageRetainedSuffixStart
+                    )
+                )
+            }) =>
+        {
+            super::program_image::lower(
+                operation,
+                target,
+                boundary_machines,
+                settlements,
+                live,
+                operations,
+                provenance,
+            )
+        }
+        AbstractOperation::BoundaryCall { boundary, .. }
             if super::ieee_float_arithmetic::is_inline_arithmetic(*boundary, settlements) =>
         {
             super::ieee_float_arithmetic::lower(

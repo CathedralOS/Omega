@@ -228,7 +228,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ExactDivideI64 { .. } => 112,
         SelectedInstructionKind::ExactRemainderI64 { .. } => 113,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
-        SelectedInstructionKind::ImmutableImageAddress { .. } => 232,
+        SelectedInstructionKind::ImageAddress { .. } => 232,
     });
     match instruction.kind {
         SelectedInstructionKind::RegisterAccess { operation } => {
@@ -419,7 +419,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, ordinal.to_le_bytes());
         }
-        SelectedInstructionKind::ImmutableImageAddress { reference } => {
+        SelectedInstructionKind::ImageAddress { reference } => {
             reference.encode_identity(bytes);
         }
     }

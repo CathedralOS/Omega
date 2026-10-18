@@ -30,6 +30,7 @@ pub(in crate::encoding::recovery) fn execution(
         4 => Execution::HostedExitProcessI32,
         5 => Execution::HostedWriteByteI32,
         6 => Execution::HostedReadByte,
+        9 => Execution::ProgramImageRetainedSuffixStart,
         7 => {
             let operation = integer_comparison(reader)?;
             let integer_type = numeric_type(reader)?;

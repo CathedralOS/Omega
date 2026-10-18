@@ -3,6 +3,8 @@
 
 mod attribution;
 mod byte_literals;
+mod image_addresses;
+pub(crate) mod image_residence;
 pub(crate) mod implementation_tables;
 mod imports;
 mod mixed_scalar_abi;

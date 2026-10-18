@@ -5,7 +5,7 @@
 //! rebases. This compiler-owned payload has no source store operation; using
 //! initialized data does not promise physically read-only host pages.
 
-use super::{Error, host};
+use super::Error;
 use crate::ObjectFunction;
 use machine_code::{ImageAddressFields, PlacedImageAddress};
 use object_file::{
@@ -178,33 +178,12 @@ fn records_for_symbols(
             function_symbol_handle: symbol,
             operation_identity: address.operation.get(),
         };
-        let mut record = |offset, kind| -> Result<(), Error> {
-            records.push(RelocationRecord {
-                origin,
-                section: SectionKind::Text,
-                offset: host(offset)?,
-                byte_width: 4,
-                symbol_handle: table.symbol,
-                addend: 0,
-                kind,
-            });
-            Ok(())
-        };
-        match address.fields {
-            ImageAddressFields::X86_64Relative32 { patch_offset } => {
-                record(patch_offset, RelocationKind::X86_64Relative32)?
-            }
-            ImageAddressFields::Aarch64PageAddress {
-                page_patch_offset,
-                page_offset_patch_offset,
-            } => {
-                record(page_patch_offset, RelocationKind::Aarch64Page21)?;
-                record(
-                    page_offset_patch_offset,
-                    RelocationKind::Aarch64PageOffset12,
-                )?;
-            }
-        }
+        records.extend(super::image_addresses::records(
+            address.fields,
+            origin,
+            table.symbol,
+            0,
+        )?);
     }
     Ok(records)
 }

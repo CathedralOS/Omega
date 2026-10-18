@@ -258,7 +258,8 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::StoreStructuralField { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value))
             }
-            LegalizedScalarInstructionKind::SelectImplementation { .. }
+            LegalizedScalarInstructionKind::ProgramImageAddress { .. }
+            | LegalizedScalarInstructionKind::SelectImplementation { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
             | LegalizedScalarInstructionKind::Constant(_)
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
@@ -389,6 +390,9 @@ pub enum LegalizedScalarInstructionKind {
         result: terminal_psi::StructuralOperationResult,
         machine: semantic_vocabulary::MachineId,
         shape: calling_conventions::ValueShape,
+    },
+    ProgramImageAddress {
+        boundary: semantic_vocabulary::BoundaryMachineId,
     },
     RegisterAccess {
         service: semantic_vocabulary::ServiceId,
@@ -1013,7 +1017,8 @@ impl LegalizedScalarInstructionKind {
                 target_operations::TargetBoundaryResult::Unit
                 | target_operations::TargetBoundaryResult::Scalar(_) => None,
             },
-            Self::SelectImplementation { .. }
+            Self::ProgramImageAddress { .. }
+            | Self::SelectImplementation { .. }
             | Self::FloatResultPolicy { .. }
             | Self::PortWrite { .. }
             | Self::RegisterAccess { .. }

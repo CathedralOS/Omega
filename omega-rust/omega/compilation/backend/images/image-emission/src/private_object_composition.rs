@@ -147,69 +147,76 @@ fn append_body(linked: &mut ObjectArtifact, private: &PrivateFunctionObject) -> 
             .iter()
             .find(|(_, row)| row.symbol == local)
             .map(|(_, row)| row.identity);
-        let linked_symbol =
-            if local == body.object.layout.entry_symbol && private.entry_bridge.is_none() {
-                let handle = private_symbol(&mut linked.object, private.identity)?;
-                let destination = linked.object.layout.symbols.get_mut(handle);
-                if destination.section != SymbolSection::None {
-                    return Err(Error::Mismatch("duplicate private function definition"));
-                }
-                destination.section = SymbolSection::Section(SectionKind::Text);
-                destination.offset = symbol
-                    .offset
-                    .checked_add(text_offset)
-                    .ok_or(Error::Overflow)?;
-                destination.size = symbol.size;
-                handle
-            } else if let Some(identity) = private_reference {
-                private_symbol(&mut linked.object, identity)?
-            } else if symbol.kind == SymbolKind::Import {
-                let locator = body
-                    .object
-                    .layout
-                    .normalized_imports
-                    .iter()
-                    .find(|import| import.symbol == local)
-                    .ok_or(Error::Mismatch("private import has no normalized locator"))?;
-                if let Some(import) = linked
-                    .object
-                    .layout
-                    .normalized_imports
-                    .iter()
-                    .find(|import| import.locator == locator.locator)
-                {
-                    import.symbol
-                } else {
-                    let name = object_file::normalized_foreign_import_symbol_name(&locator.locator);
-                    if linked
-                        .object
-                        .layout
-                        .symbols
-                        .iter()
-                        .any(|(_, symbol)| symbol.name == name)
-                    {
-                        return Err(Error::Mismatch("private import symbol name collision"));
-                    }
-                    linked.object.layout.insert_import(name, &locator.locator)
-                }
+        let linked_symbol = if local == body.object.layout.entry_symbol
+            && private.entry_bridge.is_none()
+        {
+            let handle = private_symbol(&mut linked.object, private.identity)?;
+            let destination = linked.object.layout.symbols.get_mut(handle);
+            if destination.section != SymbolSection::None {
+                return Err(Error::Mismatch("duplicate private function definition"));
+            }
+            destination.section = SymbolSection::Section(SectionKind::Text);
+            destination.offset = symbol
+                .offset
+                .checked_add(text_offset)
+                .ok_or(Error::Overflow)?;
+            destination.size = symbol.size;
+            handle
+        } else if local == body.retained_entry_storage {
+            if !linked.retained_entry_storage.is_valid() {
+                linked.retained_entry_storage =
+                    crate::function_fragments::image_residence::declare_symbol(&mut linked.object)?;
+            }
+            linked.retained_entry_storage
+        } else if let Some(identity) = private_reference {
+            private_symbol(&mut linked.object, identity)?
+        } else if symbol.kind == SymbolKind::Import {
+            let locator = body
+                .object
+                .layout
+                .normalized_imports
+                .iter()
+                .find(|import| import.symbol == local)
+                .ok_or(Error::Mismatch("private import has no normalized locator"))?;
+            if let Some(import) = linked
+                .object
+                .layout
+                .normalized_imports
+                .iter()
+                .find(|import| import.locator == locator.locator)
+            {
+                import.symbol
             } else {
-                let mut relocated = symbol.clone();
-                relocated.name = format!("{prefix}_{}", symbol.name);
-                relocated.offset = symbol
-                    .offset
-                    .checked_add(section_offset(symbol.section, text_offset, data_offset)?)
-                    .ok_or(Error::Overflow)?;
+                let name = object_file::normalized_foreign_import_symbol_name(&locator.locator);
                 if linked
                     .object
                     .layout
                     .symbols
                     .iter()
-                    .any(|(_, other)| other.name == relocated.name)
+                    .any(|(_, symbol)| symbol.name == name)
                 {
-                    return Err(Error::Mismatch("private body symbol collision"));
+                    return Err(Error::Mismatch("private import symbol name collision"));
                 }
-                linked.object.layout.symbols.insert(relocated)
-            };
+                linked.object.layout.insert_import(name, &locator.locator)
+            }
+        } else {
+            let mut relocated = symbol.clone();
+            relocated.name = format!("{prefix}_{}", symbol.name);
+            relocated.offset = symbol
+                .offset
+                .checked_add(section_offset(symbol.section, text_offset, data_offset)?)
+                .ok_or(Error::Overflow)?;
+            if linked
+                .object
+                .layout
+                .symbols
+                .iter()
+                .any(|(_, other)| other.name == relocated.name)
+            {
+                return Err(Error::Mismatch("private body symbol collision"));
+            }
+            linked.object.layout.symbols.insert(relocated)
+        };
         bindings.insert(PrivateObjectSymbolBinding {
             local,
             linked: linked_symbol,

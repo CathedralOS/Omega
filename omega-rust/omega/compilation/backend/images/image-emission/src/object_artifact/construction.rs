@@ -95,6 +95,7 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
     Ok(ObjectArtifact {
         hosted_receiver: None,
         physical_entry: None,
+        retained_entry_storage: Default::default(),
         requires_graph_storage_replay: false,
         fragment_replay: None,
         composition_source: None,

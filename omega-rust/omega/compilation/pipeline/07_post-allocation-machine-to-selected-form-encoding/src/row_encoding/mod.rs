@@ -199,7 +199,7 @@ fn image_address(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
-    let SelectedInstructionKind::ImmutableImageAddress { reference } = kind else {
+    let SelectedInstructionKind::ImageAddress { reference } = kind else {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     };
     encode_scalar(

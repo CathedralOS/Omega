@@ -125,6 +125,55 @@ pub(super) fn validate_operation(
     }
     match (target, abstracted) {
         (
+            TargetUnitOperation::ProgramImageAddress {
+                psi_operation,
+                boundary,
+                execution,
+                result_home,
+            },
+            AbstractOperation::BoundaryCall {
+                psi_operation: expected_operation,
+                boundary: expected_boundary,
+                result: abstract_operations::AbstractBoundaryResult::Scalar(result),
+                arguments,
+                structural_arguments,
+                completion_claim_sources,
+                completion_receipts,
+            },
+        ) => {
+            let declaration = plan
+                .boundary_machines
+                .iter()
+                .find(|row| row.id == *boundary)
+                .ok_or(LegalizationError::custody())?;
+            let scalar = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::address(64)
+                    .map_err(|_| LegalizationError::custody())?,
+            );
+            if native.target != target::NativeTarget::uefi_x64()
+                || psi_operation != expected_operation || boundary != expected_boundary
+                || *execution != target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                    target_operations::CompilerBuiltinExecution::ProgramImageRetainedSuffixStart)
+                || unit.boundary_machine(*boundary) != Some(declaration)
+                || !declaration.scalar_parameters.is_empty()
+                || !declaration.structural_parameters.is_empty()
+                || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)
+                || !declaration.requires.is_empty()
+                || !declaration.program_local_root_introductions.is_empty()
+                || !declaration.content_guarantees.is_empty()
+                || !arguments.is_empty() || !structural_arguments.is_empty()
+                || !completion_claim_sources.is_empty() || !completion_receipts.is_empty()
+                || result.scalar_type != scalar
+                || result_home.defining_operation != *psi_operation
+                || result_home.source_value != result.value
+                || result_home.scalar_type != scalar
+                || Some(result_home.shape) != super::super::scalar_shape(scalar)
+            {
+                return Err(LegalizationError::custody());
+            }
+            sources.push((result.value, Source::Home(*result_home)));
+        }
+        (
             TargetUnitOperation::PlacedScalarAccess {
                 psi_operation,
                 boundary,

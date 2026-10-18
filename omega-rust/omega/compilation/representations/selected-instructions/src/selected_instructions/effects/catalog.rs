@@ -214,7 +214,7 @@ machine_semantic_kinds! {
     { family SaturatingMultiply(SaturatingCarrier) },
     {
         /// PC-relative address of compiler-owned immutable image storage.
-        fixed ImmutableImageAddress
+        fixed ImageAddress
     },
     {
         /// Evaluate one byte-sequence predicate over `count` bytes at the base
@@ -412,7 +412,7 @@ pub enum MachineAlternativeFamily {
     ExactDivideI64,
     ExactRemainderI64,
     SaturatingMultiply(SaturatingCarrier),
-    ImmutableImageAddress,
+    ImageAddress,
     ScanByteSequence,
     LoadEncodedScalar,
     StoreEncodedScalar,
@@ -507,7 +507,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::Load64 => Self::Load64,
             MachineSemanticKind::Store64 => Self::Store64,
             MachineSemanticKind::FrameAddress => Self::FrameAddress,
-            MachineSemanticKind::ImmutableImageAddress => Self::ImmutableImageAddress,
+            MachineSemanticKind::ImageAddress => Self::ImageAddress,
             MachineSemanticKind::ScanByteSequence => Self::ScanByteSequence,
             MachineSemanticKind::LoadEncodedScalar => Self::LoadEncodedScalar,
             MachineSemanticKind::StoreEncodedScalar => Self::StoreEncodedScalar,

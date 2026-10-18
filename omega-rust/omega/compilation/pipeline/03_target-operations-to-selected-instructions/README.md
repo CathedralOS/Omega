@@ -455,7 +455,7 @@ conversion nor a separate call or store instruction family.
 
 Literal and transported subslice descriptors use activation-local homes, separately
 from ABI argument-copy slots. A literal's home holds only its 16-byte descriptor:
-`ImmutableImageAddress` names the octets' read-only image storage by the
+`ImageAddress` names the octets' read-only image storage by the
 establishing operation and place, and image emission binds that address to the
 literal pool, so a copied literal descriptor outlives the activation. A subslice
 retains the original backing plus exact integer offset and length; a subslice used

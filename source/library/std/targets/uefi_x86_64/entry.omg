@@ -1,9 +1,10 @@
 use omega::language::core::extent;
+use omega::language::core::program_image;
 use calling;
 
-// Target-owned UEFI x86-64 physical contract. The bounded target-runtime
-// HandleProtocol executor can now obtain validated Loaded Image geometry, but
-// an application must explicitly select its checked physical adapter. The
+// Target-owned UEFI x86-64 physical contract. Source-owned firmware calls
+// obtain Loaded Image geometry; an application explicitly selects its checked
+// physical adapter. The
 // generated shell invokes that adapter under this calling policy. The adapter
 // validates physical arrival, composes the scoped image correspondence and
 // independent initial storage through scoped firmware providers, accounts for
@@ -23,7 +24,9 @@ pub boundary trait UefiPhysicalEntry {
     machine enter(
         image_handle: EfiImageHandle,
         system_table: &EfiSystemTable
-    ) -> EfiStatus;
+    ) -> EfiStatus
+        reaches ProgramImage
+        invokes ProgramImage;
 }
 
 data UefiX86_64 { }

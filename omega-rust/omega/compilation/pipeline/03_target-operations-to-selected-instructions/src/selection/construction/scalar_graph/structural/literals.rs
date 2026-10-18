@@ -42,7 +42,7 @@ pub(super) fn establish(
         .push_structural_local_slot(row.operation, destination.id, 16, 8);
     let backing = transport_register(builder, destination.id, 16)?;
     builder.emit(
-        SelectedInstructionKind::ImmutableImageAddress {
+        SelectedInstructionKind::ImageAddress {
             reference: selected_instructions::SelectedImageAddressReference::ByteLiteral {
                 operation: row.operation,
                 place: destination.id,

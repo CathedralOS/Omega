@@ -1545,6 +1545,8 @@ fail/build/uefi_entry_schema_accepted_wrong_convention rejected 3414ms expected 
 	target boundary schema `UefiApplication` evaluates physical requirement `UefiPhysicalEntry::enter` with SystemVAMD64, but `uefi_x86_64::ProgramEntry` requires MicrosoftX64
 fail/build/uefi_entry_schema_wrong_owner rejected 3558ms expected @a5c430559a50
 	target root slot `uefi_x86_64::ProgramEntry` takes boundary schema `UefiApplication` from a dependency's `targets/uefi_x86_64/entry.omg`, which needs an accepted program-entry binding; run `omega update` to review and accept it
+fail/build/uefi_image_residence_unadmitted_provider rejected 8237ms expected @8fd8af53161a+wt
+	selected compiler intrinsic `<selected target>::UnadmittedImageProvider::satisfies::ProgramImage` for Terminal boundary `named-callable(path(ProgramImage::retained_suffix_start),parameters(),result-dispatch())` has no closed native catalog identity
 fail/build/uefi_program_entry_missing_storage_roots rejected 2490ms expected @a5c430559a50
 	target schema `ProgramStorageApplication` exposes exactly image and initial-storage roots, but `launch` declares 0 visible parameters
 fail/build/uefi_program_entry_wrong_calling_policy rejected 2046ms expected @a5c430559a50
@@ -2129,6 +2131,10 @@ fail/contracts/normal_return_written_state_premise rejected 1752ms expected @7c5
 	cannot prove ensures contract for exit from wrong at statement 1: result.code == 7 && original.value != 0
 fail/contracts/observed_borrowed_scalar_bound rejected 624ms expected @7e164e32caf5+wt
 	cannot prove requires contract for call bounded from receive: count <= buffer.len (needs fact `count <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/opaque_call_retires_mutable_argument rejected 1555ms expected @8fd8af53161a+wt
+	cannot prove requires contract for call exact_seven from after_call: output.number == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/opaque_call_retires_reference_contents rejected 1565ms expected @8fd8af53161a+wt
+	cannot prove requires contract for call exact_seven from after_call: view.value.number == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/projected_result_guarantee_after_overwrite rejected 1583ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from replace at statement 3: elements[1].child.value == 9 && elements[1].child.ready
 fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 1338ms expected @a9ae30e1c334+wt
@@ -2197,6 +2203,8 @@ fail/contracts/undischarged_contract_entailment rejected 1869ms expected @1f63ee
 	checked machine `unchecked_claim` cannot establish proposition ensure `boolean:min_u64(right, 0) >= 1` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
 fail/contracts/unused_argument_bound_mutation rejected 628ms expected @7e164e32caf5+wt
 	cannot prove requires contract for call bounded from main: count <= 8 (needs fact `count <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/zero_storage_shadow_keeps_scope_fence rejected 276ms expected @8fd8af53161a+wt
+	machine `shadow` state `entry` local data `value` conflicts with an existing name
 fail/control_flow/arm_pattern_missing_field rejected 581ms expected @e03f48653b6a
 	destructure arm in machine `Main::apply` state `apply` does not mention field `stamp` of `Msg::Move` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`
 	destructure arm in machine `Main::apply` state `apply` does not mention field `dy` of `Msg::Move` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`
@@ -2327,6 +2335,8 @@ fail/core/guarded_trap_ceiling_unbounded_addend_rejected rejected 2772ms expecte
 	uncovered Trap crash in machine `accumulate` state `entry` terminal expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
 fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 5338ms expected @a9ae30e1c334+wt
 	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/core/image_address_observation_does_not_grant rejected 1565ms expected @8fd8af53161a+wt
+	cannot prove requires contract for call consume_granted from numeric_image_observation_is_not_a_root: unqualified in Extent::Granted in state `entry`
 fail/core/interrupt_obligation_construction_rejected rejected 885ms expected @a9ae30e1c334+wt
 	opaque boundary data `InterruptAcknowledgement` has no public constructor; a boundary provider must establish its values
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
@@ -2555,6 +2565,8 @@ fail/dependent/transitive_call_frame_invalidates_written_fact_rejected rejected 
 	exact arithmetic in machine `Main::main` state `main` assignment may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/dependent/zero_gated_record_field_store_unproven rejected 1169ms expected @896172b5d9d8+wt
 	machine `wound` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/dependent/zero_storage_prefix_does_not_establish rejected 265ms expected @8fd8af53161a+wt
+	reading `pending.number` crosses an open default-domain invariant window before data `Pending` is established: the zeroed representation is not yet a `Pending` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/domains/array_constructor_distinct_call_results rejected 834ms expected @2ef2ab353498+wt
 	array literal element is not proven in domain `Resource::Open` in main state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
 fail/domains/array_constructor_invalid_element_membership rejected 870ms expected @2ef2ab353498+wt
@@ -6961,6 +6973,8 @@ fail/traits/transparent_refinement_widening_axis rejected 29ms expected @a9ae30e
 	refinement clause asserts `suspends` on `write`, but base trait `Logger` does not declare it — a refinement narrows, it cannot add an axis
 fail/types/addr_plus_addr_rejected rejected 2901ms expected @a9ae30e1c334+wt
 	meaningless address arithmetic in machine `Main::main` state `main` local `r`: `addr` composes with counts (`addr + u64`, `addr - u64`) or differences with itself (`addr - addr` is the count between two addresses); `+` over these operands conflates the address and count axes.
+fail/types/address_model_after_zero_storage_wide rejected 264ms expected @8fd8af53161a+wt
+	Exact integer cast in machine `convert` state `entry` from `addr` to `u64` is not provably representable; prove the embedded address fits the destination integer range at this occurrence; count and address widths are independent.
 fail/types/address_model_conversion_narrow rejected 183ms expected @8eeea22df054+wt
 	Exact integer cast in machine `invalid` state `entry` from `addr` to `u32` is not provably representable; prove the embedded address fits the destination integer range at this occurrence; count and address widths are independent.
 fail/types/address_model_conversion_wide rejected 183ms expected @8eeea22df054+wt
@@ -7560,6 +7574,7 @@ pass/build/sibling_module_slot_family_rows_exit checked 11717ms check-target:mac
 pass/build/static_assumed_binding_spelling_exit checked 10190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/uefi_entry_schema_same_leaf rejected 7896ms check-target:uefi_x86_64 regressed-from:checked+check-target:uefi_x86_64 @a5c430559a50
 	native artifact physical program entry failed: semantic entry requires a source bootstrap and installed-root physical bridge before executable publication
+pass/build/uefi_image_residence_observation checked 8217ms check-target:uefi_x86_64 @8fd8af53161a+wt
 pass/build/uefi_os_handoff_invocation rejected 9044ms check-target:uefi_x86_64 @c46a502724a1+wt
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
@@ -8103,6 +8118,7 @@ pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 
 pass/contracts/guard_conjunct_survives_disjoint_state_write_exit checked 5761ms check-target:macos_arm64 @a036414cf2c9
 pass/contracts/invariant_identifier checked 9662ms @5041ef1af684+wt
 pass/contracts/named_tail_return_contract checked 12896ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/contracts/opaque_call_preserves_model checked 7021ms check-target:macos_arm64 @8fd8af53161a+wt
 pass/contracts/policy_field_ensures checked 9605ms @5041ef1af684+wt
 pass/contracts/proof_fact_indexed_domain_application checked 1913ms @a9ae30e1c334+wt
 pass/contracts/range_requires_discharge checked 14484ms @5041ef1af684+wt
@@ -10737,7 +10753,7 @@ pass/traits/trait_member_effects checked 9242ms @5041ef1af684+wt
 pass/traits/trait_operator_token checked 8832ms @5041ef1af684+wt
 pass/traits/trait_parent_inherit checked 8738ms @5041ef1af684+wt
 pass/traits/transparent_refinement_declaration checked 10672ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/types/address_model_conversion checked 3733ms check-target:macos_arm64 @8eeea22df054+wt
+pass/types/address_model_conversion checked 7052ms check-target:macos_arm64 @8fd8af53161a+wt
 pass/types/exact_address_conversion checked 3826ms check-target:macos_arm64 @3b422f31da30+wt
 pass/types/runtime_addr_algebra_exit checked 11700ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/types/runtime_addr_conversion_trap_exit checked 11872ms check-target:macos_arm64 @a9ae30e1c334+wt

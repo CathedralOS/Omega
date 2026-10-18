@@ -38,6 +38,8 @@ pub struct PhysicalEntryBinding {
 /// semantic roots: installation must exclude them from the mapped image extent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalEntryPartitions {
+    /// Includes any padding preceding the saved-state alignment.
+    pub retained_start_offset: u64,
     pub saved_state_offset: u64,
     pub stack_offset: u64,
     pub stack_byte_count: u64,
@@ -72,7 +74,26 @@ impl PhysicalEntryBinding {
         &self,
         existing_bss_bytes: u64,
     ) -> Result<PhysicalEntryPartitions, Diagnostic> {
-        let alignment = u64::from(self.plan.call.stack_alignment);
+        let stack_demand = self
+            .body_demand
+            .ceiling_bytes()
+            .checked_add(self.stack_overhead_bytes())
+            .and_then(|bytes| bytes.checked_add(self.arrival_stack.admission_reserve_bytes()))
+            .ok_or_else(|| invalid("private entry stack demand overflows"))?;
+        PhysicalEntryPartitions::derive(
+            existing_bss_bytes,
+            u64::from(self.plan.call.stack_alignment),
+            stack_demand,
+        )
+    }
+}
+
+impl PhysicalEntryPartitions {
+    fn derive(
+        existing_bss_bytes: u64,
+        alignment: u64,
+        stack_demand: u64,
+    ) -> Result<Self, Diagnostic> {
         let saved_state_offset = align(existing_bss_bytes, alignment)?;
         let stack_offset = align(
             saved_state_offset
@@ -80,18 +101,12 @@ impl PhysicalEntryBinding {
                 .ok_or_else(|| invalid("saved entry state extent overflows"))?,
             alignment,
         )?;
-        let stack_byte_count = align(
-            self.body_demand
-                .ceiling_bytes()
-                .checked_add(self.stack_overhead_bytes())
-                .and_then(|bytes| bytes.checked_add(self.arrival_stack.admission_reserve_bytes()))
-                .ok_or_else(|| invalid("private entry stack demand overflows"))?,
-            alignment,
-        )?;
+        let stack_byte_count = align(stack_demand, alignment)?;
         let end_offset = stack_offset
             .checked_add(stack_byte_count)
             .ok_or_else(|| invalid("private entry stack extent overflows"))?;
-        Ok(PhysicalEntryPartitions {
+        Ok(Self {
+            retained_start_offset: existing_bss_bytes,
             saved_state_offset,
             stack_offset,
             stack_byte_count,
@@ -289,6 +304,50 @@ pub(crate) fn validate_image(
             "private stack is not the exact aligned mapped BSS residence",
         ));
     }
+    if artifact.retained_entry_storage.is_valid() {
+        let marker = object.layout.symbols.get(artifact.retained_entry_storage);
+        if marker.section != SymbolSection::Section(SectionKind::Bss)
+            || marker.offset as u64 != partitions.retained_start_offset
+            || marker.size != 0
+        {
+            return Err(invalid(
+                "retained entry boundary does not exclude private alignment",
+            ));
+        }
+        let destination = bss
+            .checked_add(partitions.retained_start_offset)
+            .ok_or_else(|| invalid("retained entry boundary overflows"))?;
+        for (_, relocation) in relocations
+            .records()
+            .filter(|(_, row)| row.symbol_handle == artifact.retained_entry_storage)
+        {
+            let field_end = relocation
+                .offset
+                .checked_add(4)
+                .ok_or_else(|| invalid("image observation field overflows"))?;
+            let bytes: [u8; 4] = output
+                .final_text_bytes
+                .get(relocation.offset..field_end)
+                .and_then(|bytes| bytes.try_into().ok())
+                .ok_or_else(|| invalid("image observation field is truncated"))?;
+            let origin = output
+                .final_image_layout
+                .text_address
+                .checked_add(field_end as u64)
+                .ok_or_else(|| invalid("image observation origin overflows"))?;
+            if relocation.kind != RelocationKind::X86_64Relative32
+                || relocation.section != SectionKind::Text
+                || relocation.addend != 0
+                || relocation.byte_width != 4
+                || i128::from(origin) + i128::from(i32::from_le_bytes(bytes))
+                    != i128::from(destination)
+            {
+                return Err(invalid(
+                    "image observation does not resolve to the retained suffix",
+                ));
+            }
+        }
+    }
     let mut expected = binding.stack_switch.bytes.clone();
     let text_address = output.final_image_layout.text_address;
     for (_, fixup) in binding.stack_switch.fixups.iter() {
@@ -380,6 +439,15 @@ fn provision_stack(
             size,
             alignment,
         });
+    }
+    if artifact.retained_entry_storage.is_valid() {
+        let marker = object
+            .layout
+            .symbols
+            .get_mut(artifact.retained_entry_storage);
+        marker.section = SymbolSection::Section(SectionKind::Bss);
+        marker.offset = usize::try_from(partitions.retained_start_offset)
+            .map_err(|_| invalid("retained entry boundary exceeds host coordinates"))?;
     }
     let mut symbol_at = |name: &str, offset: u64, size| -> Result<_, Diagnostic> {
         Ok(object.layout.symbols.insert(SymbolPlan {

@@ -221,6 +221,7 @@ pub(crate) fn hash_boundary_settlement_record(
 const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> u8 {
     match execution {
         CompilerBuiltinExecution::PlacedScalarAccess { .. } => 250,
+        CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => 251,
         CompilerBuiltinExecution::HostedExitProcessI32 => 1,
         CompilerBuiltinExecution::HostedReadByte => 2,
         CompilerBuiltinExecution::HostedWriteByteI32 => 3,
@@ -247,6 +248,7 @@ fn hash_boundary_realization(
     realization: &BoundaryRealization,
 ) {
     match realization {
+        BoundaryRealization::ProgramImageRetainedSuffixStart => digest.byte(10),
         BoundaryRealization::PlacedScalarAccess(access) => {
             digest.byte(9);
             digest.raw(&access.contract);

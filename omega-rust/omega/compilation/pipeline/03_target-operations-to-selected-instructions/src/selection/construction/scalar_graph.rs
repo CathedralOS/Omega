@@ -358,8 +358,21 @@ fn select_function(
                 boolean_value::emit(operation, &mut builder)?
             } else {
                 match &operation.kind {
-                    LegalizedScalarInstructionKind::SelectImplementation { table } => {
-                        if scalar_type != target_operations::selector_carrier_type() {
+                    LegalizedScalarInstructionKind::ProgramImageAddress { .. }
+                    | LegalizedScalarInstructionKind::SelectImplementation { .. } => {
+                        let (reference, expected_type) = match &operation.kind {
+                            LegalizedScalarInstructionKind::ProgramImageAddress { .. } => (
+                                selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart,
+                                semantic_vocabulary::ScalarType::Integer(
+                                    semantic_vocabulary::IntegerType::address(64).map_err(|_| invalid())?),
+                            ),
+                            LegalizedScalarInstructionKind::SelectImplementation { table } => (
+                                selected_instructions::SelectedImageAddressReference::ImplementationTable { table: *table },
+                                target_operations::selector_carrier_type(),
+                            ),
+                            _ => return Err(invalid()),
+                        };
+                        if scalar_type != expected_type {
                             return Err(invalid());
                         }
                         let output =
@@ -370,11 +383,7 @@ fn select_function(
                             .byte_literal_image_address
                             .ok_or_else(invalid)?;
                         builder.emit(
-                            SelectedInstructionKind::ImmutableImageAddress {
-                                reference: selected_instructions::SelectedImageAddressReference::ImplementationTable {
-                                    table: *table,
-                                },
-                            },
+                            SelectedInstructionKind::ImageAddress { reference },
                             key,
                             &[output],
                             SelectedInstructionProvenance {

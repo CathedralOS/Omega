@@ -27,7 +27,7 @@ pub(super) fn establish(
         .push_structural_local_slot(row.operation, result.place, 24, 8);
     let image = transport_register(builder, result.place, 24)?;
     builder.emit(
-        SelectedInstructionKind::ImmutableImageAddress {
+        SelectedInstructionKind::ImageAddress {
             reference: selected_instructions::SelectedImageAddressReference::NativeCodeLayout {
                 machine: *machine,
             },

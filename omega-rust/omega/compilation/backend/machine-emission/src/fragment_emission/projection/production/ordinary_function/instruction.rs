@@ -94,7 +94,7 @@ fn translate_byte_literal_fixup(
 ) -> Result<Option<machine_code::FunctionFragmentImageAddressFixup>, ResolvedFragmentEmissionError>
 {
     let reference = match instruction.kind {
-        SelectedInstructionKind::ImmutableImageAddress { reference } => Some(reference),
+        SelectedInstructionKind::ImageAddress { reference } => Some(reference),
         _ => None,
     };
     match (row.image_address_fixup, reference) {

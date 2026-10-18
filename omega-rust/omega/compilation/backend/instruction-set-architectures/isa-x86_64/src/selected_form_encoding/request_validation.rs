@@ -88,8 +88,8 @@ fn family_and_operand_count(
         SelectedInstructionKind::MaterializeI64 { .. } => {
             (MachineAlternativeFamily::MaterializeI64, 1, 0..=1)
         }
-        SelectedInstructionKind::ImmutableImageAddress { .. } => {
-            (MachineAlternativeFamily::ImmutableImageAddress, 1, 0..=0)
+        SelectedInstructionKind::ImageAddress { .. } => {
+            (MachineAlternativeFamily::ImageAddress, 1, 0..=0)
         }
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2, 0..=0),
         SelectedInstructionKind::MaterializeBooleanEqual => {

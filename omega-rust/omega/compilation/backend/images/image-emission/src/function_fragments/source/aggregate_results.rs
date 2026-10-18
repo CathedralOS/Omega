@@ -83,7 +83,7 @@ pub(super) fn operation(
                     && selected_machine == machine)).count() == 1
                 && selected.instructions().filter(|row| {
                     row.provenance.operations.contains(psi_operation)
-                        && matches!(row.kind, selected_instructions::SelectedInstructionKind::ImmutableImageAddress {
+                        && matches!(row.kind, selected_instructions::SelectedInstructionKind::ImageAddress {
                             reference: selected_instructions::SelectedImageAddressReference::NativeCodeLayout { machine: selected_machine }
                         } if selected_machine == *machine)
                 }).count() == 1

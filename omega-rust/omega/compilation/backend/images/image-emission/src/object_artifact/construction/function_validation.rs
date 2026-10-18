@@ -1541,7 +1541,8 @@ fn validate_boundary_settlements(
                     && function.scalar_stack.is_none()
             }
             // Inline float arithmetic never forms a settlement row.
-            BoundaryRealization::NearestIeeeFloatArithmetic(_) | BoundaryRealization::PlacedScalarAccess(_) => false,
+            BoundaryRealization::ProgramImageRetainedSuffixStart
+                | BoundaryRealization::NearestIeeeFloatArithmetic(_) | BoundaryRealization::PlacedScalarAccess(_) => false,
         };
         if !valid_realization
             || !boundary_result_is_exact(

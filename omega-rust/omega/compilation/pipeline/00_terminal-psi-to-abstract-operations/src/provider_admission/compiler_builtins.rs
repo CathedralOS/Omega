@@ -117,6 +117,21 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]
             })?;
         let realization = match execution {
+            CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => {
+                let scalar = semantic_vocabulary::IntegerType::address(64)
+                    .map(semantic_vocabulary::ScalarType::Integer)
+                    .map_err(|_| vec![Diagnostic::error("invalid target address carrier")])?;
+                if request.target() != target::NativeTarget::uefi_x64()
+                    || !boundary.scalar_parameters.is_empty()
+                    || !boundary.structural_parameters.is_empty()
+                    || boundary.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)
+                {
+                    return Err(vec![Diagnostic::error(
+                        "program image observation requires the exact UEFI address-result boundary",
+                    )]);
+                }
+                target_operations::BoundaryRealization::ProgramImageRetainedSuffixStart
+            }
             CompilerBuiltinExecution::PlacedScalarAccess {
                 contract,
                 placement_commitment,
@@ -256,6 +271,7 @@ fn compiler_builtin_completion(
         }
         CompilerBuiltinExecution::HostedWriteByteI32
         | CompilerBuiltinExecution::HostedReadByte
+        | CompilerBuiltinExecution::ProgramImageRetainedSuffixStart
         | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. }
         | CompilerBuiltinExecution::PlacedScalarAccess { .. } => {
             semantic_vocabulary::BoundaryCompletion::NormalReturn
@@ -320,6 +336,9 @@ fn compiler_intrinsic_execution_identity(
     execution: CompilerBuiltinExecution,
 ) -> CompilerIntrinsicExecutionIdentity {
     match execution {
+        CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => {
+            CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart
+        }
         CompilerBuiltinExecution::PlacedScalarAccess {
             contract,
             placement_commitment,

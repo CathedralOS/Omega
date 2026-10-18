@@ -265,6 +265,9 @@ fn compiler_builtin_execution(
         numerics::literals::FloatFormat::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
     };
     let (operation, format) = match identity {
+        CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
+            return Some(CompilerBuiltinExecution::ProgramImageRetainedSuffixStart);
+        }
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
             return Some(CompilerBuiltinExecution::HostedExitProcessI32);
         }

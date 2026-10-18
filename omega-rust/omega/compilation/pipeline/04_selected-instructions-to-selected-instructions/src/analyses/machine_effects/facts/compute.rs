@@ -484,9 +484,7 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::AddressOffset { .. } => MachineSemanticKind::AddressOffset,
         SelectedInstructionKind::Store64 { .. } => MachineSemanticKind::Store64,
         SelectedInstructionKind::FrameAddress { .. } => MachineSemanticKind::FrameAddress,
-        SelectedInstructionKind::ImmutableImageAddress { .. } => {
-            MachineSemanticKind::ImmutableImageAddress
-        }
+        SelectedInstructionKind::ImageAddress { .. } => MachineSemanticKind::ImageAddress,
         SelectedInstructionKind::CallUnit { .. } => MachineSemanticKind::CallUnit,
         SelectedInstructionKind::NormalizedForeignCall { .. } => {
             MachineSemanticKind::NormalizedForeignCall

@@ -24,6 +24,10 @@ pub(super) fn classify_compiler_intrinsic(
         CompilerIntrinsicExecutionIdentity::HostedReadByte => {
             disposition([TerminalAuthorityClass::ProcessInput])
         }
+        CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
+            // Address observation is not memory access or an ownership grant.
+            empty_disposition()
+        }
         CompilerIntrinsicExecutionIdentity::PlacedScalarAccess { .. } => {
             // This child can only execute against an independently proved live
             // caller RAM loan. It reaches no host/device resource; this empty

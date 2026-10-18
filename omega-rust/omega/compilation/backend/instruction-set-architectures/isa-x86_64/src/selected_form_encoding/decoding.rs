@@ -1128,7 +1128,7 @@ pub(crate) fn validate_decoded(
                     value: integer_bits(value)?,
                 }]
         }
-        SelectedInstructionKind::ImmutableImageAddress { .. } => {
+        SelectedInstructionKind::ImageAddress { .. } => {
             decoded
                 == [DecodedInstruction::UnresolvedRipRelativeAddress {
                     destination: registers[0],
@@ -2086,7 +2086,7 @@ pub(crate) fn footprint(
         SelectedInstructionKind::MaterializeI64 { .. } => {
             (vec![], vec![operands[0]], alternative.variant == 1)
         }
-        SelectedInstructionKind::ImmutableImageAddress { .. } => (vec![], vec![operands[0]], false),
+        SelectedInstructionKind::ImageAddress { .. } => (vec![], vec![operands[0]], false),
         SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU16
@@ -2230,7 +2230,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
                 | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
                 | SelectedInstructionKind::MaterializeI64 { .. }
-                | SelectedInstructionKind::ImmutableImageAddress { .. } => vec![],
+                | SelectedInstructionKind::ImageAddress { .. } => vec![],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::ZeroExtendU16
@@ -2275,7 +2275,7 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
                 | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
                 | SelectedInstructionKind::MaterializeI64 { .. }
-                | SelectedInstructionKind::ImmutableImageAddress { .. } => vec![0],
+                | SelectedInstructionKind::ImageAddress { .. } => vec![0],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::ZeroExtendU16

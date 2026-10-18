@@ -426,6 +426,8 @@ builtin_settlement_conversion!(NearestIeeeFloatArithmeticRealization);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryRealization {
+    /// Numeric-only observation of the selected image's retained entry suffix.
+    ProgramImageRetainedSuffixStart,
     PlacedScalarAccess(PlacedScalarAccessRealization),
     MetadataOnlyPort(MetadataOnlyPortRealization),
     DirectPortReadU8(DirectPortReadU8Realization),

@@ -85,7 +85,7 @@ pub(super) fn validate(
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::UnresolvedImageAddress { fixup },
         ) => {
-            if !matches!(instruction.kind, SelectedInstructionKind::ImmutableImageAddress { reference } if fixup.reference == reference)
+            if !matches!(instruction.kind, SelectedInstructionKind::ImageAddress { reference } if fixup.reference == reference)
                 || candidate.bytes != bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()

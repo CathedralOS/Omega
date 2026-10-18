@@ -524,6 +524,7 @@ pub enum CompilerBuiltinExecution {
     },
     HostedExitProcessI32,
     HostedReadByte,
+    ProgramImageRetainedSuffixStart,
     HostedWriteByteI32,
     /// A selected primitive float arithmetic provider. It realizes inline as
     /// one scalar IEEE operation in the caller rather than as a call.

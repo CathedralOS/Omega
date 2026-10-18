@@ -19,6 +19,7 @@ pub(crate) fn boundary_result_is_exact(
         BoundaryRealization::HostedWriteByteI32(_) => result.is_unit(),
         // Inline float arithmetic never forms a settlement row to replay.
         BoundaryRealization::PlacedScalarAccess(_)
+        | BoundaryRealization::ProgramImageRetainedSuffixStart
         | BoundaryRealization::NearestIeeeFloatArithmetic(_) => false,
         BoundaryRealization::DirectPortReadU8(_) => {
             target.architecture == Architecture::X86_64

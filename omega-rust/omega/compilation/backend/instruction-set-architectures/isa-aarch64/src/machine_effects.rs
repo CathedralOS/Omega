@@ -551,7 +551,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::CompareI64Immediate => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
-        MachineSemanticKind::ImmutableImageAddress => (vec![], vec![0]),
+        MachineSemanticKind::ImageAddress => (vec![], vec![0]),
         MachineSemanticKind::MaterializeBooleanEqual
         | MachineSemanticKind::MaterializeBooleanU64LessThan
         | MachineSemanticKind::MaterializeBooleanI64LessThan
@@ -906,7 +906,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         },
         // `adrp` then `add #:lo12:`, both fields unresolved until object
         // construction binds them to the literal's image symbol.
-        MachineSemanticKind::ImmutableImageAddress => MachineSizeKnowledge::ExactBytes(8),
+        MachineSemanticKind::ImageAddress => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::HostedExitProcessI32
         | MachineSemanticKind::HostedReadByte
         | MachineSemanticKind::SaveFloatingControl

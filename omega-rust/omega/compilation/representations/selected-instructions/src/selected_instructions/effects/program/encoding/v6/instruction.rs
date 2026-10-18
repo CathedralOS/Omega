@@ -380,8 +380,9 @@ fn decode_kind(
         13 if allow_scalar_call => SelectedInstructionKind::CallScalar {
             target: decode_call_target(cursor)?,
         },
-        232 => SelectedInstructionKind::ImmutableImageAddress {
+        232 => SelectedInstructionKind::ImageAddress {
             reference: match cursor.byte()? {
+                3 => crate::SelectedImageAddressReference::RetainedEntryStorageStart,
                 0 => crate::SelectedImageAddressReference::ByteLiteral {
                     operation: OperationId::new(cursor.u64()?)
                         .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
@@ -609,7 +610,7 @@ fn decode_alternative_for_version(
         25 => MachineAlternativeFamily::AddressOffset,
         17 => MachineAlternativeFamily::Store64,
         18 => MachineAlternativeFamily::FrameAddress,
-        232 => MachineAlternativeFamily::ImmutableImageAddress,
+        232 => MachineAlternativeFamily::ImageAddress,
         19 => MachineAlternativeFamily::CallUnit,
         3 => MachineAlternativeFamily::ExactAddI64,
         51 => MachineAlternativeFamily::BitwiseAndI64,
