@@ -9,10 +9,7 @@
 //! builtin array or slice geometry, `obligation` also validates the
 //! operator's `requires` clauses and proves their non-negative operands, and
 //! every later failure message names that `requires`. Builtin collection
-//! geometry first consumes the shared all-arrival integer observations for
-//! complete element/window bounds, including original endpoint non-negativity.
-//! When that judgment cannot close the obligation, existing extent-specific
-//! facts and recipes remain available:
+//! geometry first consumes the inexpensive extent-specific facts and recipes:
 //!
 //! 1. a known length, from the facts or a fixed array type:
 //!    `check_known_length_index` proves a scalar index from facts, declared
@@ -21,12 +18,18 @@
 //!    unknown-length facts and then `known_ranges`;
 //! 2. a slice or bounded byte type with no known length:
 //!    `check_unknown_length_slice_index` consumes retained ordinal facts.
-//!    The shared judgment above already considered live value relations. A captured computation
-//!    keeps its value identity; it is not expanded by a subtraction recognizer;
+//!    Unresolved live value relations use the shared judgment afterward. A captured
+//!    computation keeps its identity; no subtraction recognizer expands it;
 //! 3. a fixed array with a const-generic extent:
 //!    `check_symbolic_extent_index`;
 //! 4. anything else, or an extent still bound through a pending application,
 //!    is `Unsupported`.
+//! An unresolved builtin-geometry judgment then asks the shared ordered
+//! normal-return owner for complete bounds, including endpoint non-negativity.
+//! This cost order avoids replaying an invocation prefix for every ordinary
+//! constant index. A complete independent proof replaces only the provisional
+//! diagnostics and deferred obligations of that extent attempt; selection
+//! custody above it is never provisional.
 //!
 //! A proven range, or a proven index without a known length, must also have
 //! non-negative endpoints (`lower_bounds`). The result tells a proven scalar
@@ -155,27 +158,8 @@ pub(super) fn check_indexed_access(
                 },
             )
         });
-    // Both elements and windows consume the live integer arrival owner. This
-    // retains copied bounds through state jumps and intervening assignments;
-    // rebuilding only state-local guards loses those value identities.
-    let builtin_geometry = length.is_some()
-        || expression_is_slice(program, machine, state, indexed.collection)
-        || expression_type_reference(program, machine, state, indexed.collection)
-            .and_then(|reference| {
-                super::super::arrays::bounded_byte_type_capacity(program, reference)
-            })
-            .is_some();
-    if builtin_geometry
-        && facts
-            .collection_bounds
-            .is_some_and(|observations| observations.proves(facts.statement_index, expression))
-    {
-        return if spelling == OperatorSpelling::Range {
-            BoundsCheckResult::ProvenRange
-        } else {
-            BoundsCheckResult::ProvenScalar
-        };
-    }
+    let diagnostic_count = diagnostics.len();
+    let obligation_count = obligations.len();
     let proven = if let Some(length) = length {
         check_known_length_index(
             program,
@@ -254,7 +238,7 @@ pub(super) fn check_indexed_access(
     } else {
         return BoundsCheckResult::Unsupported;
     };
-    if !proven {
+    let extent_result = if !proven {
         BoundsCheckResult::Rejected
     } else if (spelling == OperatorSpelling::Range || length.is_none())
         && !lower_bounds::prove(
@@ -293,7 +277,38 @@ pub(super) fn check_indexed_access(
         BoundsCheckResult::ProvenRange
     } else {
         BoundsCheckResult::ProvenScalar
+    };
+    if matches!(
+        extent_result,
+        BoundsCheckResult::ProvenScalar | BoundsCheckResult::ProvenRange
+    ) {
+        return extent_result;
     }
+    // Both elements and windows consume the same ordered value/guarantee
+    // owner as call requirements. Run it only when the inexpensive complete
+    // extent judgment above could not close the bounds; a second independent
+    // interval prefix cannot reconstruct captured nested call results.
+    let builtin_geometry = length.is_some()
+        || expression_is_slice(program, machine, state, indexed.collection)
+        || expression_type_reference(program, machine, state, indexed.collection)
+            .and_then(|reference| {
+                super::super::arrays::bounded_byte_type_capacity(program, reference)
+            })
+            .is_some();
+    if builtin_geometry
+        && facts
+            .collection_bounds
+            .is_some_and(|observations| observations.proves(facts.statement_index, expression))
+    {
+        diagnostics.truncate(diagnostic_count);
+        obligations.truncate(obligation_count);
+        return if spelling == OperatorSpelling::Range {
+            BoundsCheckResult::ProvenRange
+        } else {
+            BoundsCheckResult::ProvenScalar
+        };
+    }
+    extent_result
 }
 
 /// Prove an index or window against a fixed array whose extent is a retained
@@ -697,9 +712,12 @@ fn check_unknown_length_slice_index(
                 unknown_length_range_failure(program, machine, state, facts, collection, range);
             diagnostics.push(Diagnostic::error(with_attribution(
                 format!(
-                    "cannot prove subslice range {} `{}` is within unknown slice length",
+                    "cannot prove subslice range {} `{}` is within unknown slice length of `{}` in {}::{}",
                     failure.label(),
-                    program.diagnostic_expression_name(index)
+                    program.diagnostic_expression_name(index),
+                    program.diagnostic_expression_name(collection),
+                    machine.name.as_str(),
+                    state.name.as_str(),
                 ),
                 attribution,
             )));

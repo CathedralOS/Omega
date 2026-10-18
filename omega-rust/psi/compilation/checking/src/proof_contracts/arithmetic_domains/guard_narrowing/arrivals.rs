@@ -17,9 +17,7 @@ use crate::proof_contracts::arithmetic_domains::expression_analysis::{CheckedAna
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
-mod collection_bounds;
 mod transition_arguments;
-pub use collection_bounds::CollectionBoundsObservations;
 
 struct EvaluatedValue {
     interval: Interval,

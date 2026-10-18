@@ -753,11 +753,25 @@ impl<'program> StructuralJudge<'program> {
             .call_node(expression)
             .filter(|call| super::super::structural_terms::static_call_receiver(program, call))
             .map(|call| call.receiver);
-        children(program, node, |child| {
-            if child.is_valid() && Some(child) != namespace_receiver {
-                children_to_evaluate.push(child);
-            }
-        });
+        if requested_operation == expression
+            && let ExpressionNode::Indexed(indexed) = node
+            && let Some(range) = program.expression_table.range_node(indexed.index)
+        {
+            // A window operation consumes its collection and each authored
+            // bound, not a first-class Range value. Keep the same operand
+            // roster as runtime lowering and capture each bound in order.
+            children_to_evaluate.extend(
+                [indexed.collection, range.start, range.end]
+                    .into_iter()
+                    .filter(|child| child.is_valid()),
+            );
+        } else {
+            children(program, node, |child| {
+                if child.is_valid() && Some(child) != namespace_receiver {
+                    children_to_evaluate.push(child);
+                }
+            });
+        }
         let operands = children_to_evaluate
             .into_iter()
             .map(|child| {

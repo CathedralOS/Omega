@@ -1,0 +1,2 @@
+cannot prove requires contract for call demand_equal from main
+saved == current

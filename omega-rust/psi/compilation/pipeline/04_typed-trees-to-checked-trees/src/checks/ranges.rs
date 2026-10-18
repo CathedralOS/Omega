@@ -15,8 +15,9 @@
 //! dependent parameter orderings (`dependent_params`), the incoming guard
 //! facts and the loop invariant facts. It then runs
 //! `statements::check_statement` on each statement.
-//! Each state also owns one batch of exact integer occurrence observations;
-//! branch-local range facts borrow it without replaying prefixes per index.
+//! Branch-local facts share the state's collection query context. Exact bounds
+//! consume the normal-return observation owner used by call requirements and
+//! casts, including ordered children and path-local guarantees.
 //!
 //! `check_statement` drives `statement_transfer::transfer_statement_facts`,
 //! the single statement fact transfer that `state_arguments` also replays,

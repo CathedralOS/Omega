@@ -597,6 +597,8 @@ fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite rejected
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/captured_scalar_is_not_current_storage rejected 557ms expected @8a884ecc43d5+wt
+	cannot prove requires contract for call demand_equal from main: saved == current (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/checked_asm_countdown_call_result_wrong_fallthrough rejected 3591ms expected @a0c34fdba779+wt
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_countdown_const_name_wrong_fallthrough rejected 5186ms expected @a0c34fdba779+wt
@@ -4054,6 +4056,33 @@ fail/facts/matched_window_through_parameter_rejected rejected 651ms expected @a4
 	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
 fail/facts/matched_window_through_target_body_rejected rejected 649ms expected @a48b0ac286f5
 	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+fail/facts/nested_result_extent_later_sibling_bound_rejected rejected 561ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
+fail/facts/nested_result_extent_one_bad_match_arm_rejected rejected 590ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
+fail/facts/nested_result_extent_replaced_descriptor_rejected rejected 583ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `current` in trial::entry
+fail/facts/nested_result_extent_through_call_result_rejected rejected 547ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..minimum(minimum(count, other.len), 2147483647)` is within unknown slice length of `buffer` in trial::entry
+fail/facts/nested_result_extent_through_const_name_rejected rejected 545ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
+fail/facts/nested_result_extent_through_field_rejected rejected 570ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..bound.end` is within unknown slice length of `buffer` in trial::entry
+fail/facts/nested_result_extent_through_local_rejected rejected 572ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
+fail/facts/nested_result_extent_through_match_join_rejected rejected 555ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
+fail/facts/nested_result_extent_through_other_machine_rejected rejected 558ms expected @8a884ecc43d5+wt
+	cannot prove requires contract for call consume from trial: bound.end <= buffer.len (needs fact `bound.end <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_result_extent_through_other_state_rejected rejected 553ms expected @8a884ecc43d5+wt
+	cannot prove requires contract for call consume from trial: capacity <= buffer.len (needs fact `end <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_result_extent_through_parameter_rejected rejected 554ms expected @8a884ecc43d5+wt
+	cannot prove requires contract for call consume from trial: capacity <= buffer.len (needs fact `end <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_result_extent_through_target_body_rejected rejected 564ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
 fail/facts/nominal_loan_backing_cleanup_through_call_result_cleanup_prerequisite rejected 8874ms expected @753e7ce7a36e+wt
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
 fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite rejected 7088ms expected @753e7ce7a36e+wt
@@ -6547,14 +6576,14 @@ fail/slices/callee_replaced_returned_field_lower_bound rejected 810ms expected @
 	cannot prove requires contract for call demand_two from main: held.values.len >= 2 (needs fact `values.len >= 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/slices/captured_length_after_descriptor_replacement rejected 1505ms expected @a9ae30e1c334+wt
 	cannot prove index `1` is within unknown slice length of `items` in observe::entry
-fail/slices/captured_range_end_after_descriptor_replacement rejected 1521ms expected @a9ae30e1c334+wt
-	cannot prove subslice range end bound `0..__hoist_14` is within unknown slice length
-fail/slices/captured_range_end_after_scalar_replacement rejected 1748ms expected @a9ae30e1c334+wt
-	cannot prove subslice range end bound `0..__hoist_14` is within unknown slice length
-fail/slices/captured_range_end_after_selector_replacement rejected 1574ms expected @a9ae30e1c334+wt
-	cannot prove subslice range end bound `0..__hoist_15` is within unknown slice length
-fail/slices/captured_range_end_for_other_descriptor rejected 1631ms expected @a9ae30e1c334+wt
-	cannot prove subslice range end bound `0..__hoist_14` is within unknown slice length
+fail/slices/captured_range_end_after_descriptor_replacement rejected 543ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..measured` is within unknown slice length of `bytes` in observe::entry
+fail/slices/captured_range_end_after_scalar_replacement rejected 542ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..measured` is within unknown slice length of `bytes` in observe::entry
+fail/slices/captured_range_end_after_selector_replacement rejected 546ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..measured` is within unknown slice length of `views[selector]` in observe::entry
+fail/slices/captured_range_end_for_other_descriptor rejected 538ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..measured` is within unknown slice length of `other` in observe::entry
 fail/slices/captured_shared_view_destination rejected 131ms expected @096f2ecfd243+wt
 	machine `overwrite` state `store` assignment requires mutable source access through every reference crossed by its destination
 fail/slices/copied_record_window_insufficient_extent rejected 1560ms @a9ae30e1c334+wt
@@ -6572,13 +6601,13 @@ fail/slices/ensured_window_beyond_backing rejected 608ms expected @fa0a8b1267bb+
 	cannot prove subslice range end bound `range_start()..range_end()` is within slice length 8
 fail/slices/inclusive_endpoint_equals_length rejected 1557ms expected @a9ae30e1c334+wt
 	cannot prove subslice range end bound `..4` is within slice length 4
-fail/slices/inclusive_endpoint_maximum rejected 1510ms expected @a9ae30e1c334+wt
-	cannot prove subslice range end bound `..end` is within unknown slice length
+fail/slices/inclusive_endpoint_maximum rejected 534ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `..end` is within unknown slice length of `values` in prefix::entry
 fail/slices/inclusive_last_element_overlap rejected 1558ms expected @a9ae30e1c334+wt
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 	statement 2 reads `first.unknown` while local borrow `second` is still active (borrowed at statement 1)
-fail/slices/inclusive_negative_endpoint rejected 1615ms expected @a9ae30e1c334+wt
-	cannot prove subslice range end bound `0..end` is within unknown slice length
+fail/slices/inclusive_negative_endpoint rejected 533ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..end` is within unknown slice length of `values` in prefix::entry
 fail/slices/independent_returned_field_lengths rejected 727ms expected @e0119fc0aaa2
 	cannot prove requires contract for call demand_same from main: short.values.len == long.values.len (needs fact `left.len == right.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/slices/index_operator_contract_unproven rejected 916ms expected @a9ae30e1c334+wt
@@ -9494,6 +9523,16 @@ pass/facts/integer_range_delivery_through_other_machine_exit checked 23468ms che
 pass/facts/integer_range_delivery_through_other_state_exit checked 14796ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_parameter_exit checked 12770ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_target_body_exit checked 14948ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/nested_result_extent_captured_scalar_exit checked 3416ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/nested_result_extent_through_call_result_exit checked 3401ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/nested_result_extent_through_const_name_exit checked 3333ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/nested_result_extent_through_field_exit checked 3325ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/nested_result_extent_through_local_exit checked 3437ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/nested_result_extent_through_match_join_exit checked 3436ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/nested_result_extent_through_other_machine_exit checked 3330ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/nested_result_extent_through_other_state_exit checked 3330ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/nested_result_extent_through_parameter_exit checked 3399ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/nested_result_extent_through_target_body_exit checked 3423ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/nominal_loan_backing_cleanup_through_call_result_exit checked 12631ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/facts/nominal_loan_backing_cleanup_through_const_name_exit checked 11019ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/facts/nominal_loan_backing_cleanup_through_field_exit checked 16379ms check-target:linux_x86_64 @753e7ce7a36e+wt

@@ -364,7 +364,6 @@ pub use value_custody::type_references::{
     scalar_result_contract_is_represented, unrestricted_builtin_primitive,
 };
 
-pub use proof_contracts::arithmetic_domains::CollectionBoundsObservations;
 pub use proof_contracts::arithmetic_domains::arrival_integer_expression_bounds;
 pub use proof_contracts::arithmetic_domains::builtin_monotonic_integer_update_bounds;
 pub use proof_contracts::arithmetic_domains::enforced_integer_type_bounds;
@@ -381,6 +380,7 @@ pub use proof_contracts::arithmetic_domains::{
     standing_integer_bounds, stored_integer_bounds, stored_integer_source_may_require_fit,
     stored_integer_source_projection, stored_integer_source_projections,
 };
+pub use proof_contracts::contract_entailment::CollectionBoundsObservations;
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::selected_value_call_requirement_entailed;

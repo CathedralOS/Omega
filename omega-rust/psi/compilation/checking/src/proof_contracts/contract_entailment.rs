@@ -78,6 +78,8 @@
 mod arithmetic_judgment;
 mod call_requirements;
 mod citations;
+mod collection_bounds;
+pub use collection_bounds::CollectionBoundsObservations;
 mod completed_domains;
 mod completed_values;
 mod construction_predicates;
