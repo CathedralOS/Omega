@@ -1,9 +1,7 @@
 //! Closed scalar contracts use only the supplied entry/result namespace.
 //! A nested body local cannot borrow an equally numbered parameter slot.
 
-use super::super::{
-    CheckedBooleanExpression, CheckedScalarExpression, LoweringError, PrimitiveType,
-};
+use super::super::{CheckedBooleanExpression, CheckedScalarExpression, LoweringError};
 use super::{ContractStructuralResult, ContractViewNamespace};
 
 pub(super) fn validate(
@@ -178,18 +176,13 @@ fn scalar(
         // structural signature lowering names its retained place and field
         // path. An empty path observes the whole primitive referent; the term
         // owner requires that exact scalar endpoint and readable access.
-        // An address member has no fixed-integer carrier.
-        // An IEEE leaf keeps its exact format for an IEEE comparison.
+        // Address leaves retain their address role; IEEE leaves retain their
+        // exact format. Namespace admission does not convert either carrier.
         CheckedScalarExpression::StructuralParameterField {
             parameter_position,
             primitive_type,
             ..
         } => {
-            if *primitive_type == PrimitiveType::Addr {
-                return Err(LoweringError::Unsupported(
-                    "closed scalar contract operand requires a scalar namespace",
-                ));
-            }
             crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?;
             namespace.structural(*parameter_position)
         }

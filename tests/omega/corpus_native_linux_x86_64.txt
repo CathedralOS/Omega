@@ -1038,6 +1038,7 @@ pass/contracts/proof_fact_indexed_domain_application checked 3422ms @6c49683ce71
 pass/contracts/range_requires_discharge checked 34787ms @6c49683ce714
 pass/contracts/requires_narrow_ceiling_unproven built 14848ms exit:70 @6c49683ce714
 pass/contracts/requires_u8_ceiling_below_carrier built 15291ms exit:70 @6c49683ce714
+pass/contracts/runtime_address_field_contract_exit built 6905ms exit:0 @2a08673f9136
 pass/contracts/runtime_case_payload_write_preserves_tag_exit built 17316ms exit:0 @6c49683ce714
 pass/contracts/runtime_float_case_crash_guard_exit built 34478ms exit:0 @6c49683ce714
 pass/contracts/runtime_float_entry_relations_exit built 34477ms exit:0 @6c49683ce714
@@ -2581,6 +2582,7 @@ pass/providers/runtime_provider_mutable_reference_exit built 7455ms exit:0 @001f
 pass/providers/runtime_provider_mutable_reference_forward_exit built 7463ms exit:0 @001fe6f26d2c
 pass/providers/runtime_provider_owned_reference_exit built 7541ms exit:0 @001fe6f26d2c
 pass/providers/runtime_provider_reference_alias_exit built 7545ms exit:0 @001fe6f26d2c
+pass/providers/runtime_provider_reference_allocation_exit built 7023ms exit:0 @2a08673f9136
 pass/providers/runtime_provider_reference_computed_exit built 7755ms exit:0 @001fe6f26d2c
 pass/providers/runtime_provider_reference_deep_exit built 7581ms exit:0 @001fe6f26d2c
 pass/providers/runtime_provider_reference_nested_exit built 7105ms exit:0 @001fe6f26d2c

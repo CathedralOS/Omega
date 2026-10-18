@@ -2010,6 +2010,8 @@ fail/constraints/multiple_policy_domain_chain rejected 887ms expected @a9ae30e1c
 	data `Main` field `value` declares conflicting `arithmetic_policy` semantic-role contributions `Wrapping`, `Trapping`; a domain chain may carry at most one policy domain
 fail/constraints/scalar_requires_unproven_literal rejected 1539ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call accept from Main::main: 0 > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/address_field_false_result_guarantee rejected 1121ms expected @2a08673f9136
+	cannot prove ensures contract for exit from impossible at statement 0: result.pointer != 0
 fail/contracts/aggregate_result_false_guarantee rejected 1584ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from replacement at statement 0: result.child.value == 9 && result.child.ready
 fail/contracts/call_write_retires_overlapping_guard rejected 612ms expected @a036414cf2c9
@@ -5617,6 +5619,8 @@ fail/providers/primitive_reference_contract_refinement rejected 997ms expected @
 	machine `UnpromisedReader::read` realizes `Reader::read` but does not guarantee its `ensures result == value`; callers of the requirement assume it
 fail/providers/private_binding_authority_contract rejected 31ms expected @e5140c7a7be2+wt
 	`Binding<Hidden>` requires a public boundary trait as its stable slot contract
+fail/providers/provider_reference_allocation_requires_nonnull rejected 1128ms expected @2a08673f9136
+	cannot prove requires contract for call initialize from main: allocation.pointer != 0 && 0 == 0 && 64 == 64 (needs fact `allocation.pointer != 0 && value == 0 && allocation_size == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/providers/provider_result_private_qualification rejected 2181ms expected @20ad71d6e3a6+wt
 	machine `TokenMintProvider::issue` state `issue` does not satisfy trait `TokenMint` machine `issue`: expected return `Token`, got `Token[in Token::Issued]`
 fail/providers/provider_selection_fabricated_activation rejected 2725ms expected @a9ae30e1c334+wt
@@ -7869,6 +7873,7 @@ pass/contracts/proof_fact_indexed_domain_application checked 1913ms @a9ae30e1c33
 pass/contracts/range_requires_discharge checked 14484ms @5041ef1af684+wt
 pass/contracts/requires_narrow_ceiling_unproven checked 12007ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/requires_u8_ceiling_below_carrier checked 11707ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/contracts/runtime_address_field_contract_exit checked 6942ms check-target:macos_arm64 @2a08673f9136
 pass/contracts/runtime_case_payload_write_preserves_tag_exit checked 3963ms check-target:macos_arm64 @6c0183cab07b
 pass/contracts/runtime_float_case_crash_guard_exit checked 6891ms check-target:macos_arm64 @c294657097ec+wt
 pass/contracts/runtime_float_entry_relations_exit checked 6892ms check-target:macos_arm64 @c294657097ec+wt
@@ -9653,6 +9658,7 @@ pass/providers/runtime_provider_mutable_reference_exit checked 7573ms check-targ
 pass/providers/runtime_provider_mutable_reference_forward_exit checked 7585ms check-target:linux_x86_64 @001fe6f26d2c
 pass/providers/runtime_provider_owned_reference_exit checked 7586ms check-target:linux_x86_64 @001fe6f26d2c
 pass/providers/runtime_provider_reference_alias_exit checked 7575ms check-target:linux_x86_64 @001fe6f26d2c
+pass/providers/runtime_provider_reference_allocation_exit checked 7312ms check-target:linux_x86_64 @2a08673f9136
 pass/providers/runtime_provider_reference_computed_exit checked 7655ms check-target:linux_x86_64 @001fe6f26d2c
 pass/providers/runtime_provider_reference_deep_exit checked 7654ms check-target:linux_x86_64 @001fe6f26d2c
 pass/providers/runtime_provider_reference_nested_exit checked 7272ms check-target:linux_x86_64 @001fe6f26d2c

@@ -1,0 +1,21 @@
+// Expected exit: 0. Entry, result and state contracts retain address field roles.
+data AddressCell { pointer: addr; }
+machine null_cell() -> AddressCell ensures result.pointer == 0; {
+ AddressCell { pointer: 0 }
+}
+machine forward(cell: AddressCell) -> AddressCell
+requires cell.pointer == 0
+ensures result.pointer == 0; { cell }
+machine observe(cell: &AddressCell) -> bool requires cell.pointer == 0; {
+ cell.pointer == 0
+}
+machine main() crashes Trap {
+ let cell: AddressCell = forward(null_cell());
+ let verified: bool = observe(&cell);
+ transition verified { true -> carried(cell) false -> bad() }
+ state carried(cell: AddressCell) requires cell.pointer == 0; {
+  let verified: bool = observe(&cell);
+  transition verified { true -> done() false -> bad() }
+ }
+ state done() {} state bad() { crash Trap; }
+}

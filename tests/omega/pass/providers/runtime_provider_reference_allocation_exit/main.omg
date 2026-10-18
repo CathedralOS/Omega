@@ -1,0 +1,48 @@
+// Expected exit: 0. A real zeroed allocation provides a typed provider-owned frame.
+use omega::language::core::external_binding;
+data Slot<T> { case Empty; case Full(value: T); }
+data Frame<T> { result: Slot<T>; }
+data Allocation [linear] { pointer: addr; }
+domain Allocation::AllocationIssued established by Heap::allocate;
+boundary trait Heap {
+ machine allocate(count: u64, allocation_size: u64) -> Allocation
+ requires count == 1 && allocation_size >= 64
+ ensures result in Allocation::AllocationIssued;
+ machine initialize(allocation: Allocation in AllocationIssued, value: i32, allocation_size: u64) -> &mut Frame<i32>
+ requires allocation.pointer != 0 && value == 0 && allocation_size == 64;
+}
+linux_x86_64 machine allocation_binding() -> ForeignBinding<9, 6, 11> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.2.5" } }
+}
+linux_x86_64 machine initialize_binding() -> ForeignBinding<9, 6, 11> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "memset", version: "GLIBC_2.2.5" } }
+}
+linux_x86_64 machine allocate_native(count: u64, allocation_size: u64) -> Allocation
+ satisfies Heap::allocate via allocation_binding()
+ requires count == 1 && allocation_size >= 64;
+linux_x86_64 machine initialize_native(allocation: Allocation in AllocationIssued, value: i32, allocation_size: u64) -> &mut Frame<i32>
+ satisfies Heap::initialize via initialize_binding()
+ requires allocation.pointer != 0 && value == 0 && allocation_size == 64;
+NativeHeap satisfies Heap {
+ machine allocate(count: u64, allocation_size: u64) -> Allocation
+ requires count == 1 && allocation_size >= 64; {
+  allocate_native(count, allocation_size)
+ }
+ machine initialize(allocation: Allocation in AllocationIssued, value: i32, allocation_size: u64) -> &mut Frame<i32>
+ requires allocation.pointer != 0 && value == 0 && allocation_size == 64; {
+  initialize_native(allocation, value, allocation_size)
+ }
+}
+machine main() reaches Heap crashes Trap {
+ let allocation: Allocation in AllocationIssued = Heap::allocate(1, 64);
+ transition allocation.pointer != 0 { true -> initialize_frame(allocation) false -> failed(allocation) }
+ state initialize_frame(allocation: Allocation in AllocationIssued) requires allocation.pointer != 0; {
+  let frame: &mut Frame<i32> = Heap::initialize(allocation, 0, 64);
+  frame.result = Slot::Full { value: 42 };
+  transition frame.result { Slot::Full { value } -> check(value) Slot::Empty -> bad() }
+ }
+ state check(value: i32) { transition value == 42 { true -> done() false -> bad() } }
+ state done() {}
+ state failed(allocation: Allocation in AllocationIssued) { crash Trap; }
+ state bad() { crash Trap; }
+}

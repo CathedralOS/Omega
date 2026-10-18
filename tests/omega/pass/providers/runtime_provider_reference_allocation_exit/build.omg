@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "runtime_provider_reference_allocation_exit");
+ Build::select_provider<Heap, NativeHeap>(builder);
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

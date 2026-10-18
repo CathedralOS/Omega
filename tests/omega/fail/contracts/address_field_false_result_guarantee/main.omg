@@ -1,0 +1,5 @@
+data AddressCell { pointer: addr; }
+machine impossible() -> AddressCell ensures result.pointer != 0; {
+ AddressCell { pointer: 0 }
+}
+machine main() {}
