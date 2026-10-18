@@ -5,7 +5,8 @@ data Countdown {}
 
 measure Countdown::Flat(value: u8) -> u8 { value * 0 + 1 }
 
-machine walk(remaining: u8 [0..=100])
+machine walk(remaining: u8)
+requires remaining <= 100;
 terminates by remaining -> Countdown::Flat in 0..=200;
 -> u8 {
     transition remaining > 0 {

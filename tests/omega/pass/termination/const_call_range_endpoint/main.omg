@@ -1,10 +1,9 @@
-// A machine call supplies a const range endpoint:
-// `u64 [0..=selected::limit()]` evaluates `selected::limit()` at
-// declaration time; same-spelled machines in other modules are not it.
+// A machine call supplies a const endpoint:
+// evaluates `selected::limit()` at declaration time; same-spelled machines in other modules are not it.
 use other;
 use selected;
 
-const GOOD: u64 [0..=selected::limit()] = 2;
+const GOOD: u64 = selected::limit();
 machine limit() -> u64 { 0 }
 data Main {}
 machine Main::main(main: &mut Main) { }

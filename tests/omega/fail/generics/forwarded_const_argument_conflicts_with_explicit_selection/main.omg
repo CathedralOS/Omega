@@ -1,14 +1,15 @@
 use omega_language_std::console;
 
 data Pair { case Both(a: u64 in Wrapping, b: u64 in Wrapping); }
-data FixedBuffer<const N: u64> where N >= 2 {
+data FixedBuffer<const N: u64> where N >= 2, selected <= 1 {
     items: [Pair; N];
-    selected: u64 [0..=1];
+    selected: u64;
     selections: u64 in Wrapping;
 }
 
-machine FixedBuffer::select<const N: u64>(buffer: &mut FixedBuffer<N>) -> u64 [0..=1]
-requires N >= 2;
+machine FixedBuffer::select<const N: u64>(buffer: &mut FixedBuffer<N>) -> u64
+requires N >= 2
+ensures result <= 1;
 {
     buffer.selections = buffer.selections + 1;
     transition { _ -> buffer.selected }

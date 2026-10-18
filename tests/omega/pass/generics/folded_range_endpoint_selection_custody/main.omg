@@ -1,17 +1,14 @@
-// A whole range bound folds to one literal before checking. Operators and
-// calls nested inside that bound keep their authored selection custody, so a
-// private checking projection that drops these declarations (the hosted
-// entry plan's premise discharge) neither loses nor orphans them.
 use omega_language_std::console;
 
 machine endpoint(value: u64) -> u64 { value }
-machine nested_sum(value: u64[0..=1 + 2 * 3]) -> u64 { value }
-machine nested_difference(value: u64[0..10 - 2 - 3]) -> u64 { value }
-machine nested_call(value: u64[0..=endpoint(endpoint(256) + 1)]) -> u64 { value }
-data Holder [copy] { value: u64[0..=4 * 8 - 2]; }
+machine nested_sum(value: u64) -> u64 requires value <= 1 + 2 * 3 { value }
+machine nested_difference(value: u64) -> u64 requires value < 10 - 2 - 3 { value }
+machine nested_call(value: u64) -> u64 requires value <= endpoint(endpoint(256) + 1) { value }
+data Holder [copy] where value <= 4 * 8 - 2 { value: u64; }
 data Wrap<T [copy]> [copy] { value: T; }
+domain u64::Bound(value) requires value <= 2 * 64 + 128;
 machine wrapped() -> u64 {
-    let held: Wrap<u64[0..=2 * 64 + 128]> = Wrap { value: 7 };
+    let held: Wrap<u64 in Bound> = Wrap { value: 7 };
     held.value
 }
 

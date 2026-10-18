@@ -5,7 +5,8 @@ data Countdown {}
 
 measure Countdown::Doubled(value: u8) -> u8 { value * 2 }
 
-machine walk(remaining: u8 [0..=200])
+machine walk(remaining: u8)
+requires remaining <= 200;
 terminates by remaining -> Countdown::Doubled in 0..=400;
 -> u8 {
     transition remaining > 0 {

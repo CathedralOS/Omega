@@ -3,14 +3,14 @@
 // is a conflict, not a compatible containing bound.
 data TinyBytes<Length, const Capacity: u64>
 where
-    Length == u64[0..=Capacity]
+    Length == [u8; Capacity]
 {
     storage: [u8; Capacity];
     length: Length;
 }
 
 data Main {
-    bytes: TinyBytes<u64[0..=256], 512>;
+    bytes: TinyBytes<[u8; 256], 512>;
 }
 
 machine main() {

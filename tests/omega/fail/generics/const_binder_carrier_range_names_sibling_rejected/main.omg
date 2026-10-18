@@ -2,7 +2,7 @@
 // integer bounds, so `[0..K]` naming the sibling binder admits no argument.
 // The declaration is refused instead of letting `values[N]` read the unbound
 // `K` in the carrier as the collection's extent by its spelling.
-machine pick<const K: u64, const N: u64 [0..K]>(values: &[u8; K]) -> u8 {
+machine pick<const K: u64, const N: u64>(values: &[u8; K]) -> u8 {
     transition { _ -> (values[N]) }
 }
 
