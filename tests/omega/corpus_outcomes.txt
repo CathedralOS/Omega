@@ -778,6 +778,7 @@
 	cannot prove index `chosen` is within length 3 in read_local::entry
 	cannot prove index `column` is within length 2 in read::entry
 	cannot prove index `column` is within length 3 in read::entry
+	cannot prove index `container.index` is within length 2 in read_element::entry
 	cannot prove index `copied` is within unknown slice length of `output` in store::entry
 	cannot prove index `count` is within length 1 in rejected::entry
 	cannot prove index `count` is within length 2 in rejected::entry
@@ -803,11 +804,13 @@
 	cannot prove index `index` is within const extent `Count` of `row.values` in read::take
 	cannot prove index `index` is within length 2
 	cannot prove index `index` is within length 2 in exercise::entry
+	cannot prove index `index` is within length 2 in fetch_element::entry
 	cannot prove index `index` is within length 2 in main::entry
 	cannot prove index `index` is within length 2 in main::read
 	cannot prove index `index` is within length 2 in probe::entry
 	cannot prove index `index` is within length 2 in read$specialized$f8459f0a1522a338$0::take
 	cannot prove index `index` is within length 2 in read::entry
+	cannot prove index `index` is within length 2 in read_element::entry
 	cannot prove index `index` is within length 2 in update::entry
 	cannot prove index `index` is within length 3 in read_join::entry
 	cannot prove index `index` is within length 3 in read_parameter::entry
@@ -821,11 +824,13 @@
 	cannot prove index `inner` is within unknown slice length of `windows[outer].values` in replace::store
 	cannot prove index `inner` is within unknown slice length of `windows[selected].values` in replace::entry
 	cannot prove index `joined_i64` is within length 4 in read_all::entry
+	cannot prove index `joined_index` is within length 2 in read_element::entry
 	cannot prove index `left_index` is within length 2 in Main::main::main
 	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::entry
 	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::pick
 	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
 	cannot prove index `local_i64` is within length 4 in read_all::entry
+	cannot prove index `local_index` is within length 2 in read_element::entry
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 	cannot prove index `main.b * 20 + main.a` is within length 200 in store::entry
@@ -843,7 +848,9 @@
 	cannot prove index `meter.length - 1` is within unknown slice length of `window` in last_byte::entry
 	cannot prove index `output[copied].count` is within unknown slice length of `output[copied].values` in store::entry
 	cannot prove index `output[selected].count` is within unknown slice length of `output[selected].values` in store::entry
+	cannot prove index `passed_index` is within length 2 in read_element::element
 	cannot prove index `picked_i64` is within length 4 in read_all::entry
+	cannot prove index `picked_index` is within length 2 in read_element::entry
 	cannot prove index `position + 1` is within length 6 in rises::entry
 	cannot prove index `position as u64` is within unknown slice length of `items` in read::entry
 	cannot prove index `position` is within length 10
@@ -4941,6 +4948,15 @@ fail/facts/field_where_index_through_other_machine_rejected rejected 2834ms expe
 fail/facts/field_where_index_through_other_state_rejected rejected 3036ms expected @a1b70f5ad427+wt
 fail/facts/field_where_index_through_parameter_rejected rejected 2832ms expected @a1b70f5ad427+wt
 fail/facts/field_where_index_through_target_body_rejected rejected 2711ms expected @a1b70f5ad427+wt
+fail/facts/fixed_array_value_through_call_result_rejected rejected 2697ms expected @ac963cec7a35
+fail/facts/fixed_array_value_through_const_name_rejected rejected 3152ms expected @ac963cec7a35
+fail/facts/fixed_array_value_through_field_rejected rejected 4141ms expected @ac963cec7a35
+fail/facts/fixed_array_value_through_local_rejected rejected 2429ms expected @ac963cec7a35
+fail/facts/fixed_array_value_through_match_join_rejected rejected 2714ms expected @ac963cec7a35
+fail/facts/fixed_array_value_through_other_machine_rejected rejected 4257ms expected @ac963cec7a35
+fail/facts/fixed_array_value_through_other_state_rejected rejected 2628ms expected @ac963cec7a35
+fail/facts/fixed_array_value_through_parameter_rejected rejected 2665ms expected @ac963cec7a35
+fail/facts/fixed_array_value_through_target_body_rejected rejected 2598ms expected @ac963cec7a35
 fail/facts/float_delivery_through_call_result_rejected rejected 6539ms expected @1dcced2fa00f+wt
 fail/facts/float_delivery_through_const_name_rejected rejected 7872ms expected @1dcced2fa00f+wt
 fail/facts/float_delivery_through_field_rejected rejected 7094ms expected @1dcced2fa00f+wt
@@ -8621,6 +8637,15 @@ pass/facts/field_where_index_through_other_machine_compile checked 3560ms @a1b70
 pass/facts/field_where_index_through_other_state_compile checked 3540ms @a1b70f5ad427+wt
 pass/facts/field_where_index_through_parameter_compile checked 3703ms @a1b70f5ad427+wt
 pass/facts/field_where_index_through_target_body_compile checked 3658ms @a1b70f5ad427+wt
+pass/facts/fixed_array_value_through_call_result_exit checked 3041ms check-target:macos_arm64 @ac963cec7a35
+pass/facts/fixed_array_value_through_const_name_exit checked 2917ms check-target:macos_arm64 @ac963cec7a35
+pass/facts/fixed_array_value_through_field_exit checked 3125ms check-target:macos_arm64 @ac963cec7a35
+pass/facts/fixed_array_value_through_local_exit checked 2855ms check-target:macos_arm64 @ac963cec7a35
+pass/facts/fixed_array_value_through_match_join_exit checked 2964ms check-target:macos_arm64 @ac963cec7a35
+pass/facts/fixed_array_value_through_other_machine_exit checked 3679ms check-target:macos_arm64 @ac963cec7a35
+pass/facts/fixed_array_value_through_other_state_exit checked 2719ms check-target:macos_arm64 @ac963cec7a35
+pass/facts/fixed_array_value_through_parameter_exit checked 2952ms check-target:macos_arm64 @ac963cec7a35
+pass/facts/fixed_array_value_through_target_body_exit checked 2611ms check-target:macos_arm64 @ac963cec7a35
 pass/facts/float_delivery_through_call_result_exit checked 18900ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/facts/float_delivery_through_const_name_exit checked 16893ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/facts/float_delivery_through_field_exit checked 22490ms check-target:macos_arm64 @1dcced2fa00f+wt
