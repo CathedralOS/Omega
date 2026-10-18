@@ -514,12 +514,7 @@ impl<'program> StructuralJudge<'program> {
         }
         let program = self.program;
         let node = program.expression_table.expression(expression);
-        // An observation stops before its selected operation executes. Even a
-        // store destination therefore needs that operation's completed operand
-        // values, not the discarded location result. This does not read the
-        // destination's old contents: the entry is captured before completion.
         let demand = match demand {
-            _ if requested_operation == expression => NormalValueDemand::Value,
             NormalValueDemand::Location => {
                 let is_location = match node {
                     ExpressionNode::Name(_) => true,
@@ -758,13 +753,14 @@ impl<'program> StructuralJudge<'program> {
             .call_node(expression)
             .filter(|call| super::super::structural_terms::static_call_receiver(program, call))
             .map(|call| call.receiver);
-        if requested_operation == expression
-            && let ExpressionNode::Indexed(indexed) = node
+        if let ExpressionNode::Indexed(indexed) = node
             && let Some(range) = program.expression_table.range_node(indexed.index)
         {
             // A window operation consumes its collection and each authored
             // bound, not a first-class Range value. Keep the same operand
             // roster as runtime lowering and capture each bound in order.
+            // Completion needs this roster too: a standalone selector has no
+            // value carrier and would discard the later state's entire prefix.
             children_to_evaluate.extend(
                 [indexed.collection, range.start, range.end]
                     .into_iter()
@@ -812,7 +808,16 @@ impl<'program> StructuralJudge<'program> {
                     ExpressionNode::Indexed(indexed)
                         if matches!(demand, NormalValueDemand::Location) =>
                     {
-                        if child == indexed.collection {
+                        // A view's pointer/count descriptor is evaluated before
+                        // its selector. Fixed-array geometry needs only a place,
+                        // not a read of possibly uninitialized element storage.
+                        if child == indexed.collection
+                            && crate::expression_result_type_reference(
+                                program, scope.0, scope.1, child,
+                            )
+                            .and_then(|reference| crate::slice_view_shell(program, reference, &[]))
+                            .is_none()
+                        {
                             NormalValueDemand::Location
                         } else {
                             NormalValueDemand::Value
@@ -839,12 +844,16 @@ impl<'program> StructuralJudge<'program> {
         contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
-                if matches!(
-                    demand,
-                    NormalValueDemand::Observe(_) | NormalValueDemand::Location
-                ) {
+                if requested_operation != expression
+                    && matches!(
+                        demand,
+                        NormalValueDemand::Observe(_) | NormalValueDemand::Location
+                    )
+                {
                     // Only the completed descendants are requested. No value
                     // identity or equation is published for this unused result.
+                    // A requested location still publishes its incoming operands
+                    // below, without reading or performing the destination store.
                     return Some(Some(NormalReturnPath {
                         value: StructuralTerm::Opaque("unrequested result".to_owned()),
                         judge,
@@ -1047,7 +1056,9 @@ impl<'program> StructuralJudge<'program> {
                         right.clone(),
                     )?;
                 }
-                if let ExpressionNode::Indexed(_) = node {
+                if let ExpressionNode::Indexed(indexed) = node
+                    && program.expression_table.range_node(indexed.index).is_none()
+                {
                     let [(_, collection), (_, index)] = inputs.as_slice() else {
                         return None;
                     };

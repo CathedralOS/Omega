@@ -1711,10 +1711,35 @@ impl<'program> StructuralJudge<'program> {
         ) {
             return Some(value);
         }
+        let program = self.program;
+        // A selected collection measure observes the completed descriptor, not
+        // its retired referent. Resolve the receiver through the ordinary value
+        // owner first: only an exact completed value or a separately proved
+        // stable descriptor binding survives a write. Applying the referent
+        // fence to `.len` itself loses that distinction after any earlier write
+        // conservatively invalidated reference-bearing state parameters.
+        // Ordinary fields (including a user field named `len`) still cross the
+        // storage fence below; selection supplies no contents or bounds proof.
+        if let ExpressionNode::Member(member) = program.expression_table.expression(expression)
+            && let Some((machine, state, _)) = scope
+            && let Some(reference) =
+                crate::expression_result_type_reference(program, machine, state, member.receiver)
+            && let Some(measure) =
+                super::structural_terms::collection_measure_term(program, member, reference, || {
+                    self.callee_term(
+                        member.receiver,
+                        environment,
+                        machine_environment,
+                        scope,
+                        depth + 1,
+                    )
+                })
+        {
+            return Some(measure);
+        }
         if self.storage_observation_invalidated(expression) {
             return None;
         }
-        let program = self.program;
         if let Some((_, argument)) =
             crate::proof_contracts::proof_embeddings::integer_embedding_argument(
                 program, expression,
@@ -1771,30 +1796,6 @@ impl<'program> StructuralJudge<'program> {
                 }
             }
             ExpressionNode::Member(member) => {
-                if let Some((machine, state, _)) = scope
-                    && let Some(reference) = crate::expression_result_type_reference(
-                        program,
-                        machine,
-                        state,
-                        member.receiver,
-                    )
-                    && let Some(measure) = super::structural_terms::collection_measure_term(
-                        program,
-                        member,
-                        reference,
-                        || {
-                            self.callee_term(
-                                member.receiver,
-                                environment,
-                                machine_environment,
-                                scope,
-                                depth + 1,
-                            )
-                        },
-                    )
-                {
-                    return Some(measure);
-                }
                 if let ExpressionNode::Call(call) =
                     program.expression_table.expression(member.receiver)
                     && (!call.receiver.is_valid()

@@ -576,9 +576,10 @@ impl StructuralJudge<'_> {
         Some(())
     }
 
-    /// A direct slice's descriptor is a completed value, independent of the
-    /// backing contents. Use the retained scope value only while its binding
-    /// home survives; never reconstruct it from its initializer or a pointee.
+    /// A slice descriptor in a private owned home is a completed value,
+    /// independent of backing contents. Project only authenticated fixed fields
+    /// of that retained value; never reconstruct an initializer or cross a
+    /// reference to a replaceable descriptor slot.
     pub(super) fn completed_descriptor_place(
         &self,
         scope: Option<(

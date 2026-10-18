@@ -671,6 +671,10 @@ fn recognize_structural_state_leaves_from<'a>(
                 StatementNode::Call(_)
                     if !saw_transition && collect_citations && citation_preserves_values =>
                 {
+                    // The legacy citation route has no post-state actuals.
+                    // A writing call already retired its live observations;
+                    // staging them now would either revive old referents or
+                    // discard this prefix when those referents are opaque.
                     let (target, argument_handles) =
                         citation_call_in_statement(program, statement)?;
                     stage_citation_argument_terms(

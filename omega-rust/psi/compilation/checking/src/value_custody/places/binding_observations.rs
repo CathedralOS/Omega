@@ -9,22 +9,11 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 
-/// A completed slice descriptor whose private binding home cannot change in
-/// this state. Mutable backing is deliberately allowed: this is metadata
-/// preservation, never a snapshot of elements. An extra reference shell names
-/// replaceable descriptor storage, not the completed view itself.
-pub fn stable_slice_descriptor_binding(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    symbol: SymbolHandle,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    stable_slice_descriptor_place(program, state, symbol, &[])
-}
-
 /// Fixed fields of a private owned binding may carry completed descriptors
 /// too. No reference may be crossed before the descriptor slot: a reference
 /// to a record lends replaceable fields, rather than a private captured home.
 /// Indexed descriptors retain their selector/replacement dependencies.
+/// Mutable backing is allowed: this preserves metadata, never element contents.
 pub fn stable_slice_descriptor_place(
     program: &dyn crate::CheckingInput,
     state: &State,

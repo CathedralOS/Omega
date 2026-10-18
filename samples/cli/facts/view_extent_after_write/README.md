@@ -13,5 +13,15 @@ private four-byte flags suffix around a native write into caller storage. It
 does not authorize resizing, descriptor-slot replacement, stale content facts,
 or unchecked indexing.
 
+The owning requirement is preservation of an exact completed view descriptor
+across referent writes, not preservation of the bytes it references. The
+[subslice/state fixture](../../../../tests/omega/pass/facts/subslice_state_extent_after_write_exit/main.omg)
+also constructs a clamped view before transferring it into the guarded state,
+then reads and restores the same suffix around a write. Its
+[wrong-view guard](../../../../tests/omega/fail/facts/subslice_state_extent_wrong_view_rejected/main.omg)
+must not establish that view's bound. The nine places establish transport;
+descriptor-slot replacement, contents invalidation and complete filesystem
+acceptance keep their independent obligations.
+
 Run a place with `omega run samples/cli/facts/view_extent_after_write/parameter/main.omg`.
 Check its control with `omega --check samples/cli/facts/view_extent_after_write/parameter/invalid/main.omg`.

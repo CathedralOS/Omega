@@ -19,6 +19,16 @@ reproduction rejects on main b148e7ded8e with:
 cannot prove subslice range end bound `0..capacity` is within unknown slice length
 ```
 
+The requirement is exact descriptor identity across ordered call results: each
+minimum must establish its public bound for the completed actuals, and only the
+same view's extent may justify its prefix. The nine places cover transport,
+not arbitrary descriptor replacement or stale referent facts. The additional
+[disjoint-write fixture](../../../../tests/omega/pass/facts/nested_result_extent_after_disjoint_write_exit/main.omg)
+keeps this operation after a write to unrelated storage; its
+[wrong-view control](../../../../tests/omega/fail/facts/nested_result_extent_disjoint_write_wrong_view_rejected/main.omg)
+still cannot donate another descriptor's length. Filesystem provider closure
+and host acceptance remain with the parent task.
+
 Run each place with `omega run --both <place>/main.omg`; both executions must
 exit 0. Check `<place>/invalid/main.omg` separately: it must reject with the
 fragments in that folder's `expected.txt`. A successful positive alone does
