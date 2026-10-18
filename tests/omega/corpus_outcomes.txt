@@ -4161,6 +4161,8 @@ fail/facts/matched_window_through_parameter_rejected rejected 651ms expected @a4
 	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
 fail/facts/matched_window_through_target_body_rejected rejected 649ms expected @a48b0ac286f5
 	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+fail/facts/nested_result_extent_disjoint_write_wrong_view_rejected rejected 675ms expected @cbdcc23565fb
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::consume
 fail/facts/nested_result_extent_later_sibling_bound_rejected rejected 561ms expected @8a884ecc43d5+wt
 	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
 fail/facts/nested_result_extent_one_bad_match_arm_rejected rejected 590ms expected @8a884ecc43d5+wt
@@ -4232,6 +4234,8 @@ fail/facts/nominal_reference_cleanup_through_target_body_prerequisite rejected 6
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
+fail/facts/ordinary_length_field_after_write_rejected rejected 608ms expected @cbdcc23565fb
+	cannot prove requires contract for call equal from main: counter.len == saved (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/qualified_join_routed_authority rejected 727ms expected @8a884ecc43d5+wt
 	cannot prove default-domain field requirement for return from forge at statement 0: match flag { true => Extent, false => Extent } requires Extent::Granted
 	construction value is not proven in domain `Extent::Granted` in forge state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
@@ -4424,6 +4428,11 @@ fail/facts/selected_native_code_layout_through_parameter_rejected rejected 34ms 
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
 fail/facts/selected_native_code_layout_through_target_body_rejected rejected 29ms expected @b2bd1ba421fd+wt
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/subslice_state_extent_wrong_view_rejected rejected 605ms expected @cbdcc23565fb
+	cannot prove requires contract for call extended from trial: buffer.len >= 1024 (needs fact `buffer.len >= 1024` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `transfer`
+	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
+	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
+	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 fail/facts/temporary_case_cleanup_through_call_result_rejected rejected 1103ms expected @46f72294c589
 	machine `main` state `entry` value call to `consume` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
 fail/facts/temporary_case_cleanup_through_const_name_rejected rejected 1102ms expected @46f72294c589
@@ -9780,6 +9789,7 @@ pass/facts/matched_window_through_other_machine_exit checked 5396ms check-target
 pass/facts/matched_window_through_other_state_exit checked 5647ms check-target:macos_arm64 @b2d507c5ddab+wt
 pass/facts/matched_window_through_parameter_exit checked 5559ms check-target:macos_arm64 @b2d507c5ddab+wt
 pass/facts/matched_window_through_target_body_exit checked 5406ms check-target:macos_arm64 @b2d507c5ddab+wt
+pass/facts/nested_result_extent_after_disjoint_write_exit checked 3988ms check-target:macos_arm64 @cbdcc23565fb
 pass/facts/nested_result_extent_captured_scalar_exit checked 3416ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_call_result_exit checked 3401ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_const_name_exit checked 3333ms check-target:macos_arm64 @8a884ecc43d5+wt
@@ -9891,6 +9901,7 @@ pass/facts/selected_native_code_layout_through_other_machine_exit checked 8202ms
 pass/facts/selected_native_code_layout_through_other_state_exit checked 7960ms check-target:linux_x86_64 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_parameter_exit checked 7910ms check-target:linux_x86_64 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_target_body_exit checked 7977ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/subslice_state_extent_after_write_exit checked 3987ms check-target:macos_arm64 @cbdcc23565fb
 pass/facts/temporary_case_cleanup_original_exit checked 3691ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_call_result_exit checked 3690ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_const_name_exit checked 3690ms check-target:macos_arm64 @46f72294c589
@@ -9932,6 +9943,7 @@ pass/filesystem/runtime_portable_directory_names_exit checked 13411ms check-targ
 pass/filesystem/runtime_portable_metadata_exit checked 12499ms check-target:macos_arm64 @7e6a01265b4b+wt
 pass/filesystem/runtime_portable_unknown_directory_kinds_exit checked 35978ms check-target:macos_arm64 @d3af6d5ca3c5
 pass/filesystem/runtime_portable_zero_descriptor_exit checked 12120ms check-target:macos_arm64 @cc43b6679d2a+wt
+pass/filesystem/runtime_posix_borrowed_directory_link_exit checked 24048ms check-target:macos_arm64 @cbdcc23565fb
 pass/filesystem/runtime_posix_borrowed_view_io_exit checked 9462ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/runtime_posix_native_storage_bounds_exit checked 9150ms check-target:macos_arm64 @2f33bd96e5f4
 pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 9450ms check-target:macos_arm64 @aebe0714a499+wt
