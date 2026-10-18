@@ -1,19 +1,20 @@
 # range_fact_delivery
 
-Declared-range delivery proven at every site: literal `admit(0.5)`, narrower
-declared param `forward(value [0.0..=0.25])` delivered into `[0.0..=0.5]`,
-nested call `outer(admit(bounded))` inside an expression, and guard fact
-`index < 4` discharging `count(index)` whose param is `u64 [0..=4]`.
+Declared-range delivery proven at every site: literal `admit(0.5)` with
+`requires value >= 0.0 && value <= 0.5`, narrower declared param
+`forward(value)` with `requires value >= 0.0 && value <= 0.25` delivered into
+`admit`, nested call `outer(admit(bounded))` inside an expression, and guard
+fact `index < 4` discharging `count(index)` whose contract requires `value <= 4`.
 
-Compile-checked only: no standard-library dependency and
-no `Main::exit` — run a check target, not native.
+The root program and nine application projects use canonical propositions
+and run natively with `// Expected exit: 0`.
 
 ## Integer delivery row
 
 For u64 index, index < 4 proves index <= 4 at count(index).
 
-The original root program remains unchanged. The nine application projects use
-canonical propositions for its existing integer `pick`/`count` delivery case.
+The root program and nine application projects use canonical propositions
+for integer and float delivery cases.
 Each calls the same `count` requiring `index <= 4`; each positive exercises 0
 and 3 and exits 0 only when both values return unchanged.
 
@@ -39,7 +40,9 @@ Run `omega run --both samples/cli/facts/range_fact_delivery/<place>/main.omg`
 with finite stdin. Check a twin with `omega --check <twin>/main.omg`.
 Focused corpus fixtures use the selector `integer_range_delivery_through_`.
 
-The Linux x86-64 row checks and runs with all nine native exits 0; all nine
-twins reject the `count` precondition at the intended operation. The focused
-corpus additionally checks all eighteen fixtures and observes native/Terminal
-exit agreement at 0 for every positive. No compiler repair was needed.
+The Windows x86-64 and Linux x86-64 rows check and run with the root program
+and all nine places producing native exit 0; all nine twins reject the `count`
+precondition at the intended operation. The focused corpus additionally checks
+all eighteen fixtures and observes native/Terminal exit agreement at 0 for every positive.
+No compiler repair was needed.
+
