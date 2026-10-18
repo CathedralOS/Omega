@@ -768,6 +768,46 @@ pub(super) fn record(
         ) else {
             return;
         };
+        // Excluding an actual fixed carrier endpoint establishes a strict
+        // order on this same observation. In particular unsigned x != 0
+        // supplies x >= 1. Interior exclusions remain nonconvex Unequal facts;
+        // no sign is guessed from a mixed comparison's other operand.
+        for (meaning, excluded_expression, subject, excluded) in [
+            (left_meaning, comparison.right, &left, &right),
+            (right_meaning, comparison.left, &right, &left),
+        ] {
+            let Some((primitive, _)) = meaning else {
+                continue;
+            };
+            let Some(range) = primitive_range(primitive) else {
+                continue;
+            };
+            let ExpressionNode::Integer(literal) =
+                program.expression_table.expression(excluded_expression)
+            else {
+                continue;
+            };
+            let Some(value) = literal.value_i64() else {
+                continue;
+            };
+            let order = if range.low == Some(value) {
+                Some((subject.clone(), excluded.clone()))
+            } else if range.high == Some(value) {
+                Some((excluded.clone(), subject.clone()))
+            } else {
+                None
+            };
+            if let Some((left, right)) = order {
+                let relation = Relation {
+                    left,
+                    right,
+                    constraint: RelationConstraint::MinimumDifference(1),
+                };
+                if !environment.ordered_values.contains(&relation) {
+                    environment.ordered_values.push(relation);
+                }
+            }
+        }
         let relation = Relation {
             left,
             right,

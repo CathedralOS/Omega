@@ -9,6 +9,7 @@
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/call_surviving_return_exit built 6890ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @30ec6a20142f+wt
+pass/arithmetic/carrier_endpoint_exclusion_exit built 8333ms exit:0 interpreter-exit:0 interpreter:agrees @7875d3411f26+wt
 pass/arithmetic/collection_result_bound_exit built 25640ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/arithmetic/relative_midpoint_values_exit built 13866ms exit:0 interpreter-exit:0 interpreter:agrees @8a14e9db1e32
 pass/arithmetic/reused_fixed_integer_operands_exit built 6837ms exit:0 interpreter-exit:0 interpreter:agrees @7223309ebb5b
@@ -34,6 +35,21 @@ pass/arithmetic/runtime_unbounded_zero_product_exit built 6821ms exit:0 interpre
 pass/arithmetic/saturating_signed_divide_min_by_neg_one built 4409ms exit:70 interpreter-exit:70 interpreter:agrees @5906e5ec7c81
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one built 4542ms exit:70 interpreter-exit:70 interpreter:agrees @5906e5ec7c81
 pass/arrays/runtime_completed_array_window_replacement_exit built 30405ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @c48489ea6ad6
+pass/facts/checked_asm_countdown_call_result_exit built 8806ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
+pass/facts/checked_asm_countdown_const_name_exit built 11075ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
+pass/facts/checked_asm_countdown_field_exit built 13616ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
+pass/asm/checked_countdown_literal_exit built 12685ms exit:0 interpreter-exit:0 interpreter:agrees @7875d3411f26+wt
+pass/facts/checked_asm_countdown_local_exit built 11520ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
+pass/facts/checked_asm_countdown_match_join_exit built 9947ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
+pass/facts/checked_asm_countdown_other_machine_exit built 12055ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
+pass/facts/checked_asm_countdown_other_state_exit built 14157ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
+pass/facts/checked_asm_countdown_parameter_exit built 13210ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
+pass/facts/checked_asm_countdown_target_body_exit built 9212ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
+pass/asm/scratch_exact_register_flag_clobbers_exit built 12760ms exit:0 interpreter-exit:0 interpreter:agrees @7875d3411f26+wt
+pass/asm/scratch_latest_zero_flag_exit built 14151ms exit:0 interpreter-exit:0 interpreter:agrees @7875d3411f26+wt
+pass/asm/scratch_subtract_modular_underflow_exit built 8259ms exit:0 interpreter-exit:0 interpreter:agrees @7875d3411f26+wt
+pass/asm/scratch_target_sibling_capture_identity_exit built 11398ms exit:0 interpreter-exit:0 interpreter:agrees @7875d3411f26+wt
+pass/asm/scratch_zero_flag_survives_move_exit built 10516ms exit:0 interpreter-exit:0 interpreter:agrees @7875d3411f26+wt
 pass/atomics/runtime_atomic_bitwise_widths_exit built 5472ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/atomics/shared_receiver_atomic_store built 5511ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/blockexec/blocking_executor_custody_claims_compile built 24767ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
@@ -182,6 +198,7 @@ pass/contracts/guard_conjunct_survives_disjoint_state_write_exit built 15757ms e
 pass/contracts/runtime_literal_view_extent_calls_exit built 19413ms exit:0 interpreter-exit:0 interpreter:agrees @4199cfac1ef3
 pass/contracts/runtime_postcall_storage_identity_exit built 44129ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/control_flow/computed_float_array_field_store_exit built 90684ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
+pass/control_flow/dispatch_loop_nonzero_unsigned_exit built 8570ms exit:0 interpreter-exit:0 interpreter:agrees @7875d3411f26+wt
 pass/control_flow/runtime_bounded_scalar_storage_exit built 13748ms exit:0 interpreter-exit:0 interpreter:agrees @d8fc8b63e7dd
 pass/control_flow/runtime_copy_result_conditional_successor_reuse_exit built 5201ms exit:0 interpreter-exit:0 interpreter:agrees @c24b141cb29b+wt
 pass/control_flow/runtime_dispatch_boundary_total_exit built 9643ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @58a5ed816ae5
@@ -196,6 +213,7 @@ pass/control_flow/runtime_projected_case_payload_snapshots_exit built 18897ms ex
 pass/control_flow/runtime_selected_parent_state_loan_exit built 6609ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
 pass/control_flow/shared_view_selected_disposition_exit built 13300ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/control_flow/static_bounded_byte_state_loan_exit built 6885ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
+pass/control_flow/unconditional_unit_completion_exit built 10382ms exit:0 interpreter-exit:0 interpreter:agrees @7875d3411f26+wt
 pass/domains/bitwise_live_membership_exit built 30632ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/domains/runtime_authored_borrowed_result_domain_exit built 47530ms exit:0 interpreter-exit:0 interpreter:agrees @be2b40493220+wt
 pass/domains/runtime_authored_record_result_domain_exit built 82024ms exit:0 interpreter-exit:0 interpreter:agrees @be2b40493220

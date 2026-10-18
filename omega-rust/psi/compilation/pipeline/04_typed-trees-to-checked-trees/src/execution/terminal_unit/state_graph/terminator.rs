@@ -195,6 +195,18 @@ pub(super) fn build(
                 if transition.guard == TransitionGuardNode::Always =>
             {
                 match program.statement_table.transition_target(transition.target) {
+                    // Explicit `{}` is the same normal Unit completion as an
+                    // implicit tail. It is not a named state. The shared
+                    // normal-edge cleanup owner still retains its exact exit
+                    // disposition before this graph can be published.
+                    TransitionTargetNode::Terminal
+                        if result == checked_trees::CheckedControlResultPlan::Unit
+                            && transition.exit == TransitionExit::Ordinary
+                            && !transition.continuation.is_valid() =>
+                    {
+                        trace.phase("state graph: terminator: explicit unit completion");
+                        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+                    }
                     // An unconditional `(expression)` arm closes the state
                     // with its value: the same establishment a bare tail
                     // expression plans, produced at the transition's ordinal.

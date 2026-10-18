@@ -53,14 +53,31 @@ pub(super) fn lower(
                 syntax::AssemblyExit::Fallthrough => AssemblyExit::Fallthrough,
                 syntax::AssemblyExit::EnclosingTransition => AssemblyExit::EnclosingTransition,
                 syntax::AssemblyExit::Jump(_) => AssemblyExit::Jump(Handle::invalid()),
+                syntax::AssemblyExit::NonZero(_) => AssemblyExit::NonZero(Handle::invalid()),
             },
         });
     }
+    let primitives = syntax_trees
+        .statements
+        .assembly_expressions(graph.primitives)
+        .iter()
+        .map(|expression| lower_statement_expression(lowerer, syntax_trees, *expression))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut scratch = [symbol_resolved_trees::expression::ExpressionHandle::invalid();
+        language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT];
+    for (target, source) in scratch.iter_mut().zip(graph.scratch) {
+        if source.is_valid() {
+            *target = lower_statement_expression(lowerer, syntax_trees, source)?;
+        }
+    }
     let declarations = &mut lowerer.symbol_resolved_trees.tables.declarations;
+    let primitives = declarations.assembly_expressions.insert_many(primitives);
     let blocks = declarations.assembly_blocks.insert_many(blocks);
     let handles: Vec<_> = blocks.handles().collect();
     for (handle, source_block) in handles.iter().copied().zip(source_blocks) {
-        if let syntax::AssemblyExit::Jump(label) = &source_block.exit {
+        if let syntax::AssemblyExit::Jump(label) | syntax::AssemblyExit::NonZero(label) =
+            &source_block.exit
+        {
             let Some(index) = source_blocks
                 .iter()
                 .position(|block| block.label.as_str() == label.as_str())
@@ -70,10 +87,17 @@ pub(super) fn lower(
                     label.as_str()
                 )));
             };
-            declarations.assembly_blocks.get_mut(handle).exit = AssemblyExit::Jump(handles[index]);
+            declarations.assembly_blocks.get_mut(handle).exit =
+                if matches!(source_block.exit, syntax::AssemblyExit::NonZero(_)) {
+                    AssemblyExit::NonZero(handles[index])
+                } else {
+                    AssemblyExit::Jump(handles[index])
+                };
         }
     }
-    Ok(declarations
-        .assembly_graphs
-        .insert(AssemblyControlFlow { blocks }))
+    Ok(declarations.assembly_graphs.insert(AssemblyControlFlow {
+        blocks,
+        scratch,
+        primitives,
+    }))
 }

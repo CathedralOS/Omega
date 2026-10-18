@@ -212,11 +212,27 @@ impl SyntaxCopy<'_> {
                         }
                     })
                     .collect();
+                let primitives: Vec<_> = other
+                    .statements
+                    .assembly_expressions(graph.primitives)
+                    .iter()
+                    .map(|expression| self.copy_expression_handle(other, *expression))
+                    .collect();
+                let primitives = self.statements.insert_assembly_expressions(primitives);
+                let mut scratch = graph.scratch;
+                for expression in &mut scratch {
+                    if expression.is_valid() {
+                        *expression = self.copy_expression_handle(other, *expression);
+                    }
+                }
                 let blocks = self.statements.insert_assembly_blocks(blocks);
-                StatementNode::Assembly(
-                    self.statements
-                        .insert_assembly(crate::statement::AssemblyControlFlow { blocks }),
-                )
+                StatementNode::Assembly(self.statements.insert_assembly(
+                    crate::statement::AssemblyControlFlow {
+                        blocks,
+                        scratch,
+                        primitives,
+                    },
+                ))
             }
             StatementNode::RootBinding(binding) => {
                 StatementNode::RootBinding(crate::statement::RootBinding {

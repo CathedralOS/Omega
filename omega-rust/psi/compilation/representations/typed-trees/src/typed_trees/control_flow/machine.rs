@@ -38,6 +38,8 @@ pub enum MachinePurpose {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
+    /// Conjunctive catalog architecture demand retained after instruction normalization.
+    pub assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability,
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
@@ -196,6 +198,8 @@ pub struct TargetMachineFamilyMember {
 impl Default for Machine {
     fn default() -> Self {
         Self {
+            assembly_target_requirement:
+                language_core::inline_assembly::AsmTargetApplicability::Any,
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             attached_data: None,

@@ -34,6 +34,8 @@ pub enum StaticArgumentSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StatementSnapshot {
     Assembly {
+        primitives: Vec<ExpressionSnapshot>,
+        scratch: Vec<ExpressionSnapshot>,
         blocks: Vec<AssemblyBlockSnapshot>,
     },
     RootBinding {
@@ -95,6 +97,7 @@ pub struct AssemblyBlockSnapshot {
     pub ensures: Vec<ExpressionSnapshot>,
     pub instructions: Vec<StatementSnapshot>,
     pub jump: Option<String>,
+    pub conditional_nonzero: bool,
     pub enclosing_transition: bool,
 }
 
@@ -242,6 +245,19 @@ pub(crate) fn statement_snapshot(
             let declarations = &program.tables.declarations;
             let graph = declarations.assembly_graphs.get(*handle);
             StatementSnapshot::Assembly {
+                primitives: declarations
+                    .assembly_expressions
+                    .span_or_empty(graph.primitives)
+                    .iter()
+                    .map(|expression| statement_expression_snapshot(program, *expression))
+                    .collect(),
+                scratch: graph
+                    .scratch
+                    .iter()
+                    .copied()
+                    .filter(|expression| expression.is_valid())
+                    .map(|expression| statement_expression_snapshot(program, expression))
+                    .collect(),
                 blocks: declarations
                     .assembly_blocks
                     .span_or_empty(graph.blocks)
@@ -267,11 +283,16 @@ pub(crate) fn statement_snapshot(
                             .map(|statement| statement_snapshot(program, statement))
                             .collect(),
                         jump: match block.exit {
-                            crate::statement::AssemblyExit::Jump(target) => {
+                            crate::statement::AssemblyExit::Jump(target)
+                            | crate::statement::AssemblyExit::NonZero(target) => {
                                 Some(declarations.assembly_blocks.get(target).label.to_string())
                             }
                             _ => None,
                         },
+                        conditional_nonzero: matches!(
+                            block.exit,
+                            crate::statement::AssemblyExit::NonZero(_)
+                        ),
                         enclosing_transition: matches!(
                             block.exit,
                             crate::statement::AssemblyExit::EnclosingTransition

@@ -91,7 +91,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Fixed-array memberships and stored descriptors share the combined schema.
 // Reference results distinguish invocation-established storage from formal inputs.
 // Boundary completion retains reference destinations and lifetime anchors.
-pub(crate) const FORMAT_MARKER: u16 = 164;
+pub(crate) const FORMAT_MARKER: u16 = 165;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

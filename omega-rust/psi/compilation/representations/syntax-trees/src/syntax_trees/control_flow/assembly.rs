@@ -9,6 +9,12 @@ use arena::{Handle, HandleSpan, PagedArenaSet as Arena};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AssemblyControlFlow {
+    /// Catalog-generated arithmetic and ZF operations: their selected meaning
+    /// must remain builtin, independently of authored token overloads.
+    pub primitives: HandleSpan<crate::expression::ExpressionHandle>,
+    /// Explicit body-local register/flag identities; empty cells are absent.
+    pub scratch: [crate::expression::ExpressionHandle;
+        language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT],
     pub blocks: HandleSpan<AssemblyBlock>,
 }
 
@@ -26,6 +32,7 @@ pub enum AssemblyExit {
     #[default]
     Fallthrough,
     Jump(Identifier),
+    NonZero(Identifier),
     /// An ordinary checked instruction transfers out of this assembly body.
     /// It is retained as the block's last instruction, never a label edge.
     EnclosingTransition,

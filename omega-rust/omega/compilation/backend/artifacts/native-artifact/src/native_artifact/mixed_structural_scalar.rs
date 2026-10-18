@@ -107,6 +107,7 @@ mod tests {
         let result = ValueId::new(3).expect("result");
         let structural_type = StructuralTypeId::new(4).expect("structural type");
         let machine = TerminalMachine {
+            assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: MachineId::new(1).expect("machine"),

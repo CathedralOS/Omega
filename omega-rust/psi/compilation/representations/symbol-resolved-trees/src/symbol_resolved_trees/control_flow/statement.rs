@@ -44,6 +44,12 @@ pub enum Statement {
 /// captured value frontier. Local edges bind block handles, never names.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AssemblyControlFlow {
+    /// Catalog-generated arithmetic and ZF operations: their selected meaning
+    /// must remain builtin, independently of authored token overloads.
+    pub primitives: HandleSpan<crate::expression::ExpressionHandle>,
+    /// Explicit body-local register/flag identities; empty cells are absent.
+    pub scratch: [crate::expression::ExpressionHandle;
+        language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT],
     pub blocks: HandleSpan<AssemblyBlock>,
 }
 
@@ -63,6 +69,7 @@ pub enum AssemblyExit {
     #[default]
     Fallthrough,
     Jump(Handle<AssemblyBlock>),
+    NonZero(Handle<AssemblyBlock>),
     EnclosingTransition,
 }
 

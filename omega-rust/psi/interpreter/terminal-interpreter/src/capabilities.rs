@@ -104,6 +104,24 @@ pub(crate) fn check_with_private_entry_ram(
             continue;
         }
         let machine = program.verified_machine(machine_id)?;
+        let requirement = machine.assembly_target_requirement;
+        if requirement != terminal_psi::RegisterTargetApplicability::Any {
+            let selected = installation
+                .and_then(|supplies| supplies.target_machines.as_ref())
+                .map(|selection| selection.target());
+            let layouts = program
+                .target_layouts
+                .as_ref()
+                .map(|layouts| layouts.target());
+            let target = selected.or(layouts);
+            if selected.zip(layouts).is_some_and(|(a, b)| a != b)
+                || target.is_none_or(|target| !requirement.accepts_target_name(target))
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "assembly catalog target requirement is not established by the target environment",
+                ));
+            }
+        }
         let mut blocks = vec![machine.entry];
         let mut visited_blocks = BTreeSet::new();
         while let Some(block_id) = blocks.pop() {
@@ -376,6 +394,7 @@ mod tests {
             },
         };
         TerminalMachine {
+            assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             id: MachineId::new(1).unwrap(),
             attachment: None,
             declaration: None,
@@ -545,6 +564,31 @@ mod tests {
             completion_receipts: Vec::new(),
             requirement_obligations: Vec::new(),
         }
+    }
+
+    #[test]
+    fn capability_graph_requires_environment_for_reachable_catalog_target() {
+        let mut program = program();
+        let mut demanding = machine(1, Vec::new());
+        demanding.assembly_target_requirement = terminal_psi::RegisterTargetApplicability::X86_64;
+        set_machine(&mut program, MachineId::new(1).unwrap(), demanding);
+        assert!(matches!(
+            check(&program, None),
+            Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "assembly catalog target requirement is not established by the target environment"
+            ))
+        ));
+    }
+
+    #[test]
+    fn capability_graph_unreachable_catalog_target_adds_no_demand() {
+        let mut program = program();
+        let mut demanding = machine(0, Vec::new());
+        demanding.assembly_target_requirement = terminal_psi::RegisterTargetApplicability::Aarch64;
+        let catalogs = std::sync::Arc::make_mut(&mut program.catalogs).to_mut();
+        demanding.id = MachineId::new(2).unwrap();
+        catalogs.machines.push(demanding);
+        assert!(check(&program, None).is_ok());
     }
 
     #[test]

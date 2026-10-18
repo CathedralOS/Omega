@@ -150,6 +150,7 @@ pub fn prepare_typed_trees(
     mut program: TypedTrees,
     request: &PreparationRequest<'_>,
 ) -> Result<(typed_trees::FrozenTypedTrees, TypedPreparation), Vec<diagnostics::Diagnostic>> {
+    crate::assembly_control::validate_primitive_meanings(&program)?;
     // Declaration descriptions may retain pending implementations, but the
     // executable roster must be complete before any proof or memo lookup.
     for machine in program.machines() {
@@ -261,6 +262,9 @@ pub fn prepare_typed_trees(
             break;
         }
     }
+    // Assembly normalization produces ordinary locals and helper bodies.
+    // They participate in the same value/default-domain preparation as source.
+    crate::assembly_control::normalize(&mut program)?;
     settle_value_destinations(&mut program)?;
     default_domain_zero::refine_default_domain_zero(&mut program);
     // Constructed result types finish the source roster that field elaboration reads;

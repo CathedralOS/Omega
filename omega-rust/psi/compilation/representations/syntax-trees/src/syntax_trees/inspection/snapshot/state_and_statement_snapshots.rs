@@ -70,6 +70,8 @@ pub struct StateParameterSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StatementSnapshot {
     Assembly {
+        primitives: Vec<ExpressionSnapshot>,
+        scratch: Vec<ExpressionSnapshot>,
         blocks: Vec<AssemblyBlockSnapshot>,
     },
     RootBinding {
@@ -136,6 +138,7 @@ pub struct AssemblyBlockSnapshot {
 pub enum AssemblyExitSnapshot {
     Fallthrough,
     Jump(IdentifierSnapshot),
+    NonZero(IdentifierSnapshot),
     EnclosingTransition,
 }
 
@@ -296,6 +299,19 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
         StatementNode::Assembly(handle) => {
             let graph = syntax_trees.statements.assembly(*handle);
             StatementSnapshot::Assembly {
+                primitives: syntax_trees
+                    .statements
+                    .assembly_expressions(graph.primitives)
+                    .iter()
+                    .map(|expression| snapshot_expression_handle(syntax_trees, *expression))
+                    .collect(),
+                scratch: graph
+                    .scratch
+                    .iter()
+                    .copied()
+                    .filter(|expression| expression.is_valid())
+                    .map(|expression| snapshot_expression_handle(syntax_trees, expression))
+                    .collect(),
                 blocks: syntax_trees
                     .statements
                     .assembly_blocks(graph.blocks)
@@ -328,6 +344,9 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                         exit: match &block.exit {
                             crate::statement::AssemblyExit::Fallthrough => {
                                 AssemblyExitSnapshot::Fallthrough
+                            }
+                            crate::statement::AssemblyExit::NonZero(label) => {
+                                AssemblyExitSnapshot::NonZero(snapshot_identifier(label))
                             }
                             crate::statement::AssemblyExit::Jump(label) => {
                                 AssemblyExitSnapshot::Jump(snapshot_identifier(label))

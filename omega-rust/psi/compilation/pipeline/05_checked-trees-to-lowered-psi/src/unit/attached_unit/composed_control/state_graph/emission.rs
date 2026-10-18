@@ -839,6 +839,13 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         );
     }
     let mut machine = TerminalMachine {
+        assembly_target_requirement: checked
+            .typed
+            .machine(plan.machine)
+            .map(|machine| machine.assembly_target_requirement)
+            .ok_or(crate::lowering_error::LoweringError::Unsupported(
+                "assembly target requirement has no checked machine",
+            ))?,
         closed_reach_application: None,
         declared_service_reach: crate::unit::attached_unit::lower_declared_service_reach(
             checked,

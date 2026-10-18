@@ -82,6 +82,24 @@ impl<'a> AuthorityGraph<'a> {
             let function = self.functions.get(&machine).ok_or_else(|| {
                 format!("reachable internal call names absent machine {machine:?}")
             })?;
+            // Current rewrites preserve reachable calls and their machine IDs.
+            // Any future inlining/call-erasing transform must preserve catalog
+            // applicability before this selected executable closure is walked.
+            let requirement = self
+                .input
+                .context()
+                .module()
+                .machine(machine)
+                .ok_or_else(|| {
+                    format!("reachable machine {machine:?} has no retained Terminal declaration")
+                })?
+                .assembly_target_requirement;
+            if !requirement.accepts_target_name(self.target_profile.target_name()) {
+                return Err(format!(
+                    "reachable machine {machine:?} has incompatible assembly catalog target requirement for `{}`",
+                    self.target_profile.target_name()
+                ));
+            }
             for operation in &function.operations {
                 // Cleanup is executable work on this edge, not a declaration
                 // marker. Its hook's mechanisms belong to the same authority

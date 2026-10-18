@@ -170,6 +170,7 @@ fn target_family_wire_rejects_duplicate_tags_and_missing_callables() {
 fn unit_machine(machine: MachineId) -> TerminalMachine {
     let block = BlockId::new(1).unwrap();
     TerminalMachine {
+        assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
         id: machine,
         attachment: None,
         declaration: Some(terminal_psi::CheckedMachineDeclaration {
@@ -222,4 +223,28 @@ fn identity_table(count: u32) -> terminal_psi::TerminalIdentityTable {
         identities.intern(&format!("test::identity{position}"));
     }
     identities.build()
+}
+
+#[test]
+fn assembly_catalog_target_demand_survives_wire_and_changes_identity() {
+    let machine = MachineId::new(1).unwrap();
+    let mut module = TerminalModule::for_entry(machine);
+    module.machines.push(unit_machine(machine));
+    let portable = encode_module(&module).unwrap();
+    module.machines[0].assembly_target_requirement =
+        terminal_psi::RegisterTargetApplicability::X86_64;
+    let x86 = encode_module(&module).unwrap();
+    assert_ne!(portable, x86);
+    assert_eq!(decode_module(&x86).unwrap(), module);
+    module.machines[0].assembly_target_requirement =
+        terminal_psi::RegisterTargetApplicability::Aarch64;
+    let arm = encode_module(&module).unwrap();
+    assert_ne!(x86, arm);
+    assert_eq!(decode_module(&arm).unwrap(), module);
+    let mut old = portable;
+    old[8..10].copy_from_slice(&164_u16.to_le_bytes());
+    assert!(matches!(
+        decode_module(&old),
+        Err(CodecError::UnsupportedFormatMarker(164))
+    ));
 }

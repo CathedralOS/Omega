@@ -1,0 +1,2 @@
+unsupported x86 scratch register view
+rax

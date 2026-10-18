@@ -23,6 +23,25 @@ impl TypedTreeTables {
             let statement = match statement {
                 StatementNode::Assembly(AssemblyControlPoint::Entry(handle)) => {
                     let target = self.statement_table.copy_assembly_from(source, *handle);
+                    let primitives: Vec<_> = source
+                        .expression_handles(source.assembly(*handle).primitives)
+                        .iter()
+                        .map(|expression| {
+                            self.expression_table
+                                .copy_from(&source_tables.expression_table, *expression)
+                        })
+                        .collect();
+                    let primitives = self.statement_table.insert_expression_handles(primitives);
+                    self.statement_table.assembly_mut(target).primitives = primitives;
+                    let mut scratch = self.statement_table.assembly(target).scratch;
+                    for expression in &mut scratch {
+                        if expression.is_valid() {
+                            *expression = self
+                                .expression_table
+                                .copy_from(&source_tables.expression_table, *expression);
+                        }
+                    }
+                    self.statement_table.assembly_mut(target).scratch = scratch;
                     assembly_blocks.extend(
                         source
                             .assembly(*handle)
@@ -198,7 +217,21 @@ impl TypedTreeTables {
         for handle in statement_handles {
             let statement = self.statement_table.statement(handle).clone();
             match statement {
-                StatementNode::Assembly(_) => {} // Control metadata has no lexical value operands.
+                StatementNode::Assembly(AssemblyControlPoint::Entry(graph)) => {
+                    let primitives = self
+                        .statement_table
+                        .expression_handles(self.statement_table.assembly(graph).primitives)
+                        .to_vec();
+                    for expression in primitives {
+                        self.expression_table.remap_symbols_in(expression, symbols);
+                    }
+                    for expression in self.statement_table.assembly(graph).scratch {
+                        if expression.is_valid() {
+                            self.expression_table.remap_symbols_in(expression, symbols);
+                        }
+                    }
+                }
+                StatementNode::Assembly(AssemblyControlPoint::Label(_)) => {}
                 StatementNode::RootBinding(binding) => {
                     self.expression_table
                         .remap_symbols_in(binding.receiver, symbols);

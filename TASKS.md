@@ -188,9 +188,14 @@ helper that passes does not close an item.
   and every forward edge and backedge is proved against exact modeled register,
   flag, memory, place, authority and ownership state. Finite acyclic local
   label paths retain one lexical storage frame and prove place/value contracts
-  through shared flow and Terminal/native execution. Register/flag versions,
-  conditional and cyclic edges with ordinary loop obligations, and checked
-  hardware-effect retirement of the exact linear obligation remain unfinished.
+  through shared flow and Terminal/native execution. The bounded 32-bit GPR
+  mov/sub/jnz cohort now transports immutable register/ZF versions through
+  conditional and backward edges, retaining exact target demands and ordinary
+  custody; `samples/cli/facts/checked_asm_countdown` covers nine places and false
+  fallthrough twins with Linux native/Terminal agreement. Other ISA/register
+  views, indexed memory/address composition, hardware flag observations,
+  ranking-witness transport for promised termination, and checked hardware-effect
+  retirement of the exact linear obligation remain unfinished.
   Extend that control model rather than adding an opaque asm parser or verifier.
 
   Own the source grammar and catalogs in

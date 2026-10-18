@@ -8,6 +8,8 @@ use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, ServiceId, S
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMachine {
+    /// Conjunctive catalog architecture demand retained after instruction normalization.
+    pub assembly_target_requirement: crate::RegisterTargetApplicability,
     pub id: MachineId,
     /// Exact checked declaration when this is a source-produced body. Compiler
     /// synthetic machines have no authored declaration.

@@ -242,6 +242,10 @@ impl StatementTable {
                     return Err("assembly block contains an independent control point".into());
                 }
                 let exit = match block.exit {
+                    AssemblyExit::NonZero(_) => return Err(
+                        "conditional assembly control must be normalized before finite execution"
+                            .into(),
+                    ),
                     AssemblyExit::Fallthrough => {
                         StatementControlExit::Continue(if index + 1 == assembly.len() {
                             continuation

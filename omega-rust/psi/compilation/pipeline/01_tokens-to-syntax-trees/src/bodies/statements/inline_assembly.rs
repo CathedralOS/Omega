@@ -1,5 +1,7 @@
 //! Inline assembly blocks: instructions, `where` contracts and clobbers.
 
+mod scratch;
+
 use crate::bodies::transitions::targets::parse_target::parse_transition_block_target_handle;
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle;
@@ -72,15 +74,18 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
+    let expression_start = syntax_trees.expressions.expression_count();
     let input = input.take_contextual("asm")?;
     let (contract, input) = parse_asm_where_contract(syntax_trees, input)?;
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut blocks = Vec::new();
+    let mut primitives = Vec::new();
     let mut block = ParsedAssemblyBlock {
         label: Identifier::generated("asm#entry"),
         requires: contract.requires,
         ..Default::default()
     };
+    let mut observes_hardware_flags = false;
     let mut realized_clobbers = std::collections::BTreeSet::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
@@ -118,24 +123,46 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         }
         // A bare destination is local to this assembly CFG. The existing
         // parenthesized `jmp state(...)` remains an ordinary machine edge.
-        if input.at_contextual("jmp") {
-            let after_jump = input.take_contextual("jmp")?;
-            if let Ok((label, rest)) = after_jump.take_identifier() {
-                if rest.at_punctuation(PunctuationKind::Semicolon)
-                    || rest.at_punctuation(PunctuationKind::RightBrace)
-                {
-                    block.exit = syntax_trees::statement::AssemblyExit::Jump(label);
-                    block.instruction_count += 1;
-                    input = rest;
-                    if input.at_punctuation(PunctuationKind::Semicolon) {
-                        input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-                    }
-                    continue;
+        if input.at_contextual("jmp") || input.at_contextual("jnz") {
+            let conditional = input.at_contextual("jnz");
+            let after_jump = input.take_contextual(if conditional { "jnz" } else { "jmp" })?;
+            if let Ok((label, rest)) = after_jump.take_identifier()
+                && (rest.at_punctuation(PunctuationKind::Semicolon)
+                    || rest.at_punctuation(PunctuationKind::RightBrace))
+            {
+                block.exit = if conditional {
+                    // The explicit ZF operand is retained even though jnz has no spelled value operand.
+                    scratch::name(syntax_trees, "zf");
+                    syntax_trees::statement::AssemblyExit::NonZero(label)
+                } else {
+                    syntax_trees::statement::AssemblyExit::Jump(label)
+                };
+                block.instruction_count += 1;
+                input = rest;
+                if input.at_punctuation(PunctuationKind::Semicolon) {
+                    input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
                 }
+                continue;
             }
         }
         let (instruction, rest) = parse_asm_instruction_statement_handle(syntax_trees, input)?;
         realized_clobbers.extend(instruction.contract.clobbers.iter().copied());
+        observes_hardware_flags |= matches!(
+            instruction.contract.shape,
+            AsmInstructionShape::FlagsSnapshot | AsmInstructionShape::FlagsRestore
+        );
+        if let StatementNode::Assignment(assignment) =
+            syntax_trees.statements.statement(instruction.statement)
+            && let ExpressionNode::Name(path) =
+                syntax_trees.expressions.expression(assignment.target)
+            && let [name] = syntax_trees.expressions.identifier_path_members(*path)
+            && let Some(register_index) = scratch::NAMES
+                [..language_core::inline_assembly::ASM_ZERO_FLAG_SLOT]
+                .iter()
+                .position(|register| *register == name.as_str())
+        {
+            realized_clobbers.insert(scratch::CLOBBERS[register_index]);
+        }
         block.has_no_local_post_state |= matches!(
             instruction.contract.shape,
             AsmInstructionShape::Halt | AsmInstructionShape::DerivedExit
@@ -147,6 +174,27 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             block.exit = syntax_trees::statement::AssemblyExit::EnclosingTransition;
         }
         block.instructions.push(instruction.statement);
+        if instruction.contract.shape == AsmInstructionShape::Subtract {
+            let StatementNode::Assignment(assignment) =
+                syntax_trees.statements.statement(instruction.statement)
+            else {
+                unreachable!()
+            };
+            let destination = assignment.target;
+            let ExpressionNode::Cast(result) =
+                syntax_trees.expressions.expression(assignment.value)
+            else {
+                unreachable!("catalog subtraction produces a same-carrier policy erasure")
+            };
+            primitives.push(result.value);
+            let flag = scratch::zero_flag(syntax_trees, destination);
+            let StatementNode::Assignment(flag_write) = syntax_trees.statements.statement(flag)
+            else {
+                unreachable!()
+            };
+            primitives.push(flag_write.value);
+            block.instructions.push(flag);
+        }
         block.instruction_count += 1;
         input = rest;
         if input.at_punctuation(PunctuationKind::Semicolon) {
@@ -173,17 +221,41 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
                 block.label.as_str()
             )));
         }
-        if let syntax_trees::statement::AssemblyExit::Jump(label) = &block.exit {
-            if !blocks
+        if let syntax_trees::statement::AssemblyExit::Jump(label)
+        | syntax_trees::statement::AssemblyExit::NonZero(label) = &block.exit
+            && !blocks
                 .iter()
                 .any(|target| target.label.as_str() == label.as_str())
-            {
-                return Err(input.error_here(format!(
-                    "assembly jump names undeclared label `{}`",
-                    label.as_str()
-                )));
-            }
+        {
+            return Err(input.error_here(format!(
+                "assembly jump names undeclared label `{}`",
+                label.as_str()
+            )));
         }
+    }
+    // Register aliases are architectural views, not independent Omega locals.
+    // Until their shared-bit transfer is modeled, reject them even if a source
+    // local happens to have the same spelling.
+    for (_, node) in syntax_trees
+        .expressions
+        .iter_expressions()
+        .skip(expression_start)
+    {
+        let ExpressionNode::Name(path) = node else {
+            continue;
+        };
+        let [name] = syntax_trees.expressions.identifier_path_members(*path) else {
+            continue;
+        };
+        if language_core::inline_assembly::is_unmodeled_x86_scratch_view(name.as_str()) {
+            return Err(input.error_here(format!("unsupported x86 scratch register view `{name}`: register aliases require shared-bit state modeling")));
+        }
+    }
+    let uses_scratch = syntax_trees.expressions.iter_expressions().skip(expression_start).any(|(_, node)| {
+        matches!(node, ExpressionNode::Name(path) if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if scratch::NAMES.iter().any(|register| !register.is_empty() && *register == name.as_str())))
+    });
+    if uses_scratch && observes_hardware_flags {
+        return Err(input.error_here("scratch-register CFG flags cannot yet be combined with hardware pushfq/popfq snapshots or restoration"));
     }
     let last = blocks.last_mut().expect("assembly has a nonempty block");
     if !contract.ensures.is_empty()
@@ -200,6 +272,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     if let Some(declared_clobbers) = contract.clobbers {
         validate_asm_clobber_contract(&declared_clobbers, &realized_clobbers, input)?;
     }
+    let (scratch, bindings) = scratch::bind(syntax_trees, expression_start);
     let blocks: Vec<_> = blocks
         .into_iter()
         .map(|block| syntax_trees::statement::AssemblyBlock {
@@ -217,14 +290,29 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         })
         .collect();
     let blocks = syntax_trees.statements.insert_assembly_blocks(blocks);
-    let graph = syntax_trees
+    let primitives = syntax_trees
         .statements
-        .insert_assembly(syntax_trees::statement::AssemblyControlFlow { blocks });
+        .insert_assembly_expressions(primitives);
+    let graph =
+        syntax_trees
+            .statements
+            .insert_assembly(syntax_trees::statement::AssemblyControlFlow {
+                blocks,
+                scratch,
+                primitives,
+            });
     let statement = syntax_trees
         .statements
         .insert(StatementNode::Assembly(graph));
-    let handle = syntax_trees.items.append_statement_handle(statement);
-    Ok((HandleSpan::from_parts(handle, 1), input))
+    let mut start = arena::Handle::invalid();
+    let count = bindings.len() as u32 + 1;
+    for statement in bindings.into_iter().chain(std::iter::once(statement)) {
+        let handle = syntax_trees.items.append_statement_handle(statement);
+        if !start.is_valid() {
+            start = handle;
+        }
+    }
+    Ok((HandleSpan::from_parts(start, count), input))
 }
 
 #[derive(Default)]
@@ -530,7 +618,10 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     }
 
     match contract.shape {
-        AsmInstructionShape::RegisterMove => {
+        AsmInstructionShape::JumpNonZero => {
+            Err(mnemonic_site.error_here("jnz requires a declared local assembly label"))
+        }
+        AsmInstructionShape::Subtract | AsmInstructionShape::RegisterMove => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
             let (source, input) = parse_expression_handle(syntax_trees, input)?;
@@ -541,12 +632,48 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 destination,
             )?;
             reject_bracketed_asm_operand(syntax_trees, mnemonic_site, mnemonic.as_str(), source)?;
+            if matches!(syntax_trees.expressions.expression(destination), ExpressionNode::Name(path) if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str() == "zf"))
+            {
+                return Err(mnemonic_site.error_here("mov/sub cannot directly write ZF; its version is established by the catalog arithmetic result"));
+            }
+            let value = if contract.shape == AsmInstructionShape::Subtract {
+                let ExpressionNode::Name(path) = syntax_trees.expressions.expression(destination)
+                else {
+                    return Err(mnemonic_site
+                        .error_here("sub requires a modeled 32-bit register destination"));
+                };
+                let [name] = syntax_trees.expressions.identifier_path_members(*path) else {
+                    return Err(mnemonic_site
+                        .error_here("sub requires a modeled 32-bit register destination"));
+                };
+                if !scratch::NAMES[..language_core::inline_assembly::ASM_ZERO_FLAG_SLOT]
+                    .contains(&name.as_str())
+                {
+                    return Err(mnemonic_site
+                        .error_here("sub requires a modeled 32-bit register destination"));
+                }
+                let admitted_source = match syntax_trees.expressions.expression(source) {
+                    ExpressionNode::Integer(literal) => literal
+                        .value_u64()
+                        .is_some_and(|value| value <= u32::MAX as u64),
+                    ExpressionNode::Name(path) => {
+                        matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if scratch::NAMES[..language_core::inline_assembly::ASM_ZERO_FLAG_SLOT].contains(&name.as_str()))
+                    }
+                    _ => false,
+                };
+                if !admitted_source {
+                    return Err(mnemonic_site.error_here("sub requires a modeled 32-bit register or a fitting unsigned 32-bit immediate source"));
+                }
+                scratch::subtraction(syntax_trees, destination, source)
+            } else {
+                source
+            };
             ParsedAsmInstruction::ok(
                 syntax_trees
                     .statements
                     .insert(StatementNode::Assignment(TableAssignment {
                         target: destination,
-                        value: source,
+                        value,
                     })),
                 contract,
                 input,

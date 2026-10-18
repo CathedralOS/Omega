@@ -34,6 +34,37 @@ impl AssemblyScopeRouting<'_> {
                 continue;
             };
             let graph = self.graphs.get(*handle);
+            let entry = MachineScope {
+                prior_statements: &outer[..index],
+                ..*machine
+            };
+            for expression in self.contracts.span_or_empty(graph.primitives) {
+                assign_statement_expression_symbols(
+                    self.symbols,
+                    &entry,
+                    parameters,
+                    state,
+                    self.expressions,
+                    self.child_types,
+                    *expression,
+                );
+            }
+            for expression in graph
+                .scratch
+                .iter()
+                .copied()
+                .filter(|expression| expression.is_valid())
+            {
+                assign_statement_expression_symbols(
+                    self.symbols,
+                    &entry,
+                    parameters,
+                    state,
+                    self.expressions,
+                    self.child_types,
+                    expression,
+                );
+            }
             for block in self.blocks.span_or_empty(graph.blocks) {
                 let prefix = &outer[..index];
                 let entry = MachineScope {

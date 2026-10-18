@@ -8,7 +8,12 @@
 //! entries rather than silently crossing the strict assembly surface.
 
 mod register_operations;
+mod scratch_registers;
 pub use register_operations::{AsmRegisterCarrier, AsmRegisterOperation};
+pub use scratch_registers::{
+    ASM_SCRATCH_CLOBBERS, ASM_SCRATCH_NAMES, ASM_SCRATCH_SLOT_COUNT, ASM_ZERO_FLAG_SLOT,
+    is_unmodeled_x86_scratch_view,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AsmInstructionAvailability {
@@ -19,6 +24,14 @@ pub enum AsmInstructionAvailability {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AsmInstructionShape {
     JumpState,
+    /// Modular, destination-width x86 subtraction; establishes arithmetic flags.
+    /// Decode a 32-bit GPR read/write and a 32-bit GPR or fitting immediate.
+    /// Subtract modulo 2^32, establish ZF from the result, and clobber the
+    /// decoded destination and arithmetic status flags. Other flag views
+    /// remain unavailable until their complete state semantics are modeled.
+    Subtract,
+    /// Local conditional transfer consuming the latest zero flag.
+    JumpNonZero,
     Halt,
     PortOut,
     PortIn,
@@ -476,6 +489,21 @@ pub enum AsmTargetApplicability {
     Aarch64,
 }
 
+impl AsmTargetApplicability {
+    /// Match the core catalog's concrete target identities. Arbitrary deployment
+    /// tags cannot establish an architecture requirement.
+    pub fn accepts_target_name(self, target: &str) -> bool {
+        match self {
+            Self::Any => true,
+            Self::X86_64 => matches!(
+                target,
+                "linux_x86_64" | "windows_x86_64" | "macos_x86_64" | "uefi_x86_64"
+            ),
+            Self::Aarch64 => matches!(target, "linux_arm64" | "macos_arm64"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AsmAuthorityRequirement {
     None,
@@ -564,6 +592,10 @@ pub enum AsmInterruptFlagEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AsmFlagsDataFlow {
     None,
+    /// Establish ZF from the exact modular arithmetic result.
+    ArithmeticResult,
+    /// Consume the latest initialized ZF on both explicit successors.
+    ZeroFlagBranch,
     /// Snapshot RFLAGS into the instruction's explicit destination operand.
     SnapshotToOperand,
     /// Restore the architecturally writable RFLAGS fields from an explicit
@@ -661,7 +693,9 @@ pub struct AsmInstructionContract {
     pub shape: AsmInstructionShape,
     pub target: AsmTargetApplicability,
     pub required_authority: AsmAuthorityRequirement,
-    /// Source-order operands. These are target-register constraints, not
+    /// Fixed source-order operands. Dynamic scratch-register shapes carry
+    /// their decoded register constraints in the instruction shape instead.
+    /// These are target-register constraints, not
     /// permissive numeric coercions.
     pub operands: &'static [AsmOperandConstraint],
     /// Ordering established by the instruction. Kept separate from service
@@ -1044,6 +1078,15 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     }
 
     let entry = match mnemonic {
+        "sub" => Contract(AsmInstructionContract {
+            flags_data_flow: AsmFlagsDataFlow::ArithmeticResult,
+            clobbers: &["rflags"],
+            ..AsmInstructionContract::without_side_effects(AsmInstructionShape::Subtract, X86_64)
+        }),
+        "jnz" => Contract(AsmInstructionContract {
+            flags_data_flow: AsmFlagsDataFlow::ZeroFlagBranch,
+            ..AsmInstructionContract::without_side_effects(AsmInstructionShape::JumpNonZero, X86_64)
+        }),
         "jmp" => Contract(AsmInstructionContract::without_side_effects(JumpState, Any)),
         "hlt" => Contract(AsmInstructionContract::machine_authority(
             Halt,

@@ -1119,6 +1119,13 @@ pub(super) fn emit(
         crate::machine_lowering::nominal_cleanup_subject(checked, plan.machine, type_ids)?;
     let attachment = attachment.or(nominal_cleanup_subject);
     let mut machine = TerminalMachine {
+        assembly_target_requirement: checked
+            .typed
+            .machine(plan.machine)
+            .map(|machine| machine.assembly_target_requirement)
+            .ok_or(crate::lowering_error::LoweringError::Unsupported(
+                "assembly target requirement has no checked machine",
+            ))?,
         declaration: None,
         closed_reach_application: None,
         declared_service_reach: lower_declared_service_reach(checked, plan.machine, service_ids)?,

@@ -82,27 +82,56 @@ pub(crate) fn lower(
             exit: match block.exit {
                 resolved::statement::AssemblyExit::Fallthrough => AssemblyExit::Fallthrough,
                 resolved::statement::AssemblyExit::Jump(_) => AssemblyExit::Jump(Handle::invalid()),
+                resolved::statement::AssemblyExit::NonZero(_) => {
+                    AssemblyExit::NonZero(Handle::invalid())
+                }
                 resolved::statement::AssemblyExit::EnclosingTransition => {
                     AssemblyExit::EnclosingTransition
                 }
             },
         });
     }
+    let source_primitives = declarations
+        .assembly_expressions
+        .span_or_empty(graph.primitives)
+        .to_vec();
+    let source_scratch = graph.scratch;
+    let source_blocks = graph.blocks;
+    let mut scratch = [typed_trees::expression::ExpressionHandle::invalid();
+        language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT];
+    for (target, source) in scratch.iter_mut().zip(source_scratch) {
+        if source.is_valid() {
+            *target = super::arguments::lower_statement_expression(lowerer, source)?;
+        }
+    }
+    let primitives = source_primitives
+        .into_iter()
+        .map(|expression| super::arguments::lower_statement_expression(lowerer, expression))
+        .collect::<Result<Vec<_>, _>>()?;
+    let declarations = &lowerer.source_trees.tables.declarations;
     let table = &mut lowerer.typed_trees.statement_table;
+    let primitives = table.insert_expression_handles(primitives);
     let blocks = table.insert_assembly_blocks(blocks);
-    for (source_handle, target_handle) in graph.blocks.handles().zip(blocks.handles()) {
+    for (source_handle, target_handle) in source_blocks.handles().zip(blocks.handles()) {
         body[table.assembly_block(target_handle).start as usize] =
             StatementNode::Assembly(AssemblyControlPoint::Label(target_handle));
-        if let resolved::statement::AssemblyExit::Jump(target) =
+        if let resolved::statement::AssemblyExit::Jump(target)
+        | resolved::statement::AssemblyExit::NonZero(target) =
             declarations.assembly_blocks.get(source_handle).exit
         {
-            let Some(index) = graph.blocks.handles().position(|handle| handle == target) else {
+            let Some(index) = source_blocks.handles().position(|handle| handle == target) else {
                 return Err(Diagnostic::error(
                     "assembly jump escaped its declaring graph",
                 ));
             };
-            table.assembly_block_mut(target_handle).exit =
-                AssemblyExit::Jump(blocks.handle_at(index as u32));
+            table.assembly_block_mut(target_handle).exit = if matches!(
+                declarations.assembly_blocks.get(source_handle).exit,
+                resolved::statement::AssemblyExit::NonZero(_)
+            ) {
+                AssemblyExit::NonZero(blocks.handle_at(index as u32))
+            } else {
+                AssemblyExit::Jump(blocks.handle_at(index as u32))
+            };
         }
     }
     let statement_count = u32::try_from(body.len())
@@ -110,6 +139,8 @@ pub(crate) fn lower(
     let graph = table.insert_assembly(AssemblyControlFlow {
         blocks,
         statement_count,
+        scratch,
+        primitives,
     });
     let mut statements = Vec::with_capacity(body.len() + 1);
     statements.push(StatementNode::Assembly(AssemblyControlPoint::Entry(graph)));

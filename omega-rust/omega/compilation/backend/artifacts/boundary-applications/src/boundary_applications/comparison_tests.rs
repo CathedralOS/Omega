@@ -16,6 +16,7 @@ fn comparison_module(operand_type: ScalarType, kind: OperationKind) -> TerminalM
     let block = BlockId::new(1).unwrap();
     TerminalModule {
         machines: vec![TerminalMachine {
+            assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             id: machine,
             attachment: None,
             declaration: None,

@@ -1,0 +1,3 @@
+cannot prove requires contract for call loop
+> 1
+in state `loop`

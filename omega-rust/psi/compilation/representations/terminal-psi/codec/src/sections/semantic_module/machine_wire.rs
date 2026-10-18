@@ -39,6 +39,11 @@ pub(crate) fn encode_machine(
     machine: &TerminalMachine,
 ) -> Result<(), CodecError> {
     writer.id(machine.id);
+    writer.u8(match machine.assembly_target_requirement {
+        terminal_psi::RegisterTargetApplicability::Any => 0,
+        terminal_psi::RegisterTargetApplicability::X86_64 => 1,
+        terminal_psi::RegisterTargetApplicability::Aarch64 => 2,
+    });
     writer.boolean(machine.declaration.is_some());
     if let Some(declaration) = &machine.declaration {
         super::machine_declaration_wire::encode(writer, declaration)?;
@@ -137,6 +142,12 @@ pub(crate) fn encode_declaration(writer: &mut Writer, declaration: ValueDeclarat
 
 pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
     let id = reader.id("MachineId")?;
+    let assembly_target_requirement = match reader.u8()? {
+        0 => terminal_psi::RegisterTargetApplicability::Any,
+        1 => terminal_psi::RegisterTargetApplicability::X86_64,
+        2 => terminal_psi::RegisterTargetApplicability::Aarch64,
+        _ => return crate::codec_error::malformed("unknown machine assembly target requirement"),
+    };
     let declaration = if reader.boolean()? {
         Some(super::machine_declaration_wire::decode(reader)?)
     } else {
@@ -214,6 +225,7 @@ pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
     }
     let contract = decode_contract(reader)?;
     Ok(TerminalMachine {
+        assembly_target_requirement,
         id,
         declaration,
         attachment,
