@@ -556,6 +556,8 @@ pass/facts/bound_through_other_state_exit built 3824ms exit:0 interpreter-exit:0
 pass/facts/bound_through_parameter_exit built 3868ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/bound_through_target_body_exit built 3875ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/computed_record_window_original_exit built 8596ms exit:0 interpreter-exit:0 interpreter:agrees @408e4fc23fbc
+pass/facts/qualified_borrowed_join_exit built 3982ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
+pass/facts/qualified_owned_join_exit built 4711ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/reference_arrival_handoff_through_call_result_exit built 6175ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_const_name_exit built 6175ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_field_exit built 6322ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
@@ -761,6 +763,7 @@ pass/proofs/captured_scalar_field_observations built 11598ms exit:0 interpreter-
 pass/proofs/declaration_predicate_calls_exit built 4308ms exit:0 interpreter-exit:0 interpreter:agrees @4ef5069e9f3b+wt
 pass/proofs/declaration_synthesized_equality_value_context built 3616ms exit:0 interpreter-exit:0 interpreter:agrees @4ef5069e9f3b+wt
 pass/proofs/disjunctive_domain_result_exit built 3681ms exit:0 interpreter-exit:0 interpreter:agrees @93160ec7e266+wt
+pass/proofs/domain_mathematical_selection_exit built 3976ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/proofs/kernel_integer_subtract_order built 3453ms exit:0 interpreter-exit:0 interpreter:agrees @1a353f2e117b+wt
 pass/proofs/mathematical_predicate_contract_import_exit built 3407ms exit:0 interpreter-exit:0 interpreter:agrees @4a6e7ac34b03
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit built 2843ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1

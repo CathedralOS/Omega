@@ -94,6 +94,27 @@ impl<'program> PreparedMathematicalView<'program> {
     }
 }
 
+/// Read an already reduced constant application without redoing conversion.
+pub(crate) fn application_spine(
+    view: PreparedMathematicalView<'_>,
+    mut term: TermHandle,
+) -> Option<(u32, Vec<TermHandle>)> {
+    let mut arguments = Vec::new();
+    loop {
+        match view.arena.get(term) {
+            proof_admission::Term::Apply { function, argument } => {
+                arguments.push(argument);
+                term = function;
+            }
+            proof_admission::Term::Constant { declaration, .. } => {
+                arguments.reverse();
+                return Some((declaration, arguments));
+            }
+            _ => return None,
+        }
+    }
+}
+
 /// The exact selected embedding owns these bounds. A source spelling or the
 /// shared kernel Int domain cannot synthesize an address or fixed-carrier law.
 pub fn integer_embedding_meaning(

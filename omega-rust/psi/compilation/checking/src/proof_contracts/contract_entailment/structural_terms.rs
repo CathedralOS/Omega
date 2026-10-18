@@ -11,6 +11,8 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArg
 use super::StructuralTerm;
 
 mod binary;
+mod mathematical;
+pub(super) use mathematical::application_term as mathematical_application_term;
 mod collection_measures;
 pub(super) use collection_measures::{
     collection_measure_term, completed_collection_measure, descriptor_only_observation,
@@ -643,6 +645,11 @@ pub(super) fn structural_term(
         // term-less so a NaN operand can never pose as a decided value.
         ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
         ExpressionNode::Call(call) => {
+            if crate::mathematical_applications::selected_definition(program, call).is_some() {
+                return mathematical_application_term(program, expression, |capture| {
+                    structural_term(program, scope, frame, capture, bindings)
+                });
+            }
             let target = structural_call_target_in_frame(program, call, frame);
             if (!call.receiver.is_valid() || static_call_receiver_for_target(program, call, target))
                 && call.evidence_arguments.is_empty()

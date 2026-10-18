@@ -139,9 +139,11 @@ pub(crate) fn emit(
                         .ok_or(LoweringError::Unsupported(
                             "owned selection parameter source has no signature place",
                         ))?;
-                    if !declaration.is_unqualified_owned_affine() {
+                    if declaration.access != StructuralAccess::Owned
+                        || declaration.multiplicity != StructuralMultiplicity::Affine
+                    {
                         return Err(LoweringError::Unsupported(
-                            "owned selection parameter source lacks whole plain-affine custody",
+                            "owned selection parameter source lacks whole affine custody",
                         ));
                     }
                     Ok(StructuralArgument {
@@ -882,15 +884,16 @@ fn prepare_owners(
             .ok_or(LoweringError::Unsupported(
                 "selection survivor requires an exact emitted operation-result frontier",
             ))?;
+        // This is whole-value transport, not extraction or qualification
+        // erasure. Preserve the emitted signature, including predicate facts;
+        // the checked contents row and claim frontier decide custody eligibility.
         if value.multiplicity != StructuralMultiplicity::Affine
             || !value.claims.is_empty()
-            || !value.qualifications.is_empty()
-            || !value.projected_qualifications.is_empty()
             || !structural_types
                 .iter()
                 .any(|declaration| declaration.id == value.structural_type)
         {
-            return unsupported("selection survivor requires claim-free plain-affine transport");
+            return unsupported("selection survivor requires claim-free affine transport");
         }
         owners.push(argument_evaluation::StructuralValueOwner {
             symbol: symbol,
@@ -932,7 +935,8 @@ fn prepare_owners(
                 .ok_or(LoweringError::Unsupported(
                     "selection parameter source has no signature place",
                 ))?;
-            if !declaration.is_unqualified_owned_affine()
+            if declaration.access != StructuralAccess::Owned
+                || declaration.multiplicity != StructuralMultiplicity::Affine
                 || checked.type_multiplicity(parameter.type_reference) != Multiplicity::Affine
                 || !crate::content_classes::owned_or_shared_view_contents(
                     checked,
@@ -1048,6 +1052,10 @@ pub(super) struct ValueContinuation {
     remaining_owners: Vec<argument_evaluation::StructuralValueOwner>,
     pass_through: Vec<(PlaceId, PlaceId)>,
     residuals: Vec<PlaceId>,
+    /// Memberships are the intersection of completed incoming values, never
+    /// facts inferred from the receiving annotation. An empty first roster is
+    /// distinct from a join that has not received an edge yet.
+    has_incoming_memberships: bool,
 }
 
 /// One projected affine child moved on a selected edge. The root place keeps
@@ -1647,7 +1655,7 @@ impl Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
         value: CheckedStructuralValueHandle,
-        continuation: Option<&ValueContinuation>,
+        continuation: Option<&mut ValueContinuation>,
     ) -> Result<StructuralArgument, LoweringError> {
         let node = self.structural_value_node(value);
         let place = match node.kind {
@@ -1876,13 +1884,13 @@ impl Emission<'_, '_, '_> {
                 // no enclosing dispatch to supply that edge; create the same
                 // result continuation rather than turn the projection into
                 // an alias over temporary storage.
-                let owned_continuation;
+                let mut owned_continuation;
                 let is_root = continuation.is_none();
                 let continuation = if let Some(continuation) = continuation {
                     continuation
                 } else {
                     owned_continuation = self.root_value_continuation(self.values.clone())?;
-                    &owned_continuation
+                    &mut owned_continuation
                 };
                 let projected = self.projected_root(identities, source, path, type_identity)?;
                 if matches!(
@@ -2353,7 +2361,7 @@ impl Emission<'_, '_, '_> {
             id: place,
             kind: StructuralPlaceKind::BlockParameter { block, position },
         });
-        let continuation = ValueContinuation {
+        let mut continuation = ValueContinuation {
             block,
             parameters,
             structural_parameters,
@@ -2361,8 +2369,9 @@ impl Emission<'_, '_, '_> {
             remaining_owners,
             pass_through,
             residuals: Vec::new(),
+            has_incoming_memberships: false,
         };
-        self.complete_value(identities, source.clone(), None, &continuation)?;
+        self.complete_value(identities, source.clone(), None, &mut continuation)?;
         self.arrival_claims.push((place, source_claims));
         self.start(block);
         if self.multiplicity != StructuralMultiplicity::Unrestricted {
@@ -2428,7 +2437,7 @@ impl Emission<'_, '_, '_> {
             self.result_access,
         )];
         let parameters = fresh_value_declarations(self.next_value, self.values)?;
-        let continuation = ValueContinuation {
+        let mut continuation = ValueContinuation {
             block: join,
             parameters,
             structural_parameters,
@@ -2436,13 +2445,14 @@ impl Emission<'_, '_, '_> {
             remaining_owners: Vec::new(),
             pass_through: Vec::new(),
             residuals: Vec::new(),
+            has_incoming_memberships: false,
         };
         let loan = match argument.access {
             StructuralAccess::SharedBorrow => LoanAccess::Shared,
             StructuralAccess::MutableBorrow => LoanAccess::Mutable,
             _ => return unsupported("direct borrow requires readable loan access"),
         };
-        self.complete_loan(argument, &continuation, loan)?;
+        self.complete_loan(argument, &mut continuation, loan)?;
         self.start(join);
         *self.values = continuation.parameters.clone();
         self.evaluation.parameters = continuation.parameters;
@@ -2460,7 +2470,7 @@ impl Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: &StructuralArgument,
         qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
-        continuation: Option<&ValueContinuation>,
+        continuation: Option<&mut ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let path = self.copied_place_path(argument)?;
         // Ordinary records and bytes retain the same occurrence-relative
@@ -2749,6 +2759,7 @@ impl Emission<'_, '_, '_> {
             remaining_owners,
             pass_through,
             residuals,
+            has_incoming_memberships: false,
         })
     }
 

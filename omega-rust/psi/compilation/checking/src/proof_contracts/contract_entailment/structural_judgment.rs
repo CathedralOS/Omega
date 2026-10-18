@@ -178,6 +178,14 @@ mod term_identity;
 
 impl StructuralTerm {
     pub(super) fn is_mathematical_predicate(&self) -> bool {
+        if let Self::MathematicalBinary {
+            operator: BinaryOperator::And,
+            left,
+            right,
+        } = self.semantic_value()
+        {
+            return left.is_mathematical_predicate() && right.is_mathematical_predicate();
+        }
         matches!(self.semantic_value(), Self::MathematicalBinary { operator, .. }
             if matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual
                 | BinaryOperator::Less | BinaryOperator::LessOrEqual
@@ -783,6 +791,27 @@ impl<'program> StructuralJudge<'program> {
         }
         let left = left.into_semantic_value();
         let right = right.into_semantic_value();
+        if right == value_predicates::boolean_term(true)
+            && let StructuralTerm::MathematicalBinary {
+                operator: BinaryOperator::And,
+                left,
+                right,
+            } = &left
+            && left.is_mathematical_predicate()
+            && right.is_mathematical_predicate()
+        {
+            self.intake_equation(
+                *left.clone(),
+                value_predicates::boolean_term(true),
+                depth + 1,
+            );
+            self.intake_equation(
+                *right.clone(),
+                value_predicates::boolean_term(true),
+                depth + 1,
+            );
+            return;
+        }
         if let Some((operand, truth)) = self
             .boolean_equality_operand(&left, &right)
             .or_else(|| self.boolean_equality_operand(&right, &left))
@@ -1705,6 +1734,21 @@ impl<'program> StructuralJudge<'program> {
                 expression,
                 reference,
                 self.callee_term(argument, environment, machine_environment, scope, depth + 1)?,
+            );
+        }
+        if program
+            .expression_table
+            .call_node(expression)
+            .is_some_and(|call| {
+                crate::mathematical_applications::selected_definition(program, call).is_some()
+            })
+        {
+            return super::structural_terms::mathematical_application_term(
+                program,
+                expression,
+                |capture| {
+                    self.callee_term(capture, environment, machine_environment, scope, depth + 1)
+                },
             );
         }
         match program.expression_table.expression(expression) {

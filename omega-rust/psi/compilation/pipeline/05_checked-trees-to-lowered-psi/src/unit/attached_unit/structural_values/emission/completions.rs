@@ -15,7 +15,7 @@ impl Emission<'_, '_, '_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         place: PlaceId,
-        continuation: Option<&ValueContinuation>,
+        continuation: Option<&mut ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         if let Some(continuation) = continuation {
             self.complete_value(
@@ -37,7 +37,7 @@ impl Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         selected: StructuralArgument,
         projection: Option<&ProjectedMove>,
-        continuation: &ValueContinuation,
+        continuation: &mut ValueContinuation,
     ) -> Result<(), LoweringError> {
         // The join binds owner slots positionally, so arguments are built
         // against the same roster: the displaced slot (the first candidate,
@@ -171,6 +171,7 @@ impl Emission<'_, '_, '_> {
         if let Some(place) = displaced_place {
             trivial_affine_discards.push(place);
         }
+        self.join_memberships(&structural_arguments, continuation)?;
         let edge = self.edge(
             continuation.block,
             self.values.iter().map(|value| value.id).collect(),
@@ -201,7 +202,7 @@ impl Emission<'_, '_, '_> {
     pub(super) fn complete_loan(
         &mut self,
         argument: StructuralArgument,
-        continuation: &ValueContinuation,
+        continuation: &mut ValueContinuation,
         loan: LoanAccess,
     ) -> Result<(), LoweringError> {
         if continuation.structural_parameters.len() != 1
@@ -213,12 +214,60 @@ impl Emission<'_, '_, '_> {
                 LoanAccess::Mutable => "mutable borrowed selection joined residual ownership",
             });
         }
+        self.join_memberships(std::slice::from_ref(&argument), continuation)?;
         let edge = self.edge(
             continuation.block,
             self.values.iter().map(|value| value.id).collect(),
             vec![argument],
         )?;
         self.finish_jump(edge, Vec::new());
+        Ok(())
+    }
+
+    /// Meet actual incoming contracts at their receiving slots. Whole moves,
+    /// projections, and borrowed joins use the same occurrence-relative
+    /// transport; no destination annotation supplies a missing predicate.
+    /// The permission frontier and cleanup remain the separate edge judgment.
+    fn join_memberships(
+        &self,
+        arguments: &[StructuralArgument],
+        continuation: &mut ValueContinuation,
+    ) -> Result<(), LoweringError> {
+        if arguments.len() != continuation.structural_parameters.len() {
+            return unsupported("membership join has unequal source and receiving slots");
+        }
+        for (argument, parameter) in arguments
+            .iter()
+            .zip(&mut continuation.structural_parameters)
+        {
+            let incoming = self.transported_parameter(
+                argument,
+                parameter.place,
+                parameter.position,
+                parameter.structural_type,
+                parameter.multiplicity,
+            )?;
+            if continuation.has_incoming_memberships {
+                parameter
+                    .qualifications
+                    .retain(|domain| incoming.qualifications.contains(domain));
+                parameter
+                    .projected_qualifications
+                    .retain(|domain| incoming.projected_qualifications.contains(domain));
+            } else {
+                parameter.qualifications = incoming.qualifications;
+                parameter.projected_qualifications = incoming.projected_qualifications;
+            }
+            if let Some(owner) = continuation
+                .remaining_owners
+                .iter_mut()
+                .find(|owner| owner.value.place == parameter.place)
+            {
+                owner.value.qualifications = parameter.qualifications.clone();
+                owner.value.projected_qualifications = parameter.projected_qualifications.clone();
+            }
+        }
+        continuation.has_incoming_memberships = true;
         Ok(())
     }
 }

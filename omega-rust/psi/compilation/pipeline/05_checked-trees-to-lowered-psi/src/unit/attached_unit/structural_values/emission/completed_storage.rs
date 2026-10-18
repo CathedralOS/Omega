@@ -185,7 +185,7 @@ impl Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         place: PlaceId,
         decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
-        continuation: Option<&super::ValueContinuation>,
+        continuation: Option<&mut super::ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let domains = self.checked_membership_domains(decisions)?;
         crate::emission::formation_memberships::publish(

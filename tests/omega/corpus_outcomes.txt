@@ -391,6 +391,10 @@ fail/asm/scratch_destination_shared_borrow rejected 9473ms expected @351c5ba8113
 	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
 fail/asm/scratch_destination_structured_load rejected 8460ms expected @351c5ba81137+wt
 	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
+fail/borrows/qualified_match_loan_missing_arm rejected 243ms expected @8a884ecc43d5+wt
+	match arms produce incompatible values
+fail/borrows/qualified_match_loan_shared_to_mutable rejected 235ms expected @8a884ecc43d5+wt
+	machine `inspect` state `entry` local `selected` requires mutable source access; shared or immutable storage cannot supply it
 fail/build/context_entry_returns_value rejected 1889ms expected @e7a4cfaa3c51+wt
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
 fail/build/entry_static_premise_does_not_establish_context rejected 3445ms expected @ba06013a36ec+wt
@@ -4073,6 +4077,16 @@ fail/facts/nominal_loan_backing_cleanup_through_target_body_cleanup_prerequisite
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
 fail/facts/nominal_loan_backing_cleanup_unequal_match_cleanup_prerequisite rejected 7826ms expected @753e7ce7a36e+wt
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/qualified_join_routed_authority rejected 727ms expected @8a884ecc43d5+wt
+	cannot prove default-domain field requirement for return from forge at statement 0: match flag { true => Extent, false => Extent } requires Extent::Granted
+	construction value is not proven in domain `Extent::Granted` in forge state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Extent::Granted` in forge state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/qualified_owned_join_missing_arm rejected 267ms expected @8a884ecc43d5+wt
+	match arms produce incompatible values
+	match arms produce incompatible values
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/qualified_owned_join_reused_source rejected 336ms expected @8a884ecc43d5+wt
+	owned value may have been transferred by an earlier match; it cannot be used here
 fail/facts/remainder_width_through_call_result_rejected rejected 3201ms expected @d070d134851d+wt
 	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
 fail/facts/remainder_width_through_const_name_rejected rejected 3244ms expected @d070d134851d+wt
@@ -5718,6 +5732,8 @@ fail/proofs/disjunctive_domain_mutated_subject rejected 668ms expected @93160ec7
 fail/proofs/disjunctive_domain_wrong_subject rejected 677ms expected @93160ec7e266+wt
 	cannot prove default-domain field requirement for return from invalid at statement 0: Checked::Ready.value requires Pair::Small
 	construction of `Checked` field `value` is not proven in domain `Pair::Small`; a field declared `in Pair::Small` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
+fail/proofs/domain_mathematical_narrow_import rejected 242ms expected @8a884ecc43d5+wt
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/proofs/fact_only_proof_value_citation_linear_resource rejected 4427ms expected @4ce1ff349782+wt
 	linear value `value::Node.token` reaches scope exit without being consumed or transferred
 fail/proofs/fact_only_proof_value_citation_missing_premise rejected 1840ms expected @4ce1ff349782+wt
@@ -5788,6 +5804,8 @@ fail/proofs/mathematical_machine_result_no_denotation rejected 1945ms expected @
 fail/proofs/mathematical_machine_result_requires rejected 816ms expected @3b72a3521c0e+wt
 	cannot prove requires contract for specification call `packet` in mathematical definition `unproved_call`: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `packet` in mathematical definition `unproved_call`: establish its selected precondition in an independently formed prior requires fact
+fail/proofs/mathematical_mutated_capture rejected 249ms expected @8a884ecc43d5+wt
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/proofs/mathematical_opaque_operation_source_meaning rejected 1571ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from bad at statement 0: same()
 fail/proofs/mathematical_result_carrier rejected 153ms expected @a9ae30e1c334+wt
@@ -5797,6 +5815,8 @@ fail/proofs/mathematical_term_in_runtime_arguments rejected 865ms expected @a9ae
 	mathematical terms are proof-only and cannot be used as executable values or statements
 	machine `main` state `entry`: value call `identity(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 	machine `main` state `entry`: value call `identity(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/proofs/mathematical_wrapping_capture rejected 252ms expected @8a884ecc43d5+wt
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/proofs/mutable_ranked_accumulator_wrong_step rejected 3874ms expected @1727c70d2f7e+wt
 	cannot prove requires contract for call accumulate from accumulate: remaining + accumulator == total (needs fact `remaining + accumulator == total` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from accumulate at statement 3: result == total
@@ -9483,6 +9503,8 @@ pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit checked 14785
 pass/facts/nominal_loan_backing_cleanup_through_other_state_exit checked 17579ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/facts/nominal_loan_backing_cleanup_through_parameter_exit checked 11232ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/facts/nominal_loan_backing_cleanup_through_target_body_exit checked 18692ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/facts/qualified_borrowed_join_exit checked 3994ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/qualified_owned_join_exit checked 4372ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/remainder_width_through_call_result_exit checked 7565ms check-target:macos_arm64 @d070d134851d+wt
 pass/facts/remainder_width_through_const_name_exit checked 7523ms check-target:macos_arm64 @d070d134851d+wt
 pass/facts/remainder_width_through_field_exit checked 7512ms check-target:macos_arm64 @d070d134851d+wt
@@ -10340,6 +10362,7 @@ pass/proofs/defined_proposition_premises checked 1193ms @77ecdbf5e7c6
 pass/proofs/descriptor_bound_after_element_call checked 678ms @b3d0b7396229+wt
 pass/proofs/descriptor_bound_call_after_element_call checked 679ms @b3d0b7396229+wt
 pass/proofs/disjunctive_domain_result_exit checked 3801ms check-target:macos_arm64 @93160ec7e266+wt
+pass/proofs/domain_mathematical_selection_exit checked 3978ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/proofs/embed_collection_length checked 1042ms @73e11f08dcbb+wt
 pass/proofs/embed_returned_length checked 1047ms @b276a0918018+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 14367ms check-target:linux_x86_64 @4ce1ff349782+wt

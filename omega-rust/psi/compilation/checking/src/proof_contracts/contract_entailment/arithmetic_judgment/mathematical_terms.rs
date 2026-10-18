@@ -4,6 +4,7 @@
 //! kernel type conversion never establish a source value equation.
 
 use super::{Engine, Judgment, Polynomial};
+use crate::mathematical_applications::application_spine;
 use crate::mathematical_applications::{PreparedConstantMeaning, PreparedMathematicalView};
 use proof_admission::{Term, TermHandle};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -306,26 +307,6 @@ impl Engine<'_> {
                 Some(value)
             }
             _ => None,
-        }
-    }
-}
-
-fn application_spine(
-    view: PreparedMathematicalView<'_>,
-    mut term: TermHandle,
-) -> Option<(u32, Vec<TermHandle>)> {
-    let mut arguments = Vec::new();
-    loop {
-        match view.arena.get(term) {
-            Term::Apply { function, argument } => {
-                arguments.push(argument);
-                term = function;
-            }
-            Term::Constant { declaration, .. } => {
-                arguments.reverse();
-                return Some((declaration, arguments));
-            }
-            _ => return None,
         }
     }
 }

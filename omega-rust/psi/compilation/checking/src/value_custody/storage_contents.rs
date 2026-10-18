@@ -641,9 +641,16 @@ fn resolve(
                         return matches!(contents, ContentType::Scalar(primitive)
                             if crate::scalar_field_domain_predicate(program, domain, primitive).is_some());
                     }
+                    // Selected owned values retain their exact qualification
+                    // and loan frontiers, just as stable observations retain
+                    // the source predicate. These storage judgments neither
+                    // establish membership nor authorize copying or disposal.
                     (matches!(
                         requirement,
-                        ContentsRequirement::StableObservation | ContentsRequirement::SeamMarshal
+                        ContentsRequirement::StableObservation
+                            | ContentsRequirement::SeamMarshal
+                            | ContentsRequirement::LinearOwned
+                            | ContentsRequirement::OwnedOrSharedView
                     ) && is_plain_value_domain(program, domain))
                         // A complete scalar predicate adds no storage or
                         // cleanup. The field catalog retains it, construction

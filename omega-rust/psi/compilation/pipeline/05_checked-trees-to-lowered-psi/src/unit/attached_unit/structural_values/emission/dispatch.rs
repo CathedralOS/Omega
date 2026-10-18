@@ -17,7 +17,7 @@ impl Emission<'_, '_, '_> {
         expression: checked_trees::expression::ExpressionHandle,
         subject: checked_trees::CheckedScalarComputationHandle,
         arms: arena::HandleSpan<checked_trees::CheckedStructuralDispatchArm>,
-        continuation: Option<&ValueContinuation>,
+        continuation: Option<&mut ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let arms = self
             .checked
@@ -38,14 +38,14 @@ impl Emission<'_, '_, '_> {
             source_count,
         )?;
         self.values.push(subject);
-        let owned_continuation;
+        let mut owned_continuation;
         let is_root = continuation.is_none();
         let continuation = if let Some(continuation) = continuation {
             continuation
         } else {
             owned_continuation =
                 self.root_value_continuation(self.values[..source_count].to_vec())?;
-            &owned_continuation
+            &mut owned_continuation
         };
         for (position, arm) in arms.iter().enumerate() {
             let mut fallback = None;
@@ -84,7 +84,7 @@ impl Emission<'_, '_, '_> {
                 }
             }
             self.values.truncate(source_count);
-            self.value(identities, arm.value, Some(continuation))?;
+            self.value(identities, arm.value, Some(&mut *continuation))?;
             self.restore_fallback(fallback);
         }
         if is_root {

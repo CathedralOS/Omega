@@ -26,7 +26,7 @@ impl Emission<'_, '_, '_> {
         selectors: arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>,
         source_value: checked_trees::CheckedStructuralValueHandle,
         storage: checked_trees::CheckedReferenceStorage,
-        continuation: Option<&ValueContinuation>,
+        continuation: Option<&mut ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         // Address demand belongs to the original source, including a scalar
         // formal. Reuse ordinary argument preparation so representation views

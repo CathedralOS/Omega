@@ -916,23 +916,46 @@ fn assign_proof_expression_symbols(
                 &members.joined_path(),
                 diagnostic_path_source_span(members),
             );
-            let symbol = super::lookup::top_level_type_symbol_for_source(symbols, &name);
+            // Facts contain mathematical values as well as type names. A
+            // type-only lookup drops members such as the selected address
+            // model's bound before checking can consume their identity.
+            // Select the complete visible declaration, retaining lexical
+            // shadowing above and the fixed core vocabulary's ownership.
+            let fixed = symbols::FixedCoreDeclaration::from_name(name.as_str())
+                .and_then(|declaration| symbols.fixed_core_declaration_symbol(declaration))
+                .unwrap_or_default();
+            let (head, symbol, member_symbols) = if fixed.is_valid() {
+                let mut selected = fixed;
+                let mut member_symbols = Vec::with_capacity(members.len());
+                for _ in members {
+                    if !selected.is_valid() || selected == symbols.root() {
+                        return;
+                    }
+                    member_symbols.push(selected);
+                    selected = symbols.namespace_parent(selected);
+                }
+                member_symbols.reverse();
+                (member_symbols[0], fixed, member_symbols)
+            } else {
+                let (head, symbol) = super::scoped_paths::resolve_state_scoped_table_path(
+                    symbols,
+                    SymbolHandle::invalid(),
+                    SymbolHandle::invalid(),
+                    expression_table,
+                    &path,
+                );
+                let members = super::scoped_paths::resolve_state_scoped_table_path_member_symbols(
+                    symbols,
+                    SymbolHandle::invalid(),
+                    SymbolHandle::invalid(),
+                    expression_table,
+                    &path,
+                );
+                (head, symbol, members)
+            };
             if !symbol.is_valid() {
                 return;
             }
-            let mut selected = symbol;
-            let mut member_symbols = Vec::with_capacity(members.len());
-            for _ in members {
-                if !selected.is_valid() || selected == symbols.root() {
-                    return;
-                }
-                member_symbols.push(selected);
-                // Authored module ownership differs from physical root
-                // storage for declarations; preserve semantic ancestry.
-                selected = symbols.namespace_parent(selected);
-            }
-            member_symbols.reverse();
-            let head = member_symbols[0];
             for (offset, selected) in (0u32..).zip(member_symbols) {
                 expression_table.set_name_path_member_symbol_at_offset(
                     path.member_symbols,

@@ -6,6 +6,7 @@
 mod expressions;
 pub use expressions::{definition_roots, expression_nodes};
 mod prepared;
+pub(crate) use prepared::application_spine;
 pub use prepared::{
     PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
     PreparedMathematicalApplications, PreparedMathematicalView, integer_embedding_meaning,

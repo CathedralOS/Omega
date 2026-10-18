@@ -46,7 +46,7 @@ impl Emission<'_, '_, '_> {
         region: &checked_trees::CheckedElementViewRegion,
         expression: checked_trees::expression::ExpressionHandle,
         loan: LoanAccess,
-        continuation: Option<&ValueContinuation>,
+        continuation: Option<&mut ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         // A nested position — a record/case field value — names no selection
         // block parameter to join. The view establishes directly as a fresh
