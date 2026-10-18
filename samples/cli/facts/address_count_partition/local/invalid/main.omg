@@ -19,6 +19,8 @@ requires embed(whole.base) + embed(whole.length) <= embed(ceiling)
 ensures Owned::content(old(&whole)) == separate(
     Owned::content(&result.right), Owned::content(&result.left))
 {
+    let mut unrelated: u64 = 1;
+    unrelated = 2;
     let requested: u64 = length;
     let left: Region in Owned = Region { base: whole.base, length: requested };
     let right: Region in Owned = Region { base: whole.base + requested, length: whole.length - requested };

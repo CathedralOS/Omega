@@ -19,3 +19,10 @@ body. Each has the same exit-0 oracle in native and Terminal execution and
 an invalid twin removing the requested-count bound. The corpus additionally
 rejects overlap, missing address fit, wrong count carriers, nested overflow,
 and conservation against mutated or replaced entry values.
+
+The local place writes an unrelated local before splitting. The completed
+return theorem must survive that assignment; it is not an entry-only fact.
+The separate unrelated-store regression under
+`tests/omega/pass/core/address_interval_partition_unrelated_store_exit` pins
+the same distinction without changing any partition operand. Neither test
+authorizes storage: live backing and parent-to-child custody remain unfinished.

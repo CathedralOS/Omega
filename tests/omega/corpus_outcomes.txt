@@ -1483,7 +1483,11 @@ fail/facts/abi_multi_arg_spill_unproved_target_body rejected 2082ms expected @a3
 fail/facts/address_count_partition_through_call_result_rejected rejected 229ms expected @70da601bb299+wt
 fail/facts/address_count_partition_through_const_name_rejected rejected 225ms expected @70da601bb299+wt
 fail/facts/address_count_partition_through_field_rejected rejected 226ms expected @70da601bb299+wt
-fail/facts/address_count_partition_through_local_rejected rejected 227ms expected @70da601bb299+wt
+fail/facts/address_count_partition_through_local_rejected rejected 231ms expected @8fb80f5fa230
+	exact arithmetic in construction of `Region` field `base` may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in construction of `Region` field `length` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `split` state `entry` local `right` may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `split` state `entry` local `right` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/address_count_partition_through_match_join_rejected rejected 234ms expected @70da601bb299+wt
 fail/facts/address_count_partition_through_other_machine_rejected rejected 224ms expected @70da601bb299+wt
 fail/facts/address_count_partition_through_other_state_rejected rejected 228ms expected @70da601bb299+wt
@@ -4821,6 +4825,7 @@ pass/control_flow/transition_tail_self_call checked 1738ms @a9ae30e1c334+wt
 pass/control_flow/unconditional_unit_completion_exit checked 8238ms check-target:linux_x86_64 @7875d3411f26+wt
 pass/core/address_interval_content_partition_exit checked 4031ms check-target:macos_arm64 @70da601bb299+wt
 pass/core/address_interval_partition_reverse_exit checked 4012ms check-target:macos_arm64 @70da601bb299+wt
+pass/core/address_interval_partition_unrelated_store_exit checked 3631ms check-target:macos_arm64 @8fb80f5fa230
 pass/core/aggregate_snapshot_copy_exit checked 3902ms check-target:macos_arm64 @70da601bb299+wt
 pass/core/carry_permission_provider_adapter checked 11097ms check-target:macos_arm64 @83314997c2b2
 pass/core/content_conservation_constructed_argument checked 1711ms @5b58c9723867
@@ -5280,7 +5285,7 @@ pass/facts/abi_multi_arg_spill_through_target_body_exit checked 15275ms check-ta
 pass/facts/address_count_partition_through_call_result_exit checked 4004ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_const_name_exit checked 3993ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_field_exit checked 4018ms check-target:macos_arm64 @70da601bb299+wt
-pass/facts/address_count_partition_through_local_exit checked 4009ms check-target:macos_arm64 @70da601bb299+wt
+pass/facts/address_count_partition_through_local_exit checked 3631ms check-target:macos_arm64 @8fb80f5fa230
 pass/facts/address_count_partition_through_match_join_exit checked 4043ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_other_machine_exit checked 4002ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_other_state_exit checked 4004ms check-target:macos_arm64 @70da601bb299+wt

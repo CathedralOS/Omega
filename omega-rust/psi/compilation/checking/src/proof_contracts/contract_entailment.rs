@@ -562,8 +562,11 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 .iter()
                 .any(|parameter| parameter.name.as_str() == RESULT_BINDER)
         });
-    // An authored content-conservation theorem is judged over the sole-arm
-    // normal-return value; its projection plans are read once per machine.
+    // Authored content conservation uses the same completed normal-return
+    // frames as other body guarantees. Its algebra changes the judgment, not
+    // the observation epoch at which the result is proved. Classifying that
+    // proof as entry-only caused exit checking to discard it on any assignment,
+    // even though the judgment had already accounted for the actual effects.
     let content_plans =
         crate::value_custody::content_conservation::content_conservation_plans(program);
     let projection_plans = if ensures.iter().any(|fact| {
@@ -574,6 +577,8 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         Vec::new()
     };
     let judge_normal_return = |fact: ExpressionHandle| -> Option<StructuralJudgment> {
+        let content_plan =
+            content_conservation::content_conservation_plan(machine, fact, &content_plans);
         // Both a direct tail and a named-state/branch leaf own a completed
         // runtime observation frame. Consume that frame, not a reconstruction
         // from the machine entry that would lose writes or returned guarantees.
@@ -582,7 +587,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 .iter()
                 .map(|path| (&path.judge, &path.value))
                 .collect()
-        } else if structural.has_runtime_body_values() {
+        } else if structural.has_runtime_body_values() || content_plan.is_some() {
             case_arms
                 .as_ref()?
                 .iter()
@@ -593,12 +598,23 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         };
         let mut verdict = StructuralJudgment::Proven;
         for (judge, value) in paths {
-            let mut bound = judge.clone();
-            if !result_is_parameter {
-                std::sync::Arc::make_mut(&mut bound.substitutions)
-                    .insert(0, (RESULT_BINDER.to_owned(), value.clone()));
-            }
-            match bound.judge(program, fact) {
+            let judgment = if let Some(plan) = content_plan {
+                content_conservation::judge_content_conservation(
+                    program,
+                    judge,
+                    value,
+                    plan,
+                    &projection_plans,
+                )
+            } else {
+                let mut bound = judge.clone();
+                if !result_is_parameter {
+                    std::sync::Arc::make_mut(&mut bound.substitutions)
+                        .insert(0, (RESULT_BINDER.to_owned(), value.clone()));
+                }
+                bound.judge(program, fact)
+            };
+            match judgment {
                 StructuralJudgment::Refuted => return Some(StructuralJudgment::Refuted),
                 StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
                 StructuralJudgment::Proven => {}
@@ -609,37 +625,13 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     let judge_structural = |fact: ExpressionHandle,
                             normal_return: Option<&StructuralJudgment>|
      -> StructuralJudgment {
-        if let Some(plan) =
-            content_conservation::content_conservation_plan(machine, fact, &content_plans)
+        if content_conservation::content_conservation_plan(machine, fact, &content_plans).is_some()
         {
-            if sole_arm_result.is_none() && case_arms.is_none() {
-                return StructuralJudgment::Unknown;
-            }
-            let paths = sole_arm_result
-                .iter()
-                .flatten()
-                .map(|path| (&path.judge, &path.value))
-                .chain(
-                    case_arms
-                        .iter()
-                        .flatten()
-                        .map(|arm| (&arm.normal_judge, &arm.value)),
-                );
-            let mut verdict = StructuralJudgment::Proven;
-            for (judge, value) in paths {
-                match content_conservation::judge_content_conservation(
-                    program,
-                    judge,
-                    value,
-                    plan,
-                    &projection_plans,
-                ) {
-                    StructuralJudgment::Proven => {}
-                    StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
-                    StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
-                }
-            }
-            return verdict;
+            // No ordinary expression fallback can establish an algebra theorem
+            // whose complete normal-return frontier was not observed.
+            return normal_return
+                .copied()
+                .unwrap_or(StructuralJudgment::Unknown);
         }
         if structural_terms::is_case_observation(program, fact)
             && let Some(paths) = &sole_arm_case_result
@@ -887,7 +879,15 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 return false;
             }
             match judge_structural(*fact, normal_return.as_ref()) {
-                StructuralJudgment::Proven => proven.entry.push(*fact),
+                StructuralJudgment::Proven => {
+                    if matches!(normal_return, Some(StructuralJudgment::Proven))
+                        && structural.has_runtime_body_values()
+                    {
+                        proven.normal_returns.push(*fact);
+                    } else {
+                        proven.entry.push(*fact);
+                    }
+                }
                 StructuralJudgment::Refuted => {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` ensures contract proof fact `{}` is disproved \
