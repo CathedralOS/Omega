@@ -13,10 +13,10 @@ use omega_language_std::console;
 
 data Main {
     arr: [i32; 5];
-    i: u64 [0..=4] in Wrapping;
+    i: u64 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> read(main) }
     state read(main: &mut Main) {
         let v: i32 = main.arr[main.i];

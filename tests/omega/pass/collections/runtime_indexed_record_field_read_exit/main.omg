@@ -17,9 +17,9 @@ data Cell {
     hp: i32;
 }
 
-data Main {
+data Main where i <= 3 {
     cells: [Cell; 4];
-    i: u64 [0..=3];
+    i: u64;
     scratch: i32;
     selected: bool;
     other: bool;

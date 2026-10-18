@@ -2108,7 +2108,7 @@ fail/collections/computed_nested_borrow_selected_extent rejected 1552ms expected
 	cannot prove index `index + 0` is within length 2 in visit::entry
 fail/collections/computed_nested_borrow_shared_authority rejected 855ms expected @a9ae30e1c334+wt
 	mutable argument `rows` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/collections/computed_selector_read_requires_bounds rejected 5248ms expected @a9ae30e1c334+wt
+fail/collections/computed_selector_read_requires_bounds rejected 4095ms expected @f334a04a60a7+wt
 	cannot prove index `select(&mut cursor)` is within length 2 in main::entry
 fail/collections/contract_length_false_ensures rejected 1210ms expected @510dbaffdefa
 	cannot prove ensures contract for exit from extent at statement 0: result == values.len
@@ -2120,7 +2120,7 @@ fail/collections/contract_length_unmet_requires rejected 1249ms expected @510dba
 	cannot prove requires contract for call extent from first: values.len > 0 (needs fact `values.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/collections/contract_length_wrapping_result_cast_rejected rejected 2355ms expected @d070d134851d+wt
 	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
-fail/collections/declared_range_index_too_wide rejected 5298ms expected @a9ae30e1c334+wt
+fail/collections/declared_range_index_too_wide rejected 3423ms expected @f334a04a60a7+wt
 	cannot prove index `main.i` is within length 5 in Main::main::read
 fail/collections/element_view_descendant_uses_selected_extent rejected 1499ms expected @a9ae30e1c334+wt
 	cannot prove index `column` is within length 2 in read::entry
@@ -2165,9 +2165,8 @@ fail/collections/wrapping_loop_increment_bound rejected 1755ms expected @a9ae30e
 	cannot prove index `main.index` is within length 4 in Main::run::fill
 fail/collections/wrapping_member_decrement_index_unproven rejected 1554ms expected @a9ae30e1c334+wt
 	cannot prove index `stack.count` is within length 8 in take::entry
-fail/collections/wrapping_range_index_unproven rejected 2914ms expected @a9ae30e1c334+wt
-	data `Main` field `i` declares a range constraint together with the `Wrapping` domain: ranges are only enforced under Exact arithmetic, so the combination is ill-formed (a store outside the range would be silently accepted). Keep the range and drop the domain, or keep the domain and drop the range
-	machine `Main::main` state `read` local data `__hoist_30` declares a range constraint together with the `Wrapping` domain: ranges are only enforced under Exact arithmetic, so the combination is ill-formed (a store outside the range would be silently accepted). Keep the range and drop the domain, or keep the domain and drop the range
+fail/collections/wrapping_range_index_unproven rejected 3417ms expected @f334a04a60a7+wt
+	cannot prove index `main.i` is within length 5 in Main::main::read
 fail/comptime/array_expression_fractional rejected 40ms expected @77cde1c51efd+wt
 	const argument expression: anonymous constant expression cannot land exactly at the selected integer carrier
 fail/comptime/array_expression_negative rejected 36ms expected @77cde1c51efd+wt
@@ -6483,7 +6482,7 @@ fail/slices/bare_subslice_call_cannot_lend_mutable rejected 240ms expected @9c4d
 	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/byte_view_element_reference_without_bound rejected 1226ms expected @e02ff5008d25+wt
 	cannot prove index `0` is within unknown slice length of `bytes` in first::entry
-fail/slices/call_endpoint_view_backing_write rejected 1520ms expected @a9ae30e1c334+wt
+fail/slices/call_endpoint_view_backing_write rejected 1483ms expected @f334a04a60a7+wt
 	statement 3 mutates `values[0]` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/slices/call_requires_different_view_extent rejected 1574ms expected @a9ae30e1c334+wt
 	cannot prove requires contract for call read from wrong: position < values.len (needs fact `position < values.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
@@ -6546,17 +6545,17 @@ fail/slices/matched_open_window_end rejected 317ms expected @a4e565996e72+wt
 fail/slices/matched_window_end_join_disagrees rejected 1112ms expected @fd94a7b8095c+wt
 	cannot prove ensures contract for exit from from_join at statement 0: result.len == 2
 	cannot prove every subslice range endpoint of `0..match flag { true => which + 2, false => 3 }` is non-negative
-fail/slices/matched_window_indexed_subject_write_overlap rejected 585ms expected @3384eccdf464
+fail/slices/matched_window_indexed_subject_write_overlap rejected 1499ms expected @f334a04a60a7+wt
 	state `collide` receives `values[2]` while local borrow `view` is still active
 fail/slices/matched_window_lengths_disagree rejected 981ms expected @0e7ef4cb2ac8+wt
 	cannot prove ensures contract for exit from half at statement 0: result.len == 2
-fail/slices/matched_window_pattern_coordinate_has_no_arm_fact rejected 558ms expected @3384eccdf464
+fail/slices/matched_window_pattern_coordinate_has_no_arm_fact rejected 1475ms expected @f334a04a60a7+wt
 	state `pattern` receives `values[0..which + 2]` as mutable more than once
-fail/slices/matched_window_pattern_write_overlap rejected 557ms expected @3384eccdf464
+fail/slices/matched_window_pattern_write_overlap rejected 1448ms expected @f334a04a60a7+wt
 	state `collide` receives `holder.values[2]` while local borrow `view` is still active
-fail/slices/matched_window_scalar_subject_write_overlap rejected 561ms expected @3384eccdf464
+fail/slices/matched_window_scalar_subject_write_overlap rejected 1457ms expected @f334a04a60a7+wt
 	state `collide` receives `values[2]` while local borrow `view` is still active
-fail/slices/matched_window_sibling_write_overlap rejected 556ms expected @3384eccdf464
+fail/slices/matched_window_sibling_write_overlap rejected 1434ms expected @f334a04a60a7+wt
 	state `collide` receives `holder.values[2]` while local borrow `view` is still active
 fail/slices/matched_window_subject_changed_by_field rejected 633ms expected @ef751ffeeea5
 	cannot prove ensures contract for exit from selected at statement 0: result.events.len == 1
@@ -6709,7 +6708,8 @@ fail/slices/stored_view_alias_replacement_bounds rejected 540ms expected @ef9160
 fail/slices/stored_view_backing_mutated_while_returned_live rejected 1212ms expected @308fbdc54ba0
 	statement 4 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 2; its last use is at statement 5)
 	statement 4 mutates `original[0].value` while local borrow `returned` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/slices/stored_view_callee_changed_selector_bounds rejected 499ms expected @ef9160ae9c0b+wt
+fail/slices/stored_view_callee_changed_selector_bounds rejected 1473ms expected @f334a04a60a7+wt
+	cannot prove index `selected` is within length 2 in overwrite::entry
 	cannot prove index `0` is within unknown slice length of `output.values` in overwrite::entry
 fail/slices/stored_view_changed_selector_bounds rejected 544ms expected @ef9160ae9c0b+wt
 	cannot prove index `0` is within unknown slice length of `output.values` in overwrite::entry
@@ -7541,14 +7541,14 @@ pass/arithmetic/typed_integer_remainder checked 1531ms @a9ae30e1c334+wt
 pass/arithmetic/unsigned_computed_index checked 10299ms @5041ef1af684+wt
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one checked 11110ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arrays/array_operand_epochs checked 9739ms @5041ef1af684+wt
-pass/arrays/data_binding_index_hoist checked 9900ms @5041ef1af684+wt
+pass/arrays/data_binding_index_hoist checked 9083ms @f334a04a60a7+wt
 pass/arrays/guard_compound_index checked 9225ms @5041ef1af684+wt
 pass/arrays/indexed_state_arg checked 9831ms @5041ef1af684+wt
 pass/arrays/local_record_array_guard_exit checked 10371ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arrays/qualified_array_literal checked 9707ms @5041ef1af684+wt
 pass/arrays/qualified_array_literal_retains_element_policy_exit checked 10270ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arrays/record_array_literal checked 9777ms @5041ef1af684+wt
-pass/arrays/runtime_completed_array_window_replacement_exit checked 6861ms check-target:macos_arm64 @308fbdc54ba0
+pass/arrays/runtime_completed_array_window_replacement_exit checked 9479ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/arrays/runtime_computed_float_element_store_exit checked 12987ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/arrays/runtime_index_recast checked 12378ms @5041ef1af684+wt
 pass/arrays/subject_field_where_index checked 9537ms @5041ef1af684+wt
@@ -8390,7 +8390,7 @@ pass/collections/contract_length_results_exit checked 26531ms check-target:macos
 pass/collections/cyclic_shared_plain_array_parameter_exit checked 38123ms check-target:macos_arm64 @1f63ee648905+wt
 pass/collections/element_policy_array_literal_store checked 11771ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/element_view_borrow_local checked 11588ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/element_view_edge_loan checked 11797ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/element_view_edge_loan checked 16164ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/collections/element_view_field_write checked 11606ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/element_view_indexed_read checked 11784ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/element_view_indexed_write checked 4647ms check-target:macos_arm64 @e3e4be8878bd
@@ -8401,7 +8401,7 @@ pass/collections/element_view_write_transition checked 11676ms check-target:maco
 pass/collections/empty_record_array_borrow_exit checked 11199ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/float_array_completed_call_store_exit checked 12682ms check-target:macos_arm64 @9462eda24d9e+wt
 pass/collections/indexed_row_array_literal_store checked 12195ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/integer_index_every_width checked 1618ms @a9ae30e1c334+wt
+pass/collections/integer_index_every_width checked 2220ms @f334a04a60a7+wt
 pass/collections/local_byte_array_input_state_loan_exit checked 5767ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/collections/mutable_slice_view_edge_release checked 11798ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/mutable_slice_view_establishment checked 11556ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8410,7 +8410,7 @@ pass/collections/nested_empty_record_array_borrow_exit checked 10701ms check-tar
 pass/collections/nested_runtime_indexed_successor_argument_exit checked 11392ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/owned_array_scalar_comparisons checked 1654ms @a9ae30e1c334+wt
 pass/collections/owned_state_array_leaf_store_exit checked 12041ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/policy_array_enum_element_dispatch_exit checked 11077ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/policy_array_enum_element_dispatch_exit checked 9190ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/collections/policy_array_literal_store_exit checked 11605ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/qualified_element_read_modify_write_retains_policy_exit checked 5432ms check-target:macos_arm64 @97705f5a651d
 pass/collections/record_array_field_access_exit checked 4847ms check-target:macos_arm64 @9dd545defbc0
@@ -8422,7 +8422,7 @@ pass/collections/runtime_borrowed_fixed_array_state_reads_exit checked 11876ms c
 pass/collections/runtime_bounded_byte_reference_forward_exit checked 12331ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_bounded_byte_reference_read_exit checked 11761ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_bounded_local_index_write_exit checked 11196ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/runtime_captured_structural_copy_exit checked 10449ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_captured_structural_copy_exit checked 9259ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/collections/runtime_case_array_element_write_exit checked 11355ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_composed_element_view_reads_exit checked 10526ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_composed_owned_element_reads_exit checked 10433ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8432,8 +8432,8 @@ pass/collections/runtime_computed_borrow_selector_once_exit checked 10609ms chec
 pass/collections/runtime_computed_borrow_selector_order_exit checked 10504ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_computed_index_direct_exit checked 11105ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_computed_nested_borrow_call_exit checked 10456ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/runtime_computed_scalar_selector_argument_exit checked 5826ms check-target:macos_arm64 @589aedee8ebc+wt
-pass/collections/runtime_computed_selector_nested_argument_exit checked 5480ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/collections/runtime_computed_scalar_selector_argument_exit checked 9148ms check-target:macos_arm64 @f334a04a60a7+wt
+pass/collections/runtime_computed_selector_nested_argument_exit checked 9164ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/collections/runtime_computed_signed_shared_borrow_exit checked 10398ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_constant_expression_index_stores_exit checked 11173ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_declared_range_index_write_exit checked 10950ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8450,7 +8450,7 @@ pass/collections/runtime_fixed_array_projected_write_exit checked 11159ms check-
 pass/collections/runtime_fixed_array_selector_call_store_exit checked 7535ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_fixed_byte_view_dynamic_state_loan_exit checked 11135ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_fixed_byte_view_dynamic_state_shared_loan_exit checked 11237ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit checked 11017ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit checked 15987ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/collections/runtime_fixed_vec_contract_chain_exit checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_fixed_vec_round_trip_exit checked 11229ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_float_array_projection_return_exit checked 25246ms check-target:macos_arm64 @2617de0d2dec
@@ -8460,11 +8460,11 @@ pass/collections/runtime_guarded_computed_index_exit checked 11296ms check-targe
 pass/collections/runtime_hoisted_index_write_exit checked 10984ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_indexed_assignment_selector_snapshot_exit checked 6313ms check-target:macos_arm64 @16ed47526a08
 pass/collections/runtime_indexed_boolean_field_guard_exit checked 11056ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/runtime_indexed_bounded_element_read_exit checked 11076ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/runtime_indexed_bounded_field_local_exit checked 11078ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_indexed_bounded_element_read_exit checked 16034ms check-target:macos_arm64 @f334a04a60a7+wt
+pass/collections/runtime_indexed_bounded_field_local_exit checked 15857ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/collections/runtime_indexed_float_field_compare_exit checked 11183ms check-target:macos_arm64 @9c4d1c444502
-pass/collections/runtime_indexed_record_field_read_exit checked 11031ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/runtime_indexed_struct_field_rmw_exit checked 11022ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/collections/runtime_indexed_record_field_read_exit checked 16112ms check-target:macos_arm64 @f334a04a60a7+wt
+pass/collections/runtime_indexed_struct_field_rmw_exit checked 15432ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/collections/runtime_indexed_successor_argument_exit checked 11038ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_indexed_write_call_value_exit checked 11113ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_initialized_array_state_loan_exit checked 11053ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8472,17 +8472,17 @@ pass/collections/runtime_match_scalar_array_exit checked 11431ms check-target:ma
 pass/collections/runtime_maze_pathfind_exit checked 14399ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_member_decrement_index_bound_exit checked 11348ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_multi_field_element_view_domains_exit checked 10428ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/runtime_narrow_computed_selector_read_exit checked 5638ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/collections/runtime_narrow_computed_selector_read_exit checked 9341ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/collections/runtime_nested_array_view_call_write_exit checked 10293ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 11164ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_nested_fixed_array_projected_write_exit checked 11068ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_nested_record_element_window_store_exit checked 10510ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_nested_selected_element_extents_exit checked 10336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_offset_view_case_observation_exit checked 2717ms check-target:macos_arm64 @1e469c9b15bb
-pass/collections/runtime_ordered_computed_selector_reads_exit checked 5917ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/collections/runtime_ordered_computed_selector_reads_exit checked 9207ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/collections/runtime_owned_array_projection_snapshot_exit checked 13420ms check-target:macos_arm64 @2617de0d2dec
 pass/collections/runtime_owned_descriptor_parameter_read_exit checked 10965ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/collections/runtime_parameter_computed_selector_wrapping_exit checked 5633ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/collections/runtime_parameter_computed_selector_wrapping_exit checked 9086ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/collections/runtime_parameter_nested_literal_index_read_exit checked 12300ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_primitive_array_literal_call_elements_exit checked 10953ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_projected_element_descriptor_read_exit checked 10654ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10716,7 +10716,7 @@ pass/slices/runtime_bounded_fixed_array_subslice_arg_exit checked 13671ms check-
 pass/slices/runtime_byte_view_guarded_state_contract_exit checked 13207ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_call_endpoint_argument_exit checked 11783ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_call_endpoint_field_transition_exit checked 12784ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/slices/runtime_call_endpoint_order_exit checked 12048ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_call_endpoint_order_exit checked 8254ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/slices/runtime_call_endpoint_view_exit checked 14004ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_captured_range_end_exit checked 16499ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_captured_subslice_predicates_exit checked 3389ms check-target:macos_arm64 @7451127fc8f8+wt
@@ -10737,7 +10737,7 @@ pass/slices/runtime_guarded_view_copy_cycle_exit checked 13561ms check-target:ma
 pass/slices/runtime_helper_stored_view_return_exit checked 5655ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_imported_range_views_exit checked 4112ms check-target:macos_arm64 @71e65af3059c+wt
 pass/slices/runtime_imported_slice_provider_composition_exit checked 4174ms check-target:macos_arm64 @71e65af3059c+wt
-pass/slices/runtime_inclusive_call_endpoint_order_exit checked 12040ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/slices/runtime_inclusive_call_endpoint_order_exit checked 8219ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 12833ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_indexed_descriptor_replacement_call_exit checked 5667ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_indexed_record_field_range_exit checked 11701ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10748,7 +10748,7 @@ pass/slices/runtime_inline_mutable_view_call_write_exit checked 12289ms check-ta
 pass/slices/runtime_join_meet_bound_exit checked 12040ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_literal_view_return_exit checked 8105ms check-target:macos_arm64 @e02ff5008d25+wt
 pass/slices/runtime_machine_entry_view_requires_index_exit checked 13911ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/slices/runtime_matched_window_coordinate_capture_exit checked 3337ms check-target:macos_arm64 @3384eccdf464
+pass/slices/runtime_matched_window_coordinate_capture_exit checked 9359ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/slices/runtime_matched_window_length checked 6429ms check-target:macos_arm64 @2cbb09f59147+wt
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 12016ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_mutable_record_slice_result_reborrow_exit checked 11710ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10765,7 +10765,7 @@ pass/slices/runtime_nested_stored_view_return_exit checked 5663ms check-target:m
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 11923ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_nested_view_candidate_backings_exit checked 5696ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_nested_view_descriptor_reseat_exit checked 5643ms check-target:macos_arm64 @f329f97f57f7+wt
-pass/slices/runtime_ordered_nested_length_observation_exit checked 5680ms check-target:macos_arm64 @f329f97f57f7+wt
+pass/slices/runtime_ordered_nested_length_observation_exit checked 8822ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/slices/runtime_policy_element_view_tail_recursion_exit checked 12241ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_predicate_qualified_scalar_copy_exit checked 10797ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_published_view_length_bounds_cast_exit checked 11885ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10810,7 +10810,7 @@ pass/slices/slice_core_surface checked 10417ms @5041ef1af684+wt
 pass/slices/state_projected_selector_bounds checked 1811ms @f329f97f57f7+wt
 pass/slices/state_record_array_mutable_view_exit checked 11644ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/state_record_array_shared_child_view_exit checked 11883ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/slices/static_data_computed_index_hoists checked 1997ms @a9ae30e1c334+wt
+pass/slices/static_data_computed_index_hoists checked 1716ms @f334a04a60a7+wt
 pass/slices/stored_element_view_branching_value checked 2991ms check-target:macos_arm64 @ef9160ae9c0b+wt
 pass/slices/stored_element_view_runtime_destination checked 3006ms check-target:macos_arm64 @ef9160ae9c0b+wt
 pass/slices/stored_element_window_field_exit checked 5533ms check-target:macos_arm64 @73e11f08dcbb+wt

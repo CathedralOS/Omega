@@ -4,21 +4,25 @@
 // signed index carries its own nonnegative range.
 machine combine_fixed(
     values: [u64; 4],
-    index_u8: u8 [0..=3],
-    index_u16: u16 [0..=3],
-    index_u32: u32 [0..=3],
-    index_u64: u64 [0..=3],
-    index_i8: i8 [0..=3],
-    index_i16: i16 [0..=3],
-    index_i32: i32 [0..=3],
-    index_i64: i64 [0..=3]
-) -> u64 {
+    index_u8: u8,
+    index_u16: u16,
+    index_u32: u32,
+    index_u64: u64,
+    index_i8: i8,
+    index_i16: i16,
+    index_i32: i32,
+    index_i64: i64
+) -> u64
+requires index_u8 <= 3 && index_u16 <= 3 && index_u32 <= 3 && index_u64 <= 3
+    && index_i8 >= 0 && index_i8 <= 3 && index_i16 >= 0 && index_i16 <= 3
+    && index_i32 >= 0 && index_i32 <= 3 && index_i64 >= 0 && index_i64 <= 3
+{
     values[index_u8] ^ values[index_u16] ^ values[index_u32] ^ values[index_u64]
         ^ values[index_i8] ^ values[index_i16] ^ values[index_i32] ^ values[index_i64]
 }
 
-machine read_slice(values: &[u64], position: i32 [0..=3]) -> u64
-requires position < values.len;
+machine read_slice(values: &[u64], position: i32) -> u64
+requires position >= 0 && position <= 3 && position < values.len;
 {
     values[position]
 }

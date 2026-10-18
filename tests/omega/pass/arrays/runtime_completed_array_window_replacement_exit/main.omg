@@ -66,7 +66,10 @@ machine Token::drop(token: &mut Token) reaches Console {
 }
 
 machine pair() -> [u64; 2] { [5, 6] }
-machine selecting_pair(selector: &mut u64 [0..=1]) -> [u64; 2] {
+machine selecting_pair(selector: &mut u64) -> [u64; 2]
+    requires selector <= 1
+    ensures selector <= 1
+{
     selector = 1;
     [7, 9]
 }
@@ -86,7 +89,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     let copied: bool = values[0] == 1 && values[1] == 11
         && values[2] == 13 && values[3] == 4 && source[0] == 11;
 
-    let mut selector: u64 [0..=1] = 0;
+    let mut selector: u64 = 0;
     let mut nested: [[u64; 2]; 2] = [[1, 2], [3, 4]];
     nested[selector][..] = selecting_pair(&mut selector);
     let captured: bool = selector == 1 && nested[0][0] == 7

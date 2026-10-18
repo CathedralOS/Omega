@@ -3,9 +3,9 @@
 // the upper bound when high < length.
 use omega_language_std::console;
 
-data Main {
+data Main where i <= 5 {
     arr: [i32; 5];
-    i: u64 [0..=5];
+    i: u64;
 }
 
 machine Main::main(main: &mut Main) reaches Console {

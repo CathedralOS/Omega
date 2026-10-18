@@ -1,7 +1,7 @@
 data Cell [copy] { value:u32 in Wrapping; }
-data Cursor { position:u32[0..2]; calls:u32 in Wrapping; }
-machine select(cursor:&mut Cursor)->u32[0..2] {
- let chosen:u32[0..2]=cursor.position;
+data Cursor where position < 2 { position:u32; calls:u32 in Wrapping; }
+machine select(cursor:&mut Cursor)->u32 ensures result < 2 {
+ let chosen:u32=cursor.position;
  cursor.calls=cursor.calls+1;
  cursor.position=1;
  chosen

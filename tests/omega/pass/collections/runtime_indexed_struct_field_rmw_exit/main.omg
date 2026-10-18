@@ -2,12 +2,12 @@
 // Both observations select the same element and retain its declared range;
 // the guard permits incrementing 4 to 5, which produces exit 1.
 use omega_language_std::console;
-data Cell {
-    v: i32 [0..=9];
+data Cell where v >= 0 && v <= 9 {
+    v: i32;
 }
-data Main {
+data Main where k <= 3 {
     cells: [Cell; 4];
-    k: u64 [0..=3];
+    k: u64;
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.cells[2].v = 4;

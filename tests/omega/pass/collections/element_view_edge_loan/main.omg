@@ -9,9 +9,9 @@ data Bag {
     cells: [Cell; 4];
 }
 
-data Main {
+data Main where at <= 3 {
     bag: Bag;
-    at: u64 [0..=3];
+    at: u64;
 }
 
 machine Main::main(main: &mut Main) reaches Console {

@@ -1,4 +1,5 @@
-machine endpoint(value: u64[0..=3]) -> u64
+machine endpoint(value: u64) -> u64
+requires value <= 3
 ensures result <= 3
 { value }
 

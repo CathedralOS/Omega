@@ -6,7 +6,9 @@ data Row [copy] { cells: [Cell; 2]; }
 data Matrix { rows: [Row; 2]; }
 data Cursor { calls: u32 in Wrapping; trace: u32 in Wrapping; }
 
-machine select(cursor: &mut Cursor, digit: u32 in Wrapping) -> u64[0..2] {
+machine select(cursor: &mut Cursor, digit: u32 in Wrapping) -> u64
+ensures result < 2
+{
     cursor.calls = cursor.calls + 1;
     cursor.trace = cursor.trace * 10 + digit;
     0

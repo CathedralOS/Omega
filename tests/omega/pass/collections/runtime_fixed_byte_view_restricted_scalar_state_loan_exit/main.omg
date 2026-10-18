@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let mut rows: [Row; 2];
     let mut cursor: Cursor = Cursor { index: 1 };
     let selected: u64 = cursor.index;
-    let mut marker: u8 [0..=7] = 3;
+    let mut marker: u8 = 3;
     rows[0].bytes[0] = 11;
     rows[1].bytes[0] = 22;
     transition selected < 2 && marker == 3 {

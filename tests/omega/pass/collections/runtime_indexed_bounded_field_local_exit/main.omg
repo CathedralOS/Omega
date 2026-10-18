@@ -18,9 +18,9 @@
 // exhausted scan exits 1. Element 2's level -> exit 70.
 use omega_language_std::console;
 
-data Cell {
+data Cell where level <= 9 {
     hp: i32;
-    level: u8 [0..=9];
+    level: u8;
 }
 
 data Main {
@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> inspect(main, 0) }
 
     state inspect(main: &mut Main, k: u64) requires k <= 3 {
-        let level: u8 [0..=9] = main.cells[k].level;
+        let level: u8 = main.cells[k].level;
         transition level >= 7 {
             true -> finish(main, (level as i32) * 10)
             false -> advance(main, k)

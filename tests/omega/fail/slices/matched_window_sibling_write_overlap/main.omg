@@ -1,5 +1,7 @@
-data Holder { which: u64 [0..=2]; values: [u8; 4]; }
-machine reset(value: &mut u64 [0..=2]) -> i64
+data Holder where which <= 2 { which: u64; values: [u8; 4]; }
+machine reset(value: &mut u64) -> i64
+requires value <= 2
+ensures value <= 2
 ensures value == 1
 ensures result == 0 {
     value = 1;

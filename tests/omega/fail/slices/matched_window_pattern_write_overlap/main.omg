@@ -1,7 +1,9 @@
 // A failed pattern mutates storage after the match subject was captured.
 // The later literal 0 matches that capture, not the current index value 1.
-data Holder { which: u64 [0..=2]; values: [u8; 4]; }
-machine reset(value: &mut u64 [0..=2]) -> u64
+data Holder where which <= 2 { which: u64; values: [u8; 4]; }
+machine reset(value: &mut u64) -> u64
+requires value <= 2
+ensures value <= 2
 ensures value == 1
 ensures result == 1 { value = 1; 1 }
 machine collide(first: &mut [u8], second: &mut u8) {}
