@@ -1303,6 +1303,15 @@ pass/facts/as_slice_views_through_other_state_exit built 3878ms exit:0 @8bcf9d86
 pass/facts/as_slice_views_through_parameter_exit built 3874ms exit:0 @8bcf9d86d52e
 pass/facts/as_slice_views_through_target_body_exit built 4360ms exit:0 @8bcf9d86d52e
 pass/facts/computed_record_window_original_exit built 8582ms exit:0 @408e4fc23fbc
+pass/facts/dependent_subtract_through_call_result_exit built 29726ms exit:0 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_const_name_exit built 29176ms exit:0 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_field_exit built 29872ms exit:0 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_local_exit built 29052ms exit:0 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_match_join_exit built 30193ms exit:0 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_other_machine_exit built 29350ms exit:0 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_other_state_exit built 30351ms exit:0 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_parameter_exit built 29851ms exit:0 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_target_body_exit built 30187ms exit:0 @5de48c6e72e8+wt
 pass/facts/matched_field_windows_through_call_result_exit built 11752ms exit:0 @6950e9f0e0c8
 pass/facts/matched_field_windows_through_const_name_exit built 11724ms exit:0 @6950e9f0e0c8
 pass/facts/matched_field_windows_through_field_exit built 11851ms exit:0 @6950e9f0e0c8
@@ -2694,15 +2703,6 @@ pass/facts/data_where_standing_through_other_machine_exit built 18895ms exit:0 @
 pass/facts/data_where_standing_through_other_state_exit built 18685ms exit:0 @f734a3095d6c
 pass/facts/data_where_standing_through_parameter_exit built 18571ms exit:0 @f734a3095d6c
 pass/facts/data_where_standing_through_target_body_exit built 18458ms exit:0 @f734a3095d6c
-pass/facts/dependent_subtract_through_call_result_compile checked 3686ms @f734a3095d6c
-pass/facts/dependent_subtract_through_const_name_compile checked 5088ms @f734a3095d6c
-pass/facts/dependent_subtract_through_field_compile checked 4440ms @f734a3095d6c
-pass/facts/dependent_subtract_through_local_compile checked 3574ms @f734a3095d6c
-pass/facts/dependent_subtract_through_match_join_compile checked 3629ms @f734a3095d6c
-pass/facts/dependent_subtract_through_other_machine_compile checked 3662ms @f734a3095d6c
-pass/facts/dependent_subtract_through_other_state_compile checked 4049ms @f734a3095d6c
-pass/facts/dependent_subtract_through_parameter_compile checked 3998ms @f734a3095d6c
-pass/facts/dependent_subtract_through_target_body_compile checked 4031ms @f734a3095d6c
 pass/facts/disjoint_windows_through_call_result_exit built 20313ms exit:0 @f734a3095d6c
 pass/facts/disjoint_windows_through_const_name_exit built 20327ms exit:0 @f734a3095d6c
 pass/facts/disjoint_windows_through_field_exit built 20368ms exit:0 @f734a3095d6c

@@ -1741,15 +1741,27 @@ fail/facts/data_where_standing_through_other_machine_rejected rejected 2449ms ex
 fail/facts/data_where_standing_through_other_state_rejected rejected 2195ms expected @07f1c64be9c1
 fail/facts/data_where_standing_through_parameter_rejected rejected 2382ms expected @07f1c64be9c1
 fail/facts/data_where_standing_through_target_body_rejected rejected 2179ms expected @07f1c64be9c1
-fail/facts/dependent_subtract_through_call_result_rejected rejected 386ms expected @a1b70f5ad427+wt
-fail/facts/dependent_subtract_through_const_name_rejected rejected 441ms expected @a1b70f5ad427+wt
-fail/facts/dependent_subtract_through_field_rejected rejected 442ms expected @a1b70f5ad427+wt
-fail/facts/dependent_subtract_through_local_rejected rejected 357ms expected @a1b70f5ad427+wt
-fail/facts/dependent_subtract_through_match_join_rejected rejected 400ms expected @a1b70f5ad427+wt
-fail/facts/dependent_subtract_through_other_machine_rejected rejected 395ms expected @a1b70f5ad427+wt
-fail/facts/dependent_subtract_through_other_state_rejected rejected 335ms expected @a1b70f5ad427+wt
-fail/facts/dependent_subtract_through_parameter_rejected rejected 329ms expected @a1b70f5ad427+wt
-fail/facts/dependent_subtract_through_target_body_rejected rejected 401ms expected @a1b70f5ad427+wt
+fail/facts/dependent_subtract_through_call_result_rejected rejected 1527ms expected @5de48c6e72e8+wt
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dependent_subtract_through_const_name_rejected rejected 1677ms expected @5de48c6e72e8+wt
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dependent_subtract_through_field_rejected rejected 1433ms expected @5de48c6e72e8+wt
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dependent_subtract_through_local_rejected rejected 1596ms expected @5de48c6e72e8+wt
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dependent_subtract_through_match_join_rejected rejected 1265ms expected @5de48c6e72e8+wt
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dependent_subtract_through_other_machine_rejected rejected 1338ms expected @5de48c6e72e8+wt
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dependent_subtract_through_other_state_rejected rejected 1407ms expected @5de48c6e72e8+wt
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dependent_subtract_through_parameter_rejected rejected 1368ms expected @5de48c6e72e8+wt
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dependent_subtract_through_target_body_rejected rejected 1123ms expected @5de48c6e72e8+wt
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `subtracted` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/disjoint_windows_through_call_result_overlap rejected 1847ms expected @89bb9e0009e9
 fail/facts/disjoint_windows_through_const_name_overlap rejected 1428ms expected @89bb9e0009e9
 fail/facts/disjoint_windows_through_field_overlap rejected 1460ms expected @89bb9e0009e9
@@ -5744,15 +5756,15 @@ pass/facts/data_where_standing_through_other_machine_exit checked 7403ms check-t
 pass/facts/data_where_standing_through_other_state_exit checked 8809ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_parameter_exit checked 7919ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_target_body_exit checked 14192ms check-target:macos_arm64 @07f1c64be9c1
-pass/facts/dependent_subtract_through_call_result_compile checked 8125ms check-target:macos_arm64 @a1b70f5ad427+wt
-pass/facts/dependent_subtract_through_const_name_compile checked 8215ms check-target:macos_arm64 @a1b70f5ad427+wt
-pass/facts/dependent_subtract_through_field_compile checked 8004ms check-target:macos_arm64 @a1b70f5ad427+wt
-pass/facts/dependent_subtract_through_local_compile checked 7696ms check-target:macos_arm64 @a1b70f5ad427+wt
-pass/facts/dependent_subtract_through_match_join_compile checked 8087ms check-target:macos_arm64 @a1b70f5ad427+wt
-pass/facts/dependent_subtract_through_other_machine_compile checked 8064ms check-target:macos_arm64 @a1b70f5ad427+wt
-pass/facts/dependent_subtract_through_other_state_compile checked 8148ms check-target:macos_arm64 @a1b70f5ad427+wt
-pass/facts/dependent_subtract_through_parameter_compile checked 7464ms check-target:macos_arm64 @a1b70f5ad427+wt
-pass/facts/dependent_subtract_through_target_body_compile checked 7583ms check-target:macos_arm64 @a1b70f5ad427+wt
+pass/facts/dependent_subtract_through_call_result_exit checked 32142ms check-target:macos_arm64 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_const_name_exit checked 32723ms check-target:macos_arm64 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_field_exit checked 32635ms check-target:macos_arm64 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_local_exit checked 32637ms check-target:macos_arm64 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_match_join_exit checked 32471ms check-target:macos_arm64 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_other_machine_exit checked 32119ms check-target:macos_arm64 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_other_state_exit checked 32517ms check-target:macos_arm64 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_parameter_exit checked 32345ms check-target:macos_arm64 @5de48c6e72e8+wt
+pass/facts/dependent_subtract_through_target_body_exit checked 33068ms check-target:macos_arm64 @5de48c6e72e8+wt
 pass/facts/disjoint_windows_through_call_result_exit checked 11725ms check-target:macos_arm64 @89bb9e0009e9
 pass/facts/disjoint_windows_through_const_name_exit checked 9540ms check-target:macos_arm64 @89bb9e0009e9
 pass/facts/disjoint_windows_through_field_exit checked 8853ms check-target:macos_arm64 @89bb9e0009e9
