@@ -26,6 +26,25 @@ pub(super) fn declared_root_established(
     if program.state_parameter_by_symbol(state, root).is_some() {
         return true;
     }
+    // Const/value binders receive established carrier values at application;
+    // unlike a reserved local they never denote a fresh zero representation.
+    // A type binder supplies no value, and an unevaluated constant supplies no
+    // completed snapshot. Exact symbols keep same-spelled locals independent.
+    if program
+        .data_type_parameter_by_symbol(root)
+        .is_some_and(|parameter| {
+            matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Const { .. }
+                    | typed_trees::data::TypeParameterKind::Value { .. }
+            )
+        })
+        || program
+            .const_declaration_by_symbol(root)
+            .is_some_and(|declaration| declaration.evaluated_value.is_some())
+    {
+        return true;
+    }
     program
         .state_local_declaration(state, root)
         .is_some_and(|(_, local)| {

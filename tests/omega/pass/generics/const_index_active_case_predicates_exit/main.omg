@@ -1,0 +1,5 @@
+data Choice [copy] { case Empty; case Point(value: i32) where value <= 60; }
+const EMPTY: Choice = Choice::Empty;
+const POINT: Choice = Choice::Point { value: 60 };
+machine select<const VALUE: Choice>() -> i32 { 0 }
+machine main() crashes Trap { transition select<EMPTY>() == 0 && select<POINT>() == 0 { true -> done() _ -> bad() } state done() {} state bad() { crash Trap; } }

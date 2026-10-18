@@ -1,0 +1,4 @@
+data Choice [copy] { case Empty; case Point(value: i32) where value <= 60; }
+const POINT: Choice = Choice::Point { value: 61 };
+machine select<const VALUE: Choice>() -> i32 { 0 }
+machine main() { let result: i32 = select<POINT>(); }

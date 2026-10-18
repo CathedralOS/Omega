@@ -1,0 +1,6 @@
+const LIMIT: i32 = 60;
+data Counter [copy] where value <= LIMIT, { value: i32; }
+data Wrapper [copy] { counter: Counter; }
+const NAMED: Wrapper = Wrapper { counter: Counter { value: 60 } };
+machine compute<const VALUE: Wrapper>() -> i32 { 70 + VALUE.counter.value }
+machine main() crashes Trap { transition compute<NAMED>() == 130 { true -> done() _ -> bad() } state done() {} state bad() { crash Trap; } }

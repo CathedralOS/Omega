@@ -3160,6 +3160,27 @@ fail/facts/compound_guard_through_target_body_compile rejected 2356ms expected @
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/facts/compound_guard_unequal_match_arm_compile rejected 2639ms expected @2ef2ab353498+wt
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/data_where_standing_through_call_result_rejected rejected 2381ms expected @07f1c64be9c1
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_through_const_name_rejected rejected 2160ms expected @07f1c64be9c1
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_through_field_rejected rejected 2121ms expected @07f1c64be9c1
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_through_local_rejected rejected 3242ms expected @07f1c64be9c1
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_through_match_join_rejected rejected 2310ms expected @07f1c64be9c1
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_through_other_machine_rejected rejected 2449ms expected @07f1c64be9c1
+	exact arithmetic in machine `add` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_through_other_state_rejected rejected 2195ms expected @07f1c64be9c1
+	exact arithmetic in machine `compute` state `next` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_through_parameter_rejected rejected 2382ms expected @07f1c64be9c1
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_through_target_body_rejected rejected 2179ms expected @07f1c64be9c1
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dependent_subtract_through_call_result_rejected rejected 284ms expected @fd94a7b8095c+wt
 	exact arithmetic in machine `Main::main` state `main` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `used_amount(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u32 in Wrapping`).
 fail/facts/dependent_subtract_through_const_name_rejected rejected 297ms expected @fd94a7b8095c+wt
@@ -3809,6 +3830,12 @@ fail/generics/const_extent_index_without_guard rejected 967ms expected @cc35a4f0
 	cannot prove index `4` is within length 2
 fail/generics/const_generic_runtime_argument rejected 900ms expected @a9ae30e1c334+wt
 	a value call to generic machine `prefix_count` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+fail/generics/const_index_active_case_false rejected 31ms expected @07f1c64be9c1
+	constant `POINT` is invalid: data constant `Choice` violates its case predicate
+fail/generics/const_index_default_domain_false rejected 31ms expected @07f1c64be9c1
+	constant `NAMED` is invalid: data constant `Counter` violates its default-domain predicate
+fail/generics/const_index_gated_domain_false rejected 25ms expected @07f1c64be9c1
+	constant `NAMED` is invalid: data constant `Counter` violates its default-domain predicate
 fail/generics/contextual_static_machine_ambiguous_carried_result rejected 3511ms expected @4730b1ac8a84
 	machine `apply$specialized$5cd7674055cbcc11$0` returns a view but takes 2 candidate ref inputs (`context carried source [Field(Handle { arena_index: 293, generation: 1 })]`, `item carried source []`); cannot infer which input the returned view borrows — annotate the return type with the lifetime of the input it borrows, e.g. `-> &'a T` matching an input `&'a T`
 	machine `relay` returns a view borrowing the local `__hoist_15`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -8206,6 +8233,15 @@ pass/facts/compound_guard_through_other_machine_compile checked 2089ms @2ef2ab35
 pass/facts/compound_guard_through_other_state_compile checked 1834ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_parameter_compile checked 1854ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_target_body_compile checked 2049ms @2ef2ab353498+wt
+pass/facts/data_where_standing_through_call_result_exit checked 8632ms check-target:macos_arm64 @07f1c64be9c1
+pass/facts/data_where_standing_through_const_name_exit checked 8260ms check-target:macos_arm64 @07f1c64be9c1
+pass/facts/data_where_standing_through_field_exit checked 8405ms check-target:macos_arm64 @07f1c64be9c1
+pass/facts/data_where_standing_through_local_exit checked 8085ms check-target:macos_arm64 @07f1c64be9c1
+pass/facts/data_where_standing_through_match_join_exit checked 7361ms check-target:macos_arm64 @07f1c64be9c1
+pass/facts/data_where_standing_through_other_machine_exit checked 7403ms check-target:macos_arm64 @07f1c64be9c1
+pass/facts/data_where_standing_through_other_state_exit checked 8809ms check-target:macos_arm64 @07f1c64be9c1
+pass/facts/data_where_standing_through_parameter_exit checked 7919ms check-target:macos_arm64 @07f1c64be9c1
+pass/facts/data_where_standing_through_target_body_exit checked 14192ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/dependent_subtract_through_call_result_compile checked 1268ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_const_name_compile checked 1226ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_field_compile checked 1211ms @fd94a7b8095c+wt
@@ -8444,6 +8480,10 @@ pass/generics/closed_indexed_quantity checked 12823ms check-target:macos_arm64 @
 pass/generics/closed_sum_case_membership checked 1660ms @a9ae30e1c334+wt
 pass/generics/const_binder_difference_argument_exit checked 6006ms check-target:macos_arm64 @73e11f08dcbb+wt
 pass/generics/const_data_param checked 1647ms @a9ae30e1c334+wt
+pass/generics/const_index_active_case_predicates_exit checked 13830ms check-target:linux_x86_64 @07f1c64be9c1
+pass/generics/const_index_boolean_predicate_composition_exit checked 10295ms check-target:linux_x86_64 @07f1c64be9c1
+pass/generics/const_index_gated_default_domain_exit checked 10239ms check-target:linux_x86_64 @07f1c64be9c1
+pass/generics/const_index_nested_default_domain_exit checked 7378ms check-target:linux_x86_64 @07f1c64be9c1
 pass/generics/contextual_static_machine_applications_exit checked 10752ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/contextual_static_machine_captured_operand_return_exit checked 10681ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/contextual_static_machine_captured_operand_scope_exit checked 10799ms check-target:macos_arm64 @a9ae30e1c334+wt

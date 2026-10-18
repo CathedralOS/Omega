@@ -1,0 +1,4 @@
+data Counter [copy] where value >= 1 && value <= 60, { value: i32; }
+const NAMED: Counter = Counter { value: 60 };
+machine compute<const VALUE: Counter>() -> i32 { 70 + VALUE.value }
+machine main() crashes Trap { transition compute<NAMED>() == 130 { true -> done() _ -> bad() } state done() {} state bad() { crash Trap; } }

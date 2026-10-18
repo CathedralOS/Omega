@@ -1,0 +1,1 @@
+machine build(builder: &mut Build) { Build::application(builder, "const_index_default_domain_false"); Build::bind(builder, linux_x86_64::ProgramEntry, main); }

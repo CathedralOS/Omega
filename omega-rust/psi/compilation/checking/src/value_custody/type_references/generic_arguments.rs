@@ -842,6 +842,9 @@ fn exact_structured_const_carrier_is_eligible(
                 return false;
             }
             visiting.push(*symbol);
+            // Predicates constrain completed values, not structural identity.
+            // Every admitted node discharges them in validate_decoded_structured_const;
+            // neither a canonical encoding nor zero-validity supplies membership.
             let eligible =
                 crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
                     .is_some_and(|definition| {
@@ -852,8 +855,6 @@ fn exact_structured_const_carrier_is_eligible(
                             && program.data_type_parameters(definition).is_empty()
                             && definition.generic_instance.is_none()
                             && definition.quotient.is_none()
-                            && definition.where_facts.is_empty()
-                            && !definition.zero_gated
                             && match typed_trees::data::DataDefinition::shape_kind_from_members(
                                 members,
                             ) {
@@ -1016,6 +1017,17 @@ fn validate_decoded_structured_const(
                     members.len()
                 ));
             }
+            let declared_fields = members
+                .iter()
+                .filter_map(DataMember::as_field)
+                .collect::<Vec<_>>();
+            super::const_predicates::validate(
+                program,
+                definition,
+                definition.where_facts,
+                &declared_fields,
+                fields,
+            )?;
             visiting.push(*symbol);
             let result = members.iter().zip(fields).try_for_each(
                 |(member, (encoded_name, encoded_value))| {
@@ -1080,6 +1092,21 @@ fn validate_decoded_structured_const(
                     payload.len()
                 ));
             }
+            super::const_predicates::validate(
+                program,
+                definition,
+                definition.where_facts,
+                &[],
+                &[],
+            )?;
+            let declared_fields = payload.iter().collect::<Vec<_>>();
+            super::const_predicates::validate(
+                program,
+                definition,
+                variant.where_facts,
+                &declared_fields,
+                fields,
+            )?;
             visiting.push(*symbol);
             let result = payload.iter().zip(fields).try_for_each(
                 |(field, (encoded_name, encoded_value))| {

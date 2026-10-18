@@ -37,6 +37,7 @@
 //! casts. `type_references_match` and `type_reference_label` compare and
 //! display type references for other validators.
 
+mod const_predicates;
 mod constraint_validation;
 mod generic_arguments;
 mod open_index_expressions;

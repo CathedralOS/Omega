@@ -1,0 +1,4 @@
+data Counter [copy] where (value <= 60) == true, { value: i32; }
+const NAMED: Counter = Counter { value: 60 };
+machine compute<const VALUE: Counter>() -> i32 { 0 }
+machine main() { let result: i32 = compute<NAMED>(); }

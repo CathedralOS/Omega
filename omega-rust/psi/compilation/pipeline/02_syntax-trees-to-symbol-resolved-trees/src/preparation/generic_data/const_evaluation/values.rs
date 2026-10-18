@@ -15,7 +15,8 @@
 //! a completed named constant is read from its declaration, never a root-name map.
 //! Ordinary declaration materialization does not request const-index eligibility.
 //! Its recursively selected data and active-case predicates still discharge over
-//! the completed value before encoding; index requests retain their stronger fence.
+//! the completed value before encoding. Index requests share that membership
+//! proof while retaining their stronger structural/canonical carrier judgment.
 use super::super::{
     CanonicalConstValue, ConstDefinition, DataDefinition, DataMember, ExpressionHandle,
     ExpressionNode, FixedArrayLength, HandleSpan, HashSet, Identifier, Item, SyntaxTrees,
@@ -960,11 +961,6 @@ fn validate_selected_const_type(
                     "quotient data `{name}` is not eligible as a structural const index until quotient-backed canonical representatives land"
                 ));
             }
-            if purpose == ConstValuePurpose::Index && !definition.where_facts.is_empty() {
-                return Err(format!(
-                    "data `{name}` has default-domain facts whose index-site proof is not implemented; it is not yet eligible as a const index"
-                ));
-            }
             // A nongeneric declaration's members never see an enclosing
             // application's parameters: a member spelling `T` there selects
             // whatever `T` resolves to in this declaration's own scope.
@@ -1052,11 +1048,6 @@ fn validate_selected_const_type(
             if definition.quotient.is_some() {
                 return Err(format!(
                     "quotient data `{base_name}` is not eligible as a structural const index until quotient-backed canonical representatives land"
-                ));
-            }
-            if purpose == ConstValuePurpose::Index && !definition.where_facts.is_empty() {
-                return Err(format!(
-                    "data `{base_name}` has default-domain facts whose index-site proof is not implemented; it is not yet eligible as a const index"
                 ));
             }
             let declaration = definition.name.source_span();

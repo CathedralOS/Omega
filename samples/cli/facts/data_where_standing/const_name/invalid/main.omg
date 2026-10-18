@@ -1,0 +1,12 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Intended invalid: removing only the standing upper bound leaves the addition unproved.
+data Counter [copy]
+{ value: i32; }
+const LOW_COUNTER: Counter = Counter { value: -2147483648 };
+const NAMED_COUNTER: Counter = Counter { value: 60 };
+machine compute<const COUNTER: Counter>() -> i32 { 70 + COUNTER.value }
+machine main() crashes Trap {
+    transition compute<NAMED_COUNTER>() == 130 && compute<LOW_COUNTER>() == -2147483578 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

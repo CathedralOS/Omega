@@ -1634,6 +1634,15 @@ pass/facts/bound_through_other_machine_exit built 6125ms exit:0 @3b422f31da30+wt
 pass/facts/bound_through_other_state_exit built 6283ms exit:0 @3b422f31da30+wt
 pass/facts/bound_through_parameter_exit built 6041ms exit:0 @3b422f31da30+wt
 pass/facts/bound_through_target_body_exit built 6208ms exit:0 @3b422f31da30+wt
+pass/facts/data_where_standing_through_call_result_exit built 9916ms exit:0 @07f1c64be9c1
+pass/facts/data_where_standing_through_const_name_exit built 9912ms exit:0 @07f1c64be9c1
+pass/facts/data_where_standing_through_field_exit built 11490ms exit:0 @07f1c64be9c1
+pass/facts/data_where_standing_through_local_exit built 11925ms exit:0 @07f1c64be9c1
+pass/facts/data_where_standing_through_match_join_exit built 8208ms exit:0 @07f1c64be9c1
+pass/facts/data_where_standing_through_other_machine_exit built 8499ms exit:0 @07f1c64be9c1
+pass/facts/data_where_standing_through_other_state_exit built 8022ms exit:0 @07f1c64be9c1
+pass/facts/data_where_standing_through_parameter_exit built 7780ms exit:0 @07f1c64be9c1
+pass/facts/data_where_standing_through_target_body_exit built 7312ms exit:0 @07f1c64be9c1
 pass/facts/indexed_element_mut_loan_through_call_result_exit built 7579ms exit:0 @907be3818acc
 pass/facts/indexed_element_mut_loan_through_const_name_exit built 9536ms exit:0 @907be3818acc
 pass/facts/indexed_element_mut_loan_through_field_exit built 9382ms exit:0 @907be3818acc
@@ -1796,6 +1805,10 @@ pass/generics/closed_indexed_quantity built 33099ms exit:70 @6c49683ce714
 pass/generics/closed_sum_case_membership checked 3352ms @6c49683ce714
 pass/generics/const_binder_difference_argument_exit built 5835ms exit:0 @73e11f08dcbb+wt
 pass/generics/const_data_param checked 3202ms @6c49683ce714
+pass/generics/const_index_active_case_predicates_exit built 7418ms exit:0 @07f1c64be9c1
+pass/generics/const_index_boolean_predicate_composition_exit built 12165ms exit:0 @07f1c64be9c1
+pass/generics/const_index_gated_default_domain_exit built 10746ms exit:0 @07f1c64be9c1
+pass/generics/const_index_nested_default_domain_exit built 10885ms exit:0 @07f1c64be9c1
 pass/generics/contextual_static_machine_applications_exit built 17461ms exit:0 @6c49683ce714
 pass/generics/contextual_static_machine_captured_operand_return_exit built 17535ms exit:0 @6c49683ce714
 pass/generics/contextual_static_machine_captured_operand_scope_exit built 17105ms exit:0 @6c49683ce714

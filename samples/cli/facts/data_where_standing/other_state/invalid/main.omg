@@ -1,0 +1,15 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Intended invalid: removing only the standing upper bound leaves the addition unproved.
+data Counter [copy]
+{ value: i32; }
+machine compute(counter: Counter) -> i32 {
+    transition { _ -> next(counter) }
+    state next(counter: Counter) -> i32 { 70 + counter.value }
+}
+machine main() crashes Trap {
+    let counter: Counter = Counter { value: 60 };
+    let low: Counter = Counter { value: -2147483648 };
+    transition compute(counter) == 130 && compute(low) == -2147483578 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
