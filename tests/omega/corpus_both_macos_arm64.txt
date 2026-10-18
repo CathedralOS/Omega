@@ -566,6 +566,15 @@ pass/facts/nested_result_extent_through_other_machine_exit built 3434ms exit:0 i
 pass/facts/nested_result_extent_through_other_state_exit built 3422ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_parameter_exit built 3520ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_target_body_exit built 3544ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
+pass/facts/nominal_reference_cleanup_through_call_result_exit built 3787ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
+pass/facts/nominal_reference_cleanup_through_const_name_exit built 3860ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
+pass/facts/nominal_reference_cleanup_through_field_exit built 3717ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
+pass/facts/nominal_reference_cleanup_through_local_exit built 3714ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
+pass/facts/nominal_reference_cleanup_through_match_join_exit built 3765ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
+pass/facts/nominal_reference_cleanup_through_other_machine_exit built 3782ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
+pass/facts/nominal_reference_cleanup_through_other_state_exit built 3731ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
+pass/facts/nominal_reference_cleanup_through_parameter_exit built 3732ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
+pass/facts/nominal_reference_cleanup_through_target_body_exit built 3638ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
 pass/facts/qualified_borrowed_join_exit built 3982ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/qualified_owned_join_exit built 4711ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/reference_arrival_handoff_through_call_result_exit built 6175ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
