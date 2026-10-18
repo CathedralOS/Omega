@@ -1,9 +1,9 @@
 use omega_language_std::console;
 
 data Choice { case Both(a: u64 in Wrapping, b: u64 in Wrapping); case Empty; }
-data Main {
+data Main where selected <= 1 {
     items: [Choice; 2];
-    selected: u64 [0..=1];
+    selected: u64;
 }
 
 machine Main::main(main: &mut Main) reaches Console {

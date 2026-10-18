@@ -1,15 +1,15 @@
-machine bump(mut value: u32 [0..=4]) -> u32 {
+machine bump(mut value: u32) -> u32 requires value <= 4 {
     value = 4;
     (value)
 }
 machine local_value() -> u32 {
-    let mut value: u32 [0..=4] = 1;
+    let mut value: u32 = 1;
     value = 3;
     (value)
 }
-machine named_value(value: u32 [0..=4]) -> u32 {
+machine named_value(value: u32) -> u32 requires value <= 4 {
     transition { _ -> step(value) }
-    state step(mut current: u32 [0..=4]) {
+    state step(mut current: u32) requires current <= 4 {
         current = 2;
         (current)
     }

@@ -1,12 +1,12 @@
 use omega_language_std::console;
 
 data Choice { case Full(n: u64 in Wrapping); case Empty; }
-data Main {
+data Main where selected <= 1 {
     items: [Choice; 2];
-    selected: u64 [0..=1];
+    selected: u64;
 }
 
-machine inspect(items: &[Choice; 2], index: u64 [0..=1]) -> u64 in Wrapping {
+machine inspect(items: &[Choice; 2], index: u64) -> u64 in Wrapping requires index <= 1 {
     let selected: &Choice = &items[index];
     // The immediate parent is used at formation, before dispatch. Later
     // runtime operands name this child, not the captured parent's root.

@@ -18,9 +18,9 @@ use omega_language_std::console;
 
 data Color { case Red; case White; case Blue; }
 
-data Main {
+data Main where w <= 2 {
     items: [Color; 3];
-    w: u64 [0..=2];
+    w: u64;
 }
 
 machine Main::main(main: &mut Main) reaches Console {

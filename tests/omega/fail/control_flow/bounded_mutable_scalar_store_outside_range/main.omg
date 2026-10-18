@@ -1,4 +1,7 @@
-machine replace(mut value: u32[0..=4]) -> u32 {
+machine replace(mut value: u32) -> u32
+requires value <= 4
+ensures value <= 4
+{
     value = 5;
     (value)
 }

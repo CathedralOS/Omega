@@ -3,12 +3,13 @@
 // named exit leaves the chain. A stale or missing home changes the result.
 data Cell { value: u32; }
 
-machine countdown(remaining: u32 [0..=3])
+machine countdown(remaining: u32) -> u32
+requires remaining <= 3
 terminates by remaining in 0..=3;
--> u32 {
+{
     transition { _ -> observe(&Cell { value: remaining }, remaining) }
 
-    state observe(cell: &Cell, fuel: u32 [0..=3]) {
+    state observe(cell: &Cell, fuel: u32) requires fuel <= 3 {
         let matches: bool = cell.value == fuel;
         transition matches && fuel > 0 {
             true -> observe(&Cell { value: fuel - 1 }, fuel - 1)
