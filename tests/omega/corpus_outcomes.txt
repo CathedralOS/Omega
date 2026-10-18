@@ -8,7 +8,7 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
-	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 fail/arithmetic/affine_difference_negative_edges rejected 681ms expected @70da601bb299+wt
 fail/arithmetic/affine_difference_unpaired_term rejected 677ms expected @70da601bb299+wt
@@ -1471,6 +1471,15 @@ fail/expressions/scalar_into_data_field_rejected rejected 2827ms expected @a9ae3
 fail/expressions/struct_operator_undeclared_rejected rejected 2917ms expected @a9ae30e1c334+wt
 fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 17ms expected @a9ae30e1c334+wt
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 19ms expected @a9ae30e1c334+wt
+fail/facts/abi_multi_arg_spill_unproved_call_result rejected 2184ms expected @a31e9f886e39
+fail/facts/abi_multi_arg_spill_unproved_const_name rejected 1982ms expected @a31e9f886e39
+fail/facts/abi_multi_arg_spill_unproved_field rejected 2134ms expected @a31e9f886e39
+fail/facts/abi_multi_arg_spill_unproved_local rejected 1906ms expected @a31e9f886e39
+fail/facts/abi_multi_arg_spill_unproved_match_join rejected 1971ms expected @a31e9f886e39
+fail/facts/abi_multi_arg_spill_unproved_other_machine rejected 1924ms expected @a31e9f886e39
+fail/facts/abi_multi_arg_spill_unproved_other_state rejected 1926ms expected @a31e9f886e39
+fail/facts/abi_multi_arg_spill_unproved_parameter rejected 1921ms expected @a31e9f886e39
+fail/facts/abi_multi_arg_spill_unproved_target_body rejected 2082ms expected @a31e9f886e39
 fail/facts/address_count_partition_through_call_result_rejected rejected 229ms expected @70da601bb299+wt
 fail/facts/address_count_partition_through_const_name_rejected rejected 225ms expected @70da601bb299+wt
 fail/facts/address_count_partition_through_field_rejected rejected 226ms expected @70da601bb299+wt
@@ -1804,7 +1813,6 @@ fail/facts/linear_claim_retirement_through_other_machine_rejected rejected 1387m
 fail/facts/linear_claim_retirement_through_other_state_rejected rejected 1399ms expected @28774f64507d
 fail/facts/linear_claim_retirement_through_parameter_rejected rejected 1406ms expected @28774f64507d
 fail/facts/linear_claim_retirement_through_target_body_rejected rejected 1380ms expected @28774f64507d
-	cannot use `token` in machine `consume` state `entry` (statement 1) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/facts/live_across_call_spill_unproved_call_result rejected 2034ms expected @623a499c00d9
 fail/facts/live_across_call_spill_unproved_const_name rejected 1940ms expected @623a499c00d9
 fail/facts/live_across_call_spill_unproved_field rejected 1929ms expected @623a499c00d9
@@ -1815,26 +1823,14 @@ fail/facts/live_across_call_spill_unproved_other_state rejected 2204ms expected 
 fail/facts/live_across_call_spill_unproved_parameter rejected 2304ms expected @623a499c00d9
 fail/facts/live_across_call_spill_unproved_target_body rejected 2250ms expected @623a499c00d9
 fail/facts/matched_field_windows_through_call_result_rejected rejected 4184ms expected @6950e9f0e0c8
-	cannot prove ensures contract for exit from from_call at statement 0: result.len == 2
 fail/facts/matched_field_windows_through_const_name_rejected rejected 3751ms expected @6950e9f0e0c8
-	cannot prove ensures contract for exit from from_const at statement 0: result.len == 2
 fail/facts/matched_field_windows_through_field_rejected rejected 3786ms expected @6950e9f0e0c8
-	cannot prove ensures contract for exit from from_field at statement 0: result.len == 2
 fail/facts/matched_field_windows_through_local_rejected rejected 4165ms expected @6950e9f0e0c8
-	cannot prove ensures contract for exit from from_local at statement 1: result.len == 2
 fail/facts/matched_field_windows_through_match_join_rejected rejected 4173ms expected @6950e9f0e0c8
-	cannot prove ensures contract for exit from from_join at statement 0: result.len == 2
 fail/facts/matched_field_windows_through_other_machine_rejected rejected 1437ms expected @6950e9f0e0c8
-	machine `from_machine` state `entry` value call to `open_end` violates required fact `end == 2`: the instantiated fact is structurally false (`3 == 2`)
 fail/facts/matched_field_windows_through_other_state_rejected rejected 2739ms expected @6950e9f0e0c8
-	cannot prove ensures contract for exit from from_state at statement 0: result.len == 2
 fail/facts/matched_field_windows_through_parameter_rejected rejected 1549ms expected @6950e9f0e0c8
-	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
 fail/facts/matched_field_windows_through_target_body_rejected rejected 1453ms expected @6950e9f0e0c8
-	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
-	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
-	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
-	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
 fail/facts/matched_window_through_call_result_rejected rejected 664ms expected @a48b0ac286f5
 fail/facts/matched_window_through_const_name_rejected rejected 659ms expected @a48b0ac286f5
 fail/facts/matched_window_through_field_rejected rejected 659ms expected @a48b0ac286f5
@@ -5263,6 +5259,15 @@ pass/expressions/runtime_widened_comparison_exit checked 11140ms check-target:ma
 pass/expressions/scalar_match_boundary_composition_exit checked 12777ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/seq_consuming_combinators checked 10030ms @fcc053dc7014+wt
 pass/expressions/unit_case_return_call_product checked 5467ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/facts/abi_multi_arg_spill_through_call_result_exit checked 6292ms check-target:macos_arm64 @a31e9f886e39
+pass/facts/abi_multi_arg_spill_through_const_name_exit checked 6464ms check-target:macos_arm64 @a31e9f886e39
+pass/facts/abi_multi_arg_spill_through_field_exit checked 6528ms check-target:macos_arm64 @a31e9f886e39
+pass/facts/abi_multi_arg_spill_through_local_exit checked 6624ms check-target:macos_arm64 @a31e9f886e39
+pass/facts/abi_multi_arg_spill_through_match_join_exit checked 6866ms check-target:macos_arm64 @a31e9f886e39
+pass/facts/abi_multi_arg_spill_through_other_machine_exit checked 7086ms check-target:macos_arm64 @a31e9f886e39
+pass/facts/abi_multi_arg_spill_through_other_state_exit checked 6916ms check-target:macos_arm64 @a31e9f886e39
+pass/facts/abi_multi_arg_spill_through_parameter_exit checked 7256ms check-target:macos_arm64 @a31e9f886e39
+pass/facts/abi_multi_arg_spill_through_target_body_exit checked 15275ms check-target:macos_arm64 @a31e9f886e39
 pass/facts/address_count_partition_through_call_result_exit checked 4004ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_const_name_exit checked 3993ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_field_exit checked 4018ms check-target:macos_arm64 @70da601bb299+wt
