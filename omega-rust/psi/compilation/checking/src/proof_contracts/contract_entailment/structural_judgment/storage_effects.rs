@@ -579,7 +579,7 @@ impl StructuralJudge<'_> {
     /// A direct slice's descriptor is a completed value, independent of the
     /// backing contents. Use the retained scope value only while its binding
     /// home survives; never reconstruct it from its initializer or a pointee.
-    pub(super) fn completed_descriptor_binding(
+    pub(super) fn completed_descriptor_place(
         &self,
         scope: Option<(
             &typed_trees::machine::Machine,
@@ -590,23 +590,48 @@ impl StructuralJudge<'_> {
         environment: &[(String, super::StructuralTerm)],
     ) -> Option<super::StructuralTerm> {
         self.requires_value_preservation().then_some(())?;
-        let (_, state, _) = scope?;
-        let name = self.program.expression_table.name_path_node(expression)?;
-        if name.symbol != name.head_symbol || !self.storage_binding_invalidated(name.symbol) {
+        let (machine, state, _) = scope?;
+        if !self.ordinary_storage_path(Some((machine, state)), expression) {
+            return None;
+        }
+        let place = crate::value_custody::places::canonical_place_from_expression(
+            self.program,
+            expression,
+        )?;
+        let root = place.root.as_symbol()?;
+        if !self.storage_binding_invalidated(root) {
             return None;
         }
         // A coarse outward frame can describe writes through a view without
         // distinguishing its backing from its carrier slot. The binding owner
         // separately establishes that this private descriptor home is neither
         // replaced nor exposed; referent snapshots retain the stronger fence.
-        let reference = crate::stable_slice_descriptor_binding(self.program, state, name.symbol)?;
-        let binding = self.program.symbols.name(name.symbol);
+        let reference =
+            crate::stable_slice_descriptor_place(self.program, state, root, &place.segments)?;
+        let root_reference = self
+            .program
+            .state_parameter_by_symbol(state, root)
+            .map(|parameter| parameter.type_reference)
+            .or_else(|| {
+                self.program
+                    .state_local_declaration(state, root)
+                    .map(|(_, local)| local.type_reference)
+            })?;
+        let binding = self.program.symbols.name(root);
         let mut values = environment.iter().filter(|(name, _)| name == binding);
         let value = values.next()?.1.clone();
-        values
-            .next()
-            .is_none()
-            .then(|| super::super::structural_terms::descriptor_only_observation(reference, value))
+        if values.next().is_some() {
+            return None;
+        }
+        let value = super::super::observed_projections::project_observed_value(
+            self.program,
+            root_reference,
+            value,
+            &place.segments,
+        )?;
+        Some(super::super::structural_terms::descriptor_only_observation(
+            reference, value,
+        ))
     }
 
     /// Source-only engines do not consume the current storage roster. They

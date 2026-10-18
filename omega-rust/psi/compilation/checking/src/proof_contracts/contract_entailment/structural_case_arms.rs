@@ -525,6 +525,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     for (value, outcome_judge) in outcomes {
                         let mut pending_citations = pending_citations.clone();
                         if collect_citations
+                            && !judge.has_runtime_body_values()
                             && let Some((target, argument_handles)) =
                                 citation_call_in_statement(program, statement)
                         {
@@ -667,7 +668,9 @@ fn recognize_structural_state_leaves_from<'a>(
                     }
                     return Some(leaves);
                 }
-                StatementNode::Call(_) if !saw_transition && collect_citations => {
+                StatementNode::Call(_)
+                    if !saw_transition && collect_citations && citation_preserves_values =>
+                {
                     let (target, argument_handles) =
                         citation_call_in_statement(program, statement)?;
                     stage_citation_argument_terms(

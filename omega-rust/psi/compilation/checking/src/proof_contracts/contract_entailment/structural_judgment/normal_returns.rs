@@ -514,7 +514,12 @@ impl<'program> StructuralJudge<'program> {
         }
         let program = self.program;
         let node = program.expression_table.expression(expression);
+        // An observation stops before its selected operation executes. Even a
+        // store destination therefore needs that operation's completed operand
+        // values, not the discarded location result. This does not read the
+        // destination's old contents: the entry is captured before completion.
         let demand = match demand {
+            _ if requested_operation == expression => NormalValueDemand::Value,
             NormalValueDemand::Location => {
                 let is_location = match node {
                     ExpressionNode::Name(_) => true,
@@ -911,6 +916,32 @@ impl<'program> StructuralJudge<'program> {
                 } else {
                     None
                 };
+                // Metadata observes the descriptor child that just completed,
+                // not a replay of its source place. A backing write may retire
+                // content observations without replacing this descriptor.
+                let completed_measure = if let ExpressionNode::Member(member) = node {
+                    crate::expression_result_type_reference(
+                        program,
+                        scope.0,
+                        scope.1,
+                        member.receiver,
+                    )
+                    .and_then(|reference| {
+                        super::super::structural_terms::collection_measure_term(
+                            program,
+                            member,
+                            reference,
+                            || {
+                                inputs
+                                    .iter()
+                                    .find(|(source, _)| *source == member.receiver)
+                                    .map(|(_, value)| value.clone())
+                            },
+                        )
+                    })
+                } else {
+                    None
+                };
                 let mut value = if receiver_changed {
                     // The receiver selected its base before a later operand
                     // wrote storage. Reconstructing it from the live place now
@@ -919,6 +950,8 @@ impl<'program> StructuralJudge<'program> {
                         Some(value) => value,
                         None => judge.capture_unknown_value(expression, scope)?,
                     }
+                } else if let Some(value) = completed_measure {
+                    value
                 } else if matches!(node, ExpressionNode::Atomic(_)) {
                     // The atomic owner distinguishes an observed load from
                     // update carriers. Its value is a fresh event, not the

@@ -1702,7 +1702,7 @@ impl<'program> StructuralJudge<'program> {
         {
             return Some(value.clone());
         }
-        if let Some(value) = self.completed_descriptor_binding(scope, expression, environment) {
+        if let Some(value) = self.completed_descriptor_place(scope, expression, environment) {
             return Some(value);
         }
         if let Some(value) = self.stored_value_observation(
