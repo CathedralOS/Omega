@@ -2,8 +2,7 @@
 // result. `take` is the target-scoped callee; `opaque()`'s result 4
 // proves `scale <= 5` in each body, which still discharges `echo`.
 //
-// Compile-checked only: no standard-library dependency and no
-// ProcessExit provider. The check is the oracle.
+// Expected exit: 0
 
 machine echo(scale: u64) -> u64
 requires scale <= 5
@@ -39,7 +38,7 @@ requires scale <= 5
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) crashes Trap {
     main.hits = 0;
 
     let s: u64 = opaque();
@@ -49,5 +48,5 @@ machine Main::main(main: &mut Main) {
         _ -> fail(main)
     }
     state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    state fail(main: &mut Main) { crash Trap; }
 }

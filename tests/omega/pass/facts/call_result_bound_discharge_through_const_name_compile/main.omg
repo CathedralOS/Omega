@@ -2,8 +2,7 @@
 // `requires`. `SCALE` is `opaque()`'s result 4, so `echo(SCALE)`
 // proves `scale <= 5`.
 //
-// Compile-checked only: no standard-library dependency and no
-// ProcessExit provider. The check is the oracle.
+// Expected exit: 0
 
 const SCALE: u64 = opaque();
 
@@ -17,7 +16,7 @@ machine opaque() -> u64 { 4u64 }
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) crashes Trap {
     main.hits = 0;
 
     let r: u64 = echo(SCALE);
@@ -26,5 +25,5 @@ machine Main::main(main: &mut Main) {
         _ -> fail(main)
     }
     state pass(main: &mut Main) { main.hits = 1; }
-    state fail(main: &mut Main) { main.hits = -1; }
+    state fail(main: &mut Main) { crash Trap; }
 }

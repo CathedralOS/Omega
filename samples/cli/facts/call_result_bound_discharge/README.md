@@ -4,13 +4,10 @@ A callee's `requires` discharges on a bound the caller learned from
 another call's closed result: the result is 4, so `echo` proves
 `scale <= 5` structurally at the instantiated judgment.
 
-Compile-checked only: no standard-library dependency and no
-`Main::exit` or `ProcessExit` provider. Each place is an `omega check`
-target, not a native run. There is no exit oracle.
-
 This fact is one row of nine places. Each place has one accepting
-project and one invalid control. The control is the same place fed a
-closed result of 9, so `scale <= 5` does not discharge.
+project declaring `// Expected exit: 0` that traps on wrong result (`crash Trap;` in `state fail`)
+and passes cleanly under both native and Terminal engines with zero warnings, and one invalid
+control fed a closed result of 9 that rejects at `scale <= 5`.
 
 | Place | Project |
 | --- | --- |
@@ -24,9 +21,10 @@ closed result of 9, so `scale <= 5` does not discharge.
 | another machine | `other_machine/` |
 | another target body | `target_body/` |
 
-## Learnings
+## Qualification and coverage
 
-- `_ = sink(9);` in `local/` (underscore discard of a call result)
-  compiles but warns: discarding a PROVABLY PURE call is
-  dead code — no service reach, suspension, blocking, or
-  mutable out-parameters.
+- Parent outcome: `ONE-INTEGER-BOUNDS-ENGINE` (`TASKS.md`)
+- Requirement families: `language-state-contracts-001`, `terminal-psi-fact-validity-001`, `terminal-psi-integer-certificates-001`
+- Observable oracle: `// Expected exit: 0` across all 9 places; failure branches execute `crash Trap;`
+- Invalid controls: all 9 reject compile-check with their authored contract failure diagnostic
+- Discard cleanup: removed dead `_ = sink(9);` pure call discard to achieve warning-free compilation
