@@ -2,10 +2,9 @@
 
 ## Nine-place native witnesses
 
-The original root `main.omg` and `build.omg` are retained byte for byte as a
-historical compile-scope probe. The root has no ProcessExit provider. Its
-bracketed scalar ranges predate the canonical contract syntax; historical
-compile-only observations do not establish native acceptance for this row.
+The root `main.omg` canonicalizes the probe to use canonical `requires`
+propositions instead of legacy bracketed scalar ranges, with `// Expected exit: 0`
+and `crashes Trap` on failure.
 
 Every integer width with a proved bound `0 <= index <= 3` indexes a four-element
 array and XORs the selected `u64` values. The `local`, `field`, `parameter`,
