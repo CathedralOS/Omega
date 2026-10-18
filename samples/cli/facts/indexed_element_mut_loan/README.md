@@ -6,11 +6,9 @@ selected count increases once and its neighbor is unchanged. Every place uses
 0 and 10. `bump` adds 1 in `u32 in Wrapping`. Both indices run: selecting 0
 must produce counts (1, 10), and selecting 1 must produce (0, 11).
 
-The original root `main.omg` and `build.omg` remain unchanged. That probe only
-checks its `Main::hits` state; it has no authored process-exit oracle. The nine
-new applications have an observable oracle: exit 0 after both count checks,
-or `Trap` on a wrong result. Their `build.omg` files bind all four hosted
-targets. Native execution evidence must name its matching host.
+The root `main.omg` and nine child applications have an observable oracle: exit 0
+after count checks, or `Trap` on a wrong result. Their `build.omg` files bind
+all four hosted targets. Native execution evidence must name its matching host.
 
 | Place | Project | Transport to the indexed loan |
 | --- | --- | --- |
@@ -64,7 +62,7 @@ transfer. The compiler repair retains the call's already evaluated selector
 in the result-backed argument path and carries checked loans of affine local
 backing across state edges. The repaired row runs all nine applications with
 exit 0 on Linux x86-64, and all nine twins retain their intended rejection.
-The root remains an unscored probe, separate from that execution evidence.
+The root application and nine place projects all verify that loan with exit 0.
 
 The additional regression
 `tests/omega/pass/borrows/runtime_result_element_call_selector_capture_exit`

@@ -4,15 +4,14 @@ The ordinary `&main.entries[..]` range lends a shared view of noncopy entries
 through the imported core `Slice::range` requirement. The sample reads its
 extent and records whether it still covers all four entries.
 
-Check this probe with `omega --check samples/cli/facts/as_slice_views/main.omg`.
-The corresponding executable regression checks the extent with a trap oracle:
+The root `main.omg` runs with `// Expected exit: 0` and `crashes Trap` on failure:
 
 ```text
-omega run --both tests/omega/pass/slices/runtime_imported_range_views_exit/main.omg
+omega run --both samples/cli/facts/as_slice_views/main.omg
 ```
 
 The range uses selected checked-provider supply and retains the bounds contract
-and backing loan. The runtime fixture expects exit 0 in both engines.
+and backing loan. The runtime root and fixtures expect exit 0 in both engines.
 
 ## Nine places
 
@@ -23,7 +22,8 @@ The checked operation is the call to `require_four`, whose requirement is
 than supplying a literal. Each `controls/short_extent/` twin changes the
 backing array extent and matching transport contracts to 3, retaining the
 operation and its requirement of 4. The twin must fail at that call.
-The original root probe above remains unchanged.
+The root application and nine place projects all verify that extent.
+
 
 | Place | Project | Fact transport |
 | --- | --- | --- |

@@ -2,9 +2,8 @@
 
 Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
 
-The original `main.omg` and `build.omg` remain the compile-only root probe;
-`sample.json` records that role for the gates.
-The nine child projects add exit-0 native witnesses of the same operation.
+The root `main.omg` and nine child projects are exit-0 native witnesses of the
+same operation, with `// Expected exit: 0` and `crashes Trap` on failure.
 Each `invalid/` twin removes only the data `where value <= 60` clause;
 construction, transport, call, arithmetic carrier, and operation stay identical.
 The unbounded `i32` can exceed `2147483577`, so its addition cannot be proved
@@ -41,7 +40,7 @@ python3 tools/sample_native_gate.py --filter cli/facts/data_where_standing --job
 
 The first semantic refusal on base `55352539edae` was in `const_name`:
 `data Counter has default-domain facts whose index-site proof is not implemented`.
-All other places checked. The root probe checked unchanged. All nine unbounded
+All other places checked. The root application and all nine places pass natively. All nine unbounded
 twins rejected their exact addition, including the const generic's body before
 specialization. The repair separates structural eligibility from proving each
 completed index value's required predicates; it does not infer membership from

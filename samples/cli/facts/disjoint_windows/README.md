@@ -1,16 +1,14 @@
 # disjoint windows
 
-Compile-scope probe. No standard-library dependency.
+The root `main.omg` runs with `// Expected exit: 0` and `crashes Trap` on failure:
 
 - `items[0..2]` and `items[2..4]` — literal disjoint bounds let two
   `&mut` subslices of one base borrow at once; writes through both.
 
-Compile-checked only (no ProcessExit provider):
-
 ```sh
-mbx run -p omega -- --check samples/cli/facts/disjoint_windows/main.omg
-mbx run -p omega -- update --project samples/cli/facts/disjoint_windows
+omega run --both samples/cli/facts/disjoint_windows/main.omg
 ```
+
 
 ## Nine places
 
@@ -38,8 +36,8 @@ boundary to 1 (and consistent argument/contract occurrences). Its ranges
 `[0,2)` and `[1,4)` remain in bounds, and both stores remain in bounds;
 the second exclusive loan must reject because the first remains active.
 Each positive has an exit-0 oracle that checks the borrowed writes and all
-caller elements after return: `[11,20,30,41]`. The original root probe stays
-unchanged and retains its check-only role.
+caller elements after return: `[11,20,30,41]`. The root application and nine place
+projects all verify that disjointness with exit 0.
 
 Canonical contracts:
 [borrowed range access and endpoints](../../../../wiki/spec/language/expressions.md#borrowed-range-access),
