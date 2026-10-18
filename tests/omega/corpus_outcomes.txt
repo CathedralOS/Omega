@@ -1483,15 +1483,27 @@ fail/expressions/scalar_into_data_field_rejected rejected 2827ms expected @a9ae3
 fail/expressions/struct_operator_undeclared_rejected rejected 2917ms expected @a9ae30e1c334+wt
 fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 17ms expected @a9ae30e1c334+wt
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 19ms expected @a9ae30e1c334+wt
-fail/facts/abi_multi_arg_spill_unproved_call_result rejected 2184ms expected @a31e9f886e39
-fail/facts/abi_multi_arg_spill_unproved_const_name rejected 1982ms expected @a31e9f886e39
-fail/facts/abi_multi_arg_spill_unproved_field rejected 2134ms expected @a31e9f886e39
-fail/facts/abi_multi_arg_spill_unproved_local rejected 1906ms expected @a31e9f886e39
-fail/facts/abi_multi_arg_spill_unproved_match_join rejected 1971ms expected @a31e9f886e39
-fail/facts/abi_multi_arg_spill_unproved_other_machine rejected 1924ms expected @a31e9f886e39
-fail/facts/abi_multi_arg_spill_unproved_other_state rejected 1926ms expected @a31e9f886e39
-fail/facts/abi_multi_arg_spill_unproved_parameter rejected 1921ms expected @a31e9f886e39
-fail/facts/abi_multi_arg_spill_unproved_target_body rejected 2082ms expected @a31e9f886e39
+fail/facts/abi_multi_arg_spill_unproved_call_result rejected 2576ms expected @fb19bb8df981
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/abi_multi_arg_spill_unproved_const_name rejected 2549ms expected @fb19bb8df981
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/abi_multi_arg_spill_unproved_field rejected 2549ms expected @fb19bb8df981
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/abi_multi_arg_spill_unproved_local rejected 2519ms expected @fb19bb8df981
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/abi_multi_arg_spill_unproved_match_join rejected 2493ms expected @fb19bb8df981
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/abi_multi_arg_spill_unproved_other_machine rejected 2643ms expected @fb19bb8df981
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/abi_multi_arg_spill_unproved_other_state rejected 2650ms expected @fb19bb8df981
+	exact arithmetic in machine `probe` state `step` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/abi_multi_arg_spill_unproved_parameter rejected 2631ms expected @fb19bb8df981
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/abi_multi_arg_spill_unproved_target_body rejected 2968ms expected @fb19bb8df981
+	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `weighted_ten_sum` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/address_count_partition_through_call_result_rejected rejected 229ms expected @70da601bb299+wt
 fail/facts/address_count_partition_through_const_name_rejected rejected 225ms expected @70da601bb299+wt
 fail/facts/address_count_partition_through_field_rejected rejected 226ms expected @70da601bb299+wt
@@ -1619,15 +1631,25 @@ fail/facts/case_where_equality_through_other_machine_rejected rejected 492ms exp
 fail/facts/case_where_equality_through_other_state_rejected rejected 457ms expected @ec38c6dfcf45
 fail/facts/case_where_equality_through_parameter_rejected rejected 492ms expected @ec38c6dfcf45
 fail/facts/case_where_equality_through_target_body_rejected rejected 447ms expected @ec38c6dfcf45
-fail/facts/checked_asm_countdown_call_result_wrong_fallthrough rejected 3591ms expected @a0c34fdba779+wt
-fail/facts/checked_asm_countdown_const_name_wrong_fallthrough rejected 5186ms expected @a0c34fdba779+wt
-fail/facts/checked_asm_countdown_field_wrong_fallthrough rejected 6936ms expected @a0c34fdba779+wt
-fail/facts/checked_asm_countdown_local_wrong_fallthrough rejected 4173ms expected @a0c34fdba779+wt
-fail/facts/checked_asm_countdown_match_join_wrong_fallthrough rejected 5366ms expected @a0c34fdba779+wt
-fail/facts/checked_asm_countdown_other_machine_wrong_fallthrough rejected 5890ms expected @a0c34fdba779+wt
-fail/facts/checked_asm_countdown_other_state_wrong_fallthrough rejected 4465ms expected @a0c34fdba779+wt
-fail/facts/checked_asm_countdown_parameter_wrong_fallthrough rejected 5548ms expected @a0c34fdba779+wt
-fail/facts/checked_asm_countdown_target_body_wrong_fallthrough rejected 3700ms expected @a0c34fdba779+wt
+fail/facts/checked_asm_countdown_call_result_wrong_fallthrough rejected 3856ms expected @fb19bb8df981
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_countdown_const_name_wrong_fallthrough rejected 3777ms expected @fb19bb8df981
+	cannot prove requires contract for call done from main$assembly$portable$4$entry: asm#scratch#2#eax$version$1 == 1 (needs fact `asm#scratch#2#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_countdown_field_wrong_fallthrough rejected 3786ms expected @fb19bb8df981
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#3#eax$version$1 == 1 (needs fact `asm#scratch#3#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_countdown_local_wrong_fallthrough rejected 3871ms expected @fb19bb8df981
+	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#2#eax$version$1 == 1 (needs fact `asm#scratch#2#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_countdown_match_join_wrong_fallthrough rejected 3790ms expected @fb19bb8df981
+	cannot prove requires contract for call done from countdown$assembly$portable$5$entry: asm#scratch#32#eax$version$1 == 1 (needs fact `asm#scratch#32#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_countdown_other_machine_wrong_fallthrough rejected 3842ms expected @fb19bb8df981
+	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#13#eax$version$1 == 1 (needs fact `asm#scratch#13#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_countdown_other_state_wrong_fallthrough rejected 3843ms expected @fb19bb8df981
+	cannot prove requires contract for call done from main$assembly$portable$4$next: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_countdown_parameter_wrong_fallthrough rejected 3837ms expected @fb19bb8df981
+	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_countdown_target_body_wrong_fallthrough rejected 3858ms expected @fb19bb8df981
+	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: asm#scratch#46#eax$version$1 == 1 (needs fact `asm#scratch#46#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/compound_guard_different_call_result_compile rejected 3197ms expected @2ef2ab353498+wt
 fail/facts/compound_guard_different_grouping_compile rejected 3217ms expected @2ef2ab353498+wt
 fail/facts/compound_guard_missing_lower_compile rejected 3183ms expected @2ef2ab353498+wt
@@ -1841,15 +1863,27 @@ fail/facts/linear_claim_retirement_through_other_machine_rejected rejected 1387m
 fail/facts/linear_claim_retirement_through_other_state_rejected rejected 1399ms expected @28774f64507d
 fail/facts/linear_claim_retirement_through_parameter_rejected rejected 1406ms expected @28774f64507d
 fail/facts/linear_claim_retirement_through_target_body_rejected rejected 1380ms expected @28774f64507d
-fail/facts/live_across_call_spill_unproved_call_result rejected 2034ms expected @623a499c00d9
-fail/facts/live_across_call_spill_unproved_const_name rejected 1940ms expected @623a499c00d9
-fail/facts/live_across_call_spill_unproved_field rejected 1929ms expected @623a499c00d9
-fail/facts/live_across_call_spill_unproved_local rejected 1978ms expected @623a499c00d9
-fail/facts/live_across_call_spill_unproved_match_join rejected 2125ms expected @623a499c00d9
-fail/facts/live_across_call_spill_unproved_other_machine rejected 2058ms expected @623a499c00d9
-fail/facts/live_across_call_spill_unproved_other_state rejected 2204ms expected @623a499c00d9
-fail/facts/live_across_call_spill_unproved_parameter rejected 2304ms expected @623a499c00d9
-fail/facts/live_across_call_spill_unproved_target_body rejected 2250ms expected @623a499c00d9
+fail/facts/live_across_call_spill_unproved_call_result rejected 2530ms expected @fb19bb8df981
+	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/live_across_call_spill_unproved_const_name rejected 2506ms expected @fb19bb8df981
+	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/live_across_call_spill_unproved_field rejected 2497ms expected @fb19bb8df981
+	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/live_across_call_spill_unproved_local rejected 2505ms expected @fb19bb8df981
+	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/live_across_call_spill_unproved_match_join rejected 2438ms expected @fb19bb8df981
+	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/live_across_call_spill_unproved_other_machine rejected 2475ms expected @fb19bb8df981
+	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/live_across_call_spill_unproved_other_state rejected 2518ms expected @fb19bb8df981
+	exact arithmetic in machine `run` state `step` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/live_across_call_spill_unproved_parameter rejected 2476ms expected @fb19bb8df981
+	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/live_across_call_spill_unproved_target_body rejected 2287ms expected @fb19bb8df981
+	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/matched_field_windows_through_call_result_rejected rejected 4184ms expected @6950e9f0e0c8
 fail/facts/matched_field_windows_through_const_name_rejected rejected 3751ms expected @6950e9f0e0c8
 fail/facts/matched_field_windows_through_field_rejected rejected 3786ms expected @6950e9f0e0c8
@@ -5320,15 +5354,15 @@ pass/expressions/runtime_widened_comparison_exit checked 11140ms check-target:ma
 pass/expressions/scalar_match_boundary_composition_exit checked 12777ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/seq_consuming_combinators checked 10030ms @fcc053dc7014+wt
 pass/expressions/unit_case_return_call_product checked 5467ms check-target:macos_arm64 @589aedee8ebc+wt
-pass/facts/abi_multi_arg_spill_through_call_result_exit checked 6292ms check-target:macos_arm64 @a31e9f886e39
-pass/facts/abi_multi_arg_spill_through_const_name_exit checked 6464ms check-target:macos_arm64 @a31e9f886e39
-pass/facts/abi_multi_arg_spill_through_field_exit checked 6528ms check-target:macos_arm64 @a31e9f886e39
-pass/facts/abi_multi_arg_spill_through_local_exit checked 6624ms check-target:macos_arm64 @a31e9f886e39
-pass/facts/abi_multi_arg_spill_through_match_join_exit checked 6866ms check-target:macos_arm64 @a31e9f886e39
-pass/facts/abi_multi_arg_spill_through_other_machine_exit checked 7086ms check-target:macos_arm64 @a31e9f886e39
-pass/facts/abi_multi_arg_spill_through_other_state_exit checked 6916ms check-target:macos_arm64 @a31e9f886e39
-pass/facts/abi_multi_arg_spill_through_parameter_exit checked 7256ms check-target:macos_arm64 @a31e9f886e39
-pass/facts/abi_multi_arg_spill_through_target_body_exit checked 15275ms check-target:macos_arm64 @a31e9f886e39
+pass/facts/abi_multi_arg_spill_through_call_result_exit checked 8371ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/abi_multi_arg_spill_through_const_name_exit checked 8604ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/abi_multi_arg_spill_through_field_exit checked 8599ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/abi_multi_arg_spill_through_local_exit checked 8628ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/abi_multi_arg_spill_through_match_join_exit checked 9553ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/abi_multi_arg_spill_through_other_machine_exit checked 9708ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/abi_multi_arg_spill_through_other_state_exit checked 9222ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/abi_multi_arg_spill_through_parameter_exit checked 9798ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/abi_multi_arg_spill_through_target_body_exit checked 22428ms check-target:macos_arm64 @fb19bb8df981
 pass/facts/address_count_partition_through_call_result_exit checked 4004ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_const_name_exit checked 3993ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_field_exit checked 4018ms check-target:macos_arm64 @70da601bb299+wt
@@ -5441,15 +5475,15 @@ pass/facts/case_where_equality_through_other_machine_exit checked 5621ms check-t
 pass/facts/case_where_equality_through_other_state_exit checked 5557ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/case_where_equality_through_parameter_exit checked 5744ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/case_where_equality_through_target_body_exit checked 5710ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/checked_asm_countdown_call_result_exit checked 14392ms check-target:linux_x86_64 @a0c34fdba779+wt
-pass/facts/checked_asm_countdown_const_name_exit checked 12105ms check-target:linux_x86_64 @a0c34fdba779+wt
-pass/facts/checked_asm_countdown_field_exit checked 9422ms check-target:linux_x86_64 @a0c34fdba779+wt
-pass/facts/checked_asm_countdown_local_exit checked 11863ms check-target:linux_x86_64 @a0c34fdba779+wt
-pass/facts/checked_asm_countdown_match_join_exit checked 12354ms check-target:linux_x86_64 @a0c34fdba779+wt
-pass/facts/checked_asm_countdown_other_machine_exit checked 10651ms check-target:linux_x86_64 @a0c34fdba779+wt
-pass/facts/checked_asm_countdown_other_state_exit checked 9921ms check-target:linux_x86_64 @a0c34fdba779+wt
-pass/facts/checked_asm_countdown_parameter_exit checked 12975ms check-target:linux_x86_64 @a0c34fdba779+wt
-pass/facts/checked_asm_countdown_target_body_exit checked 11997ms check-target:linux_x86_64 @a0c34fdba779+wt
+pass/facts/checked_asm_countdown_call_result_exit checked 8355ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_const_name_exit checked 8324ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_field_exit checked 8441ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_local_exit checked 8289ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_match_join_exit checked 8356ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_other_machine_exit checked 8331ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_other_state_exit checked 8165ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_parameter_exit checked 8233ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_countdown_target_body_exit checked 8244ms check-target:linux_x86_64 @fb19bb8df981
 pass/facts/compound_guard_through_call_result_compile checked 1913ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_const_name_compile checked 1881ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_field_compile checked 1863ms @2ef2ab353498+wt
@@ -5644,15 +5678,15 @@ pass/facts/linear_claim_retirement_through_other_machine_exit checked 4332ms che
 pass/facts/linear_claim_retirement_through_other_state_exit checked 4338ms check-target:macos_arm64 @28774f64507d
 pass/facts/linear_claim_retirement_through_parameter_exit checked 4327ms check-target:macos_arm64 @28774f64507d
 pass/facts/linear_claim_retirement_through_target_body_exit checked 4330ms check-target:macos_arm64 @28774f64507d
-pass/facts/live_across_call_spill_through_call_result_exit checked 7054ms check-target:macos_arm64 @623a499c00d9
-pass/facts/live_across_call_spill_through_const_name_exit checked 7297ms check-target:macos_arm64 @623a499c00d9
-pass/facts/live_across_call_spill_through_field_exit checked 6999ms check-target:macos_arm64 @623a499c00d9
-pass/facts/live_across_call_spill_through_local_exit checked 7005ms check-target:macos_arm64 @623a499c00d9
-pass/facts/live_across_call_spill_through_match_join_exit checked 7224ms check-target:macos_arm64 @623a499c00d9
-pass/facts/live_across_call_spill_through_other_machine_exit checked 6988ms check-target:macos_arm64 @623a499c00d9
-pass/facts/live_across_call_spill_through_other_state_exit checked 7288ms check-target:macos_arm64 @623a499c00d9
-pass/facts/live_across_call_spill_through_parameter_exit checked 7247ms check-target:macos_arm64 @623a499c00d9
-pass/facts/live_across_call_spill_through_target_body_exit checked 6992ms check-target:macos_arm64 @623a499c00d9
+pass/facts/live_across_call_spill_through_call_result_exit checked 7991ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/live_across_call_spill_through_const_name_exit checked 8037ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/live_across_call_spill_through_field_exit checked 7956ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/live_across_call_spill_through_local_exit checked 7875ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/live_across_call_spill_through_match_join_exit checked 7921ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/live_across_call_spill_through_other_machine_exit checked 8038ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/live_across_call_spill_through_other_state_exit checked 8076ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/live_across_call_spill_through_parameter_exit checked 8157ms check-target:macos_arm64 @fb19bb8df981
+pass/facts/live_across_call_spill_through_target_body_exit checked 8116ms check-target:macos_arm64 @fb19bb8df981
 pass/facts/matched_field_windows_through_call_result_exit checked 24028ms check-target:macos_arm64 @6950e9f0e0c8
 pass/facts/matched_field_windows_through_const_name_exit checked 23308ms check-target:macos_arm64 @6950e9f0e0c8
 pass/facts/matched_field_windows_through_field_exit checked 23825ms check-target:macos_arm64 @6950e9f0e0c8
