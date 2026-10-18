@@ -37,3 +37,29 @@ separate rejected capability today: owned-selection receipts cover owned data
 leaves and exclude exclusive-reference roots, so checking records no receipt
 and lowering stops at `owned selection place is absent from its receipt
 sources`.
+
+## Another state passes a reference to a state
+
+`other_state/` hands a reference to a named target whose parameter is a loan.
+The two reference accesses share one route, and both must work: `&mut i64` and
+`&i64`. An owned value, a machine parameter, and a second local holding the
+reference follow different routes and were never affected.
+
+A plain local borrowed at the transition exposed a lowering refusal, not a
+checking one. `retained_backing` found the borrowed root symbol, but
+`local_storage::source` has no structural occurrence to report for a scalar
+symbol, and the `?` on that lookup turned "caller-owned storage" into "missing
+provenance", so the state had no executable body:
+
+    `main` has no executable body: this compiler does not lower a transition
+    of it yet (state loan: captured backing); in state `main::entry`, statement 2
+
+The descriptor case the guard protects is already refused above the symbol
+route: `stored_loan_parts` is `Some` exactly when the root type is a stored
+reference carrier, and that branch returns first. A root that reaches the
+symbol route is neither a descriptor nor a state parameter, so an absent
+occurrence can only mean the local was declared before the operation prefix —
+the same caller-owned conclusion the producer search below draws when it finds
+no producer for its root. `tests/omega/pass/facts/`<br>
+`reference_arrival_handoff_through_other_state_exit` pins this: it records
+`incomplete` against a compiler without the repair and `built exit:0` with it.
