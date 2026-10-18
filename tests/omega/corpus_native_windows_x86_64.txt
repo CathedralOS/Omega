@@ -2131,6 +2131,33 @@ pass/facts/bounded_products_through_other_machine_exit built 7643ms exit:0 @77c9
 pass/facts/bounded_products_through_other_state_exit built 7196ms exit:0 @77c924b0deb6
 pass/facts/bounded_products_through_parameter_exit built 7620ms exit:0 @77c924b0deb6
 pass/facts/bounded_products_through_target_body_exit built 7514ms exit:0 @77c924b0deb6
+pass/facts/case_where_equality_through_call_result_exit built 5748ms exit:0 @ec38c6dfcf45
+pass/facts/case_where_equality_through_const_name_exit built 6013ms exit:0 @ec38c6dfcf45
+pass/facts/case_where_equality_through_field_exit built 5506ms exit:0 @ec38c6dfcf45
+pass/facts/case_where_equality_through_local_exit built 6049ms exit:0 @ec38c6dfcf45
+pass/facts/case_where_equality_through_match_join_exit built 5893ms exit:0 @ec38c6dfcf45
+pass/facts/case_where_equality_through_other_machine_exit built 5791ms exit:0 @ec38c6dfcf45
+pass/facts/case_where_equality_through_other_state_exit built 5972ms exit:0 @ec38c6dfcf45
+pass/facts/case_where_equality_through_parameter_exit built 5827ms exit:0 @ec38c6dfcf45
+pass/facts/case_where_equality_through_target_body_exit built 5650ms exit:0 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_call_result_exit built 5937ms exit:0 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_const_name_exit built 5584ms exit:0 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_field_exit built 5715ms exit:0 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_local_exit built 6871ms exit:0 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_match_join_exit built 6943ms exit:0 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_other_machine_exit built 6538ms exit:0 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_other_state_exit built 6954ms exit:0 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_parameter_exit built 6871ms exit:0 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_target_body_exit built 6490ms exit:0 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_call_result_exit built 16365ms exit:0 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_const_name_exit built 15955ms exit:0 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_field_exit built 16299ms exit:0 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_local_exit built 16334ms exit:0 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_match_join_exit built 16092ms exit:0 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_other_machine_exit built 16795ms exit:0 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_other_state_exit built 16834ms exit:0 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_parameter_exit built 16947ms exit:0 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_target_body_exit built 17106ms exit:0 @ec38c6dfcf45
 pass/facts/guarded_line_loan_through_call_result_exit built 5107ms exit:0 @866a955e52f8
 pass/facts/guarded_line_loan_through_const_name_exit built 5168ms exit:0 @866a955e52f8
 pass/facts/guarded_line_loan_through_field_exit built 5092ms exit:0 @866a955e52f8
@@ -2158,6 +2185,15 @@ pass/facts/matched_window_through_other_machine_exit built 5616ms exit:0 @b2d507
 pass/facts/matched_window_through_other_state_exit built 5492ms exit:0 @b2d507c5ddab+wt
 pass/facts/matched_window_through_parameter_exit built 5366ms exit:0 @b2d507c5ddab+wt
 pass/facts/matched_window_through_target_body_exit built 5592ms exit:0 @b2d507c5ddab+wt
+pass/facts/range_fact_delivery_through_call_result_exit built 8041ms exit:0 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_const_name_exit built 8077ms exit:0 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_field_exit built 7748ms exit:0 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_local_exit built 8049ms exit:0 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_match_join_exit built 7303ms exit:0 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_other_machine_exit built 7363ms exit:0 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_other_state_exit built 7805ms exit:0 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_parameter_exit built 7421ms exit:0 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_target_body_exit built 6944ms exit:0 @ec38c6dfcf45
 pass/facts/remainder_width_through_call_result_exit built 5810ms exit:0 @d070d134851d+wt
 pass/facts/remainder_width_through_const_name_exit built 5793ms exit:0 @d070d134851d+wt
 pass/facts/remainder_width_through_field_exit built 5725ms exit:0 @d070d134851d+wt
@@ -2167,6 +2203,15 @@ pass/facts/remainder_width_through_other_machine_exit built 5679ms exit:0 @d070d
 pass/facts/remainder_width_through_other_state_exit built 5707ms exit:0 @d070d134851d+wt
 pass/facts/remainder_width_through_parameter_exit built 5661ms exit:0 @d070d134851d+wt
 pass/facts/remainder_width_through_target_body_exit built 5742ms exit:0 @d070d134851d+wt
+pass/facts/result_cleanup_guarantees_through_call_result_exit built 7454ms exit:0 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_const_name_exit built 7475ms exit:0 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_field_exit built 7666ms exit:0 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_local_exit built 7451ms exit:0 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_match_join_exit built 7638ms exit:0 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_other_machine_exit built 7444ms exit:0 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_other_state_exit built 6739ms exit:0 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_parameter_exit built 7023ms exit:0 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_target_body_exit built 7375ms exit:0 @ec38c6dfcf45
 pass/filesystem/cross_linux_value_syscalls checked 25559ms @6c49683ce714
 pass/filesystem/dir_walk_wrappers_exit rejected 48831ms @e3eb5bdd566b
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`

@@ -1,0 +1,17 @@
+// Inclusive f64 0.0 <= value <= 0.25 entails admit's 0.0 <= value <= 0.5.
+// Reject: missing narrow upper-bound proof at admit(value).
+use omega::language::core::float_operations;
+const LOWER: f64 = 0.0;
+const NARROW_UPPER: f64 = 0.25;
+machine admit(value: f64) -> f64
+requires value >= 0.0 && value <= 0.5
+{ value }
+machine probe(value: f64) -> f64
+requires value >= LOWER
+{ admit(value) }
+machine main() crashes Trap {
+    let observed: f64 = probe(0.25);
+    transition observed == 0.25 { true -> done() _ -> bad() }
+    state done() { }
+    state bad() { crash Trap; }
+}

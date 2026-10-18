@@ -599,6 +599,27 @@ fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite rejected
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
 fail/facts/captured_scalar_is_not_current_storage rejected 557ms expected @8a884ecc43d5+wt
 	cannot prove requires contract for call demand_equal from main: saved == current (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/case_where_equality_through_call_result_rejected rejected 419ms expected @ec38c6dfcf45
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_through_const_name_rejected rejected 530ms expected @ec38c6dfcf45
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_through_field_rejected rejected 450ms expected @ec38c6dfcf45
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_through_local_rejected rejected 504ms expected @ec38c6dfcf45
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_through_match_join_rejected rejected 437ms expected @ec38c6dfcf45
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_through_other_machine_rejected rejected 492ms expected @ec38c6dfcf45
+	exact arithmetic in machine `inspect` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_through_other_state_rejected rejected 457ms expected @ec38c6dfcf45
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_through_parameter_rejected rejected 492ms expected @ec38c6dfcf45
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_where_equality_through_target_body_rejected rejected 447ms expected @ec38c6dfcf45
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/checked_asm_countdown_call_result_wrong_fallthrough rejected 3591ms expected @a0c34fdba779+wt
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_countdown_const_name_wrong_fallthrough rejected 5186ms expected @a0c34fdba779+wt
@@ -3633,6 +3654,27 @@ fail/facts/compound_guard_through_target_body_compile rejected 2356ms expected @
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/facts/compound_guard_unequal_match_arm_compile rejected 2639ms expected @2ef2ab353498+wt
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_call_result_rejected rejected 1015ms expected @ec38c6dfcf45
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_const_name_rejected rejected 1062ms expected @ec38c6dfcf45
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_field_rejected rejected 1088ms expected @ec38c6dfcf45
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_local_rejected rejected 932ms expected @ec38c6dfcf45
+	cannot prove index `b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_match_join_rejected rejected 992ms expected @ec38c6dfcf45
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_other_machine_rejected rejected 946ms expected @ec38c6dfcf45
+	cannot prove index `main.b * 20 + main.a` is within length 200 in store::entry
+fail/facts/compound_index_guard_through_other_state_rejected rejected 1003ms expected @ec38c6dfcf45
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_parameter_rejected rejected 1026ms expected @ec38c6dfcf45
+	cannot prove index `b * 20 + a` is within length 200 in store::entry
+fail/facts/compound_index_guard_through_target_body_rejected rejected 1082ms expected @ec38c6dfcf45
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/facts/computed_record_window_nonhost_body_rejected rejected 3410ms expected @dd658fb23eef
 	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 fail/facts/computed_record_window_through_call_result_rejected rejected 3581ms expected @dd658fb23eef
@@ -3865,6 +3907,27 @@ fail/facts/float_delivery_through_other_state_rejected rejected 3583ms expected 
 fail/facts/float_delivery_through_parameter_rejected rejected 3954ms expected @1dcced2fa00f+wt
 	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/float_delivery_through_target_body_rejected rejected 3820ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_call_result_rejected rejected 2463ms expected @ec38c6dfcf45
+	cannot prove requires contract for call admit from probe: source(reading) >= 0.0 && source(reading) <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_const_name_rejected rejected 2507ms expected @ec38c6dfcf45
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_field_rejected rejected 2480ms expected @ec38c6dfcf45
+	cannot prove requires contract for call admit from probe: holder.reading.value >= 0.0 && holder.reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_local_rejected rejected 2515ms expected @ec38c6dfcf45
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_match_join_rejected rejected 2723ms expected @ec38c6dfcf45
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_other_machine_rejected rejected 2495ms expected @ec38c6dfcf45
+	cannot prove requires contract for call admit from deliver: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_other_state_rejected rejected 2551ms expected @ec38c6dfcf45
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
+fail/facts/float_range_delivery_through_parameter_rejected rejected 2535ms expected @ec38c6dfcf45
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_target_body_rejected rejected 2648ms expected @ec38c6dfcf45
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -4158,6 +4221,27 @@ fail/facts/qualified_owned_join_missing_arm rejected 267ms expected @8a884ecc43d
 	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/qualified_owned_join_reused_source rejected 336ms expected @8a884ecc43d5+wt
 	owned value may have been transferred by an earlier match; it cannot be used here
+fail/facts/range_fact_delivery_through_call_result_rejected rejected 961ms expected @ec38c6dfcf45
+	cannot prove requires contract for call count from probe: source(input) <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_const_name_rejected rejected 879ms expected @ec38c6dfcf45
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_field_rejected rejected 897ms expected @ec38c6dfcf45
+	cannot prove requires contract for call count from read: reading.index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_local_rejected rejected 928ms expected @ec38c6dfcf45
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_match_join_rejected rejected 947ms expected @ec38c6dfcf45
+	cannot prove requires contract for call count from choose: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_other_machine_rejected rejected 1011ms expected @ec38c6dfcf45
+	cannot prove requires contract for call count from forward: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_other_state_rejected rejected 1122ms expected @ec38c6dfcf45
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
+fail/facts/range_fact_delivery_through_parameter_rejected rejected 1105ms expected @ec38c6dfcf45
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_target_body_rejected rejected 992ms expected @ec38c6dfcf45
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/remainder_width_through_call_result_rejected rejected 3201ms expected @d070d134851d+wt
 	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
 fail/facts/remainder_width_through_const_name_rejected rejected 3244ms expected @d070d134851d+wt
@@ -4215,6 +4299,28 @@ fail/facts/result_cleanup_guarantee_through_other_state_rejected rejected 641ms 
 fail/facts/result_cleanup_guarantee_through_parameter_rejected rejected 633ms expected @76ea4b8c7c50
 	cannot prove automatic cleanup requires at selected edge from through_parameter state entry after statement 0: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 fail/facts/result_cleanup_guarantee_through_target_body_rejected rejected 633ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_call_result_rejected rejected 931ms expected @ec38c6dfcf45
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_const_name_rejected rejected 1003ms expected @ec38c6dfcf45
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_field_rejected rejected 987ms expected @ec38c6dfcf45
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&holder.seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_local_rejected rejected 931ms expected @ec38c6dfcf45
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_match_join_rejected rejected 901ms expected @ec38c6dfcf45
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&first_seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_other_machine_rejected rejected 882ms expected @ec38c6dfcf45
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_other_state_rejected rejected 885ms expected @ec38c6dfcf45
+	cannot prove automatic cleanup requires at selected edge from carry state onward after statement 0: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_parameter_rejected rejected 867ms expected @ec38c6dfcf45
+	cannot prove automatic cleanup requires at selected edge from through_parameter state entry after statement 0: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_target_body_rejected rejected 874ms expected @ec38c6dfcf45
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
@@ -7737,6 +7843,15 @@ pass/facts/borrowed_projection_cleanup_through_other_machine_exit checked 4253ms
 pass/facts/borrowed_projection_cleanup_through_other_state_exit checked 4159ms check-target:macos_arm64 @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_parameter_exit checked 3641ms check-target:macos_arm64 @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_target_body_exit checked 3641ms check-target:macos_arm64 @dec223be05fb
+pass/facts/case_where_equality_through_call_result_exit checked 5747ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/case_where_equality_through_const_name_exit checked 5814ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/case_where_equality_through_field_exit checked 5553ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/case_where_equality_through_local_exit checked 5691ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/case_where_equality_through_match_join_exit checked 5564ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/case_where_equality_through_other_machine_exit checked 5621ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/case_where_equality_through_other_state_exit checked 5557ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/case_where_equality_through_parameter_exit checked 5744ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/case_where_equality_through_target_body_exit checked 5710ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/checked_asm_countdown_call_result_exit checked 14392ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_const_name_exit checked 12105ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_field_exit checked 9422ms check-target:linux_x86_64 @a0c34fdba779+wt
@@ -9432,6 +9547,15 @@ pass/facts/compound_guard_through_other_machine_compile checked 2089ms @2ef2ab35
 pass/facts/compound_guard_through_other_state_compile checked 1834ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_parameter_compile checked 1854ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_target_body_compile checked 2049ms @2ef2ab353498+wt
+pass/facts/compound_index_guard_through_call_result_exit checked 5660ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_const_name_exit checked 5834ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_field_exit checked 5759ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_local_exit checked 7052ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_match_join_exit checked 6939ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_other_machine_exit checked 6813ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_other_state_exit checked 6756ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_parameter_exit checked 6961ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_target_body_exit checked 7066ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/computed_record_window_mixed_lifecycle_exit checked 25778ms check-target:macos_arm64 @dd658fb23eef
 pass/facts/computed_record_window_original_exit checked 8376ms check-target:macos_arm64 @408e4fc23fbc
 pass/facts/computed_record_window_through_call_result_exit checked 24962ms check-target:macos_arm64 @dd658fb23eef
@@ -9515,6 +9639,15 @@ pass/facts/float_delivery_through_other_machine_exit checked 35130ms check-targe
 pass/facts/float_delivery_through_other_state_exit checked 25066ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/facts/float_delivery_through_parameter_exit checked 37382ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/facts/float_delivery_through_target_body_exit checked 30769ms check-target:macos_arm64 @1dcced2fa00f+wt
+pass/facts/float_range_delivery_through_call_result_exit checked 16564ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_const_name_exit checked 16059ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_field_exit checked 16548ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_local_exit checked 16220ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_match_join_exit checked 16315ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_other_machine_exit checked 16309ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_other_state_exit checked 16491ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_parameter_exit checked 15637ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_target_body_exit checked 15758ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/guarded_line_loan_through_call_result_exit checked 5835ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_const_name_exit checked 5825ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_field_exit checked 5857ms check-target:macos_arm64 @866a955e52f8
@@ -9617,6 +9750,15 @@ pass/facts/nominal_reference_cleanup_through_parameter_exit checked 3552ms check
 pass/facts/nominal_reference_cleanup_through_target_body_exit checked 3569ms check-target:macos_arm64 @d7a10cf8ff64+wt
 pass/facts/qualified_borrowed_join_exit checked 3994ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/qualified_owned_join_exit checked 4372ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/range_fact_delivery_through_call_result_exit checked 7349ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_const_name_exit checked 7081ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_field_exit checked 7689ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_local_exit checked 7403ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_match_join_exit checked 7635ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_other_machine_exit checked 6765ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_other_state_exit checked 7380ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_parameter_exit checked 6810ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_target_body_exit checked 7265ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/remainder_width_through_call_result_exit checked 7565ms check-target:macos_arm64 @d070d134851d+wt
 pass/facts/remainder_width_through_const_name_exit checked 7523ms check-target:macos_arm64 @d070d134851d+wt
 pass/facts/remainder_width_through_field_exit checked 7512ms check-target:macos_arm64 @d070d134851d+wt
@@ -9644,6 +9786,15 @@ pass/facts/result_cleanup_guarantee_through_other_machine_exit checked 3673ms ch
 pass/facts/result_cleanup_guarantee_through_other_state_exit checked 3672ms check-target:macos_arm64 @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_parameter_exit checked 3684ms check-target:macos_arm64 @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_target_body_exit checked 3690ms check-target:macos_arm64 @76ea4b8c7c50
+pass/facts/result_cleanup_guarantees_through_call_result_exit checked 7360ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_const_name_exit checked 7189ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_field_exit checked 7276ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_local_exit checked 7108ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_match_join_exit checked 7292ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_other_machine_exit checked 7320ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_other_state_exit checked 6480ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_parameter_exit checked 6479ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/result_cleanup_guarantees_through_target_body_exit checked 6711ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/returned_write_destination_through_call_result_exit checked 6783ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_const_name_exit checked 6674ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_field_exit checked 7303ms check-target:macos_arm64 @2ef2ab353498+wt
