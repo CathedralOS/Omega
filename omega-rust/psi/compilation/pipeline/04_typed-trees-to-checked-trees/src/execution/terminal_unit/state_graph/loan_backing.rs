@@ -113,8 +113,18 @@ pub(super) fn retained_backing(
         {
             return Some(None);
         }
-        let source = super::super::local_storage::source(program, typed_state, operations, symbol)?;
-        return source.current_result_binding(operations).map(Some);
+        let source = super::super::local_storage::source(program, typed_state, operations, symbol);
+        // A named root whose occurrence is absent from the operation prefix is
+        // caller-owned storage, not missing evidence. `stored_loan_parts` above
+        // already refused the descriptor case, where an absent occurrence would
+        // mean a produced reference whose provenance was lost; a scalar local
+        // declared before these operations simply has no structural occurrence
+        // to find, exactly as the producer search below concludes when it finds
+        // no producer for its root.
+        return match source {
+            Some(source) => source.current_result_binding(operations).map(Some),
+            None => Some(None),
+        };
     }
     let mut producers = operations.iter().filter(|operation| {
         super::super::cleanup::normal_edges::producer_root(facts, state, operation) == Some(root)
