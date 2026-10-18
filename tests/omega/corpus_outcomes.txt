@@ -2159,7 +2159,7 @@ fail/collections/contract_length_sibling_selector_write rejected 1137ms expected
 	cannot prove index `0` is within unknown slice length of `views[cursor.position]` in first::entry
 fail/collections/contract_length_unmet_requires rejected 1249ms expected @510dbaffdefa
 	cannot prove requires contract for call extent from first: values.len > 0 (needs fact `values.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/collections/contract_length_wrapping_result_cast_rejected rejected 2355ms expected @d070d134851d+wt
+fail/collections/contract_length_wrapping_result_cast_rejected rejected 3230ms expected @0ab126c710e4+wt
 	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
 fail/collections/declared_range_index_too_wide rejected 3423ms expected @f334a04a60a7+wt
 	cannot prove index `main.i` is within length 5 in Main::main::read
@@ -7691,6 +7691,7 @@ pass/asm/scratch_destination_ordinary_stores_exit checked 25933ms check-target:l
 pass/build/uefi_context_cleanup_entry checked 6263ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
 pass/build/uefi_selected_context_entry checked 6264ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
 pass/build/uefi_selected_context_target_entry checked 3463ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
+pass/collections/contract_length_qualified_result_cast_exit checked 6899ms check-target:macos_arm64 @0ab126c710e4+wt
 pass/core/address_interval_content_partition_exit checked 4031ms check-target:macos_arm64 @70da601bb299+wt
 pass/core/address_interval_partition_reverse_exit checked 4012ms check-target:macos_arm64 @70da601bb299+wt
 pass/core/aggregate_snapshot_copy_exit checked 3902ms check-target:macos_arm64 @70da601bb299+wt
