@@ -439,14 +439,18 @@ fn recognize_structural_state_leaves_from<'a>(
             {
                 let frames = judge.frame_resolver()?;
                 let mut writes = Vec::new();
+                let mut complete = true;
                 for frame in [
                     frames.may_write_frame(machine, call),
                     frames.statement_value_write_frame(machine, statement),
                 ] {
-                    writes.extend(frame.into_complete_paths()?);
+                    match frame.into_complete_paths() {
+                        Some(paths) => writes.extend(paths),
+                        None => complete = false,
+                    }
                 }
-                citation_preserves_values = writes.is_empty();
-                judge.observe_storage_writes(state, &writes)?;
+                citation_preserves_values = complete && writes.is_empty();
+                judge.observe_storage_effects(state, complete.then_some(writes.as_slice()))?;
             }
             if requirement.is_some()
                 && citation_preserves_values
@@ -493,13 +497,32 @@ fn recognize_structural_state_leaves_from<'a>(
             }
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
-                    let outcomes = judge.normal_return_paths(
-                        local.initial_value,
-                        &environment,
-                        (machine, state, local.type_reference),
-                    )?;
+                    let outcomes = if local.initial_value.is_valid() {
+                        judge
+                            .normal_return_paths(
+                                local.initial_value,
+                                &environment,
+                                (machine, state, local.type_reference),
+                            )?
+                            .into_iter()
+                            .map(|outcome| (Some(outcome.value), outcome.judge))
+                            .collect::<Vec<_>>()
+                    } else {
+                        // Zero storage has no expression to execute. Retain
+                        // the preceding path even when its contents have no
+                        // established mathematical value. Only the ordinary
+                        // zero-value owner may contribute equations; omission
+                        // must not establish a gated domain or invent a value.
+                        vec![(
+                            super::structural_terms::zero_value_structural_term(
+                                program,
+                                local.type_reference,
+                            ),
+                            judge.clone(),
+                        )]
+                    };
                     let mut leaves = Vec::new();
-                    for outcome in outcomes {
+                    for (value, outcome_judge) in outcomes {
                         let mut pending_citations = pending_citations.clone();
                         if collect_citations
                             && let Some((target, argument_handles)) =
@@ -507,7 +530,7 @@ fn recognize_structural_state_leaves_from<'a>(
                         {
                             stage_citation_argument_terms(
                                 program,
-                                &outcome.judge,
+                                &outcome_judge,
                                 machine,
                                 state,
                                 &environment,
@@ -517,11 +540,14 @@ fn recognize_structural_state_leaves_from<'a>(
                             )?;
                         }
                         let mut environment = environment.clone();
-                        environment.push((local.name.as_str().to_owned(), outcome.value));
+                        environment.retain(|(name, _)| name != local.name.as_str());
+                        if let Some(value) = value {
+                            environment.push((local.name.as_str().to_owned(), value));
+                        }
                         leaves.extend(recognize_structural_state_leaves_from(
                             program,
                             machine,
-                            &outcome.judge,
+                            &outcome_judge,
                             classification,
                             diagnostics,
                             states,

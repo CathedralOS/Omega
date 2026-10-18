@@ -42,8 +42,8 @@ pub(super) struct CapturedStorageValue {
 /// One authenticated store destination, frozen before replacement evaluation.
 #[derive(Clone)]
 pub(super) struct CapturedStoreDestination {
-    coordinate: CapturedStorageCoordinate,
-    written: Vec<String>,
+    coordinate: Option<CapturedStorageCoordinate>,
+    frame: facts::NormalizedWriteFrame,
 }
 
 impl StructuralJudge<'_> {
@@ -52,7 +52,18 @@ impl StructuralJudge<'_> {
         state: &State,
         written: &[String],
     ) -> Option<()> {
-        if written.is_empty() || !self.requires_value_preservation() {
+        self.observe_storage_effects(state, Some(written))
+    }
+
+    /// Unknown effects retire every live storage observation, not immutable
+    /// model premises or detached values captured before the call. Absence of
+    /// a complete frame is never an empty frame or evidence of non-interference.
+    pub(in crate::proof_contracts::contract_entailment) fn observe_storage_effects(
+        &mut self,
+        state: &State,
+        written: Option<&[String]>,
+    ) -> Option<()> {
+        if written.is_some_and(<[String]>::is_empty) || !self.requires_value_preservation() {
             return Some(());
         }
         self.storage_write_sequence += 1;
@@ -67,10 +78,12 @@ impl StructuralJudge<'_> {
         let frames = self.frame_resolver()?;
         let mut invalidated = Vec::new();
         let mut consider = |symbol: SymbolHandle, reference| {
-            let overlaps = crate::frame_coordinate_path(program, symbol, &[]).is_none_or(|path| {
-                written
-                    .iter()
-                    .any(|written| crate::frame_paths_overlap(written, &path))
+            let overlaps = written.is_none_or(|written| {
+                crate::frame_coordinate_path(program, symbol, &[]).is_none_or(|path| {
+                    written
+                        .iter()
+                        .any(|written| crate::frame_paths_overlap(written, &path))
+                })
             });
             if overlaps || !frames.value_is_reference_free(reference) {
                 invalidated.push(symbol);
@@ -90,8 +103,28 @@ impl StructuralJudge<'_> {
                     continue;
                 }
                 for parameter in program.state_parameters(earlier) {
-                    if !frames.value_is_reference_free(parameter.type_reference) {
+                    if written.is_none()
+                        || !frames.value_is_reference_free(parameter.type_reference)
+                    {
                         consider(parameter.symbol, parameter.type_reference);
+                    }
+                }
+                if written.is_none() {
+                    for statement in program.statement_table.statements(earlier.statement_nodes) {
+                        if let Some(local) = statement.as_local_data() {
+                            consider(local.symbol, local.type_reference);
+                        }
+                    }
+                }
+            }
+            if written.is_none() {
+                if let Some(data) =
+                    crate::value_custody::places::machine_attached_data(program, machine)
+                {
+                    for member in program.data_members(data) {
+                        if let typed_trees::data::DataMember::Field(field) = member {
+                            consider(field.symbol, field.type_reference);
+                        }
                     }
                 }
             }
@@ -100,6 +133,9 @@ impl StructuralJudge<'_> {
             if let Some(local) = statement.as_local_data() {
                 consider(local.symbol, local.type_reference);
             }
+        }
+        if written.is_none() {
+            invalidated.push(self.machine_symbol);
         }
         let storage = std::sync::Arc::make_mut(&mut self.invalidated_storage);
         for symbol in invalidated {
@@ -409,6 +445,28 @@ impl StructuralJudge<'_> {
         state: &State,
         statement: &typed_trees::statement::StatementNode,
     ) -> Option<CapturedStoreDestination> {
+        let frame = self
+            .frame_resolver()?
+            .assignment_write_frame(machine, statement);
+        let coordinate = frame
+            .complete_paths()
+            .and_then(|written| self.exact_store_coordinate(machine, state, statement, written));
+        if coordinate.is_none() && !self.requires_value_preservation() {
+            return None;
+        }
+        Some(CapturedStoreDestination { coordinate, frame })
+    }
+
+    /// Exact post-store value equations require a single authenticated backing.
+    /// Failure to capture it does not cancel the store: its frame still retires
+    /// live observations, conservatively all of them when that frame is opaque.
+    fn exact_store_coordinate(
+        &self,
+        machine: &typed_trees::machine::Machine,
+        state: &State,
+        statement: &typed_trees::statement::StatementNode,
+        written: &[String],
+    ) -> Option<CapturedStorageCoordinate> {
         let assignment = statement.as_assignment()?;
         self.ordinary_storage_path(Some((machine, state)), assignment.target)
             .then_some(())?;
@@ -458,20 +516,13 @@ impl StructuralJudge<'_> {
             _ => return None,
         };
         let root = place.root.as_symbol()?;
-        let written = frames
-            .assignment_write_frame(machine, statement)
-            .into_complete_paths()?;
         let footprint = crate::frame_coordinate_path(program, root, &place.segments)?;
-        if written.as_slice() != [footprint] {
+        if written != [footprint] {
             return None;
         }
         // Frame paths deliberately coarsen collections for invalidation only.
         // Exact storage retains the already completed selector value identities.
-        let coordinate = self.capture_storage_place(place)?;
-        Some(CapturedStoreDestination {
-            coordinate,
-            written,
-        })
+        self.capture_storage_place(place)
     }
 
     pub(super) fn observe_captured_store(
@@ -480,8 +531,10 @@ impl StructuralJudge<'_> {
         destination: CapturedStoreDestination,
         value: super::StructuralTerm,
     ) -> Option<()> {
-        self.observe_storage_writes(state, &destination.written)?;
-        self.retain_storage_value(destination.coordinate, value, false);
+        self.observe_storage_effects(state, destination.frame.complete_paths())?;
+        if let Some(coordinate) = destination.coordinate {
+            self.retain_storage_value(coordinate, value, false);
+        }
         Some(())
     }
 

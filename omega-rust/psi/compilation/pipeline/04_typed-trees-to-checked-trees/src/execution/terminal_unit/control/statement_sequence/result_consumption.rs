@@ -593,6 +593,13 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             authored_state,
             result.statement_index,
         )?;
+        // Descriptor expiry needs an actual captured descriptor. An empty
+        // roster supplies no authority to dispose established contents: a
+        // zeroed, unestablished local may owe only home retirement. Ordinary
+        // owned storage keeps its source-selected normal-exit partition.
+        if local_loans.is_empty() {
+            continue;
+        }
         if !retains_siblings
             && local_loans.iter().any(|(_, group)| {
                 !facts.borrow.loan_group(*group).is_some_and(|mut loans| {

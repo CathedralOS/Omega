@@ -14,6 +14,7 @@ use super::selected_contracts::independent_application;
 use super::value_predicates::boolean_term;
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
+use facts::NormalizedWriteFrame;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern};
@@ -712,23 +713,25 @@ impl<'program> StructuralJudge<'program> {
             let machine = program.machine(scope.0.symbol)?;
             let writes = self
                 .frame_resolver()?
-                .expression_may_write_paths(machine, expression);
+                .expression_write_frame(machine, expression);
             if super::super::struct_trace() {
                 eprintln!(
                     "STRUCT normal-write-frame caller={} expression={expression:?} writes={writes:?}",
                     scope.0.name
                 );
             }
-            let writes = writes?;
+            if !writes.is_complete() && !self.requires_value_preservation() {
+                return None;
+            }
             // Mathematical body substitution has no runtime storage epochs.
             // It cannot unfold effectful calls as repeatable applications.
             // Case-only paths separately establish tag preservation.
-            if !writes.is_empty() && !self.runtime_body_values && !self.case_facts_only {
+            if !writes.paths().is_empty() && !self.runtime_body_values && !self.case_facts_only {
                 return None;
             }
             writes
         } else {
-            Vec::new()
+            NormalizedWriteFrame::complete(Vec::new())
         };
         // Retire a prior evaluation of this static node. Repeated edges are
         // distinct invocations; saved earlier values already retain their own
@@ -1146,7 +1149,10 @@ impl<'program> StructuralJudge<'program> {
             let mut judge = entry.judge;
             let writes = judge
                 .frame_resolver()?
-                .expression_may_write_paths(scope.0, expression)?;
+                .expression_write_frame(scope.0, expression);
+            if !writes.is_complete() && !judge.requires_value_preservation() {
+                return None;
+            }
             judge.complete_normal_call(
                 expression,
                 Some(&entry.arguments),
@@ -1171,10 +1177,11 @@ impl<'program> StructuralJudge<'program> {
         actuals: Option<&[StructuralTerm]>,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
-        writes: &[String],
+        writes: &NormalizedWriteFrame,
     ) -> Option<()> {
-        let post_storage = self.capture_normal_call(expression, actuals, environment, scope);
-        self.observe_storage_writes(scope.1, writes)?;
+        let post_storage =
+            self.capture_normal_call(expression, actuals, environment, scope, writes);
+        self.observe_storage_effects(scope.1, writes.complete_paths())?;
         for (coordinate, value) in post_storage.into_iter().flatten() {
             self.retain_storage_value(coordinate, value, false);
         }
@@ -1187,6 +1194,7 @@ impl<'program> StructuralJudge<'program> {
         actuals: Option<&[StructuralTerm]>,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
+        writes: &NormalizedWriteFrame,
     ) -> Option<
         Vec<(
             super::storage_effects::CapturedStorageCoordinate,
@@ -1231,7 +1239,10 @@ impl<'program> StructuralJudge<'program> {
             return None;
         };
         let frames = self.frame_resolver();
-        let subjects = frames.and_then(|frames| {
+        // An opaque frame establishes no preservation or post-call reference
+        // correspondence. Isolated operand snapshots and independent result
+        // guarantees remain usable, but no live referent is reintroduced.
+        let subjects = frames.filter(|_| writes.is_complete()).and_then(|frames| {
             frames.expression_call_reference_subjects(machine, expression, parameters)
         });
         if !independent_application(
