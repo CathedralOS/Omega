@@ -3084,6 +3084,27 @@ fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 17ms expe
 	`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape (Wrapped, Wrapped); a second spelling needs a distinct operand shape or a separate owner
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 19ms expected @a9ae30e1c334+wt
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
+fail/facts/as_slice_views_through_call_result_short_extent rejected 7357ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_through_const_name_short_extent rejected 5932ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_through_field_short_extent rejected 5472ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: holder.view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_through_local_short_extent rejected 4947ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_through_match_join_short_extent rejected 4473ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_through_other_machine_short_extent rejected 5280ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from measure: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_through_other_state_short_extent rejected 5537ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `measure`
+fail/facts/as_slice_views_through_parameter_short_extent rejected 4743ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/as_slice_views_through_target_body_short_extent rejected 4504ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/bound_through_call_result_rejected rejected 1051ms expected @3b422f31da30+wt
 	cannot prove index `slot(index)` is within length 3 in read_call::entry
 fail/facts/bound_through_const_name_rejected rejected 1061ms expected @3b422f31da30+wt
@@ -8282,6 +8303,15 @@ pass/expressions/runtime_widened_comparison_exit checked 11140ms check-target:ma
 pass/expressions/scalar_match_boundary_composition_exit checked 12777ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/seq_consuming_combinators checked 10030ms @fcc053dc7014+wt
 pass/expressions/unit_case_return_call_product checked 5467ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/facts/as_slice_views_through_call_result_exit checked 12276ms check-target:macos_arm64 @d68dc74a14e0
+pass/facts/as_slice_views_through_const_name_exit checked 10830ms check-target:macos_arm64 @d68dc74a14e0
+pass/facts/as_slice_views_through_field_exit checked 18298ms check-target:macos_arm64 @d68dc74a14e0
+pass/facts/as_slice_views_through_local_exit checked 13170ms check-target:macos_arm64 @d68dc74a14e0
+pass/facts/as_slice_views_through_match_join_exit checked 11412ms check-target:macos_arm64 @d68dc74a14e0
+pass/facts/as_slice_views_through_other_machine_exit checked 13911ms check-target:macos_arm64 @d68dc74a14e0
+pass/facts/as_slice_views_through_other_state_exit checked 16196ms check-target:macos_arm64 @d68dc74a14e0
+pass/facts/as_slice_views_through_parameter_exit checked 17697ms check-target:macos_arm64 @d68dc74a14e0
+pass/facts/as_slice_views_through_target_body_exit checked 14573ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/bound_through_call_result_exit checked 6280ms check-target:macos_arm64 @3b422f31da30+wt
 pass/facts/bound_through_const_name_exit checked 6261ms check-target:macos_arm64 @3b422f31da30+wt
 pass/facts/bound_through_field_exit checked 6295ms check-target:macos_arm64 @3b422f31da30+wt

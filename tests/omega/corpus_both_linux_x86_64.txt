@@ -213,6 +213,15 @@ pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 6296ms ex
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 5398ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d537c1f08618
 pass/expressions/call_result_comparison_operands_exit built 22382ms exit:70 interpreter-exit:70 interpreter:agrees @c48489ea6ad6
 pass/expressions/runtime_comparison_store_integer_exit built 24518ms exit:70 interpreter-exit:70 interpreter:agrees @c48489ea6ad6
+pass/facts/as_slice_views_through_call_result_exit built 15455ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
+pass/facts/as_slice_views_through_const_name_exit built 15801ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
+pass/facts/as_slice_views_through_field_exit built 14986ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
+pass/facts/as_slice_views_through_local_exit built 14598ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
+pass/facts/as_slice_views_through_match_join_exit built 14555ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
+pass/facts/as_slice_views_through_other_machine_exit built 14503ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
+pass/facts/as_slice_views_through_other_state_exit built 17640ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
+pass/facts/as_slice_views_through_parameter_exit built 18887ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
+pass/facts/as_slice_views_through_target_body_exit built 14271ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
 pass/facts/computed_record_window_mixed_lifecycle_exit built 23994ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/facts/computed_record_window_through_call_result_exit built 22116ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/facts/computed_record_window_through_const_name_exit built 23097ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
