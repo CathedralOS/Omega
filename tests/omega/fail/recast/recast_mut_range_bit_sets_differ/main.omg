@@ -2,10 +2,24 @@
 // representation equivalence. The target admits bit pattern 101 while the
 // source admits bit pattern 0, so either mutable alias could invalidate the
 // other view's range fact.
+data SignedBounded
+where
+    value >= 0 && value <= 100,
+{
+    value: i32;
+}
+
+data ShiftedUnsigned
+where
+    value >= 1 && value <= 101,
+{
+    value: u32;
+}
+
 data Main {
-    value: i32 [0..=100];
+    value: SignedBounded;
 }
 
 machine Main::main(main: &mut Main) {
-    let view: &mut u32 [1..=101] = &mut main.value as &mut u32;
+    let view: &mut ShiftedUnsigned = &mut main.value as &mut ShiftedUnsigned;
 }

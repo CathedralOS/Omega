@@ -6131,7 +6131,7 @@ fail/recast/recast_conflicting_backing_loan rejected 292ms expected @2430f497a77
 fail/recast/recast_mut_bool_as_unconstrained_byte rejected 830ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
 fail/recast/recast_mut_range_bit_sets_differ rejected 958ms expected @a9ae30e1c334+wt
-	machine `Main::main` state `main`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
+	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ShiftedUnsigned` are not representation-compatible
 fail/recast/recast_mut_record_fact_fenced rejected 823ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main`: byte-region recast target `Facted` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants; mutable views require fact implication in BOTH directions
 fail/recast/recast_mut_record_where_bounds_differ rejected 910ms expected @a9ae30e1c334+wt
