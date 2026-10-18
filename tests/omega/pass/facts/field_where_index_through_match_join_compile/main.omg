@@ -1,0 +1,26 @@
+// A match join of two copies of the standing field still discharges
+// `arr[index + 1]`. Both arms carry `k <= 3`, so the joined local does.
+//
+// Compile-checked only: no ProcessExit provider.
+
+data Main where 0 <= k, k <= 3 {
+    arr: [i32 in Wrapping; 5];
+    k: u64;
+    r: i32 in Wrapping;
+    hits: i32 in Wrapping;
+}
+
+machine joined(main: &Main, flag: bool) -> i32 in Wrapping {
+    let index: u64 = match flag { true -> main.k, false -> main.k };
+    main.arr[index + 1]
+}
+
+machine Main::main(main: &mut Main) {
+    main.k = 2;
+    main.r = joined(main, true);
+    transition { _ -> successor(main) }
+    state successor(main: &mut Main) {
+        main.r = joined(main, true);
+        main.hits = main.r;
+    }
+}

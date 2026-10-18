@@ -1,0 +1,30 @@
+// Another state's Alive requires stays unproved when the arrival has no fact.
+
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive(player)
+requires
+    player.health > 0;
+
+data Main {
+    player: Player;
+}
+
+machine Main::inspect(player: Player)
+requires
+    player in Player::Alive
+{
+}
+
+machine Main::main(main: &mut Main) {
+    let mut copy: Player = main.player;
+    transition { _ -> arrived(copy) }
+    state arrived(player: Player)
+    requires
+        player in Player::Alive
+    {
+        Main::inspect(player);
+    }
+}

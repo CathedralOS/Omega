@@ -1,0 +1,28 @@
+// A field copied from a player with no Alive fact does not satisfy inspect.
+
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive(player)
+requires
+    player.health > 0;
+
+data Roster {
+    member: Player;
+}
+
+data Main {
+    player: Player;
+}
+
+machine Main::inspect(player: Player)
+requires
+    player in Player::Alive
+{
+}
+
+machine Main::main(main: &mut Main) {
+    let roster: Roster = Roster { member: main.player };
+    Main::inspect(roster.member);
+}

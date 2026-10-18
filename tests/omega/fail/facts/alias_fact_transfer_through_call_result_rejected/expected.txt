@@ -1,0 +1,1 @@
+cannot prove requires contract for call inspect from Main::main: copy in Player::Alive in state `main`

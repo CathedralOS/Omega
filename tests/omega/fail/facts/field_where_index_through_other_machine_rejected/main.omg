@@ -1,0 +1,34 @@
+// No standing where bound. `produced` cannot prove its ensures.
+
+data Main {
+    arr: [i32 in Wrapping; 5];
+    k: u64;
+    r: i32 in Wrapping;
+    hits: i32 in Wrapping;
+}
+
+machine produced(main: &Main) -> u64
+ensures 0 <= result && result <= 3
+{
+    main.k
+}
+
+machine consumed(main: &Main, index: u64) -> i32 in Wrapping
+requires 0 <= index && index <= 3
+{
+    main.arr[index + 1]
+}
+
+machine use(main: &Main) -> i32 in Wrapping {
+    consumed(main, produced(main))
+}
+
+machine Main::main(main: &mut Main) {
+    main.k = 2;
+    main.r = use(main);
+    transition { _ -> successor(main) }
+    state successor(main: &mut Main) {
+        main.r = use(main);
+        main.hits = main.r;
+    }
+}

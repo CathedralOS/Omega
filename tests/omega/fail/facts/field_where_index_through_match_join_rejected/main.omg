@@ -1,0 +1,18 @@
+// One match arm has no standing bound, so the join must not index.
+
+data Main where 0 <= k, k <= 3 {
+    arr: [i32 in Wrapping; 5];
+    k: u64;
+    r: i32 in Wrapping;
+    hits: i32 in Wrapping;
+}
+
+machine joined(main: &Main, flag: bool, extra: u64) -> i32 in Wrapping {
+    let index: u64 = match flag { true -> main.k, false -> extra };
+    main.arr[index + 1]
+}
+
+machine Main::main(main: &mut Main) {
+    main.k = 2;
+    main.r = joined(main, true, 0);
+}

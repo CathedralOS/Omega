@@ -1,0 +1,1 @@
+cannot prove requires contract for call inspect from Main::carry: player in Player::Alive in state `carry`

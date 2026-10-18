@@ -1,0 +1,1 @@
+cannot prove requires contract for call take from Main::main: s <= 5

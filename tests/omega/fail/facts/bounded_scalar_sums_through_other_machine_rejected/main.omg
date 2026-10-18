@@ -1,0 +1,12 @@
+// Another machine receiving full-range u64 parameters does not prove an exact sum.
+machine combine(left: u64 [0..=18446744073709551615], right: u64 [0..=18446744073709551615]) -> u64 {
+    left + right
+}
+
+machine add(a: u64 [0..=18446744073709551615], b: u64 [0..=18446744073709551615]) -> u64 {
+    combine(a, b)
+}
+
+machine main() {
+    _ = add(30, 40);
+}

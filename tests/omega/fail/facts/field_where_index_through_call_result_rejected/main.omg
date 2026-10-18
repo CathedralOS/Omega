@@ -1,0 +1,28 @@
+// No standing where bound. `current` cannot prove its ensures.
+
+data Main {
+    arr: [i32 in Wrapping; 5];
+    k: u64;
+    r: i32 in Wrapping;
+    hits: i32 in Wrapping;
+}
+
+machine current(main: &Main) -> u64
+ensures 0 <= result && result <= 3
+{
+    main.k
+}
+
+machine use(main: &Main) -> i32 in Wrapping {
+    main.arr[current(main) + 1]
+}
+
+machine Main::main(main: &mut Main) {
+    main.k = 2;
+    main.r = use(main);
+    transition { _ -> successor(main) }
+    state successor(main: &mut Main) {
+        main.r = use(main);
+        main.hits = main.r;
+    }
+}

@@ -1,0 +1,27 @@
+// A data `where` roster carries standing field facts: `k <= 3` holds
+// for every `main` value, so `main.arr[main.k + 1]` compiles with no
+// guard. `read` does not see the literal store. `Main::main` calls it
+// from the entry and again from `successor`.
+//
+// Compile-checked only: no ProcessExit provider.
+
+data Main where 0 <= k, k <= 3 {
+    arr: [i32 in Wrapping; 5];
+    k: u64;
+    r: i32 in Wrapping;
+    hits: i32 in Wrapping;
+}
+
+machine read(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
+}
+
+machine Main::main(main: &mut Main) {
+    main.k = 2;
+    main.r = read(main);
+    transition { _ -> successor(main) }
+    state successor(main: &mut Main) {
+        main.r = read(main);
+        main.hits = main.r;
+    }
+}

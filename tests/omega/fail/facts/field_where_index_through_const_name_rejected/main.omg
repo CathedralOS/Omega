@@ -1,0 +1,24 @@
+// `LIMIT` is 4, so `k <= LIMIT` must not prove `k + 1` is inside length 5.
+
+const LIMIT: u64 = 4;
+
+data Main where 0 <= k, k <= LIMIT {
+    arr: [i32 in Wrapping; 5];
+    k: u64;
+    r: i32 in Wrapping;
+    hits: i32 in Wrapping;
+}
+
+machine read(main: &Main) -> i32 in Wrapping {
+    main.arr[main.k + 1]
+}
+
+machine Main::main(main: &mut Main) {
+    main.k = 2;
+    main.r = read(main);
+    transition { _ -> successor(main) }
+    state successor(main: &mut Main) {
+        main.r = read(main);
+        main.hits = main.r;
+    }
+}

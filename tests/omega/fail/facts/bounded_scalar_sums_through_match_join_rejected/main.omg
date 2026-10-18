@@ -1,0 +1,10 @@
+// A match join of two full-range u64 values does not prove an exact sum.
+machine add(a: u64 [0..=18446744073709551615], b: u64 [0..=18446744073709551615], flag: bool) -> u64 {
+    let left: u64 = match flag { true -> a, false -> b };
+    let right: u64 = match flag { true -> b, false -> a };
+    left + right
+}
+
+machine main() {
+    _ = add(30, 40, true);
+}
