@@ -198,6 +198,26 @@ Every publisher must use this command. Direct main pushes can still bypass this
 cooperative protocol. If main advances outside the reservation, publication stops;
 release and reconcile before performing final validation again.
 
+### The lane is removed by the publish
+
+On success `publish` removes the publishing worktree and deletes its candidate
+branch, because AGENTS.md makes that a hard rule on the publishing session and
+a landed lane is dead bookkeeping. It runs after main is confirmed to hold the
+candidate and after the provenance note is recorded, so it can never influence
+whether a publication is reported as landed. The outcome appears as `cleanup`
+in the JSON result, and a refusal is a reported reason, not a failure. Pass
+`--keep-worktree` to retain the lane deliberately.
+
+It refuses whenever anything could still be lost, so the reported reason names
+the real condition:
+
+- the publish ran from the main checkout rather than a linked lane;
+- the worktree has uncommitted or untracked changes;
+- HEAD is not the published candidate, or holds commits beyond it;
+- HEAD is detached, or sits on the main line.
+
+The main checkout is never removable, and a refusal never deletes the worktree.
+
 ### Provenance notes
 
 Commit messages carry no tool attribution (AGENTS.md), so after main holds the

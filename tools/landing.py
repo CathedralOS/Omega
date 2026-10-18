@@ -255,6 +255,85 @@ def intermediate_checks(repository, base, head, tool):
             coordination.git(repository, "checkout", "-q", "--detach", head)
     return results
 
+def landed_worktree_cleanup(repository, candidate):
+    """Remove the landed lane's own worktree and candidate branch.
+
+    AGENTS.md makes this a hard rule on the publishing session: once a publish
+    completes, the worktree and its candidate branch are dead bookkeeping, not
+    a record. Nothing enforced it, so landed lanes accumulated while each
+    session relied on remembering. Called here, after main is confirmed to
+    hold `candidate`, so the rule is self-enforcing.
+
+    Deliberately conservative: this runs only in the publishing worktree, and
+    only when that worktree is provably removable. It refuses, returning a
+    reason, whenever anything could still be lost:
+
+    - the publish did not come from a linked worktree (a checkout on main has
+      no candidate branch to retire, and removing it would be catastrophic);
+    - the worktree has uncommitted or untracked changes, which are not
+      recorded anywhere and would be destroyed;
+    - HEAD is not `candidate`, or it carries commits main does not hold;
+    - the branch is the repository's main line.
+
+    The main checkout is never a candidate: `git worktree list` marks it with
+    no branch-checkout entry for main, and its path is the common directory's
+    parent. Returns a dict describing what happened; never raises, because a
+    cleanup that fails must not imply the publication failed.
+    """
+    def git(*arguments, cwd=None):
+        return subprocess.run(["git", *arguments], cwd=cwd or repository,
+                              capture_output=True, text=True, timeout=30)
+
+    try:
+        common = git("rev-parse", "--path-format=absolute", "--git-common-dir")
+        if common.returncode:
+            return {"removed": False, "reason": "cannot resolve the common git directory"}
+        main_checkout = Path(common.stdout.strip()).parent.resolve()
+        current = Path(repository).resolve()
+        if current == main_checkout:
+            return {"removed": False, "reason": "publishing from the main checkout, not a lane"}
+
+        branch = git("symbolic-ref", "-q", "--short", "HEAD")
+        if branch.returncode or not branch.stdout.strip():
+            return {"removed": False, "reason": "detached HEAD has no candidate branch to retire"}
+        branch = branch.stdout.strip()
+        if branch in ("main", "master"):
+            return {"removed": False, "reason": f"HEAD is {branch}, the main line"}
+
+        head = git("rev-parse", "HEAD")
+        if head.returncode or head.stdout.strip() != candidate:
+            return {"removed": False,
+                    "reason": "worktree HEAD is not the published candidate"}
+
+        status = git("status", "--porcelain")
+        if status.returncode or status.stdout.strip():
+            return {"removed": False,
+                    "reason": "worktree has uncommitted or untracked changes"}
+
+        # Anything main lacks would be unpublished work, whatever the indices say.
+        ahead = git("rev-list", "--count", f"{candidate}..HEAD")
+        if ahead.returncode or ahead.stdout.strip() != "0":
+            return {"removed": False, "reason": "worktree holds commits beyond the candidate"}
+
+        # `git worktree remove` refuses a dirty tree, which the check above
+        # already excluded; it also needs an absolute path from the common dir.
+        removal = git("worktree", "remove", str(current))
+        if removal.returncode:
+            return {"removed": False,
+                    "reason": f"worktree removal refused: {removal.stderr.strip()}"}
+
+        # The worktree directory is gone now, so every later command must run
+        # from the main checkout; `repository` no longer exists as a cwd.
+        deletion = git("branch", "-D", branch, cwd=str(main_checkout))
+        if deletion.returncode:
+            # The worktree is gone; the branch is now only bookkeeping, but say
+            # so rather than reporting a clean sweep.
+            return {"removed": True, "branch": branch,
+                    "reason": f"worktree removed; branch deletion failed: {deletion.stderr.strip()}"}
+        return {"removed": True, "branch": branch, "worktree": str(current)}
+    except (OSError, subprocess.SubprocessError) as error:
+        return {"removed": False, "reason": f"cleanup inspection failed: {type(error).__name__}"}
+
 def receipt_path(repository, candidate):
     return (Path(repository) / "build" / "landing_receipts"
             / f"{candidate}.json")
@@ -947,6 +1026,22 @@ class Landing:
                     result["provenance"] = self.record_provenance(options.candidate, [
                         f"owner: {owner}", *([f"provenance: {provenance}"] if provenance.strip() else []),
                         f"ticket: {options.claim}", f"published_utc: {now()}"])
+                    # Main holds the candidate now, so the lane is dead
+                    # bookkeeping. Advisory: a cleanup that refuses must never
+                    # read as a failed publication. The checkout to clean is
+                    # the one being published, which `options` names; tests
+                    # build a Landing without __init__, so do not read it off
+                    # self.
+                    if getattr(options, "keep_worktree", False):
+                        result["cleanup"] = {"removed": False, "reason": "--keep-worktree"}
+                    elif not getattr(options, "repository", None):
+                        # A caller that names no checkout has no lane to retire;
+                        # cleanup is advisory, so report rather than raise.
+                        result["cleanup"] = {"removed": False,
+                                             "reason": "no publishing checkout named"}
+                    else:
+                        result["cleanup"] = landed_worktree_cleanup(
+                            options.repository, options.candidate)
                 if options.command == "claim":
                     self.emit_reservation(result)
                 else:
@@ -974,6 +1069,9 @@ def main(arguments=None):
     parser.add_argument("--board-update", action="store_true",
                         help="publish a candidate that touches only coordination files "
                              "(coordinator board sweeps)")
+    parser.add_argument("--keep-worktree", action="store_true",
+                        help="keep the publishing worktree and its candidate branch after "
+                             "a successful publish (default: remove them, per AGENTS.md)")
     parser.add_argument("--qualification", help="verify a pinned qualification assessment before/after the mandatory build")
     options = None
     try:
