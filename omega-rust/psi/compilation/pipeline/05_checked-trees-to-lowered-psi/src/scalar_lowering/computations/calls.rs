@@ -906,7 +906,7 @@ impl Expansion<'_> {
                 }
                 None => return unsupported("authority retirement lost its evaluated operand"),
             };
-            if retired.contains(&ordinal)
+            if retired.contains(&discard.owner)
                 || !matches!(
                     source,
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
@@ -921,7 +921,7 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "temporary retirement lost its reserved owner",
                 ))?;
-            retired.push(ordinal);
+            retired.push(discard.owner);
             let discards = plans
                 .temporary_cleanup_actions
                 .span(discard.actions)
@@ -936,10 +936,37 @@ impl Expansion<'_> {
                     .ok_or(LoweringError::Unsupported(
                         "temporary cleanup lost its owner graph",
                     ))?;
-            // Even an empty action span must settle the operand root's
-            // selected claims. Additional backing owners extend this roster;
-            // missing actions never make an existing obligation disappear.
-            let root = values.nodes.get(slot.root);
+            // The checked owner group binds a completed home, not every node
+            // with the same diagnostic expression. Contained zero operands can
+            // share their parent's source without acquiring another death.
+            if !values.nodes.is_valid(discard.owner) || !dependencies.contains(&discard.owner) {
+                return unsupported("temporary cleanup owner is outside its reserved operand");
+            }
+            let root = values.nodes.get(discard.owner);
+            if root.machine != self.machine
+                || root.state != state
+                || root.statement_index as usize != call.statement_index
+            {
+                return unsupported("temporary cleanup owner has a different occurrence scope");
+            }
+            let owner_structural_type =
+                crate::terminal_identities::structural_declaration_by_identity(
+                    self.structural_types,
+                    identities,
+                    self.checked,
+                    validation::stored_structural_type_identity(
+                        &self.checked.typed,
+                        root.type_reference,
+                        &[],
+                        &[],
+                    ),
+                    "temporary cleanup owner has no structural type",
+                )?
+                .id;
+            let owner_place = slot.storage.place(discard.owner)?;
+            // Even an empty residual span must settle this exact owner's claims.
+            // The containing operand cannot lend its claim authority to backing.
+
             let root_claims = crate::emission::claim_bindings::prepare_claim_dispositions(
                 identities,
                 self.checked,
@@ -951,15 +978,14 @@ impl Expansion<'_> {
                     target_symbol: call.target_symbol,
                 },
                 facts::PlaceRoot::Expression(root.expression),
-                slot.type_reference,
-                slot.structural_type,
+                root.type_reference,
+                owner_structural_type,
                 self.structural_types,
             )?;
-            let mut selected_claims = root_claims
+            let selected_claims = root_claims
                 .iter()
                 .map(|claim| claim.identity)
                 .collect::<Vec<_>>();
-            let mut claimed_owners = vec![slot.root];
             let action_start = actions.len();
             for action in discards {
                 use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
@@ -969,51 +995,10 @@ impl Expansion<'_> {
                 else {
                     return unsupported("temporary cleanup lost its owner expression");
                 };
-                let mut owners = dependencies
-                    .iter()
-                    .copied()
-                    .filter(|value| values.nodes.get(*value).expression == *expression);
-                let owner_handle = owners.next().ok_or(LoweringError::Unsupported(
-                    "temporary cleanup names an owner outside its operand",
-                ))?;
-                if owners.next().is_some() {
-                    return unsupported("temporary cleanup has ambiguous owner storage");
+                if *expression != root.expression {
+                    return unsupported("temporary cleanup action disagrees with its exact owner");
                 }
-                let owner = values.nodes.get(owner_handle);
-                let owner_place = slot.storage.place(owner_handle)?;
-                let owner_structural_type =
-                    crate::terminal_identities::structural_declaration_by_identity(
-                        self.structural_types,
-                        identities,
-                        self.checked,
-                        validation::stored_structural_type_identity(
-                            &self.checked.typed,
-                            owner.type_reference,
-                            &[],
-                            &[],
-                        ),
-                        "temporary cleanup owner has no structural type",
-                    )?
-                    .id;
-                let claims = crate::emission::claim_bindings::prepare_claim_dispositions(
-                    identities,
-                    self.checked,
-                    self.machine,
-                    state,
-                    language_semantics::PermissionEventSource::Call {
-                        statement_index: call.statement_index,
-                        call_ordinal: call.call_ordinal,
-                        target_symbol: call.target_symbol,
-                    },
-                    facts::PlaceRoot::Expression(owner.expression),
-                    owner.type_reference,
-                    owner_structural_type,
-                    self.structural_types,
-                )?;
-                if !claimed_owners.contains(&owner_handle) {
-                    claimed_owners.push(owner_handle);
-                    selected_claims.extend(claims.iter().map(|claim| claim.identity));
-                }
+                let claims = &root_claims;
                 let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
                     identities,
                     action.path(),

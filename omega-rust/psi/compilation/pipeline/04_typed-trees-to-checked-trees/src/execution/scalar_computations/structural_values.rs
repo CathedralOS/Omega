@@ -603,6 +603,10 @@ impl Builder<'_, '_> {
                         },
                     )?;
                     source_value = self.structural_value(root, root_reference)?;
+                    // The anonymous backing is an independently admitted owner,
+                    // not a contained descriptor field. Publish the exact root
+                    // so its normal disposition can rejoin this retained graph.
+                    self.retained_argument_owner(source_value, root_reference)?;
                 }
                 // Geometry can already know an ordinal from a call's result
                 // contract. Its authored evaluation remains a child even then.

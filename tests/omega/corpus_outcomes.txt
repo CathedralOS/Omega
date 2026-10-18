@@ -3987,6 +3987,24 @@ fail/facts/selected_native_code_layout_through_parameter_rejected rejected 34ms 
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
 fail/facts/selected_native_code_layout_through_target_body_rejected rejected 29ms expected @b2bd1ba421fd+wt
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/temporary_case_cleanup_through_call_result_rejected rejected 1103ms expected @46f72294c589
+	machine `main` state `entry` value call to `consume` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
+fail/facts/temporary_case_cleanup_through_const_name_rejected rejected 1102ms expected @46f72294c589
+	machine `main` state `entry` value call to `consume` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
+fail/facts/temporary_case_cleanup_through_field_rejected rejected 1703ms expected @46f72294c589
+	cannot prove requires contract for call consume from main: holder.child.value == 2 (needs fact `value.value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/temporary_case_cleanup_through_local_rejected rejected 1702ms expected @46f72294c589
+	cannot prove requires contract for call consume from main: value.value == 2 (needs fact `value.value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/temporary_case_cleanup_through_match_join_rejected rejected 1700ms expected @46f72294c589
+	cannot prove ensures contract for exit from choose at statement 0: result.value == 2
+fail/facts/temporary_case_cleanup_through_other_machine_rejected rejected 1095ms expected @46f72294c589
+	machine `across` state `entry` value call to `consume` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
+fail/facts/temporary_case_cleanup_through_other_state_rejected rejected 1702ms expected @46f72294c589
+	cannot prove requires contract for call onward from carry: constructor:79:package:0101010101010101010101010101010101010101010101010101010101010101::Bonus6:record17:common:name:value1:1.value == 2 (needs fact `value.value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/temporary_case_cleanup_through_parameter_rejected rejected 1096ms expected @46f72294c589
+	machine `main` state `entry` value call to `through_parameter` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
+fail/facts/temporary_case_cleanup_through_target_body_rejected rejected 1676ms expected @46f72294c589
+	cannot prove ensures contract for exit from produced at statement 0: result.value == 2
 fail/facts/write_only_checked_adapter_opaque_call rejected 328ms expected @2ef2ab353498+wt
 	machine `opaque` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 	machine `lend` state `entry` calls `opaque` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
@@ -9211,6 +9229,16 @@ pass/facts/selected_native_code_layout_through_other_machine_exit checked 8202ms
 pass/facts/selected_native_code_layout_through_other_state_exit checked 7960ms check-target:linux_x86_64 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_parameter_exit checked 7910ms check-target:linux_x86_64 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_target_body_exit checked 7977ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/temporary_case_cleanup_original_exit checked 3691ms check-target:macos_arm64 @46f72294c589
+pass/facts/temporary_case_cleanup_through_call_result_exit checked 3690ms check-target:macos_arm64 @46f72294c589
+pass/facts/temporary_case_cleanup_through_const_name_exit checked 3690ms check-target:macos_arm64 @46f72294c589
+pass/facts/temporary_case_cleanup_through_field_exit checked 3639ms check-target:macos_arm64 @46f72294c589
+pass/facts/temporary_case_cleanup_through_local_exit checked 3638ms check-target:macos_arm64 @46f72294c589
+pass/facts/temporary_case_cleanup_through_match_join_exit checked 3639ms check-target:macos_arm64 @46f72294c589
+pass/facts/temporary_case_cleanup_through_other_machine_exit checked 3644ms check-target:macos_arm64 @46f72294c589
+pass/facts/temporary_case_cleanup_through_other_state_exit checked 3644ms check-target:macos_arm64 @46f72294c589
+pass/facts/temporary_case_cleanup_through_parameter_exit checked 3645ms check-target:macos_arm64 @46f72294c589
+pass/facts/temporary_case_cleanup_through_target_body_exit checked 3646ms check-target:macos_arm64 @46f72294c589
 pass/facts/write_only_checked_adapter_exit checked 5187ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/filesystem/cross_linux_value_syscalls checked 16296ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit checked 19471ms check-target:macos_arm64 @7c847bad15b6+wt

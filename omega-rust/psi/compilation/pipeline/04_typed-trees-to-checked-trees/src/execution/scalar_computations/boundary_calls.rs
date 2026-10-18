@@ -199,6 +199,7 @@ impl Builder<'_, '_> {
             // its captured carrier retires after all ordinary temporaries.
             cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {
                 argument_ordinal: None,
+                owner: Default::default(),
                 actions: Default::default(),
             });
             temporary_cleanups = self.plans.temporary_cleanups.insert_many(cleanups);

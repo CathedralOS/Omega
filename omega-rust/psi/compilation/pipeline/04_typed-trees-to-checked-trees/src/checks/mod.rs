@@ -54,7 +54,7 @@ mod zero_value_qualifications;
 mod carry;
 mod content;
 mod multiplicity;
-mod ownership_occurrences;
+pub(crate) mod ownership_occurrences;
 
 // Crash routes.
 mod cleanup_admission;

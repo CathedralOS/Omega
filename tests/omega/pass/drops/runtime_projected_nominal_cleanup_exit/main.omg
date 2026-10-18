@@ -103,4 +103,36 @@ machine Main::main(main: &mut Main) reaches Console {
     let marker: Token = Token { ready: true, byte: 67 };
     select(input, marker);
     Console::write_byte(10);
+    exercise_scalar_temporaries();
+}
+
+// A scalar-result consumer captures before reverse completed-owner cleanup.
+// Right C dies first; left parent P precedes its recursive children B then A.
+data TemporaryToken { byte: i32; }
+machine TemporaryToken::drop(token: &mut TemporaryToken) reaches Console {
+    Console::write_byte(token.byte);
+}
+data TemporaryPair { first: TemporaryToken; second: TemporaryToken; }
+machine TemporaryPair::drop(pair: &mut TemporaryPair) reaches Console {
+    Console::write_byte(80);
+}
+machine make_temporary_pair(count: &mut u64) -> TemporaryPair
+{
+    count = ((count as u64 in Wrapping) + 1) as u64;
+    TemporaryPair { first: TemporaryToken { byte: 65 }, second: TemporaryToken { byte: 66 } }
+}
+machine make_temporary_token(count: &mut u64) -> TemporaryToken {
+    count = ((count as u64 in Wrapping) + 1) as u64;
+    TemporaryToken { byte: 67 }
+}
+machine read_temporaries(first: &TemporaryToken, second: &TemporaryToken) -> u64 reaches Console {
+    Console::write_byte(79);
+    70
+}
+machine exercise_scalar_temporaries() reaches Console {
+    let mut count: u64 = 0;
+    let captured: u64 = read_temporaries(&make_temporary_pair(&mut count).first, &make_temporary_token(&mut count));
+    transition captured == 70 && count == 2 { true -> done() false -> bad() }
+    state done() { Console::write_byte(10); }
+    state bad() { Console::exit_process(1); }
 }

@@ -180,12 +180,13 @@ pub(in crate::execution::terminal_unit) fn install(
 pub(crate) fn finalize_scalar_actions(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
-) -> Option<()> {
+) -> Result<(), String> {
     let mut shapes = ShapeCollector::new(program);
     // Computed calls append conditions to the same published catalog as
     // statement continuations. Restore that owner even when plan selection
     // declines: existing action spans must never outlive their arena.
     shapes.cleanup_control = std::mem::take(&mut facts.flow.terminal_unit_effects.cleanup_control);
+    let mut refusal = String::from("missing executable cleanup catalog");
     let replacements = (|| {
         let targets = facts
             .flow
@@ -206,7 +207,7 @@ pub(crate) fn finalize_scalar_actions(
             .collect::<Vec<_>>();
         let plans = &facts.values.scalar_computations;
         let mut replacements = Vec::new();
-        for (_, node) in plans.nodes.iter() {
+        for (node_handle, node) in plans.nodes.iter() {
             let (source_call, operands, retained, authority) = match node.kind {
                 checked_trees::CheckedScalarComputationKind::Call {
                     source_call,
@@ -236,126 +237,197 @@ pub(crate) fn finalize_scalar_actions(
                     .any(|candidate| std::ptr::eq(candidate, call))
                     .then_some(row)
             })?;
+            let site = format!(
+                "machine `{}`, state `{}`, statement {}, call {}",
+                program.symbols.name(state_flow.machine_symbol),
+                program.symbols.name(state_flow.state_symbol),
+                call.statement_index,
+                call.call_ordinal
+            );
+            refusal = format!("{site}: missing checked operand/root/completion correspondence");
             let operands = plans.structural_arguments.span(operands)?;
             let coordinate = CheckedUnitCallCoordinate {
                 statement_index: u32::try_from(call.statement_index).ok()?,
                 call_ordinal: u32::try_from(call.call_ordinal).ok()?,
             };
-            for (row_position, row) in plans.temporary_cleanups.span(retained)?.iter().enumerate() {
-                let identity = arena::Handle::from_parts(
-                    retained
-                        .start()
-                        .arena_index()
-                        .checked_add(u32::try_from(row_position).ok()?)?,
-                    retained.start().generation(),
-                );
-                let source = match row.argument_ordinal {
-                    Some(ordinal) => operands.get(ordinal as usize)?.as_place()?.source.clone(),
-                    None if facts.values.structural_values.nodes.is_valid(authority) => {
-                        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                            expression: facts
-                                .values
-                                .structural_values
-                                .nodes
-                                .get(authority)
-                                .expression,
+            // An operand graph is not a death roster. In particular, omitted
+            // zeros reuse their constructor's expression as a source location.
+            // Bind admitted owner roots once across the whole call, then retain
+            // that exact value handle through lowering.
+            let values = &facts.values.structural_values;
+            let mut reserved = Vec::new();
+            for row in plans.temporary_cleanups.span(retained)? {
+                let expression = match row.argument_ordinal {
+                    Some(ordinal) => {
+                        match operands.get(ordinal as usize)?.as_place()?.source.clone() {
+                            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                expression,
+                            } => expression,
+                            _ => return None,
                         }
+                    }
+                    None if values.nodes.is_valid(authority) => {
+                        values.nodes.get(authority).expression
                     }
                     None => return None,
                 };
-                let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
-                    source
-                else {
-                    return None;
-                };
-                let retained_value = facts.values.structural_values.root_for_expression(
+                let root = values.root_for_expression(
                     state_flow.state_symbol,
                     coordinate.statement_index,
                     expression,
                 )?;
-                let reference = retained_value.type_reference;
-                let mut selected =
-                    if validation::reference_result_custody::stored_loan_parts(program, reference)
-                        .is_some()
-                    {
-                        // The completed descriptor owns a lifetime even without
-                        // a source-local contextual disposition. End that exact
-                        // carrier, never the backing beneath Referent. Stored
-                        // output copies retain their independently tracked loans;
-                        // the ordinary custody check still verifies their backing.
-                        // Nominal
-                        // temporary owners still require their selected hooks.
-                        let type_identity = shapes.add_type(reference, &[], &[])?;
+                reserved.push((
+                    row.argument_ordinal,
+                    root,
+                    values.value_dependencies(root.root)?,
+                ));
+            }
+            let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
+            let state = program.state_in_machine(machine, state_flow.state_symbol)?;
+            let (_, statement) = program
+                .statement_table
+                .indexed_statements(state.statement_nodes)
+                .find(|(statement_index, _)| *statement_index == call.statement_index)?;
+            let completed = crate::checks::ownership_occurrences::completed_expressions(
+                program,
+                machine,
+                state,
+                call.statement_index,
+                statement,
+                &facts.operators,
+            );
+            let mut owners = Vec::new();
+            // Stored descriptor retirement has independently admitted lifetime
+            // authority. Its backing remains a separate contextual owner.
+            for (ordinal, root, _) in &reserved {
+                if validation::reference_result_custody::stored_loan_parts(
+                    program,
+                    root.type_reference,
+                )
+                .is_some()
+                {
+                    owners.push((
+                        *ordinal,
+                        root.root,
                         vec![CheckedNormalCleanupAction::Discard(
                             checked_trees::CheckedUnitPartialAffineDiscardPlan {
-                                source,
+                                source:
+                                    CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                                        expression: root.expression,
+                                    },
                                 path: Vec::new(),
-                                type_identity,
+                                type_identity: shapes.add_type(root.type_reference, &[], &[])?,
                                 case_conditions: Default::default(),
                             },
-                        )]
-                    } else {
-                        selected_actions(
-                            program,
-                            facts,
-                            &targets,
-                            &mut shapes,
-                            state_flow.machine_symbol,
-                            state_flow.state_symbol,
-                            coordinate,
-                            facts::PlaceRoot::Expression(expression),
-                            source,
-                        )?
-                    };
-                // The operand descriptor and its independently owned backing
-                // have distinct deaths. Consume the exact contextual owner
-                // dispositions from the retained graph; moved constructor
-                // children and backing still needed by a result have no such
-                // disposition at this call.
-                for value in facts
-                    .values
-                    .structural_values
-                    .value_dependencies(retained_value.root)?
-                {
-                    if value == retained_value.root {
-                        continue;
-                    }
-                    let owner = facts.values.structural_values.nodes.get(value);
-                    selected.extend(selected_actions(
-                        program,
-                        facts,
-                        &targets,
-                        &mut shapes,
-                        state_flow.machine_symbol,
-                        state_flow.state_symbol,
-                        coordinate,
-                        facts::PlaceRoot::Expression(owner.expression),
-                        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                            expression: owner.expression,
-                        },
-                    )?);
+                        )],
+                    ));
                 }
-                replacements.push((identity, selected));
             }
+            // The ownership producer has already selected the roots, paths and
+            // exclusions at this exact consumer. Contained graph nodes grant no
+            // additional death. Multiple regions of one owner stay one ordered
+            // action group; two operands cannot retire that owner twice.
+            for (_, disposition) in facts.contextual_cleanup.dispositions.iter().filter(|(_, disposition)| {
+                disposition.machine == state_flow.machine_symbol
+                    && disposition.state == state_flow.state_symbol
+                    && matches!(disposition.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
+                        if statement_index == call.statement_index && call_ordinal == call.call_ordinal)
+            }) {
+                let facts::PlaceRoot::Expression(expression) = disposition.root else { continue; };
+                let root = values.root_for_expression(state_flow.state_symbol, coordinate.statement_index, expression);
+                let Some(root) = root else {
+                    // A named/local owner belongs to another cleanup stream.
+                    // An anonymous backing reached by this operand must publish
+                    // its real owner, not borrow a child's diagnostic location.
+                    if reserved.iter().any(|(_, _, dependencies)| dependencies.iter().any(|value| values.nodes.get(*value).expression == expression)) {
+                        refusal = format!("{site}: anonymous backing {expression:?} has no published completed root");
+                        return None;
+                    }
+                    continue;
+                };
+                let mut containing = reserved.iter().filter(|(_, _, dependencies)| dependencies.contains(&root.root));
+                let Some(first) = containing.next() else { continue; };
+                let exact = reserved.iter().filter(|(_, candidate, _)| candidate.root == root.root).collect::<Vec<_>>();
+                let ordinal = match exact.as_slice() {
+                    [slot] => slot.0,
+                    [] if containing.next().is_none() => first.0,
+                    _ => {
+                        refusal = format!("{site}: completed owner {expression:?} has ambiguous reserved operand storage");
+                        return None;
+                    }
+                };
+                if owners.iter().any(|(_, owner, _)| *owner == root.root) {
+                    // Descriptor lifetime and a nominal contextual death may
+                    // not both dispose the same carrier.
+                    if validation::reference_result_custody::stored_loan_parts(program, root.type_reference).is_some() {
+                        refusal = format!("{site}: descriptor retirement overlaps a contextual owner death for {expression:?}");
+                        return None;
+                    }
+                    continue;
+                }
+                let actions = selected_actions(program, facts, &targets, &mut shapes,
+                    state_flow.machine_symbol, state_flow.state_symbol, coordinate,
+                    disposition.root, CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression })?;
+                owners.push((ordinal, root.root, actions));
+            }
+            let mut ordered = Vec::new();
+            for (ordinal, owner, actions) in owners {
+                let expression = values.nodes.get(owner).expression;
+                let mut positions = completed
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, candidate)| **candidate == expression);
+                let Some((position, _)) = positions.next() else {
+                    refusal = format!("{site}: owner {expression:?} has no authored completion");
+                    return None;
+                };
+                if positions.next().is_some() {
+                    refusal =
+                        format!("{site}: owner {expression:?} has multiple authored completions");
+                    return None;
+                }
+                ordered.push((position, ordinal, owner, actions));
+            }
+            ordered.sort_by_key(|(position, ..)| std::cmp::Reverse(*position));
+            replacements.push((node_handle, ordered));
         }
         Some(replacements)
     })();
     facts.flow.terminal_unit_effects.cleanup_control = std::mem::take(&mut shapes.cleanup_control);
-    let replacements = replacements?;
+    let replacements = replacements.ok_or(refusal)?;
     let mut actions = arena::Arena::new();
-    for (identity, selected) in replacements {
-        facts
+    let mut cleanups = arena::Arena::new();
+    for (node_handle, owners) in replacements {
+        let groups = owners
+            .into_iter()
+            .map(|(_, argument_ordinal, owner, selected)| {
+                checked_trees::CheckedScalarComputationTemporaryCleanup {
+                    argument_ordinal,
+                    owner,
+                    actions: actions.insert_many(selected),
+                }
+            });
+        let checked_trees::CheckedScalarComputationKind::Call {
+            temporary_cleanups, ..
+        } = &mut facts
             .values
             .scalar_computations
-            .temporary_cleanups
-            .get_mut(identity)
-            .actions = actions.insert_many(selected);
+            .nodes
+            .get_mut(node_handle)
+            .kind
+        else {
+            return Err("temporary cleanup finalization lost its checked call".into());
+        };
+        *temporary_cleanups = cleanups.insert_many(groups);
     }
+    facts.values.scalar_computations.temporary_cleanups = cleanups;
     facts.values.scalar_computations.temporary_cleanup_actions = actions;
     facts
         .flow
         .terminal_unit_effects
         .adopt_structural_types(shapes.types.into_values())
-        .ok()?;
-    Some(())
+        .map_err(|_| {
+            String::from("temporary cleanup has conflicting executable structural types")
+        })?;
+    Ok(())
 }

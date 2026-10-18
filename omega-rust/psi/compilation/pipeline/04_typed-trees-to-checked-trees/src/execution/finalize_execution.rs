@@ -116,10 +116,10 @@ pub(crate) fn finalize_execution(
     }
     facts.flow.terminal_unit_effects = terminal_unit_effects;
     crate::execution::terminal_unit::cleanup::finalize_scalar_actions(program, &mut facts)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "cannot plan contextual temporary cleanup against the executable hook roster",
-            )]
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "cannot plan contextual temporary cleanup against the executable hook roster: {reason}"
+            ))]
         })?;
     crate::execution::terminal_unit::retain_structural_value_calls(program, &mut facts).map_err(
         |identity| {

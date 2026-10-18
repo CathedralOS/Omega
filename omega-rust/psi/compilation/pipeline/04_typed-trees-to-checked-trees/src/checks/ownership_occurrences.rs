@@ -82,6 +82,34 @@ pub(super) fn statement_steps(
     )
 }
 
+/// The completed runtime values shared by permission and executable custody.
+/// Synthetic field zeros carry a constructor source location, but they are not
+/// separate authored completions and cannot select their parent's disposition.
+pub(crate) fn completed_expressions(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    statement: &StatementNode,
+    operators: &checked_trees::CheckedOperatorFacts,
+) -> Vec<ExpressionHandle> {
+    statement_steps(
+        program,
+        machine,
+        state,
+        statement_index,
+        statement,
+        &[],
+        operators,
+    )
+    .into_iter()
+    .filter_map(|occurrence| match occurrence.step {
+        StatementStep::Complete(expression) => Some(expression),
+        _ => None,
+    })
+    .collect()
+}
+
 /// The permission schedule has already selected a transition target. Only
 /// selections inside that evaluation remain conditional for cleanup custody.
 pub(super) fn statement_steps_at_evaluation(

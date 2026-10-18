@@ -100,23 +100,14 @@ pub(crate) fn temporary_owners(
         .statement_table
         .indexed_statements(state.statement_nodes)
         .map(|(statement_index, statement)| {
-            crate::checks::ownership_occurrences::statement_steps(
+            crate::checks::ownership_occurrences::completed_expressions(
                 program,
                 machine,
                 state,
                 statement_index,
                 statement,
-                &[],
                 &facts.operators,
             )
-            .into_iter()
-            .filter_map(|occurrence| match occurrence.step {
-                crate::checks::ownership_occurrences::StatementStep::Complete(expression) => {
-                    Some(expression)
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
     let mut owners = Vec::new();

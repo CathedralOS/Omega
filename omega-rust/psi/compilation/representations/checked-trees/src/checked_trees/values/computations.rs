@@ -62,6 +62,11 @@ pub struct CheckedScalarComputationTemporaryCleanup {
     /// None selects the call's authority value; Some selects an ordinary
     /// structural formal. Authority never consumes a formal position.
     pub argument_ordinal: Option<u32>,
+    /// Exact completed owner of this action group. Argument planning leaves
+    /// this pending; finalization binds the admitted death to the value graph.
+    /// A contained zero field can share its parent's expression without owning
+    /// a second death or home.
+    pub owner: crate::CheckedStructuralValueHandle,
     pub actions: HandleSpan<crate::CheckedNormalCleanupAction>,
 }
 

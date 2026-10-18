@@ -534,6 +534,16 @@ pass/facts/reference_arrival_handoff_through_other_machine_exit built 6250ms exi
 pass/facts/reference_arrival_handoff_through_other_state_exit built 6260ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_parameter_exit built 6299ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_target_body_exit built 6167ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
+pass/facts/temporary_case_cleanup_original_exit built 3978ms exit:0 interpreter-exit:0 interpreter:agrees @46f72294c589
+pass/facts/temporary_case_cleanup_through_call_result_exit built 3809ms exit:0 interpreter-exit:0 interpreter:agrees @46f72294c589
+pass/facts/temporary_case_cleanup_through_const_name_exit built 3890ms exit:0 interpreter-exit:0 interpreter:agrees @46f72294c589
+pass/facts/temporary_case_cleanup_through_field_exit built 3737ms exit:0 interpreter-exit:0 interpreter:agrees @46f72294c589
+pass/facts/temporary_case_cleanup_through_local_exit built 3746ms exit:0 interpreter-exit:0 interpreter:agrees @46f72294c589
+pass/facts/temporary_case_cleanup_through_match_join_exit built 3745ms exit:0 interpreter-exit:0 interpreter:agrees @46f72294c589
+pass/facts/temporary_case_cleanup_through_other_machine_exit built 3727ms exit:0 interpreter-exit:0 interpreter:agrees @46f72294c589
+pass/facts/temporary_case_cleanup_through_other_state_exit built 3723ms exit:0 interpreter-exit:0 interpreter:agrees @46f72294c589
+pass/facts/temporary_case_cleanup_through_parameter_exit built 3719ms exit:0 interpreter-exit:0 interpreter:agrees @46f72294c589
+pass/facts/temporary_case_cleanup_through_target_body_exit built 3626ms exit:0 interpreter-exit:0 interpreter:agrees @46f72294c589
 pass/float/admitted_float_conversion_crash built 5538ms exit:signal signal:5 stdout:match interpreter:trapped interpreter-stdout:match @bbd81a11e6f3+wt
 pass/float/admitted_float_lower_boundary_crash built 5631ms exit:signal signal:5 stdout:match interpreter:trapped interpreter-stdout:match @bbd81a11e6f3+wt
 pass/float/admitted_numeric_imports_preserve_semantics built 8261ms exit:70 interpreter-exit:70 interpreter:agrees @bbd81a11e6f3+wt

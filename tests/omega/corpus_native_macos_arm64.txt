@@ -1006,6 +1006,7 @@ pass/data/runtime_case_reassignment_exit built 2477ms exit:70 @fb2178def922
 pass/data/runtime_constructor_observation_exit built 1685ms exit:70 @c4e45d3dda38+wt
 pass/data/runtime_data_properties_exit built 616ms exit:70
 pass/data/runtime_mixed_case_common_fields_exit built 10399ms exit:70 @8a4d4e552420+wt
+pass/data/runtime_mixed_case_nested_common_fields_exit built 3731ms exit:0 @24ad8b1c54c5
 pass/data/runtime_mixed_case_payload_dispatch_exit built 1710ms exit:70 @48008365d839
 pass/data/runtime_mixed_shape_exit built 2406ms exit:70 @fb2178def922
 pass/data/runtime_proof_only_data_declared_exit built 534ms exit:70
@@ -1309,6 +1310,16 @@ pass/facts/reference_arrival_handoff_through_other_machine_exit built 6277ms exi
 pass/facts/reference_arrival_handoff_through_other_state_exit built 6315ms exit:0 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_parameter_exit built 6349ms exit:0 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_target_body_exit built 6344ms exit:0 @3424ad143d6e
+pass/facts/temporary_case_cleanup_original_exit built 3991ms exit:0 @46f72294c589
+pass/facts/temporary_case_cleanup_through_call_result_exit built 3819ms exit:0 @46f72294c589
+pass/facts/temporary_case_cleanup_through_const_name_exit built 3904ms exit:0 @46f72294c589
+pass/facts/temporary_case_cleanup_through_field_exit built 3821ms exit:0 @46f72294c589
+pass/facts/temporary_case_cleanup_through_local_exit built 3792ms exit:0 @46f72294c589
+pass/facts/temporary_case_cleanup_through_match_join_exit built 3790ms exit:0 @46f72294c589
+pass/facts/temporary_case_cleanup_through_other_machine_exit built 3763ms exit:0 @46f72294c589
+pass/facts/temporary_case_cleanup_through_other_state_exit built 3785ms exit:0 @46f72294c589
+pass/facts/temporary_case_cleanup_through_parameter_exit built 3786ms exit:0 @46f72294c589
+pass/facts/temporary_case_cleanup_through_target_body_exit built 3670ms exit:0 @46f72294c589
 pass/filesystem/cross_linux_value_syscalls checked 24317ms @e01f73c689de+wt
 pass/filesystem/dir_walk_wrappers_exit built 18777ms exit:70 @cc43b6679d2a+wt
 pass/filesystem/native_canonicalize built 18026ms exit:0 stdout:match @cc43b6679d2a+wt
