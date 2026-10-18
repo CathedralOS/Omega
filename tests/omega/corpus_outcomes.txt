@@ -620,6 +620,27 @@ fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite rejected
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
 fail/facts/captured_scalar_is_not_current_storage rejected 557ms expected @8a884ecc43d5+wt
 	cannot prove requires contract for call demand_equal from main: saved == current (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/case_payload_transport_through_call_result_rejected rejected 4766ms expected @ac963cec7a3
+	cannot prove ensures contract for exit from eval at statement 3: result <= 60
+fail/facts/case_payload_transport_through_const_name_rejected rejected 4522ms expected @ac963cec7a3
+	cannot prove ensures contract for exit from eval at statement 2: result <= 60
+fail/facts/case_payload_transport_through_field_rejected rejected 3145ms expected @ac963cec7a3
+	cannot prove ensures contract for exit from eval at statement 3: result <= 60
+fail/facts/case_payload_transport_through_local_rejected rejected 4299ms expected @ac963cec7a3
+	cannot prove ensures contract for exit from eval at statement 3: result <= 60
+fail/facts/case_payload_transport_through_match_join_rejected rejected 4497ms expected @ac963cec7a3
+	cannot prove ensures contract for exit from eval at statement 2: result <= 60
+fail/facts/case_payload_transport_through_other_machine_rejected rejected 2730ms expected @ac963cec7a3
+	cannot prove ensures contract for exit from inspect at statement 2: result <= 60
+fail/facts/case_payload_transport_through_other_state_rejected rejected 2674ms expected @ac963cec7a3
+	cannot prove ensures contract for exit from eval at statement 2: result <= 60
+fail/facts/case_payload_transport_through_parameter_rejected rejected 2520ms expected @ac963cec7a3
+	cannot prove ensures contract for exit from eval at statement 2: result <= 60
+fail/facts/case_payload_transport_through_target_body_rejected rejected 2483ms expected @ac963cec7a3
+	cannot prove ensures contract for exit from eval at statement 2: result <= 60
+	cannot prove ensures contract for exit from eval at statement 2: result <= 60
+	cannot prove ensures contract for exit from eval at statement 2: result <= 60
+	cannot prove ensures contract for exit from eval at statement 2: result <= 60
 fail/facts/case_where_equality_through_call_result_rejected rejected 419ms expected @ec38c6dfcf45
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_where_equality_through_const_name_rejected rejected 530ms expected @ec38c6dfcf45
@@ -7917,6 +7938,15 @@ pass/facts/borrowed_projection_cleanup_through_other_machine_exit checked 4253ms
 pass/facts/borrowed_projection_cleanup_through_other_state_exit checked 4159ms check-target:macos_arm64 @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_parameter_exit checked 3641ms check-target:macos_arm64 @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_target_body_exit checked 3641ms check-target:macos_arm64 @dec223be05fb
+pass/facts/case_payload_transport_through_call_result_exit checked 3779ms check-target:macos_arm64 @ac963cec7a3
+pass/facts/case_payload_transport_through_const_name_exit checked 2959ms check-target:macos_arm64 @ac963cec7a3
+pass/facts/case_payload_transport_through_field_exit checked 3313ms check-target:macos_arm64 @ac963cec7a3
+pass/facts/case_payload_transport_through_local_exit checked 4041ms check-target:macos_arm64 @ac963cec7a3
+pass/facts/case_payload_transport_through_match_join_exit checked 4345ms check-target:macos_arm64 @ac963cec7a3
+pass/facts/case_payload_transport_through_other_machine_exit checked 2944ms check-target:macos_arm64 @ac963cec7a3
+pass/facts/case_payload_transport_through_other_state_exit checked 2715ms check-target:macos_arm64 @ac963cec7a3
+pass/facts/case_payload_transport_through_parameter_exit checked 2675ms check-target:macos_arm64 @ac963cec7a3
+pass/facts/case_payload_transport_through_target_body_exit checked 2695ms check-target:macos_arm64 @ac963cec7a3
 pass/facts/case_where_equality_through_call_result_exit checked 5747ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/case_where_equality_through_const_name_exit checked 5814ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/case_where_equality_through_field_exit checked 5553ms check-target:macos_arm64 @ec38c6dfcf45
