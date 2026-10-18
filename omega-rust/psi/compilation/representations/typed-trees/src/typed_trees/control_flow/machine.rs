@@ -36,8 +36,20 @@ pub enum MachinePurpose {
     ProviderDefaults,
 }
 
+/// Source occurrence whose activation-local context an ordinary bridge owns.
+/// This is a preparation request, not permission to invoke an installed entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EntryContextOrigin {
+    pub entry: SymbolHandle,
+    pub context_parameter: SymbolHandle,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
+    /// A generated context-owning caller of the exact source entry. Its local,
+    /// borrow and normal cleanup are checked as ordinary code. Installation
+    /// must separately join this origin to the selected entry and storage root.
+    pub entry_context_origin: Option<EntryContextOrigin>,
     /// Conjunctive catalog architecture demand retained after instruction normalization.
     pub assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability,
     pub symbol: SymbolHandle,
@@ -198,6 +210,7 @@ pub struct TargetMachineFamilyMember {
 impl Default for Machine {
     fn default() -> Self {
         Self {
+            entry_context_origin: None,
             assembly_target_requirement:
                 language_core::inline_assembly::AsmTargetApplicability::Any,
             symbol: SymbolHandle::invalid(),

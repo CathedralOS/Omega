@@ -16,9 +16,9 @@ impl TypedTrees {
         &self,
         mut symbol: SymbolHandle,
     ) -> Result<Option<&str>, &'static str> {
-        // Each nonterminal step follows one retained specialization row. This
-        // bound catches cycles without allocating another compiler lookup map.
-        for _ in 0..=self.machine_specializations.len() {
+        // Each step follows a retained specialization or generated entry
+        // origin. This catches mixed cycles without another lookup map.
+        for _ in 0..=self.machine_specializations.len() + self.machines().len() {
             let mut machines = self
                 .machines()
                 .iter()
@@ -28,6 +28,10 @@ impl TypedTrees {
                 .ok_or("authored target has no exact machine")?;
             if machines.next().is_some() {
                 return Err("authored target has repeated machine coordinates");
+            }
+            if let Some(origin) = machine.entry_context_origin {
+                symbol = origin.entry;
+                continue;
             }
             let mut members = self
                 .target_machine_families
@@ -66,7 +70,7 @@ impl TypedTrees {
             }
             return Ok(None);
         }
-        Err("authored target specialization origins contain a cycle")
+        Err("authored target machine origins contain a cycle")
     }
 
     /// Whether `symbol` was declared in a non-Product dependency scope, the

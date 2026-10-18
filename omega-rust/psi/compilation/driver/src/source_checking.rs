@@ -16,6 +16,7 @@ pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedChec
 /// These are not provider selections or execution authority.
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
+    pub entry_contexts: &'request [typed_trees::machine::EntryContextOrigin],
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
     pub opaque_properties: &'request [validation::OpaqueDataPropertyReceipt],
     pub opaque_representations: &'request [OpaqueRepresentationSelection],
@@ -58,6 +59,7 @@ impl CheckRequest<'_> {
             self.admission.completion,
         )?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
+            .with_entry_contexts(self.admission.entry_contexts)
             .with_opaque_property_receipts(self.admission.opaque_properties)
             .with_opaque_representation_selections(self.admission.opaque_representations)
             .with_wire_compatibility_demands(self.admission.wire_demands);

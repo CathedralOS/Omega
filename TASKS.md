@@ -4826,9 +4826,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   firmware arguments and returns its authored status on an image-backed private
   stack sized from the emitted call closure and target reserve. The exact saved
   continuation and stack residences remain retained, not semantic roots.
-  Extend the selected semantic-entry bridge to provisioned contexts while
-  preserving the existing two-root free-entry transport, source-owned
-  LoadedImage discovery and retained private-stack partition.
+  Complete returning semantic-entry lifecycles: execute context cleanup exactly
+  once and prove fresh context on repeated invocation, while preserving two-root
+  free/context entry, source-owned LoadedImage discovery and private-stack partition.
   Implement provider-owned reference outputs under the existing
   [admitted safe boundary contract](wiki/spec/build/foreign_storage.md#provider-owned-views-and-completion),
   retaining exact invocation/backing provenance rather than inventing table
@@ -4842,7 +4842,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   Cathedral's `source/kernel/boot/uefi` is the source customer;
   `tools/boot-harness/run.py` there builds a fresh image and checks the greeting
   followed by the owned-memory report and `Kernel entered` under QEMU/OVMF.
-  Preserve this free-entry oracle while completing context-bearing and returning
+  Preserve free and context-bearing boot oracles while completing returning
   lifecycles. Repair
   general capabilities in their owners; no firmware-protocol intrinsics.
 

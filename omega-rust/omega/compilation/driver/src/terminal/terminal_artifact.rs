@@ -155,6 +155,26 @@ pub(crate) fn produce_retained_terminal_artifacts(
                             .entry
                             .and_then(|entry| entry.physical_adapter()),
                     )
+                    // The context owner may add cleanup and service demand
+                    // beyond the borrowed entry body. Admit that ordinary
+                    // closure before optimization can remove any of it.
+                    .chain(
+                        requests[request_index]
+                            .view
+                            .program
+                            .machines()
+                            .iter()
+                            .filter_map(|machine| {
+                                machine
+                                    .entry_context_origin
+                                    .filter(|origin| {
+                                        requests[request_index].view.entry.is_some_and(|entry| {
+                                            entry.machine_symbol() == origin.entry
+                                        })
+                                    })
+                                    .map(|_| machine.symbol)
+                            }),
+                    )
                     .collect()
             })
             .collect();
@@ -219,6 +239,9 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     if machines.is_empty() {
                         machines.push(entry.selected_machine);
                     }
+                    machines.extend(program_typed.machines().iter().filter_map(|machine| {
+                        machine.entry_context_origin.map(|_| machine.symbol)
+                    }));
                     // Normalize the default to its portable family head; exact
                     // application receipts still name the selected declaration.
                     let typed = program_typed;

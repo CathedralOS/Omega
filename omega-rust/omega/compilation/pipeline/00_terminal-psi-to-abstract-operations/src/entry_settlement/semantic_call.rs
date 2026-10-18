@@ -75,14 +75,6 @@ impl SelectedProgramEntryCall {
         {
             return Err("semantic-entry transport does not join the exact selected artifact, requirement and entry shape".into());
         }
-        // A provisioned context is a real activation-local allocation and loan,
-        // not an extra pointer silently prepended to a two-operand call.
-        if !matches!(
-            entry.source().receiver(),
-            program_entry_plan::ProgramEntryReceiverSignature::Free
-        ) {
-            return Err("unimplemented: selected semantic-entry context needs an accounted activation-local provisioning bridge".into());
-        }
         let selections = terminal_installation::admit_target_machine_selections(
             artifact.view(),
             entry.source().target_slot().owner.target_name(),
@@ -96,6 +88,37 @@ impl SelectedProgramEntryCall {
                 ),
             )
             .map_err(|reason| format!("semantic-entry target selection: {reason}"))?;
+        // The generated ordinary caller owns a fresh local and its cleanup.
+        // Its complete call closure therefore supplies frame demand before the
+        // physical shell partitions the retained private stack. Never prepend
+        // a fabricated pointer to the caller's two already-established roots.
+        let callee = match entry.source().receiver() {
+            program_entry_plan::ProgramEntryReceiverSignature::Free => callee,
+            _ => {
+                if entry.checked_entry().receiver_eligibility().is_none() {
+                    return Err("semantic-entry context requires a checked ZII-valid value and exact retained parameter projection".into());
+                }
+                if callee != entry.checked_entry().terminal_entry() {
+                    return Err(
+                        "semantic-entry context bridge does not name the selected source member"
+                            .into(),
+                    );
+                }
+                let bridge = entry.checked_entry().context_bridge().ok_or(
+                    "selected semantic-entry context has no checked activation-local bridge",
+                )?;
+                let machine = module.machine(bridge).ok_or(
+                    "selected semantic-entry context has no checked activation-local bridge",
+                )?;
+                if !machine.parameters.is_empty()
+                    || machine.structural_parameters.len() != 2
+                    || machine.result != terminal_psi::TerminalMachineResult::Unit
+                {
+                    return Err("selected semantic-entry context bridge has incompatible visible parameters".into());
+                }
+                bridge
+            }
+        };
         Ok(Some(Self {
             boundary: boundary.id,
             entry: entry.checked_entry().clone(),

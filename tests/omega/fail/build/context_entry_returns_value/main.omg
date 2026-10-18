@@ -1,0 +1,5 @@
+data State { value: u32; }
+
+machine launch(context: &mut State) -> u32 {
+    context.value
+}

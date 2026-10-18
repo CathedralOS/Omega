@@ -1598,6 +1598,10 @@ pub fn visit_machine(
     machine: &crate::machine::Machine,
 ) {
     retained.enter_lexical_scope(machine.symbol);
+    if let Some(origin) = machine.entry_context_origin {
+        visit_symbol(retained, origin.entry);
+        visit_symbol(retained, origin.context_parameter);
+    }
     // Capture admission replays the authored map and the exact supplying
     // invocation. Selecting a captured executable therefore retains those
     // declarations; an unrelated checking projection retains none of them.

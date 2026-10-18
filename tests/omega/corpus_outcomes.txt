@@ -385,6 +385,13 @@ fail/asm/scratch_destination_shared_borrow rejected 9473ms expected @351c5ba8113
 	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
 fail/asm/scratch_destination_structured_load rejected 8460ms expected @351c5ba81137+wt
 	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
+fail/build/context_entry_returns_value rejected 1889ms expected @e7a4cfaa3c51+wt
+	entry machine `launch` returns a value, but `ProgramEntry` has no result
+fail/build/uefi_context_cleanup_service_excluded rejected 3813ms expected @e7a4cfaa3c51+wt
+	1 authored behavior exclusion(s) could not be satisfied
+	behavior exclusion violated: service `CleanupAudit` is reachable in Terminal machine 6 at call to boundary `named-callable(path(CleanupAudit::finish),parameters(),result-dispatch())` (block 11, operation 16)
+fail/build/uefi_context_precondition_unestablished rejected 2312ms expected @e7a4cfaa3c51+wt
+	cannot prove requires contract for call selected_continuation from selected_continuation$entry_context: context.phase == 17 (needs fact `context.phase == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/build/uefi_storage_entry_counterfeit rejected 5822ms expected @d0390620f6e2+wt
 	cannot prove requires contract for call forward_roots from FirmwareBootstrap::enter: image in Extent::Granted in state `enter`
 	cannot prove requires contract for call forward_roots from FirmwareBootstrap::enter: storage in Extent::Granted in state `enter`
@@ -1483,15 +1490,9 @@ fail/build/generated_source_undeclared_call_refused rejected 2929ms expected pub
 	machine `generated_check` state `later`: value call `generated_missing(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/build/generated_source_unsealed_handoff_refused rejected 8048ms expected published:none @a9ae30e1c334+wt
 	build-time evaluation of `build` failed: filesystem staging sponsor rejected operation: staging entry is not sealed: output/generated.omg; partial non-admission filesystem evidence: 2 call(s), 0 evaluator-halted, 0 grant refusal(s), 1 logical-handle operand(s)
-fail/build/generic_const_zero_context_requires_establishment rejected 5443ms expected @a9ae30e1c334+wt
+fail/build/generic_const_zero_context_requires_establishment rejected 960ms expected @e7a4cfaa3c51+wt
 	entry machine `main` requests a provisioned `Context` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
-	entry machine `main` requests a provisioned `Context` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
-	entry machine `main` requests a provisioned `Context` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
-	entry machine `main` requests a provisioned `Context` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
-fail/build/generic_zero_context_requires_establishment rejected 5919ms expected @a9ae30e1c334+wt
-	entry machine `main` requests a provisioned `Context` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
-	entry machine `main` requests a provisioned `Context` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
-	entry machine `main` requests a provisioned `Context` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+fail/build/generic_zero_context_requires_establishment rejected 961ms expected @e7a4cfaa3c51+wt
 	entry machine `main` requests a provisioned `Context` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 fail/build/helper_contract_context rejected 2394ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from incorrect at statement 0: result == 4
@@ -1541,9 +1542,7 @@ fail/build/package_local_calling_copy rejected 2099ms expected @a9ae30e1c334+wt
 	duplicate data `BoundaryEntryPlan`
 	duplicate data `CallingPolicyRejection`
 	duplicate data `BoundaryPlanResult`
-fail/build/policy_array_entry_context_zero_invalid_element rejected 5799ms expected @d3f1f22cbb48+wt
-	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
-	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+fail/build/policy_array_entry_context_zero_invalid_element rejected 959ms expected @e7a4cfaa3c51+wt
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 fail/build/product_description_forged_provider_path rejected 3123ms expected @a9ae30e1c334+wt
 	build-time evaluation of `build` failed: product-provider path access requires a compiler-issued ProductProviderRef
@@ -7314,6 +7313,9 @@ pass/asm/atomic_release_disposition_replaced_contents_exit checked 8225ms check-
 pass/asm/atomic_release_disposition_returned_view_exit checked 8156ms check-target:linux_x86_64 @4bfe01cd2128
 pass/asm/atomic_release_disposition_state_exit checked 8014ms check-target:linux_x86_64 @4bfe01cd2128
 pass/asm/scratch_destination_ordinary_stores_exit checked 25933ms check-target:linux_x86_64 @351c5ba81137+wt
+pass/build/uefi_context_cleanup_entry checked 6263ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
+pass/build/uefi_selected_context_entry checked 6264ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
+pass/build/uefi_selected_context_target_entry checked 3463ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
 pass/data/runtime_case_payload_call_result_window_exit checked 8218ms check-target:macos_arm64 @408e4fc23fbc
 pass/facts/checked_asm_countdown_call_result_exit checked 14392ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_const_name_exit checked 12105ms check-target:linux_x86_64 @a0c34fdba779+wt
