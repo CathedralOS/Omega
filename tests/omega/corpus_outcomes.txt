@@ -2335,6 +2335,24 @@ fail/facts/view_extent_after_write_through_other_machine_unproved rejected 1057m
 fail/facts/view_extent_after_write_through_other_state_unproved rejected 1060ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_parameter_unproved rejected 1058ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_target_body_unproved rejected 1059ms expected @86af356b96fb+wt
+fail/facts/write_only_borrow_initialization_unproved_call_result rejected 3009ms expected @fcacdbd4b36f
+	exact arithmetic in machine `main` state `check` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/write_only_borrow_initialization_unproved_const_name rejected 3026ms expected @fcacdbd4b36f
+	exact arithmetic in machine `main` state `check` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/write_only_borrow_initialization_unproved_field rejected 2980ms expected @fcacdbd4b36f
+	exact arithmetic in machine `main` state `check` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/write_only_borrow_initialization_unproved_local rejected 2816ms expected @fcacdbd4b36f
+	exact arithmetic in machine `main` state `check` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/write_only_borrow_initialization_unproved_match_join rejected 2657ms expected @fcacdbd4b36f
+	exact arithmetic in machine `main` state `check` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/write_only_borrow_initialization_unproved_other_machine rejected 2699ms expected @fcacdbd4b36f
+	exact arithmetic in machine `verify_slot` state `check` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/write_only_borrow_initialization_unproved_other_state rejected 2669ms expected @fcacdbd4b36f
+	exact arithmetic in machine `main` state `check` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/write_only_borrow_initialization_unproved_parameter rejected 2659ms expected @fcacdbd4b36f
+	exact arithmetic in machine `verify_parameter` state `check` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/write_only_borrow_initialization_unproved_target_body rejected 2691ms expected @fcacdbd4b36f
+	exact arithmetic in machine `main` state `check` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/write_only_checked_adapter_opaque_call rejected 328ms expected @2ef2ab353498+wt
 fail/facts/write_only_target_family_nonhost_observation rejected 331ms expected @2ef2ab353498+wt
 fail/facts/write_only_target_family_opaque_member rejected 268ms expected @2ef2ab353498+wt
@@ -6139,6 +6157,15 @@ pass/facts/view_extent_after_write_through_other_machine_exit checked 3519ms che
 pass/facts/view_extent_after_write_through_other_state_exit checked 3523ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_parameter_exit checked 3515ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_target_body_exit checked 3560ms check-target:macos_arm64 @86af356b96fb+wt
+pass/facts/write_only_borrow_initialization_through_call_result_exit checked 8839ms check-target:macos_arm64 @fcacdbd4b36f
+pass/facts/write_only_borrow_initialization_through_const_name_exit checked 9054ms check-target:macos_arm64 @fcacdbd4b36f
+pass/facts/write_only_borrow_initialization_through_field_exit checked 8999ms check-target:macos_arm64 @fcacdbd4b36f
+pass/facts/write_only_borrow_initialization_through_local_exit checked 9449ms check-target:macos_arm64 @fcacdbd4b36f
+pass/facts/write_only_borrow_initialization_through_match_join_exit checked 9060ms check-target:macos_arm64 @fcacdbd4b36f
+pass/facts/write_only_borrow_initialization_through_other_machine_exit checked 8980ms check-target:macos_arm64 @fcacdbd4b36f
+pass/facts/write_only_borrow_initialization_through_other_state_exit checked 9153ms check-target:macos_arm64 @fcacdbd4b36f
+pass/facts/write_only_borrow_initialization_through_parameter_exit checked 9011ms check-target:macos_arm64 @fcacdbd4b36f
+pass/facts/write_only_borrow_initialization_through_target_body_exit checked 9034ms check-target:macos_arm64 @fcacdbd4b36f
 pass/facts/write_only_checked_adapter_exit checked 5187ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/filesystem/cross_linux_value_syscalls checked 16296ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit checked 19471ms check-target:macos_arm64 @7c847bad15b6+wt
