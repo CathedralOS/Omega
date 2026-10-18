@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "cannot prove transition argument `difference` satisfies bounded parameter `difference`"
+    "cannot prove requires contract for call admit from open_upper"
   ]
 }

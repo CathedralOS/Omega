@@ -1,1 +1,1 @@
-constant initializer literal does not satisfy its declared integer range
+cannot prove requires contract for call validate_start from Main::main

@@ -116,7 +116,7 @@ $OMEGA --check --target linux_x86_64 samples/cli/independent/resource_scheduler/
 ```
 
 The last command must reject the complete intended-invalid program: its constant
-21 exceeds the declared `i32 [0..=20]` start range. Runtime input rejection is
+21 exceeds the required `0..=20` start contract. Runtime input rejection is
 verified separately and cannot substitute for this source rejection. Observation
 output includes native/Terminal `.stdout`, `.stderr`, `.exit`, a retained native
 product, its path, and `validation.json`. Build products and acceptance state

@@ -1,6 +1,6 @@
 {
   "role": "intended-invalid",
   "rejection_contains": [
-    "constant initializer literal does not satisfy its declared integer range"
+    "assignment stores a value not provably within its data's `where` facts"
   ]
 }

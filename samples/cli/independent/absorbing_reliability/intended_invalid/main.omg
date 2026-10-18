@@ -1,4 +1,4 @@
 // Complete source control: quarter weight 5 cannot inhabit the declared 0..4 range.
-const PROBABILITY: u64 [0..=4] = 5;
-data Main { value: u64; }
+const PROBABILITY: u64 = 5;
+data Main where value <= 4 { value: u64; }
 machine Main::main(main: &mut Main) { main.value = PROBABILITY; }
