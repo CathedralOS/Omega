@@ -71,6 +71,13 @@ object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
 package-compilation = { path = "../../packages/compilation-inputs", features = ["test-support"] }
 
+[target.'cfg(unix)'.dev-dependencies]
+# Match the CLI's native dependency features. A libc feature mismatch travels
+# through SHA-2 and semantic vocabulary, rebuilding the heavy Psi graph for
+# corpus_runner after an ordinary CLI build. This affects test artifacts only;
+# package test-support still stays out of the shipped CLI.
+libc = { version = "0.2.186", features = ["extra_traits"] }
+
 # A standalone corpus outcome driver, not a test: `tools/corpus_gate.py`
 # builds and executes it directly and diffs the emitted per-fixture outcome
 # records against tests/omega/corpus_outcomes.txt. `harness = false` keeps

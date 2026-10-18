@@ -451,6 +451,7 @@ dependencies = [
  "effects",
  "image-emission",
  "installation-evidence",
+ "libc",
  "lowered-psi",
  "mimalloc",
  "native-artifact",
