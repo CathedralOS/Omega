@@ -1079,6 +1079,97 @@ impl<'program> StructuralJudge<'program> {
                     // denotation. A stable descriptor alone cannot reconstruct
                     // an element identity from an earlier storage epoch.
                 }
+                if let ExpressionNode::Indexed(indexed) = node
+                    && let Some(range) = program.expression_table.range_node(indexed.index)
+                {
+                    // A completed runtime view keeps its captured descriptor;
+                    // there is no element observation to form. Its extent is
+                    // exactly the authored window: the formation's own bounds
+                    // check already admitted start <= end <= len(collection).
+                    let input_value = |source: ExpressionHandle| {
+                        inputs
+                            .iter()
+                            .find(|(input, _)| *input == source)
+                            .map(|(_, value)| value.clone())
+                    };
+                    let Some(collection) = input_value(indexed.collection) else {
+                        return None;
+                    };
+                    let start = range
+                        .start
+                        .is_valid()
+                        .then(|| input_value(range.start))
+                        .flatten();
+                    let end = range
+                        .end
+                        .is_valid()
+                        .then(|| input_value(range.end))
+                        .flatten();
+                    let collection_measure =
+                        |collection: &StructuralTerm, collection_source| {
+                            let receiver = crate::expression_result_type_reference(
+                                program,
+                                scope.0,
+                                scope.1,
+                                collection_source,
+                            )?;
+                            super::super::structural_terms::observed_collection_measure(
+                                program,
+                                receiver,
+                                language_semantics::declaration_selection::CollectionMeasure::Length,
+                                || Some(collection.clone()),
+                            )
+                        };
+                    let difference = |left: StructuralTerm, right: StructuralTerm| {
+                        StructuralTerm::MathematicalBinary {
+                            operator: BinaryOperator::Subtract,
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    };
+                    let extent = match (start, end) {
+                        (Some(start), Some(end)) => Some(match start {
+                            StructuralTerm::Integer(ref literal) if literal.is_zero() => end,
+                            _ => difference(end, start),
+                        }),
+                        (None, Some(end)) => Some(end),
+                        (start, None) => collection_measure(&collection, indexed.collection).map(
+                            |full| match start {
+                                Some(start) => difference(full, start),
+                                None => full,
+                            },
+                        ),
+                    };
+                    if let Some(extent) = extent
+                        && let Some(view) = crate::expression_result_type_reference(
+                            program,
+                            scope.0,
+                            scope.1,
+                            expression,
+                        )
+                        && let Some(measure) =
+                            super::super::structural_terms::observed_collection_measure(
+                                program,
+                                view,
+                                language_semantics::declaration_selection::CollectionMeasure::Length,
+                                || Some(value.clone()),
+                            )
+                    {
+                        judge.assume_normal_equation(measure, extent);
+                    }
+                }
+                if let ExpressionNode::Borrow(borrow) = node {
+                    // A checked borrow selects its referent; it does not create
+                    // a new case-bearing value. The referent's completed term
+                    // keeps the same descriptor identity the mathematical
+                    // `callee_term` walk would have produced, so later `len`
+                    // and field observations name this exact view.
+                    if let Some((_, referent)) =
+                        inputs.iter().find(|(input, _)| *input == borrow.target)
+                    {
+                        value = referent.clone();
+                    }
+                }
                 if integer_field_read {
                     // Completing a typed read observes its actual value even
                     // when no mathematical entry value is known. Retain that
@@ -1461,7 +1552,14 @@ impl<'program> StructuralJudge<'program> {
                         subjects.iter().any(|subject| {
                             subject.parameter == *symbol && subject.preserved_on_return
                         })
-                    })
+                    }) || (!parameter.is_mutable
+                        && crate::slice_view_shell(program, parameter.type_reference, &[])
+                            .is_some())
+                    // A view whose referent origin cannot be authenticated
+                    // still supplies its passed descriptor: `window.len` in a
+                    // guarantee names this exact extent. Referent contents
+                    // stay unobserved; mutable/exclusive formals could denote
+                    // a reseated post-call descriptor and keep the drop.
                 }
             })
             .cloned()
