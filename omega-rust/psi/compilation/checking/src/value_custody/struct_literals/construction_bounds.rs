@@ -12,6 +12,7 @@ use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use typed_trees::types::PrimitiveType;
 
 /// A conservative value interval (both ends optional).
 #[derive(Clone, Copy)]
@@ -20,6 +21,8 @@ pub(super) struct Bounds {
     symbol: symbols::SymbolHandle,
     length: Option<i64>,
     capacity: Option<i64>,
+    float_primitive: Option<PrimitiveType>,
+    float_interval: Option<(f64, f64)>,
 }
 
 impl Bounds {
@@ -28,11 +31,33 @@ impl Bounds {
         symbol: symbols::SymbolHandle::invalid(),
         length: None,
         capacity: None,
+        float_primitive: None,
+        float_interval: None,
     };
     fn point(value: i64) -> Bounds {
         Bounds {
             interval: crate::proof_contracts::arithmetic_domains::Interval::constant(value),
             ..Bounds::UNKNOWN
+        }
+    }
+
+    fn floating(primitive: PrimitiveType, interval: Option<(f64, f64)>) -> Bounds {
+        Bounds {
+            float_primitive: Some(primitive),
+            float_interval: interval,
+            ..Bounds::UNKNOWN
+        }
+    }
+
+    fn zero(primitive: Option<PrimitiveType>) -> Bounds {
+        match primitive {
+            Some(primitive @ (PrimitiveType::F32 | PrimitiveType::F64)) => {
+                Bounds::floating(primitive, Some((0.0, 0.0)))
+            }
+            Some(primitive) if primitive.is_fixed_integer() || primitive == PrimitiveType::Bool => {
+                Bounds::point(0)
+            }
+            _ => Bounds::UNKNOWN,
         }
     }
 
@@ -61,7 +86,23 @@ fn value_bounds(
     state: &State,
     observations: &ConstructionObservations<'_>,
     expression: ExpressionHandle,
+    destination: Option<PrimitiveType>,
 ) -> Bounds {
+    if let Some(primitive @ (PrimitiveType::F32 | PrimitiveType::F64)) = destination {
+        let environment = observations.environment(expression);
+        let captured = crate::proof_contracts::arithmetic_domains::capture_float_assignment(
+            program,
+            machine,
+            Some(state),
+            &environment,
+            Some(primitive),
+            expression,
+        );
+        return Bounds::floating(
+            primitive,
+            captured.map(|value| (value.minimum, value.maximum)),
+        );
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::String(literal) => return Bounds::sequence(literal.len()),
         ExpressionNode::Integer(value) => {
@@ -72,7 +113,14 @@ fn value_bounds(
                 .unwrap_or(Bounds::UNKNOWN);
         }
         ExpressionNode::Borrow(inner) => {
-            return value_bounds(program, machine, state, observations, inner.target);
+            return value_bounds(
+                program,
+                machine,
+                state,
+                observations,
+                inner.target,
+                destination,
+            );
         }
         _ => {}
     }
@@ -156,15 +204,7 @@ pub fn case_predicates_admit_zero(
     let mut valuation = Vec::new();
     for field in fields {
         declared.push(field.symbol);
-        let bounds = if program
-            .primitive_type_reference(field.type_reference)
-            .is_some_and(|primitive| {
-                primitive.is_fixed_integer() || primitive == typed_trees::types::PrimitiveType::Bool
-            }) {
-            Bounds::point(0)
-        } else {
-            Bounds::UNKNOWN
-        };
+        let bounds = Bounds::zero(program.primitive_type_reference(field.type_reference));
         valuation.push((field.symbol, bounds));
     }
     program
@@ -222,6 +262,15 @@ fn bounds_eval(
                 })
         }
         ExpressionNode::Boolean(value) => Bounds::point(i64::from(*value)),
+        ExpressionNode::Float(literal) => {
+            let primitive = match literal.landing() {
+                Some(numerics::literals::FloatFormat::F32) => PrimitiveType::F32,
+                Some(numerics::literals::FloatFormat::F64) => PrimitiveType::F64,
+                None => return Bounds::UNKNOWN,
+            };
+            let value = literal.landed_f64();
+            Bounds::floating(primitive, (!value.is_nan()).then_some((value, value)))
+        }
         ExpressionNode::Integer(value) => value
             .text()
             .parse::<i64>()
@@ -265,6 +314,26 @@ fn bounds_eval(
                 )
             };
             let references = [binary.left, binary.right].map(operand_type);
+            let left = bounds_eval(program, owner, valuation, declared, binary.left);
+            let right = bounds_eval(program, owner, valuation, declared, binary.right);
+            // An IEEE operand never enters integer interval or symbol-reflexivity
+            // rules. Unknown ordered bounds may include NaN; x == x is not a proof.
+            // Literal landing and live enclosures come from the ordinary producer,
+            // while the selected comparison alone grants its order semantics.
+            if left.float_primitive.is_some() || right.float_primitive.is_some() {
+                if left.float_primitive != right.float_primitive
+                    || !crate::has_builtin_or_sealed_float_comparison_meaning(
+                        program,
+                        owner,
+                        expression,
+                        binary.operator,
+                        &references,
+                    )
+                {
+                    return Bounds::UNKNOWN;
+                }
+                return tri(float_comparison(left, right, binary.operator));
+            }
             if let Some(spelling) =
                 crate::proof_contracts::parameter_expression_meaning::spelled_binary_operator(
                     binary.operator,
@@ -279,8 +348,6 @@ fn bounds_eval(
             {
                 return Bounds::UNKNOWN;
             }
-            let left = bounds_eval(program, owner, valuation, declared, binary.left);
-            let right = bounds_eval(program, owner, valuation, declared, binary.right);
             match binary.operator {
                 BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply => {
                     let interval = if crate::proof_integer_expression(program, expression)
@@ -339,6 +406,47 @@ fn bounds_eval(
             bounds_eval(program, owner, valuation, declared, inner.target)
         }
         _ => Bounds::UNKNOWN,
+    }
+}
+
+/// Only ordered enclosures enter this judgment. Endpoint comparisons preserve
+/// IEEE order (including equal signed zeros); no integer complement or arithmetic
+/// approximation supplies a missing enclosure, format or selected operator.
+fn float_comparison(
+    left: Bounds,
+    right: Bounds,
+    operator: typed_trees::expression::BinaryOperator,
+) -> Truth {
+    use typed_trees::expression::BinaryOperator;
+    let Some(((left_low, left_high), (right_low, right_high))) =
+        left.float_interval.zip(right.float_interval)
+    else {
+        return Truth::Unknown;
+    };
+    let relation = |true_for_all: bool, false_for_all: bool| {
+        if true_for_all {
+            Truth::True
+        } else if false_for_all {
+            Truth::False
+        } else {
+            Truth::Unknown
+        }
+    };
+    match operator {
+        BinaryOperator::LessOrEqual => relation(left_high <= right_low, left_low > right_high),
+        BinaryOperator::Less => relation(left_high < right_low, left_low >= right_high),
+        BinaryOperator::GreaterOrEqual => relation(left_low >= right_high, left_high < right_low),
+        BinaryOperator::Greater => relation(left_low > right_high, left_high <= right_low),
+        BinaryOperator::Equal | BinaryOperator::NotEqual => {
+            let equal = left_low == left_high && right_low == right_high && left_low == right_low;
+            let disjoint = left_high < right_low || right_high < left_low;
+            if operator == BinaryOperator::Equal {
+                relation(equal, disjoint)
+            } else {
+                relation(disjoint, equal)
+            }
+        }
+        _ => Truth::Unknown,
     }
 }
 
@@ -583,8 +691,29 @@ fn fold_literal_facts(
     // Snapshot each field at its own source observation, including operand effects.
     let mut valuation = Vec::new();
     for field in program.expression_table.struct_fields(literal.fields) {
-        let value = value_bounds(program, machine, state, observations, field.value);
+        let destination =
+            super::selected_construction_field_type(program, literal, field.field_symbol)
+                .and_then(|reference| program.primitive_type_reference(reference));
+        let value = value_bounds(
+            program,
+            machine,
+            state,
+            observations,
+            field.value,
+            destination,
+        );
         valuation.push((field.field_symbol, value));
+    }
+    // Omitted IEEE fields contribute their format's zero, never an integer
+    // stand-in. Other omitted values retain their existing zero/measure rules.
+    for symbol in declared {
+        if !valuation.iter().any(|(field, _)| field == symbol) {
+            let primitive = super::selected_construction_field_type(program, literal, *symbol)
+                .and_then(|reference| program.primitive_type_reference(reference));
+            if matches!(primitive, Some(PrimitiveType::F32 | PrimitiveType::F64)) {
+                valuation.push((*symbol, Bounds::zero(primitive)));
+            }
+        }
     }
     for fact in program.proof_facts.span_or_empty(facts) {
         match fact {

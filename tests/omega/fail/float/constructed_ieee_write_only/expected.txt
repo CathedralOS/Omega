@@ -1,0 +1,1 @@
+reads field `value` from write-only parameter

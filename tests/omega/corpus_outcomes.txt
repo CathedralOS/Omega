@@ -3152,6 +3152,27 @@ fail/facts/dependent_subtract_through_target_body_rejected rejected 290ms expect
 	exact arithmetic in machine `gap` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `gap` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `gap` state `entry` local `remaining` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/float_delivery_through_call_result_rejected rejected 6539ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: source(reading) >= 0.0 && source(reading) <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_delivery_through_const_name_rejected rejected 7872ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_delivery_through_field_rejected rejected 7094ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: holder.reading.value >= 0.0 && holder.reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_delivery_through_local_rejected rejected 6592ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_delivery_through_match_join_rejected rejected 3949ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_delivery_through_other_machine_rejected rejected 5361ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from deliver: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_delivery_through_other_state_rejected rejected 3583ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
+fail/facts/float_delivery_through_parameter_rejected rejected 3954ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_delivery_through_target_body_rejected rejected 3820ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/guarded_line_loan_through_call_result_held rejected 2713ms expected @866a955e52f8
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -3284,6 +3305,26 @@ fail/float/closed_public_float_predicate_requires_finite_actual rejected 1669ms 
 	cannot prove requires contract for call finite_value from main: F32.is_finite(divide(0.0, 0.0)) (needs fact `F32.is_finite(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/float/constant_exact_integer_coercion_fractional rejected 126ms expected @9c4d1c444502
 	constant initializer: constant cast needs a total integer conversion or checked partial-conversion evidence
+fail/float/constructed_ieee_effectful_match rejected 3618ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: observed >= 0.0 && observed <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/float/constructed_ieee_gated_entry rejected 7483ms expected @1dcced2fa00f+wt
+	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+fail/float/constructed_ieee_match_unsafe_arm rejected 3002ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/float/constructed_ieee_outside rejected 927ms expected @1dcced2fa00f+wt
+	data `Reading` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/float/constructed_ieee_selector_changed rejected 3034ms expected @1dcced2fa00f+wt
+	cannot prove requires contract for call admit from probe: observed >= 0.0 && observed <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/float/constructed_ieee_stale rejected 946ms expected @1dcced2fa00f+wt
+	data `Reading` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/float/constructed_ieee_unknown_nan rejected 922ms expected @1dcced2fa00f+wt
+	data `Reflexive` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/float/constructed_ieee_write_invalidates rejected 902ms expected @1dcced2fa00f+wt
+	data `Reading`'s default domain is still FALSE at a call: the invariant window opened on `reading` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/float/constructed_ieee_write_only rejected 905ms expected @1dcced2fa00f+wt
+	machine `probe` state `entry` reads field `value` from write-only parameter `reading`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/float/digit_separator_format_mismatch_rejected rejected 189ms expected @9c4d1c444502
 	literal `12.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/float/digit_separator_missing_exponent_rejected rejected 0ms expected @9c4d1c444502
@@ -8043,6 +8084,15 @@ pass/facts/dependent_subtract_through_other_machine_compile checked 1231ms @fd94
 pass/facts/dependent_subtract_through_other_state_compile checked 1236ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_parameter_compile checked 1237ms @fd94a7b8095c+wt
 pass/facts/dependent_subtract_through_target_body_compile checked 1244ms @fd94a7b8095c+wt
+pass/facts/float_delivery_through_call_result_exit checked 18900ms check-target:macos_arm64 @1dcced2fa00f+wt
+pass/facts/float_delivery_through_const_name_exit checked 16893ms check-target:macos_arm64 @1dcced2fa00f+wt
+pass/facts/float_delivery_through_field_exit checked 22490ms check-target:macos_arm64 @1dcced2fa00f+wt
+pass/facts/float_delivery_through_local_exit checked 23016ms check-target:macos_arm64 @1dcced2fa00f+wt
+pass/facts/float_delivery_through_match_join_exit checked 33532ms check-target:macos_arm64 @1dcced2fa00f+wt
+pass/facts/float_delivery_through_other_machine_exit checked 35130ms check-target:macos_arm64 @1dcced2fa00f+wt
+pass/facts/float_delivery_through_other_state_exit checked 25066ms check-target:macos_arm64 @1dcced2fa00f+wt
+pass/facts/float_delivery_through_parameter_exit checked 37382ms check-target:macos_arm64 @1dcced2fa00f+wt
+pass/facts/float_delivery_through_target_body_exit checked 30769ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/facts/guarded_line_loan_through_call_result_exit checked 5835ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_const_name_exit checked 5825ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_field_exit checked 5857ms check-target:macos_arm64 @866a955e52f8
@@ -8112,6 +8162,10 @@ pass/float/closed_integer_conversion_trapping_source_no_normal_result checked 29
 pass/float/coherent_field_energy_scattering_exit checked 43211ms check-target:macos_arm64 @9c4d1c444502
 pass/float/computed_comparison_literal_landing_exit checked 32379ms check-target:macos_arm64 @1b12798e27f4
 pass/float/computed_float_bare_literal_comparison checked 29624ms check-target:macos_arm64 @9c4d1c444502
+pass/float/constructed_ieee_asymmetric_join checked 9553ms @1dcced2fa00f+wt
+pass/float/constructed_ieee_copy_before_write checked 8804ms @1dcced2fa00f+wt
+pass/float/constructed_ieee_effectful_match_frozen checked 7852ms @1dcced2fa00f+wt
+pass/float/constructed_ieee_predicates_exit checked 29097ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/float/constructor_requirement_result_policy_exit checked 29175ms check-target:macos_arm64 @9c4d1c444502
 pass/float/data_where_float_field_restored_exit checked 28777ms check-target:macos_arm64 @9c4d1c444502
 pass/float/directed_square_root_radius_exit checked 15511ms check-target:macos_arm64 @cc35a4f0d368+wt

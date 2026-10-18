@@ -170,6 +170,13 @@ pub(in crate::flow) fn append_comparison_bounds_context(
             active_constraints,
         );
     }
+    // IEEE predicates above use their selected float meaning. Integer bound
+    // decomposition has its own authority; it must not gate IEEE entry facts
+    // or interpret an overloaded equality as builtin integer order.
+    if !validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
+    {
+        return;
+    }
     let mut conjuncts = Vec::new();
     // Arm tests arrive as `<guard> == true`; peel that wrapper off before
     // reading conjuncts, then split `&&` as the arm's own test would.

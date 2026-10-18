@@ -620,6 +620,14 @@ pub(super) fn incoming_environments(
         .map(|(entry, entry_seeds)| {
             let mut external = ValueEnvironment::new();
             entry_seeds.apply(program, machine, entry, &mut external);
+            for parameter in program.state_parameters(entry) {
+                super::super::record_declared_float_fields(
+                    program,
+                    &mut external,
+                    parameter.name.as_str(),
+                    parameter.type_reference,
+                );
+            }
             if let Some((_, actuals)) = invocation {
                 for parameter in program.state_parameters(entry) {
                     if parameter.is_mutable || parameter.is_const {
@@ -1235,6 +1243,14 @@ impl ArrivalWalk<'_, '_> {
                         Some(path.clone()),
                         copied_float,
                     );
+                    if local.initial_value.is_valid() {
+                        super::super::record_declared_float_fields(
+                            self.program,
+                            environment,
+                            &path,
+                            local.type_reference,
+                        );
+                    }
                     super::boolean_values::record_boolean_local(
                         self.program,
                         self.machine,
@@ -1353,6 +1369,14 @@ impl ArrivalWalk<'_, '_> {
                             path.clone(),
                             copied_float,
                         );
+                        if let (Some(path), Some(reference)) = (path.as_deref(), reference) {
+                            super::super::record_declared_float_fields(
+                                self.program,
+                                environment,
+                                path,
+                                reference,
+                            );
+                        }
                         let primitive = reference
                             .and_then(|reference| self.program.primitive_type_reference(reference));
                         super::boolean_values::record_boolean_assignment(

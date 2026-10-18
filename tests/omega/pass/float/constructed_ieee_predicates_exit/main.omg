@@ -1,0 +1,18 @@
+// Expected exit: 0
+use omega::language::core::float_operations;
+data Reading [copy] where value >= 0.0 && value <= 0.25 { value:f64; }
+data Rounded [copy] where value == 0.1 { value:f32; }
+machine make(value:f64)->Reading
+requires value >= 0.0 && value <= 0.25
+{ Reading { value:value } }
+machine main() crashes Trap {
+    let reading:Reading=make(0.25);
+    let zero:Reading=Reading {};
+    let rounded:Rounded=Rounded {value:0.1};
+    transition reading.value == 0.25 && zero.value == 0.0 && rounded.value == 0.1f32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

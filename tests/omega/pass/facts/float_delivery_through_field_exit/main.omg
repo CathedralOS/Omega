@@ -1,0 +1,16 @@
+// Inclusive f64 0.0 <= value <= 0.25 entails admit's 0.0 <= value <= 0.5.
+// Expected exit: 0
+use omega::language::core::float_operations;
+data Reading [copy] where value >= 0.0 && value <= 0.25 { value: f64; }
+machine admit(value: f64) -> f64
+requires value >= 0.0 && value <= 0.5
+{ value }
+data Holder [copy] { reading: Reading; }
+machine probe(holder: &Holder) -> f64 { admit(holder.reading.value) }
+machine main() crashes Trap {
+    let reading: Reading = Reading { value: 0.25 };
+    let observed: f64 = probe(&Holder { reading: reading });
+    transition observed == 0.25 { true -> done() _ -> bad() }
+    state done() { }
+    state bad() { crash Trap; }
+}

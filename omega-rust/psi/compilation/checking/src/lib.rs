@@ -537,3 +537,7 @@ pub use value_custody::atomic_fences::{
 pub use proof_contracts::instruction_effects::{
     InstructionEffectContract, instruction_effect_contract, instruction_effect_model,
 };
+
+pub use proof_contracts::arithmetic_domains::{
+    DeclaredFloatFieldBound, declared_float_field_bounds,
+};

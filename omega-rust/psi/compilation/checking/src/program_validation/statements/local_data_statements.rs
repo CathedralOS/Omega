@@ -345,6 +345,12 @@ pub(super) fn validate(
                 Some(local_data.name.as_str().to_owned()),
                 copied_float,
             );
+            arithmetic_domains::record_declared_float_fields(
+                program,
+                value_environment,
+                local_data.name.as_str(),
+                local_data.type_reference,
+            );
         }
     }
 }

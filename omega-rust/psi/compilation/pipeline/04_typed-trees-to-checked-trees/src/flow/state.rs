@@ -169,16 +169,6 @@ pub(super) fn build_state_flow_fact<'plans>(
                 &mut state_contexts,
                 &mut state_constraints,
             );
-            // In particular, do not peel a Boolean equality whose selected
-            // operator does not mean builtin equality.
-            if !validation::has_builtin_bound_expression_meaning(
-                program,
-                machine,
-                Some(state),
-                *expression,
-            ) {
-                continue;
-            }
             super::exits::append_comparison_bounds_context(
                 program,
                 semantic,

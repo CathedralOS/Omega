@@ -193,10 +193,12 @@ impl Execution<'_, '_, '_> {
         } else {
             Vec::new()
         };
+        let field_bounds = validation::declared_float_field_bounds(self.program, reference);
         if domains.is_empty()
             && predicates.is_empty()
             && integer_bounds.is_none()
             && zero_fields.is_empty()
+            && field_bounds.is_empty()
         {
             return;
         }
@@ -263,6 +265,30 @@ impl Execution<'_, '_, '_> {
                     domain_symbol,
                     semantic_domain,
                 },
+            });
+            self.semantic.append_ref(&mut refs, fact);
+        }
+        // A checked complete data value owns its field predicates. Publish
+        // them on this occurrence so ordinary stores and projections snapshot
+        // the value; no declaration reread may restore a mutated storage fact.
+        for bound in field_bounds {
+            let Some(predicate) = bound.predicate() else {
+                continue;
+            };
+            let field = self.semantic.append_expression_place(expression);
+            for symbol in bound.path {
+                self.semantic
+                    .push_place_segment(field, facts::PlaceSegment::Field { symbol });
+            }
+            let fact = self.semantic.append_fact(Fact {
+                place: FactPlace::Place(field),
+                point,
+                origin: FactOrigin::StatementTransfer,
+                evidence: QualificationEvidence::from_origin(
+                    language_semantics::QualificationEvidenceOrigin::CheckedValidation,
+                    self.state.symbol,
+                ),
+                payload: FactPayload::FloatPredicate { predicate },
             });
             self.semantic.append_ref(&mut refs, fact);
         }

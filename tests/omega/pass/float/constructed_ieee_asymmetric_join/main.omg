@@ -1,0 +1,8 @@
+use omega::language::core::float_operations;
+data Lower [copy] where value >= 0.0 && value <= 0.125 { value:f64; }
+data Upper [copy] where value >= 0.0 && value <= 0.25 { value:f64; }
+machine admit(value:f64)->f64 requires value>=0.0 && value<=0.25 {value}
+machine probe(left:Lower,right:Upper,choice:bool)->f64 {
+ let value:f64=match choice {true->left.value,false->right.value};
+ admit(value)
+}

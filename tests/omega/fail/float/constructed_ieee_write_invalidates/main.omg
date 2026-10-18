@@ -1,0 +1,4 @@
+use omega::language::core::float_operations;
+data Reading [copy] where value >= 0.0 && value <= 0.25 { value:f64; }
+machine admit(value:f64)->f64 requires value>=0.0 && value<=0.5 {value}
+machine probe(reading:&mut Reading, replacement:f64)->f64 { reading.value=replacement; let result:f64=admit(reading.value); reading.value=0.25; result }

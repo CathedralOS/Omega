@@ -25,6 +25,9 @@
 //! `return_ranges.rs` infers and enforces return ranges.
 
 mod abstract_shift_count;
+mod declared_float_facts;
+pub(crate) use declared_float_facts::record_declared_float_fields;
+pub use declared_float_facts::{DeclaredFloatFieldBound, declared_float_field_bounds};
 mod assignments;
 mod bigint_interval;
 mod bitwise;

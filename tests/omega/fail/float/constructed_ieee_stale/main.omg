@@ -1,0 +1,3 @@
+use omega::language::core::float_operations;
+data Reading [copy] where value >= 0.0 && value <= 0.25 { value:f64; }
+machine make()->Reading { let mut value:f64=0.25; value=0.75; Reading{value:value} }

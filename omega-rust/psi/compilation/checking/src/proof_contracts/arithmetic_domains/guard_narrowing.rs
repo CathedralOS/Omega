@@ -190,6 +190,14 @@ pub(crate) fn requires_value_environment(
             environment.mark_signed_joint_multiply_upper_bound(left, right);
         }
     });
+    for parameter in program.state_parameters(entry_state) {
+        super::record_declared_float_fields(
+            program,
+            &mut environment,
+            parameter.name.as_str(),
+            parameter.type_reference,
+        );
+    }
     arrivals::seed_state_requirements(program, machine, entry_state, None, &mut environment);
     environment
 }

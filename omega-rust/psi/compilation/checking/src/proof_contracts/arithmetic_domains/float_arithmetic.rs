@@ -171,8 +171,10 @@ pub(crate) fn float_source_bounds(
         let range = declared.map_or(flow, |declared| declared.intersect(flow));
         converted.map_or(range, |converted| range.intersect(converted))
     };
-    let minimum = range.low?;
-    let maximum = range.high?;
+    // Ordered evidence excludes NaN, not infinity. A one-sided predicate
+    // retains its known endpoint without inventing a finite opposite bound.
+    let minimum = range.low.unwrap_or(f64::NEG_INFINITY);
+    let maximum = range.high.unwrap_or(f64::INFINITY);
     (minimum <= maximum).then_some(FloatSourceBounds {
         primitive,
         minimum,

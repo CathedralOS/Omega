@@ -2,9 +2,9 @@
 //! A saved subject is not a promise about its storage after a pattern writes it;
 //! only unchanged stable inputs can publish branch-local comparison evidence.
 //!
-//! Predicate-only domain membership joins with that result. Each covered arm
-//! contributes the memberships already carried by the value it yields, and
-//! the match result keeps only the memberships every arm carries. A fact
+//! Predicate-only domains and positive IEEE observations join with that result. Each covered arm
+//! contributes the predicates already carried by the value it yields, and
+//! the match result keeps only the consequences every arm carries. A fact
 //! about some other place in the surrounding context does not move onto the
 //! result. Routed domains keep their authorized provenance and are not joined
 //! here; this publication is transport, not a new establishment.
@@ -30,7 +30,7 @@ impl Execution<'_, '_, '_> {
         let mut joined = None;
         let mut completed_writes = Vec::new();
         let mut boolean_coverage = [false; 2];
-        let mut shared_domains: Option<Vec<PredicateDomain>> = None;
+        let mut shared_predicates: Option<Vec<JoinedPredicate>> = None;
         let mut value_coverage = false;
         for (ordinal, arm) in self
             .program
@@ -96,10 +96,25 @@ impl Execution<'_, '_, '_> {
                 }
             }
             self.expression(arm.value, &mut selected_contexts, &mut selected_constraints);
-            let yielded = self.predicate_domains_on_value(arm.value, &selected_contexts);
-            match shared_domains.as_mut() {
-                Some(shared) => shared.retain(|domain| yielded.contains(domain)),
-                None => shared_domains = Some(yielded),
+            let yielded = self.predicates_on_value(arm.value, &selected_contexts);
+            match shared_predicates.as_mut() {
+                Some(shared) => shared.retain_mut(|predicate| {
+                    let mut common = None;
+                    for incoming in &yielded {
+                        if let Some(candidate) = predicate.common_consequence(*incoming)
+                            && common.is_none_or(|previous| candidate.implies(previous))
+                        {
+                            common = Some(candidate);
+                        }
+                    }
+                    if let Some(common) = common {
+                        *predicate = common;
+                        true
+                    } else {
+                        false
+                    }
+                }),
+                None => shared_predicates = Some(yielded),
             }
             completed_writes.extend(self.operand_writes.drain(branch_writes..));
             if let Some((previous_contexts, previous_constraints)) = joined {
@@ -122,22 +137,22 @@ impl Execution<'_, '_, '_> {
             *constraints = joined_constraints;
         }
         if value_coverage {
-            if let Some(shared) = shared_domains {
-                self.publish_joined_predicate_domains(expression, &shared, contexts, constraints);
+            if let Some(shared) = shared_predicates {
+                self.publish_joined_predicates(expression, &shared, contexts, constraints);
             }
         }
     }
 
-    /// Predicate-only memberships whose place is this arm value.
+    /// Transportable predicates whose place is this arm value.
     ///
     /// Membership of a neighboring place stays where it is. A routed domain
     /// is absent here because copying it would drop the provenance the
     /// checker still has to rejoin.
-    fn predicate_domains_on_value(
+    fn predicates_on_value(
         &self,
         value: ExpressionHandle,
         contexts: &HandleSpan<FlowSemanticContextRef>,
-    ) -> Vec<PredicateDomain> {
+    ) -> Vec<JoinedPredicate> {
         let Some(source) = validation::canonical_place_from_expression_in_state(
             self.program,
             self.state.symbol,
@@ -146,21 +161,32 @@ impl Execution<'_, '_, '_> {
         ) else {
             return Vec::new();
         };
-        let mut domains = Vec::new();
+        let mut predicates = Vec::new();
         for fact in crate::flow::active_context_facts(self.context, self.semantic, *contexts) {
-            let Some((_, _, domain_symbol, semantic_domain)) = fact.payload.domain_membership()
-            else {
+            let predicate = if let FactPayload::FloatPredicate { predicate } = fact.payload {
+                JoinedPredicate::Float(predicate)
+            } else if let Some((_, _, domain_symbol, semantic_domain)) =
+                fact.payload.domain_membership()
+            {
+                if validation::field_domains::domain_requires_provenance(
+                    self.program,
+                    domain_symbol,
+                ) {
+                    continue;
+                }
+                let Some(domain) = self.program.domain_definition(domain_symbol) else {
+                    continue;
+                };
+                if !domain.predicate_body.is_present() || domain.alias.is_some() {
+                    continue;
+                }
+                JoinedPredicate::Domain {
+                    domain_symbol,
+                    semantic_domain,
+                }
+            } else {
                 continue;
             };
-            if validation::field_domains::domain_requires_provenance(self.program, domain_symbol) {
-                continue;
-            }
-            let Some(domain) = self.program.domain_definition(domain_symbol) else {
-                continue;
-            };
-            if !domain.predicate_body.is_present() || domain.alias.is_some() {
-                continue;
-            }
             let Some(fact_place) = fact.place.as_place() else {
                 continue;
             };
@@ -174,21 +200,17 @@ impl Execution<'_, '_, '_> {
             if !crate::flow::canonical_places_agree(self.program, &source, &fact_place) {
                 continue;
             }
-            let identity = PredicateDomain {
-                domain_symbol,
-                semantic_domain,
-            };
-            if !domains.contains(&identity) {
-                domains.push(identity);
+            if !predicates.contains(&predicate) {
+                predicates.push(predicate);
             }
         }
-        domains
+        predicates
     }
 
-    fn publish_joined_predicate_domains(
+    fn publish_joined_predicates(
         &mut self,
         expression: ExpressionHandle,
-        domains: &[PredicateDomain],
+        domains: &[JoinedPredicate],
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
@@ -211,12 +233,7 @@ impl Execution<'_, '_, '_> {
                     language_semantics::QualificationEvidenceOrigin::Propagated,
                     self.state.symbol,
                 ),
-                payload: FactPayload::DomainMembership {
-                    value: expression,
-                    domain: HandleSpan::empty(),
-                    domain_symbol: domain.domain_symbol,
-                    semantic_domain: domain.semantic_domain,
-                },
+                payload: domain.payload(expression),
             });
             self.semantic.append_ref(&mut refs, fact);
         }
@@ -235,7 +252,43 @@ impl Execution<'_, '_, '_> {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-struct PredicateDomain {
-    domain_symbol: symbols::SymbolHandle,
-    semantic_domain: language_semantics::SemanticDomainId,
+enum JoinedPredicate {
+    Domain {
+        domain_symbol: symbols::SymbolHandle,
+        semantic_domain: language_semantics::SemanticDomainId,
+    },
+    Float(facts::FloatPredicate),
+}
+
+impl JoinedPredicate {
+    fn implies(self, other: Self) -> bool {
+        match (self, other) {
+            (Self::Float(left), Self::Float(right)) => left.implies(right),
+            _ => self == other,
+        }
+    }
+
+    fn common_consequence(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Float(left), Self::Float(right)) => {
+                left.common_consequence(right).map(Self::Float)
+            }
+            _ => (self == other).then_some(self),
+        }
+    }
+
+    fn payload(self, expression: ExpressionHandle) -> FactPayload {
+        match self {
+            Self::Domain {
+                domain_symbol,
+                semantic_domain,
+            } => FactPayload::DomainMembership {
+                value: expression,
+                domain: HandleSpan::empty(),
+                domain_symbol,
+                semantic_domain,
+            },
+            Self::Float(predicate) => FactPayload::FloatPredicate { predicate },
+        }
+    }
 }

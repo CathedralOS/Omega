@@ -451,6 +451,16 @@ pub(super) fn validate<'a, 'p>(
             arithmetic_domains::place_path(program, assignment.target),
             copied_float,
         );
+        if let (Some(path), Some(reference)) =
+            (assignment_path.as_deref(), assignment_target_type_raw)
+        {
+            arithmetic_domains::record_declared_float_fields(
+                program,
+                value_environment,
+                path,
+                places::assignment_value_type(program, reference),
+            );
+        }
     }
 }
 

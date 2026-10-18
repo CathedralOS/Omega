@@ -1,0 +1,5 @@
+use omega::language::core::float_operations;
+data Plain {value:f64;}
+machine admit(value:f64)->f64 requires value>=0.0 && value<=0.5 {value}
+machine change(value:&mut Plain)->bool {value.value=0.75;true}
+machine probe(source:&mut Plain)->f64 requires source.value>=0.0 && source.value<=0.25 { let observed:f64=match change(source){true->source.value,false->source.value};admit(observed) }

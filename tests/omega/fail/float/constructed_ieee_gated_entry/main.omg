@@ -1,0 +1,4 @@
+use omega::language::core::float_operations;
+data Main where value>=1.0 && value<=2.0 {value:f64;}
+machine admit(value:f64) requires value>=1.0 && value<=2.0 {}
+machine Main::main(main:&mut Main) {admit(main.value);main.value=1.0;}

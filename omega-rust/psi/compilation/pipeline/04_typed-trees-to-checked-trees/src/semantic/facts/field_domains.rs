@@ -310,6 +310,34 @@ pub(super) fn append_state_parameter_domain_facts(
                         &mut refs,
                     );
                 }
+                // Declared IEEE field bounds are live entry predicates, just as
+                // field domains are. Ordinary capture/copy/join and mutation
+                // invalidation retain their exact observed value and lifetime.
+                for bound in
+                    validation::declared_float_field_bounds(program, parameter.type_reference)
+                {
+                    let Some(predicate) = bound.predicate() else {
+                        continue;
+                    };
+                    let place = facts.append_symbol_place(parameter.symbol);
+                    for symbol in bound.path {
+                        facts.push_place_segment(place, PlaceSegment::Field { symbol });
+                    }
+                    let fact = facts.append_fact(Fact {
+                        place: FactPlace::Place(place),
+                        point: ProgramPoint::State {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                        },
+                        origin: obligation_origin,
+                        evidence: QualificationEvidence::from_origin(
+                            language_semantics::QualificationEvidenceOrigin::Propagated,
+                            state.symbol,
+                        ),
+                        payload: FactPayload::FloatPredicate { predicate },
+                    });
+                    facts.append_ref(&mut refs, fact);
+                }
                 // Keep the existing root qualification/resource permission
                 // rule separate from default-domain fields of nominal values.
                 if parameter.is_mutable {

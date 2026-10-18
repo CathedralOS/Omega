@@ -185,6 +185,17 @@ pub(crate) fn collect_true(
         ) else {
             continue;
         };
+        // A live selector is a separate read dependency. Until its captured
+        // identity is represented, a source-free predicate cannot follow a
+        // later spelling of that selector after it changes. Keep fields and
+        // fixed selections under the same static-identity policy as transport.
+        if !place
+            .segments
+            .iter()
+            .all(crate::flow::place_segment_has_static_identity)
+        {
+            continue;
+        }
         let predicate = if operator == BinaryOperator::Equal
             && validation::canonical_place_from_expression_in_state(
                 program,
