@@ -1455,14 +1455,22 @@ def main() -> int:
         failures.extend(execution_output_failures(
             records, ROOT / "tests" / "omega", "interpreter"))
     # One read of the golden serves both the regression provenance below and
-    # the diff further down; an unreadable golden must not stop --record from
-    # replacing it, so the parse failure is carried rather than raised.
+    # the diff further down. An unfiltered --record can replace an unreadable
+    # golden; a subset cannot preserve the pins it did not measure.
     prior_records, golden_error = None, None
     if options.golden.is_file():
         try:
             prior_records = corpus_records.read(options.golden)
         except (OSError, UnicodeError, ValueError) as error:
             golden_error = error
+    if options.record and subset and golden_error is not None:
+        message = (f"cannot preserve unmeasured fixtures in unreadable golden "
+                   f"{options.golden}: {golden_error}")
+        print(f"corpus_gate: --record refused: {message}", file=sys.stderr)
+        write_verdict(options, verdict_document(
+            options, leg, target, "infrastructure_failed", usage_error, records,
+            [], [failure["detail"] for failure in failures], message))
+        return usage_error
     prior = {record["fixture"]: record for record in (prior_records or [])}
 
     # Each row this run replaces carries forward the last success it recorded

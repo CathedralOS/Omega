@@ -580,7 +580,7 @@ class MainVerdicts(unittest.TestCase):
                                encoding="utf-8")
 
     def run_gate(self, records, *extra, golden_records=None,
-                 golden_context=None, keep_golden=False):
+                 golden_context=None, keep_golden=False, environment=None):
         if golden_records is None:
             golden_records = records
         if not keep_golden:
@@ -592,7 +592,7 @@ class MainVerdicts(unittest.TestCase):
                                 return_value=records),
                    patch.object(corpus_gate, "measurement_stamp",
                                 return_value="aaaaaaaaaaaa"),
-                   patch.dict(corpus_gate.os.environ, {}, clear=True),
+                   patch.dict(corpus_gate.os.environ, environment or {}, clear=True),
                    patch.object(sys, "argv", argv)]
         with contextlib.ExitStack() as stack:
             for patcher in patches:
@@ -980,6 +980,49 @@ class MainVerdicts(unittest.TestCase):
         self.assertEqual(invoke(), 2)
         self.assertEqual(invoke("--record"), 0)
         self.assertEqual(corpus_records.read(self.golden)[0]["status"], "built")
+
+    def test_subset_record_refuses_unreadable_golden_without_losing_pins(self):
+        original = ("\torphaned diagnostic\n"
+                    "pass/old/unmeasured checked 1ms @aaaaaaaaaaaa\n")
+        rows = [record("pass/new/measured")]
+        selections = [
+            (("--filter", "pass/new/measured"), {}),
+            (("--shard", "1/2"), {}),
+            ((), {"OMEGA_CORPUS_FIXTURE_FILTER": "pass/new/measured"}),
+            ((), {"OMEGA_CORPUS_SHARD": "1/2"}),
+        ]
+        for arguments, environment in selections:
+            with self.subTest(arguments=arguments, environment=environment):
+                self.golden.write_text(original, encoding="utf-8")
+                errors = io.StringIO()
+                with contextlib.redirect_stderr(errors):
+                    result = self.run_gate(
+                        rows, "--record", *arguments, "--json", str(self.json_path),
+                        keep_golden=True, environment=environment)
+                self.assertEqual(result, 2)
+                self.assertEqual(self.golden.read_text(encoding="utf-8"), original)
+                self.assertIn("cannot preserve unmeasured fixtures", errors.getvalue())
+                report = json.loads(self.json_path.read_text(encoding="utf-8"))
+                self.assertEqual(report["verdict"], "infrastructure_failed")
+                self.assertIn("diagnostic before any fixture", report["infrastructure_error"])
+
+    def test_subset_record_preserves_undecodable_or_unreadable_golden(self):
+        cases = [(b"\xff\n", None, "utf-8"),
+                 (b"pass/old/unmeasured checked 1ms\n", OSError("blocked read"), "blocked read")]
+        for original, error, reason in cases:
+            with self.subTest(reason=reason):
+                self.golden.write_bytes(original)
+                reading = (patch.object(corpus_records, "read", side_effect=error)
+                           if error else contextlib.nullcontext())
+                with reading, contextlib.redirect_stderr(io.StringIO()):
+                    result = self.run_gate(
+                        [record("pass/new/measured")], "--record", "--filter", "pass/new/measured",
+                        "--json", str(self.json_path), keep_golden=True)
+                self.assertEqual(result, 2)
+                self.assertEqual(self.golden.read_bytes(), original)
+                report = json.loads(self.json_path.read_text(encoding="utf-8"))
+                self.assertEqual(report["verdict"], "infrastructure_failed")
+                self.assertIn(reason, report["infrastructure_error"])
 
     def test_authored_stdout_match_records_without_inventing_an_exit_oracle(self):
         fixture = self.root / "tests" / "omega" / "run" / "a" / "x"
