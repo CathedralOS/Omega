@@ -175,9 +175,9 @@ pub data UefiOsHandoffLegs {
 // Refresh the retained snapshot and key: seed `map_size` with the retained
 // capacity, then GetMemoryMap writes the freshest `map_size`/`key`/
 // `descriptor_size`/`descriptor_version` evidence or the required size. The
-// boundary lane owns the scalar-returning firmware call; the result lands on
-// `status` for the enclosing cycle's dispatch.
-boundary machine UefiOsHandoffLegs::acquire(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
+// checked helper calls the firmware requirement and stores its scalar result
+// on `status` for the enclosing cycle's dispatch.
+machine UefiOsHandoffLegs::acquire(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
@@ -197,7 +197,7 @@ boundary machine UefiOsHandoffLegs::acquire(uefi_os_handoff_legs: &mut UefiOsHan
 
 // Allocate the staged replacement buffer. A rejected grow leaves the retained
 // `map`/`map_pages` storage live and untouched.
-boundary machine UefiOsHandoffLegs::grow(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
+machine UefiOsHandoffLegs::grow(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
@@ -214,7 +214,7 @@ boundary machine UefiOsHandoffLegs::grow(uefi_os_handoff_legs: &mut UefiOsHandof
 }
 
 // Release the superseded map storage before the grown buffer is adopted.
-boundary machine UefiOsHandoffLegs::free_map(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
+machine UefiOsHandoffLegs::free_map(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
@@ -227,7 +227,7 @@ boundary machine UefiOsHandoffLegs::free_map(uefi_os_handoff_legs: &mut UefiOsHa
 
 // The successful leg transfers custody out of Boot Services entirely; a
 // rejected exit leaves the retained evidence live for the cycle's retry.
-boundary machine UefiOsHandoffLegs::attempt_exit(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
+machine UefiOsHandoffLegs::attempt_exit(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
