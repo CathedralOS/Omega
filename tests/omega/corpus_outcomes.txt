@@ -1510,15 +1510,27 @@ fail/facts/as_slice_views_through_other_machine_short_extent rejected 5280ms exp
 fail/facts/as_slice_views_through_other_state_short_extent rejected 5537ms expected @d68dc74a14e0
 fail/facts/as_slice_views_through_parameter_short_extent rejected 4743ms expected @d68dc74a14e0
 fail/facts/as_slice_views_through_target_body_short_extent rejected 4504ms expected @d68dc74a14e0
-fail/facts/assumed_binding_result_bound_through_call_result_rejected rejected 1291ms expected @73ea0eccebbc
-fail/facts/assumed_binding_result_bound_through_const_name_rejected rejected 1316ms expected @73ea0eccebbc
-fail/facts/assumed_binding_result_bound_through_field_rejected rejected 1246ms expected @73ea0eccebbc
-fail/facts/assumed_binding_result_bound_through_local_rejected rejected 1248ms expected @73ea0eccebbc
-fail/facts/assumed_binding_result_bound_through_match_join_rejected rejected 1316ms expected @73ea0eccebbc
-fail/facts/assumed_binding_result_bound_through_other_machine_rejected rejected 1289ms expected @73ea0eccebbc
-fail/facts/assumed_binding_result_bound_through_other_state_rejected rejected 1252ms expected @73ea0eccebbc
-fail/facts/assumed_binding_result_bound_through_parameter_rejected rejected 1290ms expected @73ea0eccebbc
-fail/facts/assumed_binding_result_bound_through_target_body_rejected rejected 1292ms expected @73ea0eccebbc
+fail/facts/assumed_binding_result_bound_through_call_result_rejected rejected 2839ms expected @32331bc0ac25+wt
+	cannot prove index `acquire()` is within length 2 in main::entry
+fail/facts/assumed_binding_result_bound_through_const_name_rejected rejected 2795ms expected @32331bc0ac25+wt
+	cannot prove index `Required.get()` is within length 2 in main::entry
+fail/facts/assumed_binding_result_bound_through_field_rejected rejected 2856ms expected @32331bc0ac25+wt
+	cannot prove index `index.value` is within length 2 in read::entry
+fail/facts/assumed_binding_result_bound_through_local_rejected rejected 3175ms expected @32331bc0ac25+wt
+	cannot prove index `index` is within length 2 in main::entry
+fail/facts/assumed_binding_result_bound_through_match_join_rejected rejected 3139ms expected @32331bc0ac25+wt
+	cannot prove index `index` is within length 2 in read::entry
+fail/facts/assumed_binding_result_bound_through_other_machine_rejected rejected 3137ms expected @32331bc0ac25+wt
+	cannot prove index `index` is within length 2 in exercise::entry
+fail/facts/assumed_binding_result_bound_through_other_state_rejected rejected 3309ms expected @32331bc0ac25+wt
+	cannot prove index `index` is within length 2 in main::read
+fail/facts/assumed_binding_result_bound_through_parameter_rejected rejected 3354ms expected @32331bc0ac25+wt
+	cannot prove index `index` is within length 2 in read::entry
+fail/facts/assumed_binding_result_bound_through_target_body_rejected rejected 3320ms expected @32331bc0ac25+wt
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
 fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite rejected 1724ms expected @dec223be05fb
 fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite rejected 1746ms expected @dec223be05fb
 fail/facts/borrowed_projection_cleanup_through_field_prerequisite rejected 1744ms expected @dec223be05fb
@@ -5308,15 +5320,15 @@ pass/facts/as_slice_views_through_other_machine_exit checked 13911ms check-targe
 pass/facts/as_slice_views_through_other_state_exit checked 16196ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_parameter_exit checked 17697ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_target_body_exit checked 14573ms check-target:macos_arm64 @d68dc74a14e0
-pass/facts/assumed_binding_result_bound_through_call_result_exit checked 6148ms check-target:linux_x86_64 @ac963cec7a35
-pass/facts/assumed_binding_result_bound_through_const_name_exit checked 6269ms check-target:linux_x86_64 @ac963cec7a35
-pass/facts/assumed_binding_result_bound_through_field_exit checked 6184ms check-target:linux_x86_64 @ac963cec7a35
-pass/facts/assumed_binding_result_bound_through_local_exit checked 6271ms check-target:linux_x86_64 @ac963cec7a35
-pass/facts/assumed_binding_result_bound_through_match_join_exit checked 6183ms check-target:linux_x86_64 @ac963cec7a35
-pass/facts/assumed_binding_result_bound_through_other_machine_exit checked 6199ms check-target:linux_x86_64 @ac963cec7a35
-pass/facts/assumed_binding_result_bound_through_other_state_exit checked 6275ms check-target:linux_x86_64 @ac963cec7a35
-pass/facts/assumed_binding_result_bound_through_parameter_exit checked 6143ms check-target:linux_x86_64 @ac963cec7a35
-pass/facts/assumed_binding_result_bound_through_target_body_exit checked 6146ms check-target:linux_x86_64 @ac963cec7a35
+pass/facts/assumed_binding_result_bound_through_call_result_exit checked 18301ms check-target:macos_arm64 @32331bc0ac25+wt
+pass/facts/assumed_binding_result_bound_through_const_name_exit checked 18335ms check-target:macos_arm64 @32331bc0ac25+wt
+pass/facts/assumed_binding_result_bound_through_field_exit checked 18359ms check-target:macos_arm64 @32331bc0ac25+wt
+pass/facts/assumed_binding_result_bound_through_local_exit checked 18314ms check-target:macos_arm64 @32331bc0ac25+wt
+pass/facts/assumed_binding_result_bound_through_match_join_exit checked 18298ms check-target:macos_arm64 @32331bc0ac25+wt
+pass/facts/assumed_binding_result_bound_through_other_machine_exit checked 18297ms check-target:macos_arm64 @32331bc0ac25+wt
+pass/facts/assumed_binding_result_bound_through_other_state_exit checked 18345ms check-target:macos_arm64 @32331bc0ac25+wt
+pass/facts/assumed_binding_result_bound_through_parameter_exit checked 18310ms check-target:macos_arm64 @32331bc0ac25+wt
+pass/facts/assumed_binding_result_bound_through_target_body_exit checked 18313ms check-target:macos_arm64 @32331bc0ac25+wt
 pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 7801ms check-target:macos_arm64 @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 6361ms check-target:macos_arm64 @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_field_exit checked 6543ms check-target:macos_arm64 @dec223be05fb
