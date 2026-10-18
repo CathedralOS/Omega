@@ -34,7 +34,12 @@ impl CheckedUnitStructuralArgumentSourcePlan {
         loop {
             let symbol = match source {
                 Self::StructuralResult { binding_ordinal } => return Some(binding_ordinal),
-                Self::StructuralLocal { symbol } => symbol,
+                // A logical loan root names this same local's current carrier.
+                // Resolving its production is metadata, not permission to cross
+                // that carrier: the argument retains its checked root and path.
+                Self::StructuralLocal { symbol } | Self::StructuralLocalBorrow { symbol, .. } => {
+                    symbol
+                }
                 _ => return None,
             };
             let mut previous = None;

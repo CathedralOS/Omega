@@ -83,19 +83,7 @@ fn authenticate_home_dispositions(
     homes: &[PlaceId],
 ) -> Result<(), LoweringError> {
     for home in homes {
-        let mut has_whole_disposition = false;
-        for block in &machine.blocks {
-            for (_, actions) in block.terminator.cleanup_rosters() {
-                for action in actions.iter().filter(|action| action.place() == *home) {
-                    if *action != TerminalAffineCleanupAction::DiscardRoot(*home) {
-                        return Err(LoweringError::Unsupported(
-                            "state loan home requires contextual cleanup that cannot be relocated",
-                        ));
-                    }
-                    has_whole_disposition = true;
-                }
-            }
-        }
+        let has_whole_disposition = whole_home_disposition(machine, *home)?;
         if !has_whole_disposition {
             return Err(LoweringError::Unsupported(
                 "state loan home has no checked whole-home no-code disposition",
@@ -103,6 +91,29 @@ fn authenticate_home_dispositions(
         }
     }
     Ok(())
+}
+
+/// Inspect every selected disposition before moving any cleanup. A checked
+/// whole-root discard is occurrence authority; contextual actions cannot be
+/// replaced even if another edge also has a whole-root discard.
+pub(super) fn whole_home_disposition(
+    machine: &TerminalMachine,
+    home: PlaceId,
+) -> Result<bool, LoweringError> {
+    let mut found = false;
+    for block in &machine.blocks {
+        for (_, actions) in block.terminator.cleanup_rosters() {
+            for action in actions.iter().filter(|action| action.place() == home) {
+                if *action != TerminalAffineCleanupAction::DiscardRoot(home) {
+                    return Err(LoweringError::Unsupported(
+                        "state loan home requires contextual cleanup that cannot be relocated",
+                    ));
+                }
+                found = true;
+            }
+        }
+    }
+    Ok(found)
 }
 
 /// Follow the real emitted formation chain, not a source alias or a guessed

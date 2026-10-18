@@ -890,7 +890,13 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &loaned_local_homes,
         &catalogs.structural_types,
     )?;
-    loan_chains.finish(&mut machine, &state_ids, &live_states)?;
+    loan_chains.finish(
+        &mut machine,
+        &state_ids,
+        &live_states,
+        &captured_loans,
+        &catalogs.structural_types,
+    )?;
     let continuation_value_uses = machine
         .blocks
         .iter()

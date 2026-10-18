@@ -3365,6 +3365,27 @@ fail/facts/guarded_line_loan_through_parameter_held rejected 2453ms expected @86
 fail/facts/guarded_line_loan_through_target_body_held rejected 2461ms expected @866a955e52f8
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/guarded_record_line_loan_through_call_result_shared_record rejected 2068ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+fail/facts/guarded_record_line_loan_through_const_name_shared_record rejected 2058ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+fail/facts/guarded_record_line_loan_through_field_shared_record rejected 2208ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+fail/facts/guarded_record_line_loan_through_local_shared_record rejected 2206ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+fail/facts/guarded_record_line_loan_through_match_join_shared_record rejected 2097ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+fail/facts/guarded_record_line_loan_through_other_machine_shared_record rejected 2170ms expected @e7cf0c8c7f70+wt
+	machine `forward` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+fail/facts/guarded_record_line_loan_through_other_state_shared_record rejected 2127ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+fail/facts/guarded_record_line_loan_through_parameter_shared_record rejected 2069ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+fail/facts/guarded_record_line_loan_through_target_body_shared_record rejected 2065ms expected @e7cf0c8c7f70+wt
+	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 fail/facts/index_every_width_through_call_result_rejected rejected 4857ms expected @465f5043822d+wt
 	cannot prove index `picked_i64` is within length 4 in read_all::entry
 fail/facts/index_every_width_through_const_name_rejected rejected 2801ms expected @465f5043822d+wt
@@ -6733,6 +6754,7 @@ pass/blockexec/runtime_selected_worker_body_exit checked 9858ms check-target:mac
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 1576ms @a9ae30e1c334+wt
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 1563ms @a9ae30e1c334+wt
 pass/borrow/nested_reference_parameter_referent_assignment checked 7433ms @c48489ea6ad6
+pass/borrow/projected_record_state_loan_split_exit checked 6954ms check-target:macos_arm64 @e7cf0c8c7f70+wt
 pass/borrow/reference_parameter_referent_copy_exit checked 32210ms check-target:macos_arm64 @c48489ea6ad6
 pass/borrow/runtime_boundary_receiver_disjoint_loan_exit checked 6398ms check-target:macos_arm64 @9dd545defbc0
 pass/borrow/runtime_dispatch_call_payload_snapshot_exit checked 11203ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8355,6 +8377,15 @@ pass/facts/guarded_line_loan_through_other_machine_exit checked 5832ms check-tar
 pass/facts/guarded_line_loan_through_other_state_exit checked 5736ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_parameter_exit checked 5737ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_target_body_exit checked 5788ms check-target:macos_arm64 @866a955e52f8
+pass/facts/guarded_record_line_loan_through_call_result_exit checked 6958ms check-target:macos_arm64 @e7cf0c8c7f70+wt
+pass/facts/guarded_record_line_loan_through_const_name_exit checked 7285ms check-target:macos_arm64 @e7cf0c8c7f70+wt
+pass/facts/guarded_record_line_loan_through_field_exit checked 7094ms check-target:macos_arm64 @e7cf0c8c7f70+wt
+pass/facts/guarded_record_line_loan_through_local_exit checked 7382ms check-target:macos_arm64 @e7cf0c8c7f70+wt
+pass/facts/guarded_record_line_loan_through_match_join_exit checked 7588ms check-target:macos_arm64 @e7cf0c8c7f70+wt
+pass/facts/guarded_record_line_loan_through_other_machine_exit checked 7000ms check-target:macos_arm64 @e7cf0c8c7f70+wt
+pass/facts/guarded_record_line_loan_through_other_state_exit checked 7062ms check-target:macos_arm64 @e7cf0c8c7f70+wt
+pass/facts/guarded_record_line_loan_through_parameter_exit checked 7121ms check-target:macos_arm64 @e7cf0c8c7f70+wt
+pass/facts/guarded_record_line_loan_through_target_body_exit checked 7046ms check-target:macos_arm64 @e7cf0c8c7f70+wt
 pass/facts/index_every_width_through_call_result_exit checked 11535ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_const_name_exit checked 7146ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_field_exit checked 6839ms check-target:macos_arm64 @465f5043822d+wt

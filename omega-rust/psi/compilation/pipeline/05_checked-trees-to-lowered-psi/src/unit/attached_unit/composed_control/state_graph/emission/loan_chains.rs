@@ -59,6 +59,12 @@
 //! unrestricted storage have nothing to dispose of and keep the plain view
 //! route. An activation-entry local lent into a chain joins it as one more
 //! lender, provided no other edge retains it as an entry home.
+//! A captured address can hide the backing behind an owned reference carrier.
+//! Chain membership therefore selects the lending exits; comparing an emitted
+//! argument's place with the backing would miss that ordinary indirection.
+//! At chain completion, the captured carriers die before their backing home.
+//! Their checked identities constrain cleanup order independently of producer
+//! numbering, while unrelated selected cleanup keeps its authored order.
 
 use crate::LoweringError;
 use checked_trees::{
@@ -566,6 +572,8 @@ impl LoanChains {
         machine: &mut TerminalMachine,
         state_ids: &[BlockId],
         live: &[bool],
+        captured_loans: &super::captured_loans::CapturedLoans,
+        types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(), LoweringError> {
         if self.chains.is_empty() {
             return Ok(());
@@ -593,19 +601,51 @@ impl LoanChains {
             if chain.multiplicity != StructuralMultiplicity::Affine {
                 continue;
             }
-            if let ChainBacking::LenderHome {
-                home: Some(home),
-                lender,
-            } = chain.backing
-            {
-                retain_lent_home(&mut machine.blocks, home);
-                end_on_lender_exits(machine, state_ids[lender], &headers, home, &producers)?;
-            }
             let member_headers = chain
                 .members
                 .iter()
                 .map(|(position, _, _)| state_ids[*position])
                 .collect::<BTreeSet<_>>();
+            let dependent_carriers = chain
+                .members
+                .iter()
+                .filter_map(|(position, dense, _)| captured_loans.parent_carrier(*position, *dense))
+                .map(|carrier| carrier.place)
+                .collect::<Vec<_>>();
+            if let ChainBacking::LenderHome {
+                home: Some(home),
+                lender,
+            } = chain.backing
+            {
+                // Membership proves lifetime, not disposal permission. Prefer
+                // the exact checked occurrence disposition. Implicit carriers
+                // need the existing claim-free, resource-free whole no-code
+                // authority used for intact structural value replacement.
+                // This is static authority only: independent custody replay
+                // still proves whole ownership and descendant closure.
+                if !super::loaned_local_homes::whole_home_disposition(machine, home)?
+                    && !terminal_semantics::structural_store_value_admitted(
+                        machine,
+                        types.iter(),
+                        terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
+                        home,
+                    )
+                {
+                    return Err(LoweringError::Unsupported(
+                        "state loan home has no whole-home no-code disposition authority",
+                    ));
+                }
+                retain_lent_home(&mut machine.blocks, home, &member_headers);
+                end_on_lender_exits(
+                    machine,
+                    state_ids[lender],
+                    &headers,
+                    home,
+                    &producers,
+                    &member_headers,
+                    &dependent_carriers,
+                )?;
+            }
             // A lender home dies once per member state's exit; transferred
             // storage is each member's own parameter.
             let mut visited = BTreeSet::new();
@@ -625,6 +665,7 @@ impl LoanChains {
                             headers: &headers,
                             storage: home,
                             forwarded: Forwarding::IntoMember(&member_headers),
+                            dependent_carriers: &dependent_carriers,
                             position: DisposalPosition::OperationResult {
                                 producer: *producers.get(&home).ok_or(
                                     LoweringError::Unsupported(
@@ -639,6 +680,7 @@ impl LoanChains {
                         headers: &headers,
                         storage: parameter,
                         forwarded: Forwarding::ByArgument,
+                        dependent_carriers: &dependent_carriers,
                         position: DisposalPosition::BlockParameter {
                             position: block_position(machine, header, parameter)?,
                             header_parameters: header_parameters(machine, header)?,
@@ -660,7 +702,7 @@ impl LoanChains {
     }
 }
 
-/// Drop a lender home's disposal from each edge that lends the home onward.
+/// Drop a lender home's disposal from every planned arrival into its chain.
 ///
 /// The lender is not a chain member, so `finish` never reaches its exits:
 /// only the chain's ends own the home's disposal. Stage 04 still records the
@@ -670,24 +712,34 @@ impl LoanChains {
 /// edge cannot both carry a borrow of a root and destroy it: the loan's
 /// referent would be gone on arrival, and terminal validation refuses that
 /// pairing (`block_views::mutable_records::validate_terminator`, "a loan
-/// carried on this edge still needs its home"). Keyed on the argument rather
-/// than on which state lends, so a lender that lends on one arm and lets the
-/// local die on another keeps the dying arm's disposal.
-fn retain_lent_home(blocks: &mut [terminal_psi::Block], home: PlaceId) {
+/// carried on this edge still needs its home"). The plan authenticated every
+/// member arrival against its lender. A captured reference can name a separate
+/// descriptor rather than the home, so executable argument spelling cannot
+/// decide storage lifetime. Nonmember arms retain their selected disposal.
+fn retain_lent_home(
+    blocks: &mut [terminal_psi::Block],
+    home: PlaceId,
+    members: &BTreeSet<BlockId>,
+) {
     for block in blocks {
         match &mut block.terminator {
             Terminator::Jump {
-                structural_arguments,
+                target,
                 cleanup_actions,
                 ..
-            } => retain_unless_lent(structural_arguments, cleanup_actions, home),
+            } => retain_on_chain_arrival(*target, cleanup_actions, home, members),
             Terminator::Conditional {
                 when_true,
                 when_false,
                 ..
             } => {
                 for arm in [when_true, when_false] {
-                    retain_unless_lent(&arm.structural_arguments, &mut arm.cleanup_actions, home);
+                    retain_on_chain_arrival(arm.target, &mut arm.cleanup_actions, home, members);
+                }
+            }
+            Terminator::StructuralCase { cases, .. } => {
+                for arm in cases {
+                    retain_on_chain_arrival(arm.target, &mut arm.cleanup_actions, home, members);
                 }
             }
             _ => {}
@@ -712,6 +764,8 @@ fn end_on_lender_exits(
     headers: &BTreeSet<BlockId>,
     home: PlaceId,
     producers: &BTreeMap<PlaceId, OperationId>,
+    members: &BTreeSet<BlockId>,
+    dependent_carriers: &[PlaceId],
 ) -> Result<(), LoweringError> {
     let producer = *producers.get(&home).ok_or(LoweringError::Unsupported(
         "Unit graph state loan chain home has no producer",
@@ -735,7 +789,8 @@ fn end_on_lender_exits(
     let exit = ChainExit {
         headers,
         storage: home,
-        forwarded: Forwarding::ByLoan,
+        forwarded: Forwarding::ByLoan(members),
+        dependent_carriers,
         position: DisposalPosition::OperationResult {
             producer,
             producers,
@@ -751,17 +806,13 @@ fn end_on_lender_exits(
     Ok(())
 }
 
-/// Transferred chain storage moves as an `Owned` argument and still dies on
-/// the edge that moves it; only a retained borrow keeps the home alive.
-fn retain_unless_lent(
-    arguments: &[StructuralArgument],
+fn retain_on_chain_arrival(
+    target: BlockId,
     actions: &mut Vec<TerminalAffineCleanupAction>,
     home: PlaceId,
+    members: &BTreeSet<BlockId>,
 ) {
-    if arguments
-        .iter()
-        .any(|argument| argument.place == home && argument.access != StructuralAccess::Owned)
-    {
+    if members.contains(&target) {
         actions.retain(|action| action.place() != home);
     }
 }
@@ -909,7 +960,7 @@ enum Forwarding<'a> {
     ByArgument,
     /// The lender's own exits: an edge naming the home lends it onward, and
     /// a disposal the lender already scheduled stands.
-    ByLoan,
+    ByLoan(&'a BTreeSet<BlockId>),
 }
 
 /// Where the storage's discard joins an exit's existing cleanup roster.
@@ -934,6 +985,7 @@ struct ChainExit<'a> {
     storage: PlaceId,
     forwarded: Forwarding<'a>,
     position: DisposalPosition<'a>,
+    dependent_carriers: &'a [PlaceId],
 }
 
 impl ChainExit<'_> {
@@ -971,7 +1023,7 @@ impl ChainExit<'_> {
                 ..
             } => {
                 if *source == self.storage {
-                    if matches!(self.forwarded, Forwarding::ByLoan) {
+                    if matches!(self.forwarded, Forwarding::ByLoan(_)) {
                         return Ok(());
                     }
                     return Err(LoweringError::Unsupported(
@@ -1014,10 +1066,13 @@ impl ChainExit<'_> {
                     return Ok(());
                 }
             }
-            Forwarding::ByLoan => {
-                if arguments
-                    .iter()
-                    .any(|argument| argument.place == self.storage)
+            Forwarding::ByLoan(members) => {
+                if members.contains(&target)
+                    || arguments.iter().any(|argument| {
+                        argument.place == self.storage
+                            && argument.path.is_empty()
+                            && argument.access == StructuralAccess::Owned
+                    })
                 {
                     return Ok(());
                 }
@@ -1031,7 +1086,7 @@ impl ChainExit<'_> {
         &self,
         actions: &mut Vec<TerminalAffineCleanupAction>,
     ) -> Result<(), LoweringError> {
-        if matches!(self.forwarded, Forwarding::ByLoan)
+        if matches!(self.forwarded, Forwarding::ByLoan(_))
             && actions.iter().any(|action| action.place() == self.storage)
         {
             return Ok(());
@@ -1075,7 +1130,17 @@ impl ChainExit<'_> {
                         .any(|(candidate, earlier)| candidate == discard && earlier < position)
             }),
         };
-        discards.insert(at.unwrap_or(discards.len()), self.storage);
+        // Captured descriptors can be receiving block parameters even though
+        // their backing was produced earlier in another state. Producer order
+        // alone would destroy that backing before releasing its live carriers.
+        let after_carriers = discards
+            .iter()
+            .rposition(|place| self.dependent_carriers.contains(place))
+            .map_or(0, |position| position + 1);
+        discards.insert(
+            at.unwrap_or(discards.len()).max(after_carriers),
+            self.storage,
+        );
         Ok(())
     }
 }

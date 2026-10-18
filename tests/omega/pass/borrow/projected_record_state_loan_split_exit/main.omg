@@ -1,0 +1,58 @@
+// A selected Complete or End edge retains the mutable Application record and shared 64-byte line loans, so storing count in application.ledger.count and reading line[0] observes 37 + 5 = 42.
+// Regression: selected descriptor transport, a non-lending sibling exit, and a private reference join.
+// Expected exit: 0.
+data Sequence { bases: [u64 in Wrapping; 12]; length: u64 in Wrapping; }
+data Variant { first: Sequence; second: Sequence; position: u64 in Wrapping; }
+data Ledger { variants: [Variant; 32]; count: u64 in Wrapping; }
+data Application { first: Sequence; second: Sequence; ledger: Ledger; }
+data ReadOutcome {
+    case Invalid;
+    case Complete(count: u64);
+    case End(count: u64);
+    case Full(count: u64);
+}
+data Holder { line: [u8; 64]; }
+machine receive(line: &mut [u8; 64], end: bool) -> ReadOutcome {
+    line[0] = 37;
+    match end { true -> ReadOutcome::End { count: 5 }, false -> ReadOutcome::Complete { count: 5 } }
+}
+machine exercise(application: &mut Application, end: bool, lend: bool, choice: bool) -> bool {
+    transition { _ -> read(application, end, lend, choice) }
+    state read(application: &mut Application, end: bool, lend: bool, choice: bool) -> bool {
+        let mut holder: Holder;
+        let result: ReadOutcome = receive(&mut holder.line, end);
+        transition lend {
+            true -> select(application, &holder.line, result, choice)
+            false -> (false)
+        }
+    }
+    state select(application: &mut Application, line: &[u8; 64], result: ReadOutcome, choice: bool) -> bool {
+        transition result {
+            ReadOutcome::Complete { count } -> observe(application, line, count, choice)
+            ReadOutcome::End { count } -> observe(application, line, count, choice)
+            ReadOutcome::Full { count } -> (false)
+            ReadOutcome::Invalid -> (false)
+        }
+    }
+    state observe(application: &mut Application, line: &[u8; 64], count: u64, choice: bool) -> bool {
+        let selected: &[u8; 64] = match choice { true -> line, false -> line };
+        application.ledger.count = count as u64 in Wrapping;
+        (selected[0] as u64 in Wrapping + application.ledger.count) == 42
+    }
+}
+machine probe(end: bool, lend: bool, choice: bool) -> bool {
+    let mut application: Application;
+    application.ledger.count = 99;
+    let accepted: bool = exercise(&mut application, end, lend, choice);
+    (lend && accepted && application.ledger.count == 5)
+        || (!lend && !accepted && application.ledger.count == 99)
+}
+machine main() crashes Trap {
+    transition probe(false, true, false) && probe(true, true, true)
+        && probe(false, false, false) && probe(true, false, true) {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

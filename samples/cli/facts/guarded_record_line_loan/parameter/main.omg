@@ -1,0 +1,49 @@
+// A selected Complete or End edge retains the mutable Application record and shared 64-byte line loans, so storing count in application.ledger.count and reading line[0] observes 37 + 5 = 42.
+// Place: parameter.
+// Expected exit: 0.
+data Sequence { bases: [u64 in Wrapping; 12]; length: u64 in Wrapping; }
+data Variant { first: Sequence; second: Sequence; position: u64 in Wrapping; }
+data Ledger { variants: [Variant; 32]; count: u64 in Wrapping; }
+data Application { first: Sequence; second: Sequence; ledger: Ledger; }
+data ReadOutcome {
+    case Invalid;
+    case Complete(count: u64);
+    case End(count: u64);
+    case Full(count: u64);
+}
+machine receive(line: &mut [u8; 64], end: bool) -> ReadOutcome {
+    line[0] = 37;
+    match end { true -> ReadOutcome::End { count: 5 }, false -> ReadOutcome::Complete { count: 5 } }
+}
+machine exercise(application: &mut Application, end: bool) -> bool {
+    transition { _ -> read(application, end) }
+    state read(application: &mut Application, end: bool) -> bool {
+        let mut line: [u8; 64];
+        let result: ReadOutcome = receive(&mut line, end);
+        transition result {
+            ReadOutcome::Complete { count } -> observe(application, &line, count)
+            ReadOutcome::End { count } -> observe(application, &line, count)
+            ReadOutcome::Full { count } -> (false)
+            ReadOutcome::Invalid -> (false)
+        }
+    }
+    state observe(application: &mut Application, line: &[u8; 64], count: u64) -> bool {
+        application.ledger.count = count as u64 in Wrapping;
+        (line[0] as u64 in Wrapping + application.ledger.count) == 42
+    }
+}
+machine invoke(application: &mut Application, end: bool) -> bool { exercise(application, end) }
+machine main() crashes Trap {
+    let mut application: Application;
+    application.ledger.count = 99;
+    let complete: bool = invoke(&mut application, false);
+    let completed_count: u64 in Wrapping = application.ledger.count;
+    application.ledger.count = 99;
+    let ended: bool = invoke(&mut application, true);
+    transition complete && completed_count == 5 && ended && application.ledger.count == 5 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
