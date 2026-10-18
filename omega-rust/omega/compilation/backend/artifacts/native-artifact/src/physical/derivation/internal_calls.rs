@@ -283,8 +283,14 @@ pub(crate) fn derive_boundary_internal_call_child(
         let [conformance] = conformances.as_slice() else {
             return Err("installed provider internal call cannot rejoin one provider conformance");
         };
-        if module.identities.text(conformance.requirement_identity)
-            != Some(plan.selected_requirement_identity(requirement_identity))
+        // The retained conformance spells either the occurrence's authored
+        // requirement or its selected authority: an assumed binding records
+        // the supplied requirement, while a closed specialization keeps the
+        // closed identity the occurrence already carries.
+        let conformance_requirement = module.identities.text(conformance.requirement_identity);
+        if conformance_requirement != Some(requirement_identity)
+            && conformance_requirement
+                != Some(plan.selected_requirement_identity(requirement_identity))
         {
             return Err("installed provider internal call changed its requirement");
         }
