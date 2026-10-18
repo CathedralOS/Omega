@@ -1354,9 +1354,11 @@
 	cannot use `envelope.receipt` in machine `main` state `entry` (statement 2) after `envelope.receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `envelope.receipt` first
 	cannot use `first.left` in machine `main` state `entry` (statement 2) after `first.left` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first.left` first
 	cannot use `first.receipt` in machine `main` state `entry` (statement 2) after `first.receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first.receipt` first
+	cannot use `forwarded` in machine `probe` state `entry` (statement 3) after `forwarded` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `forwarded` first
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
 	cannot use `handle` in machine `use_handle` state `entry` (statement 2) after `handle` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `handle` first
 	cannot use `held` in machine `main` state `holding` (statement 1) after `held` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `held` first
+	cannot use `holder.item` in machine `probe` state `entry` (statement 2) after `holder.item` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `holder.item` first
 	cannot use `holder.token.value` while `holder.token` is absent from borrowed storage: the value moved out at statement 0 must be restored first
 	cannot use `holder` in machine `main` state `spin` (statement 2) after `holder.token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `holder.token` first
 	cannot use `image` in machine `FirmwareBootstrap::enter` state `enter` (statement 3) after `image` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `image` first
@@ -1383,10 +1385,12 @@
 	cannot use `pair.token` in machine `choose` state `entry` (statement 3) after `pair.token` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `pair.token` first
 	cannot use `parts.left` in machine `consume` state `entry` (statement 1) after `parts.left` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `parts.left` first
 	cannot use `passed` in machine `main` state `entry` (statement 2) after `passed` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `passed` first
+	cannot use `place_token` in machine `probe` state `entry` (statement 3) after `place_token` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `place_token` first
 	cannot use `receipt.code` in machine `consumed` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 	cannot use `receipt` in machine `Main::main` state `main` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 	cannot use `receipt` in machine `main` state `entry` (statement 1) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 	cannot use `receipt` in machine `main` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
+	cannot use `received` in machine `probe` state `next` (statement 1) after `received` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `received` first
 	cannot use `replacement.value` in machine `main` state `entry` (statement 3) after `replacement` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `replacement` first
 	cannot use `replacement` in machine `reused_replacement` state `entry` (statement 3) after `replacement` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `replacement` first
 	cannot use `result` in machine `duplicate` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
@@ -1396,9 +1400,11 @@
 	cannot use `slot.receipt.code` in machine `main` state `entry` (statement 2) after `slot.receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `slot.receipt` first
 	cannot use `storage` in machine `FirmwareBootstrap::enter` state `enter` (statement 3) after `storage` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `storage` first
 	cannot use `token.value` in machine `choose` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
+	cannot use `token` in machine `consume` state `entry` (statement 1) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 	cannot use `token` in machine `invalid` state `entry` (statement 1) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 	cannot use `token` in machine `main` state `cycle` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 	cannot use `token` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
+	cannot use `token` in machine `probe` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 	cannot use `token` in machine `probe` state `entry` (statement 3) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 	cannot use `tokens[0].byte` while `tokens[index]` is absent from borrowed storage: the value moved out at statement 1 must be restored first
 	cannot use `tokens[index].byte` while `tokens[index]` is absent from borrowed storage: the value moved out at statement 2 must be restored first
@@ -2994,6 +3000,7 @@
 	statement 4 borrows `alias.value` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `a[0]` while local borrow `b` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
 	statement 4 mutates `b[1]` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 4 mutates `backing` while local borrow `child` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 4 mutates `backing` while local borrow `references` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `cells[1].value` while local borrow `window` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
@@ -5022,6 +5029,15 @@ fail/facts/length_through_other_machine_rejected rejected 897ms expected @b2d507
 fail/facts/length_through_other_state_rejected rejected 888ms expected @b2d507c5ddab+wt
 fail/facts/length_through_parameter_rejected rejected 900ms expected @b2d507c5ddab+wt
 fail/facts/length_through_target_body_rejected rejected 932ms expected @b2d507c5ddab+wt
+fail/facts/linear_claim_retirement_through_call_result_rejected rejected 1000ms expected @ac963cec7a35+wt
+fail/facts/linear_claim_retirement_through_const_name_rejected rejected 1000ms expected @ac963cec7a35+wt
+fail/facts/linear_claim_retirement_through_field_rejected rejected 1000ms expected @ac963cec7a35+wt
+fail/facts/linear_claim_retirement_through_local_rejected rejected 1000ms expected @ac963cec7a35+wt
+fail/facts/linear_claim_retirement_through_match_join_rejected rejected 1000ms expected @ac963cec7a35+wt
+fail/facts/linear_claim_retirement_through_other_machine_rejected rejected 1000ms expected @ac963cec7a35+wt
+fail/facts/linear_claim_retirement_through_other_state_rejected rejected 1000ms expected @ac963cec7a35+wt
+fail/facts/linear_claim_retirement_through_parameter_rejected rejected 1000ms expected @ac963cec7a35+wt
+fail/facts/linear_claim_retirement_through_target_body_rejected rejected 1000ms expected @ac963cec7a35+wt
 fail/facts/matched_window_through_call_result_rejected rejected 664ms expected @a48b0ac286f5
 fail/facts/matched_window_through_const_name_rejected rejected 659ms expected @a48b0ac286f5
 fail/facts/matched_window_through_field_rejected rejected 659ms expected @a48b0ac286f5
@@ -5095,6 +5111,7 @@ fail/facts/reference_arrival_handoff_through_const_name_held_source rejected 320
 fail/facts/reference_arrival_handoff_through_field_held_source rejected 2657ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_local_held_source rejected 2572ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_match_join_held_source rejected 1522ms expected @4030174fbc4e
+fail/facts/reference_arrival_handoff_through_match_join_held_source rejected 2529ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_other_machine_held_source rejected 2460ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_other_state_held_source rejected 2517ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_parameter_held_source rejected 2539ms expected @3424ad143d6e
@@ -8673,6 +8690,15 @@ pass/facts/integer_range_delivery_through_other_machine_exit checked 23468ms che
 pass/facts/integer_range_delivery_through_other_state_exit checked 14796ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_parameter_exit checked 12770ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_target_body_exit checked 14948ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/linear_claim_retirement_through_call_result_exit checked 1000ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/linear_claim_retirement_through_const_name_exit checked 1000ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/linear_claim_retirement_through_field_exit checked 1000ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/linear_claim_retirement_through_local_exit checked 1000ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/linear_claim_retirement_through_match_join_exit checked 1000ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/linear_claim_retirement_through_other_machine_exit checked 1000ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/linear_claim_retirement_through_other_state_exit checked 1000ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/linear_claim_retirement_through_parameter_exit checked 1000ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/linear_claim_retirement_through_target_body_exit checked 1000ms check-target:macos_arm64 @ac963cec7a35+wt
 pass/facts/matched_window_through_call_result_exit checked 5499ms check-target:macos_arm64 @b2d507c5ddab+wt
 pass/facts/matched_window_through_const_name_exit checked 5400ms check-target:macos_arm64 @b2d507c5ddab+wt
 pass/facts/matched_window_through_field_exit checked 5711ms check-target:macos_arm64 @b2d507c5ddab+wt
