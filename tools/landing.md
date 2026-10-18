@@ -218,6 +218,18 @@ the real condition:
 
 The main checkout is never removable, and a refusal never deletes the worktree.
 
+Removal retries with `--force` when the plain removal is refused, then deletes
+any directory left behind. That retry is safe only because every condition above
+was already rejected: the tree is clean, HEAD is exactly the published
+candidate, and the branch holds nothing main lacks, so `--force` can discard
+only ignored build output. Without it cleanup was useless on macOS, where a lane
+that has ever built holds ignored files — a stray `.DS_Store` suffices — and
+`git worktree remove` refuses with "Directory not empty". `git status
+--porcelain` reports only tracked and untracked files, so that state passes the
+safety checks and only the removal notices it. A result carrying `forced: true`
+recorded that retry; a `reason` naming leftover files means the lane is retired
+but some ignored junk resisted deletion.
+
 ### Provenance notes
 
 Commit messages carry no tool attribution (AGENTS.md), so after main holds the

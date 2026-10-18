@@ -315,12 +315,38 @@ def landed_worktree_cleanup(repository, candidate):
         if ahead.returncode or ahead.stdout.strip() != "0":
             return {"removed": False, "reason": "worktree holds commits beyond the candidate"}
 
-        # `git worktree remove` refuses a dirty tree, which the check above
-        # already excluded; it also needs an absolute path from the common dir.
+        # `git worktree remove` refuses a dirty tree, which the checks above
+        # already excluded. It also refuses a directory that still holds
+        # ignored files, which is the normal state for a lane that has ever
+        # built: on macOS a stray .DS_Store is enough to leave the directory
+        # non-empty and fail the removal with "Directory not empty". Because
+        # `git status --porcelain` reports only tracked and untracked files,
+        # that refusal is invisible to the safety checks above and would
+        # otherwise make automatic cleanup useless on this host, which is the
+        # host that records the macOS golden.
+        #
+        # Retrying with --force is safe only here, after every condition that
+        # could destroy unrecorded work has already been rejected: the tree is
+        # clean, HEAD is exactly the published candidate, and the branch holds
+        # nothing main lacks. --force discards exactly the ignored build output
+        # that made the clean removal fail.
         removal = git("worktree", "remove", str(current))
+        forced = False
+        if removal.returncode:
+            removal = git("worktree", "remove", "--force", str(current))
+            forced = not removal.returncode
         if removal.returncode:
             return {"removed": False,
                     "reason": f"worktree removal refused: {removal.stderr.strip()}"}
+
+        # --force unregisters the worktree but can leave the directory behind.
+        # Remove only what remains, and only after the directory was proven to
+        # be a clean lane above, so nothing unrecorded can be inside it.
+        leftover = None
+        if current.exists():
+            shutil.rmtree(current, ignore_errors=True)
+            if current.exists():
+                leftover = sorted(path.name for path in current.iterdir())[:5]
 
         # The worktree directory is gone now, so every later command must run
         # from the main checkout; `repository` no longer exists as a cwd.
@@ -328,9 +354,17 @@ def landed_worktree_cleanup(repository, candidate):
         if deletion.returncode:
             # The worktree is gone; the branch is now only bookkeeping, but say
             # so rather than reporting a clean sweep.
-            return {"removed": True, "branch": branch,
+            return {"removed": True, "branch": branch, "forced": forced,
                     "reason": f"worktree removed; branch deletion failed: {deletion.stderr.strip()}"}
-        return {"removed": True, "branch": branch, "worktree": str(current)}
+        result = {"removed": True, "branch": branch, "worktree": str(current)}
+        if forced:
+            result["forced"] = True
+        if leftover:
+            # The worktree is unregistered and the branch is gone, so the lane
+            # is retired; only ignored junk resisted deletion.
+            result["reason"] = ("worktree removed and branch deleted; "
+                                f"leftover files resisted deletion: {', '.join(leftover)}")
+        return result
     except (OSError, subprocess.SubprocessError) as error:
         return {"removed": False, "reason": f"cleanup inspection failed: {type(error).__name__}"}
 
