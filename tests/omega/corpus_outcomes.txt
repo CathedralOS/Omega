@@ -8,7 +8,6 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
-	cannot prove requires contract for call bounded from Main::main: main.items[selector] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 fail/arithmetic/affine_difference_negative_edges rejected 681ms expected @70da601bb299+wt
 fail/arithmetic/affine_difference_unpaired_term rejected 677ms expected @70da601bb299+wt
