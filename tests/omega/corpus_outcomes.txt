@@ -2055,6 +2055,27 @@ fail/facts/range_fact_delivery_through_other_machine_rejected rejected 1011ms ex
 fail/facts/range_fact_delivery_through_other_state_rejected rejected 1122ms expected @ec38c6dfcf45
 fail/facts/range_fact_delivery_through_parameter_rejected rejected 1105ms expected @ec38c6dfcf45
 fail/facts/range_fact_delivery_through_target_body_rejected rejected 992ms expected @ec38c6dfcf45
+fail/facts/readonly_byte_literal_subslice_unproved_call_result rejected 2382ms expected @0299e81c24d6
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/readonly_byte_literal_subslice_unproved_const_name rejected 2431ms expected @0299e81c24d6
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/readonly_byte_literal_subslice_unproved_field rejected 2380ms expected @0299e81c24d6
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/readonly_byte_literal_subslice_unproved_local rejected 2194ms expected @0299e81c24d6
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/readonly_byte_literal_subslice_unproved_match_join rejected 2154ms expected @0299e81c24d6
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/readonly_byte_literal_subslice_unproved_other_machine rejected 2100ms expected @0299e81c24d6
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/readonly_byte_literal_subslice_unproved_other_state rejected 1940ms expected @0299e81c24d6
+	exact arithmetic in machine `probe` state `step` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/readonly_byte_literal_subslice_unproved_parameter rejected 1853ms expected @0299e81c24d6
+	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/readonly_byte_literal_subslice_unproved_target_body rejected 1955ms expected @0299e81c24d6
+	exact arithmetic in machine `evaluate_window` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `evaluate_window` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `evaluate_window` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `evaluate_window` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/record_layout_geometry_unproved_call_result rejected 3932ms expected @45cbafd80d9c
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/record_layout_geometry_unproved_const_name rejected 3954ms expected @45cbafd80d9c
@@ -5881,6 +5902,15 @@ pass/facts/range_fact_delivery_through_other_machine_exit checked 6765ms check-t
 pass/facts/range_fact_delivery_through_other_state_exit checked 7380ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/range_fact_delivery_through_parameter_exit checked 6810ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/range_fact_delivery_through_target_body_exit checked 7265ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/readonly_byte_literal_subslice_through_call_result_exit checked 6818ms check-target:macos_arm64 @0299e81c24d6
+pass/facts/readonly_byte_literal_subslice_through_const_name_exit checked 6891ms check-target:macos_arm64 @0299e81c24d6
+pass/facts/readonly_byte_literal_subslice_through_field_exit checked 6746ms check-target:macos_arm64 @0299e81c24d6
+pass/facts/readonly_byte_literal_subslice_through_local_exit checked 6786ms check-target:macos_arm64 @0299e81c24d6
+pass/facts/readonly_byte_literal_subslice_through_match_join_exit checked 6912ms check-target:macos_arm64 @0299e81c24d6
+pass/facts/readonly_byte_literal_subslice_through_other_machine_exit checked 6840ms check-target:macos_arm64 @0299e81c24d6
+pass/facts/readonly_byte_literal_subslice_through_other_state_exit checked 6726ms check-target:macos_arm64 @0299e81c24d6
+pass/facts/readonly_byte_literal_subslice_through_parameter_exit checked 6957ms check-target:macos_arm64 @0299e81c24d6
+pass/facts/readonly_byte_literal_subslice_through_target_body_exit checked 6909ms check-target:macos_arm64 @0299e81c24d6
 pass/facts/record_layout_geometry_through_call_result_exit checked 7952ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_const_name_exit checked 7761ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_field_exit checked 7941ms check-target:macos_arm64 @45cbafd80d9c
