@@ -3286,6 +3286,27 @@ fail/facts/guarded_line_loan_through_parameter_held rejected 2453ms expected @86
 fail/facts/guarded_line_loan_through_target_body_held rejected 2461ms expected @866a955e52f8
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/index_every_width_through_call_result_rejected rejected 4857ms expected @465f5043822d+wt
+	cannot prove index `picked_i64` is within length 4 in read_all::entry
+fail/facts/index_every_width_through_const_name_rejected rejected 2801ms expected @465f5043822d+wt
+	cannot prove index `4` is within length 4
+fail/facts/index_every_width_through_field_rejected rejected 3006ms expected @465f5043822d+wt
+	cannot prove index `indices.index_i64` is within length 4 in read_all::entry
+fail/facts/index_every_width_through_local_rejected rejected 5011ms expected @465f5043822d+wt
+	cannot prove index `local_i64` is within length 4 in read_all::entry
+fail/facts/index_every_width_through_match_join_rejected rejected 5713ms expected @465f5043822d+wt
+	cannot prove index `joined_i64` is within length 4 in read_all::entry
+fail/facts/index_every_width_through_other_machine_rejected rejected 3953ms expected @465f5043822d+wt
+	cannot prove index `index_i64` is within length 4 in read_indices::entry
+fail/facts/index_every_width_through_other_state_rejected rejected 3471ms expected @465f5043822d+wt
+	cannot prove index `index_i64` is within length 4 in read_all::pick
+fail/facts/index_every_width_through_parameter_rejected rejected 3426ms expected @465f5043822d+wt
+	cannot prove index `index_i64` is within length 4 in read_all::entry
+fail/facts/index_every_width_through_target_body_rejected rejected 13159ms expected @465f5043822d+wt
+	cannot prove index `index_i64` is within length 4 in read_all::entry
+	cannot prove index `index_i64` is within length 4 in read_all::entry
+	cannot prove index `index_i64` is within length 4 in read_all::entry
+	cannot prove index `index_i64` is within length 4 in read_all::entry
 fail/facts/indexed_element_mut_loan_through_call_result_held rejected 1261ms expected @dee77250b5b9
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -8200,6 +8221,15 @@ pass/facts/guarded_line_loan_through_other_machine_exit checked 5832ms check-tar
 pass/facts/guarded_line_loan_through_other_state_exit checked 5736ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_parameter_exit checked 5737ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_target_body_exit checked 5788ms check-target:macos_arm64 @866a955e52f8
+pass/facts/index_every_width_through_call_result_exit checked 11535ms check-target:macos_arm64 @465f5043822d+wt
+pass/facts/index_every_width_through_const_name_exit checked 7146ms check-target:macos_arm64 @465f5043822d+wt
+pass/facts/index_every_width_through_field_exit checked 6839ms check-target:macos_arm64 @465f5043822d+wt
+pass/facts/index_every_width_through_local_exit checked 9697ms check-target:macos_arm64 @465f5043822d+wt
+pass/facts/index_every_width_through_match_join_exit checked 12485ms check-target:macos_arm64 @465f5043822d+wt
+pass/facts/index_every_width_through_other_machine_exit checked 8491ms check-target:macos_arm64 @465f5043822d+wt
+pass/facts/index_every_width_through_other_state_exit checked 7887ms check-target:macos_arm64 @465f5043822d+wt
+pass/facts/index_every_width_through_parameter_exit checked 8276ms check-target:macos_arm64 @465f5043822d+wt
+pass/facts/index_every_width_through_target_body_exit checked 29484ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/indexed_element_mut_loan_through_call_result_exit checked 7416ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_const_name_exit checked 7499ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_field_exit checked 7549ms check-target:macos_arm64 @dee77250b5b9

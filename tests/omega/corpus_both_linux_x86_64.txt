@@ -211,6 +211,15 @@ pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 6296ms ex
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 5398ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d537c1f08618
 pass/expressions/call_result_comparison_operands_exit built 22382ms exit:70 interpreter-exit:70 interpreter:agrees @c48489ea6ad6
 pass/expressions/runtime_comparison_store_integer_exit built 24518ms exit:70 interpreter-exit:70 interpreter:agrees @c48489ea6ad6
+pass/facts/index_every_width_through_call_result_exit built 11819ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
+pass/facts/index_every_width_through_const_name_exit built 6491ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
+pass/facts/index_every_width_through_field_exit built 7267ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
+pass/facts/index_every_width_through_local_exit built 10064ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
+pass/facts/index_every_width_through_match_join_exit built 12663ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
+pass/facts/index_every_width_through_other_machine_exit built 8456ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
+pass/facts/index_every_width_through_other_state_exit built 8324ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
+pass/facts/index_every_width_through_parameter_exit built 8133ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
+pass/facts/index_every_width_through_target_body_exit built 29362ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
 pass/facts/returned_write_destination_through_call_result_exit built 7646ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_const_name_exit built 6783ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_field_exit built 7535ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
