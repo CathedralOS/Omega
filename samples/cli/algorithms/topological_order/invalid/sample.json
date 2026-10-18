@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "not provably within its declared range"
+    "cannot prove requires contract for call mark_emitted from Main::main"
   ]
 }

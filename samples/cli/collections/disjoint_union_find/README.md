@@ -1,6 +1,6 @@
 # Disjoint-set union-find
 
-Disjoint-set union over 64 elements in fixed arrays (`parent: [u64 [0..=63]; 64]`
+Disjoint-set union over 64 elements in fixed arrays (`parent: [u64; 64]`
 and `rank: [u64 in Wrapping; 64]`) with union-by-rank and iterative two-pass
 path compression.
 
@@ -15,7 +15,7 @@ representatives across all 64 elements and self-verifies:
 On agreement it prints `PASS` and exits `0`.
 
 An intended-invalid control in `controls/find_out_of_range` invokes
-`DisjointSet::find` with an out-of-range element (`64`, outside `0..=63`) and is
+`DisjointSet::find` with an out-of-range element (`64`, violating `element < 64`) and is
 rejected at compile time.
 
 After ordinary package review on macOS arm64:

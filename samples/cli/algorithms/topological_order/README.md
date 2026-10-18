@@ -1,7 +1,7 @@
 # Topological order (source removal)
 
 Kahn-style topological order over a directed graph held in CSR form
-(`offsets: [u64 [0..=16]; 9]` + `targets: [u64 [0..=7]; 16]`). Instead of a
+(`offsets: [u64; 9]` + `targets: [u64; 16]`). Instead of a
 FIFO queue, each pass scans all nodes and emits every node whose in-degree
 reached zero, decrementing its successors immediately — so one pass can unlock
 later-scanned nodes and edges running high-to-low force multiple passes.
@@ -17,9 +17,9 @@ The program runs two graphs:
 
 On agreement it prints `PASS` and exits `0`.
 
-An intended-invalid control in `invalid/` marks node `8` (outside the
-`0..=7` node domain) as emitted and is rejected at compile time
-(`argument 'node' stores a value not provably within its declared range`).
+An intended-invalid control in `invalid/` marks node `8` (violating
+`node < 8`) as emitted and is rejected at compile time
+(`cannot prove requires contract for call mark_emitted from Main::main`).
 
 After ordinary package review on macOS arm64:
 

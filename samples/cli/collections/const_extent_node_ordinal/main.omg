@@ -9,20 +9,23 @@ data Nodes<const N: u64> where N >= 1 && N <= 8 {
     x: [i64 in Wrapping; N];
 }
 
-machine coordinate<const N: u64>(nodes: &Nodes<N>, index: u64 [0..N]) -> i64 in Wrapping
-requires N >= 1 && N <= 8
+machine coordinate<const N: u64>(nodes: &Nodes<N>, index: u64) -> i64 in Wrapping
+requires N >= 1 && N <= 8 && index < N
 {
-    let ordinal: u64 [0..N] = index;
+    let ordinal: u64 = index;
     nodes.x[ordinal]
 }
 
-machine origin<const N: u64>() -> u64 [0..N]
+machine origin<const N: u64>() -> u64
 requires N >= 1 && N <= 8
+ensures result < N
 {
     0
 }
 
-machine from_call(nodes: &Nodes<4>, index: u64 [0..4]) -> i64 in Wrapping {
+machine from_call(nodes: &Nodes<4>, index: u64) -> i64 in Wrapping
+requires index < 4
+{
     nodes.x[index]
 }
 
@@ -32,8 +35,8 @@ machine Main::main(main: &mut Main) reaches Console {
     let roadmap: Nodes<6> = Nodes { x: [0, 10, 3, 7, 3, 7] };
     let quad: Nodes<4> = Nodes { x: [1, 2, 3, 4] };
     let paired: i64 in Wrapping = coordinate(&roadmap, 1) + coordinate(&roadmap, 3);
-    let start: u64 [0..4] = origin<4>();
-    let roadmap_origin: u64 [0..6] = origin<6>();
+    let start: u64 = origin<4>();
+    let roadmap_origin: u64 = origin<6>();
     let opened: i64 in Wrapping = from_call(&quad, start) + coordinate(&quad, 2);
     transition paired == 17 && opened == 4 && roadmap_origin == 0 {
         true -> report(main, paired)

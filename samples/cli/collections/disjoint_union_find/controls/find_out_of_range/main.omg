@@ -1,21 +1,24 @@
 // Intended-invalid control: calling DisjointSet::find on an out-of-range
-// element (64, outside the 0..=63 table domain) must be rejected at compile time.
+// element (64, violating element < 64) must be rejected at compile time.
 
 use omega_language_std::console;
 
 data DisjointSet {
-    parent: [u64 [0..=63]; 64];
+    parent: [u64; 64];
 }
 
 data Main {
     sets: DisjointSet;
 }
 
-machine DisjointSet::find(sets: &mut DisjointSet, element: u64 [0..=63]) -> u64 [0..=63] {
+machine DisjointSet::find(sets: &mut DisjointSet, element: u64) -> u64
+requires element < 64
+ensures result < 64
+{
     sets.parent[element]
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let invalid_rep: u64 [0..=63] = DisjointSet::find(&mut main.sets, 64);
+    let invalid_rep: u64 = DisjointSet::find(&mut main.sets, 64);
     Console::exit_process(invalid_rep as i32);
 }

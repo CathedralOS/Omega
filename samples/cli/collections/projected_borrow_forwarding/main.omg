@@ -2,7 +2,7 @@
 // The returned view retains the supplied element, not its outer container.
 // Aliasing and forwarding keep its captured selector when the cursor changes.
 data Cell { value: i32; spare: i32; }
-data Envelope { cells: [Cell; 2]; cursor: u64 [0..=1]; marker: i32; }
+data Envelope where cursor <= 1 { cells: [Cell; 2]; cursor: u64; marker: i32; }
 
 machine pick(cell: &mut Cell) -> &mut i32 { &mut cell.value }
 machine forward(value: &mut i32) -> &mut i32 { value }

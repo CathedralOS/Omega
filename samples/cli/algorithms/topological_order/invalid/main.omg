@@ -7,7 +7,8 @@ data Topo {
     emitted: [u64 in Wrapping; 8];
 }
 
-machine Topo::mark_emitted(t: &mut Topo, node: u64 [0..=7]) {
+machine Topo::mark_emitted(t: &mut Topo, node: u64)
+requires node < 8 {
     t.emitted[node] = 1;
 }
 

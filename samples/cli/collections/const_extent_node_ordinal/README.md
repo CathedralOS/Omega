@@ -1,7 +1,7 @@
 # Const-extent node ordinal
 
 A fixed node table whose length is a const parameter, read by an ordinal
-declared `u64 [0..N]`. The same machine is specialized at 6 nodes and at 4.
+bounded by `index < N`. The same machine is specialized at 6 nodes and at 4.
 The 6-node coordinates are the clearance-route catalogue; indexes 1 and 3
 sum to 17. The 4-node table contributes its origin through a call result
 and index 2 through a parameter, summing to 4. On agreement the program

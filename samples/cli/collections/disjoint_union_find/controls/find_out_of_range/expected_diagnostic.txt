@@ -1,1 +1,1 @@
-argument `element` stores a value not provably within its declared range
+violates required fact `element < 64`

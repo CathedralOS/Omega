@@ -18,21 +18,21 @@
 
 use omega_language_std::console;
 
-data Graph {
-    node_count: u64 [0..=8];
-    offsets: [u64 [0..=16]; 9];
-    targets: [u64 [0..=7]; 16];
+data Graph where node_count <= 8 {
+    node_count: u64;
+    offsets: [u64; 9];
+    targets: [u64; 16];
 }
 
-data Topo {
+data Topo where emitted_count <= 8 {
     indeg: [u64 in Wrapping; 8];
     emitted: [u64 in Wrapping; 8];
-    order: [u64 [0..=7]; 8];
+    order: [u64; 8];
     emitted_count: u64;
 }
 
 data Positions {
-    at: [u64 [0..=7]; 8];
+    at: [u64; 8];
 }
 
 machine Topo::init(t: &mut Topo) {
@@ -68,7 +68,15 @@ machine Topo::compute_indeg(t: &mut Topo, g: &Graph) {
 
     state step(t: &mut Topo, g: &Graph, e: u64, edge_count: u64)
     requires e < 16 {
-        let v: u64 [0..=7] = g.targets[e];
+        let v: u64 = g.targets[e];
+        transition v < 8 {
+            true -> inc(t, g, e, edge_count, v)
+            _ -> done()
+        }
+    }
+
+    state inc(t: &mut Topo, g: &Graph, e: u64, edge_count: u64, v: u64)
+    requires v < 8 {
         t.indeg[v] = t.indeg[v] + 1;
         transition { _ -> loop_(t, g, e + 1, edge_count) }
     }
@@ -130,7 +138,15 @@ machine Topo::sort(t: &mut Topo, g: &Graph) {
 
     state dec(t: &mut Topo, g: &Graph, pass_index: u64, n: u64, e: u64, stop: u64)
     requires n < 8 && e < 16 {
-        let v: u64 [0..=7] = g.targets[e];
+        let v: u64 = g.targets[e];
+        transition v < 8 {
+            true -> dec_target(t, g, pass_index, n, e, stop, v)
+            _ -> scan(t, g, pass_index, n + 1, 1)
+        }
+    }
+
+    state dec_target(t: &mut Topo, g: &Graph, pass_index: u64, n: u64, e: u64, stop: u64, v: u64)
+    requires n < 8 && e < 16 && v < 8 {
         t.indeg[v] = t.indeg[v] - 1;
         transition { _ -> edges(t, g, pass_index, n, e + 1, stop) }
     }
@@ -157,7 +173,15 @@ machine build_positions(t: &Topo, positions: &mut Positions) {
 
     state step(t: &Topo, positions: &mut Positions, i: u64)
     requires i < 8 {
-        let node: u64 [0..=7] = t.order[i];
+        let node: u64 = t.order[i];
+        transition node < 8 {
+            true -> record(t, positions, i, node)
+            _ -> done()
+        }
+    }
+
+    state record(t: &Topo, positions: &mut Positions, i: u64, node: u64)
+    requires i < 8 && node < 8 {
         positions.at[node] = i;
         transition { _ -> loop_(t, positions, i + 1) }
     }
@@ -205,7 +229,15 @@ machine edges_ordered(g: &Graph, positions: &Positions) -> bool {
 
     state check(g: &Graph, positions: &Positions, u: u64, e: u64, stop: u64) -> bool
     requires u < 8 && e < 16 {
-        let v: u64 [0..=7] = g.targets[e];
+        let v: u64 = g.targets[e];
+        transition v < 8 {
+            true -> compare(g, positions, u, e, stop, v)
+            _ -> (false)
+        }
+    }
+
+    state compare(g: &Graph, positions: &Positions, u: u64, e: u64, stop: u64, v: u64) -> bool
+    requires u < 8 && e < 16 && v < 8 {
         transition positions.at[u] < positions.at[v] {
             true -> edges(g, positions, u, e + 1, stop)
             _ -> (false)
