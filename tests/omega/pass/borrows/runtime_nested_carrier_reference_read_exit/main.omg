@@ -4,10 +4,10 @@ use omega_language_std::console;
 data Cell { stamp: i32; value: i32; ready: bool; }
 data Message { stamp: i32; body: &Cell; }
 data Envelope { stamp: i32; message: &Message; }
-data Main {
+data Main where index <= 1 {
     first: Cell;
     second: Cell;
-    index: u64 [0..=1];
+    index: u64;
 }
 
 machine Main::main(main: &mut Main) reaches Console {

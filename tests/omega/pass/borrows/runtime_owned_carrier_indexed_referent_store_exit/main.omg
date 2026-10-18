@@ -3,9 +3,13 @@ data Cell { value: i32; }
 data Slot<'storage> { target: &'storage mut Cell; }
 data Rows<'storage> { slots: [Slot<'storage>; 2]; }
 machine set(value: &mut i32) { value = 47; }
-machine update<'storage>(rows: Rows<'storage>, index: u64 [0..=1]) -> bool {
+machine update<'storage>(rows: Rows<'storage>, index: u64) -> bool
+requires index <= 1
+{
     transition { _ -> write(rows, index) }
-    state write(rows: Rows<'storage>, index: u64 [0..=1]) -> bool {
+    state write(rows: Rows<'storage>, index: u64) -> bool
+    requires index <= 1
+    {
         rows.slots[index].target.value = 31;
         set(&mut rows.slots[1].target.value);
         rows.slots[0].target.value == 31 && rows.slots[1].target.value == 47

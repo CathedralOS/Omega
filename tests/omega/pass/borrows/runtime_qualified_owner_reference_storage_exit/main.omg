@@ -29,16 +29,20 @@ machine array_owner(entries: &mut [[u8; 8] in Utf8; 2]) -> bool {
 }
 // One formation crosses the stored parent pointer before its runtime selector.
 // It lends the selected owner's inline field, not the descriptor's storage.
-machine selected_field(containers: &mut [Container; 2], position: u64 [0..=1]) -> bool {
-    let mut selector: u64 [0..=1] = position;
+machine selected_field(containers: &mut [Container; 2], position: u64) -> bool
+requires position <= 1
+{
+    let mut selector: u64 = position;
     let view: ContainersView = ContainersView { owners: containers };
     let held: Held = Held { bytes: &mut view.owners[selector].second };
     selector = 0;
     replace(held.bytes)
 }
 // The field projection may follow capture of the runtime-selected owner.
-machine selected_descendant(containers: &mut [Container; 2], position: u64 [0..=1]) -> bool {
-    let mut selector: u64 [0..=1] = position;
+machine selected_descendant(containers: &mut [Container; 2], position: u64) -> bool
+requires position <= 1
+{
+    let mut selector: u64 = position;
     let held: HeldContainer = HeldContainer { owner: &mut containers[selector] };
     selector = 0;
     replace(&mut held.owner.second)

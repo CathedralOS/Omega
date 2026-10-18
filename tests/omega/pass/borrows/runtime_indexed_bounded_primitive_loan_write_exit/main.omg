@@ -1,11 +1,13 @@
 // A writable indexed loan retains the field's complete receiving range.
-data Cell { prefix: u64; value: u8 [0..=1]; suffix: u32; }
+data Cell where value <= 1 { prefix: u64; value: u8; suffix: u32; }
 data Main { cells: [Cell; 2]; }
-machine clear(value: &mut u8 [0..=1]) { value = 0; }
+machine clear(value: &mut u8)
+ensures value <= 1
+{ value = 0; }
 machine clear_selected(index: u64, main: &mut Main)
 requires index < 2
 {
-    let selected: &mut u8 [0..=1] = &mut main.cells[index].value;
+    let selected: &mut u8 = &mut main.cells[index].value;
     clear(selected);
 }
 machine Main::main(main: &mut Main) crashes Trap {

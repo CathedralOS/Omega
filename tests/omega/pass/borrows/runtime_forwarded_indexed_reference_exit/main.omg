@@ -4,14 +4,18 @@ data Cell { value: u32; }
 data Slot { stamp: u32; cell: Cell; }
 data Row { slots: [Slot; 3]; }
 data Grid { rows: [Row; 2]; }
-machine choose(grid: &mut Grid, row: u64[0..2], column: u64[0..3], flag: bool) -> &mut Cell {
+machine choose(grid: &mut Grid, row: u64, column: u64, flag: bool) -> &mut Cell
+requires row < 2 && column < 3
+{
     let selected: &mut Cell = match flag {
         true -> &mut grid.rows[row].slots[column].cell,
         _ -> &mut grid.rows[0].slots[0].cell
     };
     selected
 }
-machine relay(grid: &mut Grid, row: u64[0..2], column: u64[0..3], flag: bool) -> &mut Cell {
+machine relay(grid: &mut Grid, row: u64, column: u64, flag: bool) -> &mut Cell
+requires row < 2 && column < 3
+{
     choose(grid, row, column, flag)
 }
 machine update(grid: &mut Grid, flag: bool) {

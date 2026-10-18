@@ -1,7 +1,7 @@
 // Cross two stored references before retiring both owners and restoring backing.
 use omega_language_std::console;
 
-data Cell { prefix: i32; value: i32 [0..=100]; ready: bool; }
+data Cell where value >= 0, value <= 100 { prefix: i32; value: i32; ready: bool; }
 data Message { stamp: i32; body: &Cell; }
 data Envelope { stamp: i32; message: &Message; }
 data Main { cell: Cell; }
@@ -12,7 +12,8 @@ machine Main::main(main: &mut Main) reaches Console {
     main.cell.ready = true;
     let message: Message = Message { stamp: 11, body: &main.cell };
     let envelope: Envelope = Envelope { stamp: 12, message: &message };
-    let observed: i32 [0..=100] = envelope.message.body.value;
+    let observed: i32 = envelope.message.body.value;
+    require_cell_value(observed);
     let ready: bool = envelope.message.body.ready;
     let stamp: i32 = envelope.message.stamp;
     let envelope_stamp: i32 = envelope.stamp;
@@ -24,3 +25,7 @@ machine Main::main(main: &mut Main) reaches Console {
     state good(main: &mut Main) { Console::exit_process(70); }
     state bad(main: &mut Main) { Console::exit_process(71); }
 }
+
+machine require_cell_value(value: i32)
+requires value >= 0 && value <= 100
+{}

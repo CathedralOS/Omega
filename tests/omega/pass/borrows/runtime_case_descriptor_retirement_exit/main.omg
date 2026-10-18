@@ -30,11 +30,15 @@ machine forwarded(value: Packet) -> bool {
     }
 }
 
-machine first(calls: &mut u64 in Wrapping) -> u64[1..=1] {
+machine first(calls: &mut u64 in Wrapping) -> u64
+ensures result >= 1 && result <= 1
+{
     calls = calls * 10 + 1;
     1
 }
-machine last(calls: &mut u64 in Wrapping) -> u64[3..=3] {
+machine last(calls: &mut u64 in Wrapping) -> u64
+ensures result >= 3 && result <= 3
+{
     calls = calls * 10 + 2;
     3
 }
