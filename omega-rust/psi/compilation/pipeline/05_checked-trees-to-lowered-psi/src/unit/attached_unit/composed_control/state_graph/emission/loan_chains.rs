@@ -427,11 +427,14 @@ impl LoanChains {
                     })
                     .filter(|result| result.binding_ordinal == binding)
             } else {
+                // Any structural result binding can be the completed home —
+                // array and byte-view locals publish the same ordinal
+                // namespace as discardable records; one ordinal names one
+                // establishment regardless of its cleanup flag.
                 let mut matching = plan.states[lender]
                     .operations
                     .iter()
-                    .filter_map(|operation| operation.discardable_structural_result())
-                    .map(|(result, _)| result)
+                    .filter_map(|operation| operation.structural_result_binding())
                     .filter(|result| result.binding_ordinal == binding);
                 let result = matching.next();
                 if matching.next().is_some() {

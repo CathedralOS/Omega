@@ -52,3 +52,9 @@ both drop and state-transfer exits.
 These repairs implement the existing [return transaction](../../../../wiki/spec/terminal-psi/structural_access.md),
 [loan lifecycle](../../../../wiki/spec/terminal-psi/loans.md), and
 [call result custody](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md).
+
+The root program's transition `tail(&mut trace)` also exposed a home-namespace
+gap: state loan chains resolved a lent local's completed home only among
+discardable record results, so an array or byte-view local's binding answered
+"no exact completed home". All structural result bindings share the one
+establishment ordinal namespace; the lookup now names any of them.
