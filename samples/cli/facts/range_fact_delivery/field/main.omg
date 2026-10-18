@@ -1,0 +1,15 @@
+// For u64 index, index < 4 proves index <= 4 at count(index).
+// Expected exit: 0.
+machine count(index: u64) -> u64
+requires index <= 4
+{ index }
+data Reading [copy] where index < 4 { index: u64; }
+machine read(reading: Reading) -> u64 { count(reading.index) }
+machine probe(input: u64) -> u64 requires input < 4 { read(Reading { index: input }) }
+machine main() crashes Trap {
+    let observed: u64 = probe(3);
+    let zero: u64 = probe(0);
+    transition observed == 3 && zero == 0 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

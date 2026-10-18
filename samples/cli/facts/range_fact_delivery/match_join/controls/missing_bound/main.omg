@@ -1,0 +1,22 @@
+// For u64 index, index < 4 proves index <= 4 at count(index).
+// Expected exit: 0.
+machine count(index: u64) -> u64
+requires index <= 4
+{ index }
+machine choose(left: u64, right: u64, flag: bool) -> u64
+requires left < 4 && right < 6 {
+    let index: u64 = match flag { true -> left, false -> right };
+    count(index)
+}
+machine probe(input: u64) -> u64 requires input < 4 {
+    let left: u64 = choose(input, input, true);
+    let right: u64 = choose(input, input, false);
+    transition left == right { true -> (left) _ -> (0) }
+}
+machine main() crashes Trap {
+    let observed: u64 = probe(3);
+    let zero: u64 = probe(0);
+    transition observed == 3 && zero == 0 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

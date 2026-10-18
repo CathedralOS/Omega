@@ -220,6 +220,15 @@ pass/facts/index_every_width_through_other_machine_exit built 8456ms exit:0 inte
 pass/facts/index_every_width_through_other_state_exit built 8324ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
 pass/facts/index_every_width_through_parameter_exit built 8133ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
 pass/facts/index_every_width_through_target_body_exit built 29362ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
+pass/facts/integer_range_delivery_through_call_result_exit built 10979ms exit:0 interpreter-exit:0 interpreter:agrees @a9b427ff556a
+pass/facts/integer_range_delivery_through_const_name_exit built 10919ms exit:0 interpreter-exit:0 interpreter:agrees @a9b427ff556a
+pass/facts/integer_range_delivery_through_field_exit built 16111ms exit:0 interpreter-exit:0 interpreter:agrees @a9b427ff556a
+pass/facts/integer_range_delivery_through_local_exit built 11682ms exit:0 interpreter-exit:0 interpreter:agrees @a9b427ff556a
+pass/facts/integer_range_delivery_through_match_join_exit built 11658ms exit:0 interpreter-exit:0 interpreter:agrees @a9b427ff556a
+pass/facts/integer_range_delivery_through_other_machine_exit built 11117ms exit:0 interpreter-exit:0 interpreter:agrees @a9b427ff556a
+pass/facts/integer_range_delivery_through_other_state_exit built 9656ms exit:0 interpreter-exit:0 interpreter:agrees @a9b427ff556a
+pass/facts/integer_range_delivery_through_parameter_exit built 12062ms exit:0 interpreter-exit:0 interpreter:agrees @a9b427ff556a
+pass/facts/integer_range_delivery_through_target_body_exit built 10014ms exit:0 interpreter-exit:0 interpreter:agrees @a9b427ff556a
 pass/facts/returned_write_destination_through_call_result_exit built 7646ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_const_name_exit built 6783ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_field_exit built 7535ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt

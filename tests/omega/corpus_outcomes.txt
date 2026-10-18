@@ -3340,6 +3340,27 @@ fail/facts/indexed_element_mut_loan_through_target_body_held rejected 1232ms exp
 	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/facts/integer_range_delivery_through_call_result_missing_bound rejected 9302ms expected @a9b427ff556a
+	cannot prove requires contract for call count from probe: source(input) <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_const_name_missing_bound rejected 4734ms expected @a9b427ff556a
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_field_missing_bound rejected 4691ms expected @a9b427ff556a
+	cannot prove requires contract for call count from read: reading.index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_local_missing_bound rejected 4712ms expected @a9b427ff556a
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_match_join_missing_bound rejected 4465ms expected @a9b427ff556a
+	cannot prove requires contract for call count from choose: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_other_machine_missing_bound rejected 6009ms expected @a9b427ff556a
+	cannot prove requires contract for call count from forward: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_other_state_missing_bound rejected 4711ms expected @a9b427ff556a
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
+fail/facts/integer_range_delivery_through_parameter_missing_bound rejected 5294ms expected @a9b427ff556a
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_target_body_missing_bound rejected 4786ms expected @a9b427ff556a
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/matched_window_through_call_result_rejected rejected 664ms expected @a48b0ac286f5
 	cannot prove ensures contract for exit from from_call at statement 0: result.len == 2
 fail/facts/matched_window_through_const_name_rejected rejected 659ms expected @a48b0ac286f5
@@ -8239,6 +8260,15 @@ pass/facts/indexed_element_mut_loan_through_other_machine_exit checked 7395ms ch
 pass/facts/indexed_element_mut_loan_through_other_state_exit checked 7286ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_parameter_exit checked 7060ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_target_body_exit checked 7074ms check-target:macos_arm64 @dee77250b5b9
+pass/facts/integer_range_delivery_through_call_result_exit checked 15483ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/integer_range_delivery_through_const_name_exit checked 15480ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/integer_range_delivery_through_field_exit checked 11071ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/integer_range_delivery_through_local_exit checked 10527ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/integer_range_delivery_through_match_join_exit checked 21683ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/integer_range_delivery_through_other_machine_exit checked 23468ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/integer_range_delivery_through_other_state_exit checked 14796ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/integer_range_delivery_through_parameter_exit checked 12770ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/integer_range_delivery_through_target_body_exit checked 14948ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/returned_write_destination_through_call_result_exit checked 6783ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_const_name_exit checked 6674ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_field_exit checked 7303ms check-target:macos_arm64 @2ef2ab353498+wt
