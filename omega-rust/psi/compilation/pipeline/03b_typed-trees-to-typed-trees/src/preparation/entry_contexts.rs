@@ -161,6 +161,11 @@ fn prepare_entry(program: &mut TypedTrees, origin: EntryContextOrigin) -> Result
         return_type: parameter_types[parameters.len()],
         ..Default::default()
     };
+    // The selected source root's static premises remain obligations of the
+    // same external root after inserting this caller. Runtime parameter facts
+    // do not move: the ordinary call must prove them from actual arrival
+    // arguments and the context's zero establishment.
+    retain_static_entry_contracts(program, &entry, &state, &parameters, &mut helper_state);
     let mut arguments = Vec::new();
     for (position, parameter) in parameters.iter().enumerate() {
         let symbol = mapping[position].1;
@@ -177,8 +182,8 @@ fn prepare_entry(program: &mut TypedTrees, origin: EntryContextOrigin) -> Result
             parameter.symbol = symbol;
             parameter.type_reference = parameter_types[position];
             // The ordinary parameter declaration owns these membership rows.
-            // Rebuild them from its copied type, never by assuming the callee's
-            // authored requires clauses or copying an unrelated context fact.
+            // Rebuild them from its copied type. The static root premises above
+            // supply no fact about a runtime argument or the new local context.
             for (domain_symbol, domain_name, domain_arguments, semantic_domain) in
                 validation::parameter_domain_constraints(program, parameter.type_reference, &[])
             {
@@ -265,4 +270,76 @@ fn name(program: &mut TypedTrees, symbol: SymbolHandle) -> ExpressionHandle {
             symbol,
             symbol,
         )))
+}
+
+/// Preserve root premises that do not observe any source runtime parameter.
+/// Shared fact traversal retains declaration identities through nested terms;
+/// neither source spelling nor a recognized comparison shape selects a premise.
+fn retain_static_entry_contracts(
+    program: &mut TypedTrees,
+    entry: &Machine,
+    state: &State,
+    parameters: &[typed_trees::signature::StateParameter],
+    helper: &mut State,
+) {
+    struct Dependencies(Vec<SymbolHandle>);
+    impl Extend<SymbolHandle> for Dependencies {
+        fn extend<I: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: I) {
+            self.0.extend(symbols);
+        }
+    }
+    impl typed_trees::references::TypedReferences for Dependencies {}
+
+    let contracts: Vec<_> = program
+        .machine_contracts(entry)
+        .iter()
+        .chain(program.state_contracts(state))
+        .cloned()
+        .collect();
+    for mut contract in contracts {
+        if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
+            continue;
+        }
+        let mut retained = HandleSpan::empty();
+        let mut facts = program
+            .proof_facts
+            .span_or_empty(contract.facts)
+            .iter()
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>();
+        while let Some(fact) = facts.pop() {
+            // Independent conjuncts keep their own dependency closures. A
+            // context predicate beside a static premise neither erases the
+            // latter nor becomes a premise of the generated caller.
+            if let typed_trees::domain::ProofFact::Expression(expression) = &fact
+                && let Some(binary) = program.expression_table.binary_node(*expression)
+                && binary.operator == typed_trees::expression::BinaryOperator::And
+                && validation::has_builtin_binary_expression_meaning(
+                    program,
+                    entry,
+                    Some(state),
+                    *expression,
+                )
+            {
+                facts.push(typed_trees::domain::ProofFact::Expression(binary.right));
+                facts.push(typed_trees::domain::ProofFact::Expression(binary.left));
+                continue;
+            }
+            let mut dependencies = Dependencies(Vec::new());
+            typed_trees::references::visit_proof_fact(program, &mut dependencies, &fact);
+            if dependencies.0.iter().any(|symbol| {
+                parameters
+                    .iter()
+                    .any(|parameter| parameter.symbol == *symbol)
+            }) {
+                continue;
+            }
+            program.proof_facts.append_to_span(&mut retained, fact);
+        }
+        if !retained.is_empty() {
+            contract.facts = retained;
+            program.push_state_contract(helper, contract);
+        }
+    }
 }

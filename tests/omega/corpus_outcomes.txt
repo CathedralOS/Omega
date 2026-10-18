@@ -387,6 +387,8 @@ fail/asm/scratch_destination_structured_load rejected 8460ms expected @351c5ba81
 	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
 fail/build/context_entry_returns_value rejected 1889ms expected @e7a4cfaa3c51+wt
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
+fail/build/entry_static_premise_does_not_establish_context rejected 3445ms expected @ba06013a36ec+wt
+	cannot prove requires contract for call main from main$entry_context: addr::Bound == 18446744073709551616 && context.phase == 17 (needs fact `addr::Bound == 18446744073709551616 && context.phase == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/build/uefi_context_cleanup_service_excluded rejected 3813ms expected @e7a4cfaa3c51+wt
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: service `CleanupAudit` is reachable in Terminal machine 6 at call to boundary `named-callable(path(CleanupAudit::finish),parameters(),result-dispatch())` (block 11, operation 16)

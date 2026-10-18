@@ -4,7 +4,9 @@
 //! the selected edge, not one global return flag, owns their transfer or
 //! disposal. Every remaining operation must then carry custody a composed
 //! state can replay; one that does not names its kind in the trace.
-use super::result_custody::{call_owns_result, retained_structural_result};
+use super::result_custody::{
+    call_owns_result, operand_owned_construction, retained_structural_result,
+};
 use super::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
     Multiplicity, StatementNode, control,
@@ -18,16 +20,19 @@ pub(super) fn admit(
     trace: &control::LocalConstructionTrace,
 ) -> Option<()> {
     let statements = program.statement_table.statements(state.statement_nodes);
-    // Named results remain live through successor operand evaluation. The
-    // selected edge owns their exact transfer/disposal partition below;
-    // one global return-discard flag cannot express asymmetric successors.
+    // Named results remain live through successor operand evaluation; an
+    // operand-owned construction remains live until its consuming operation.
+    // Exact custody accounting below selects each transfer or disposal. The
+    // sequencer's default return-discard cannot stand in for either owner.
     for operation in operations.iter_mut() {
+        let operand_owned = operand_owned_construction(operation);
         if let Some((result, discard_result_on_return)) =
             operation.discardable_structural_result_mut()
-            && matches!(
-                statements.get(result.statement_index as usize),
-                Some(StatementNode::LocalData(_))
-            )
+            && (operand_owned
+                || matches!(
+                    statements.get(result.statement_index as usize),
+                    Some(StatementNode::LocalData(_))
+                ))
         {
             *discard_result_on_return = false
         }

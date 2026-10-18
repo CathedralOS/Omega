@@ -1,0 +1,6 @@
+// The selected root retains its model premise; it cannot assume a newly
+// provisioned runtime field has the value required by the source entry.
+data EntryState { phase: u64; }
+machine main(context: &mut EntryState)
+requires addr::Bound == 18446744073709551616 && context.phase == 17
+{}

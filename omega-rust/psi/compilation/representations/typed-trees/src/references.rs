@@ -1028,7 +1028,13 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
 
 /// Retain machines referenced by one proof fact: embedded expressions,
 /// membership values and domain arguments, or proposition applications.
-fn visit_proof_fact(program: &TypedTrees, retained: &mut impl TypedReferences, fact: &ProofFact) {
+/// Visit the semantic declaration dependencies of one retained contract fact.
+/// The sink decides which identities matter; this walk grants no hypothesis.
+pub fn visit_proof_fact(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    fact: &ProofFact,
+) {
     match fact {
         ProofFact::Expression(expression) => {
             visit_expression(program, retained, *expression);
