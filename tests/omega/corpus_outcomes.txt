@@ -1804,6 +1804,7 @@ fail/facts/linear_claim_retirement_through_other_machine_rejected rejected 1387m
 fail/facts/linear_claim_retirement_through_other_state_rejected rejected 1399ms expected @28774f64507d
 fail/facts/linear_claim_retirement_through_parameter_rejected rejected 1406ms expected @28774f64507d
 fail/facts/linear_claim_retirement_through_target_body_rejected rejected 1380ms expected @28774f64507d
+	cannot use `token` in machine `consume` state `entry` (statement 1) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/facts/live_across_call_spill_unproved_call_result rejected 2034ms expected @623a499c00d9
 fail/facts/live_across_call_spill_unproved_const_name rejected 1940ms expected @623a499c00d9
 fail/facts/live_across_call_spill_unproved_field rejected 1929ms expected @623a499c00d9
@@ -1813,6 +1814,27 @@ fail/facts/live_across_call_spill_unproved_other_machine rejected 2058ms expecte
 fail/facts/live_across_call_spill_unproved_other_state rejected 2204ms expected @623a499c00d9
 fail/facts/live_across_call_spill_unproved_parameter rejected 2304ms expected @623a499c00d9
 fail/facts/live_across_call_spill_unproved_target_body rejected 2250ms expected @623a499c00d9
+fail/facts/matched_field_windows_through_call_result_rejected rejected 4184ms expected @6950e9f0e0c8
+	cannot prove ensures contract for exit from from_call at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_const_name_rejected rejected 3751ms expected @6950e9f0e0c8
+	cannot prove ensures contract for exit from from_const at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_field_rejected rejected 3786ms expected @6950e9f0e0c8
+	cannot prove ensures contract for exit from from_field at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_local_rejected rejected 4165ms expected @6950e9f0e0c8
+	cannot prove ensures contract for exit from from_local at statement 1: result.len == 2
+fail/facts/matched_field_windows_through_match_join_rejected rejected 4173ms expected @6950e9f0e0c8
+	cannot prove ensures contract for exit from from_join at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_other_machine_rejected rejected 1437ms expected @6950e9f0e0c8
+	machine `from_machine` state `entry` value call to `open_end` violates required fact `end == 2`: the instantiated fact is structurally false (`3 == 2`)
+fail/facts/matched_field_windows_through_other_state_rejected rejected 2739ms expected @6950e9f0e0c8
+	cannot prove ensures contract for exit from from_state at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_parameter_rejected rejected 1549ms expected @6950e9f0e0c8
+	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_target_body_rejected rejected 1453ms expected @6950e9f0e0c8
+	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
 fail/facts/matched_window_through_call_result_rejected rejected 664ms expected @a48b0ac286f5
 fail/facts/matched_window_through_const_name_rejected rejected 659ms expected @a48b0ac286f5
 fail/facts/matched_window_through_field_rejected rejected 659ms expected @a48b0ac286f5
@@ -5565,6 +5587,15 @@ pass/facts/live_across_call_spill_through_other_machine_exit checked 6988ms chec
 pass/facts/live_across_call_spill_through_other_state_exit checked 7288ms check-target:macos_arm64 @623a499c00d9
 pass/facts/live_across_call_spill_through_parameter_exit checked 7247ms check-target:macos_arm64 @623a499c00d9
 pass/facts/live_across_call_spill_through_target_body_exit checked 6992ms check-target:macos_arm64 @623a499c00d9
+pass/facts/matched_field_windows_through_call_result_exit checked 24028ms check-target:macos_arm64 @6950e9f0e0c8
+pass/facts/matched_field_windows_through_const_name_exit checked 23308ms check-target:macos_arm64 @6950e9f0e0c8
+pass/facts/matched_field_windows_through_field_exit checked 23825ms check-target:macos_arm64 @6950e9f0e0c8
+pass/facts/matched_field_windows_through_local_exit checked 23269ms check-target:macos_arm64 @6950e9f0e0c8
+pass/facts/matched_field_windows_through_match_join_exit checked 24007ms check-target:macos_arm64 @6950e9f0e0c8
+pass/facts/matched_field_windows_through_other_machine_exit checked 23886ms check-target:macos_arm64 @6950e9f0e0c8
+pass/facts/matched_field_windows_through_other_state_exit checked 23970ms check-target:macos_arm64 @6950e9f0e0c8
+pass/facts/matched_field_windows_through_parameter_exit checked 23977ms check-target:macos_arm64 @6950e9f0e0c8
+pass/facts/matched_field_windows_through_target_body_exit checked 23886ms check-target:macos_arm64 @6950e9f0e0c8
 pass/facts/matched_window_through_call_result_exit checked 5499ms check-target:macos_arm64 @b2d507c5ddab+wt
 pass/facts/matched_window_through_const_name_exit checked 5400ms check-target:macos_arm64 @b2d507c5ddab+wt
 pass/facts/matched_window_through_field_exit checked 5711ms check-target:macos_arm64 @b2d507c5ddab+wt
