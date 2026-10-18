@@ -106,15 +106,33 @@ uncovered fact, instead of picking an unrelated program.
 A fact folder is done only when the same fact survives all nine places. One
 sentence names the fact and the operation, and every place copies that
 sentence. Changing the fact, the bound, or the operation so a place passes
-is a different fact and does not count. A red place is a checking repair:
-keep the program the same shape, and record the diagnostic before editing
-the compiler. Each place needs a reject twin that breaks only that fact and
-still rejects. A place with no twin does not count. A landing that only
-rewrites the failing place is not acceptance. Exact subtraction, alias
-transfer, and dependent subtract are examples of that repair path.
+is a different fact and does not count. Every positive place (and root
+`main.omg` when present) binds `ProgramEntry` for all four hosted targets
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares
+`Expected exit: 0`, and passes `omega run --both` (Terminal Psi and native
+execution agreement); compile-only positive places do not count. A red place
+is a checking or lowering repair: keep the program the same shape, and record
+the diagnostic before editing the compiler. Each place needs a reject twin
+that breaks only that fact or obligation and still rejects. A place with no
+twin does not count, and a row is not closed until its nine positive places
+and nine reject twins are pinned under `tests/omega/{pass,fail}/facts/`. A
+landing that only rewrites the failing place is not acceptance. Exact
+subtraction, alias transfer, and dependent subtract are examples of that
+repair path.
 
-The nine places test fact transport. Checking and proof completion also follows
-the [requirements and evidence rule](#requirements-and-evidence): each completed
+The nine places test both fact transport (checking and proof) and runtime
+carrier/effect lowering (Psi Stage 05 through Omega native realization) as
+one row per construct, never a combinatorial matrix. Beyond scalar proof
+transport, lowering and realization rows carry width/signedness scalars,
+floats, fixed-size arrays, nested structural records, tagged case payloads,
+slice views, borrowed projections, `&write` write-only borrows, affine
+cleanup, linear claim retirement, named-implementation/`dyn` dispatch,
+boundary/provider calls, and checked `asm` through the same nine places. When
+a repair adds or changes a carrier, access mode, or cleanup disposition in
+Stage 04 checking, complete the matching Stage 05 (`checked-trees-to-lowered-psi`)
+and Omega Stage 00 (`terminal-psi-to-abstract-operations`) lowering arms in
+the same change. Checking and proof completion also follows the
+[requirements and evidence rule](#requirements-and-evidence): each completed
 fact row names the requirement it establishes, and each requirement closes only
 when its full acceptance is demonstrated.
 
