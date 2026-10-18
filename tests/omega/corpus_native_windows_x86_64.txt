@@ -1360,6 +1360,15 @@ pass/facts/signed_division_quotient_through_other_machine_exit built 6440ms exit
 pass/facts/signed_division_quotient_through_other_state_exit built 6738ms exit:0 @623a499c00d9+wt
 pass/facts/signed_division_quotient_through_parameter_exit built 6667ms exit:0 @623a499c00d9+wt
 pass/facts/signed_division_quotient_through_target_body_exit built 6902ms exit:0 @623a499c00d9+wt
+pass/facts/stack_frame_slot_isolation_through_call_result_exit built 1500ms exit:0 @623a499c00d
+pass/facts/stack_frame_slot_isolation_through_const_name_exit built 1500ms exit:0 @623a499c00d
+pass/facts/stack_frame_slot_isolation_through_field_exit built 1500ms exit:0 @623a499c00d
+pass/facts/stack_frame_slot_isolation_through_local_exit built 1500ms exit:0 @623a499c00d
+pass/facts/stack_frame_slot_isolation_through_match_join_exit built 1500ms exit:0 @623a499c00d
+pass/facts/stack_frame_slot_isolation_through_other_machine_exit built 1500ms exit:0 @623a499c00d
+pass/facts/stack_frame_slot_isolation_through_other_state_exit built 1500ms exit:0 @623a499c00d
+pass/facts/stack_frame_slot_isolation_through_parameter_exit built 1500ms exit:0 @623a499c00d
+pass/facts/stack_frame_slot_isolation_through_target_body_exit built 1500ms exit:0 @623a499c00d
 pass/facts/view_extent_after_write_through_call_result_exit built 5643ms exit:0 @17acd2776c21
 pass/facts/view_extent_after_write_through_const_name_exit built 5611ms exit:0 @17acd2776c21
 pass/facts/view_extent_after_write_through_field_exit built 5873ms exit:0 @17acd2776c21
