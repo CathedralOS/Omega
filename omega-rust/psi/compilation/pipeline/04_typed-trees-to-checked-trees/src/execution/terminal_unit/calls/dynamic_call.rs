@@ -152,7 +152,9 @@ pub(super) fn build(
             caller_parameters,
             caller_structural_results,
             &structural_arguments,
-        )?
+        )
+        .inspect_err(|reason| phase(reason))
+        .ok()?
     } else {
         Vec::new()
     };

@@ -117,9 +117,10 @@ impl Builder<'_, '_> {
                 &place,
             )?
         };
-        if !argument_needs_establishment(&self.structural_values.nodes.get(owner).kind) {
-            return None;
-        }
+        // The caller has already selected a completed argument value. A whole
+        // place can require that occurrence to retain its receiving contract
+        // even when it needs no new storage. Do not reclassify it as absent
+        // merely because its physical home already exists.
         let statement = u32::try_from(self.statement_index).ok()?;
         if let Some(retained) = self
             .structural_values

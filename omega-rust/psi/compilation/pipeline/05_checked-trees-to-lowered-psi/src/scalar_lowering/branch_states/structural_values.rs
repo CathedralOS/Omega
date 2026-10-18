@@ -279,9 +279,12 @@ pub(crate) fn prepare_value(
     if preparation.consumed_calls.len() != calls.len() {
         return unsupported("structural value contains unconsumed call producers");
     }
+    // Every non-copyable completed place moves to its reserved operand home.
+    // Linear claims make that transfer mandatory; they do not let a computed
+    // consumer read the old source instead of the home it reserved.
     if !argument.path.is_empty()
         || (crate::reference_custody::result_multiplicity(checked, reference)
-            == Multiplicity::Affine
+            != Multiplicity::Unrestricted
             && matches!(
                 checked.facts.values.structural_values.nodes.get(value).kind,
                 CheckedStructuralValueKind::Place(_)

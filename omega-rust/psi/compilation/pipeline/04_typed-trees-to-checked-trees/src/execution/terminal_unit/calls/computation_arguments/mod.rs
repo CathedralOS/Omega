@@ -762,31 +762,17 @@ fn owned_argument(
     }
     let mut shapes = ShapeCollector::new(program);
     for reference in [selected_type, target.type_reference] {
-        // A call consumes established storage, not cleanup-free contents.
-        // Shape collection below retains reference descriptors as leaves;
-        // the exact call's ownership and loan events authorize their transfer.
-        // Requiring CleanupOwned here discarded otherwise valid carriers only
-        // when their consuming call was nested inside a scalar computation.
-        // Checking proved any membership the formal names, so qualifications
-        // ride the formal exactly as on the statement route and the borrowed
-        // route: the carrier beneath them is the storage, and the qualified
-        // type must remain represented owned storage.
-        let qualified = !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty();
-        let storage = if qualified {
-            validation::peel_declared_constraints(program, reference)
-        } else {
-            reference
-        };
+        // Calls transport established values, including linear obligations and
+        // nominal cleanup. Plain-content classifications grant different
+        // operations and reject those carriers. Collect their stored shape and
+        // qualifications here; the checked call and exact transfer roster own
+        // membership, loans and consumption, just as for statement calls.
+        parameter_qualifications(program, &mut shapes, reference, &[])?;
+        shapes.add_stored_type(reference, &[], &[])?;
+        let storage = validation::peel_declared_constraints(program, reference);
         if program.primitive_type_reference(storage).is_some()
             || structural_access_for_type_reference(program, reference)?
                 != CheckedStructuralAccess::Owned
-            || (qualified
-                && !validation::has_contents(
-                    program,
-                    reference,
-                    &[],
-                    validation::ContentsRequirement::RepresentedOwned,
-                ))
         {
             return None;
         }

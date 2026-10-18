@@ -513,7 +513,9 @@ pub(in crate::execution) fn build_call_operation(
             caller_parameters,
             caller_structural_results,
             &structural_arguments,
-        )?
+        )
+        .inspect_err(|reason| phase(reason))
+        .ok()?
     };
 
     if boundary {

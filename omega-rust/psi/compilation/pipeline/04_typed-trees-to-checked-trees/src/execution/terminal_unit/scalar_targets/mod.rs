@@ -424,7 +424,7 @@ pub(super) fn available_target(
             structural_arguments,
         )
         .as_deref()
-            != Some(claim_transfers)
+            != Ok(claim_transfers)
     {
         return None;
     }

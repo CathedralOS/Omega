@@ -651,6 +651,7 @@ pass/ownership/linear_call_result_place_assignment_exit built 2376ms exit:0 inte
 pass/ownership/linear_computed_requirement_argument_exit built 2474ms exit:0 interpreter-exit:0 interpreter:agrees @ec4721ab353c+wt
 pass/ownership/linear_computed_call_claim_transfers_exit built 2392ms exit:0 interpreter-exit:0 interpreter:agrees @7a112c8923bd+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit built 2757ms exit:0 interpreter-exit:0 interpreter:agrees @7a112c8923bd+wt
+pass/ownership/linear_issued_argument_transfer_exit built 8748ms exit:37 interpreter-exit:37 interpreter:agrees @a1b70f5ad427+wt
 pass/ownership/linear_qualified_call_result_claims built 3984ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
 pass/ownership/linear_result_member_projection_arguments_exit built 1702ms exit:0 interpreter-exit:0 interpreter:agrees @6605065c28a7
 pass/ownership/linear_result_owners_residual_cleanup_exit built 1788ms exit:0 interpreter-exit:0 interpreter:agrees @6605065c28a7

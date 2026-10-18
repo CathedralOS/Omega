@@ -578,16 +578,20 @@ pub(super) fn build(
             checked_trees::CheckedUnitCallTransfers::Abandonment
         }
         semantic_vocabulary::BoundaryCompletion::NormalReturn => {
-            checked_trees::CheckedUnitCallTransfers::CompletionReceipts(call_claim_transfers(
-                program,
-                facts,
-                machine.symbol,
-                state.symbol,
-                call,
-                caller_parameters,
-                caller_structural_results,
-                &structural_arguments,
-            )?)
+            checked_trees::CheckedUnitCallTransfers::CompletionReceipts(
+                call_claim_transfers(
+                    program,
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    call,
+                    caller_parameters,
+                    caller_structural_results,
+                    &structural_arguments,
+                )
+                .inspect_err(|reason| phase(reason))
+                .ok()?,
+            )
         }
     };
     checked_trees::CheckedUnitCallPlan::new(checked_trees::CheckedUnitCallParts {

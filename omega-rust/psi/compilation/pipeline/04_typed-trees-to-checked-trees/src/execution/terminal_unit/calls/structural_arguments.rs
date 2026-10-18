@@ -949,10 +949,12 @@ pub(crate) fn call_claim_transfers(
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     arguments: &[CheckedUnitStructuralArgumentPlan],
-) -> Option<Vec<CheckedUnitClaimTransferPlan>> {
+) -> Result<Vec<CheckedUnitClaimTransferPlan>, &'static str> {
     let events = call_claim_events(&facts.flow, machine, state, call);
     let mut output = Vec::new();
-    let caller_state = program.state_by_symbol(state)?;
+    let caller_state = program
+        .state_by_symbol(state)
+        .ok_or("claim transfer: caller state is missing")?;
     let source_parameters = program.state_parameters(caller_state);
     for (argument_index, argument) in arguments.iter().enumerate() {
         if argument.access != CheckedStructuralAccess::Owned {
@@ -963,12 +965,12 @@ pub(crate) fn call_claim_transfers(
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
         ) || view_subslice::is_view_subslice(argument)
         {
-            return None;
+            return Err("claim transfer: owned argument has no structural owner");
         }
         if argument.byte_sequence_literal().is_some() {
             // An owned literal is a fresh unrestricted bounded owner.
             if !argument.path.is_empty() {
-                return None;
+                return Err("claim transfer: owned literal has a projected path");
             }
             continue;
         }
@@ -978,14 +980,19 @@ pub(crate) fn call_claim_transfers(
         // call events at its exact owner and selected path.
         let root = match argument.source {
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-                let parameter = caller_parameters.get(parameter_index as usize)?;
-                let source = source_parameters.get(parameter.position as usize)?;
+                let parameter = caller_parameters
+                    .get(parameter_index as usize)
+                    .ok_or("claim transfer: argument parameter is missing")?;
+                let source = source_parameters
+                    .get(parameter.position as usize)
+                    .ok_or("claim transfer: parameter source is missing")?;
                 facts::PlaceRoot::Symbol(source.symbol)
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
                 caller_structural_results
                     .iter()
-                    .find(|(result, _)| result.binding_ordinal == binding_ordinal)?
+                    .find(|(result, _)| result.binding_ordinal == binding_ordinal)
+                    .ok_or("claim transfer: evaluated argument result is missing")?
                     .1
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
@@ -996,7 +1003,7 @@ pub(crate) fn call_claim_transfers(
             {
                 continue;
             }
-            _ => return None,
+            _ => return Err("claim transfer: argument source has no owner coordinate"),
         };
         for (claim_identity, path) in owner_claim_crossings(
             program,
@@ -1006,26 +1013,29 @@ pub(crate) fn call_claim_transfers(
             &events,
             root,
             &argument.path,
-        )? {
+        )
+        .ok_or("claim transfer: owner path has no unique transferable claim")?
+        {
             if output
                 .iter()
                 .any(|transfer: &CheckedUnitClaimTransferPlan| {
                     transfer.claim_identity == claim_identity
                 })
             {
-                return None;
+                return Err("claim transfer: two arguments carry the same linear claim");
             }
             output.push(CheckedUnitClaimTransferPlan {
                 claim_identity,
-                argument_index: u32::try_from(argument_index).ok()?,
+                argument_index: u32::try_from(argument_index)
+                    .map_err(|_| "claim transfer: argument ordinal exceeds its representation")?,
                 path,
             });
         }
     }
     if output.len() != events.len() {
-        return None;
+        return Err("claim transfer: owned arguments do not cover the call's permission events");
     }
-    Some(output)
+    Ok(output)
 }
 
 /// The linear claims leaving the caller at one call: every live owned
@@ -1083,7 +1093,66 @@ fn owner_claim_crossings(
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     )>,
 > {
-    let mut crossing_events = events.iter().filter(|event| event.root == root).peekable();
+    // Evaluation storage and permission ownership are separate coordinates.
+    // An ordinary owned read transfers its source place's claims; extraction
+    // through a loan establishes claims on the completed expression instead.
+    // The exact call events identify which coordinate owns this operand. Both
+    // cannot supply it, and unrelated sibling paths cannot decide that join.
+    let evaluated = validation::CanonicalPlace {
+        root,
+        segments: Vec::new(),
+    };
+    let completed_claims =
+        claim_crossings_at_place(program, flow, state, call, events, &evaluated, path)?;
+    let Some(expression) = root.as_expression() else {
+        return Some(completed_claims);
+    };
+    // Resolve only the source place at this occurrence. Initializers and
+    // return/lifetime origins do not establish an operand's current custody.
+    let Some(owner) = validation::canonical_place_from_expression_in_state(
+        program,
+        state,
+        call.statement_index,
+        expression,
+    ) else {
+        return Some(completed_claims);
+    };
+    if owner == evaluated {
+        return Some(completed_claims);
+    }
+    let source_claims = claim_crossings_at_place(program, flow, state, call, events, &owner, path)?;
+    match (completed_claims.is_empty(), source_claims.is_empty()) {
+        (false, false) => None,
+        (false, true) => Some(completed_claims),
+        (true, _) => Some(source_claims),
+    }
+}
+
+fn claim_crossings_at_place(
+    program: &dyn ::validation::CheckingInput,
+    flow: &checked_trees::FlowFacts,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+    events: &[&checked_trees::FlowPermissionEventFact],
+    owner: &validation::CanonicalPlace,
+    path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<
+    Vec<(
+        PermissionClaimIdentity,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    )>,
+> {
+    let mut crossing_events = events
+        .iter()
+        .filter(|event| {
+            event.root == owner.root
+                && flow
+                    .ownership
+                    .segments
+                    .span_or_empty(event.segments)
+                    .starts_with(&owner.segments)
+        })
+        .peekable();
     // An owned value with no crossing linear claims needs no claim-path type
     // lookup. Anonymous constructions still participate in ordinary custody.
     if crossing_events.peek().is_none() {
@@ -1094,10 +1163,13 @@ fn owner_claim_crossings(
         state,
         call.statement_index,
         &validation::CanonicalPlace {
-            root,
+            root: owner.root,
             segments: Vec::new(),
         },
     )?;
+    let (mut selected_path, _) =
+        validation::structural_owned_path(program, root_type, &owner.segments).ok()?;
+    selected_path.extend_from_slice(path);
     let mut claims = Vec::new();
     for event in crossing_events {
         let (event_path, _) = validation::structural_owned_path(
@@ -1106,7 +1178,7 @@ fn owner_claim_crossings(
             flow.ownership.segments.span_or_empty(event.segments),
         )
         .ok()?;
-        let Some(relative) = event_path.strip_prefix(path) else {
+        let Some(relative) = event_path.strip_prefix(selected_path.as_slice()) else {
             continue;
         };
         // Disposal settles a claim without transferring it. It cannot supply

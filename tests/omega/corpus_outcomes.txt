@@ -5098,6 +5098,10 @@ fail/ownership/linear_inline_argument_result_second_use rejected 1178ms expected
 	cannot use `passed` in machine `main` state `entry` (statement 2) after `passed` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `passed` first
 fail/ownership/linear_inline_construction_member_second_use rejected 1218ms expected @a9ae30e1c334+wt
 	cannot use `left` in machine `main` state `entry` (statement 3) after `left` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `left` first
+fail/ownership/linear_issued_argument_duplicate rejected 291ms expected @a1b70f5ad427+wt
+	cannot use `token` in machine `invalid` state `entry` (statement 1) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
+fail/ownership/linear_issued_argument_unrouted rejected 1414ms expected @a1b70f5ad427+wt
+	cannot prove requires contract for call observe from invalid: token in Token::Issued in state `entry`
 fail/ownership/linear_live_overwrite rejected 1624ms expected @a9ae30e1c334+wt
 	assignment would overwrite live linear value `receipt`; consume or transfer the existing obligation first
 	linear value `receipt` reaches scope exit without being consumed or transferred
@@ -9761,6 +9765,7 @@ pass/ownership/linear_computed_call_claim_transfers_exit checked 13028ms check-t
 pass/ownership/linear_domain_forward checked 9416ms @5041ef1af684+wt
 pass/ownership/linear_entry_handoff checked 9222ms @5041ef1af684+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit checked 11905ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/linear_issued_argument_transfer_exit checked 8702ms check-target:macos_arm64 @a1b70f5ad427+wt
 pass/ownership/linear_primitive_storage_exit checked 6816ms check-target:macos_arm64 @c909d76fb4bc
 pass/ownership/linear_qualified_call_result_claims checked 6577ms check-target:macos_arm64 @7c1edd43e7e4+wt
 pass/ownership/linear_result_member_projection_arguments_exit checked 11845ms check-target:macos_arm64 @a9ae30e1c334+wt
