@@ -1,0 +1,4 @@
+owner: Antigravity / model=gemini-3.8-flash, reasoning_effort=medium / record_layout_geometry
+provenance: model=gemini-3.8-flash reasoning_effort=medium reviewer=gemini-4-argon-medium
+ticket: 7beb00277db94efd92e0524eaa0b6320
+published_utc: 2026-10-18T21:20:32.343910+00:00
