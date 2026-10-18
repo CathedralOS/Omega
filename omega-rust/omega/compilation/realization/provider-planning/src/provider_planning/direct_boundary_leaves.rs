@@ -125,6 +125,10 @@ pub(crate) fn derive(
                 if let Ok(binding) = &mut external_binding {
                     binding.trait_name = identity.clone();
                     binding.requirement_identity = identity.clone();
+                    // The physical row belongs to the projected callable plan,
+                    // not the original whole-provider namespace. Original contract
+                    // and ABI provenance remain in the satisfied schema and row.
+                    binding.table_type = plan.provider_type.clone();
                 }
                 backend_plan::DirectBoundaryExecution::Foreign(external_binding)
             };

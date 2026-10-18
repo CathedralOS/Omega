@@ -64,7 +64,21 @@ pub(super) fn rejoin_system_call(
         || external.method != selected_row.method
         || external.table_type != selected_plan.provider_type
     {
-        return Err(invalid("does not rejoin the exact selected external row"));
+        return Err(invalid(&format!(
+            "does not rejoin the exact selected external row: retained binding {:?}, target `{}`, trait `{}`, method `{}`, provider `{}`; selected binding {:?}, target `{}`, trait `{}`, method `{}`, provider `{}`",
+            external.binding,
+            external.target_name,
+            external.trait_name,
+            external.method,
+            external.table_type,
+            selected_row.binding,
+            selected_plan.target,
+            selected_plan
+                .schema
+                .identity_text(selected_plan.schema.trait_name),
+            selected_row.method,
+            selected_plan.provider_type,
+        )));
     }
     let entry = external
         .boundary_entry_plan
