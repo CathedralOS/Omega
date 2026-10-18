@@ -7,6 +7,8 @@
 //! produces no resource: carry must still establish complete leaf coverage.
 //! Lifetime retention keeps the complete enclosing owner, not a second copy
 //! of referent geometry; the evaluated actual already owns its captured address.
+//! A terminal region retains that exact footprint. It need not have one scalar
+//! type, but its collection element must have no unresolved permission carriers.
 //! These rows retain demands; they authorize no access, restoration or parking.
 
 use arena::{Arena, Handle, HandleSpan};
@@ -346,38 +348,7 @@ fn retained_places(
             );
         }
         if !crossed {
-            // A captured range is storage geometry, not a nominal value type.
-            // Classify its collection namespace without erasing the complete
-            // footprint retained below. An unresolved descriptor still fails;
-            // this query only distinguishes it from its caller-owned backing.
-            let namespace_end = place
-                .segments
-                .iter()
-                .position(|segment| {
-                    matches!(
-                        segment,
-                        facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange
-                    )
-                })
-                .unwrap_or(place.segments.len());
-            let selected_type = validation::canonical_place_type_reference(
-                program,
-                state.state_symbol,
-                typed_state.statement_nodes.count() as usize,
-                &validation::CanonicalPlace {
-                    root: place.root,
-                    segments: place.segments[..namespace_end].to_vec(),
-                },
-            )?;
-            let incoming_parameter = place.root.as_symbol().is_some_and(|symbol| {
-                program
-                    .state_parameter_by_symbol(typed_state, symbol)
-                    .is_some()
-            });
-            if validation::reference_shell(program, selected_type).is_some() && !incoming_parameter
-            {
-                // The geometry helper's unchanged fallback is not evidence
-                // that an unresolved local descriptor owns its referent.
+            if !terminal_storage_is_resolved(program, typed_state, &place)? {
                 return None;
             }
             roots.push(crate::checks::borrows::aliases::ResolvedAlias {
@@ -387,6 +358,52 @@ fn retained_places(
         }
     }
     Some(roots)
+}
+
+/// The terminal footprint must not stop at an unresolved descriptor. Regions
+/// select storage, not one scalar value: the scalar projector deliberately
+/// cannot type them. Inspect the collection's complete element frontier instead,
+/// retaining the original region unchanged. A region containing references still
+/// needs their supplying loans; neither an incoming root nor a range can erase
+/// that obligation. Bounds and interpretation were checked at loan formation.
+fn terminal_storage_is_resolved(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    place: &CapturedPlace,
+) -> Option<bool> {
+    let (segments, region) = match place.segments.split_last() {
+        Some((
+            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange,
+            prefix,
+        )) => (prefix, true),
+        _ => (place.segments.as_slice(), false),
+    };
+    let selected_type = validation::canonical_place_type_reference(
+        program,
+        state.symbol,
+        state.statement_nodes.count() as usize,
+        &validation::CanonicalPlace {
+            root: place.root,
+            segments: segments.to_vec(),
+        },
+    )?;
+    // A scalar element cannot authenticate the descriptor selecting it. Only
+    // the bare incoming parameter may supply its own unresolved reference;
+    // stored reference fields still need the crossings resolved above.
+    let incoming_reference = segments.is_empty()
+        && place
+            .root
+            .as_symbol()
+            .is_some_and(|symbol| program.state_parameter_by_symbol(state, symbol).is_some());
+    if validation::reference_shell(program, selected_type).is_some() && !incoming_reference {
+        return Some(false);
+    }
+    if region {
+        let element = validation::collection_element_type_reference(program, selected_type)?;
+        let carriers = crate::borrow::view_link::borrow_carrying_owner_paths(program, element)?;
+        return Some(carriers.is_empty());
+    }
+    Some(true)
 }
 
 /// A returned descriptor belongs to the completed invocation, not a new local

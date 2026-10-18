@@ -6215,6 +6215,8 @@ fail/recast/interior_slice_exclusive_backing_read rejected 2074ms expected @a9ae
 	state `write_words` receives `main.bytes` as mutable while its mutable receiver reads `main.bytes[4]`
 fail/recast/interior_slice_runtime_offset_non_tiling rejected 880ms expected @a9ae30e1c334+wt
 	machine `Main::main` state `main`: cannot prove exact tiling for interior slice `[u16]`: the runtime byte offset may leave a remainder for 2-byte elements; use a statically exact offset or validate the dynamic region before establishing the typed slice
+fail/recast/local_stored_byte_region_escape rejected 661ms expected @8fd8af53161a+wt
+	machine `escape` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/recast/recast_borrow_polarity_escalation rejected 1014ms expected @a9ae30e1c334+wt
 	machine `Bits::escalate` state `escalate`: recast borrow polarity must agree -- use `&x as &T` for a shared view or `&mut x as &mut T` for a writable view
 	machine `Bits::escalate` state `escalate` local `v` requires mutable source access; shared or immutable storage cannot supply it
@@ -10399,6 +10401,7 @@ pass/recast/runtime_aggregate_slice_representation_recast_exit checked 12079ms c
 pass/recast/runtime_authored_toolchain_type_shadow_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_bool_representation_recast_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_boolean_view_decision_exit checked 10913ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/recast/runtime_byte_region_state_transfer_exit checked 4422ms check-target:macos_arm64 @8fd8af53161a+wt
 pass/recast/runtime_encoded_record_view_loan_exit checked 3825ms check-target:macos_arm64 @61ba1df9375e+wt
 pass/recast/runtime_field_precondition_capture_exit checked 11966ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_float_range_representation_recast_exit checked 14468ms check-target:macos_arm64 @9c4d1c444502
