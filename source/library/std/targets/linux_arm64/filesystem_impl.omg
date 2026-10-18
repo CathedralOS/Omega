@@ -91,6 +91,19 @@ linux_arm64 machine PosixFilesystem::encode_open_options(filesystem: &mut PosixF
         | ((filesystem.open_options.create_new as i32) << 7));
 }
 
+// Resolve an absent directory hint from the native mode without decoding
+// unrelated size/timestamp fields or following a final symlink.
+linux_arm64 machine PosixFilesystem::decode_directory_kind(filesystem: &mut PosixFilesystem) -> PosixDirectoryKind {
+    let stat: &LinuxArm64StatView = &filesystem.stat_buf[0] as &LinuxArm64StatView;
+    let kind: u32 = stat.value.mode & 61440;
+    transition kind {
+        16384 -> PosixDirectoryKind::Directory
+        32768 -> PosixDirectoryKind::Regular
+        _ -> PosixDirectoryKind::Other
+    }
+}
+linux_arm64 machine PosixFilesystem::metadata_no_follow_flag() -> i32 { 256 }
+
 linux_arm64 machine PosixFilesystem::directory_type_offset() -> u64[18..=20] { 18 }
 linux_arm64 machine PosixFilesystem::directory_name_offset() -> u64[19..=21] { 19 }
 linux_arm64 machine PosixFilesystem::remove_directory_flag() -> i32 { 512 }

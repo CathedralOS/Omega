@@ -3000,6 +3000,8 @@ fail/effects/boundary_empty_provider_hides_reach rejected 337ms expected @c5a7c1
 	machine `Provider::evaluate` state `evaluate` does not satisfy trait `Pure` machine `evaluate`: service `Read` is not allowed by the trait requirement
 fail/effects/boundary_explicit_capability_required rejected 334ms expected @c5a7c1ce1957+wt
 	machine `missing_capability` publishes service reach `Host` but its checked body reaches undeclared service `Read`
+fail/effects/directory_entry_query_requires_metadata_reach rejected 2553ms expected @85e6bb9c494b+wt
+	machine `list_without_metadata` publishes service reach `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/effects/finite_requirement_block_required rejected 338ms expected @c5a7c1ce1957+wt
 	call to `echo` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `echo` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
@@ -8236,6 +8238,7 @@ pass/filesystem/runtime_portable_copy_errors_exit checked 13694ms check-target:m
 pass/filesystem/runtime_portable_directory_failure_exit checked 15138ms check-target:macos_arm64 @7e6a01265b4b+wt
 pass/filesystem/runtime_portable_directory_names_exit checked 13411ms check-target:macos_arm64 @7e6a01265b4b+wt
 pass/filesystem/runtime_portable_metadata_exit checked 12499ms check-target:macos_arm64 @7e6a01265b4b+wt
+pass/filesystem/runtime_portable_unknown_directory_kinds_exit checked 20208ms check-target:macos_arm64 @85e6bb9c494b+wt
 pass/filesystem/runtime_portable_zero_descriptor_exit checked 12120ms check-target:macos_arm64 @cc43b6679d2a+wt
 pass/filesystem/runtime_posix_borrowed_view_io_exit checked 9462ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 9450ms check-target:macos_arm64 @aebe0714a499+wt

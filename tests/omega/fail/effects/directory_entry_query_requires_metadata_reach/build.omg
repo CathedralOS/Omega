@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "directory_entry_query_requires_metadata_reach");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+}

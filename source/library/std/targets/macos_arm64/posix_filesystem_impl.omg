@@ -219,6 +219,14 @@ macos_arm64 machine posix_darwin_stat_binding() -> ForeignBinding<26, 5, 0> {
     }
 }
 
+macos_arm64 machine posix_darwin_fstatat_binding() -> ForeignBinding<26, 8, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_fstatat",
+        },
+    }
+}
 macos_arm64 machine posix_darwin_fstat_binding() -> ForeignBinding<26, 6, 0> {
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
@@ -388,6 +396,8 @@ boundary requirement PosixFilesystemDarwin::c_read_metadata(path: &u8, buffer: &
 reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_read_file_metadata(fd: i32, buffer: &mut u8) -> i32
 reaches FilesystemMetadataQuery;
+boundary requirement PosixFilesystemDarwin::c_read_metadata_at(directory_descriptor: i32, name: &u8, buffer: &mut u8, flags: i32) -> i32
+reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_read_symlink_metadata(path: &u8, buffer: &mut u8) -> i32
 reaches FilesystemMetadataQuery;
 boundary requirement PosixFilesystemDarwin::c_set_len(fd: i32, length: i64) -> i32
@@ -468,6 +478,8 @@ macos_arm64 machine PosixFilesystemDarwinImports::c_read_metadata(path: &u8, buf
     satisfies PosixFilesystemDarwin::c_read_metadata via posix_darwin_stat_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_read_file_metadata(fd: i32, buffer: &mut u8) -> i32
     satisfies PosixFilesystemDarwin::c_read_file_metadata via posix_darwin_fstat_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_read_metadata_at(directory_descriptor: i32, name: &u8, buffer: &mut u8, flags: i32) -> i32
+    satisfies PosixFilesystemDarwin::c_read_metadata_at via posix_darwin_fstatat_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_read_symlink_metadata(path: &u8, buffer: &mut u8) -> i32
     satisfies PosixFilesystemDarwin::c_read_symlink_metadata via posix_darwin_lstat_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_set_len(fd: i32, length: i64) -> i32
@@ -1065,6 +1077,28 @@ reaches FilesystemMetadataQuery
     }
 }
 
+// The kernel writes one complete native record into caller-owned storage.
+// Only path termination needs scratch; undersized output never reaches libc.
+macos_arm64 machine PosixFilesystemNativeProvider::read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
+    satisfies PosixFilesystemHost::read_metadata_at
+reaches FilesystemMetadataQuery
+{
+    transition buffer.len >= 144 { true -> prepare(directory_descriptor, name, buffer, flags) _ -> -22 }
+    state prepare(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
+    requires buffer.len >= 144;
+    {
+        let mut terminated: [u8; 4096];
+        let fits: bool = posix_terminated_path(name, &mut terminated);
+        transition fits { true -> query(directory_descriptor, terminated, buffer, flags) _ -> -63 }
+    }
+    state query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8], flags: i32) -> i32
+    requires buffer.len >= 144;
+    {
+        let outcome: i32 = PosixFilesystemDarwin::c_read_metadata_at(directory_descriptor, &terminated[0], &mut buffer[0], flags);
+        transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i32() _ -> outcome }
+    }
+}
+
 macos_arm64 machine PosixFilesystemNativeProvider::set_len(fd: i32, length: i64) -> i32
     satisfies PosixFilesystemHost::set_len
 reaches FilesystemContentWrite + FilesystemMetadataMutation
@@ -1212,6 +1246,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::provider_defaults(defaults: &
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_remove_dir_name, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_metadata, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_file_metadata, PosixFilesystemDarwinImports>(defaults);
+    PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_metadata_at, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_symlink_metadata, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_set_len, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_set_file_times, PosixFilesystemDarwinImports>(defaults);

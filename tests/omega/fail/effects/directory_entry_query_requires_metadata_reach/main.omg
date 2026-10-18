@@ -1,0 +1,14 @@
+use omega_language_std::filesystem;
+use omega::language::core::filesystem_authority;
+
+// An entry's absent native kind may require a no-follow metadata query.
+pub machine list_without_metadata(path: &[u8] in Path) -> DirEntryResult
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+invokes FilesystemService;
+{
+    FilesystemService::read_dir_nth(path, 0)
+}
+
+machine main() {
+    let result: DirEntryResult = list_without_metadata("missing");
+}

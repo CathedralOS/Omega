@@ -5470,7 +5470,7 @@ wait for Cathedral's instruction coverage. The interpreter is
 
 - **FILESYSTEM-PLATFORM-SERVICES.** Complete the remaining portable
   [platform services](wiki/spec/build/platform_services.md) behavior on
-  Windows x86-64 and in shared POSIX directory handling. Portable
+  Windows x86-64 and in raw POSIX adapters. Portable
   `FilesystemService` has one routed
   slot; POSIX algorithms are shared, while each target owns its layouts,
   flags, errno mapping and raw provider closure. Do not introduce target-varying
@@ -5487,8 +5487,6 @@ wait for Cathedral's instruction coverage. The interpreter is
     filesystem fixture oracles on Windows x86-64. Linux x86-64 retains
     its portable provider; the moved shared algorithms and Linux-only
     `write_all_full_device_exit` need Linux x86-64 execution.
-  - Resolve native `DT_UNKNOWN` before classifying directory entries or
-    choosing recursive deletion: an unknown kind is not evidence of a file.
   - Execute the Windows raw breadth and set-file-time fixtures on Windows
     x86-64 (exit 70). Foreign artifact production does not establish those
     outcomes. Preserve oversized-read, asynchronous-handle, invalid UTF-8 and

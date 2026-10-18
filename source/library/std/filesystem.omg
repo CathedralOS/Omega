@@ -284,7 +284,7 @@ pub boundary trait FilesystemService {
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes PosixFilesystemHost;
     machine read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
     machine set_permissions(path: &[u8] in Path, perms: Permissions) -> UnitResult
     reaches FilesystemMetadataMutation
@@ -332,10 +332,10 @@ pub boundary trait FilesystemService {
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
     invokes PosixFilesystemHost;
     machine read_dir_nth(path: &[u8] in Path, n: u64) -> DirEntryResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
     machine remove_dir_all(path: &[u8] in Path) -> UnitResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
     machine read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
     reaches FilesystemContentRead
@@ -496,7 +496,7 @@ invokes FilesystemService;
 }
 
 pub machine Filesystem::read_dir_is_empty(filesystem: &mut Filesystem, path: &[u8] in Path) -> EmptyResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::read_dir_is_empty(path)
@@ -608,14 +608,14 @@ invokes FilesystemService;
 }
 
 pub machine Filesystem::read_dir_nth(filesystem: &mut Filesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::read_dir_nth(path, n)
 }
 
 pub machine Filesystem::remove_dir_all(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 invokes FilesystemService;
 {
     FilesystemService::remove_dir_all(path)

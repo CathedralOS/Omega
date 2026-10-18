@@ -598,6 +598,25 @@ reaches FilesystemMetadataQuery
     }
 }
 
+linux_x86_64 machine PosixFilesystemNativeProvider::read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
+    satisfies PosixFilesystemHost::read_metadata_at
+reaches FilesystemMetadataQuery
+{
+    transition buffer.len >= 144 { true -> prepare(directory_descriptor, name, buffer, flags) _ -> -22 }
+    state prepare(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
+    requires buffer.len >= 144;
+    {
+        let mut terminated: [u8; 4096];
+        let fits: bool = posix_terminated_path(name, &mut terminated);
+        transition fits { true -> query(directory_descriptor, terminated, buffer, flags) _ -> -36 }
+    }
+    state query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8], flags: i32) -> i32
+    requires buffer.len >= 144;
+    {
+        PosixFilesystemLinux::newfstatat(directory_descriptor, &terminated[0], &mut buffer[0], flags)
+    }
+}
+
 linux_x86_64 machine PosixFilesystemNativeProvider::set_len(fd: i32, length: i64) -> i32
     satisfies PosixFilesystemHost::set_len
 reaches FilesystemContentWrite + FilesystemMetadataMutation

@@ -167,7 +167,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     }
 
     machine read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
     {
         let mut context: PosixFilesystem;
@@ -295,7 +295,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     }
 
     machine read_dir_nth(path: &[u8] in Path, n: u64) -> DirEntryResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
     {
         let mut context: PosixFilesystem;
@@ -303,7 +303,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     }
 
     machine remove_dir_all(path: &[u8] in Path) -> UnitResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     invokes PosixFilesystemHost;
     {
         let mut context: PosixFilesystem;
@@ -390,6 +390,12 @@ FilesystemPosixProvider satisfies FilesystemService {
         PosixFilesystem::unlock(&mut context, file)
     }
 }
+data PosixDirectoryKind [copy] {
+    case Other;
+    case Directory;
+    case Regular;
+}
+
 data PosixFilesystem
 where open_writable >= 0 && open_writable <= 1,
     open_readable >= 0 && open_readable <= 1,
@@ -427,6 +433,7 @@ where open_writable >= 0 && open_writable <= 1,
     err_kind: ErrorKind;
 
     dir_buf: [u8; 512];
+    directory_descriptor: i32;
     rd_off: u64 in Wrapping;
     rd_total: u64 in Wrapping;
     rd_count: i32 in Wrapping;
@@ -439,8 +446,6 @@ where open_writable >= 0 && open_writable <= 1,
     rd_reclen: u64 in Wrapping;
 
     rd_dtype: u8;
-    rd_dirs: i32 in Wrapping;
-    rd_files: i32 in Wrapping;
 
     rd_recno: u64 in Wrapping;
     rd_target: u64 in Wrapping;
@@ -1023,7 +1028,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 }
 
 machine PosixFilesystem::read_dir_is_empty(filesystem: &mut PosixFilesystem, path: &[u8] in Path) -> EmptyResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 
 invokes
     PosixFilesystemHost;
@@ -1307,101 +1312,11 @@ invokes
     }
 }
 
-machine PosixFilesystem::read_dir_stats(filesystem: &mut PosixFilesystem, path: &[u8] in Path) -> DirStatsResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
-
-{
-    filesystem.read_flags = 0;
-    filesystem.rd_position = 0;
-    filesystem.rd_off = 0;
-    filesystem.rd_count = 0;
-    filesystem.rd_dirs = 0;
-    filesystem.rd_files = 0;
-    let dfd: i32 = PosixFilesystemHost::open(path, filesystem.read_flags);
-    transition dfd >= 0 { true -> rds_read(filesystem, dfd) _ -> rds_err_i32(filesystem, dfd) }
-    state rds_read(filesystem: &mut PosixFilesystem, dfd: i32) -> DirStatsResult {
-        filesystem.rd_off = 0;
-        let total: i64 = PosixFilesystemHost::read_dir(dfd, &mut filesystem.dir_buf, 512, &mut filesystem.rd_position);
-        filesystem.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
-        transition total > 0 { true -> rds_walk(filesystem, dfd) _ -> rds_nonpositive(filesystem, dfd, total) }
-    }
-    state rds_nonpositive(filesystem: &mut PosixFilesystem, dfd: i32, total: i64) -> DirStatsResult {
-        transition total == 0 { true -> rds_finish(filesystem, dfd) _ -> rds_err_i64(filesystem, dfd, total) }
-    }
-    state rds_walk(filesystem: &mut PosixFilesystem, dfd: i32) -> DirStatsResult {
-        transition filesystem.rd_off < filesystem.rd_total { true -> rds_header(filesystem, dfd) _ -> rds_read(filesystem, dfd) }
-    }
-    state rds_header(filesystem: &mut PosixFilesystem, dfd: i32) -> DirStatsResult {
-        transition filesystem.rd_off < 492 { true -> rds_body(filesystem, dfd) _ -> rds_malformed(filesystem, dfd) }
-    }
-    state rds_body(filesystem: &mut PosixFilesystem, dfd: i32) -> DirStatsResult {
-        filesystem.rd_idx = filesystem.rd_off + 16;
-        filesystem.rd_lo = filesystem.dir_buf[filesystem.rd_idx];
-        filesystem.rd_idx = filesystem.rd_off + 17;
-        filesystem.rd_hi = filesystem.dir_buf[filesystem.rd_idx];
-        filesystem.rd_lou = widen_u8_to_u64(filesystem.rd_lo) as u64 in Wrapping;
-        filesystem.rd_hiu = widen_u8_to_u64(filesystem.rd_hi) as u64 in Wrapping;
-        filesystem.rd_reclen = (filesystem.rd_hiu << 8) | filesystem.rd_lou;
-        filesystem.rd_idx = filesystem.rd_off + (PosixFilesystem::directory_type_offset() as u64 in Wrapping);
-        filesystem.rd_dtype = filesystem.dir_buf[filesystem.rd_idx];
-        transition filesystem.rd_reclen > 0 && filesystem.rd_off + filesystem.rd_reclen <= filesystem.rd_total { true -> rds_accept(filesystem, dfd) _ -> rds_malformed(filesystem, dfd) }
-    }
-    state rds_accept(filesystem: &mut PosixFilesystem, dfd: i32) -> DirStatsResult {
-        filesystem.rd_count = filesystem.rd_count + 1;
-        filesystem.rd_off = filesystem.rd_off + filesystem.rd_reclen;
-        transition filesystem.rd_dtype == 4 { true -> rds_dir(filesystem, dfd) _ -> rds_maybe_file(filesystem, dfd) }
-    }
-    state rds_dir(filesystem: &mut PosixFilesystem, dfd: i32) -> DirStatsResult {
-        filesystem.rd_dirs = filesystem.rd_dirs + 1;
-        transition { _ -> rds_walk(filesystem, dfd) }
-    }
-    state rds_maybe_file(filesystem: &mut PosixFilesystem, dfd: i32) -> DirStatsResult {
-        transition filesystem.rd_dtype == 8 { true -> rds_file(filesystem, dfd) _ -> rds_cont(filesystem, dfd) }
-    }
-    state rds_file(filesystem: &mut PosixFilesystem, dfd: i32) -> DirStatsResult {
-        filesystem.rd_files = filesystem.rd_files + 1;
-        transition { _ -> rds_walk(filesystem, dfd) }
-    }
-    state rds_cont(filesystem: &mut PosixFilesystem, dfd: i32) -> DirStatsResult {
-        transition { _ -> rds_walk(filesystem, dfd) }
-    }
-    state rds_finish(filesystem: &mut PosixFilesystem, dfd: i32) -> DirStatsResult {
-        let closed: i32 = PosixFilesystemHost::close(dfd);
-        transition filesystem.rd_count > 2 { true -> rds_ok(filesystem) _ -> rds_empty() }
-    }
-    state rds_ok(filesystem: &mut PosixFilesystem) -> DirStatsResult {
-        let converted_entries: u64 = narrow_i32_to_u64_wrapping((filesystem.rd_count - 2) as i32);
-        let converted_subdirs: u64 = narrow_i32_to_u64_wrapping((filesystem.rd_dirs - 2) as i32);
-        let converted_files: u64 = narrow_i32_to_u64_wrapping(filesystem.rd_files as i32);
-        DirStatsResult::Ok { stats: DirStats {
-            entries: converted_entries,
-            subdirs: converted_subdirs,
-            files: converted_files,
-        } }
-    }
-    state rds_empty() -> DirStatsResult {
-        DirStatsResult::Ok { stats: DirStats { entries: 0, subdirs: 0, files: 0 } }
-    }
-    state rds_err_i32(filesystem: &mut PosixFilesystem, result: i32) -> DirStatsResult {
-        let kind: ErrorKind = PosixFilesystem::last_error_i32(filesystem, result);
-        DirStatsResult::Error { kind: kind }
-    }
-    state rds_err_i64(filesystem: &mut PosixFilesystem, dfd: i32, result: i64) -> DirStatsResult {
-        let kind: ErrorKind = PosixFilesystem::last_error_i64(filesystem, result);
-        let closed: i32 = PosixFilesystemHost::close(dfd);
-        DirStatsResult::Error { kind: kind }
-    }
-    state rds_malformed(filesystem: &mut PosixFilesystem, dfd: i32) -> DirStatsResult {
-        let closed: i32 = PosixFilesystemHost::close(dfd);
-        filesystem.err_kind = ErrorKind::Other;
-        DirStatsResult::Error { kind: ErrorKind::Other }
-    }
-}
 
 // Both public enumeration and recursive deletion use the same name-filtering
 // record reader. POSIX does not promise that dot entries precede ordinary names.
 machine PosixFilesystem::read_dir_nth(filesystem: &mut PosixFilesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 invokes PosixFilesystemHost;
 {
     let descriptor: i32 = PosixFilesystemHost::open(path, 0);
@@ -1418,9 +1333,10 @@ invokes PosixFilesystemHost;
 }
 
 machine PosixFilesystem::read_dir_entry_fd(filesystem: &mut PosixFilesystem, dfd: i32, n: u64) -> DirEntryResult
-reaches DirectoryEnumeration
+reaches DirectoryEnumeration + FilesystemMetadataQuery
 
 {
+    filesystem.directory_descriptor = dfd;
     filesystem.rd_position = 0;
     filesystem.rd_off = 0;
     filesystem.rd_recno = 0;
@@ -1522,6 +1438,29 @@ reaches DirectoryEnumeration
         transition { _ -> rdef_copy(filesystem) }
     }
     state rdef_build(filesystem: &mut PosixFilesystem) -> DirEntryResult {
+        // DT_UNKNOWN is an absent optimization hint, never a file kind. Query
+        // relative to the same open directory and inspect the symlink itself.
+        transition filesystem.rd_dtype == 0 { true -> rdef_unknown(filesystem) _ -> rdef_known(filesystem) }
+    }
+    state rdef_unknown(filesystem: &mut PosixFilesystem) -> DirEntryResult {
+        let name_length: u64 = filesystem.rd_j as u64;
+        transition name_length < 256 { true -> rdef_metadata(filesystem, name_length) _ -> rdef_malformed(filesystem) }
+    }
+    state rdef_metadata(filesystem: &mut PosixFilesystem, name_length: u64[0..=255]) -> DirEntryResult {
+        let outcome: i32 = PosixFilesystemHost::read_metadata_at(filesystem.directory_descriptor,
+            filesystem.entry_name[0..name_length], &mut filesystem.stat_buf,
+            PosixFilesystem::metadata_no_follow_flag());
+        transition outcome == 0 { true -> rdef_classify(filesystem) _ -> rdef_err(filesystem, outcome as i64) }
+    }
+    state rdef_classify(filesystem: &mut PosixFilesystem) -> DirEntryResult {
+        let kind: PosixDirectoryKind = PosixFilesystem::decode_directory_kind(filesystem);
+        transition kind {
+            PosixDirectoryKind::Directory -> rdef_ok_dir(filesystem)
+            PosixDirectoryKind::Regular -> rdef_ok_file(filesystem)
+            PosixDirectoryKind::Other -> rdef_ok_other(filesystem)
+        }
+    }
+    state rdef_known(filesystem: &mut PosixFilesystem) -> DirEntryResult {
         transition filesystem.rd_dtype == 4 { true -> rdef_ok_dir(filesystem) _ -> rdef_maybe_file(filesystem) }
     }
     state rdef_ok_dir(filesystem: &mut PosixFilesystem) -> DirEntryResult {
@@ -1548,7 +1487,7 @@ reaches DirectoryEnumeration
 }
 
 machine PosixFilesystem::remove_dir_all(filesystem: &mut PosixFilesystem, path: &[u8] in Path) -> UnitResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 
 invokes
     PosixFilesystemHost;
@@ -1582,7 +1521,7 @@ invokes
 }
 
 machine PosixFilesystem::rda_drain(filesystem: &mut PosixFilesystem, fuel: u64) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 
 terminates by fuel;
 {
@@ -1600,7 +1539,7 @@ terminates by fuel;
 }
 
 machine PosixFilesystem::rda_step(filesystem: &mut PosixFilesystem, step: u64)
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 
 {
     filesystem.rda_rc = 0 - 5;
