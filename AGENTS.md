@@ -98,10 +98,10 @@ Compiler advancement runs `samples/cli/facts` only. One fact is one folder.
 The nine places are local, field, parameter, call result, match join, const
 name, another state, another machine, and another target body. Those places
 are one row. Do not expand them into a combinatorial matrix.
-`samples/cli/facts/length/` is the filled row that met this bar. The other
-folders are unfilled or one-place facts. The next advance fills one of those
-facts across the nine places, or takes the next uncovered fact, instead of
-picking an unrelated program.
+`samples/cli/facts/length/` is a reference row. Inspect each folder's current
+coverage and applicable evidence to distinguish filled rows from missing places.
+The next advance fills a missing place of the selected fact, or takes the next
+uncovered fact, instead of picking an unrelated program.
 
 A fact folder is done only when the same fact survives all nine places. One
 sentence names the fact and the operation, and every place copies that
@@ -112,6 +112,11 @@ the compiler. Each place needs a reject twin that breaks only that fact and
 still rejects. A place with no twin does not count. A landing that only
 rewrites the failing place is not acceptance. Exact subtraction, alias
 transfer, and dependent subtract are examples of that repair path.
+
+The nine places test fact transport. Checking and proof completion also follows
+the [requirements and evidence rule](#requirements-and-evidence): each completed
+fact row names the requirement it establishes, and each requirement closes only
+when its full acceptance is demonstrated.
 
 Programs under the rest of `samples/` stay out of compiler-advance selection.
 They may stay broken while this layer is in progress. A named assignment
@@ -181,6 +186,53 @@ A change that makes the language reject source it used to accept migrates
 every sample and fixture it breaks in the same change. Run the sample gate on
 the affected samples before landing; a sample left failing by a language
 change becomes someone else's queue entry with no compiler work in it.
+
+### Requirements and evidence
+
+Facts supply executable evidence; the accepted check/proof requirements define
+what must be complete. Read the governing specification and the owning task's
+full acceptance. Account for these obligations where they apply:
+
+- **Establishment:** construction, guards, entry contracts, completed calls or
+  checked theorem evidence justify introducing the fact; an unproved goal does
+  not establish itself.
+- **Identity and lifetime:** the fact names an exact value or storage version;
+  snapshots retain their meaning, and overlapping writes invalidate facts about
+  changed storage without discarding facts about provably unrelated storage.
+- **Composition:** calls substitute exact actuals, joins retain only justified
+  facts on every incoming path, and state transitions prove their arrival
+  obligations.
+- **Soundness boundaries:** proof preserves ownership, access authority and
+  termination obligations, tracks transitive assumptions, and respects the
+  boundary between erased mathematics and executable values.
+
+These are requirement categories, not a new test matrix or a claim that they
+exhaust the accepted language. Keep the concrete remaining requirements and
+acceptance on the existing task board. In the fact folder's README, name the
+owning task and exact requirement, link the positive witnesses and fact-sensitive
+reject twins, and state what that evidence establishes and what remains open.
+Keep run records in the existing qualification/claim record or commit, with
+producer revision and target; distinguish fresh results, applicable retained
+evidence and unverified cases. A missing or unrelated reject diagnostic is not
+evidence that the fact is enforced. Subtract only the acceptance demonstrated.
+A filled row does not close its parent requirement or the check/proof layer
+unless all of that acceptance is accounted for.
+
+A compiler-repair assignment needs a demonstrated current-baseline defect:
+a valid positive wrongly refuses or executes with the wrong outcome, or a
+well-formed invalid control wrongly accepts. Freeze the source/oracle and record
+that result before implementation.
+An already passing witness may establish coverage; do not manufacture a failure
+or count it as a necessary repair. Preserve formation obligations and the whole
+published contract: a condition cannot justify forming its own partial operand,
+and a necessary consequence is not an equivalent replacement without its converse.
+
+Implementers and reviewers follow [execution evidence and replay inputs](tools/testing.md#execution-evidence-and-replay-inputs)
+and [main-change validation](tools/testing.md#main-change-validation). Runtime
+claims require actual engine observations; evidence reuse needs a consumer-based
+applicability argument. Required independent review follows the
+[exact-candidate review boundary](tools/testing.md#independent-semantic-review).
+The implementation owner resolves findings and finishes authorized landing.
 
 ## Commands
 

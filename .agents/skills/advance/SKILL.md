@@ -47,6 +47,13 @@ transfer, and dependent subtract are examples of that repair path.
 Read the whole item's acceptance and verify its remaining gap against current
 main. Record the parent task and the exact requirement the next fact will
 discharge. Do not attach a task ID to an unrelated program after choosing it.
+Apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence):
+the nine places establish transport, while the governing acceptance also covers
+fact establishment, identity and invalidation, composition and soundness where
+applicable. Record the requirement, linked positives/reject twins, demonstrated
+acceptance and remaining work in the fact README; keep producer/target-bound
+run records in the existing qualification/claim record or commit. Close only
+the acceptance that evidence actually establishes.
 
 Use `python3 tools/sample_queue.py --facts` as witness evidence inside
 `samples/cli/facts`, not a global smallest-first assignment policy and not the
@@ -282,6 +289,12 @@ checkpoint fixed, integrate main near publication outside the queue, then assess
 and run only invalidated or required final-candidate checks. Reused observations
 retain their actual producer/revision; final independent review and exact-SHA
 landing verification are not reused across candidates.
+Read [execution evidence and replay inputs](../../../tools/testing.md#execution-evidence-and-replay-inputs)
+before preparing projects: copy authored inputs and declared resources, preserve
+historical generated state, and record actual engine observations. Apply the
+branch/consumer applicability rules in main-change validation before attesting
+reuse. Use a completed replay's receipts where supported instead of duplicating
+an entire preparation pass just for a review manifest.
 Before a semantic repair, include the focused canonical passages themselves,
 their source revision/blob hashes and the behavior-to-contract mapping in the
 implementation and independent-review context (`qualification.py handoff`
@@ -358,6 +371,9 @@ Give each implementation worker a distinct sample to make run, never one stage
 or file of a sample. The worker makes the necessary cross-layer repairs and
 lands its own result; retain any explicitly required independent review.
 Independent read-only review challenges assumptions and checks correctness.
+Use the [independent semantic review boundary](../../../tools/testing.md#independent-semantic-review)
+for its exact candidate, canonical context, current/historical evidence and
+findings. The implementation owner retains review fixes and publication.
 Workers record progress through `python tools/claims.py note --ticket <ticket>
 --text <finding>` on their claim ticket plus the session report.
 

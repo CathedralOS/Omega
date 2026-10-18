@@ -43,6 +43,31 @@ scoped change: retain the command, revision, and evidence, and report them witho
 repairing them in the same task. New or unexplained failures in affected behavior
 must be resolved before landing. Do not repeat broad suites to attribute one test.
 
+### Execution evidence and replay inputs
+
+Record what a command actually did: source checking, target publication, native
+execution or Terminal execution. A successful compiler exit or target flag does
+not establish that a program ran. Runtime acceptance records each required
+engine's actual exit and authored payload/output/writeback oracle. Where useful,
+corrupt the expected result and verify the failure path in both engines. A reject
+twin must reach its intended semantic obligation; missing imports, stale setup
+or an unrelated refusal do not establish that the fact is enforced. Keep source
+rejection, unsupported publication and runtime failure distinct, and name
+unavailable hosts. Consult CLI help before combining unfamiliar modes or flags.
+
+Fresh replay projects contain authored sources, declared resources and oracle
+files. Exclude generated build directories, caches, binaries and package-review
+state. Carry a lock only when that exact approved lock is an explicit check
+input; otherwise generate it normally in the fresh project. Preserve historical
+producers, products and locks unchanged. Perform necessary generated-file updates
+outside active qualification captures. Retain setup failures and their corrected
+attempts instead of disguising them as compiler or semantic outcomes.
+
+Use existing qualification/claim records for a compact evidence ledger: asserted
+behavior, observed source and producer identities, library/toolchain/environment,
+target/engine, command, exit/diagnostic, source/oracle/artifact hashes, and the
+reason to reuse or rerun. Keep raw outcomes with their actual observed revision.
+
 ### Main-change validation
 
 Qualify the outcome on a fixed recorded revision, with source/oracle hashes,
@@ -69,6 +94,28 @@ during capture invalidates evidence even when the validator exits successfully.
   the governing inputs remain unchanged. This establishes the recorded producer's
   behavior, not the behavior of an untested newer compiler.
 
+Inspect the complete relevant old/new delta and its consumer closure before
+judging applicability. Follow true and false edges, negation and short-circuit
+paths, preserving selected operator meaning. For builtin integer equality, a
+false `x == k` edge excludes `k` even without a `!=` token. A spelling search
+alone cannot prove that a new branch is irrelevant. Schema/version/default-field,
+codec, lowering and admission changes may execute even when the advertised new
+feature is absent. Compiler checking, formatting and lint inspect source
+independently of runtime branch reachability.
+
+For each check, connect the changes to its asserted behavior and state the
+evidence supporting reuse or the focused rerun needed. If that argument is
+uncertain or costs more than the check, rerun the affected check. Register
+independent source-scope reuse through [qualification](qualification.md), retaining
+the original run, producer and artifact identities. New corroborating executions
+keep their own identities; do not relabel an old observation as a new execution.
+
+Share a completed replay's artifacts and receipts across checks/reviewers when
+the protocol supports that reuse; do not repeat the entire preparation/execution
+pass merely to fill another manifest. Keep current producer/review bindings
+separate from historical frozen products. This does not waive affected-consumer
+reruns, artifact integrity, required final review or the exact-SHA landing build.
+
 Record why evidence remains applicable to the integrated candidate; a new SHA
 alone is not a full-baseline requirement. Independent review required by the
 assignment covers the final integrated tree. After every rebase, obtain the
@@ -76,6 +123,25 @@ normal exact-SHA, workspace-aware [landing receipt](landing.md#verify-the-build-
 even when behavioral evidence is reusable. New or unexplained affected failures
 still block landing; required authority, custody, digest and golden gates remain.
 
+### Independent semantic review
+
+When the assignment requires independent review, provide the exact candidate
+and integrated base, relevant accepted canonical passages and source identities,
+original baseline outcomes, preserved positives/controls, the evidence ledger,
+current versus historical observations, and known limitations. Review the
+[requirements and evidence](../AGENTS.md#requirements-and-evidence) established
+by those consumers, including the semantic premise behind a rewrite, exact
+subjects/actuals, effects/lifetime, formation and authority. Inspect raw evidence;
+check counts, file presence and a reviewer's identity field alone prove none of
+those obligations. Choose necessary independent replays from the affected scope.
+
+Return an exact-candidate acceptance decision, concrete blocking findings with
+file/line or evidence references, any needed focused checks, and material
+limitations. Distinguish demonstrated defects from unresolved concerns and
+documented baseline failures. Review authority does not transfer implementation
+ownership: the worker resolves findings and finishes authorized publication.
+An approval for one SHA does not automatically approve a rebased candidate;
+review its incoming changes and affected evidence before accepting the final tree.
 
 ## Running one test
 
@@ -331,8 +397,9 @@ timestamp freshness. See [Cargo's checksum freshness contract](https://doc.rust-
 **A directly invoked `target/debug/omega` can predate the commit you are
 judging, and it reports failures the tree does not have.** The same hazard as a
 stale `--runner` applies to hand-run CLI baselines, and it is easier to hit
-because nothing stamps the binary: the executable's mtime is the only evidence,
-it is easy to read a result as a property of the checked-out source, and the
+when no producer receipt binds the binary to its source inputs. A pathname or
+mtime does not establish that binding. It is easy to read a result as a property
+of the checked-out source, and the
 `--check` output names the fixture path rather than the compiler that judged it.
 A worktree `git worktree add` shares the repository but not `target/`, so a
 worktree has no binary at all until it builds one; the *main checkout's*
@@ -341,24 +408,27 @@ and it can be built from a different checkout root entirely (a relocated
 repository leaves that absolute path compiled in, visible as
 `missing Omega toolchain library at <other path>`). Two facts make a wrong
 baseline survive review: the failure text is a plausible language diagnostic
-rather than a toolchain complaint once `OMEGA_LIBRARY_ROOT` is set, and every
-fact-place witness is currently pinned on Linux and Windows only, so on macOS
-no golden row exists to contradict a mis-measured result.
+rather than a toolchain complaint once `OMEGA_LIBRARY_ROOT` is set, and an
+unrecorded host may have no golden row to contradict a mis-measured result.
 
-Before judging any fact or program by hand, build in the tree you are judging
-and check the binary is younger than the commit under test:
+Before judging a current baseline, verify the immutable producer's source/build
+receipt and effective library inputs, or build from the exact tree under test.
+Commit and executable timestamps are triage hints; a newer mtime alone does not
+establish matching compiler dependencies or source identity:
 
 ```bash
 git log -1 --format=%cd --date=iso HEAD   # commit time
-ls -l target/debug/omega                  # must be newer
+ls -l target/debug/omega                # inspect age; verify the producer receipt
 OMEGA_LIBRARY_ROOT=$PWD/source/library ./target/debug/omega --check <root.omg>
 ```
 
-A binary older than HEAD invalidates every verdict it produced. One wave
+An unbound or different producer cannot establish the current baseline. Earlier
+verified results retain their original producer and may remain applicable under
+main-change validation; binary age alone neither validates nor invalidates them. One wave
 assigned four fact folders from a baseline taken with a binary built over an
 hour before the launch commit; the reported red places did not exist on the
-base, and two of the four facts needed no compiler repair at all. Rebuilding is
-seconds against a warm cache and is never worth skipping.
+base, and two of the four facts needed no compiler repair at all. Rebuild when
+the tested compiler inputs differ or their identity cannot be established.
 
 The opposite misreading is just as costly: a *fresh* binary over a sample
 project whose accepted review was recorded by an older compiler. The
@@ -366,13 +436,13 @@ package-manager compares the accepted occurrence's `compiler_identity` against
 the current one and fails with ``accepted package `<name>` compiler identity
 changed; run `omega update` for fresh review before compiling``, so every place
 of a fact exits 1 and looks like a regression the rebuild introduced. It is a
-stale accepted-review cache, not a compiler verdict; run `omega update` in the
-project directory (it rewrites only ignored `build/` output) and measure again.
-The corpus fixtures are immune because they run in fresh temporary directories,
-so a discrepancy between a hand-run sample and the same fixture in the corpus
-is this cache rather than a real behavioral difference. Rebuilding a compiler
-and rebuilding a sample's accepted review are separate steps, and only the
-first is automatic.
+stale accepted-review state, so prepare a fresh replay project or refresh the
+generated review/lock inputs through normal `omega update` outside active
+captures. Preserve historical accepted snapshots unchanged. Fresh corpus
+directories avoid inheriting this state, but a sample/corpus disagreement still
+requires comparing producer, library, target and project inputs before assigning
+a cause. Rebuilding a compiler and refreshing a sample's accepted review are
+separate steps.
 
 The gate defaults `OMEGA_LIBRARY_ROOT` to the measured checkout's
 `source/library`, preserving an explicit caller override. Shared Cargo caches

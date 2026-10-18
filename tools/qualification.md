@@ -243,6 +243,11 @@ and the review's content digest. Preserve both the receipt and review artifact.
 The tool records an externally supplied review; its reviewer field does not
 authenticate independence. Obtaining the actual independent decision remains
 the workflow owner's responsibility.
+Apply [main-change validation](testing.md#main-change-validation) when making
+that applicability argument, including false comparison edges and unconditional
+schema/default-field effects. Runtime branch reachability does not establish
+that compiler checking, formatting or lint inputs are unchanged. Current
+corroboration and historical observations retain their separate identities.
 Assessment can then cover only the specifically reviewed `source_changed`
 reasons. It still refuses changed artifacts, environments, definitions,
 observations or damaged receipts. Final-candidate checks cannot receive these

@@ -59,7 +59,17 @@ discovery.
 Copy this into every worker prompt:
 
 > Read the assigned capability's full acceptance and identify the requirement
-> this witness establishes. Compiler advancement witnesses are fact folders
+> this witness establishes. Apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence):
+> name the owning requirement, link the positive witnesses and fact-sensitive
+> reject twins in the fact README, and state the acceptance demonstrated and
+> what remains open. The nine places test transport; account for establishment,
+> identity and invalidation, composition and soundness where applicable. A filled
+> row closes only the acceptance its evidence establishes.
+> Follow [execution evidence](../../../tools/testing.md#execution-evidence-and-replay-inputs),
+> [main-change validation](../../../tools/testing.md#main-change-validation) and any
+> required [independent review](../../../tools/testing.md#independent-semantic-review);
+> preserve historical identities and finish review fixes in the same assignment.
+> Compiler advancement witnesses are fact folders
 > under `samples/cli/facts`. One fact is one folder. The nine places are one
 > row, not a matrix: local, field, parameter, call result, match join, const
 > name, another state, another machine, and another target body. Do not select

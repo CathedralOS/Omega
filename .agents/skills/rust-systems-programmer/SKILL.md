@@ -64,6 +64,15 @@ For a proposed change, identify the avoided work and the contract that must surv
 
 For implementation, carry the smallest justified change through formatting and [scoped validation](../../../tools/testing.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result.
 
+For compiler work and review, apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence),
+[main-change validation](../../../tools/testing.md#main-change-validation), and
+the [independent semantic review boundary](../../../tools/testing.md#independent-semantic-review)
+when required by the assignment. Check the semantic premise and selected meaning,
+both comparison outcomes, and unconditional artifact/schema effects before
+accepting evidence reuse. Runtime branch arguments do not cover Rust checking,
+formatting or lint. Keep exact-candidate approval and historical run identities
+distinct; the implementation owner resolves findings and completes landing.
+
 When changing code organization, follow the touched route from its public
 entrypoint to the operation and result handling before reporting completion, applying
 [Discoverability architecture](../../../omega-rust/pipeline.md#discoverability-architecture).
