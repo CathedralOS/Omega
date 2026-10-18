@@ -37,7 +37,7 @@ pub fn closed_scalar_place_projection(
     reference: TypeReferenceHandle,
     path: &[facts::PlaceSegment],
 ) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
-    if path.is_empty() || !closed_value(program, value, reference, &mut Vec::new()) {
+    if !closed_value(program, value, reference, &mut Vec::new()) {
         return None;
     }
     let mut selected = value;

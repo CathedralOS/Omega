@@ -45,6 +45,13 @@ pub(crate) fn resolve(
             return Some(current);
         }
         if place.segments.is_empty() {
+            if program.primitive_type_reference(local.type_reference).is_some() {
+                // A closed immutable scalar needs no backing read. Captured calls
+                // and other non-closed initializers retain their original SSA term.
+                return Some(validation::closed_scalar_place_projection(
+                    program, local.initial_value, local.type_reference, &[],
+                ).map_or(current, |(leaf, _)| leaf));
+            }
             let TypeReferenceNode::Reference { access, .. } = program
                 .type_reference_table
                 .type_reference(local.type_reference)
