@@ -321,8 +321,9 @@ impl TerminalExecution<'_> {
         };
         let (scalar_type, left, right, left_type, right_type) =
             self.integer_operands(operation, left, right)?;
-        let operands_match = if matches!(operation.kind, OperationKind::ExactIntegerSubtract { .. })
-        {
+        let operands_match = if matches!(operation.kind, OperationKind::ExactIntegerAdd { .. }) {
+            scalar_type.admits_exact_add_operands(left_type, right_type)
+        } else if matches!(operation.kind, OperationKind::ExactIntegerSubtract { .. }) {
             scalar_type.admits_exact_subtract_operands(left_type, right_type)
         } else {
             left_type == scalar_type && right_type == scalar_type
@@ -331,7 +332,9 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let value = match operation.kind {
-            OperationKind::ExactIntegerAdd { .. } => scalar_type.exact_add(left, right),
+            OperationKind::ExactIntegerAdd { .. } => {
+                scalar_type.exact_add_values(left_type, left, right_type, right)
+            }
             OperationKind::WrappingIntegerAdd { .. } => scalar_type.wrapping_add(left, right),
             OperationKind::ExactIntegerSubtract { .. } => {
                 scalar_type.exact_subtract_values(left_type, left, right_type, right)

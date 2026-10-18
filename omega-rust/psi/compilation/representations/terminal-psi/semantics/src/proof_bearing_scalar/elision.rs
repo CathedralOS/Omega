@@ -108,23 +108,27 @@ pub fn elidable_proof_bearing_scalar_leaf(
                 count: *count,
             }
         }
-        OperationKind::ExactIntegerAdd { left, right, .. } => OperationKind::WrappingIntegerAdd {
-            left: *left,
-            right: *right,
-        },
-        OperationKind::ExactIntegerSubtract { left, right, .. } => {
+        kind @ (OperationKind::ExactIntegerAdd { left, right, .. }
+        | OperationKind::ExactIntegerSubtract { left, right, .. }) => {
             // A fixed-integer wrapping operation cannot carry address/count
             // operands. Literal folding above is valid for both signatures;
-            // a nonliteral address subtraction retains its exact obligation.
+            // a nonliteral address operation retains its exact obligation.
             if result_type.is_address()
                 || value_types.get(left) != Some(&ScalarType::Integer(result_type))
                 || value_types.get(right) != Some(&ScalarType::Integer(result_type))
             {
                 return Ok(None);
             }
-            OperationKind::WrappingIntegerSubtract {
-                left: *left,
-                right: *right,
+            if matches!(kind, OperationKind::ExactIntegerAdd { .. }) {
+                OperationKind::WrappingIntegerAdd {
+                    left: *left,
+                    right: *right,
+                }
+            } else {
+                OperationKind::WrappingIntegerSubtract {
+                    left: *left,
+                    right: *right,
+                }
             }
         }
         OperationKind::ExactIntegerMultiply { left, right, .. } => {

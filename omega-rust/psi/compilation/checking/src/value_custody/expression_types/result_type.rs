@@ -977,23 +977,50 @@ fn binary_result(
             count.then_some(left)
         }
         Add | Subtract | Multiply | Divide => {
-            // The difference of two addresses is a distance, and the address
-            // model calls a distance a count: there is no referent for it to
-            // name, and no width equality relates counts to addresses, so it
-            // lands `u64` rather than its operands' carrier. `addr - count`
-            // and `addr + count` still offset an address and keep it.
-            // `reject_address_arithmetic` admits exactly these three shapes;
-            // this types the one whose result is not the left operand's.
-            if binary.operator == Subtract
-                && operands.iter().all(|reference| {
-                    reference.is_some_and(|reference| {
-                        primitive(program, reference) == Some(PrimitiveType::Addr)
-                    })
+            // Address arithmetic selects by operand roles, never by whichever
+            // operand happens to be first. Keep the same signature as captured
+            // arithmetic and executable construction; equal widths do not
+            // permit replacing the u64 offset with an address.
+            if operands.iter().any(|reference| {
+                reference.is_some_and(|reference| {
+                    primitive(program, reference) == Some(PrimitiveType::Addr)
                 })
-            {
+            }) {
+                let mut carriers = operands
+                    .map(|reference| reference.and_then(|reference| primitive(program, reference)));
+                for position in 0..2 {
+                    if carriers[position].is_none() {
+                        let expression = if position == 0 {
+                            binary.left
+                        } else {
+                            binary.right
+                        };
+                        if operands[position].is_some()
+                            || !crate::value_custody::literals::has_anonymous_numeric_results(
+                                program, expression,
+                            )
+                        {
+                            return None;
+                        }
+                        carriers[position] =
+                            Some(typed_trees::operator::integer_peer_operand_carrier(
+                                binary.operator,
+                                carriers[1 - position]?,
+                                position == 1,
+                            ));
+                    }
+                }
+                let result = typed_trees::operator::builtin_integer_result_carrier(
+                    binary.operator,
+                    [carriers[0]?, carriers[1]?],
+                )?;
                 return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
                     program,
-                    BuiltinTypeAtom::U64,
+                    if result == PrimitiveType::Addr {
+                        BuiltinTypeAtom::Address
+                    } else {
+                        BuiltinTypeAtom::U64
+                    },
                 );
             }
             let carrier =

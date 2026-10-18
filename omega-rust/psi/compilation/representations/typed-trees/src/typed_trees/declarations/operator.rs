@@ -12,6 +12,7 @@ mod indexing;
 mod named_calls;
 mod operand_signatures;
 mod primitive_float;
+mod primitive_integer;
 mod satisfied_operators;
 mod spellings;
 mod trait_operators;
@@ -35,6 +36,7 @@ pub use named_calls::{
 };
 pub use operand_signatures::operator_operand_signature;
 pub use primitive_float::primitive_float_binary_semantics;
+pub use primitive_integer::{builtin_integer_result_carrier, integer_peer_operand_carrier};
 pub use satisfied_operators::{
     boundary_operator_requirement_identity, resolve_satisfied_boundary_operator_for_conformance,
     resolve_satisfied_checked_operator, resolve_satisfied_checked_operator_for_conformance,

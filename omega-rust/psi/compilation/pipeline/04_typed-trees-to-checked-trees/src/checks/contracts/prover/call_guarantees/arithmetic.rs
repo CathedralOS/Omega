@@ -468,7 +468,7 @@ pub(in crate::checks) fn atom(
         identity: format!("\0call-guarantee:{primitive:?}:{place:?}"),
         unsigned: matches!(
             primitive,
-            typed_trees::unsigned_integer_primitive_pattern!()
+            typed_trees::unsigned_integer_primitive_pattern!() | PrimitiveType::Addr
         ),
     }
 }
@@ -640,7 +640,7 @@ fn bind_occurrences(
         let Some(primitive) = callable
             .scalar_reference(program, occurrence)
             .and_then(|reference| program.primitive_type_reference(reference))
-            .filter(|primitive| primitive.is_fixed_integer())
+            .filter(|primitive| primitive.accepts_integer_literal())
         else {
             continue;
         };
@@ -774,7 +774,7 @@ fn term(
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => callable
             .scalar_reference(program, expression)
             .and_then(|reference| program.primitive_type_reference(reference))
-            .is_some_and(|primitive| primitive.is_fixed_integer()),
+            .is_some_and(|primitive| primitive.accepts_integer_literal()),
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
@@ -807,7 +807,8 @@ fn term(
             if let Some((primitive, source)) =
                 validation::integer_embedding_argument(program, expression)
             {
-                return primitive.is_fixed_integer() && term(program, operators, callable, source);
+                return primitive.accepts_integer_literal()
+                    && term(program, operators, callable, source);
             }
             // The shared scoped judgment transports the selected declaration's
             // result and published guarantees under this call's actual roster.
@@ -815,7 +816,7 @@ fn term(
             callable
                 .scalar_reference(program, expression)
                 .and_then(|reference| program.primitive_type_reference(reference))
-                .is_some_and(|primitive| primitive.is_fixed_integer())
+                .is_some_and(|primitive| primitive.accepts_integer_literal())
         }
         _ => false,
     }

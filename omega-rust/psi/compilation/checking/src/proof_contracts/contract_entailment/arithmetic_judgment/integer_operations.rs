@@ -6,6 +6,7 @@
 //! hiding a zero divisor or an overflowing intermediate, including MIN % -1.
 use super::{BigInt, BinaryOperator, Engine, Polynomial};
 use numerics::arithmetic::ArithmeticDomain;
+use typed_trees::operator::builtin_integer_result_carrier;
 use typed_trees::types::PrimitiveType;
 
 impl Engine<'_> {
@@ -48,22 +49,20 @@ impl Engine<'_> {
         meaning: [(PrimitiveType, ArithmeticDomain); 2],
     ) -> bool {
         let [(left, left_policy), (right, right_policy)] = meaning;
-        if !left.accepts_integer_literal() || !right.accepts_integer_literal() {
+        if builtin_integer_result_carrier(operator, [left, right]).is_none() {
             return false;
         }
         match operator {
             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
                 left_policy == ArithmeticDomain::Exact
             }
-            BinaryOperator::BitwiseAnd => left == right,
+            BinaryOperator::BitwiseAnd => true,
             BinaryOperator::Add
             | BinaryOperator::Subtract
             | BinaryOperator::Multiply
             | BinaryOperator::Divide
             | BinaryOperator::Modulo => {
-                left == right
-                    && left_policy == ArithmeticDomain::Exact
-                    && right_policy == ArithmeticDomain::Exact
+                left_policy == ArithmeticDomain::Exact && right_policy == ArithmeticDomain::Exact
             }
             _ => false,
         }
@@ -119,6 +118,13 @@ impl Engine<'_> {
         primitive: PrimitiveType,
         value: &Polynomial,
     ) -> bool {
+        if primitive == PrimitiveType::Addr {
+            let Some(bound) = self.address_model_bound_value() else {
+                return false;
+            };
+            return self.prove_at_least(&self.substituted(value), &BigInt::zero())
+                && self.prove_at_least(&self.substituted(&bound.sub(value)), &BigInt::from_i64(1));
+        }
         let Some((minimum, maximum)) = primitive.integer_bounds() else {
             return false;
         };
@@ -143,9 +149,12 @@ impl Engine<'_> {
         value: &Polynomial,
     ) -> bool {
         let [primitive, right_primitive] = primitives;
+        let Some(result) = builtin_integer_result_carrier(operator, primitives) else {
+            return false;
+        };
         if !self.integer_value_lands(primitive, left)
             || !self.integer_value_lands(right_primitive, right)
-            || !self.integer_value_lands(primitive, value)
+            || !self.integer_value_lands(result, value)
         {
             return false;
         }

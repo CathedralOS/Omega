@@ -138,8 +138,13 @@ fn exact_multiply_representability_proposition(
     else {
         unreachable!("exact-multiply projection is selected by expression shape")
     };
-    let (mathematical_left, mathematical_right) =
-        exact_integer_operands(integer_type, scalar_type, left, right, "exact-multiply")?;
+    let [(_, mathematical_left), (_, mathematical_right)] = exact_integer_operands(
+        integer_type,
+        scalar_type,
+        left,
+        right,
+        |result, left, right| result == left && result == right,
+    )?;
     if let (
         ScalarTerm::Integer {
             value: left_value, ..
@@ -200,41 +205,15 @@ fn exact_subtract_representability_proposition(
     else {
         unreachable!("exact-subtract projection is selected by expression shape")
     };
-    if *scalar_type != integer_type {
-        return Err(
-            OperationSemanticError::ExactArithmeticExpressionTypeMismatch {
-                declared: integer_type,
-                actual: ScalarType::Integer(*scalar_type),
-            },
-        );
-    }
-    let (ScalarType::Integer(left_type), ScalarType::Integer(right_type)) =
-        (left.scalar_type(), right.scalar_type())
-    else {
-        return Err(OperationSemanticError::ExactArithmeticOperandTypeMismatch {
-            declared: integer_type,
-            left: left.scalar_type(),
-            right: right.scalar_type(),
-        });
-    };
-    if !integer_type.admits_exact_subtract_operands(left_type, right_type) {
-        return Err(OperationSemanticError::ExactArithmeticOperandTypeMismatch {
-            declared: integer_type,
-            left: left.scalar_type(),
-            right: right.scalar_type(),
-        });
-    }
-    let mathematical_left = integer_leaf_math_term(
-        left_type,
+    let [
+        (left_type, mathematical_left),
+        (right_type, mathematical_right),
+    ] = exact_integer_operands(
+        integer_type,
+        scalar_type,
         left,
-        |_| unreachable!("exact-subtract operand types were checked together"),
-        OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
-    )?;
-    let mathematical_right = integer_leaf_math_term(
-        right_type,
         right,
-        |_| unreachable!("exact-subtract operand types were checked together"),
-        OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
+        IntegerType::admits_exact_subtract_operands,
     )?;
     if let (
         ScalarTerm::Integer {
@@ -285,11 +264,6 @@ fn exact_add_representability_proposition(
     integer_type: IntegerType,
     expression: &ScalarTerm,
 ) -> Result<Proposition, OperationSemanticError> {
-    if integer_type.carrier() != IntegerCarrier::Fixed {
-        return Err(OperationSemanticError::ExactArithmeticRequiresFixedInteger(
-            integer_type,
-        ));
-    }
     let ScalarTerm::ExactIntegerAdd {
         scalar_type,
         left,
@@ -298,8 +272,16 @@ fn exact_add_representability_proposition(
     else {
         unreachable!("exact-add projection is selected by expression shape")
     };
-    let (mathematical_left, mathematical_right) =
-        exact_integer_operands(integer_type, scalar_type, left, right, "exact-add")?;
+    let [
+        (left_type, mathematical_left),
+        (right_type, mathematical_right),
+    ] = exact_integer_operands(
+        integer_type,
+        scalar_type,
+        left,
+        right,
+        IntegerType::admits_exact_add_operands,
+    )?;
     if let (
         ScalarTerm::Integer {
             value: left_value, ..
@@ -310,15 +292,22 @@ fn exact_add_representability_proposition(
     ) = (left.as_ref(), right.as_ref())
     {
         return Ok(
-            if integer_type.exact_add(*left_value, *right_value).is_some() {
+            if integer_type
+                .exact_add_values(left_type, *left_value, right_type, *right_value)
+                .is_some()
+            {
                 Proposition::Truth
             } else {
                 Proposition::Falsehood
             },
         );
     }
-    if matches!(mathematical_left, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0)
-        || matches!(mathematical_right, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0)
+    // Only the surviving operand's own carrier establishes result fit. A zero
+    // address plus a count is still a count-to-address geometry obligation.
+    if (right_type == integer_type
+        && matches!(mathematical_left, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0))
+        || (left_type == integer_type
+            && matches!(mathematical_right, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0))
     {
         return Ok(Proposition::Truth);
     }
@@ -338,16 +327,15 @@ fn exact_add_representability_proposition(
     Ok(canonical_conjunction(bounds))
 }
 
-/// The shared exact-binary checks for the equal-typed variants: the term's
-/// declared scalar type restates the integer type, both operands carry it,
-/// and each leaf reads as a math term.
+/// Authenticate the selected exact signature, retaining each leaf's carrier.
+/// Shared widths cannot replace this relation for address offsets/distances.
 fn exact_integer_operands(
     integer_type: IntegerType,
     scalar_type: &IntegerType,
     left: &ScalarTerm,
     right: &ScalarTerm,
-    leaf_label: &'static str,
-) -> Result<(IntegerMathTerm, IntegerMathTerm), OperationSemanticError> {
+    admits: fn(IntegerType, IntegerType, IntegerType) -> bool,
+) -> Result<[(IntegerType, IntegerMathTerm); 2], OperationSemanticError> {
     if *scalar_type != integer_type {
         return Err(
             OperationSemanticError::ExactArithmeticExpressionTypeMismatch {
@@ -356,9 +344,17 @@ fn exact_integer_operands(
             },
         );
     }
-    if left.scalar_type() != ScalarType::Integer(integer_type)
-        || right.scalar_type() != ScalarType::Integer(integer_type)
-    {
+    let mismatch = || OperationSemanticError::ExactArithmeticOperandTypeMismatch {
+        declared: integer_type,
+        left: left.scalar_type(),
+        right: right.scalar_type(),
+    };
+    let (ScalarType::Integer(left_type), ScalarType::Integer(right_type)) =
+        (left.scalar_type(), right.scalar_type())
+    else {
+        return Err(mismatch());
+    };
+    if !admits(integer_type, left_type, right_type) {
         return Err(OperationSemanticError::ExactArithmeticOperandTypeMismatch {
             declared: integer_type,
             left: left.scalar_type(),
@@ -366,18 +362,21 @@ fn exact_integer_operands(
         });
     }
     let mathematical_left = integer_leaf_math_term(
-        integer_type,
+        left_type,
         left,
-        |_| unreachable!("{} operand types were checked together", leaf_label),
+        |_| mismatch(),
         OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
     )?;
     let mathematical_right = integer_leaf_math_term(
-        integer_type,
+        right_type,
         right,
-        |_| unreachable!("{} operand types were checked together", leaf_label),
+        |_| mismatch(),
         OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
     )?;
-    Ok((mathematical_left, mathematical_right))
+    Ok([
+        (left_type, mathematical_left),
+        (right_type, mathematical_right),
+    ])
 }
 
 fn integer_leaf_math_term(

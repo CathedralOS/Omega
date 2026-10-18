@@ -341,7 +341,14 @@ impl<'program> Engine<'program> {
                         };
                         self.program
                             .primitive_type_reference(reference)
-                            .is_some_and(|primitive| primitive.is_fixed_integer())
+                            .is_some_and(|primitive| {
+                                primitive.is_fixed_integer()
+                                    || (primitive == typed_trees::types::PrimitiveType::Addr
+                                        && self
+                                            .program
+                                            .arithmetic_domain_for_type_reference(reference)
+                                            == ArithmeticDomain::Exact)
+                            })
                             && admitted_policies.contains(
                                 &self.program.arithmetic_domain_for_type_reference(reference),
                             )

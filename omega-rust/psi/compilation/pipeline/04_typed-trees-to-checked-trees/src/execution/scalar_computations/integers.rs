@@ -300,6 +300,7 @@ impl Builder<'_, '_> {
                 // operand is captured. It never changes their evaluation order.
                 left.value = *landed_left;
                 right.value = *landed_right;
+                let left_type = scalar_expression_type(&left.value)?;
                 let right_type = scalar_expression_type(&right.value)?;
                 let left = self.materialize_integer(left)?;
                 let right = self.materialize_integer(right)?;
@@ -308,7 +309,7 @@ impl Builder<'_, '_> {
                     CheckedScalarExpression::IntegerBinary {
                         kind,
                         primitive_type,
-                        left: Box::new(parameter(0, primitive_type)),
+                        left: Box::new(parameter(0, left_type)),
                         right: Box::new(parameter(1, right_type)),
                         formation_decided,
                     },
@@ -427,16 +428,24 @@ impl Builder<'_, '_> {
                 .and_then(|operand| scalar_expression_type(&operand.value))
         };
         if let Some(destination) = operand_type(&right)
-            && let Some(operand) = land(binary.left, destination)
+            && let Some(operand) = land(
+                binary.left,
+                typed_trees::operator::integer_peer_operand_carrier(
+                    binary.operator,
+                    destination,
+                    false,
+                ),
+            )
         {
             left = Some(operand);
         }
         if let Some(destination) = operand_type(&left)
             && let Some(operand) = land(
                 binary.right,
-                crate::values::scalar::scalar_lowering::subtraction_count_context(
+                typed_trees::operator::integer_peer_operand_carrier(
                     binary.operator,
                     destination,
+                    true,
                 ),
             )
         {
@@ -462,9 +471,10 @@ impl Builder<'_, '_> {
             left = self.anonymous_operand(binary.left, destination);
             right = self.anonymous_operand(
                 binary.right,
-                crate::values::scalar::scalar_lowering::subtraction_count_context(
+                typed_trees::operator::integer_peer_operand_carrier(
                     binary.operator,
                     destination,
+                    true,
                 ),
             );
         }

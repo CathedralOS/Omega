@@ -108,6 +108,10 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
 }
 
 /// Authenticate an actual integer data field; collection metadata is not a field.
+/// Addresses retain their numeric read epochs too. Excluding them would lose
+/// an interval's entry base while retaining its count, making conservation
+/// depend on the representation of the coordinate rather than its actual read.
+/// This observation carries neither a native-width bound nor storage authority.
 pub(super) fn declared_integer_field_read(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -136,5 +140,6 @@ pub(super) fn declared_integer_field_read(
     }
     let reference = crate::expression_result_type_reference(program, machine, state, expression)?;
     let primitive = program.primitive_type_reference(reference)?;
-    primitive.is_fixed_integer().then_some(primitive)
+    (primitive.is_fixed_integer() || primitive == typed_trees::types::PrimitiveType::Addr)
+        .then_some(primitive)
 }

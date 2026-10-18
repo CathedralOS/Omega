@@ -7,11 +7,11 @@
 //! executable selector's occurrence; read plans therefore keep the full
 //! scalar operand and its exact indexing handle, independently of root location.
 //!
-//! Subtraction selects its result from operand roles, not storage context:
-//! address offsets return addresses, while address differences return counts.
+//! Integer operators select their result from operand roles, not storage
+//! context: address offsets return addresses, while differences return counts.
 //! Anonymous offsets land as u64; named operands retain their source carriers.
 //! Later Terminal reconstruction independently checks those signatures and
-//! proves the mathematical difference fits its result before native lowering.
+//! proves the mathematical result fits its carrier before native lowering.
 
 pub(crate) use validation::integer_widen_is_total;
 

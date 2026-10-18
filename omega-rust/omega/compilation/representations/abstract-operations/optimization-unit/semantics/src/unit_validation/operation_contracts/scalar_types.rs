@@ -268,7 +268,7 @@ pub(crate) fn operation_scalar_types_match(
         | abstract_operations::bitwise_or_xor_pair_pattern!(scalar_type,
             left,
             right, ..) => binary(*left, *right, *scalar_type),
-        // Exact subtraction alone admits address/count roles. Other
+        // Exact offsets and distances admit address/count roles. Other
         // proof-bearing pairs still require same-type fixed operands.
         O::IntegerArithmetic {
             scalar_type,
@@ -277,7 +277,11 @@ pub(crate) fn operation_scalar_types_match(
             right,
             ..
         } => {
-            if arithmetic.is(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Subtract) {
+            if arithmetic.is(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Add) {
+                matches!((scalar(*left), scalar(*right)),
+                    (Some(ScalarType::Integer(left)), Some(ScalarType::Integer(right)))
+                        if scalar_type.admits_exact_add_operands(left, right))
+            } else if arithmetic.is(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Subtract) {
                 matches!((scalar(*left), scalar(*right)),
                     (Some(ScalarType::Integer(left)), Some(ScalarType::Integer(right)))
                         if scalar_type.admits_exact_subtract_operands(left, right))

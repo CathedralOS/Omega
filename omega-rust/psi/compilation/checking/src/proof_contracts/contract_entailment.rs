@@ -88,7 +88,7 @@ pub(crate) use construction_predicates::construction_predicate_judgments;
 mod const_ranges;
 mod content_conservation;
 mod contract_refinement;
-mod exact_casts;
+mod exact_integer_fit;
 mod exit_coverage;
 mod fact_mentions;
 mod inductive_judgment;
@@ -109,7 +109,9 @@ mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;
 mod structural_prefix;
-pub(crate) use exact_casts::exact_cast_fits_at_occurrence;
+pub(crate) use exact_integer_fit::{
+    exact_binary_fits_at_occurrence, exact_cast_fits_at_occurrence,
+};
 mod structural_terms;
 mod transparent_applications;
 
@@ -600,15 +602,25 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         if let Some(plan) =
             content_conservation::content_conservation_plan(machine, fact, &content_plans)
         {
-            let Some(paths) = &sole_arm_result else {
+            if sole_arm_result.is_none() && case_arms.is_none() {
                 return StructuralJudgment::Unknown;
-            };
+            }
+            let paths = sole_arm_result
+                .iter()
+                .flatten()
+                .map(|path| (&path.judge, &path.value))
+                .chain(
+                    case_arms
+                        .iter()
+                        .flatten()
+                        .map(|arm| (&arm.normal_judge, &arm.value)),
+                );
             let mut verdict = StructuralJudgment::Proven;
-            for path in paths {
+            for (judge, value) in paths {
                 match content_conservation::judge_content_conservation(
                     program,
-                    &path.judge,
-                    &path.value,
+                    judge,
+                    value,
                     plan,
                     &projection_plans,
                 ) {

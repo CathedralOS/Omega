@@ -7,6 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
+pass/arithmetic/affine_difference_weighted_exit built 3969ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
 pass/arithmetic/runtime_captured_call_result_subtracts_itself_exit built 3792ms exit:0 interpreter-exit:0 interpreter:agrees @6756ba1b9853
 pass/arithmetic/runtime_composite_bound_arrivals_exit built 12850ms exit:0 interpreter-exit:0 interpreter:agrees @82646dcce47b+wt
 pass/asm/checked_label_borrow_last_use_exit built 3891ms exit:0 interpreter-exit:0 interpreter:agrees @7c138f5545aa
@@ -390,6 +391,9 @@ pass/control_flow/shared_view_selected_disposition_exit built 1537ms exit:0 inte
 pass/control_flow/single_case_parameter_dispatch_exit built 5838ms exit:70 interpreter-exit:70 interpreter:agrees @9158ef7b209e+wt
 pass/control_flow/single_case_result_dispatch_exit built 4175ms exit:70 interpreter-exit:70 interpreter:agrees @9158ef7b209e+wt
 pass/control_flow/stored_reference_holder_disposal_exit built 3752ms exit:0 interpreter-exit:0 interpreter:agrees @fd94a7b8095c+wt
+pass/core/address_interval_content_partition_exit built 4023ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
+pass/core/address_interval_partition_reverse_exit built 4028ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
+pass/core/aggregate_snapshot_copy_exit built 3916ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
 pass/core/content_conservation_constructed_result_exit built 7149ms exit:70 interpreter-exit:70 interpreter:agrees @94192499b002+wt
 pass/core/content_conservation_contract_exit built 15885ms exit:70 interpreter-exit:70 interpreter:agrees @e52673d2bcdb+wt
 pass/core/content_conservation_moved_result_exit built 7054ms exit:70 interpreter-exit:70 interpreter:agrees @94192499b002+wt
@@ -511,6 +515,15 @@ pass/expressions/runtime_float_record_field_reads_exit built 5654ms exit:70 inte
 pass/expressions/runtime_nested_record_field_call_exit built 1043ms exit:0 interpreter-exit:0 interpreter:agrees @91c11fd524d0
 pass/expressions/runtime_nested_record_field_reads_exit built 1814ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/expressions/runtime_temporary_record_field_call_exit built 851ms exit:0 interpreter-exit:0 interpreter:agrees @f70a22c80ac3
+pass/facts/address_count_partition_through_call_result_exit built 4026ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
+pass/facts/address_count_partition_through_const_name_exit built 4008ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
+pass/facts/address_count_partition_through_field_exit built 4048ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
+pass/facts/address_count_partition_through_local_exit built 4024ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
+pass/facts/address_count_partition_through_match_join_exit built 4124ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
+pass/facts/address_count_partition_through_other_machine_exit built 4098ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
+pass/facts/address_count_partition_through_other_state_exit built 4185ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
+pass/facts/address_count_partition_through_parameter_exit built 4166ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
+pass/facts/address_count_partition_through_target_body_exit built 4182ms exit:0 interpreter-exit:0 interpreter:agrees @70da601bb299+wt
 pass/facts/as_slice_views_through_call_result_exit built 4161ms exit:0 interpreter-exit:0 interpreter:agrees @8bcf9d86d52e
 pass/facts/as_slice_views_through_const_name_exit built 4244ms exit:0 interpreter-exit:0 interpreter:agrees @8bcf9d86d52e
 pass/facts/as_slice_views_through_field_exit built 4805ms exit:0 interpreter-exit:0 interpreter:agrees @8bcf9d86d52e
@@ -936,8 +949,10 @@ pass/traits/structural_array_crash_identity_exit built 10843ms exit:70 interpret
 pass/traits/structural_identity_crash_contract checked 890ms @6d0b8da07bdd+wt
 pass/types/address_model_conversion built 7148ms exit:0 interpreter-exit:0 interpreter:agrees @8fd8af53161a+wt
 pass/types/exact_address_conversion built 3773ms exit:0 interpreter-exit:0 interpreter:agrees @3b422f31da30+wt
+pass/types/runtime_addr_algebra_exit built 6625ms exit:70 interpreter-exit:70 interpreter:agrees @70da601bb299+wt
 pass/types/runtime_addr_conversion_trap_exit built 2731ms exit:signal signal:5 interpreter:trapped @cba4ef8c9ab1
 pass/types/runtime_addr_field_exit built 2703ms exit:88 interpreter-exit:88 interpreter:agrees @cba4ef8c9ab1
+pass/types/runtime_exact_address_subtraction_exit built 3443ms exit:70 interpreter-exit:70 interpreter:agrees @70da601bb299+wt
 pass/wire/runtime_wire_decode_byte_slice_exit built 3339ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/wire/runtime_wire_decode_ranged_field_exit built 3009ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit built 3025ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1

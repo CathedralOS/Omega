@@ -40,6 +40,36 @@ struct IntegerObservations<'program> {
 }
 
 impl IntegerObservations<'_> {
+    fn install_observed_carrier_bounds(
+        &mut self,
+        primitive: PrimitiveType,
+        value: &Polynomial,
+    ) -> Option<()> {
+        let (minimum, maximum, upper_operator) = if primitive == PrimitiveType::Addr {
+            (
+                BigInt::zero(),
+                self.engine.address_model_bound()?,
+                BinaryOperator::Less,
+            )
+        } else {
+            let (minimum, maximum) = primitive.integer_bounds()?;
+            (
+                BigInt::from_i128(minimum),
+                Polynomial::constant(BigInt::from_i128(maximum)),
+                BinaryOperator::LessOrEqual,
+            )
+        };
+        self.carrier_facts.extend([
+            (
+                BinaryOperator::GreaterOrEqual,
+                value.clone(),
+                Polynomial::constant(minimum),
+            ),
+            (upper_operator, value.clone(), maximum),
+        ]);
+        Some(())
+    }
+
     fn admitted(&self, operations: Range<usize>) -> bool {
         self.operations[operations]
             .iter()
@@ -114,6 +144,38 @@ impl StructuralJudge<'_> {
             reference: source_reference,
             value: Box::new(value),
         };
+        self.observed_mathematical_integer_fits(value, target)
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn observed_integer_operation_fits(
+        &self,
+        operator: BinaryOperator,
+        values: [StructuralTerm; 2],
+        references: [typed_trees::types::TypeReferenceHandle; 2],
+        target: PrimitiveType,
+    ) -> bool {
+        let [left, right] = values;
+        self.observed_mathematical_integer_fits(
+            StructuralTerm::MathematicalBinary {
+                operator,
+                left: Box::new(StructuralTerm::IntegerEmbedding {
+                    reference: references[0],
+                    value: Box::new(left),
+                }),
+                right: Box::new(StructuralTerm::IntegerEmbedding {
+                    reference: references[1],
+                    value: Box::new(right),
+                }),
+            },
+            target,
+        )
+    }
+
+    fn observed_mathematical_integer_fits(
+        &self,
+        value: StructuralTerm,
+        target: PrimitiveType,
+    ) -> bool {
         let (minimum, maximum, upper_operator) = if target == PrimitiveType::Addr {
             let Some(bound) = self
                 .program
@@ -439,10 +501,23 @@ impl StructuralJudge<'_> {
         // A completed operand may be described by a public computed-result
         // equation. Preserve its captured leaves before normal arithmetic
         // resolution; no caller expression or private body supplies this value.
+        let observed_carrier = match value {
+            StructuralTerm::ObservedValue { observed_type, .. } => {
+                self.program.primitive_type_reference(*observed_type) == Some(primitive)
+            }
+            _ => false,
+        };
         let value = self.resolve(self.completed_value_identity(value.clone()));
         let value = value.semantic_value();
         if let StructuralTerm::Integer(integer) = value {
-            return Some(Polynomial::constant(integer.clone()));
+            let value = Polynomial::constant(integer.clone());
+            // Folding an independently formed operand cannot make it
+            // anonymous again. Contextual literal destinations carry no such
+            // observation, nor does the operation whose fit is being queried.
+            if observed_carrier {
+                observations.install_observed_carrier_bounds(primitive, &value)?;
+            }
+            return Some(value);
         }
         if let StructuralTerm::ScalarBinary {
             references,
@@ -504,31 +579,7 @@ impl StructuralJudge<'_> {
         // A complete observed value has its selected operand's carrier. These
         // intrinsic bounds apply only to opaque leaves, never to a computation
         // waiting to prove formation or to an anonymous integer literal.
-        if primitive == PrimitiveType::Addr {
-            let bound = observations.engine.address_model_bound()?;
-            observations.carrier_facts.extend([
-                (
-                    BinaryOperator::GreaterOrEqual,
-                    value.clone(),
-                    Polynomial::constant(BigInt::zero()),
-                ),
-                (BinaryOperator::Less, value.clone(), bound),
-            ]);
-            return Some(value);
-        }
-        let (minimum, maximum) = primitive.integer_bounds()?;
-        observations.carrier_facts.extend([
-            (
-                BinaryOperator::GreaterOrEqual,
-                value.clone(),
-                Polynomial::constant(BigInt::from_i128(minimum)),
-            ),
-            (
-                BinaryOperator::LessOrEqual,
-                value.clone(),
-                Polynomial::constant(BigInt::from_i128(maximum)),
-            ),
-        ]);
+        observations.install_observed_carrier_bounds(primitive, &value)?;
         Some(value)
     }
 

@@ -476,7 +476,10 @@ fn build_denotation(
         ) => {
             let left = value_term(left, value_types)?;
             let right = value_term(right, value_types)?;
-            let operands_match = if denotation == ScalarLeafDenotation::ExactIntegerSubtract {
+            let operands_match = if denotation == ScalarLeafDenotation::ExactIntegerAdd {
+                matches!((integer_type(&left), integer_type(&right)), (Some(left), Some(right))
+                    if result_type.admits_exact_add_operands(left, right))
+            } else if denotation == ScalarLeafDenotation::ExactIntegerSubtract {
                 matches!((integer_type(&left), integer_type(&right)), (Some(left), Some(right))
                     if result_type.admits_exact_subtract_operands(left, right))
             } else {

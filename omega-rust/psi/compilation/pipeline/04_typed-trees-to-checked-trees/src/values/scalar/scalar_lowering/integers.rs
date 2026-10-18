@@ -9,20 +9,8 @@ use checked_trees::{CheckedIntegerRange, CheckedScalarExpression};
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{IntegerLanding, LandedIntegerType};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+use typed_trees::operator::{builtin_integer_result_carrier, integer_peer_operand_carrier};
 use typed_trees::types::PrimitiveType;
-
-/// An anonymous offset beside an address denotes a count, not another address.
-/// Named operands keep their checked carrier, so address differences remain distinct.
-pub(crate) fn subtraction_count_context(
-    operator: BinaryOperator,
-    peer: PrimitiveType,
-) -> PrimitiveType {
-    if operator == BinaryOperator::Subtract && peer == PrimitiveType::Addr {
-        PrimitiveType::U64
-    } else {
-        peer
-    }
-}
 
 /// Construct one selected builtin operation from operands whose evaluation
 /// order has already been retained by either the pure tree or computation plan.
@@ -56,35 +44,25 @@ pub(crate) fn construct_integer_binary(
         left_type = scalar_expression_type(&left);
     }
     if left_type.is_none() {
-        left = land_contextual_integer_literal(left, right_type?)?;
+        left = land_contextual_integer_literal(
+            left,
+            integer_peer_operand_carrier(operator, right_type?, false),
+        )?;
         left_type = scalar_expression_type(&left);
     }
     if right_type.is_none() {
         right = land_contextual_integer_literal(
             right,
-            subtraction_count_context(operator, left_type?),
+            integer_peer_operand_carrier(operator, left_type?, true),
         )?;
         right_type = scalar_expression_type(&right);
     }
     let left_type = left_type?;
     let right_type = right_type?;
-    let primitive_type = if operator == BinaryOperator::Subtract && left_type == PrimitiveType::Addr
+    let primitive_type = builtin_integer_result_carrier(operator, [left_type, right_type])?;
+    if (left_type == PrimitiveType::Addr || right_type == PrimitiveType::Addr)
+        && domain != ArithmeticDomain::Exact
     {
-        if domain != ArithmeticDomain::Exact {
-            return None;
-        }
-        match right_type {
-            PrimitiveType::Addr => PrimitiveType::U64,
-            PrimitiveType::U64 => PrimitiveType::Addr,
-            _ => return None,
-        }
-    } else {
-        if !shift && right_type != left_type {
-            return None;
-        }
-        left_type
-    };
-    if !is_integer(primitive_type) || !is_integer(right_type) {
         return None;
     }
     Some((

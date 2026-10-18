@@ -27,6 +27,15 @@ pub(crate) fn builtin_scalar_operand_references(
         }
         let destination = references[1 - index].or(expected)?;
         let (primitive, _) = scalar_observation_meaning(program, destination)?;
+        let primitive = if references[1 - index].is_some() {
+            typed_trees::operator::integer_peer_operand_carrier(
+                binary.operator,
+                primitive,
+                index == 1,
+            )
+        } else {
+            primitive
+        };
         if !primitive.is_integer() {
             return None;
         }

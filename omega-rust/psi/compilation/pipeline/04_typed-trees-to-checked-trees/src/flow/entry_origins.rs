@@ -1,4 +1,4 @@
-//! Exact reference and immutable scalar origins across named-state arguments.
+//! Exact reference and immutable value origins across named-state arguments.
 use crate::flow::FlowBuildContext;
 use crate::flow::reference_spans;
 use arena::HandleSpan;
@@ -23,22 +23,20 @@ fn reference_type(
     }
 }
 
-fn immutable_scalar(
+fn immutable_value(
     program: &dyn ::validation::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     (!parameter.is_mutable)
         && !parameter.is_const
-        && program
-            .primitive_type_reference(parameter.type_reference)
-            .is_some_and(|primitive| primitive.accepts_integer_literal())
+        && !reference_type(program, parameter.type_reference)
 }
 
 fn tracked_parameter(
     program: &dyn ::validation::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    reference_type(program, parameter.type_reference) || immutable_scalar(program, parameter)
+    reference_type(program, parameter.type_reference) || immutable_value(program, parameter)
 }
 
 fn stable_parameter(
@@ -50,7 +48,7 @@ fn stable_parameter(
     program
         .state_parameter_by_symbol(state, symbol)
         .is_some_and(|parameter| {
-            immutable_scalar(program, parameter)
+            immutable_value(program, parameter)
                 || validation::state_reference_parameter_binding_is_stable(
                     program, machine, state, symbol,
                 )
@@ -117,10 +115,8 @@ fn tracked_source_parameter<'a>(
                     candidate.symbol == name.head_symbol
                         && ((reference_type(program, candidate.type_reference)
                             && reference_type(program, target.type_reference))
-                            || (immutable_scalar(program, candidate)
-                                && immutable_scalar(program, target)
-                                && program.primitive_type_reference(candidate.type_reference)
-                                    == program.primitive_type_reference(target.type_reference)))
+                            || (immutable_value(program, candidate)
+                                && immutable_value(program, target)))
                 });
             }
         }
@@ -514,7 +510,7 @@ pub(super) fn rebase_contexts(
                     )
             })
             .filter_map(|parameter| {
-                if immutable_scalar(program, parameter) {
+                if immutable_value(program, parameter) {
                     incoming_origins
                         .iter()
                         .find(|(_, target)| *target == parameter.symbol)

@@ -247,18 +247,20 @@ impl ScalarTerm {
                 };
                 Some((*value_type, result))
             }
-            Self::ExactIntegerSubtract { scalar_type, .. } => {
+            Self::ExactIntegerAdd { scalar_type, .. }
+            | Self::ExactIntegerSubtract { scalar_type, .. } => {
                 let right = operands.pop().flatten();
                 let left = operands.pop().flatten();
                 let (left_type, left) = left?;
                 let (right_type, right) = right?;
-                Some((
-                    *scalar_type,
-                    scalar_type.exact_subtract_values(left_type, left, right_type, right)?,
-                ))
+                let value = if matches!(self, Self::ExactIntegerAdd { .. }) {
+                    scalar_type.exact_add_values(left_type, left, right_type, right)?
+                } else {
+                    scalar_type.exact_subtract_values(left_type, left, right_type, right)?
+                };
+                Some((*scalar_type, value))
             }
-            Self::ExactIntegerAdd { scalar_type, .. }
-            | Self::ExactIntegerMultiply { scalar_type, .. }
+            Self::ExactIntegerMultiply { scalar_type, .. }
             | Self::ExactIntegerDivide { scalar_type, .. }
             | Self::ExactIntegerRemainder { scalar_type, .. }
             | Self::WrappingIntegerDivide { scalar_type, .. }
@@ -267,7 +269,6 @@ impl ScalarTerm {
             | Self::SaturatingIntegerRemainder { scalar_type, .. } => {
                 let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
                 let value = match self {
-                    Self::ExactIntegerAdd { .. } => scalar_type.exact_add(left, right)?,
                     Self::ExactIntegerMultiply { .. } => scalar_type.exact_mul(left, right)?,
                     Self::ExactIntegerDivide { .. } => scalar_type.exact_div(left, right)?,
                     Self::ExactIntegerRemainder { .. } => scalar_type.exact_rem(left, right)?,

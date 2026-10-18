@@ -75,9 +75,94 @@ impl<'program> Engine<'program> {
         {
             return true;
         }
+        if self
+            .affine_difference_lower_bound(polynomial)
+            .is_some_and(|low| low >= *bound)
+        {
+            return true;
+        }
         self.horner_interval(polynomial, 0)
             .low
             .is_some_and(|low| low >= *bound)
+    }
+
+    /// Independent atom intervals lose sums of known differences. Consume each
+    /// affine coefficient once, pairing positive and negative mass with proved
+    /// matrix edges and bounding the remainder independently. Every selected
+    /// edge contributes a nonnegative multiple of an established inequality;
+    /// neither the requested goal nor a pending operation becomes a premise.
+    ///
+    /// This is a bounded sufficient enclosure, not a linear-programming solver.
+    /// Prefer edges covering unbounded terms, then their improvement over unary
+    /// bounds. An incomplete greedy decomposition stays unknown. It cannot
+    /// weaken the independent enclosure already tried by the caller.
+    fn affine_difference_lower_bound(&self, polynomial: &Polynomial) -> Option<BigInt> {
+        let mut constant = BigInt::zero();
+        let mut positive = Vec::new();
+        let mut negative = Vec::new();
+        for (monomial, coefficient) in &polynomial.terms {
+            if monomial.is_empty() {
+                constant = coefficient.clone();
+                continue;
+            }
+            let mut factors = monomial.iter();
+            let (atom, power) = factors.next()?;
+            if *power != 1 || factors.next().is_some() {
+                return None;
+            }
+            let interval = self.atom_interval(atom);
+            if coefficient.is_negative() {
+                negative.push((
+                    atom,
+                    coefficient.abs(),
+                    interval.high.map(|high| high.negate()),
+                ));
+            } else {
+                positive.push((atom, coefficient.clone(), interval.low));
+            }
+        }
+        // The single-difference route already covers smaller affine terms.
+        // Bound this optional search independently of source integer widths.
+        if positive.len() + negative.len() < 3 || positive.len() + negative.len() > 128 {
+            return None;
+        }
+        let mut edges = Vec::new();
+        for (positive_position, (positive_atom, _, positive_low)) in positive.iter().enumerate() {
+            for (negative_position, (negative_atom, _, negative_low)) in negative.iter().enumerate()
+            {
+                let Some(edge_bound) = self.matrix_bound(positive_atom, negative_atom) else {
+                    continue;
+                };
+                let unbounded =
+                    usize::from(positive_low.is_none()) + usize::from(negative_low.is_none());
+                let improvement = match (positive_low, negative_low) {
+                    (Some(left), Some(right)) => edge_bound.sub(&left.add(right)),
+                    _ => edge_bound.clone(),
+                };
+                edges.push((
+                    unbounded,
+                    improvement,
+                    positive_position,
+                    negative_position,
+                    edge_bound,
+                ));
+            }
+        }
+        edges.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1)));
+        for (_, _, positive_position, negative_position, edge_bound) in edges {
+            let positive_mass = &mut positive[positive_position].1;
+            let negative_mass = &mut negative[negative_position].1;
+            let mass = positive_mass.clone().min(negative_mass.clone());
+            constant = constant.add(&mass.mul(&edge_bound));
+            *positive_mass = positive_mass.sub(&mass);
+            *negative_mass = negative_mass.sub(&mass);
+        }
+        for (_, mass, lower_bound) in positive.into_iter().chain(negative) {
+            if !mass.is_zero() {
+                constant = constant.add(&mass.mul(&lower_bound?));
+            }
+        }
+        Some(constant)
     }
 
     /// P >= b contradicts -P >= 1-b over integers. Apply the same standalone,

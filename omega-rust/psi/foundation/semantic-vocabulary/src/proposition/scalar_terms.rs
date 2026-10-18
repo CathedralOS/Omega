@@ -990,14 +990,35 @@ impl ScalarTerm {
 
     integer_shift_term!(exact_integer_shift_left => ExactIntegerShiftLeft);
 
-    integer_binary_term!(exact_integer_add => ExactIntegerAdd);
+    pub fn exact_integer_add(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        validate_exact_integer_operands(
+            scalar_type,
+            &left,
+            &right,
+            IntegerType::admits_exact_add_operands,
+        )?;
+        Ok(Self::ExactIntegerAdd {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
 
     pub fn exact_integer_subtract(
         scalar_type: IntegerType,
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_exact_subtract_operands(scalar_type, &left, &right)?;
+        validate_exact_integer_operands(
+            scalar_type,
+            &left,
+            &right,
+            IntegerType::admits_exact_subtract_operands,
+        )?;
         Ok(Self::ExactIntegerSubtract {
             scalar_type,
             left: Box::new(left),
@@ -1120,14 +1141,15 @@ fn validate_integer_comparison_operands(
     Ok(())
 }
 
-fn validate_exact_subtract_operands(
+fn validate_exact_integer_operands(
     result: IntegerType,
     left: &ScalarTerm,
     right: &ScalarTerm,
+    admits: fn(IntegerType, IntegerType, IntegerType) -> bool,
 ) -> Result<(), PropositionError> {
     if !matches!((left.scalar_type(), right.scalar_type()),
         (ScalarType::Integer(left), ScalarType::Integer(right))
-            if result.admits_exact_subtract_operands(left, right))
+            if admits(result, left, right))
     {
         return Err(PropositionError::IntegerOperandTypeMismatch {
             expected: ScalarType::Integer(result),

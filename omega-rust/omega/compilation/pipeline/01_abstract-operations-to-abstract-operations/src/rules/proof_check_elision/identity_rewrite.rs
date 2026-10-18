@@ -8,9 +8,9 @@ use optimization_core::{AnalysisKind, OptimizationRuleContract};
 use optimization_unit::{
     IntegerConstantRewrite, NodeLocation, ProofCertifiedScalarIdentityKind,
     ProofCertifiedScalarIdentityRewrite, PsiOptimizationUnit, PsiRealizationSite,
-    PsiRewriteCandidate,
+    PsiRewriteCandidate, scalar_value_definition,
 };
-use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ValueId};
+use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::control_flow_cleanup::provenance_realized_at;
@@ -110,6 +110,23 @@ pub(super) fn propose_proof_certified_scalar_identities(
                 }
                 let Some((patch_shape, constant_fact)) =
                     shapes.into_iter().find_map(|(shape, expected)| {
+                        // Numeric equality is not carrier equality. These
+                        // arithmetic identity laws retain the result carrier;
+                        // mixed address/count operations keep their correct
+                        // general path instead of proposing an invalid rewrite.
+                        let result_type = ScalarType::Integer(shape.scalar_type);
+                        if scalar_value_definition(function, shape.replacement)?.scalar_type
+                            != result_type
+                        {
+                            return None;
+                        }
+                        if matches!(node.operation, AbstractOperation::IntegerArithmetic { .. })
+                            && scalar_value_definition(function, shape.identity_operand)?
+                                .scalar_type
+                                != result_type
+                        {
+                            return None;
+                        }
                         let (actual, fact) = constants
                             .literal_integer_constant(function.machine, shape.identity_operand)?;
                         (actual == expected).then_some((shape, fact))

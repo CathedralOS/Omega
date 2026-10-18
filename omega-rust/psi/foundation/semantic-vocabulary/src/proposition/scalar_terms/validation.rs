@@ -4,10 +4,10 @@
 
 use super::{
     ScalarTerm, ScalarType, Step, integer_comparison_operands_match,
-    validate_exact_subtract_operands, validate_integer_comparison_operands,
+    validate_exact_integer_operands, validate_integer_comparison_operands,
     validate_integer_operands, validate_integer_shift_operands,
 };
-use crate::proposition::PropositionError;
+use crate::proposition::{IntegerType, PropositionError};
 
 impl ScalarTerm {
     pub fn validate(&self) -> Result<(), PropositionError> {
@@ -223,13 +223,23 @@ impl ScalarTerm {
                 scalar_type,
                 left,
                 right,
-            } => validate_exact_subtract_operands(*scalar_type, left, right),
+            } => validate_exact_integer_operands(
+                *scalar_type,
+                left,
+                right,
+                IntegerType::admits_exact_subtract_operands,
+            ),
             Self::ExactIntegerAdd {
                 scalar_type,
                 left,
                 right,
-            }
-            | Self::ExactIntegerMultiply {
+            } => validate_exact_integer_operands(
+                *scalar_type,
+                left,
+                right,
+                IntegerType::admits_exact_add_operands,
+            ),
+            Self::ExactIntegerMultiply {
                 scalar_type,
                 left,
                 right,

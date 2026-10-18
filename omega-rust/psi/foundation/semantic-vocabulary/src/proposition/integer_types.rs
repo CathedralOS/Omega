@@ -5,6 +5,8 @@ use crate::ValueId;
 use crate::proposition::{PropositionError, ScalarTerm, ScalarType};
 use std::cmp::Ordering;
 mod bit_ranges;
+#[cfg(test)]
+mod exact_offsets_tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IntegerSign {
@@ -54,6 +56,50 @@ macro_rules! wrapping_arith {
 }
 
 impl IntegerType {
+    /// Exact addition offsets one address by a u64 count, in either operand
+    /// order. Both fixed-integer operands instead keep their common carrier.
+    /// An address is never an offset count, even when their widths match.
+    pub fn admits_exact_add_operands(self, left: Self, right: Self) -> bool {
+        let count = Self {
+            carrier: IntegerCarrier::Fixed,
+            sign: IntegerSign::Unsigned,
+            bits: 64,
+        };
+        if self.is_address() {
+            (left == self && right == count) || (left == count && right == self)
+        } else {
+            left == self && right == self
+        }
+    }
+
+    /// Admit operands in their own carriers before testing the exact sum in
+    /// its result carrier. In particular, zero address plus a count still
+    /// owes address fit; only a zero count preserves an already formed address.
+    pub fn exact_add_values(
+        self,
+        left_type: Self,
+        left: IntegerValue,
+        right_type: Self,
+        right: IntegerValue,
+    ) -> Option<IntegerValue> {
+        if !self.admits_exact_add_operands(left_type, right_type)
+            || !left_type.admits(left)
+            || !right_type.admits(right)
+        {
+            return None;
+        }
+        let result = match (left, right) {
+            (IntegerValue::Unsigned(left), IntegerValue::Unsigned(right)) => {
+                IntegerValue::Unsigned(left.checked_add(right)?)
+            }
+            (IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+                IntegerValue::Signed(left.checked_add(right)?)
+            }
+            _ => return None,
+        };
+        self.admits(result).then_some(result)
+    }
+
     /// Exact subtraction preserves address/count roles. Address offsets consume
     /// u64 counts; two addresses produce a u64 distance. Width equality alone
     /// grants neither conversion nor address arithmetic authority.

@@ -711,12 +711,16 @@ pub(super) fn emit(
         } => {
             let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
             let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
-            // Exact address subtraction keeps independently typed operands.
+            // Exact address offsets/distances keep independently typed operands.
             // Replay checks the signature again rather than treating equal
             // machine widths as source-level carrier equality.
             let operands_match = if *operator
-                == legalized_operations::LegalizedExactIntegerOperator::Subtract
+                == legalized_operations::LegalizedExactIntegerOperator::Add
             {
+                matches!((scalar_type, left_type, right_type),
+                    (ScalarType::Integer(result), ScalarType::Integer(left), ScalarType::Integer(right))
+                        if result.admits_exact_add_operands(left, right))
+            } else if *operator == legalized_operations::LegalizedExactIntegerOperator::Subtract {
                 matches!((scalar_type, left_type, right_type),
                     (ScalarType::Integer(result), ScalarType::Integer(left), ScalarType::Integer(right))
                         if result.admits_exact_subtract_operands(left, right))

@@ -6,7 +6,7 @@ use semantic_vocabulary::{IntegerType, IntegerValue, ValueId};
 use std::collections::BTreeMap;
 use target_operations::TargetIntegerExpression;
 /// A binary integer operation: a bitwise operator, or an arithmetic policy
-/// pair with its obligation. Exact subtraction retains address/count roles.
+/// pair with its obligation. Exact offsets and distances retain address/count roles.
 #[derive(Clone, Copy)]
 pub(in crate::lowering) enum IntegerBinaryKind {
     BitwiseAnd,
@@ -33,9 +33,13 @@ pub(in crate::lowering) fn lower_integer_binary(
     };
     let (left_type, left) = operand(left_id)?;
     let (right_type, right) = operand(right_id)?;
-    // Exact subtraction retains address/count roles. Equal native widths do
+    // Exact offsets and distances retain address/count roles. Equal native widths do
     // not authorize a carrier conversion or wrapping address arithmetic.
     let operands_match = if matches!(kind, IntegerBinaryKind::Arithmetic(arithmetic)
+        if arithmetic.is(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Add))
+    {
+        scalar_type.admits_exact_add_operands(left_type, right_type)
+    } else if matches!(kind, IntegerBinaryKind::Arithmetic(arithmetic)
         if arithmetic.is(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Subtract))
     {
         scalar_type.admits_exact_subtract_operands(left_type, right_type)

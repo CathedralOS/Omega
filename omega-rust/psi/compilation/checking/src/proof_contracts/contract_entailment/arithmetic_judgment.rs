@@ -1412,6 +1412,14 @@ impl<'program> Engine<'program> {
     pub(in crate::proof_contracts::contract_entailment) fn address_model_bound(
         &mut self,
     ) -> Option<Polynomial> {
+        let polynomial = self.address_model_bound_value()?;
+        self.bounds.push((polynomial.clone(), BigInt::from_i64(1)));
+        Some(polynomial)
+    }
+
+    /// The selected model's exclusive endpoint, without installing a premise.
+    /// Formation checks use the same symbol as observed address carriers.
+    fn address_model_bound_value(&self) -> Option<Polynomial> {
         let bound = self
             .program
             .symbols
@@ -1419,9 +1427,9 @@ impl<'program> Engine<'program> {
         let model = self.program.symbols.get(bound).parent;
         (self.program.symbols.builtin_type_atom(model) == Some(symbols::BuiltinTypeAtom::Address))
             .then_some(())?;
-        let polynomial = Polynomial::atom(format!("\0address-model-bound:{model:?}:{bound:?}"));
-        self.bounds.push((polynomial.clone(), BigInt::from_i64(1)));
-        Some(polynomial)
+        Some(Polynomial::atom(format!(
+            "\0address-model-bound:{model:?}:{bound:?}"
+        )))
     }
 
     fn normalize_integer_embedding(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {

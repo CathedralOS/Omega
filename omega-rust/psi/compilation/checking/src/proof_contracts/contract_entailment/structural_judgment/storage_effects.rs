@@ -429,14 +429,46 @@ impl StructuralJudge<'_> {
                 ),
             })
             .collect::<Vec<_>>();
-        let stored = self.stored_values.iter().find(|stored| {
+        if let Some(stored) = self.stored_values.iter().find(|stored| {
             stored.coordinate.root.as_symbol() == Some(root)
                 && stored.coordinate.segments == segments
-        })?;
-        match version {
-            ContentPlaceVersion::Entry => stored.entry.clone(),
-            ContentPlaceVersion::Current => stored.current.clone(),
+        }) {
+            let value = match version {
+                ContentPlaceVersion::Entry => stored.entry.clone(),
+                ContentPlaceVersion::Current => stored.current.clone(),
+            };
+            if value.is_some() {
+                return value;
+            }
         }
+        // A completed whole-value move retains the same entry snapshot even
+        // when field reads occur only in a later state. Project that captured
+        // revision, never a later current read or an invalidated source slot.
+        let reference = crate::declaration_type_reference(self.program, root)?;
+        self.stored_values.iter().find_map(|stored| {
+            if stored.coordinate.root.as_symbol() != Some(root)
+                || !stored.coordinate.segments.is_empty()
+            {
+                return None;
+            }
+            let value = match version {
+                ContentPlaceVersion::Entry => stored.entry.clone(),
+                ContentPlaceVersion::Current => stored.current.clone(),
+            }?;
+            let path = segments
+                .iter()
+                .map(|segment| match segment {
+                    CapturedStorageSegment::Place(segment) => Some(*segment),
+                    CapturedStorageSegment::Index(_) => None,
+                })
+                .collect::<Option<Vec<_>>>()?;
+            super::super::observed_projections::project_observed_value(
+                self.program,
+                reference,
+                value,
+                &path,
+            )
+        })
     }
 
     pub(super) fn capture_store_destination(

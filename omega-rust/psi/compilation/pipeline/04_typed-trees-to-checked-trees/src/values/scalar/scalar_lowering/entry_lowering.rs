@@ -342,8 +342,16 @@ pub(crate) fn lower_scalar_operands(
     if let Some(destination) = right
         .as_ref()
         .and_then(|(value, _)| scalar_expression_type(value))
-        && let Some(value) =
-            land_anonymous_scalar_expression(program, operators, binary.left, destination)
+        && let Some(value) = land_anonymous_scalar_expression(
+            program,
+            operators,
+            binary.left,
+            typed_trees::operator::integer_peer_operand_carrier(
+                binary.operator,
+                destination,
+                false,
+            ),
+        )
     {
         left = Some((value, ArithmeticDomain::Exact));
     }
@@ -354,7 +362,7 @@ pub(crate) fn lower_scalar_operands(
             program,
             operators,
             binary.right,
-            subtraction_count_context(binary.operator, destination),
+            typed_trees::operator::integer_peer_operand_carrier(binary.operator, destination, true),
         )
     {
         right = Some((value, ArithmeticDomain::Exact));

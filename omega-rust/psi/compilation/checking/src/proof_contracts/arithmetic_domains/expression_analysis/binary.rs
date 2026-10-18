@@ -313,11 +313,25 @@ impl Operation<'_, '_> {
     /// `addr`. `reject_address_arithmetic` admits exactly the shapes separated
     /// here.
     fn result_primitive(&self, interval: Interval) -> Option<PrimitiveType> {
-        if self.operator() == BinaryOperator::Subtract
-            && self.left.primitive == Some(PrimitiveType::Addr)
-            && self.right.primitive == Some(PrimitiveType::Addr)
-        {
-            return Some(PrimitiveType::U64);
+        if self.has_address_operand() {
+            let left = self.left.primitive.or_else(|| {
+                self.right.primitive.map(|peer| {
+                    typed_trees::operator::integer_peer_operand_carrier(
+                        self.operator(),
+                        peer,
+                        false,
+                    )
+                })
+            })?;
+            let right = self.right.primitive.or_else(|| {
+                self.left.primitive.map(|peer| {
+                    typed_trees::operator::integer_peer_operand_carrier(self.operator(), peer, true)
+                })
+            })?;
+            return typed_trees::operator::builtin_integer_result_carrier(
+                self.operator(),
+                [left, right],
+            );
         }
         self.left.primitive.or(self.right.primitive).or_else(|| {
             if interval.low.is_some() && interval.high.is_some() {
@@ -326,6 +340,11 @@ impl Operation<'_, '_> {
                 None
             }
         })
+    }
+
+    fn has_address_operand(&self) -> bool {
+        self.left.primitive == Some(PrimitiveType::Addr)
+            || self.right.primitive == Some(PrimitiveType::Addr)
     }
 
     /// Whether this operation's Exact counterpart forms under the walk's
@@ -448,7 +467,7 @@ impl Operation<'_, '_> {
     /// An anonymous operand beside a typed integer operand lands in that
     /// operand's primitive; it must land exactly.
     fn land_anonymous_operands(&mut self, diagnostics: &mut Vec<Diagnostic>) {
-        let is_integer = |primitive: &PrimitiveType| integer_bit_width(*primitive).is_some();
+        let is_integer = |primitive: &PrimitiveType| primitive.accepts_integer_literal();
         let Some(primitive) = self
             .left
             .primitive
@@ -459,10 +478,26 @@ impl Operation<'_, '_> {
         };
         let program = self.walk.program;
         let owner = self.walk.owner;
-        for (operand, analysis) in [
+        let operator = self.operator();
+        for (position, (operand, analysis)) in [
             (self.binary.left, &mut self.left),
             (self.binary.right, &mut self.right),
-        ] {
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let primitive = typed_trees::operator::integer_peer_operand_carrier(
+                operator,
+                primitive,
+                position == 1,
+            );
+            // Address offsets land their anonymous count in u64 even though
+            // the typed peer has no fixed width. Actual address destinations
+            // retain their symbolic-model formation owner, not this fixed
+            // integer landing check.
+            if !primitive.is_fixed_integer() {
+                continue;
+            }
             if matches!(
                 program.expression_table.expression(operand),
                 ExpressionNode::Match(_)
@@ -539,14 +574,10 @@ impl Operation<'_, '_> {
         if !left_is_addr && !right_is_addr {
             return;
         }
-        let legal = match self.operator() {
-            // addr - addr -> count; addr - count -> addr. (count - addr has
-            // left_is_addr == false and stays illegal.)
-            BinaryOperator::Subtract => left_is_addr,
-            // Exactly one side is the address; the other offsets it.
-            BinaryOperator::Add => left_is_addr != right_is_addr,
-            _ => false,
-        };
+        // The selected signature requires u64, not an arbitrary non-address
+        // primitive. Use the same carrier table as source result typing and
+        // executable construction so a named u32 cannot silently be a count.
+        let legal = self.result_primitive(Interval::UNBOUNDED).is_some();
         if !legal {
             diagnostics.push(Diagnostic::error(format!(
                 "meaningless address arithmetic in {}: `addr` composes with \
@@ -906,6 +937,21 @@ impl Operation<'_, '_> {
         interval: Interval,
         exact_result_proven: bool,
     ) -> bool {
+        // An unknown address ceiling is not infinity. Query the same completed
+        // operand observations as exact casts, before the result can donate its
+        // own proposed bound. This also checks a wide-address distance against
+        // the independent u64 result ceiling.
+        if self.has_address_operand() {
+            return self.walk.checks_occurrence_fit
+                && self.walk.state.is_some_and(|state| {
+                    crate::proof_contracts::contract_entailment::exact_binary_fits_at_occurrence(
+                        self.walk.program,
+                        self.walk.machine,
+                        state,
+                        self.expression,
+                    )
+                });
+        }
         let operator = self.operator();
         // The interval route needs every operand already bounded; the
         // relational route proves `x + k` through a composed ceiling operand

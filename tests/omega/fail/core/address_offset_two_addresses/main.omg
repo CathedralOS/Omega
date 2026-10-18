@@ -1,0 +1,1 @@
+machine offset(base: addr, other: addr) -> addr { base + other }

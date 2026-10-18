@@ -1038,6 +1038,16 @@ impl<'program> StructuralJudge<'program> {
                         );
                     }
                 }
+                // A whole owned-value read captures its revision before a
+                // named state can inspect its fields. A reference descriptor
+                // does not capture the contents of its referent.
+                if matches!(node, ExpressionNode::Name(_) | ExpressionNode::Member(_))
+                    && let Some(reference) = crate::expression_result_type_reference(program, scope.0, scope.1, expression)
+                    && program.primitive_type_reference(reference).is_none()
+                    && crate::reference_shell(program, reference).is_none()
+                {
+                    judge.observe_completed_storage_read(scope.0, scope.1, expression, value.clone());
+                }
                 Some(Some(
                     NormalReturnPath { value, judge }.at_expression(expression),
                 ))
