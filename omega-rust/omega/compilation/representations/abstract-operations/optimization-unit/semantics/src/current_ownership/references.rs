@@ -43,6 +43,7 @@ use access_paths::{access_reference_custody, call_dependency_conflict};
 
 fn origin_place(origin: &ReferenceOrigin) -> PlaceId {
     match origin {
+        ReferenceOrigin::Invocation { result, .. } => result.place,
         ReferenceOrigin::Primitive(place) => *place,
         ReferenceOrigin::IngressLeaf(identity) => identity.place,
         ReferenceOrigin::Alternatives { place, .. } => *place,
@@ -78,6 +79,26 @@ fn projected_origin_family(
         return origin.clone();
     }
     match origin {
+        ReferenceOrigin::Invocation {
+            result,
+            carrier_type,
+            path,
+            extent: previous,
+        } => {
+            let mut path = path.clone();
+            let extent = if *previous == semantic_vocabulary::ReferenceOriginExtent::Projected {
+                path.extend_from_slice(suffix);
+                extent
+            } else {
+                *previous
+            };
+            ReferenceOrigin::Invocation {
+                result: result.clone(),
+                carrier_type: *carrier_type,
+                path,
+                extent,
+            }
+        }
         ReferenceOrigin::Primitive(place) => {
             ReferenceOrigin::IngressLeaf(ReferenceOriginIdentity {
                 place: *place,
@@ -112,13 +133,19 @@ fn projected_origin_family(
 }
 
 fn origins_overlap(left: &ReferenceOrigin, right: &ReferenceOrigin) -> bool {
+    // Separate external invocations do not prove spatial disjointness.
+    if matches!(left, ReferenceOrigin::Invocation { .. })
+        || matches!(right, ReferenceOrigin::Invocation { .. })
+    {
+        return true;
+    }
     if origin_place(left) != origin_place(right) {
         return false;
     }
     // Distinct runtime selector identities may select the same element. Origin
     // replay retains their coordinates but cannot infer disjointness from them.
     let overlaps_path = |path: &[terminal_psi::ReferenceOriginProjection]| match right {
-        ReferenceOrigin::Primitive(_) => true,
+        ReferenceOrigin::Invocation { .. } | ReferenceOrigin::Primitive(_) => true,
         ReferenceOrigin::IngressLeaf(identity) => {
             terminal_semantics::reference_origin_paths_may_overlap(path, &identity.path)
         }
@@ -127,7 +154,7 @@ fn origins_overlap(left: &ReferenceOrigin, right: &ReferenceOrigin) -> bool {
             .any(|other| terminal_semantics::reference_origin_paths_may_overlap(path, &other.path)),
     };
     match left {
-        ReferenceOrigin::Primitive(_) => true,
+        ReferenceOrigin::Invocation { .. } | ReferenceOrigin::Primitive(_) => true,
         ReferenceOrigin::IngressLeaf(identity) => overlaps_path(&identity.path),
         ReferenceOrigin::Alternatives { origins, .. } => {
             origins.iter().any(|origin| overlaps_path(&origin.path))
@@ -197,6 +224,7 @@ pub(super) fn borrows_owned_storage(
             })
     };
     match &reference.root {
+        ReferenceOrigin::Invocation { .. } => false,
         ReferenceOrigin::Primitive(root) => *root == place,
         ReferenceOrigin::IngressLeaf(identity) => ingress(identity.clone()),
         ReferenceOrigin::Alternatives { origins, .. } => {
@@ -382,7 +410,7 @@ fn check_region_access_with(
             || (origin_place(&reference.root) == place
                 && !compatible_origin(reference)
                 && match &reference.root {
-                    ReferenceOrigin::Primitive(_) => true,
+                    ReferenceOrigin::Invocation { .. } | ReferenceOrigin::Primitive(_) => true,
                     ReferenceOrigin::IngressLeaf(identity) => overlaps_origin(&identity.path),
                     ReferenceOrigin::Alternatives { origins, .. } => {
                         origins.iter().any(|origin| overlaps_origin(&origin.path))
@@ -1854,8 +1882,10 @@ pub(super) fn apply_operation(
             vec![terminal_semantics::ReferenceCallResult {
                 path: Vec::new(),
                 sources: vec![terminal_semantics::ReferenceCallSource {
-                    source: source.clone(),
-                    transfers_existing: transferred.is_some(),
+                    origin: terminal_semantics::ReferenceCallOrigin::Parameter {
+                        source: source.clone(),
+                        transfers_existing: transferred.is_some(),
+                    },
                     suffix: Vec::new(),
                     extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                     endpoint: reference_source_type(function, structural_types, source)
@@ -1969,13 +1999,58 @@ pub(super) fn apply_operation(
                 })?;
             let mut alternatives = Vec::with_capacity(candidates.len());
             for terminal_semantics::ReferenceCallSource {
-                source,
-                transfers_existing,
+                origin,
                 suffix,
                 extent,
-                ..
+                endpoint,
             } in candidates
             {
+                let (source, transfers_existing) = match origin {
+                    terminal_semantics::ReferenceCallOrigin::Parameter {
+                        source,
+                        transfers_existing,
+                    } => (source, transfers_existing),
+                    terminal_semantics::ReferenceCallOrigin::Invocation {
+                        carrier_type,
+                        path: origin_path,
+                        access: supplied,
+                    } => {
+                        if endpoint != expected
+                            || extent != semantic_vocabulary::ReferenceOriginExtent::Projected
+                            || !leaf_access_within(
+                                structural_types,
+                                result.structural_type,
+                                &path,
+                                supplied,
+                            )
+                        {
+                            return Err(invalid(
+                                function,
+                                block,
+                                Some(node),
+                                "invocation result changes admitted reference geometry",
+                            ));
+                        }
+                        let identity = ReferenceIdentity {
+                            place: result.place,
+                            path: path.clone(),
+                        };
+                        let root = ReferenceOrigin::Invocation {
+                            result: identity.clone(),
+                            carrier_type,
+                            path: origin_path,
+                            extent,
+                        };
+                        alternatives.push(LiveReference {
+                            identity,
+                            carrier: result.place,
+                            carrier_path: path.clone(),
+                            parent: ReferenceParent::Root(root.clone()),
+                            root,
+                        });
+                        continue;
+                    }
+                };
                 let compatible = reference_source_type(function, structural_types, &source)
                     .and_then(|root| {
                         if suffix.is_empty() {
@@ -2282,7 +2357,9 @@ fn combine_alternative_origins(
                 origins: alternatives,
                 ..
             } => origins.extend(alternatives),
-            ReferenceOrigin::Primitive(_) => return Err(invalid()),
+            ReferenceOrigin::Invocation { .. } | ReferenceOrigin::Primitive(_) => {
+                return Err(invalid());
+            }
         }
     }
     origins.sort();
@@ -2376,6 +2453,30 @@ pub(super) fn transfer_return(
                 "returned carrier has no referent type",
             )
         })?;
+        if let ReferenceOrigin::Invocation {
+            carrier_type,
+            path: origin_path,
+            extent,
+            ..
+        } = &reference.root
+        {
+            let source = terminal_psi::StructuralReferenceOrigin::Invocation {
+                carrier_type: *carrier_type,
+                path: origin_path.clone(),
+                extent: *extent,
+                access,
+            };
+            if !mapping.sources.contains(&source)
+                || !matches!(&reference.parent, ReferenceParent::Root(root) if root == &reference.root)
+                || live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity)) {
+                return Err(invalid(function, block, None, "invocation reference return differs from completed call custody"));
+            }
+            observed.push(terminal_psi::StructuralReferenceResultSource {
+                path: mapping.path.clone(),
+                sources: vec![source],
+            });
+            continue;
+        }
         let sources = return_origin_family(
             function,
             structural_types,
@@ -2398,6 +2499,7 @@ pub(super) fn transfer_return(
             // Compare admitted supplying permissions at the returned view's
             // access while preserving the whole declared origin geometry.
             let supplying = mapping.sources.iter()
+                .filter_map(terminal_psi::StructuralReferenceOrigin::parameter)
                 .filter(|allowed| crate::unit_validation::references::access_covers(
                     allowed.access, source.access,
                 ))
@@ -2422,7 +2524,10 @@ pub(super) fn transfer_return(
         }
         observed.push(terminal_psi::StructuralReferenceResultSource {
             path: mapping.path.clone(),
-            sources,
+            sources: sources
+                .into_iter()
+                .map(terminal_psi::StructuralReferenceOrigin::Parameter)
+                .collect(),
         });
     }
     // A result copy keeps its immediate parents until this boundary. Verify
@@ -2479,6 +2584,7 @@ fn return_origin_family(
         extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
     };
     let origins = match origin {
+        ReferenceOrigin::Invocation { .. } => return None,
         ReferenceOrigin::IngressLeaf(identity) => std::slice::from_ref(identity),
         ReferenceOrigin::Alternatives { origins, .. } => origins.as_slice(),
         ReferenceOrigin::Primitive(_) => std::slice::from_ref(&primitive),
@@ -2542,7 +2648,7 @@ pub(super) fn validate_return_coverage(
         // A region is a public allowance, not a claim that every possibility
         // executes (an implementation may return only the empty case).
         if mapping.sources.iter().any(|source| {
-            source.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+            source.extent() == semantic_vocabulary::ReferenceOriginExtent::Projected
                 && !sources.contains(source)
         }) {
             return Err(invalid(

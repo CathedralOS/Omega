@@ -71,9 +71,15 @@ pub struct TerminalDynamicSlot {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalDynamicReferenceRegion {
     pub path: Vec<StructuralPathSegment>,
-    pub argument_index: u32,
+    pub origin: TerminalDynamicReferenceOrigin,
     pub source_path: Vec<StructuralPathSegment>,
     pub access: StructuralAccess,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalDynamicReferenceOrigin {
+    Parameter { argument_index: u32 },
+    Invocation { carrier_type: StructuralTypeId },
 }
 
 impl TerminalDynamicSlot {

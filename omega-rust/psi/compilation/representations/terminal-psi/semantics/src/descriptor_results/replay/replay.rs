@@ -382,6 +382,13 @@ impl<'a> Replay<'a> {
                     })),
                     _ => None,
                 },
+                Origin::Backing(DescriptorCallOrigin::Invocation {
+                    carrier_type,
+                    projection: prefix,
+                }) => Some(Origin::Backing(DescriptorCallOrigin::Invocation {
+                    carrier_type,
+                    projection: prefix.then(projection),
+                })),
                 Origin::Backing(DescriptorCallOrigin::Argument {
                     source,
                     projection: prefix,
@@ -744,6 +751,15 @@ impl<'a> Replay<'a> {
         origin: &DescriptorStoredOrigin,
     ) -> Value {
         match origin {
+            DescriptorStoredOrigin::Invocation {
+                carrier_type,
+                projection,
+            } => Some(BTreeSet::from([Origin::Backing(
+                DescriptorCallOrigin::Invocation {
+                    carrier_type: *carrier_type,
+                    projection: projection.clone(),
+                },
+            )])),
             DescriptorStoredOrigin::PlacedFormation {
                 machine,
                 operation,
@@ -808,6 +824,14 @@ impl<'a> Replay<'a> {
         origin: &Origin,
     ) -> Option<DescriptorStoredOrigin> {
         match origin {
+            Origin::Backing(DescriptorCallOrigin::Invocation {
+                carrier_type,
+                projection,
+            }) => Some(DescriptorStoredOrigin::Invocation {
+                carrier_type: *carrier_type,
+                projection: projection.clone().without_runtime_coordinates(),
+            }),
+
             Origin::Backing(DescriptorCallOrigin::PlacedFormation {
                 machine,
                 operation,

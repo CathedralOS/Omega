@@ -95,7 +95,8 @@ impl DescriptorAnalysis<'_> {
                     for loan in origins {
                         match loan {
                             DescriptorSourceOrigin::Backing(
-                                DescriptorCallOrigin::PlacedFormation { .. },
+                                DescriptorCallOrigin::PlacedFormation { .. }
+                                | DescriptorCallOrigin::Invocation { .. },
                             ) => return Err(failure()),
                             DescriptorSourceOrigin::Backing(
                                 DescriptorCallOrigin::Empty | DescriptorCallOrigin::Literal { .. },

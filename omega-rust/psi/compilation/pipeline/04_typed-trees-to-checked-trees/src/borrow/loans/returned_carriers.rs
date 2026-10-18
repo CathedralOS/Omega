@@ -86,7 +86,7 @@ pub(crate) fn returned_body_source_mismatch(
                 .incoming_references
                 .get(returned.incoming_reference);
             (
-                incoming.parameter_symbol,
+                incoming.parameter_symbol(),
                 facts.borrow.owner_segments.span(incoming.owner_path)?,
             )
         } else {

@@ -46,7 +46,35 @@ pub fn validate_dynamic_reference_regions<'types>(
         if leaf.access != region.access {
             return Err("dynamic reference region disagrees with result access");
         }
-        let parameter = usize::try_from(region.argument_index)
+        let index = match region.origin {
+            terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
+                argument_index
+            }
+            terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
+                let path = region
+                    .source_path
+                    .iter()
+                    .cloned()
+                    .map(ReferenceOriginProjection::Exact)
+                    .collect::<Vec<_>>();
+                let endpoint = super::reference_origin_type(types.clone(), carrier_type, &path)
+                    .ok_or("dynamic invocation origin has no typed provider storage")?;
+                if let super::BorrowedResultLeafKind::Reference(referent) = leaf.kind
+                    && referent != endpoint
+                {
+                    return Err("dynamic invocation origin changes its reference referent");
+                }
+                validate_input_region(
+                    types.clone(),
+                    carrier_type,
+                    StructuralAccess::Owned,
+                    &region.source_path,
+                    region.access,
+                )?;
+                continue;
+            }
+        };
+        let parameter = usize::try_from(index)
             .ok()
             .and_then(|position| slot.structural_parameters.get(position))
             .ok_or("dynamic reference region has no structural input")?;

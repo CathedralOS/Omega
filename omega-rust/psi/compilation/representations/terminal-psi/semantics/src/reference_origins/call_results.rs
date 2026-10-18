@@ -18,12 +18,23 @@ pub enum ReferenceCallContract<'declaration> {
     Requirement(&'declaration TerminalDynamicSlot),
 }
 
+pub enum ReferenceCallOrigin {
+    Parameter {
+        source: StructuralArgument,
+        transfers_existing: bool,
+    },
+    Invocation {
+        carrier_type: StructuralTypeId,
+        path: Vec<ReferenceOriginProjection>,
+        access: terminal_psi::StructuralAccess,
+    },
+}
+
 pub struct ReferenceCallSource {
-    pub source: StructuralArgument,
+    pub origin: ReferenceCallOrigin,
     pub suffix: Vec<ReferenceOriginProjection>,
     pub endpoint: StructuralTypeId,
     pub extent: ReferenceOriginExtent,
-    pub transfers_existing: bool,
 }
 
 pub struct ReferenceCallResult {
@@ -48,6 +59,33 @@ pub fn bind_reference_call_results<'types>(
             for mapping in sources {
                 let mut candidates = Vec::with_capacity(mapping.sources.len());
                 for origin in &mapping.sources {
+                    let origin = match origin {
+                        terminal_psi::StructuralReferenceOrigin::Parameter(origin) => origin,
+                        terminal_psi::StructuralReferenceOrigin::Invocation {
+                            carrier_type,
+                            path,
+                            extent,
+                            access,
+                        } => {
+                            let endpoint = super::reference_origin_type(
+                                types.clone(),
+                                *carrier_type,
+                                path,
+                            )
+                            .ok_or("invocation reference origin has no typed provider endpoint")?;
+                            candidates.push(ReferenceCallSource {
+                                origin: ReferenceCallOrigin::Invocation {
+                                    carrier_type: *carrier_type,
+                                    path: path.clone(),
+                                    access: *access,
+                                },
+                                suffix: Vec::new(),
+                                endpoint,
+                                extent: *extent,
+                            });
+                            continue;
+                        }
+                    };
                     let argument_index =
                         terminal_psi::structural_parameter_position(parameters, origin.place)
                             .ok_or("returned origin names no formal input")?;
@@ -69,11 +107,13 @@ pub fn bind_reference_call_results<'types>(
                     source.path.extend(binding.source.path);
                     source.access = origin.access;
                     candidates.push(ReferenceCallSource {
-                        source,
+                        origin: ReferenceCallOrigin::Parameter {
+                            source,
+                            transfers_existing,
+                        },
                         suffix: binding.suffix.to_vec(),
                         endpoint: binding.endpoint,
                         extent: binding.extent,
-                        transfers_existing,
                     });
                 }
                 results.push(ReferenceCallResult {
@@ -103,7 +143,46 @@ pub fn bind_reference_call_results<'types>(
                 }) {
                     continue;
                 }
-                let argument_index = usize::try_from(region.argument_index)
+                let index = match region.origin {
+                    terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
+                        argument_index
+                    }
+                    terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
+                        let path = region
+                            .source_path
+                            .iter()
+                            .cloned()
+                            .map(ReferenceOriginProjection::Exact)
+                            .collect::<Vec<_>>();
+                        let endpoint =
+                            super::reference_origin_type(types.clone(), carrier_type, &path)
+                                .ok_or(
+                                    "dynamic invocation reference origin has no typed endpoint",
+                                )?;
+                        let candidate = ReferenceCallSource {
+                            origin: ReferenceCallOrigin::Invocation {
+                                carrier_type,
+                                path,
+                                access: region.access,
+                            },
+                            suffix: Vec::new(),
+                            endpoint,
+                            extent: ReferenceOriginExtent::Projected,
+                        };
+                        if let Some(result) =
+                            results.iter_mut().find(|result| result.path == region.path)
+                        {
+                            result.sources.push(candidate);
+                        } else {
+                            results.push(ReferenceCallResult {
+                                path: region.path.clone(),
+                                sources: vec![candidate],
+                            });
+                        }
+                        continue;
+                    }
+                };
+                let argument_index = usize::try_from(index)
                     .map_err(|_| "dynamic returned region input ordinal overflows")?;
                 let parameter = slot
                     .structural_parameters
@@ -133,11 +212,13 @@ pub fn bind_reference_call_results<'types>(
                 source.path.extend_from_slice(source_path);
                 source.access = region.access;
                 let candidate = ReferenceCallSource {
-                    source,
+                    origin: ReferenceCallOrigin::Parameter {
+                        source,
+                        transfers_existing: false,
+                    },
                     suffix: Vec::new(),
                     endpoint,
                     extent: ReferenceOriginExtent::WithinRegion,
-                    transfers_existing: false,
                 };
                 if let Some(result) = results.iter_mut().find(|result| result.path == region.path) {
                     result.sources.push(candidate);

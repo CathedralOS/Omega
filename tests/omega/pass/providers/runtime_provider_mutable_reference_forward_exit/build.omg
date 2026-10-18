@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "runtime_provider_mutable_reference_forward_exit");
+ Build::select_provider<ErrorAccess, NativeError>(builder);
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

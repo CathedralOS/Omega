@@ -383,7 +383,8 @@ impl BorrowedRegions {
                                 DescriptorCallOrigin::Argument { source, projection } => {
                                     Some((*source, projection.clone()))
                                 }
-                                DescriptorCallOrigin::Literal { .. }
+                                DescriptorCallOrigin::Invocation { .. }
+                                | DescriptorCallOrigin::Literal { .. }
                                 | DescriptorCallOrigin::PlacedFormation { .. }
                                 | DescriptorCallOrigin::Empty => None,
                             }));
@@ -544,6 +545,10 @@ impl BorrowedRegions {
                         .filter_map(|origin| match origin {
                             DescriptorCallOrigin::Argument { source, projection } => Some(Region {
                                 root: Some(*source),
+                                projection: projection.then(&suffix),
+                            }),
+                            DescriptorCallOrigin::Invocation { projection, .. } => Some(Region {
+                                root: None,
                                 projection: projection.then(&suffix),
                             }),
                             DescriptorCallOrigin::Literal { .. }

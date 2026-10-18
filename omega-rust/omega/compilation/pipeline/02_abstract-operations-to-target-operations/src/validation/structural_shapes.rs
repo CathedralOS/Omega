@@ -77,6 +77,7 @@ pub fn classified_boundary_shape(
             classify_scalar_leaves(&leaves, referent, policy)?
         }
         StructuralTypeShape::PrimitiveScalar(_)
+        | StructuralTypeShape::Reference { .. }
         | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
         | StructuralTypeShape::ElementView { .. } => referent.class,
         _ => return Err(InvalidStructuralShape),

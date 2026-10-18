@@ -146,6 +146,7 @@ pub(super) fn access_reference_custody(
                 if further_crossing {
                     dependencies.push(carrier.root.clone());
                     let candidates = match &carrier.root {
+                        ReferenceOrigin::Invocation { .. } => return Err(invalid_opaque()),
                         ReferenceOrigin::Primitive(place) => vec![super::ReferenceOriginIdentity {
                             place: *place,
                             path: Vec::new(),
@@ -322,6 +323,7 @@ pub(super) fn descriptor_storage_available(
                     )
             };
         !match &loan.root {
+            ReferenceOrigin::Invocation { .. } => false,
             ReferenceOrigin::Primitive(place) => conflicts(
                 *place,
                 &[],

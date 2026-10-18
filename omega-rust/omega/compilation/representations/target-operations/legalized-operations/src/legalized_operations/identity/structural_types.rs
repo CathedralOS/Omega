@@ -117,15 +117,24 @@ pub(super) fn encode_structural_argument(bytes: &mut Vec<u8>, argument: &Structu
 
 pub(super) fn encode_reference_origin(
     bytes: &mut Vec<u8>,
-    origin: &terminal_psi::ReferenceOriginSource,
+    origin: &terminal_psi::StructuralReferenceOrigin,
 ) {
-    crate::codec_bytes::push_encoded(bytes, origin.place.get().to_le_bytes());
-    bytes.push(match origin.extent {
+    match origin {
+        terminal_psi::StructuralReferenceOrigin::Parameter(source) => {
+            bytes.push(1);
+            crate::codec_bytes::push_encoded(bytes, source.place.get().to_le_bytes());
+        }
+        terminal_psi::StructuralReferenceOrigin::Invocation { carrier_type, .. } => {
+            bytes.push(2);
+            crate::codec_bytes::push_encoded(bytes, carrier_type.get().to_le_bytes());
+        }
+    }
+    bytes.push(match origin.extent() {
         semantic_vocabulary::ReferenceOriginExtent::Projected => 1,
         semantic_vocabulary::ReferenceOriginExtent::WithinRegion => 2,
     });
-    encode_len(bytes, origin.path.len());
-    for projection in &origin.path {
+    encode_len(bytes, origin.path().len());
+    for projection in origin.path() {
         match projection {
             terminal_psi::ReferenceOriginProjection::Exact(segment) => {
                 encode_structural_projection(bytes, segment)
@@ -133,7 +142,7 @@ pub(super) fn encode_reference_origin(
             terminal_psi::ReferenceOriginProjection::Element => bytes.push(9),
         }
     }
-    encode_access(bytes, origin.access);
+    encode_access(bytes, origin.access());
 }
 
 pub(super) fn encode_target_structural_argument(

@@ -76,6 +76,7 @@ mod call_views;
 
 #[derive(Clone)]
 pub(super) struct StatementBorrowLoan {
+    pub(super) incoming_origin: Option<checked_trees::IncomingReferenceIdentity>,
     pub(super) formation_expression: ExpressionHandle,
     pub(super) owner_symbol: SymbolHandle,
     pub(super) storage_owner: facts::PlaceRoot,

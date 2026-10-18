@@ -1,0 +1,75 @@
+// Expected exit: 0. Forward a provider-owned encoded scalar reference.
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField
+where
+    size <= 4096,
+    1 <= align,
+    align <= 16,
+{
+    key: u64;
+    size: u64;
+    align: u64;
+    number: i64;
+    kind: FieldKind;
+}
+data Schema
+where
+    field_count <= 32,
+{ fields: [SchemaField; 32]; field_count: u64; }
+data IntegerInterpretation { case Signed; case Unsigned; }
+data FieldPlan {
+    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
+}
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}
+
+data SignedByte { }
+machine SignedByte::plan(schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    Plan {
+        entries: entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+
+data PortableByte [copy] { value: i64; }
+data RawView { value: SignedByte<PortableByte>; }
+use omega::language::core::external_binding;
+boundary trait Version { machine locate() -> &RawView; }
+linux_x86_64 machine binding() -> ForeignBinding<9, 20, 11> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "gnu_get_libc_version", version: "GLIBC_2.2.5" } }
+}
+linux_x86_64 machine locate_native() -> &RawView satisfies Version::locate via binding();
+NativeVersion satisfies Version {
+ machine locate() -> &RawView { locate_native() }
+}
+boundary trait WideVersion { machine locate() -> &i64 reaches Version; }
+WideProvider satisfies WideVersion {
+ machine locate() -> &i64 reaches Version {
+  let version: &RawView = Version::locate();
+  &version.value.value
+ }
+}
+machine main() reaches Version, WideVersion crashes Trap {
+ let version: &RawView = Version::locate();
+ let widened: &i64 = WideVersion::locate();
+ transition widened == version.value.value { true -> done() false -> bad() }
+ state done() {} state bad() { crash Trap; }
+}

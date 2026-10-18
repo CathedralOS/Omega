@@ -201,6 +201,13 @@ impl<'a> DescriptorAnalysis<'a> {
         let call = machine.calls.get(&position)?;
         let callee = self.replay.machine(call.callee()?)?;
         let exported = match origin {
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Invocation {
+                carrier_type,
+                projection,
+            }) => DescriptorStoredOrigin::Invocation {
+                carrier_type: *carrier_type,
+                projection: projection.clone(),
+            },
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::PlacedFormation {
                 machine,
                 operation,
@@ -607,7 +614,8 @@ impl<'a> DescriptorAnalysis<'a> {
                 }
                 for origin in origins {
                     let source = match origin {
-                        DescriptorStoredOrigin::Literal { .. }
+                        DescriptorStoredOrigin::Invocation { .. }
+                        | DescriptorStoredOrigin::Literal { .. }
                         | DescriptorStoredOrigin::Empty
                         | DescriptorStoredOrigin::PlacedFormation { .. } => {
                             continue;

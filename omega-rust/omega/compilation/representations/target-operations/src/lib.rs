@@ -28,7 +28,7 @@ pub use target_operations::{
     TargetFloatResultPolicy, TargetFunction, TargetIeeeFloatFmaOperand, TargetIntegerExpression,
     TargetNativeCallbackArgument, TargetOperationPlan, TargetOperationPlanWithPlacedViewInputs,
     TargetPlacedCallAssociation, TargetPlacedCallBinding, TargetPlacedInterpretation,
-    TargetPlacedViewInput, TargetReferenceOrigin, TargetReferenceResult,
+    TargetPlacedViewInput, TargetReferenceOrigin, TargetReferenceOriginKind, TargetReferenceResult,
     TargetScalarBlockParameter, TargetScalarBlockValue, TargetScalarExpression,
     TargetScalarImmediate, TargetStructuralArgument, TargetStructuralArgumentSource,
     TargetStructuralCaseSource, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,

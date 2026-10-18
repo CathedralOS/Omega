@@ -1,0 +1,18 @@
+// Expected exit: 0. Read a stable provider-owned object through its retained descriptor.
+use omega::language::core::external_binding;
+data LocaleByte { value: u8; }
+data Locale { decimal_point: &LocaleByte; }
+boundary trait LocaleAccess { machine locate() -> &Locale; }
+linux_x86_64 machine binding() -> ForeignBinding<9, 10, 11> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "localeconv", version: "GLIBC_2.2.5" } }
+}
+linux_x86_64 machine locate_native() -> &Locale satisfies LocaleAccess::locate via binding();
+NativeLocale satisfies LocaleAccess {
+ machine locate() -> &Locale { locate_native() }
+}
+machine main() reaches LocaleAccess crashes Trap {
+ let locale: &Locale = LocaleAccess::locate();
+ transition locale.decimal_point.value == 46 { true -> done() false -> bad() }
+ state done() {}
+ state bad() { crash Trap; }
+}

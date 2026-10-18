@@ -31,6 +31,10 @@ use terminal_psi::find_structural_type;
 
 #[derive(Clone)]
 pub enum DescriptorStoredOrigin {
+    Invocation {
+        carrier_type: StructuralTypeId,
+        projection: Projection,
+    },
     PlacedFormation {
         machine: MachineId,
         operation: semantic_vocabulary::OperationId,
@@ -104,6 +108,13 @@ fn result_origin(
     origin: DescriptorStoredOrigin,
 ) -> Option<DescriptorResultOrigin> {
     match origin {
+        DescriptorStoredOrigin::Invocation {
+            carrier_type,
+            projection,
+        } => Some(DescriptorResultOrigin::Invocation {
+            carrier_type,
+            projection,
+        }),
         DescriptorStoredOrigin::PlacedFormation { .. } => None,
         DescriptorStoredOrigin::Empty => Some(DescriptorResultOrigin::Empty),
         DescriptorStoredOrigin::Parameter {

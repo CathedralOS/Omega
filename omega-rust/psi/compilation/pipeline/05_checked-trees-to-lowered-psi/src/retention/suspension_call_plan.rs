@@ -462,7 +462,7 @@ fn retain_loan_graph(
                 let incoming = borrow.incoming_references.get(identity);
                 // The checked opaque identity is rooted in the parameter's
                 // referent, not in owned storage holding its descriptor.
-                let binding = live_values.iter().find(|(live, _)| matches!(live.origin, checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, .. } if symbol == incoming.parameter_symbol));
+                let binding = live_values.iter().find(|(live, _)| matches!(live.origin, checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, .. } if symbol == incoming.parameter_symbol()));
                 if let Some((_, live)) = binding
                     && let TerminalSuspensionPlace::Structural(argument) = &live.place
                 {

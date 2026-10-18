@@ -1,0 +1,10 @@
+// A checked provider body must establish its own returned reference.
+data Byte { value: u8; }
+boundary trait Lookup { machine locate() -> &Byte; }
+Provider satisfies Lookup {
+ machine locate() -> &Byte {
+  let local: Byte = Byte { value: 42 };
+  &local
+ }
+}
+machine main() {}

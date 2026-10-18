@@ -430,6 +430,9 @@ pub(in crate::legalization) fn call_descriptor_origins(
     .ok_or(LegalizationError::custody())?
     .into_iter()
     .map(|origin| match origin {
+        terminal_semantics::descriptor_results::DescriptorCallOrigin::Invocation { .. } => {
+            Err(LegalizationError::custody())
+        }
         terminal_semantics::descriptor_results::DescriptorCallOrigin::PlacedFormation {
             ..
         } => Err(LegalizationError::custody()),

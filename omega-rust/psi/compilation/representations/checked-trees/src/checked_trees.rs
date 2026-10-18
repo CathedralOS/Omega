@@ -40,7 +40,8 @@ pub use borrow::{
     CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
     CheckedReborrowResourceDisposition, CheckedReborrowResourceDispositionEvent,
     CheckedReborrowRestorationObligation, CheckedRetiredParentResourceDispositionStep,
-    IncomingReferenceIdentity, ParentLexicalStatusAtChildEnd, StateBorrowFact,
+    IncomingReferenceIdentity, IncomingReferenceOrigin, ParentLexicalStatusAtChildEnd,
+    StateBorrowFact,
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{
@@ -123,7 +124,7 @@ pub use flow::{
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
     CheckedPlaceLoanPlan, CheckedPlaceLoanRoot, CheckedPrimitiveReceivingRange,
     CheckedProviderAttachmentRequirementPlan, CheckedRankEdgeCoordinate,
-    CheckedReferenceOriginProjection, CheckedReferenceOriginSourcePlan,
+    CheckedReferenceOriginProjection, CheckedReferenceOriginRoot, CheckedReferenceOriginSourcePlan,
     CheckedReferenceResultSourcePlan, CheckedReferenceStorage, CheckedReturnedReferencePlan,
     CheckedRuntimeIndex, CheckedScalarBranchDestination, CheckedScalarCaseFieldPlan,
     CheckedScalarGuardedExit, CheckedScalarGuardedTail, CheckedScalarReturnPlan,

@@ -919,7 +919,7 @@ pub(crate) fn prepare(
                     // Storage shares the owner's carrier namespace, not its
                     // qualified theory. The computation retains source_type;
                     // this lookup neither forgets nor establishes membership.
-                    let root_identity = validation::structural_type_identity(
+                    let root_identity = validation::stored_structural_type_identity(
                         &checked.typed,
                         *source_type,
                         &[],
@@ -1338,13 +1338,44 @@ pub(crate) fn type_roots(
         .filter(|(_, root)| root.machine == machine)
     {
         for handle in super::reachable_nodes(checked, &[root.root])? {
-            let CheckedScalarComputationKind::StructuralField { source_type, .. } =
-                &plans.nodes.get(handle).kind
+            let CheckedScalarComputationKind::StructuralField {
+                source_type,
+                source_expression,
+                subject,
+                ..
+            } = &plans.nodes.get(handle).kind
             else {
                 continue;
             };
+            let references = validation::observed_storage_type_references(
+                &checked.typed,
+                *source_type,
+                *source_expression,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "field observation lost its finite storage type path",
+            ))?;
+            for reference in references {
+                types.push(validation::structural_type_identity(
+                    &checked.typed,
+                    reference,
+                    &[],
+                    &[],
+                ));
+                types.push(validation::stored_structural_type_identity(
+                    &checked.typed,
+                    reference,
+                    &[],
+                    &[],
+                ));
+            }
+            // The observation names both its complete root and its selected
+            // record. A descriptor field does not recursively root its referent.
+            if !types.contains(&subject.type_identity) {
+                types.push(subject.type_identity);
+            }
             let identity =
-                validation::structural_type_identity(&checked.typed, *source_type, &[], &[]);
+                validation::stored_structural_type_identity(&checked.typed, *source_type, &[], &[]);
             if !types.contains(&identity) {
                 types.push(identity);
             }

@@ -79,7 +79,7 @@ pub use structural_control_plans::{
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
 };
 pub use structural_return::{
-    CheckedReferenceOriginProjection, CheckedReferenceOriginSourcePlan,
+    CheckedReferenceOriginProjection, CheckedReferenceOriginRoot, CheckedReferenceOriginSourcePlan,
     CheckedReferenceResultSourcePlan, CheckedReturnedReferencePlan,
     CheckedStructuralReturnCompletion, CheckedUnitStructuralReturnPlan,
 };

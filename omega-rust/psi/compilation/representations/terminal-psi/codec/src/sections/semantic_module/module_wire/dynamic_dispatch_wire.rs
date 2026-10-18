@@ -70,7 +70,16 @@ pub(super) fn encode_dynamic_dispatch(
             )?;
             for region in &slot.result_reference_regions {
                 encode_structural_path(writer, "dynamic result reference path", &region.path)?;
-                writer.u32(region.argument_index);
+                match region.origin {
+                    terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
+                        writer.u8(1);
+                        writer.u32(argument_index);
+                    }
+                    terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
+                        writer.u8(2);
+                        writer.id(carrier_type);
+                    }
+                }
                 encode_structural_path(writer, "dynamic result input region", &region.source_path)?;
                 encode_structural_access(writer, region.access);
             }
@@ -138,7 +147,20 @@ pub(super) fn decode_dynamic_dispatch(
                     result_reference_regions: decode_counted(reader, |reader| {
                         Ok(terminal_psi::TerminalDynamicReferenceRegion {
                             path: decode_structural_path(reader)?,
-                            argument_index: reader.u32()?,
+                            origin: match reader.u8()? {
+                                1 => terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
+                                    argument_index: reader.u32()?,
+                                },
+                                2 => terminal_psi::TerminalDynamicReferenceOrigin::Invocation {
+                                    carrier_type: reader.id("StructuralTypeId")?,
+                                },
+                                tag => {
+                                    return Err(CodecError::InvalidTag(
+                                        "TerminalDynamicReferenceOrigin",
+                                        tag,
+                                    ));
+                                }
+                            },
                             source_path: decode_structural_path(reader)?,
                             access: decode_structural_access(reader)?,
                         })

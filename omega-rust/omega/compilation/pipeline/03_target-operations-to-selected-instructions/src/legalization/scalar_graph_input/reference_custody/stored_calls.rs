@@ -172,7 +172,8 @@ pub(super) fn prepare(
                                     access,
                                 }));
                             }
-                            DescriptorStoredOrigin::IncomingContents { .. }
+                            DescriptorStoredOrigin::Invocation { .. }
+                            | DescriptorStoredOrigin::IncomingContents { .. }
                             | DescriptorStoredOrigin::Literal { .. }
                             | DescriptorStoredOrigin::PlacedFormation { .. } => return None,
                         }

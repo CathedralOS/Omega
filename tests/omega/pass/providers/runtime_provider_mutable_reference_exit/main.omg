@@ -1,0 +1,17 @@
+// Expected exit: 0. Store and read a provider-owned thread-local object.
+use omega::language::core::external_binding;
+data ErrorNumber { value: i32; }
+boundary trait ErrorAccess { machine locate() -> &mut ErrorNumber; }
+linux_x86_64 machine binding() -> ForeignBinding<9, 16, 11> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.2.5" } }
+}
+linux_x86_64 machine locate_native() -> &mut ErrorNumber satisfies ErrorAccess::locate via binding();
+NativeError satisfies ErrorAccess {
+ machine locate() -> &mut ErrorNumber { locate_native() }
+}
+machine main() reaches ErrorAccess crashes Trap {
+ let error: &mut ErrorNumber = ErrorAccess::locate();
+ error.value = 42;
+ transition error.value == 42 { true -> done() false -> bad() }
+ state done() {} state bad() { crash Trap; }
+}

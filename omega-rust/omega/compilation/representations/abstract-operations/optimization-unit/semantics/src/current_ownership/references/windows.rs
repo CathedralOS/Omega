@@ -76,6 +76,9 @@ pub(super) fn transfer(
     let mut regions = Vec::new();
     for origin in origins {
         let candidates = match origin {
+            ReferenceOrigin::Invocation { .. } => {
+                return Err(fail("external reference has no owned restoration cursor"));
+            }
             ReferenceOrigin::Primitive(place) => vec![ReferenceIdentity {
                 place,
                 path: Vec::new(),

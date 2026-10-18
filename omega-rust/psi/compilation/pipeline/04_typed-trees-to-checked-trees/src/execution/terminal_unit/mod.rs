@@ -817,6 +817,30 @@ pub(crate) fn build_checked_unit_effect_plans(
         .flatten()
         .collect::<Vec<_>>();
     retained_type_identities.extend(operand_identities.iter().copied());
+    // A performed field observation demands only the concrete declarations
+    // along its finite storage path, including nested descriptor crossings.
+    for (_, node) in facts.values.scalar_computations.nodes.iter() {
+        if let checked_trees::CheckedScalarComputationKind::StructuralField {
+            source_type,
+            source_expression,
+            ..
+        } = node.kind
+            && let Some(references) = validation::observed_storage_type_references(
+                program,
+                source_type,
+                source_expression,
+            )
+        {
+            for reference in references {
+                if let Some(identity) = shapes.add_type(reference, &[], &[]) {
+                    retained_type_identities.insert(identity);
+                }
+                if let Some(identity) = shapes.add_stored_type(reference, &[], &[]) {
+                    retained_type_identities.insert(identity);
+                }
+            }
+        }
+    }
     // Every collection capture names its actual declaration carrier before
     // evaluating that collection's selector. Retain its vocabulary even when
     // an inline descriptor field otherwise has no standalone catalog row.

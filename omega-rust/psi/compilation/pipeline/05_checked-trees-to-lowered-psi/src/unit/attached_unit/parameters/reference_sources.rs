@@ -216,28 +216,53 @@ pub(crate) fn lower_reference_result_sources(
         }) {
             return unsupported("returned origin has no borrowed carrier leaf");
         }
-        let parameter_index = reference.source.parameter_index;
-        let parameter =
-            parameters
-                .get(parameter_index as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "returned origin lost its input parameter",
-                ))?;
+        let (place, root_type) = match reference.source.root {
+            checked_trees::CheckedReferenceOriginRoot::Parameter { index } => {
+                let parameter =
+                    parameters
+                        .get(index as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "returned origin lost its input parameter",
+                        ))?;
+                (Some(parameter.place), parameter.structural_type)
+            }
+            checked_trees::CheckedReferenceOriginRoot::Invocation { carrier_type } => {
+                let declaration = crate::terminal_identities::structural_declaration_by_identity(
+                    structural_types,
+                    identities,
+                    checked,
+                    carrier_type,
+                    "returned invocation origin lost its carrier type",
+                )?;
+                (None, declaration.id)
+            }
+        };
         let path =
             crate::expression_preparation::bindings::structural_paths::lower_reference_origin_path(
                 identities,
                 checked,
                 &reference.source.path,
-                parameter.structural_type,
+                root_type,
                 structural_types,
             )?;
-        let source = terminal_psi::ReferenceOriginSource {
-            place: parameter.place,
-            extent: reference.source.extent,
-            path,
-            access: crate::expression_preparation::bindings::structural_paths::terminal_access(
-                reference.source.access,
+        let access = crate::expression_preparation::bindings::structural_paths::terminal_access(
+            reference.source.access,
+        );
+        let source = match place {
+            Some(place) => terminal_psi::StructuralReferenceOrigin::Parameter(
+                terminal_psi::ReferenceOriginSource {
+                    place,
+                    extent: reference.source.extent,
+                    path,
+                    access,
+                },
             ),
+            None => terminal_psi::StructuralReferenceOrigin::Invocation {
+                carrier_type: root_type,
+                extent: reference.source.extent,
+                path,
+                access,
+            },
         };
         lowered.push(terminal_psi::StructuralReferenceResultSource {
             path: result_path,

@@ -175,11 +175,13 @@ impl ReferenceRoot {
     pub(super) fn origins(&self) -> Vec<target_operations::TargetReferenceOrigin> {
         match self {
             Self::Place(root) => vec![target_operations::TargetReferenceOrigin {
+                kind: target_operations::TargetReferenceOriginKind::Storage,
                 root: *root,
                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                 path: Vec::new(),
             }],
             Self::Ingress(root, path) => vec![target_operations::TargetReferenceOrigin {
+                kind: target_operations::TargetReferenceOriginKind::Storage,
                 root: *root,
                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                 path: path
@@ -1432,7 +1434,44 @@ pub(super) fn call_results(
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for binding in &mapping.sources {
-            let source = &binding.source;
+            let (source, transfers_existing) = match &binding.origin {
+                terminal_semantics::ReferenceCallOrigin::Parameter {
+                    source,
+                    transfers_existing,
+                } => (source, *transfers_existing),
+                terminal_semantics::ReferenceCallOrigin::Invocation {
+                    carrier_type,
+                    path: origin_path,
+                    access,
+                } => {
+                    if !access_covers(*access, result_access)
+                        || binding.endpoint != expected
+                        || binding.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    let root = ReferenceRoot::Alternatives(vec![
+                        target_operations::TargetReferenceOrigin {
+                            root: result.place,
+                            kind: target_operations::TargetReferenceOriginKind::Invocation {
+                                carrier_type: *carrier_type,
+                            },
+                            path: origin_path.clone(),
+                            extent: binding.extent,
+                        },
+                    ]);
+                    candidates.push(ReferenceStorage {
+                        root,
+                        carrier_type: leaf_type(types, result.structural_type, &mapping.path)
+                            .ok_or_else(|| {
+                                LoweringError::unsupported_control_flow(function.machine)
+                            })?,
+                        referent: expected,
+                        placed: None,
+                    });
+                    continue;
+                }
+            };
             if !access_covers(source.access, result_access) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
@@ -1454,7 +1493,7 @@ pub(super) fn call_results(
                     reason: "returned reference origin does not resolve to its declared referent storage type",
                 });
             }
-            let leaf = if binding.transfers_existing {
+            let leaf = if transfers_existing {
                 // An owned-carrier ingress mapping relocates one of the leaves the
                 // moved arguments just transferred; possible backing follows
                 // the descriptor bytes to the declared result path.

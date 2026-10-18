@@ -473,23 +473,44 @@ fn lower_slot(
     result_claim_paths.sort();
     let mut result_reference_regions = Vec::new();
     for reference in &plan.result_reference_sources {
-        if reference.source.extent != semantic_vocabulary::ReferenceOriginExtent::WithinRegion {
+        if matches!(
+            reference.source.root,
+            checked_trees::CheckedReferenceOriginRoot::Parameter { .. }
+        ) && reference.source.extent != semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+        {
             return unsupported("dynamic result contract contains a private precise origin");
         }
         let terminal_psi::BoundaryMachineResult::Structural(result) = &result else {
             return unsupported("nonstructural dynamic result carries reference origins");
         };
-        let formal = structural_parameters
-            .get(reference.source.parameter_index as usize)
-            .ok_or(LoweringError::Unsupported(
-                "dynamic result region has no structural input",
-            ))?;
+        let (origin, root_type) =
+            match reference.source.root {
+                checked_trees::CheckedReferenceOriginRoot::Parameter { index } => {
+                    let formal = structural_parameters.get(index as usize).ok_or(
+                        LoweringError::Unsupported("dynamic result region has no structural input"),
+                    )?;
+                    (
+                        terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
+                            argument_index: index,
+                        },
+                        formal.structural_type,
+                    )
+                }
+                checked_trees::CheckedReferenceOriginRoot::Invocation { carrier_type } => {
+                    let carrier_type =
+                        crate::terminal_identities::lookup_type_id(type_ids, &carrier_type)?;
+                    (
+                        terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type },
+                        carrier_type,
+                    )
+                }
+            };
         let source_path =
             crate::expression_preparation::bindings::structural_paths::lower_reference_origin_path(
                 identities,
                 checked,
                 &reference.source.path,
-                formal.structural_type,
+                root_type,
                 structural_types,
             )?
             .into_iter()
@@ -504,7 +525,7 @@ fn lower_slot(
             path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
                 identities, &reference.path, result.structural_type, structural_types,
             )?,
-            argument_index: reference.source.parameter_index,
+            origin,
             source_path,
             access: crate::expression_preparation::bindings::structural_paths::terminal_access(reference.source.access),
         });

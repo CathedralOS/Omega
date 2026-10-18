@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+ Build::application(builder, "runtime_provider_reference_deep_exit");
+ Build::select_provider<LocaleAccess, NativeLocale>(builder);
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

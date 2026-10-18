@@ -69,7 +69,7 @@ pub fn validate_descriptor_result_regions(
                 .iter()
                 .filter(|region| {
                     region.path == leaf.path
-                        && usize::try_from(region.argument_index).ok() == Some(position)
+                        && matches!(region.origin, terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } if usize::try_from(argument_index).ok() == Some(position))
                 })
                 .map(|region| ReferenceOriginSource {
                     place: parameter.place,

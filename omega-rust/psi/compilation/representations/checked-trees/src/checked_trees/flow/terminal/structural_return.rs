@@ -47,13 +47,22 @@ pub struct CheckedReturnedReferencePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedReferenceOriginSourcePlan {
-    pub parameter_index: u32,
+    pub root: CheckedReferenceOriginRoot,
     pub path: Vec<CheckedReferenceOriginProjection>,
     pub extent: semantic_vocabulary::ReferenceOriginExtent,
     /// Type of the selected source endpoint. For a region relation this need
     /// not equal the result referent's type.
     pub type_identity: TypeIdentityId,
     pub access: super::CheckedStructuralAccess,
+}
+
+/// A normal result either retains a formal's permission or publishes a
+/// permission established by the performed invocation. Executable body replay
+/// still authenticates its actual supplier; this declaration forms no pointer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedReferenceOriginRoot {
+    Parameter { index: u32 },
+    Invocation { carrier_type: TypeIdentityId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

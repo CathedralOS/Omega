@@ -54,10 +54,28 @@ pub(super) fn encode_signature(
                 encode_path(bytes, &reference.path);
                 length(bytes, reference.sources.len());
                 for source in &reference.sources {
-                    crate::codec_bytes::push_encoded(bytes, source.place.get().to_le_bytes());
-                    encode_reference_origin_path(bytes, &source.path);
-                    encode_access(bytes, source.access);
-                    bytes.push(match source.extent {
+                    match source {
+                        terminal_psi::StructuralReferenceOrigin::Parameter(source) => {
+                            bytes.push(1);
+                            crate::codec_bytes::push_encoded(
+                                bytes,
+                                source.place.get().to_le_bytes(),
+                            );
+                        }
+                        terminal_psi::StructuralReferenceOrigin::Invocation {
+                            carrier_type,
+                            ..
+                        } => {
+                            bytes.push(2);
+                            crate::codec_bytes::push_encoded(
+                                bytes,
+                                carrier_type.get().to_le_bytes(),
+                            );
+                        }
+                    }
+                    encode_reference_origin_path(bytes, source.path());
+                    encode_access(bytes, source.access());
+                    bytes.push(match source.extent() {
                         semantic_vocabulary::ReferenceOriginExtent::Projected => 1,
                         semantic_vocabulary::ReferenceOriginExtent::WithinRegion => 2,
                     });
@@ -126,15 +144,50 @@ pub(super) fn decode_signature(
                                 let count = c.length()?;
                                 let mut candidates = Vec::new();
                                 for _ in 0..count {
-                                    candidates.push(terminal_psi::ReferenceOriginSource {
-                                        place: decode_id(c, PlaceId::new)?,
-                                        path: decode_reference_origin_path(c)?,
-                                        access: decode_access(c)?,
-                                        extent: match c.byte()? {
-                                            1 => semantic_vocabulary::ReferenceOriginExtent::Projected,
-                                            2 => semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
-                                            tag => return Err(FixedViewCopyDecodeError::UnknownReferenceOriginExtent(tag)),
-                                        },
+                                    let (place, carrier_type) = match c.byte()? {
+                                        1 => (Some(decode_id(c, PlaceId::new)?), None),
+                                        2 => (None, Some(decode_id(c, StructuralTypeId::new)?)),
+                                        tag => {
+                                            return Err(FixedViewCopyDecodeError::UnknownOption(
+                                                tag,
+                                            ));
+                                        }
+                                    };
+                                    let path = decode_reference_origin_path(c)?;
+                                    let access = decode_access(c)?;
+                                    let extent = match c.byte()? {
+                                        1 => semantic_vocabulary::ReferenceOriginExtent::Projected,
+                                        2 => {
+                                            semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                                        }
+                                        tag => return Err(
+                                            FixedViewCopyDecodeError::UnknownReferenceOriginExtent(
+                                                tag,
+                                            ),
+                                        ),
+                                    };
+                                    candidates.push(match (place, carrier_type) {
+                                        (Some(place), None) => {
+                                            terminal_psi::StructuralReferenceOrigin::Parameter(
+                                                terminal_psi::ReferenceOriginSource {
+                                                    place,
+                                                    path,
+                                                    access,
+                                                    extent,
+                                                },
+                                            )
+                                        }
+                                        (None, Some(carrier_type)) => {
+                                            terminal_psi::StructuralReferenceOrigin::Invocation {
+                                                carrier_type,
+                                                path,
+                                                access,
+                                                extent,
+                                            }
+                                        }
+                                        _ => {
+                                            return Err(FixedViewCopyDecodeError::UnknownOption(0));
+                                        }
                                     });
                                 }
                                 candidates
@@ -176,6 +229,17 @@ pub(super) fn decode_signature(
 mod tests {
     use super::{Cursor, LegalizedStructuralContract, decode_signature, encode_signature};
 
+    fn parameter(
+        source: &mut terminal_psi::StructuralReferenceOrigin,
+    ) -> &mut terminal_psi::ReferenceOriginSource {
+        match source {
+            terminal_psi::StructuralReferenceOrigin::Parameter(source) => source,
+            terminal_psi::StructuralReferenceOrigin::Invocation { .. } => {
+                panic!("expected parameter origin")
+            }
+        }
+    }
+
     #[test]
     fn reference_signature_round_trip_retains_origins_and_referent_identity() {
         let signature = LegalizedStructuralContract {
@@ -195,6 +259,7 @@ mod tests {
                             extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                             path: Vec::new(),
                         })
+                        .map(terminal_psi::StructuralReferenceOrigin::Parameter)
                         .collect(),
                 }],
             }),
@@ -221,13 +286,24 @@ mod tests {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
         };
+        let mut signature = signature;
+        signature.result.as_mut().unwrap().reference_sources[0]
+            .sources
+            .push(terminal_psi::StructuralReferenceOrigin::Invocation {
+                carrier_type: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
+                path: vec![terminal_psi::ReferenceOriginProjection::Exact(
+                    terminal_psi::StructuralPathSegment::Referent,
+                )],
+                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                access: terminal_psi::StructuralAccess::MutableBorrow,
+            });
         let mut bytes = Vec::new();
         encode_signature(&mut bytes, &signature).unwrap();
         let mut cursor = Cursor::new(&bytes);
         assert_eq!(decode_signature(&mut cursor).unwrap(), signature);
         assert_eq!(cursor.remaining(), 0);
         let mut region = signature.clone();
-        region.result.as_mut().unwrap().reference_sources[0].sources[0].extent =
+        parameter(&mut region.result.as_mut().unwrap().reference_sources[0].sources[0]).extent =
             semantic_vocabulary::ReferenceOriginExtent::WithinRegion;
         let mut region_bytes = Vec::new();
         encode_signature(&mut region_bytes, &region).unwrap();
@@ -236,7 +312,7 @@ mod tests {
         assert_eq!(decode_signature(&mut region_cursor).unwrap(), region);
         assert_eq!(region_cursor.remaining(), 0);
         let mut family = signature.clone();
-        family.result.as_mut().unwrap().reference_sources[0].sources[0].path = vec![
+        parameter(&mut family.result.as_mut().unwrap().reference_sources[0].sources[0]).path = vec![
             terminal_psi::ReferenceOriginProjection::Exact(
                 terminal_psi::StructuralPathSegment::RepresentationView {
                     structural_type: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),

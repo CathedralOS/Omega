@@ -1053,6 +1053,14 @@ pub(in crate::analyses) fn place_access_summaries(
                             .sources
                             .iter()
                             .flat_map(|candidate| {
+                                let terminal_psi::StructuralReferenceOrigin::Parameter(candidate) =
+                                    candidate
+                                else {
+                                    return vec![ResolvedAccess::External {
+                                        root: result.place,
+                                        path: Vec::new(),
+                                    }];
+                                };
                                 context.resolve(
                                     candidate.place,
                                     candidate

@@ -79,6 +79,14 @@ pub(crate) enum ReferenceParent {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum ReferenceOrigin {
+    /// A completed invocation supplied external storage. The operation result
+    /// identifies the actual permission; geometry never supplies an address.
+    Invocation {
+        result: ReferenceIdentity,
+        carrier_type: StructuralTypeId,
+        path: Vec<terminal_psi::ReferenceOriginProjection>,
+        extent: semantic_vocabulary::ReferenceOriginExtent,
+    },
     Primitive(PlaceId),
     /// An internal owned ingress assumes one existing permission per leaf.
     IngressLeaf(ReferenceOriginIdentity),
@@ -816,9 +824,12 @@ pub(crate) fn validate_function_references(
     if result.reference_sources.iter().any(|mapping| {
         mapping.sources.len() > 1
             || mapping.sources.iter().any(|source| {
-                source.extent == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                matches!(
+                    source,
+                    terminal_psi::StructuralReferenceOrigin::Invocation { .. }
+                ) || source.extent() == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
                     || source
-                        .path
+                        .path()
                         .contains(&terminal_psi::ReferenceOriginProjection::Element)
             })
     }) {
@@ -835,6 +846,28 @@ pub(crate) fn validate_function_references(
             return Err(invalid());
         }
         for formal in &mapping.sources {
+            let terminal_psi::StructuralReferenceOrigin::Parameter(formal) = formal else {
+                let terminal_psi::StructuralReferenceOrigin::Invocation {
+                    carrier_type,
+                    path: source_path,
+                    extent,
+                    access,
+                } = formal
+                else {
+                    unreachable!()
+                };
+                if *extent != semantic_vocabulary::ReferenceOriginExtent::Projected
+                    || terminal_semantics::reference_origin_type(
+                        types.values().copied(),
+                        *carrier_type,
+                        source_path,
+                    ) != Some(expected_referent)
+                    || !leaf_access_within(types, result.structural_type, path, *access)
+                {
+                    return Err(invalid());
+                }
+                continue;
+            };
             let projected = formal_reference_source(types, function, formal).ok_or_else(invalid)?;
             // Repeated observations of borrowed ingress create independent
             // shared descendants. An owned ingress instead transfers existing

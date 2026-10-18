@@ -113,7 +113,8 @@ impl ReferenceCallEffects {
                                         }
                                         // A possible contents set cannot mint an exact
                                         // reference permission at an executable address.
-                                        DescriptorStoredOrigin::IncomingContents { .. }
+                                        DescriptorStoredOrigin::Invocation { .. }
+                                        | DescriptorStoredOrigin::IncomingContents { .. }
                                         | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::PlacedFormation { .. } => None,
                                     }
                                 })
@@ -526,7 +527,7 @@ fn resolve_slot(
                     )
                 })?
             }
-            ReferenceOrigin::Alternatives { .. } => {
+            ReferenceOrigin::Invocation { .. } | ReferenceOrigin::Alternatives { .. } => {
                 return Err(invalid(
                     function,
                     block,

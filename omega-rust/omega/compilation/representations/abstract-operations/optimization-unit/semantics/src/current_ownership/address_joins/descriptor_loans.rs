@@ -130,7 +130,8 @@ impl DescriptorLoans {
                     if let Some(origins) = borrowed_regions.call_origins(result.place) {
                         births.extend(origins.iter().filter_map(|origin| match origin {
                             terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, projection } => Some((position, DescriptorLocation::whole(result.place), *source, projection.clone(), StructuralAccess::SharedBorrow)),
-                            terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty
+                            terminal_semantics::descriptor_results::DescriptorCallOrigin::Invocation { .. }
+                            | terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty
                             | terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal { .. }
                             | terminal_semantics::descriptor_results::DescriptorCallOrigin::PlacedFormation { .. } => None,
                         }));

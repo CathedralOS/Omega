@@ -53,6 +53,10 @@ pub use replay::{
 
 #[derive(Clone)]
 pub enum DescriptorResultOrigin {
+    Invocation {
+        carrier_type: StructuralTypeId,
+        projection: Projection,
+    },
     Empty,
     Parameter {
         position: usize,
@@ -66,6 +70,12 @@ pub enum DescriptorResultOrigin {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DescriptorCallOrigin {
+    /// Storage geometry of the completed invocation's reference permission.
+    /// The independently checked call establishes custody; this is no address.
+    Invocation {
+        carrier_type: StructuralTypeId,
+        projection: Projection,
+    },
     /// Provenance token used only by the placed-loan analysis. This names a
     /// checked formation, never physical storage or permission to access it.
     PlacedFormation {

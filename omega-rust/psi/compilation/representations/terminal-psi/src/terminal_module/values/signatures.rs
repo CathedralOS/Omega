@@ -155,10 +155,58 @@ pub struct StructuralReferenceResultSource {
     pub path: Vec<StructuralPathSegment>,
     /// Nonempty, strictly ordered alternatives for this one reference leaf.
     /// These are possible origins, not simultaneous permission carriers.
-    pub sources: Vec<super::ReferenceOriginSource>,
+    pub sources: Vec<StructuralReferenceOrigin>,
 }
 
-impl StructuralReferenceResultSource {}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StructuralReferenceOrigin {
+    Parameter(super::ReferenceOriginSource),
+    Invocation {
+        carrier_type: semantic_vocabulary::StructuralTypeId,
+        path: Vec<super::ReferenceOriginProjection>,
+        extent: semantic_vocabulary::ReferenceOriginExtent,
+        access: crate::StructuralAccess,
+    },
+}
+
+impl StructuralReferenceOrigin {
+    pub fn parameter(&self) -> Option<&super::ReferenceOriginSource> {
+        match self {
+            Self::Parameter(source) => Some(source),
+            Self::Invocation { .. } => None,
+        }
+    }
+    pub fn access(&self) -> crate::StructuralAccess {
+        match self {
+            Self::Parameter(source) => source.access,
+            Self::Invocation { access, .. } => *access,
+        }
+    }
+    pub fn path(&self) -> &[super::ReferenceOriginProjection] {
+        match self {
+            Self::Parameter(source) => &source.path,
+            Self::Invocation { path, .. } => path,
+        }
+    }
+    pub fn extent(&self) -> semantic_vocabulary::ReferenceOriginExtent {
+        match self {
+            Self::Parameter(source) => source.extent,
+            Self::Invocation { extent, .. } => *extent,
+        }
+    }
+}
+
+impl From<super::ReferenceOriginSource> for StructuralReferenceOrigin {
+    fn from(source: super::ReferenceOriginSource) -> Self {
+        Self::Parameter(source)
+    }
+}
+
+impl From<StructuralArgument> for StructuralReferenceOrigin {
+    fn from(source: StructuralArgument) -> Self {
+        Self::Parameter(source.into())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralArgument {

@@ -1114,7 +1114,7 @@ pub fn stored_carrier_ingress_is_complete(
         .filter_map(|(_, row)| {
             (row.machine_symbol == machine
                 && row.state_symbol == state
-                && row.parameter_symbol == parameter)
+                && row.parameter_symbol() == parameter)
                 .then_some(row)
         })
         .collect::<Vec<_>>();
@@ -1838,7 +1838,10 @@ pub fn transient_call_record_loans(
             .iter()
             .filter(|source| residual_paths.contains(&source.path))
             .all(|source| {
-                let parameter_index = source.source.parameter_index;
+                let parameter_index = match source.source.root {
+                    checked_trees::CheckedReferenceOriginRoot::Parameter { index } => index,
+                    checked_trees::CheckedReferenceOriginRoot::Invocation { .. } => return true,
+                };
                 let Some(parameter) = parameters
                     .iter()
                     .filter(|parameter| is_mutable_structural_parameter(program, parameter))

@@ -40,6 +40,7 @@ pub(super) fn loans(
                     )
             }) {
                 loans.push(StatementBorrowLoan {
+                    incoming_origin: None,
                     formation_expression: Default::default(),
                     owner_symbol: owner,
                     storage_owner: facts::PlaceRoot::Symbol(owner),
@@ -92,6 +93,7 @@ pub(super) fn loans(
                 // authority; otherwise retain the backing conflict without
                 // inventing a parent.
                 loans.push(StatementBorrowLoan {
+                    incoming_origin: None,
                     formation_expression: Default::default(),
                     owner_symbol: owner,
                     storage_owner: facts::PlaceRoot::Symbol(owner),

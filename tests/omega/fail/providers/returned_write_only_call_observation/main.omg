@@ -1,0 +1,14 @@
+use omega::language::core::external_binding;
+data VersionByte { value: u8; }
+boundary trait Version { machine locate() -> &write VersionByte; }
+linux_x86_64 machine binding() -> ForeignBinding<9, 20, 11> {
+ ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "gnu_get_libc_version", version: "GLIBC_2.2.5" } }
+}
+linux_x86_64 machine locate_native() -> &write VersionByte satisfies Version::locate via binding();
+NativeVersion satisfies Version {
+ machine locate() -> &write VersionByte { locate_native() }
+}
+machine main() reaches Version crashes Trap {
+ transition Version::locate().value != 0 { true -> done() false -> bad() }
+ state done() {} state bad() { crash Trap; }
+}

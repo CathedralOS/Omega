@@ -1,0 +1,1 @@
+observes write-only referent through a selected value

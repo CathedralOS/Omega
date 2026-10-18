@@ -1487,7 +1487,10 @@ pub fn structural_call_custody(
         )
         .ok_or("reference result has no complete input origins")?;
         for source in sources {
-            let parameter_index = source.source.parameter_index;
+            let parameter_index = match source.source.root {
+                checked_trees::CheckedReferenceOriginRoot::Parameter { index } => index,
+                checked_trees::CheckedReferenceOriginRoot::Invocation { .. } => continue,
+            };
             let actual = structural_arguments
                 .get(parameter_index as usize)
                 .ok_or("reference result input is absent")?;

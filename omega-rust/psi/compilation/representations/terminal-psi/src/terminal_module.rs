@@ -32,10 +32,11 @@ pub use boundary::{
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
     ProviderSignature, ProviderSignatureParameter, ServiceDeclaration, StructuralDomainRequirement,
     TerminalBoundaryApplicationDemand, TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog,
-    TerminalDynamicInterface, TerminalDynamicReferenceRegion, TerminalDynamicSlot,
-    TerminalDynamicStructuralFormal, TerminalDynamicTable, TerminalRootServiceReach,
-    closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
-    find_boundary_machine, program_local_root_introduction_compatibility_report_identity,
+    TerminalDynamicInterface, TerminalDynamicReferenceOrigin, TerminalDynamicReferenceRegion,
+    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
+    TerminalRootServiceReach, closed_conformance_application_commitment,
+    closed_conformance_application_report_fingerprint, find_boundary_machine,
+    program_local_root_introduction_compatibility_report_identity,
 };
 pub use control_flow::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
@@ -129,9 +130,10 @@ pub use types::{
 pub use values::{
     ErasedProofFormal, OperationProjection, ReferenceOriginProjection, ReferenceOriginSource,
     StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralReferenceResultSource, StructuralResultDeclaration,
-    TerminalMachineResult, ValueDeclaration, is_static_structural_path,
-    is_static_structural_scalar_store_path, is_structural_scalar_store_path,
+    StructuralPlaceDeclaration, StructuralReferenceOrigin, StructuralReferenceResultSource,
+    StructuralResultDeclaration, TerminalMachineResult, ValueDeclaration,
+    is_static_structural_path, is_static_structural_scalar_store_path,
+    is_structural_scalar_store_path,
 };
 
 use semantic_vocabulary::{MachineId, ServiceId};

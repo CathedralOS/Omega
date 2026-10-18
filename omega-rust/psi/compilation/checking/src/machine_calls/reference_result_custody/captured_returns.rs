@@ -518,6 +518,51 @@ impl Captures<'_> {
         loans: &[checked_trees::BorrowReturnedLoanFact],
         captured: Option<&[crate::ReferenceResultLeafOrigin]>,
     ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
+        if loan.incoming_reference.is_valid()
+            && self
+                .facts
+                .borrow
+                .incoming_references
+                .is_valid(loan.incoming_reference)
+        {
+            let incoming = self
+                .facts
+                .borrow
+                .incoming_references
+                .get(loan.incoming_reference);
+            if let checked_trees::IncomingReferenceOrigin::Invocation { expression, target } =
+                incoming.origin
+            {
+                if incoming.state_symbol != state.symbol
+                    || loan.root != facts::PlaceRoot::Expression(expression)
+                    || !matches!(self.program.expression_table.expression(expression), typed_trees::expression::ExpressionNode::Call(call) if call.target_symbol == target)
+                {
+                    return None;
+                }
+                let shell = crate::reference_shell(self.program, incoming.carrier_type)?;
+                if !reference_access_can_supply(shell.access.into(), leaf.source.access) {
+                    return None;
+                }
+                let (suffix, endpoint, extent) = self.origin_path(shell.referee, segments)?;
+                let identity = self.program.normalized_type_identity(endpoint);
+                if identity != leaf.source.type_identity {
+                    return None;
+                }
+                return Some(vec![CheckedReferenceOriginSourcePlan {
+                    root: checked_trees::CheckedReferenceOriginRoot::Invocation {
+                        carrier_type: self.program.normalized_type_identity(incoming.carrier_type),
+                    },
+                    path: std::iter::once(CheckedReferenceOriginProjection::Exact(
+                        CheckedUnitStructuralPathSegment::Referent,
+                    ))
+                    .chain(suffix)
+                    .collect(),
+                    extent,
+                    type_identity: identity,
+                    access: leaf.source.access,
+                }]);
+            }
+        }
         let incoming = if loan.incoming_reference.is_valid() {
             if !self
                 .facts
@@ -533,7 +578,7 @@ impl Captures<'_> {
                 .incoming_references
                 .get(loan.incoming_reference);
             if incoming.state_symbol != state.symbol
-                || loan.root != facts::PlaceRoot::Symbol(incoming.parameter_symbol)
+                || loan.root != facts::PlaceRoot::Symbol(incoming.parameter_symbol())
             {
                 return None;
             }
@@ -658,7 +703,9 @@ impl Captures<'_> {
             {
                 path.extend(suffix);
                 return Some(vec![CheckedReferenceOriginSourcePlan {
-                    parameter_index,
+                    root: checked_trees::CheckedReferenceOriginRoot::Parameter {
+                        index: parameter_index,
+                    },
                     path,
                     extent,
                     type_identity: identity,
@@ -724,7 +771,9 @@ impl Captures<'_> {
                     let mut complete = path.clone();
                     complete.extend(suffix);
                     let source = CheckedReferenceOriginSourcePlan {
-                        parameter_index,
+                        root: checked_trees::CheckedReferenceOriginRoot::Parameter {
+                            index: parameter_index,
+                        },
                         path: complete,
                         extent,
                         type_identity: source_identity,
@@ -768,7 +817,9 @@ impl Captures<'_> {
             endpoint = parameter.type_reference;
         }
         Some(vec![CheckedReferenceOriginSourcePlan {
-            parameter_index,
+            root: checked_trees::CheckedReferenceOriginRoot::Parameter {
+                index: parameter_index,
+            },
             path,
             extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
             type_identity: self.program.normalized_type_identity(endpoint),
@@ -929,7 +980,15 @@ impl Captures<'_> {
             .span(call.argument_operands())?;
         let mut paths = Vec::new();
         for source in sources {
-            let parameter_index = source.source.parameter_index;
+            let parameter_index = match source.source.root {
+                checked_trees::CheckedReferenceOriginRoot::Parameter { index } => index,
+                checked_trees::CheckedReferenceOriginRoot::Invocation { .. } => {
+                    if !paths.contains(&source.path) {
+                        paths.push(source.path);
+                    }
+                    continue;
+                }
+            };
             let (position, parameter) = parameters
                 .iter()
                 .enumerate()

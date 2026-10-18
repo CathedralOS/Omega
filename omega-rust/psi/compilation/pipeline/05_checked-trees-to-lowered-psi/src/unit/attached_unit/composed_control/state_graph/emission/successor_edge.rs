@@ -373,12 +373,23 @@ impl StateGraphEmission<'_, '_> {
                                 Some(&mut calls), Some((next_value, operations)),
                             )?;
                             self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-                            if carrier_type_identity.is_valid()
+                            // A captured header has one descriptor slot on every
+                            // incoming edge. Existing local descriptors participate
+                            // in that same typed formation; whole parameter
+                            // forwarding instead transports its existing owner.
+                            let target_carrier = self.captured_loans.parent_carrier(target, target_index as u32);
+                            let whole_parameter = subject.path.is_empty()
+                                && matches!(subject.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. });
+                            if (carrier_type_identity.is_valid() || target_carrier.is_some() && !whole_parameter)
                                 && let Some(group) = self.captured_loans.group(target, target_index as u32)
                             {
-                                let carrier_type = crate::terminal_identities::lookup_type_id(
-                                    &self.catalogs.type_ids, &carrier_type_identity,
-                                )?;
+                                let carrier_type = if carrier_type_identity.is_valid() {
+                                    crate::terminal_identities::lookup_type_id(
+                                        &self.catalogs.type_ids, &carrier_type_identity,
+                                    )?
+                                } else {
+                                    target_carrier.ok_or(LoweringError::Unsupported("captured header lost its descriptor declaration"))?.structural_type
+                                };
                                 captured_backing = Some((root, path.clone()));
                                 let (source_place, source_path) = match subject.source {
                                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }

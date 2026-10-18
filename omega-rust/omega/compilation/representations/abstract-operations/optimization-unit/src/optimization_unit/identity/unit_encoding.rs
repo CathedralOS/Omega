@@ -98,7 +98,20 @@ fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
                 });
                 bytes.slice(&slot.result_reference_regions, |bytes, region| {
                     bytes.slice(&region.path, encode_structural_path_segment);
-                    bytes.u32(region.argument_index);
+                    match region.origin {
+                        terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
+                            argument_index,
+                        } => {
+                            bytes.u8(1);
+                            bytes.u32(argument_index);
+                        }
+                        terminal_psi::TerminalDynamicReferenceOrigin::Invocation {
+                            carrier_type,
+                        } => {
+                            bytes.u8(2);
+                            bytes.id(carrier_type);
+                        }
+                    }
                     bytes.slice(&region.source_path, encode_structural_path_segment);
                     encode_access(bytes, region.access);
                 });
@@ -473,18 +486,27 @@ fn encode_structural_result(bytes: &mut CanonicalBytes, result: &StructuralResul
     bytes.slice(&result.reference_sources, |bytes, reference| {
         bytes.slice(&reference.path, encode_structural_path_segment);
         bytes.slice(&reference.sources, |bytes, source| {
-            bytes.id(source.place);
-            bytes.u8(match source.extent {
+            match source {
+                terminal_psi::StructuralReferenceOrigin::Parameter(source) => {
+                    bytes.u8(1);
+                    bytes.id(source.place);
+                }
+                terminal_psi::StructuralReferenceOrigin::Invocation { carrier_type, .. } => {
+                    bytes.u8(2);
+                    bytes.id(*carrier_type);
+                }
+            }
+            bytes.u8(match source.extent() {
                 semantic_vocabulary::ReferenceOriginExtent::Projected => 1,
                 semantic_vocabulary::ReferenceOriginExtent::WithinRegion => 2,
             });
-            bytes.slice(&source.path, |bytes, projection| match projection {
+            bytes.slice(source.path(), |bytes, projection| match projection {
                 terminal_psi::ReferenceOriginProjection::Exact(segment) => {
                     encode_structural_path_segment(bytes, segment)
                 }
                 terminal_psi::ReferenceOriginProjection::Element => bytes.u8(9),
             });
-            encode_access(bytes, source.access);
+            encode_access(bytes, source.access());
         });
     });
 }

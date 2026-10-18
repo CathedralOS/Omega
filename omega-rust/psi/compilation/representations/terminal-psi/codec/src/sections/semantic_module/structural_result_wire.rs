@@ -39,17 +39,25 @@ pub(crate) fn validate_reference_sources(
             );
         };
         for source in &reference.sources {
-            let Some(parameter) = machine.signature_structural_parameter(source.place) else {
-                return crate::codec_error::malformed(
-                    "reference result source must identify a formal ingress",
-                );
+            let root = match source {
+                terminal_psi::StructuralReferenceOrigin::Parameter(source) => {
+                    machine
+                        .signature_structural_parameter(source.place)
+                        .ok_or(CodecError::MalformedStructuralFoundation(
+                            "reference result source must identify a formal ingress",
+                        ))?
+                        .structural_type
+                }
+                terminal_psi::StructuralReferenceOrigin::Invocation { carrier_type, .. } => {
+                    *carrier_type
+                }
             };
             let endpoint =
                 crate::sections::semantic_module::module_foundation_validation::validate_reference_origin_family(
-                    module, parameter.structural_type, &source.path,
+                    module, root, source.path(),
                 )?;
-            if *access != source.access
-                || (source.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+            if *access != source.access()
+                || (source.extent() == semantic_vocabulary::ReferenceOriginExtent::Projected
                     && *referent != endpoint)
             {
                 return crate::codec_error::malformed(
@@ -106,13 +114,22 @@ pub(crate) fn encode_function_result(
         encode_structural_path(writer, "reference result path", &reference.path)?;
         writer.len("reference source alternatives", reference.sources.len())?;
         for source in &reference.sources {
-            writer.id(source.place);
-            super::structural_signature_wire::encode_structural_access(writer, source.access);
-            writer.u8(match source.extent {
+            match source {
+                terminal_psi::StructuralReferenceOrigin::Parameter(source) => {
+                    writer.u8(1);
+                    writer.id(source.place);
+                }
+                terminal_psi::StructuralReferenceOrigin::Invocation { carrier_type, .. } => {
+                    writer.u8(2);
+                    writer.id(*carrier_type);
+                }
+            }
+            super::structural_signature_wire::encode_structural_access(writer, source.access());
+            writer.u8(match source.extent() {
                 semantic_vocabulary::ReferenceOriginExtent::Projected => 1,
                 semantic_vocabulary::ReferenceOriginExtent::WithinRegion => 2,
             });
-            encode_reference_origin_path(writer, "reference source path", &source.path)?;
+            encode_reference_origin_path(writer, "reference source path", source.path())?;
         }
     }
     Ok(())
@@ -131,18 +148,39 @@ pub(crate) fn decode_function_result(
             Ok(terminal_psi::StructuralReferenceResultSource {
                 path: decode_structural_path(reader)?,
                 sources: decode_counted(reader, |reader| {
-                    Ok(terminal_psi::ReferenceOriginSource {
-                        place: reader.id("PlaceId")?,
-                        access: super::structural_signature_wire::decode_structural_access(reader)?,
-                        extent: match reader.u8()? {
-                            1 => semantic_vocabulary::ReferenceOriginExtent::Projected,
-                            2 => semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
-                            tag => {
-                                return Err(CodecError::InvalidTag("ReferenceOriginExtent", tag));
-                            }
-                        },
-                        path: decode_reference_origin_path(reader)?,
-                    })
+                    let kind = reader.u8()?;
+                    let (parameter, carrier) = match kind {
+                        1 => (Some(reader.id("PlaceId")?), None),
+                        2 => (None, Some(reader.id("StructuralTypeId")?)),
+                        tag => {
+                            return Err(CodecError::InvalidTag("StructuralReferenceOrigin", tag));
+                        }
+                    };
+                    let access =
+                        super::structural_signature_wire::decode_structural_access(reader)?;
+                    let extent = match reader.u8()? {
+                        1 => semantic_vocabulary::ReferenceOriginExtent::Projected,
+                        2 => semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
+                        tag => return Err(CodecError::InvalidTag("ReferenceOriginExtent", tag)),
+                    };
+                    let path = decode_reference_origin_path(reader)?;
+                    match kind {
+                        1 => Ok(terminal_psi::StructuralReferenceOrigin::Parameter(
+                            terminal_psi::ReferenceOriginSource {
+                                place: parameter.ok_or(CodecError::NonCanonicalEncoding)?,
+                                access,
+                                extent,
+                                path,
+                            },
+                        )),
+                        2 => Ok(terminal_psi::StructuralReferenceOrigin::Invocation {
+                            carrier_type: carrier.ok_or(CodecError::NonCanonicalEncoding)?,
+                            access,
+                            extent,
+                            path,
+                        }),
+                        tag => Err(CodecError::InvalidTag("StructuralReferenceOrigin", tag)),
+                    }
                 })?,
             })
         })?,

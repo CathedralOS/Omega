@@ -124,11 +124,13 @@ impl Root {
     pub(in crate::legalization) fn origins(&self) -> Vec<target_operations::TargetReferenceOrigin> {
         match self {
             Self::Place(root) => vec![target_operations::TargetReferenceOrigin {
+                kind: target_operations::TargetReferenceOriginKind::Storage,
                 root: *root,
                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                 path: Vec::new(),
             }],
             Self::Ingress(root, path) => vec![target_operations::TargetReferenceOrigin {
+                kind: target_operations::TargetReferenceOriginKind::Storage,
                 root: *root,
                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                 path: path
@@ -206,8 +208,13 @@ fn roots_overlap(left: &Root, right: &Root) -> bool {
     let right = right.origins();
     left.iter().any(|left| {
         right.iter().any(|right| {
-            left.root == right.root
-                && terminal_semantics::reference_origin_paths_may_overlap(&left.path, &right.path)
+            left.kind != target_operations::TargetReferenceOriginKind::Storage
+                || right.kind != target_operations::TargetReferenceOriginKind::Storage
+                || (left.root == right.root
+                    && terminal_semantics::reference_origin_paths_may_overlap(
+                        &left.path,
+                        &right.path,
+                    ))
         })
     })
 }
@@ -1334,7 +1341,41 @@ fn call_results(
         }
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         for binding in &mapping.sources {
-            let source = &binding.source;
+            let (source, transfers_existing) = match &binding.origin {
+                terminal_semantics::ReferenceCallOrigin::Parameter {
+                    source,
+                    transfers_existing,
+                } => (source, *transfers_existing),
+                terminal_semantics::ReferenceCallOrigin::Invocation {
+                    carrier_type,
+                    path: origin_path,
+                    access,
+                } => {
+                    if !access_covers(*access, result_access)
+                        || binding.endpoint != expected
+                        || binding.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
+                    {
+                        return Err(invalid());
+                    }
+                    let root = Root::Alternatives(vec![target_operations::TargetReferenceOrigin {
+                        root: result.place,
+                        kind: target_operations::TargetReferenceOriginKind::Invocation {
+                            carrier_type: *carrier_type,
+                        },
+                        path: origin_path.clone(),
+                        extent: binding.extent,
+                    }]);
+                    candidates.push(Leaf::formed(
+                        (result.place, mapping.path.clone()),
+                        root,
+                        Vec::new(),
+                        psi_operation,
+                        result,
+                        expected,
+                    ));
+                    continue;
+                }
+            };
             if !access_covers(source.access, result_access) {
                 return Err(invalid());
             }
@@ -1349,7 +1390,7 @@ fn call_results(
             {
                 return Err(invalid());
             }
-            let leaf = if binding.transfers_existing {
+            let leaf = if transfers_existing {
                 // An owned-carrier ingress mapping relocates one of the leaves the
                 // moved arguments just transferred; the leaf keeps its identity,
                 // root and parent, and lands at the declared result path.
@@ -2371,6 +2412,11 @@ fn transfer_return_custody(
             .ok_or_else(invalid)?;
         let declared = |root: &Root| {
             root.origins().iter().all(|origin| {
+                if let target_operations::TargetReferenceOriginKind::Invocation { carrier_type } = origin.kind {
+                    return mapping.sources.contains(&terminal_psi::StructuralReferenceOrigin::Invocation {
+                        carrier_type, path: origin.path.clone(), extent: origin.extent, access,
+                    });
+                }
                 let Some(parameter) = function.structural_parameter(origin.root) else {
                     return false;
                 };
@@ -2398,6 +2444,7 @@ fn transfer_return_custody(
                 // Supplying permission is attenuated to the requested view;
                 // the complete declared roster still covers its geometry.
                 let supplying = mapping.sources.iter()
+                    .filter_map(terminal_psi::StructuralReferenceOrigin::parameter)
                     .filter(|allowed| access_covers(allowed.access, actual.access))
                     .map(|allowed| terminal_psi::ReferenceOriginSource {
                         access: actual.access,

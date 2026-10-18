@@ -1625,6 +1625,11 @@ impl TerminalExecution<'_> {
                 let (referent_type, access) = self.reference_contract(leaf_type)?;
                 let mut backings = Vec::with_capacity(origin.sources.len());
                 for source in &origin.sources {
+                    let terminal_psi::StructuralReferenceOrigin::Parameter(source) = source else {
+                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "interpreter invocation-owned reference return backing",
+                        ));
+                    };
                     let parameter = parameters
                         .iter()
                         .find(|parameter| parameter.place == source.place)
@@ -1866,7 +1871,7 @@ impl TerminalExecution<'_> {
                 || origin
                     .sources
                     .iter()
-                    .any(|source| !access_covers(source.access, access))
+                    .any(|source| !access_covers(source.access(), access))
             {
                 return Err(malformed());
             }

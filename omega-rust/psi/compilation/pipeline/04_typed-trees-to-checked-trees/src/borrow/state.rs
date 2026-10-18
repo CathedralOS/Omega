@@ -77,7 +77,7 @@ pub(super) fn append_state_borrow_facts(
         // Capture result leaves against the same current roster as a local or
         // store. Reconstructing them later from historical loans loses entry
         // referents and revives overwritten carrier contents.
-        for (transition_target, returned) in returned_value_loans(
+        for (transition_target, mut returned) in returned_value_loans(
             program,
             state,
             statement_index,
@@ -85,6 +85,7 @@ pub(super) fn append_state_borrow_facts(
             statement,
             &current_loans,
         ) {
+            capture_incoming_origin(arenas, &mut returned);
             let segments = arenas.access_segments.insert_many(returned.place.segments);
             let owner_path = arenas.owner_segments.insert_many(returned.owner_path);
             arenas.returned_loans.append_to_span(
@@ -173,6 +174,15 @@ pub(super) fn append_state_borrow_facts(
     });
 }
 
+/// Local, stored and returned carriers publish the same invocation permission.
+/// Leaving a pending origin on a returned row would turn its external referent
+/// into a temporary descriptor home during the independent escape check.
+fn capture_incoming_origin(arenas: &mut BorrowFactArenas<'_>, loan: &mut StatementBorrowLoan) {
+    if let Some(incoming) = loan.incoming_origin.take() {
+        loan.place.incoming_reference = arenas.incoming_references.append(incoming);
+    }
+}
+
 fn append_carrier_loans(
     arenas: &mut BorrowFactArenas<'_>,
     loans_span: &mut arena::HandleSpan<BorrowLoanFact>,
@@ -181,7 +191,8 @@ fn append_carrier_loans(
     pending: Vec<StatementBorrowLoan>,
     statement_index: usize,
 ) {
-    for pending in grouped_carrier_loans(pending) {
+    for mut pending in grouped_carrier_loans(pending) {
+        capture_incoming_origin(arenas, &mut pending);
         let segments = arenas
             .access_segments
             .insert_many(pending.place.segments.clone());
@@ -385,7 +396,9 @@ fn append_incoming_reference_trackers(
                     .append(checked_trees::IncomingReferenceIdentity {
                         machine_symbol: machine.symbol,
                         state_symbol: state.symbol,
-                        parameter_symbol: parameter.symbol,
+                        origin: checked_trees::IncomingReferenceOrigin::Parameter {
+                            symbol: parameter.symbol,
+                        },
                         carrier_type: carrier,
                         owner_path: path,
                     });

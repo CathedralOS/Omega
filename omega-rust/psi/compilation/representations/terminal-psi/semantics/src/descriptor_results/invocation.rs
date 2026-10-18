@@ -116,7 +116,21 @@ pub fn public_result_slots(
             if destination.path != leaf.path {
                 continue;
             }
-            let parameter = usize::try_from(region.argument_index).ok()?;
+            let index = match region.origin {
+                terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
+                    argument_index
+                }
+                terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
+                    let mut projection = Projection::new(&region.source_path);
+                    projection.forget_address();
+                    origins.push(DescriptorStoredOrigin::Invocation {
+                        carrier_type,
+                        projection,
+                    });
+                    continue;
+                }
+            };
+            let parameter = usize::try_from(index).ok()?;
             let formal = slot.structural_parameters.get(parameter)?;
             origins.push(public_input_origin(
                 types,

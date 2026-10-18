@@ -33,9 +33,40 @@ pub struct CapturedPlace {
 pub struct IncomingReferenceIdentity {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
-    pub parameter_symbol: SymbolHandle,
+    pub origin: IncomingReferenceOrigin,
     pub carrier_type: typed_trees::types::TypeReferenceHandle,
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
+}
+
+/// The checked boundary that supplies a reference permission. An invocation
+/// result keeps its exact performed call; it is never its temporary descriptor
+/// slot and never proves spatial separation from another incoming permission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IncomingReferenceOrigin {
+    Parameter {
+        symbol: SymbolHandle,
+    },
+    Invocation {
+        expression: ExpressionHandle,
+        target: SymbolHandle,
+    },
+}
+
+impl Default for IncomingReferenceOrigin {
+    fn default() -> Self {
+        Self::Parameter {
+            symbol: SymbolHandle::invalid(),
+        }
+    }
+}
+
+impl IncomingReferenceIdentity {
+    pub fn parameter_symbol(&self) -> SymbolHandle {
+        match self.origin {
+            IncomingReferenceOrigin::Parameter { symbol } => symbol,
+            IncomingReferenceOrigin::Invocation { .. } => SymbolHandle::invalid(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

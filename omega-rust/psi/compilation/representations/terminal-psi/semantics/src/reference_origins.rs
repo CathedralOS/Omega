@@ -14,7 +14,8 @@ pub use borrowed_leaves::{BorrowedResultLeaf, BorrowedResultLeafKind, borrowed_r
 mod descriptor_regions;
 mod result_regions;
 pub use call_results::{
-    ReferenceCallContract, ReferenceCallResult, ReferenceCallSource, bind_reference_call_results,
+    ReferenceCallContract, ReferenceCallOrigin, ReferenceCallResult, ReferenceCallSource,
+    bind_reference_call_results,
 };
 pub use descriptor_regions::validate_descriptor_result_regions;
 pub use result_regions::{ReferenceLeaf, reference_leaves, validate_dynamic_reference_regions};
@@ -260,6 +261,22 @@ pub fn reference_result_refines_regions<'types>(
     result.reference_sources.iter().all(|mapping| {
         !mapping.sources.is_empty()
             && mapping.sources.iter().all(|source| {
+                let source = match source {
+                    terminal_psi::StructuralReferenceOrigin::Parameter(source) => source,
+                    terminal_psi::StructuralReferenceOrigin::Invocation { carrier_type, path, extent, access } => {
+                        // A public invocation contract authenticates external
+                        // storage geometry; it does not select an address.
+                        let Some(endpoint) = reference_origin_type(types.clone(), *carrier_type, path) else {
+                            return false;
+                        };
+                        return *extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+                            && regions.iter().any(|region| {
+                                let terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type: allowed } = region.origin else { return false; };
+                                region.path == mapping.path && region.access == *access
+                                    && reference_origin_type(types.clone(), allowed, &region.source_path.iter().cloned().map(ReferenceOriginProjection::Exact).collect::<Vec<_>>()) == Some(endpoint)
+                            });
+                    }
+                };
                 let Some((argument_index, parameter)) = parameters
                     .iter()
                     .enumerate()
@@ -270,7 +287,7 @@ pub fn reference_result_refines_regions<'types>(
                 let allowed = regions
                     .iter()
                     .filter(|region| {
-                        region.argument_index as usize == argument_index
+                        matches!(region.origin, terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index: index } if index as usize == argument_index)
                             && region.path == mapping.path
                     })
                     .map(|region| terminal_psi::ReferenceOriginSource {

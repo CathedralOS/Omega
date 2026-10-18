@@ -56,7 +56,33 @@ pub fn returned_sources(
         }
         ViewReturnSource::NotApplicable if result_leaves.is_empty() => return Ok(Vec::new()),
         ViewReturnSource::NotApplicable => {
-            return Err("public reference result has no lifetime relation");
+            return result_leaves
+                .into_iter()
+                .map(|leaf| {
+                    let segments = super::loan_place_segments(program, return_type, &leaf.path)
+                        .ok_or("invocation result leaf has no storage path")?;
+                    let carrier = crate::project_type_reference_from_segments(
+                        program,
+                        return_type,
+                        &segments,
+                    )
+                    .ok_or("invocation result leaf has no declared carrier")?;
+                    Ok(CheckedReturnedReferencePlan {
+                        path: leaf.path,
+                        source: CheckedReferenceOriginSourcePlan {
+                            root: checked_trees::CheckedReferenceOriginRoot::Invocation {
+                                carrier_type: program.normalized_type_identity(carrier),
+                            },
+                            path: vec![CheckedReferenceOriginProjection::Exact(
+                                CheckedUnitStructuralPathSegment::Referent,
+                            )],
+                            extent: ReferenceOriginExtent::Projected,
+                            type_identity: leaf.source.type_identity,
+                            access: leaf.source.access,
+                        },
+                    })
+                })
+                .collect();
         }
         ViewReturnSource::Ambiguous(_) => {
             return Err("public reference result lifetime relation is ambiguous");
@@ -123,7 +149,9 @@ pub fn returned_sources(
         let origin = CheckedReturnedReferencePlan {
             path: result.path.clone(),
             source: CheckedReferenceOriginSourcePlan {
-                parameter_index,
+                root: checked_trees::CheckedReferenceOriginRoot::Parameter {
+                    index: parameter_index,
+                },
                 path,
                 extent: ReferenceOriginExtent::WithinRegion,
                 type_identity: input.type_identity,

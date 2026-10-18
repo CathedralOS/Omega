@@ -36,6 +36,23 @@ pub fn expression_type_reference_in_state(
     canonical_place_type_reference(program, state_symbol, statement_index, &place)
 }
 
+/// Concrete declarations crossed by a performed observation. The source type
+/// is the observation's retained storage namespace; reference declarations do
+/// not recursively demand every possible referent. This finite prefix walk
+/// grants no access, lifetime, or establishment evidence.
+pub fn observed_storage_type_references(
+    program: &dyn crate::CheckingInput,
+    source_type: typed_trees::types::TypeReferenceHandle,
+    expression: ExpressionHandle,
+) -> Option<Vec<typed_trees::types::TypeReferenceHandle>> {
+    let place = super::canonical_projection::canonical_place_from_expression(program, expression)?;
+    (0..=place.segments.len())
+        .map(|length| {
+            project_type_reference_from_segments(program, source_type, &place.segments[..length])
+        })
+        .collect()
+}
+
 pub fn canonical_place_type_reference(
     program: &dyn crate::CheckingInput,
     state_symbol: SymbolHandle,

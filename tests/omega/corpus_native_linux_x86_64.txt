@@ -2577,6 +2577,15 @@ pass/providers/runtime_generic_boundary_relay_exit built 7765ms exit:0 @ff34e63b
 pass/providers/runtime_generic_boundary_relay_places_exit built 7262ms exit:0 @ff34e63b5705+wt
 pass/providers/runtime_linear_provider_results_exit built 18304ms exit:0 @6c49683ce714
 pass/providers/runtime_named_provider_explicit_state_exit built 15464ms exit:70 @6c49683ce714
+pass/providers/runtime_provider_mutable_reference_exit built 7455ms exit:0 @001fe6f26d2c
+pass/providers/runtime_provider_mutable_reference_forward_exit built 7463ms exit:0 @001fe6f26d2c
+pass/providers/runtime_provider_owned_reference_exit built 7541ms exit:0 @001fe6f26d2c
+pass/providers/runtime_provider_reference_alias_exit built 7545ms exit:0 @001fe6f26d2c
+pass/providers/runtime_provider_reference_computed_exit built 7755ms exit:0 @001fe6f26d2c
+pass/providers/runtime_provider_reference_deep_exit built 7581ms exit:0 @001fe6f26d2c
+pass/providers/runtime_provider_reference_nested_exit built 7105ms exit:0 @001fe6f26d2c
+pass/providers/runtime_provider_reference_state_exit built 7134ms exit:0 @001fe6f26d2c
+pass/providers/runtime_provider_reference_view_exit built 6942ms exit:0 @4aceb3a86756
 pass/providers/runtime_result_domain_requirement_overload_exit built 7324ms exit:70 @03d6ab4d9d4c
 pass/providers/runtime_transitive_provider_slot_exit built 6722ms exit:0 @aebe0714a499+wt
 pass/providers/same_name_requirement_dispatch_exit built 7302ms exit:70 @03d6ab4d9d4c

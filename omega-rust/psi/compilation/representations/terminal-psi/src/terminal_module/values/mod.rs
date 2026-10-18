@@ -13,6 +13,6 @@ pub use places::{
 };
 pub use signatures::{
     ErasedProofFormal, StructuralArgument, StructuralParameterDeclaration,
-    StructuralReferenceResultSource, StructuralResultDeclaration, TerminalMachineResult,
-    ValueDeclaration,
+    StructuralReferenceOrigin, StructuralReferenceResultSource, StructuralResultDeclaration,
+    TerminalMachineResult, ValueDeclaration,
 };

@@ -5382,6 +5382,8 @@ fail/providers/checked_boundary_operator_const_application_unselected rejected 4
 	fixed-array length `[u8; limit()]`: const evaluation of `limit` failed: machine `limit` is not build-time admissible: machine call path `limit -> Math::remainder` reaches a requirement that requires exact authored selection before evaluation; the evaluator cannot execute a bodyless requirement; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/providers/checked_boundary_operator_missing_contract rejected 1307ms expected @a9ae30e1c334+wt
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
+fail/providers/checked_reference_provider_local_escape rejected 1208ms expected @001fe6f26d2c
+	machine `Provider::locate` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/providers/checked_view_provider_wrong_extent rejected 271ms expected @71e65af3059c+wt
 	provider machine `Provider::at` for top-level boundary requirement `Window::at` does not refine `Window::at`: its requires facts are not a conservative refinement
 fail/providers/computed_binding_receiver_fabricated_carrier rejected 3603ms expected @a9ae30e1c334+wt
@@ -5487,6 +5489,8 @@ fail/providers/qualified_state_duplicates_claim rejected 701ms expected @d75fe4b
 	linear value `root` was already transferred or consumed; it cannot be moved here
 fail/providers/qualified_state_without_issuance rejected 692ms expected @d75fe4ba5012+wt
 	cannot prove requires contract for call consume from Main::main: root in Root::Granted in state `main`
+fail/providers/returned_write_only_call_observation rejected 352ms expected @001fe6f26d2c
+	machine `main` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/providers/satisfier_extra_parameter_rejected rejected 1333ms expected @3b422f31da30+wt
 	machine `MappedTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 	machine `stateful_reset` state `entry` declares 1 parameter(s), but trait `Tally` machine `reset` declares 0: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
@@ -9421,6 +9425,15 @@ pass/providers/runtime_generic_boundary_relay_exit checked 7246ms check-target:l
 pass/providers/runtime_generic_boundary_relay_places_exit checked 7094ms check-target:linux_x86_64 @ff34e63b5705+wt
 pass/providers/runtime_linear_provider_results_exit checked 11050ms check-target:macos_arm64 @83314997c2b2
 pass/providers/runtime_named_provider_explicit_state_exit checked 11429ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/runtime_provider_mutable_reference_exit checked 7573ms check-target:linux_x86_64 @001fe6f26d2c
+pass/providers/runtime_provider_mutable_reference_forward_exit checked 7585ms check-target:linux_x86_64 @001fe6f26d2c
+pass/providers/runtime_provider_owned_reference_exit checked 7586ms check-target:linux_x86_64 @001fe6f26d2c
+pass/providers/runtime_provider_reference_alias_exit checked 7575ms check-target:linux_x86_64 @001fe6f26d2c
+pass/providers/runtime_provider_reference_computed_exit checked 7655ms check-target:linux_x86_64 @001fe6f26d2c
+pass/providers/runtime_provider_reference_deep_exit checked 7654ms check-target:linux_x86_64 @001fe6f26d2c
+pass/providers/runtime_provider_reference_nested_exit checked 7272ms check-target:linux_x86_64 @001fe6f26d2c
+pass/providers/runtime_provider_reference_state_exit checked 7267ms check-target:linux_x86_64 @001fe6f26d2c
+pass/providers/runtime_provider_reference_view_exit checked 7059ms check-target:linux_x86_64 @4aceb3a86756
 pass/providers/runtime_result_domain_requirement_overload_exit checked 9458ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/providers/runtime_transitive_provider_slot_exit checked 6816ms check-target:macos_arm64 @aebe0714a499+wt
 pass/providers/same_name_requirement_dispatch_exit checked 9979ms check-target:macos_arm64 @03d6ab4d9d4c

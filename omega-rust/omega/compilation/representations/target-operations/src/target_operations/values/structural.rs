@@ -68,16 +68,26 @@ pub struct TargetReferenceResult {
 /// The root is logical custody, never a choice of runtime backing address.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TargetReferenceOrigin {
+    /// Actual supplying storage or invocation result, never a synthetic input.
     pub root: PlaceId,
+    pub kind: TargetReferenceOriginKind,
     pub path: Vec<terminal_psi::ReferenceOriginProjection>,
     pub extent: semantic_vocabulary::ReferenceOriginExtent,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TargetReferenceOriginKind {
+    Storage,
+    Invocation { carrier_type: StructuralTypeId },
 }
 
 impl TargetReferenceOrigin {
     /// Only exact origins can name a stored descriptor resource. A family
     /// retains possible backing, not a usable load/store address.
     pub fn exact_path(&self) -> Option<Vec<StructuralPathSegment>> {
-        if self.extent != semantic_vocabulary::ReferenceOriginExtent::Projected {
+        if self.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
+            || self.kind != TargetReferenceOriginKind::Storage
+        {
             return None;
         }
         self.path
