@@ -404,6 +404,20 @@ fail/build/uefi_storage_entry_undeclared_port rejected 2320ms expected @d0390620
 	machine `selected_continuation` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
 	machine `selected_continuation` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
 	machine `selected_continuation` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
+fail/core/content_counted_partition_unconserved rejected 726ms expected @b794c35ad5f8+wt
+	cannot prove ensures contract for exit from split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/interval_content_partition_gap rejected 729ms expected @b794c35ad5f8+wt
+	cannot prove ensures contract for exit from split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/interval_content_partition_overlap rejected 715ms expected @b794c35ad5f8+wt
+	cannot prove ensures contract for exit from split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/interval_content_partition_overlap_equal_size rejected 740ms expected @b794c35ad5f8+wt
+	cannot prove ensures contract for exit from split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/interval_content_partition_reversed rejected 727ms expected @b794c35ad5f8+wt
+	cannot prove ensures contract for exit from split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/interval_content_partition_unbounded_cut rejected 733ms expected @b794c35ad5f8+wt
+	cannot prove ensures contract for exit from split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/interval_content_partition_wrong_revision rejected 721ms expected @b794c35ad5f8+wt
+	cannot prove ensures contract for exit from split at statement 4: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 fail/data/constructor_case_payload_call_result_window rejected 519ms expected @408e4fc23fbc
 	data `Outcome` case `Some` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/data/constructor_distinct_field_versions rejected 183ms expected @408e4fc23fbc
@@ -7334,6 +7348,9 @@ pass/asm/scratch_destination_ordinary_stores_exit checked 25933ms check-target:l
 pass/build/uefi_context_cleanup_entry checked 6263ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
 pass/build/uefi_selected_context_entry checked 6264ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
 pass/build/uefi_selected_context_target_entry checked 3463ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
+pass/core/content_counted_partition_exit checked 3956ms check-target:macos_arm64 @b794c35ad5f8+wt
+pass/core/interval_content_length_partition_exit checked 3960ms check-target:macos_arm64 @b794c35ad5f8+wt
+pass/core/interval_content_partition_exit checked 4124ms check-target:macos_arm64 @b794c35ad5f8+wt
 pass/data/runtime_case_payload_call_result_window_exit checked 8218ms check-target:macos_arm64 @408e4fc23fbc
 pass/facts/checked_asm_countdown_call_result_exit checked 14392ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_const_name_exit checked 12105ms check-target:linux_x86_64 @a0c34fdba779+wt

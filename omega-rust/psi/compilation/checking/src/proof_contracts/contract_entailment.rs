@@ -606,6 +606,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             let mut verdict = StructuralJudgment::Proven;
             for path in paths {
                 match content_conservation::judge_content_conservation(
+                    program,
                     &path.judge,
                     &path.value,
                     plan,

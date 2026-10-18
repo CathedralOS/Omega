@@ -11,13 +11,13 @@
 //! Each projection evaluates the owner's normalized fields on actual captured
 //! values. Parameter places rejoin the normal-return owner's exact typed read
 //! and entry/current revision; no freshly projected name can replace a read.
-//! Result places use the completed returned value. Counted `separate` is the
-//! magnitude sum; arithmetic remains the existing selected Exact term algebra.
-//!
-//! Interval-set algebras have no body judgment here and stand down as
-//! Unknown; a provider of such a theorem still needs its own evidence.
+//! Result places use the completed returned value. Both algebras use the
+//! ordinary captured-integer judge, retaining selected arithmetic formation
+//! and observation identities. Counted separation sums magnitudes; interval
+//! separation additionally proves natural, ordered bounds and pairwise
+//! disjointness before comparing normalized unions. Equal lengths never
+//! establish interval equality or confer backing authority.
 
-use super::arithmetic_judgment::Polynomial;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationPlan,
@@ -74,40 +74,43 @@ pub(super) fn is_empty_body_statement_call(
 }
 
 pub(super) fn judge_content_conservation(
+    program: &dyn crate::CheckingInput,
     judge: &StructuralJudge<'_>,
     result: &StructuralTerm,
     plan: &ContentConservationPlan,
     projections: &[ContentProjectionPlan],
 ) -> StructuralJudgment {
-    if !matches!(plan.algebra, ContentAlgebraIdentity::CountedQuantity { .. }) {
-        return StructuralJudgment::Unknown;
-    }
-    let evaluator = Magnitudes {
+    let evaluator = ContentValues {
+        program,
         judge,
         result,
         projections,
     };
-    let (Some(left), Some(right)) = (
-        evaluator.magnitude(plan.equation.left()),
-        evaluator.magnitude(plan.equation.right()),
-    ) else {
-        return StructuralJudgment::Unknown;
-    };
-    match left.sub(&right).constant_value() {
-        Some(difference) if difference.is_zero() => StructuralJudgment::Proven,
-        Some(_) => StructuralJudgment::Refuted,
-        None => StructuralJudgment::Unknown,
+    match plan.algebra {
+        ContentAlgebraIdentity::CountedQuantity { .. } => {
+            let (Some(left), Some(right)) = (
+                evaluator.magnitude(plan.equation.left()),
+                evaluator.magnitude(plan.equation.right()),
+            ) else {
+                return StructuralJudgment::Unknown;
+            };
+            evaluator.compare(BinaryOperator::Equal, &left, &right)
+        }
+        ContentAlgebraIdentity::IntervalSet { .. } => {
+            evaluator.judge_intervals(plan.equation.left(), plan.equation.right())
+        }
     }
 }
 
-struct Magnitudes<'judge, 'program> {
+struct ContentValues<'judge, 'program> {
+    program: &'judge dyn crate::CheckingInput,
     judge: &'judge StructuralJudge<'program>,
     result: &'judge StructuralTerm,
     projections: &'judge [ContentProjectionPlan],
 }
 
-impl Magnitudes<'_, '_> {
-    fn magnitude(&self, term: &ContentConservationTerm) -> Option<Polynomial> {
+impl ContentValues<'_, '_> {
+    fn magnitude(&self, term: &ContentConservationTerm) -> Option<StructuralTerm> {
         match term {
             ContentConservationTerm::Projection {
                 projection_machine,
@@ -126,11 +129,144 @@ impl Magnitudes<'_, '_> {
                 self.scalar(subject, magnitude)
             }
             ContentConservationTerm::Separate(terms) => {
-                terms.iter().try_fold(Polynomial::default(), |sum, term| {
-                    Some(sum.add(&self.magnitude(term)?))
+                terms.iter().try_fold(integer(0), |sum, term| {
+                    Some(mathematical(
+                        BinaryOperator::Add,
+                        sum,
+                        self.magnitude(term)?,
+                    ))
                 })
             }
         }
+    }
+
+    fn compare(
+        &self,
+        operator: BinaryOperator,
+        left: &StructuralTerm,
+        right: &StructuralTerm,
+    ) -> StructuralJudgment {
+        self.judge
+            .judge_observed_predicate(mathematical(operator, left.clone(), right.clone()), 0)
+    }
+
+    fn proves(
+        &self,
+        operator: BinaryOperator,
+        left: &StructuralTerm,
+        right: &StructuralTerm,
+    ) -> bool {
+        matches!(
+            self.compare(operator, left, right),
+            StructuralJudgment::Proven
+        )
+    }
+
+    fn intervals(
+        &self,
+        term: &ContentConservationTerm,
+        members: &mut Vec<[StructuralTerm; 2]>,
+    ) -> Option<()> {
+        match term {
+            ContentConservationTerm::Projection {
+                projection_machine,
+                subject,
+                ..
+            } => {
+                let projection = self
+                    .projections
+                    .iter()
+                    .find(|projection| projection.machine == *projection_machine)?;
+                let ContentProjectionExpression::IntervalSet {
+                    members: expressions,
+                } = &projection.expression
+                else {
+                    return None;
+                };
+                for member in expressions {
+                    members.push([
+                        self.scalar(subject, member.start())?,
+                        self.scalar(subject, member.end())?,
+                    ]);
+                }
+            }
+            ContentConservationTerm::Separate(terms) => {
+                for term in terms {
+                    self.intervals(term, members)?;
+                }
+            }
+        }
+        Some(())
+    }
+
+    /// Sorting is justified by proved separation, not by symbolic display order.
+    /// Unknown ordering/overlap leaves the theorem unknown. Empty members have
+    /// no position, and adjacent members coalesce independently of input order.
+    fn normalized_intervals(
+        &self,
+        term: &ContentConservationTerm,
+    ) -> Option<Vec<[StructuralTerm; 2]>> {
+        let mut members = Vec::new();
+        self.intervals(term, &mut members)?;
+        let mut ordered: Vec<[StructuralTerm; 2]> = Vec::new();
+        for [start, end] in members {
+            if !self.proves(BinaryOperator::LessOrEqual, &integer(0), &start)
+                || !self.proves(BinaryOperator::LessOrEqual, &start, &end)
+            {
+                return None;
+            }
+            if self.proves(BinaryOperator::Equal, &start, &end) {
+                continue;
+            }
+            let mut position = 0;
+            while position < ordered.len() {
+                if self.proves(BinaryOperator::LessOrEqual, &end, &ordered[position][0]) {
+                    break;
+                }
+                if !self.proves(BinaryOperator::LessOrEqual, &ordered[position][1], &start) {
+                    return None;
+                }
+                position += 1;
+            }
+            ordered.insert(position, [start, end]);
+        }
+        let mut normalized: Vec<[StructuralTerm; 2]> = Vec::new();
+        for [start, end] in ordered {
+            if let Some(previous) = normalized.last_mut()
+                && self.proves(BinaryOperator::Equal, &previous[1], &start)
+            {
+                previous[1] = end;
+            } else {
+                normalized.push([start, end]);
+            }
+        }
+        Some(normalized)
+    }
+
+    fn judge_intervals(
+        &self,
+        left: &ContentConservationTerm,
+        right: &ContentConservationTerm,
+    ) -> StructuralJudgment {
+        let (Some(left), Some(right)) = (
+            self.normalized_intervals(left),
+            self.normalized_intervals(right),
+        ) else {
+            return StructuralJudgment::Unknown;
+        };
+        // A symbolic member might be empty under additional facts. Different
+        // normalized lengths therefore mean unknown, not a refuted theorem.
+        if left.len() != right.len() {
+            return StructuralJudgment::Unknown;
+        }
+        for (left, right) in left.iter().zip(&right) {
+            for (left, right) in left.iter().zip(right) {
+                if !self.proves(BinaryOperator::Equal, left, right) {
+                    return StructuralJudgment::Unknown;
+                }
+            }
+        }
+        StructuralJudgment::Proven
     }
 
     fn subject_term(&self, place: &ContentStructuralPlace) -> Option<StructuralTerm> {
@@ -158,7 +294,7 @@ impl Magnitudes<'_, '_> {
         &self,
         subject: &ContentStructuralPlace,
         expression: &ContentScalarExpression,
-    ) -> Option<Polynomial> {
+    ) -> Option<StructuralTerm> {
         match expression {
             ContentScalarExpression::SubjectField(path)
             | ContentScalarExpression::RuntimeScalarEmbedding(path) => {
@@ -178,15 +314,21 @@ impl Magnitudes<'_, '_> {
                             .fold(value, |value, field| self.field(value, field))
                     }
                 };
-                Some(integer_polynomial(&self.judge.resolve(term)))
+                let reference =
+                    crate::declaration_type_reference(self.program, path.last()?.symbol)?;
+                Some(StructuralTerm::IntegerEmbedding {
+                    reference,
+                    value: Box::new(self.judge.resolve(term)),
+                })
             }
             ContentScalarExpression::Natural(text) => {
-                BigInt::from_decimal_str(text).map(Polynomial::constant)
+                BigInt::from_decimal_str(text).map(StructuralTerm::Integer)
             }
-            ContentScalarExpression::Successor(inner) => Some(
-                self.scalar(subject, inner)?
-                    .add(&Polynomial::constant(BigInt::from_u64(1))),
-            ),
+            ContentScalarExpression::Successor(inner) => Some(mathematical(
+                BinaryOperator::Add,
+                self.scalar(subject, inner)?,
+                integer(1),
+            )),
             ContentScalarExpression::Arithmetic {
                 operator,
                 left,
@@ -194,45 +336,29 @@ impl Magnitudes<'_, '_> {
             } => {
                 let left = self.scalar(subject, left)?;
                 let right = self.scalar(subject, right)?;
-                match operator {
-                    ContentArithmeticOperator::Add => Some(left.add(&right)),
-                    ContentArithmeticOperator::Subtract => Some(left.sub(&right)),
-                    ContentArithmeticOperator::Multiply => left.checked_mul(&right),
-                }
+                let operator = match operator {
+                    ContentArithmeticOperator::Add => BinaryOperator::Add,
+                    ContentArithmeticOperator::Subtract => BinaryOperator::Subtract,
+                    ContentArithmeticOperator::Multiply => BinaryOperator::Multiply,
+                };
+                Some(mathematical(operator, left, right))
             }
         }
     }
 }
 
-/// The mathematical value of a resolved scalar term. Exact fixed-width
-/// arithmetic is its mathematical result; any other term is one atom.
-fn integer_polynomial(term: &StructuralTerm) -> Polynomial {
-    match term.semantic_value() {
-        StructuralTerm::Integer(value) => Polynomial::constant(value.clone()),
-        StructuralTerm::ScalarBinary {
-            operator,
-            meaning,
-            left,
-            right,
-            ..
-        } if meaning.iter().all(|(primitive, domain)| {
-            primitive.is_integer() && *domain == numerics::arithmetic::ArithmeticDomain::Exact
-        }) =>
-        {
-            let folded = match operator {
-                BinaryOperator::Add => {
-                    Some(integer_polynomial(left).add(&integer_polynomial(right)))
-                }
-                BinaryOperator::Subtract => {
-                    Some(integer_polynomial(left).sub(&integer_polynomial(right)))
-                }
-                BinaryOperator::Multiply => {
-                    integer_polynomial(left).checked_mul(&integer_polynomial(right))
-                }
-                _ => None,
-            };
-            folded.unwrap_or_else(|| Polynomial::atom(format!("{term:?}")))
-        }
-        other => Polynomial::atom(format!("{other:?}")),
+fn integer(value: u64) -> StructuralTerm {
+    StructuralTerm::Integer(BigInt::from_u64(value))
+}
+
+fn mathematical(
+    operator: BinaryOperator,
+    left: StructuralTerm,
+    right: StructuralTerm,
+) -> StructuralTerm {
+    StructuralTerm::MathematicalBinary {
+        operator,
+        left: Box::new(left),
+        right: Box::new(right),
     }
 }
