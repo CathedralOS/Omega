@@ -1218,6 +1218,14 @@ fail/domains/case_child_membership_requires_issuance rejected 876ms expected @2e
 fail/domains/case_payload_predicate_invalid_literal rejected 768ms expected @2ef2ab353498+wt
 fail/domains/checked_provider_result_without_selection rejected 6477ms expected @308fbdc54ba0
 fail/domains/checked_provider_unissued_result rejected 2149ms expected @2ef2ab353498+wt
+fail/domains/completed_membership_before_later_guarantee rejected 679ms expected @38cd22fbfffe+wt
+	construction value is not proven in domain `Amount::Positive` in direct state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Pair` field `amount` is not proven in domain `Amount::Positive` in direct state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Pair` field `amount` is not proven in domain `Amount::Positive` in local state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+	construction of `Pair` field `amount` is not proven in domain `Amount::Positive` in field state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Pair` field `amount` is not proven in domain `Amount::Positive` in returned state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Amount::Positive` in selected state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Selection` field `amount` is not proven in domain `Amount::Positive` in selected state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/computed_qualification_requires_operand_facts rejected 5363ms expected @a9ae30e1c334+wt
 fail/domains/computed_scalar_alias_requires_all_predicates rejected 827ms expected @a9ae30e1c334+wt
 fail/domains/constructor_invalidated_byte_membership rejected 772ms expected @2ef2ab353498+wt
@@ -7721,6 +7729,7 @@ run/contracts/target_family_forwarded_result checked 71300ms check-target:linux_
 run/domains/byte_view_predicates_keep_selected_extent checked 6676ms check-target:macos_arm64 @a0e6514a9ab2
 run/domains/checked_provider_issued_field checked 11143ms check-target:macos_arm64 @03d6ab4d9d4c
 run/domains/checked_provider_issued_root checked 10896ms check-target:macos_arm64 @03d6ab4d9d4c
+run/domains/completed_membership_after_earlier_guarantee checked 3952ms check-target:macos_arm64 @38cd22fbfffe+wt
 run/domains/current_record_predicate_captures checked 6540ms check-target:macos_arm64 @41a9c695da4e
 run/domains/fixed_byte_array_content_observations_exit checked 8106ms check-target:macos_arm64 @ef7962801508
 run/domains/fixed_byte_array_empty_observations_exit checked 5583ms check-target:macos_arm64 @ef7962801508

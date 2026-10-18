@@ -31,6 +31,32 @@ pub(in crate::proof_contracts::contract_entailment) struct NormalOperationEntry<
     pub judge: StructuralJudge<'program>,
 }
 
+/// An observation stops its execution path at the requested semantic cut.
+/// Entry captures operands before the operation; completion captures both the
+/// result and its proof context before any later sibling can contribute facts.
+enum NormalObservation<'program> {
+    None,
+    Entry {
+        expression: ExpressionHandle,
+        paths: Vec<NormalOperationEntry<'program>>,
+    },
+    Completion {
+        expression: ExpressionHandle,
+        paths: Vec<NormalReturnPath<'program>>,
+    },
+}
+
+impl NormalObservation<'_> {
+    fn requests(&self, requested: ExpressionHandle) -> bool {
+        match self {
+            Self::None => false,
+            Self::Entry { expression, .. } | Self::Completion { expression, .. } => {
+                *expression == requested
+            }
+        }
+    }
+}
+
 /// A consumer may demand completed fields without using its enclosing value.
 /// Required values still use the same strict normal-return operation.
 #[derive(Clone, Copy)]
@@ -221,8 +247,7 @@ impl<'program> StructuralJudge<'program> {
             environment,
             scope,
             0,
-            ExpressionHandle::invalid(),
-            &mut Vec::new(),
+            &mut NormalObservation::None,
             NormalValueDemand::Value,
         )
     }
@@ -248,16 +273,21 @@ impl<'program> StructuralJudge<'program> {
             scope,
             NormalValueDemand::Observe(&observations),
         )?;
-        let mut entries = Vec::new();
+        let mut observation = NormalObservation::Entry {
+            expression: call,
+            paths: Vec::new(),
+        };
         self.clone().evaluate_normal_operands(
             &operands,
             environment,
             scope,
             0,
-            call,
-            &mut entries,
+            &mut observation,
         )?;
-        (!entries.is_empty()).then_some(entries)
+        let NormalObservation::Entry { paths, .. } = observation else {
+            return None;
+        };
+        (!paths.is_empty()).then_some(paths)
     }
 
     /// Completed value observers use the same ordered statement operands as
@@ -270,29 +300,27 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
-        // A child completes before its enclosing aggregate does. Observe the
-        // exact requested value through the ordinary operand scheduler: later
-        // siblings still execute, but an unrelated enclosing result need not
-        // have a mathematical denotation to retain that child's snapshot.
-        let contexts = self.completed_observation_paths(
+        let requested = [expression];
+        let operands = self.statement_observation_operands(
             statement_index,
             expression,
+            scope,
+            NormalValueDemand::Observe(&requested),
+        )?;
+        let mut observation = NormalObservation::Completion {
+            expression,
+            paths: Vec::new(),
+        };
+        self.clone().evaluate_normal_operands(
+            &operands,
             environment,
             scope,
-            &[expression],
+            0,
+            &mut observation,
         )?;
-        let paths = contexts
-            .into_iter()
-            .filter_map(|judge| {
-                let value = judge
-                    .normal_results
-                    .iter()
-                    .find(|(source, _)| *source == expression)?
-                    .1
-                    .clone();
-                Some(NormalReturnPath { value, judge })
-            })
-            .collect::<Vec<_>>();
+        let NormalObservation::Completion { paths, .. } = observation else {
+            return None;
+        };
         (!paths.is_empty()).then_some(paths)
     }
 
@@ -319,8 +347,7 @@ impl<'program> StructuralJudge<'program> {
                     environment,
                     scope,
                     0,
-                    ExpressionHandle::invalid(),
-                    &mut Vec::new(),
+                    &mut NormalObservation::None,
                 )?
                 .into_iter()
                 .map(|(judge, _)| judge)
@@ -392,8 +419,7 @@ impl<'program> StructuralJudge<'program> {
             environment,
             scope,
             0,
-            ExpressionHandle::invalid(),
-            &mut Vec::new(),
+            &mut NormalObservation::None,
             NormalValueDemand::Location,
         )?;
         let mut paths = Vec::new();
@@ -406,8 +432,7 @@ impl<'program> StructuralJudge<'program> {
                 environment,
                 scope,
                 0,
-                ExpressionHandle::invalid(),
-                &mut Vec::new(),
+                &mut NormalObservation::None,
                 NormalValueDemand::Value,
             )? {
                 result.judge.observe_captured_store(
@@ -450,8 +475,7 @@ impl<'program> StructuralJudge<'program> {
                     environment,
                     scope,
                     0,
-                    ExpressionHandle::invalid(),
-                    &mut Vec::new(),
+                    &mut NormalObservation::None,
                 )?
                 .into_iter()
                 .map(|(judge, values)| NormalOperationEntry {
@@ -468,8 +492,7 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         depth: usize,
-        requested_operation: ExpressionHandle,
-        entries: &mut Vec<NormalOperationEntry<'program>>,
+        observation: &mut NormalObservation<'program>,
     ) -> Option<Vec<(Self, Vec<(ExpressionHandle, StructuralTerm)>)>> {
         let mut contexts = vec![(self, Vec::new())];
         for &NormalOperand {
@@ -485,8 +508,7 @@ impl<'program> StructuralJudge<'program> {
                     environment,
                     (scope.0, scope.1, reference),
                     depth + 1,
-                    requested_operation,
-                    entries,
+                    observation,
                     demand,
                 )? {
                     let mut inputs = inputs.clone();
@@ -500,13 +522,43 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn evaluate_normal_paths(
+        self,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+        depth: usize,
+        observation: &mut NormalObservation<'program>,
+        demand: NormalValueDemand<'_>,
+    ) -> Option<Vec<NormalReturnPath<'program>>> {
+        let paths = self.evaluate_normal_value_paths(
+            expression,
+            environment,
+            scope,
+            depth,
+            observation,
+            demand,
+        )?;
+        if let NormalObservation::Completion {
+            expression: requested,
+            paths: completed,
+        } = observation
+            && *requested == expression
+        {
+            completed.extend(paths);
+            // The completion is the end of this observation, not merely a
+            // saved value inside a later sibling's proof environment.
+            return Some(Vec::new());
+        }
+        Some(paths)
+    }
+
+    fn evaluate_normal_value_paths(
         mut self,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         depth: usize,
-        requested_operation: ExpressionHandle,
-        entries: &mut Vec<NormalOperationEntry<'program>>,
+        observation: &mut NormalObservation<'program>,
         demand: NormalValueDemand<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
         if depth >= 64 || !program_expression_is_live(self.program, expression) {
@@ -561,8 +613,7 @@ impl<'program> StructuralJudge<'program> {
                 environment,
                 scope,
                 depth + 1,
-                requested_operation,
-                entries,
+                observation,
                 NormalValueDemand::Value,
             )? {
                 for truth in [false, true] {
@@ -585,8 +636,7 @@ impl<'program> StructuralJudge<'program> {
                             environment,
                             scope,
                             depth + 1,
-                            requested_operation,
-                            entries,
+                            observation,
                             demand,
                         )? {
                             outcomes.push(right.at_expression(expression));
@@ -611,8 +661,7 @@ impl<'program> StructuralJudge<'program> {
                 environment,
                 scope,
                 depth + 1,
-                requested_operation,
-                entries,
+                observation,
                 NormalValueDemand::Value,
             )?;
             for arm in program.expression_table.match_arms(dispatch.arms) {
@@ -626,8 +675,7 @@ impl<'program> StructuralJudge<'program> {
                             environment,
                             scope,
                             depth + 1,
-                            requested_operation,
-                            entries,
+                            observation,
                             NormalValueDemand::Value,
                         )? {
                             let primitive = crate::match_subject_primitive_type(program, dispatch);
@@ -683,8 +731,7 @@ impl<'program> StructuralJudge<'program> {
                                 environment,
                                 scope,
                                 depth + 1,
-                                requested_operation,
-                                entries,
+                                observation,
                                 demand,
                             )? {
                                 outcomes.push(value.at_expression(expression));
@@ -696,8 +743,7 @@ impl<'program> StructuralJudge<'program> {
                             environment,
                             scope,
                             depth + 1,
-                            requested_operation,
-                            entries,
+                            observation,
                             demand,
                         )? {
                             outcomes.push(value.at_expression(expression));
@@ -833,18 +879,12 @@ impl<'program> StructuralJudge<'program> {
             })
             .collect::<Vec<_>>();
         let receiver_write_sequence = self.storage_write_sequence;
-        let contexts = self.evaluate_normal_operands(
-            &operands,
-            environment,
-            scope,
-            depth,
-            requested_operation,
-            entries,
-        )?;
+        let contexts =
+            self.evaluate_normal_operands(&operands, environment, scope, depth, observation)?;
         contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
-                if requested_operation != expression
+                if !observation.requests(expression)
                     && matches!(
                         demand,
                         NormalValueDemand::Observe(_) | NormalValueDemand::Location
@@ -879,8 +919,10 @@ impl<'program> StructuralJudge<'program> {
                 } else {
                     None
                 };
-                if requested_operation == expression {
-                    entries.push(NormalOperationEntry {
+                if let NormalObservation::Entry { expression: requested, paths } = observation
+                    && *requested == expression
+                {
+                    paths.push(NormalOperationEntry {
                         arguments: call_inputs.clone().unwrap_or_else(|| {
                             inputs.iter().map(|(_, value)| value.clone()).collect()
                         }),
