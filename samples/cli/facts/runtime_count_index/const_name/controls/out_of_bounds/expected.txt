@@ -1,0 +1,2 @@
+cannot prove requires contract for call read_at
+needs fact `4 < items.len` here

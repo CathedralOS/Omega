@@ -1,0 +1,23 @@
+// A const name of a runtime count still indexes a byte view.
+// Rejected: the const count equals items.len, so `Index < items.len`
+// cannot be discharged at read_at.
+const COUNT: u32 = 4;
+
+machine read_at<Index: u32>(items: &[u8]) -> u8
+requires Index < items.len;
+{
+    items[Index]
+}
+
+machine indexed(items: &[u8]) -> u8
+requires COUNT <= items.len;
+{
+    read_at<COUNT>(items)
+}
+
+machine main() crashes Trap {
+    let bytes: [u8; 4] = [9, 8, 7, 6];
+    transition indexed(&bytes[..]) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

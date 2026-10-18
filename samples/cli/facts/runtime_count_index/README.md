@@ -22,6 +22,11 @@ omega run samples/cli/facts/runtime_count_index/target_body/main.omg
 
 Expected exit: 0.
 
+Each place has an `controls/out_of_bounds` twin that keeps the same shape but
+carries a count that cannot satisfy `Index < items.len` — equal to
+`items.len`, or a parameter whose bound proof was dropped — so `read_at`
+rejects with a pinned `cannot prove requires contract` diagnostic.
+
 The unknown-field control is
 `tests/omega/fail/generics/value_binder_unknown_field`. A `const` binder still
 rejects a runtime name, as in
