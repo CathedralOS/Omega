@@ -120,24 +120,31 @@ landing that only rewrites the failing place is not acceptance. Exact
 subtraction, alias transfer, and dependent subtract are examples of that
 repair path.
 
-The nine places test both fact transport (checking and proof) and runtime
-carrier/effect lowering (Psi Stage 05 through Omega native realization) as
-one row per construct, never a combinatorial matrix. Beyond scalar proof
-transport, lowering and realization rows carry width/signedness scalars,
-floats, fixed-size arrays, nested structural records, tagged case payloads,
-slice views, borrowed projections, `&write` write-only borrows, affine
-cleanup, linear claim retirement, named-implementation/`dyn` dispatch,
-boundary/provider calls, checked `asm`, and Omega Stages 03–09 native
-realization (multi-argument ABI register/stack spill, signed/unsigned
-division and condition selection, narrow-to-wide sign/zero extension,
-live-across-call register preservation and spill/reload, disjoint stack-frame
-slot isolation, and `size_of`/`align_of` layout realization) through the same
-nine places. When a repair adds or changes a carrier, access mode, cleanup
-disposition, or target realization rule, complete the matching Stage 05
-(`checked-trees-to-lowered-psi`), Omega Stage 00
-(`terminal-psi-to-abstract-operations`), and Omega Stages 03–09
-(ABI, instruction selection, register allocation, frame layout, and encoding)
-arms in the same change. Checking and proof completion also follows the
+The nine places carry each language construct end to end—from source checking
+and proof through Terminal Psi semantics to native realization and execution
+(`omega run --both`)—as one row per construct, never a combinatorial matrix or
+a stage-isolated task. Fact rows cover the full specification surface across
+the nine places: width/signedness scalars, shifts, narrow-to-wide sign/zero
+extension, signed/unsigned division and remainder, and IEEE floats
+([numeric values](wiki/spec/language/numeric_values.md)); fixed-size arrays,
+nested structural records, tagged case payloads, slice views, and
+`size_of`/`align_of` layout geometry ([layout plans](wiki/spec/layouts/plans.md),
+[counts and addresses](wiki/spec/language/counts_and_addresses.md)); borrowed
+projections (`&`, `&mut`), `&write` write-only borrows, affine cleanup, linear
+claim retirement, and borrowed-storage restoration windows
+([structural access](wiki/spec/terminal-psi/structural_access.md),
+[ownership](wiki/spec/terminal-psi/ownership.md),
+[loans](wiki/spec/terminal-psi/loans.md)); and named-implementation/`dyn`
+dispatch, multi-argument calling plans across register and stack slots,
+live-across-call preservation, disjoint stack-frame homes, boundary/provider
+calls, and checked `asm`
+([dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md),
+[calling plans](wiki/spec/build/calling_plans.md),
+[storage](wiki/spec/resources/storage.md),
+[checked assembly](wiki/spec/language/assembly.md)). When a repair adds or
+changes a construct, carrier, access mode, cleanup disposition, or target rule,
+complete the entire source-to-native path in the same change rather than
+stopping at an intermediate compiler stage. Completion also follows the
 [requirements and evidence rule](#requirements-and-evidence): each completed
 fact row names the requirement it establishes, and each requirement closes only
 when its full acceptance is demonstrated.

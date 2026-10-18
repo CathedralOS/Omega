@@ -51,22 +51,21 @@ landing that only rewrites the failing place is not acceptance. Exact
 subtraction, alias transfer, and dependent subtract are examples of that
 repair path.
 
-The nine places test both fact transport (checking and proof) and runtime
-carrier/effect lowering (Psi Stage 05 through Omega native realization) as
-one row per construct, never a combinatorial matrix. Lowering and realization
-rows carry width/signedness scalars, floats, fixed-size arrays, nested
-structural records, tagged case payloads, slice views, borrowed projections,
-`&write` write-only borrows, affine cleanup, linear claim retirement,
-named-implementation/`dyn` dispatch, boundary/provider calls, checked
-`asm`, and Omega Stages 03–09 native realization (`abi_multi_arg_spill`,
-`signed_division_quotient`, `scalar_sign_zero_extension`,
-`live_across_call_spill`, `stack_frame_slot_isolation`,
-`record_layout_geometry`) through the same nine places. When a repair adds or
-changes a carrier, access mode, cleanup disposition, or target realization
-rule, complete the matching Stage 05 (`checked-trees-to-lowered-psi`), Omega
-Stage 00 (`terminal-psi-to-abstract-operations`), and Omega Stages 03–09
-(ABI lowering, instruction selection, register allocation, frame finalization,
-and native encoding) arms in the same change.
+The nine places carry each language construct end to end—from source checking
+and proof through Terminal Psi semantics to native realization and execution
+(`omega run --both`)—as one row per construct, never a combinatorial matrix or
+a stage-isolated task. Fact rows cover width/signedness scalars, shifts,
+narrow-to-wide sign/zero extension, signed/unsigned division and remainder,
+IEEE floats, fixed-size arrays, nested structural records, tagged case
+payloads, slice views, `size_of`/`align_of` layout geometry, borrowed
+projections (`&`, `&mut`), `&write` write-only borrows, affine cleanup, linear
+claim retirement, borrowed-storage restoration windows,
+named-implementation/`dyn` dispatch, multi-argument calling plans across
+register and stack slots, live-across-call preservation, disjoint stack-frame
+homes, boundary/provider calls, and checked `asm` through the same nine places.
+When a repair adds or changes a construct, carrier, access mode, cleanup
+disposition, or target rule, complete the entire source-to-native path in the
+same change rather than splitting work by compiler stage.
 
 Read the whole item's acceptance and verify its remaining gap against current
 main. Record the parent task and the exact requirement the next fact will
