@@ -331,8 +331,9 @@ pub use value_custody::literals::land_integer_value;
 pub use value_custody::literals::select_anonymous_numeric_match_arm;
 pub use value_custody::literals::{
     ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
-    closed_literal_array_elements, closed_record_scalar_projection, is_closed_primitive_array_type,
-    peel_arithmetic_policy, scalar_array_elements, scalar_array_preserves_memberships,
+    closed_literal_array_elements, closed_record_scalar_projection, closed_scalar_place_projection,
+    is_closed_primitive_array_type, peel_arithmetic_policy, scalar_array_elements,
+    scalar_array_preserves_memberships,
 };
 pub use value_custody::places::{assignment_value_type, declared_place_type_raw};
 pub use value_custody::places::{

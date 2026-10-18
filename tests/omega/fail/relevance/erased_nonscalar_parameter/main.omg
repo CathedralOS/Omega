@@ -1,4 +1,0 @@
-// References have no serialized value in the erased contract-term lane.
-machine keep(w [erased]: &i32) { }
-data Main { value: i32; }
-machine Main::main(main: &mut Main) { keep(&main.value); }

@@ -110,6 +110,17 @@ pub(crate) fn scalar_storage_read_with_selectors(
             reference = validation::field_domains::readable_type_reference(program, reference)?;
         }
         let primitive_type = program.primitive_type_reference(reference)?;
+        if path.is_empty() {
+            let parameter = authored_parameters.get(usize::try_from(parameter_position).ok()?)?;
+            if parameter.relevance.is_erased() {
+                return crate::values::scalar::primitive_reference_read::erased_observation(
+                    program,
+                    authored_parameters,
+                    parameter.symbol,
+                    primitive_type,
+                );
+            }
+        }
         let expression = if primitive_type == PrimitiveType::Bool {
             CheckedScalarExpression::Boolean(Box::new(
                 checked_trees::CheckedBooleanExpression::StructuralParameterField {

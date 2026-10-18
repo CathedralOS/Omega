@@ -170,7 +170,9 @@ impl EntryOperands<'_> {
         let (position, parameter) = matches.next()?;
         if matches.next().is_some()
             || !parameter.relevance.is_erased()
-            || crate::values::mutable_scalar_parameter_type(self.program, parameter)
+            || self
+                .program
+                .erased_scalar_observation_type(parameter.type_reference)
                 != Some(primitive)
         {
             return None;
@@ -182,7 +184,7 @@ impl EntryOperands<'_> {
                     parameter.relevance.is_erased()
                         && self
                             .program
-                            .primitive_type_reference(parameter.type_reference)
+                            .erased_scalar_observation_type(parameter.type_reference)
                             .is_some()
                 })
                 .count(),

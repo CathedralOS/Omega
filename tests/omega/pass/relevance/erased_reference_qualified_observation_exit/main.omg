@@ -1,0 +1,10 @@
+// Expected exit: 0
+machine keep(runtime: i32, witness [erased]: &i32 in Wrapping) -> i32
+requires witness + 1 == 8 { runtime }
+machine main() crashes Trap {
+ let value: i32 in Wrapping = 7;
+ let result: i32 = keep(23, &value);
+ transition result == 23 { true -> good() false -> bad() }
+ state good() {}
+ state bad() { crash Trap; }
+}

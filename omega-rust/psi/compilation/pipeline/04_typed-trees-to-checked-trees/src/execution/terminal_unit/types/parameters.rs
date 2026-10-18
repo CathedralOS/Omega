@@ -122,7 +122,7 @@ pub(crate) fn erased_scalar_parameter_plans(
         .map(|(position, parameter)| {
             Some(checked_trees::CheckedStructuralScalarParameterPlan {
                 source_position: u32::try_from(position).ok()?,
-                primitive_type: program.primitive_type_reference(parameter.type_reference)?,
+                primitive_type: program.erased_scalar_observation_type(parameter.type_reference)?,
             })
         })
         .collect()

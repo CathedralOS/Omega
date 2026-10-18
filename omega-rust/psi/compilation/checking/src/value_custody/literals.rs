@@ -157,7 +157,7 @@ pub use constant_arrays::{
     scalar_array_elements, scalar_array_preserves_memberships,
 };
 pub(crate) use record_projection::closed_record_integer_projection;
-pub use record_projection::closed_record_scalar_projection;
+pub use record_projection::{closed_record_scalar_projection, closed_scalar_place_projection};
 mod integer_bitwise;
 mod integer_landing;
 mod integer_remainder;

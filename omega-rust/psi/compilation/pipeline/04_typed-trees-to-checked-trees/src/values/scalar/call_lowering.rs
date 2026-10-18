@@ -161,9 +161,12 @@ pub(crate) fn lower_call_arguments(
             // the scalar lane while proof-only carriers reach the contract
             // term lane, each indexed by its own lane's ordinal.
             if !is_boundary {
-                if let Some(expected_type) = program.primitive_type_reference(target.type_reference)
+                if let Some(expected_type) =
+                    program.erased_scalar_observation_type(target.type_reference)
                 {
-                    if let Some(lowered) = lower_return_expression(
+                    if let Some(lowered) = lower_erased_scalar_argument(
+                        state.symbol,
+                        statement_ordinal,
                         program,
                         operators,
                         argument,
@@ -411,12 +414,98 @@ fn proof_field_type(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn lower_call_scalar_argument(
+    erased: bool,
+    state_symbol: symbols::SymbolHandle,
+    before_statement: u32,
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    expected_type: PrimitiveType,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<CheckedScalarExpression> {
+    if erased {
+        lower_erased_scalar_argument(
+            state_symbol,
+            before_statement,
+            program,
+            operators,
+            expression,
+            parameters,
+            authored_parameters,
+            parameter_types,
+            locals,
+            expected_type,
+            exact_integer_casts,
+        )
+    } else {
+        lower_return_expression(
+            program,
+            operators,
+            expression,
+            parameters,
+            authored_parameters,
+            parameter_types,
+            locals,
+            expected_type,
+            exact_integer_casts,
+        )
+    }
+}
+
+/// Form a proof-side observation contingent on final source admission of the
+/// actual's type, scope, borrow and callee precondition. A borrow names its
+/// exact referent expression here; it never forms an executable descriptor or
+/// load. Located argument rows retain the original authored expression.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn lower_erased_scalar_argument(
+    state_symbol: symbols::SymbolHandle,
+    before_statement: u32,
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    expected_type: PrimitiveType,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<CheckedScalarExpression> {
+    let observation = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow)
+            if borrow.access == language_core::ReferenceAccess::Shared =>
+        {
+            borrow.target
+        }
+        _ => expression,
+    };
+    let observation =
+        super::erased_observations::resolve(program, state_symbol, before_statement, observation)?;
+    lower_return_expression(
+        program,
+        operators,
+        observation,
+        parameters,
+        authored_parameters,
+        parameter_types,
+        locals,
+        expected_type,
+        exact_integer_casts,
+    )
+}
+
 /// Lower one erased contract-term actual: a construction (or a bare
 /// reference to the caller's own erased proof-lane formal) becomes the
 /// checked proof term the callee's contract lane carries. A construction
 /// field whose declared type is primitive lowers through the scalar lane
 /// into a `Scalar` leaf — the erased record carrier's runtime payload is
 /// retained as a term, not a runtime operand.
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_proof_term(
     program: &dyn ::validation::CheckingInput,
@@ -592,8 +681,11 @@ pub(crate) fn lower_direct_call_binding_arguments(
     let mut scalar_arguments = Vec::new();
     let mut proof_terms = Vec::new();
     for (argument, target_parameter) in arguments.iter().zip(target_parameters) {
-        let Some(expected_type) = program.primitive_type_reference(target_parameter.type_reference)
-        else {
+        let Some(expected_type) = (if target_parameter.relevance.is_erased() {
+            program.erased_scalar_observation_type(target_parameter.type_reference)
+        } else {
+            program.primitive_type_reference(target_parameter.type_reference)
+        }) else {
             // A contract-term erased carrier feeds the term lane with its own
             // dense ordinal; every other non-scalar callee shape stays
             // outside this direct-binding plan.
@@ -648,7 +740,10 @@ pub(crate) fn lower_direct_call_binding_arguments(
                 state,
                 statement_ordinal,
                 role,
-                expression: lower_return_expression(
+                expression: lower_call_scalar_argument(
+                    target_parameter.relevance.is_erased(),
+                    state,
+                    statement_ordinal,
                     program,
                     operators,
                     *argument,

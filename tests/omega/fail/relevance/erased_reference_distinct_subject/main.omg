@@ -1,0 +1,5 @@
+machine keep(runtime: i32, witness [erased]: &i32) -> i32
+requires witness == 7 { runtime }
+machine forward(left [erased]: &i32, right [erased]: &i32) -> i32
+requires left == 7 { keep(41, right) }
+machine main() { let left: i32 = 7; let right: i32 = 7; let result: i32 = forward(&left, &right); }

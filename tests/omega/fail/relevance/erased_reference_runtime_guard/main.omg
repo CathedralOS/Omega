@@ -1,0 +1,2 @@
+machine choose(witness [erased]: &i32) -> i32 { match witness == 7 { true -> 1, false -> 0 } }
+machine main() { let value: i32 = 7; let result: i32 = choose(&value); }

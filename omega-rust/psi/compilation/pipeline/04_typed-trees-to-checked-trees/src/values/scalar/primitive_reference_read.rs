@@ -55,6 +55,9 @@ pub(crate) fn declared(
         return None;
     }
     let (primitive_type, arithmetic_domain) = readable_type(program, parameter.type_reference)?;
+    if parameter.relevance.is_erased() {
+        return erased_observation(program, parameters, parameter.symbol, primitive_type);
+    }
     let value = if primitive_type == PrimitiveType::Bool {
         CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::StorageRead {
             symbol: parameter.symbol,
@@ -66,6 +69,48 @@ pub(crate) fn declared(
         }
     };
     Some((value, arithmetic_domain))
+}
+
+/// Exact erased formal observation, shared by body-shaped and contract-shaped
+/// readers. Relevance selects a proof namespace, not an executable read or a
+/// structural slot. Its presence supplies no proof: final source admission must
+/// still establish type, scope, access, assumptions and every precondition.
+pub(crate) fn erased_observation(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[StateParameter],
+    symbol: symbols::SymbolHandle,
+    primitive_type: PrimitiveType,
+) -> Option<(
+    CheckedScalarExpression,
+    numerics::arithmetic::ArithmeticDomain,
+)> {
+    let mut matching = parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| symbol.is_valid() && parameter.symbol == symbol);
+    let (authored_position, parameter) = matching.next()?;
+    if matching.next().is_some()
+        || !parameter.relevance.is_erased()
+        || program.erased_scalar_observation_type(parameter.type_reference) != Some(primitive_type)
+    {
+        return None;
+    }
+    let position = parameters[..authored_position]
+        .iter()
+        .filter(|candidate| {
+            candidate.relevance.is_erased()
+                && program
+                    .erased_scalar_observation_type(candidate.type_reference)
+                    .is_some()
+        })
+        .count();
+    Some((
+        CheckedScalarExpression::ErasedParameter {
+            position,
+            primitive_type,
+        },
+        program.arithmetic_domain_for_type_reference(parameter.type_reference),
+    ))
 }
 
 /// Observation depends on the declared referee and current carrier, never on

@@ -549,24 +549,14 @@ pub(crate) fn lower_scalar_expression(
                 let parameter = &authored_parameters[authored];
                 if parameter.relevance.is_erased()
                     && let Some(primitive_type) =
-                        program.primitive_type_reference(parameter.type_reference)
+                        program.erased_scalar_observation_type(parameter.type_reference)
                 {
-                    let position = authored_parameters[..authored]
-                        .iter()
-                        .filter(|parameter| {
-                            parameter.relevance.is_erased()
-                                && program
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_some()
-                        })
-                        .count();
-                    return Some((
-                        CheckedScalarExpression::ErasedParameter {
-                            position,
-                            primitive_type,
-                        },
-                        program.arithmetic_domain_for_type_reference(parameter.type_reference),
-                    ));
+                    return primitive_reference_read::erased_observation(
+                        program,
+                        authored_parameters,
+                        parameter.symbol,
+                        primitive_type,
+                    );
                 }
             }
             let local_position = local_position(program, expression, path, locals)?;

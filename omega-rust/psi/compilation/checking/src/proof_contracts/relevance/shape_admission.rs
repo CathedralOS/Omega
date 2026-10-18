@@ -63,7 +63,9 @@ pub(super) fn validate_erased_field_shapes(
 /// erased lanes: a scalar slot for a primitive carrier, or the contract term
 /// lane for a carrier the term form can serialize — a proof-only type such
 /// as `Nat`, or a closed checked-shape record/enum whose fields are all
-/// term-expressible, including fixed arrays. Anything else (references, slices, generic or
+/// term-expressible, including fixed arrays. Shared primitive reference observations use the same erased scalar lane,
+/// retaining the reference declaration without a runtime read. Other
+/// shapes (slices, generic or
 /// boundary-shaped carriers) has no term form, so its plan omission would
 /// otherwise surface with no name. Proof machines are exempt: their erased
 /// formals are proof-side occurrences that never need a runtime plan.
@@ -82,7 +84,7 @@ fn validate_erased_runtime_scalar_formals(
                     continue;
                 }
                 if program
-                    .primitive_type_reference(parameter.type_reference)
+                    .erased_scalar_observation_type(parameter.type_reference)
                     .is_some()
                 {
                     continue;

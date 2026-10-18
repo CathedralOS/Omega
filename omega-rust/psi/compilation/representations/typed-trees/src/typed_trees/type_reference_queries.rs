@@ -28,6 +28,34 @@ impl TypedTrees {
         })
     }
 
+    /// The scalar observation carried by an erased binding's contract lane.
+    /// A shared primitive reference contributes its referent observation, never
+    /// an address or runtime load. The authored reference type and parameter
+    /// identity remain in the semantic signature; this query does not equate
+    /// references with their referents or confer borrow authority.
+    pub fn erased_scalar_observation_type(
+        &self,
+        reference: types::TypeReferenceHandle,
+    ) -> Option<types::PrimitiveType> {
+        if let Some(primitive) = self.primitive_type_reference(reference) {
+            return Some(primitive);
+        }
+        if !reference.is_valid() {
+            return None;
+        }
+        let types::TypeReferenceNode::Reference {
+            access, referee, ..
+        } = self.type_reference_table.type_reference(reference)
+        else {
+            return None;
+        };
+        if *access != language_core::ReferenceAccess::Shared {
+            return None;
+        }
+        let primitive = self.primitive_type_reference(*referee)?;
+        (primitive != types::PrimitiveType::Addr).then_some(primitive)
+    }
+
     pub fn display_type_reference(&self, type_reference: types::TypeReferenceHandle) -> String {
         self.type_reference_table.display_name(type_reference)
     }

@@ -1,0 +1,23 @@
+// An erased &i32 witness whose referent is 7 discharges witness == 7 at keep without a runtime witness argument, read, storage or cleanup.
+// Expected exit: 0
+machine keep(runtime: i32, witness [erased]: &i32) -> i32
+requires witness == 7 { runtime }
+data Holder { value: i32; }
+machine exercise(flag: bool) -> i32 {
+    let runtime: i32 = match flag { true -> 41, false -> 42 };
+    let holder: Holder = Holder { value: 7 };
+    keep(runtime, &holder.value)
+}
+machine verify(result: i32, flag: bool) crashes Trap {
+    transition (flag && result == 41) || (!flag && result == 42) {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine run(flag: bool) crashes Trap {
+    let result: i32 = exercise(flag);
+    verify(result, flag);
+}
+machine main() crashes Trap { run(true); run(false); }

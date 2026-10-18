@@ -26,6 +26,69 @@ pub fn closed_record_scalar_projection(
     Some((selected, program.primitive_type_reference(selected_type)?))
 }
 
+/// Observe a scalar inside one already established closed constructor value.
+/// Callers retain its exact declaration and program point. This projects only
+/// closed contents: a captured call or mutable read must keep its SSA value,
+/// never be re-executed by unfolding an initializer. Whole-owner custody and
+/// cleanup remain independent obligations of the original establishment.
+pub fn closed_scalar_place_projection(
+    program: &dyn crate::CheckingInput,
+    value: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    path: &[facts::PlaceSegment],
+) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
+    if path.is_empty() || !closed_value(program, value, reference, &mut Vec::new()) {
+        return None;
+    }
+    let mut selected = value;
+    let mut selected_type = reference;
+    for segment in path {
+        match segment {
+            facts::PlaceSegment::Field { symbol } => {
+                let (literal, definition) = record_constructor(program, selected)?;
+                let fields = constructor_fields(program, literal, definition)?;
+                let (field, _) = fields
+                    .into_iter()
+                    .find(|(field, _)| field.symbol == *symbol)?;
+                let actual = program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .find(|actual| actual.field_symbol == field.symbol)?;
+                selected = actual.value;
+                selected_type = field.type_reference;
+            }
+            facts::PlaceSegment::Case { variant } => {
+                let (literal, _) = record_constructor(program, selected)?;
+                if literal.case_symbol != Some(*variant) {
+                    return None;
+                }
+            }
+            facts::PlaceSegment::FixedIndex { index } => {
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                } = program.type_reference_table.type_reference(selected_type)
+                else {
+                    return None;
+                };
+                if index >= length {
+                    return None;
+                }
+                let elements = program.expression_table.array_literal_node(selected)?;
+                selected = *program
+                    .expression_table
+                    .expression_handles(*elements)
+                    .get(*index)?;
+                selected_type = *element_type;
+            }
+            _ => return None,
+        }
+    }
+    program.primitive_type_reference(selected_type)?;
+    Some((selected, selected_type))
+}
+
 /// A projected integer is already landed at its declared field, even when its
 /// constructor spelled that leaf anonymously. Bounds retain that exact carrier.
 pub(crate) fn closed_record_integer_projection(

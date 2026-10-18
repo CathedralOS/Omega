@@ -74,3 +74,5 @@ pub(crate) use structural_fields::{
     applied_projection_segments, exclusive_reference, resolve_structural_parameter_path,
     structural_data, structural_parameter_place,
 };
+
+mod erased_observations;

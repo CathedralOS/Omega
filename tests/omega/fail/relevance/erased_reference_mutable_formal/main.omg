@@ -1,0 +1,2 @@
+machine keep(witness [erased]: &mut i32) requires witness == 7 {}
+machine main() { let mut value: i32 = 7; keep(&mut value); }

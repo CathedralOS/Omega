@@ -1,0 +1,6 @@
+// A shared primitive reference formal occupies no executable argument slot.
+machine keep(w [erased]: &i32) { }
+data Main { value: i32; }
+machine Main::main(main: &mut Main) { keep(&main.value); }
+
+machine boot() { let mut value: Main = Main { value: 7 }; Main::main(&mut value); }

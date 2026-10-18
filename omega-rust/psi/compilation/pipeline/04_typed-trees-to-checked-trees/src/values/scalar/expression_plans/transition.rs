@@ -124,9 +124,11 @@ pub(crate) fn plan(
             let Ok(argument_ordinal) = u32::try_from(target_position) else {
                 continue;
             };
-            let Some(target_type) =
+            let Some(target_type) = (if target_parameter.relevance.is_erased() {
+                program.erased_scalar_observation_type(target_parameter.type_reference)
+            } else {
                 program.primitive_type_reference(target_parameter.type_reference)
-            else {
+            }) else {
                 // An erased contract-term formal records a
                 // proof term under the same authored
                 // argument ordinal the scalar lane uses.
@@ -173,7 +175,10 @@ pub(crate) fn plan(
                 }
                 continue;
             };
-            let Some(expression) = lower_return_expression(
+            let Some(expression) = crate::values::scalar::call_lowering::lower_call_scalar_argument(
+                target_parameter.relevance.is_erased(),
+                state.symbol,
+                statement_ordinal,
                 program,
                 operators,
                 *argument,
