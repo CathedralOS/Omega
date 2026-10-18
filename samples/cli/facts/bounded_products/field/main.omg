@@ -1,13 +1,14 @@
-// Bounded u64 operands `a [0..=50]` and `b [0..=50]` make the exact product
-// `a * b` fit `u64 [0..=2500]`; no Wrapping domain and no `as`.
+// Bounded u64 factors a <= 50 and b <= 50 make a * b fit in result <= 2500 without a domain or widening.
 // Place: field. Bounded record fields carry both operands into the product.
 // Expected exit: 0
-data Factors {
-    left: u64 [0..=50];
-    right: u64 [0..=50];
+data Factors where left <= 50 && right <= 50 {
+    left: u64;
+    right: u64;
 }
 
-machine mul(factors: Factors) -> u64 [0..=2500] {
+machine mul(factors: Factors) -> u64
+ensures result <= 2500
+{
     factors.left * factors.right
 }
 

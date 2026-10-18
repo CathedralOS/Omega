@@ -1,14 +1,19 @@
-// Bounded u64 operands `a [0..=50]` and `b [0..=50]` make the exact product
-// `a * b` fit `u64 [0..=2500]`; no Wrapping domain and no `as`.
+// Bounded u64 factors a <= 50 and b <= 50 make a * b fit in result <= 2500 without a domain or widening.
 // Place: const name. The named ceiling bounds both operands.
 // Expected exit: 0
 const CEILING: u64 = 50;
 
-machine mul(a: u64 [0..=CEILING], b: u64 [0..=CEILING]) -> u64 [0..=2500] {
+machine mul(a: u64, b: u64) -> u64
+requires a <= CEILING && b <= CEILING
+ensures result <= 2500
+{
     a * b
 }
 
-machine probe(a: u64 [0..=CEILING], b: u64 [0..=CEILING]) -> u64 [0..=2500] {
+machine probe(a: u64, b: u64) -> u64
+requires a <= CEILING && b <= CEILING
+ensures result <= 2500
+{
     mul(a, b)
 }
 
