@@ -330,18 +330,35 @@ def landed_worktree_cleanup(repository, candidate):
         # clean, HEAD is exactly the published candidate, and the branch holds
         # nothing main lacks. --force discards exactly the ignored build output
         # that made the clean removal fail.
+        # The publish command runs with its worktree as the current directory, so the
+        # removal can unregister the worktree and then fail because its own cwd
+        # disappeared mid-command. That leaves the tree already retired: the
+        # real question is whether the directory is gone and the registration is
+        # clear, not what this one invocation reported. Re-check both instead of
+        # returning on the return code, or a lane is left unregistered with its
+        # candidate branch still present, which is the bookkeeping the rule
+        # exists to remove.
         removal = git("worktree", "remove", str(current))
         forced = False
         if removal.returncode:
             removal = git("worktree", "remove", "--force", str(current))
             forced = not removal.returncode
-        if removal.returncode:
+
+        # A worktree is retired once Git no longer registers it. Read that from
+        # the registry rather than from either command's exit status.
+        listing = git("worktree", "list", "--porcelain", cwd=str(main_checkout))
+        registered = listing.returncode == 0 and str(current) in listing.stdout
+        if removal.returncode and registered:
             return {"removed": False,
                     "reason": f"worktree removal refused: {removal.stderr.strip()}"}
+        if removal.returncode:
+            # Already unregistered by the attempt above; the directory is the
+            # only thing left to clear.
+            forced = True
 
-        # --force unregisters the worktree but can leave the directory behind.
-        # Remove only what remains, and only after the directory was proven to
-        # be a clean lane above, so nothing unrecorded can be inside it.
+        # Clear anything the removal left behind, including ignored build
+        # output. Safe because the directory was proven to be a clean lane
+        # above, so nothing unrecorded can be inside it.
         leftover = None
         if current.exists():
             shutil.rmtree(current, ignore_errors=True)
