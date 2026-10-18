@@ -198,9 +198,9 @@ reaches DirectoryEnumeration
         transition { _ -> walk(buffer, total, length, offset + record_length) }
     }
 }
-linux_x86_64 machine directory_kind_offset() -> u64[18..=20] { 18 }
-linux_arm64 machine directory_kind_offset() -> u64[18..=20] { 18 }
-macos_arm64 machine directory_kind_offset() -> u64[18..=20] { 20 }
+linux_x86_64 machine directory_kind_offset() -> u64 ensures result >= 18 && result <= 20 { 18 }
+linux_arm64 machine directory_kind_offset() -> u64 ensures result >= 18 && result <= 20 { 18 }
+macos_arm64 machine directory_kind_offset() -> u64 ensures result >= 18 && result <= 20 { 20 }
 
 data Main { filesystem: Filesystem; index: u64 in Wrapping; seen: u32; }
 machine Main::main(main: &mut Main) reaches Console {

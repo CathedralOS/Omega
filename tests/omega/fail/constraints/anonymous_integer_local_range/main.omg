@@ -1,3 +1,4 @@
-machine value() {
-    let landed: u8 [0..=127] = (255 + 1) - 1;
+machine value() -> u8 ensures result <= 127 {
+    let landed: u8 = (255 + 1) - 1;
+    landed
 }

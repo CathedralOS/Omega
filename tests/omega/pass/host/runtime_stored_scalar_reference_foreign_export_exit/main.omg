@@ -25,7 +25,10 @@ data Main { first: u8; second: u8; newline: u8; }
 machine send(holder: &Holder) -> i64 reaches ByteOutput {
     ByteOutput::write(1, holder.reference, 1)
 }
-machine send_indexed(holders: &[Holder; 2], index: u64[0..2]) -> i64 reaches ByteOutput {
+machine send_indexed(holders: &[Holder; 2], index: u64) -> i64
+    requires index < 2
+    reaches ByteOutput
+{
     ByteOutput::write(1, holders[index].reference, 1)
 }
 
@@ -39,7 +42,7 @@ machine Main::main(main: &mut Main) reaches ByteOutput crashes Trap {
         Holder { padding: 902u64, reference: &main.first },
         Holder { padding: 903u64, reference: &main.second }
     ];
-    let index: u64[0..2] = 1;
+    let index: u64 = 1;
     let second: i64 = send_indexed(&holders, index);
     let newline: i64 = ByteOutput::write(1, &main.newline, 1);
     transition first == 1 && second == 1 && newline == 1

@@ -44,12 +44,12 @@ use omega::language::core::layout;
 // present bit, the gate type code, and the interrupt-stack-table slot (0
 // spells the architectural no-switch value; dedicated critical stacks take
 // 1..=7). The record's natural extent is exactly one 16-byte wire slot.
-pub data InterruptGate {
+pub data InterruptGate where ist <= 7, gate_kind <= 15, privilege <= 3 {
     entry: u64;
     selector: u16;
-    ist: u8 [0..=7];
-    gate_kind: u8 [0..=15];
-    privilege: u8 [0..=3];
+    ist: u8;
+    gate_kind: u8;
+    privilege: u8;
     present: bool;
 }
 
@@ -90,7 +90,7 @@ machine InterruptGateLayout::plan(schema: Schema) -> Plan {
         key: schema.fields[1].key,
         placement: FieldPlan::At { offset: 2 },
     };
-    // `ist` (fields[2], u8[0..=7]): byte 4 bits 0..=2; the byte's upper
+    // `ist` (fields[2], u8 <= 7): byte 4 bits 0..=2; the byte's upper
     // bits are reserved and stay unplaced.
     entries[4] = FieldEntry {
         key: schema.fields[2].key,
@@ -99,7 +99,7 @@ machine InterruptGateLayout::plan(schema: Schema) -> Plan {
             destination_lsb: 0, source_lsb: 0, width: 3,
         },
     };
-    // `gate_kind` (fields[3], u8[0..=15]): byte 5 bits 0..=3 -- the wire's
+    // `gate_kind` (fields[3], u8 <= 15): byte 5 bits 0..=3 -- the wire's
     // gate type code (0x0e interrupt, 0x0f trap) as semantic data.
     entries[5] = FieldEntry {
         key: schema.fields[3].key,
@@ -108,7 +108,7 @@ machine InterruptGateLayout::plan(schema: Schema) -> Plan {
             destination_lsb: 0, source_lsb: 0, width: 4,
         },
     };
-    // `privilege` (fields[4], u8[0..=3]): byte 5 bits 5..=6, the
+    // `privilege` (fields[4], u8 <= 3): byte 5 bits 5..=6, the
     // descriptor privilege level. Bit 4 is the storage-segment bit the
     // long-mode encoding keeps clear; it stays unplaced.
     entries[6] = FieldEntry {
@@ -155,20 +155,21 @@ pub data DescriptorTableLayout {
 machine DescriptorTableLayout::plan(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema) -> Plan {
     DescriptorTableLayout::evaluate(descriptor_table_layout, schema, 128)
 }
-machine DescriptorTableLayout::evaluate(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema, fuel: u64 [1..=128]) -> Plan
+machine DescriptorTableLayout::evaluate(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema, fuel: u64) -> Plan
+requires fuel >= 1 && fuel <= 128
 terminates by fuel;
 {
     let entries: [FieldEntry; 64];
     transition { _ -> fill(schema, entries, fuel, 0) }
 
-    state fill(schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=128], index: u64 in Wrapping) {
+    state fill(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) requires fuel >= 1 && fuel <= 128 {
         transition fuel > 1 && index < 33 {
             true -> place(schema, entries, fuel - 1, index)
             _ -> done(schema, entries)
         }
     }
 
-    state place(schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=128], index: u64 in Wrapping) {
+    state place(schema: Schema, entries: [FieldEntry; 64], fuel: u64, index: u64 in Wrapping) requires fuel >= 1 && fuel <= 128 {
         let mut updated: [FieldEntry; 64] = entries;
         updated[index] = FieldEntry {
             key: schema.fields[0].key,

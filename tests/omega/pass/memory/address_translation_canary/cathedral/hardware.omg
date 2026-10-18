@@ -37,9 +37,10 @@ pub boundary trait TranslationHardware {
     // caller needs.
     machine store_entry(
         table: Table,
-        slot: u64 [0..=511],
+        slot: u64,
         entry: TableEntry
     ) -> Table
+    requires slot <= 511
     reaches MachineControl;
 
     // Make `root` the active translation root for this hierarchy.

@@ -1,1 +1,1 @@
-declared range
+cannot prove ensures contract

@@ -1,17 +1,18 @@
-// A mixed record carries common fields beside its cases: `token.start`
+// A mixed record carries common fields beside its cases: 	oken.start
 // reads like a record field on every case, while a payload field is
 // observed through its case step.
 data Kind [copy] { case A; case B; }
-data Token [copy] {
-    start: u64 [0..=100];
-    end: u64 [0..=100];
+data Token [copy] where start <= 100, end <= 100 {
+    start: u64;
+    end: u64;
     case Word;
     case Mark(kind: Kind);
 }
 data Stream { tokens: [Token; 8]; }
 
-machine classify(stream: &Stream, at: u64) -> u64 [0..=100]
+machine classify(stream: &Stream, at: u64) -> u64
 requires at < 8
+ensures result <= 100
 {
     let token: Token = stream.tokens[at];
     transition token {

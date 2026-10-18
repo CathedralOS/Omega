@@ -9,14 +9,14 @@ data Mode [copy] {
     case Busy;
 }
 
-data Cell [copy] {
+data Cell [copy] where weight <= 9 {
     mode: Mode;
-    weight: u64 [0..=9];
+    weight: u64;
 }
 
-data Table {
+data Table where count <= 4 {
     modes: [Mode; 4] in Trapping;
-    count: u64 [0..=4];
+    count: u64;
 }
 
 data Main {

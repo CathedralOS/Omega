@@ -4,14 +4,14 @@
 use omega_language_std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField {
+data SchemaField where size <= 4096, 1 <= align, align <= 16 {
     key: u64;
-    size: u64 [0..=4096];
-    align: u64 [1..=16];
+    size: u64;
+    align: u64;
     number: i64;
     kind: FieldKind;
 }
-data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data Schema where field_count <= 32 { fields: [SchemaField; 32]; field_count: u64; }
 data FieldPlan {
     case At(offset: u64);
     case Bits(container: u64, container_width: u64,
@@ -65,7 +65,7 @@ machine SparseBits::plan(schema: Schema) -> Plan {
     }
 }
 
-data PackedFlags { present: bool; mode: u8 [0..=7]; code: u8 [0..=15]; }
+data PackedFlags where mode <= 7, code <= 15 { present: bool; mode: u8; code: u8; }
 data Main { packed: SparseBits<PackedFlags>; }
 
 machine Main::main(main: &mut Main) reaches Console {

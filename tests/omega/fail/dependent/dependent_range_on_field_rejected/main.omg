@@ -1,10 +1,10 @@
-// FAIL CANARY (R1a scope fence): a dependent maximum on a data FIELD
-// keeps the generic non-constant-bound refusal -- field ranges are
-// store-enforced at every write and ZII-gated, which needs the
-// relational store proof (a later rung); R1a serves STATE PARAMETERS
-// (entry-proved by the caller, immutable in the state).
 use omega_language_std::console;
-data Main { count: u32 [0..=11]; cursor: u32 [0..=count * 2]; }
-machine Main::main(main: &mut Main) {
+data Main where count <= 11, cursor <= count * 2 {
+    count: u32;
+    cursor: u32;
+}
+machine Main::main(main: &mut Main) reaches Console {
+    main.count = 2;
+    main.cursor = 10;
     Console::exit_process(70);
 }

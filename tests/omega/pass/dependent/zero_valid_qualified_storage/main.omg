@@ -3,7 +3,7 @@
 data Counter [copy] { code: i32; }
 domain Counter::Ready;
 domain Counter::ReadyAlias = Ready;
-data ZeroRatio [copy] { value: f32[0.0..0.5]; }
+data ZeroRatio [copy] where value >= 0.0 && value < 0.5 { value: f32; }
 
 machine main() {
     let counter: Counter in Counter::ReadyAlias;

@@ -4,7 +4,7 @@ machine convert(value: i32) -> i32 {
     transition { _ -> (value) }
 }
 
-machine convert(value: i32) -> i32 [0..=100] {
+machine convert(value: i32) -> i32 ensures result >= 0 && result <= 100 {
     transition { _ -> (value) }
 }
 

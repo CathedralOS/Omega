@@ -1,1 +1,1 @@
-cast target range
+cannot prove ensures contract

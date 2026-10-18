@@ -34,21 +34,21 @@ use cathedral::interrupt_table;
 // settlement obligation (`fatal_exception` selects the never-resume
 // contract; the acknowledged-interrupt obligation is the timer member's
 // shape), and the descriptor constants the produced gate bytes must carry.
-pub data TableMemberDeclaration {
+pub data TableMemberDeclaration where privilege <= 3, ist_slot <= 7, gate_kind <= 15 {
     vector: u64;
     dedicated_stack_class: u16;
     fatal_exception: bool;
     selector: u16;
-    privilege: u8 [0..=3];
-    ist_slot: u8 [0..=7];
-    gate_kind: u8 [0..=15];
+    privilege: u8;
+    ist_slot: u8;
+    gate_kind: u8;
 }
 
 // One installed IST binding: the slot a gate may name and the dedicated
 // critical stack class the installed realization provisions for it. The
 // validator joins each member's declared slot through these rows.
-pub data IstBinding {
-    slot: u8 [0..=7];
+pub data IstBinding where slot <= 7 {
+    slot: u8;
     dedicated_class: u16;
 }
 
@@ -139,8 +139,9 @@ terminates by fuel;
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
         fuel: u64,
-        row: u64 [0..=4]
+        row: u64
     ) -> TableVerdict
+    requires row <= 4
     requires 1 <= fuel
     requires fuel <= 768 {
         transition {
@@ -157,8 +158,9 @@ terminates by fuel;
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
         fuel: u64,
-        row: u64 [0..=3]
+        row: u64
     ) -> TableVerdict
+    requires row <= 3
     requires 1 <= fuel
     requires fuel <= 768 {
         transition {
@@ -175,8 +177,9 @@ terminates by fuel;
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
         fuel: u64,
-        at: u64 [0..=33]
+        at: u64
     ) -> TableVerdict
+    requires at <= 33
     requires 1 <= fuel
     requires fuel <= 768 {
         transition {
@@ -192,9 +195,11 @@ terminates by fuel;
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
         fuel: u64,
-        at: u64 [0..=32],
-        row: u64 [0..=4]
+        at: u64,
+        row: u64
     ) -> TableVerdict
+    requires at <= 32
+    requires row <= 4
     requires 1 <= fuel
     requires fuel <= 768 {
         transition {
@@ -211,9 +216,11 @@ terminates by fuel;
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
         fuel: u64,
-        at: u64 [0..=32],
-        row: u64 [0..=3]
+        at: u64,
+        row: u64
     ) -> TableVerdict
+    requires at <= 32
+    requires row <= 3
     requires 1 <= fuel
     requires fuel <= 768 {
         transition {
@@ -229,9 +236,11 @@ terminates by fuel;
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
         fuel: u64,
-        at: u64 [0..=32],
-        row: u64 [0..=3]
+        at: u64,
+        row: u64
     ) -> TableVerdict
+    requires at <= 32
+    requires row <= 3
     requires 1 <= fuel
     requires fuel <= 768 {
         transition {
@@ -258,10 +267,13 @@ terminates by fuel;
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
         fuel: u64,
-        at: u64 [0..=32],
-        row: u64 [0..=3],
-        binding: u64 [0..=4]
+        at: u64,
+        row: u64,
+        binding: u64
     ) -> TableVerdict
+    requires at <= 32
+    requires row <= 3
+    requires binding <= 4
     requires 1 <= fuel
     requires fuel <= 768 {
         transition {
@@ -277,10 +289,13 @@ terminates by fuel;
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
         fuel: u64,
-        at: u64 [0..=32],
-        row: u64 [0..=3],
-        binding: u64 [0..=3]
+        at: u64,
+        row: u64,
+        binding: u64
     ) -> TableVerdict
+    requires at <= 32
+    requires row <= 3
+    requires binding <= 3
     requires 1 <= fuel
     requires fuel <= 768 {
         transition {
@@ -299,8 +314,9 @@ terminates by fuel;
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
         fuel: u64,
-        at: u64 [0..=32]
+        at: u64
     ) -> TableVerdict
+    requires at <= 32
     requires 1 <= fuel
     requires fuel <= 768 {
         transition {
@@ -327,8 +343,9 @@ terminates by fuel;
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
         fuel: u64,
-        at: u64 [0..=32]
+        at: u64
     ) -> TableVerdict
+    requires at <= 32
     requires 1 <= fuel
     requires fuel <= 768 {
         transition {

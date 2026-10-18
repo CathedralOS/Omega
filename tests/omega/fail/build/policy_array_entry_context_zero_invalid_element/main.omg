@@ -1,9 +1,9 @@
 // Peeling an arithmetic policy from a context array reaches the element's
-// own zero judgment; it does not excuse it. A `Slot` whose `level` range
+// own zero judgment; it does not excuse it. A Slot whose level range
 // excludes zero cannot inhabit zero storage, so the hosted context is not
 // provisioned even though the array's own policy constrains nothing.
-data Slot [copy] {
-    level: u8 [1..=3];
+data Slot [copy] where level >= 1 && level <= 3 {
+    level: u8;
 }
 
 data Main {

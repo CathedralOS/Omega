@@ -25,7 +25,7 @@ data UnusedGenericStorage {
 data UnusedRange<T [copy]> [copy] { value: T; }
 
 // Evaluating a signature's endpoint does not invoke its enclosing machine.
-machine unused_endpoint(value: UnusedRange<u64[0..=unused_slot_count()]>) -> u64 {
+machine unused_endpoint(value: UnusedRange<u64>) -> u64 requires value.value <= unused_slot_count() {
     let bytes: [u8; 0] = "a";
     9
 }
@@ -38,7 +38,7 @@ const UNUSED_COUNT: u64 = unused_slot_count();
 
 machine fixed_count<const Count: u64>() -> u64 { Count }
 
-machine unused_static_endpoint(value: UnusedRange<u64[0..=fixed_count<8>()]>) -> u64 {
+machine unused_static_endpoint(value: UnusedRange<u64>) -> u64 requires value.value <= fixed_count<8>() {
     let bytes: [u8; 0] = "a";
     9
 }

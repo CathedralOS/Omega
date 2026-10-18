@@ -11,7 +11,7 @@
 // COUNT CARRIERS: byte sizes, alignments, counts, indices, register ordinals,
 // immediates, and nonnegative stack offsets use u64, never addr.
 
-pub domain [u8; 256]::Utf8(bytes)
+pub domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
@@ -74,14 +74,16 @@ pub data AbiValueShape {
 // policy cannot establish an identity by inventing an integer, and unknown
 // values reject during plan validation. Calling policy may place declared
 // native entries but cannot create, reorder, or retarget them.
-pub data NativePlace {
+// A native destination names a compiler-issued plan coordinate; copying the
+// coordinate grants no authority over the storage it describes.
+pub data NativePlace [copy] {
     case Parameter(parameter: u64);
     case Field(
         parameter: u64,
         layout: u64,
         field_path: [u64; 16],
-        field_path_count: u64 [1..=16]
-    );
+        field_path_count: u64
+    ) where field_path_count >= 1, field_path_count <= 16;
 }
 
 pub data NativeCallbackDemandIdentity {
@@ -106,24 +108,28 @@ pub data NativeParameterIdentity {
     shape: NativeParameterShape;
 }
 
-pub data BoundarySignature {
+pub data BoundarySignature where shape_count <= 256, field_count <= 256,
+    parameter_count <= 32, native_parameter_count <= 32,
+    callback_binder_count <= 32, callback_demand_count <= 32 {
     shapes: [ValueShape; 256];
-    shape_count: u64 [0..=256];
+    shape_count: u64;
     fields: [ValueField; 256];
-    field_count: u64 [0..=256];
+    field_count: u64;
     parameters: [u64; 32];
-    parameter_count: u64 [0..=32];
+    parameter_count: u64;
     native_parameters: [NativeParameterIdentity; 32];
-    native_parameter_count: u64 [0..=32];
+    native_parameter_count: u64;
     callback_binders: [CallbackBinderIdentity; 32];
-    callback_binder_count: u64 [0..=32];
+    callback_binder_count: u64;
     callback_demands: [NativeCallbackDemandIdentity; 32];
-    callback_demand_count: u64 [0..=32];
+    callback_demand_count: u64;
     has_result: bool;
     result: u64;
 }
 
-pub data MachineRegister {
+// Register names are plan values, not ownership of live hardware registers.
+// A policy may copy a name while assembling placements and clobber sets.
+pub data MachineRegister [copy] {
     case X86Rax;
     case X86Rcx;
     case X86Rdx;
@@ -171,10 +177,10 @@ pub data ValueLocation {
     );
 }
 
-pub data ValuePlacement {
+pub data ValuePlacement where location_count <= 16 {
     shape: AbiValueShape;
     locations: [ValueLocation; 16];
-    location_count: u64 [0..=16];
+    location_count: u64;
 }
 
 pub data CallingConvention {
@@ -185,9 +191,9 @@ pub data CallingConvention {
     case LinuxSyscallAarch64;
 }
 
-pub data RegisterSet {
+pub data RegisterSet where register_count <= 64 {
     registers: [MachineRegister; 64];
-    register_count: u64 [0..=64];
+    register_count: u64;
 }
 
 pub data EntryControl {
@@ -204,14 +210,14 @@ pub data CallbackMaterialization {
     destination: NativePlace;
 }
 
-pub data CallPlan {
+pub data CallPlan where parameter_count <= 32, callback_materialization_count <= 32 {
     convention: CallingConvention;
     parameters: [ValuePlacement; 32];
-    parameter_count: u64 [0..=32];
+    parameter_count: u64;
     has_result: bool;
     result: ValuePlacement;
     callback_materializations: [CallbackMaterialization; 32];
-    callback_materialization_count: u64 [0..=32];
+    callback_materialization_count: u64;
     ordinary_clobbers: RegisterSet;
     stack_alignment: u64;
     shadow_bytes: u64;
@@ -264,7 +270,8 @@ pub data BoundaryEntryPlan {
 }
 
 pub data CallingPolicyRejection {
-    reason: [u8; 256] in Utf8;
+    // Rejections borrow their diagnostic literal; qualification adds no storage.
+    reason: &[u8] in Utf8;
 }
 
 pub data BoundaryPlanResult {

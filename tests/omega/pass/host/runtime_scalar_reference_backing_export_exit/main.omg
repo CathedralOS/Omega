@@ -29,7 +29,7 @@ machine Main::main(main: &mut Main) reaches Compare crashes Trap {
     let copied: Holder = holder;
     let stored: i32 = Compare::compare(copied.reference, &main.right.value, 8);
     let holders: [Holder; 2] = [holder, copied];
-    let index: u64[0..2] = 1;
+    let index: u64 = 1;
     let indexed: i32 = Compare::compare(holders[index].reference, &main.right.value, 8);
     let returned: &u64 = retained(&main.left.value);
     let result: i32 = Compare::compare(returned, &main.right.value, 8);

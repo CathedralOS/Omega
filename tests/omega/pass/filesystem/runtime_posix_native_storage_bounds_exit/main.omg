@@ -37,7 +37,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemMetadataQuery + 
     }
     state exact_record(main: &mut Main) {
         main.record[0] = 93;
-        let end: u64[129..=145] = native_record_end();
+        let end: u64 = native_record_end();
         main.record[end] = 94;
         let result: i32 = PosixFilesystemHost::read_metadata(".", &mut main.record[1..end]);
         transition result == 0 && main.record[0] == 93 && main.record[end] == 94 {
@@ -94,9 +94,9 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemMetadataQuery + 
     state bad(code: i32) { Console::exit_process(code); }
 }
 
-linux_arm64 machine native_record_end() -> u64[129..=145] { 129 }
-linux_x86_64 machine native_record_end() -> u64[129..=145] { 145 }
-macos_arm64 machine native_record_end() -> u64[129..=145] { 145 }
+linux_arm64 machine native_record_end() -> u64 ensures result >= 129 && result <= 145 { 129 }
+linux_x86_64 machine native_record_end() -> u64 ensures result >= 129 && result <= 145 { 145 }
+macos_arm64 machine native_record_end() -> u64 ensures result >= 129 && result <= 145 { 145 }
 
 linux_arm64 machine native_times_match(record: &[u8; 146]) -> bool {
     native_word_matches(record[72..80], 255, 255)

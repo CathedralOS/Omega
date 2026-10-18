@@ -8,13 +8,13 @@ use omega::language::core::filesystem_authority;
 // caller, and a local buffer, each read twice into the same backing.
 use omega_language_std::posix_filesystem_host;
 
-data Main {
+data Main where received <= 320 {
     source: [u8; 300];
     buffer: [u8; 320];
     window: [u8; 64];
     fd: i32;
     n: i64;
-    received: u64 [0..=320];
+    received: u64;
     cursor: i64;
     first: i64;
     second: i64;
@@ -24,7 +24,8 @@ data Main {
 
 // A caller-chosen window of a borrowed fixed buffer. The caller's second
 // call reuses the buffer from a later offset.
-machine read_window(fd: i32, bytes: &mut [u8; 64], start: u64 [0..=64]) -> i64
+machine read_window(fd: i32, bytes: &mut [u8; 64], start: u64) -> i64
+    requires start <= 64
     reaches FilesystemContentRead
 {
     PosixFilesystemHost::read(fd, &mut bytes[start..64], 64 - start)
@@ -32,7 +33,8 @@ machine read_window(fd: i32, bytes: &mut [u8; 64], start: u64 [0..=64]) -> i64
 
 // The same window over a local buffer, read twice; the sentinel past the
 // window and the bytes the second transfer placed decide the result.
-machine read_local(fd: i32, start: u64 [0..=7]) -> i64
+machine read_local(fd: i32, start: u64) -> i64
+    requires start <= 7
     reaches FilesystemContentRead
 {
     let mut local: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 9];

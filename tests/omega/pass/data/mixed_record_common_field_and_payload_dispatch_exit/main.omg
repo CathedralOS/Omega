@@ -13,9 +13,9 @@
 use omega_language_std::console;
 
 data Kind [copy] { case A; case B; }
-data Token [copy] {
-    start: u64 [0..=100];
-    end: u64 [0..=100];
+data Token [copy] where start <= 100, end <= 100 {
+    start: u64;
+    end: u64;
     case Word;
     case Mark(kind: Kind);
 }
@@ -32,9 +32,9 @@ machine Main::main(main: &mut Main) reaches Console {
     stream.tokens[3].end = 25;
     stream.tokens[4] = Token::Mark { kind: Kind::A };
     stream.tokens[4].end = 15;
-    let first: u64 [0..=100] = classify(&stream, 2);
-    let second: u64 [0..=100] = classify(&stream, 3);
-    let third: u64 [0..=100] = classify(&stream, 4);
+    let first: u64 = classify(&stream, 2);
+    let second: u64 = classify(&stream, 3);
+    let third: u64 = classify(&stream, 4);
     transition first == 30 && second == 25 && third == 15 {
         true -> good(main)
         _ -> bad(main)
@@ -44,7 +44,10 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // `Mark(B)` answers its start; any other token answers its end.
-machine classify(stream: &Stream, index: u64 [0..=7]) -> u64 [0..=100] {
+machine classify(stream: &Stream, index: u64) -> u64
+requires index <= 7
+ensures result <= 100
+{
     let token: Token = stream.tokens[index];
     transition token {
         Token::Mark { start as _, end as _, kind: Kind::B } -> (token.start)

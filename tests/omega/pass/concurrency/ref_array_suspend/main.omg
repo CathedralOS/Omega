@@ -9,7 +9,9 @@ satisfies Scheduler::read {
     (references[0] as i64) + (references[1] as i64)
 }
 machine observe(reference: &i32) -> i32 { reference }
-machine read_at(references: &[&i32; 2], selected: u64 [0..=1]) -> i32 {
+machine read_at(references: &[&i32; 2], selected: u64) -> i32
+requires selected <= 1
+{
     references[selected]
 }
 data Main { }

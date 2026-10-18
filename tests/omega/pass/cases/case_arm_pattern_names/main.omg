@@ -2,26 +2,26 @@ domain i32::Step(value) requires 0 <= value && value <= 50;
 
 data Msg {
     case Move(dx: i32 in Step, dy: i32 in Step);
-    case Stop(code: i32 [-100..=100]);
+    case Stop(code: i32) where code >= -100 && code <= 100;
 }
 
-machine apply(m: Msg) -> i32 [-100..=140] {
+machine apply(m: Msg) -> i32 ensures result >= -100 && result <= 140 {
     transition m {
         Msg::Move { dx as step, dy as _ } if step == 30 -> hit(step)
         Msg::Move { dx as _, .. } -> miss()
         Msg::Stop { code } -> stopped(code)
     }
 
-    state hit(step: i32 in Step) -> i32 [-100..=140] {
+    state hit(step: i32 in Step) {
         let code: i32 = step + 40;
         transition { _ -> code }
     }
 
-    state miss() -> i32 [-100..=140] {
+    state miss() {
         transition { _ -> -1 }
     }
 
-    state stopped(code: i32 [-100..=100]) -> i32 [-100..=140] {
+    state stopped(code: i32) requires code >= -100 && code <= 100 {
         transition { _ -> code }
     }
 }
