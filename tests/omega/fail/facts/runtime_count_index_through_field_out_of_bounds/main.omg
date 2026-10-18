@@ -1,0 +1,24 @@
+// A runtime count stored in a field still indexes a byte view.
+// Rejected: the field carries count == items.len, so `Index < items.len`
+// cannot be discharged at read_at.
+data Held { count: u32; }
+
+machine read_at<Index: u32>(items: &[u8]) -> u8
+requires Index < items.len;
+{
+    items[Index]
+}
+
+machine indexed(items: &[u8]) -> u8
+requires items.len == 4;
+{
+    let held: Held = Held { count: 4 };
+    read_at<held.count>(items)
+}
+
+machine main() crashes Trap {
+    let bytes: [u8; 4] = [9, 8, 7, 6];
+    transition indexed(&bytes[..]) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

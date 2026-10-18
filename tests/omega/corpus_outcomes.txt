@@ -3681,6 +3681,27 @@ fail/facts/returned_write_destination_through_parameter_read rejected 1888ms exp
 	machine `replace` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_target_body_read rejected 2268ms expected @2ef2ab353498+wt
 	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/runtime_count_index_through_call_result_out_of_bounds rejected 7953ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: count < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_count_index_through_const_name_out_of_bounds rejected 7057ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$6b6bd8faeb92b6a0$0 from indexed: 4 < items.len (needs fact `4 < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_count_index_through_field_out_of_bounds rejected 5786ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: held.count < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_count_index_through_local_out_of_bounds rejected 5621ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: count < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_count_index_through_match_join_out_of_bounds rejected 5390ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: index < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_count_index_through_other_machine_out_of_bounds rejected 5168ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call consume from indexed: measure(items) < items.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_count_index_through_other_state_out_of_bounds rejected 5258ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call pick from indexed: count < items.len (needs fact `count < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_count_index_through_parameter_out_of_bounds rejected 5516ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: index < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_count_index_through_target_body_out_of_bounds rejected 5290ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/write_only_checked_adapter_opaque_call rejected 328ms expected @2ef2ab353498+wt
 	machine `opaque` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 	machine `lend` state `entry` calls `opaque` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
@@ -8688,6 +8709,15 @@ pass/facts/returned_write_destination_through_other_machine_exit checked 7110ms 
 pass/facts/returned_write_destination_through_other_state_exit checked 8162ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_parameter_exit checked 7698ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_target_body_exit checked 8371ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/runtime_count_index_through_call_result_exit checked 16182ms check-target:macos_arm64 @ce5f8c9f2f5f
+pass/facts/runtime_count_index_through_const_name_exit checked 15724ms check-target:macos_arm64 @ce5f8c9f2f5f
+pass/facts/runtime_count_index_through_field_exit checked 15926ms check-target:macos_arm64 @ce5f8c9f2f5f
+pass/facts/runtime_count_index_through_local_exit checked 15900ms check-target:macos_arm64 @ce5f8c9f2f5f
+pass/facts/runtime_count_index_through_match_join_exit checked 15756ms check-target:macos_arm64 @ce5f8c9f2f5f
+pass/facts/runtime_count_index_through_other_machine_exit checked 15663ms check-target:macos_arm64 @ce5f8c9f2f5f
+pass/facts/runtime_count_index_through_other_state_exit checked 15231ms check-target:macos_arm64 @ce5f8c9f2f5f
+pass/facts/runtime_count_index_through_parameter_exit checked 15999ms check-target:macos_arm64 @ce5f8c9f2f5f
+pass/facts/runtime_count_index_through_target_body_exit checked 16520ms check-target:macos_arm64 @ce5f8c9f2f5f
 pass/facts/write_only_checked_adapter_exit checked 5187ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/filesystem/cross_linux_value_syscalls checked 16296ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit checked 19471ms check-target:macos_arm64 @7c847bad15b6+wt
