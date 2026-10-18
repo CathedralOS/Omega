@@ -1,0 +1,21 @@
+// An exclusive reference moves into another binding. Writing through the receiving binding changes the original backing; the following read must see 41.
+// Place: match join.
+// Invalid: the backing is written while the joined loan may still alias it.
+machine main() crashes Trap {
+    let mut backing: i64 = 17;
+    let mut spare: i64 = 0;
+    let pick: bool = true;
+    let child: &mut i64 = match pick {
+        true -> &mut backing
+        false -> &mut spare
+    };
+    backing = 7;
+    child = 41;
+    let observed: i64 = child;
+    transition observed == 41 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

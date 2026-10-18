@@ -1,0 +1,17 @@
+// An exclusive reference moves into another binding. Writing through the receiving binding changes the original backing; the following read must see 41.
+// Place: const name.
+// Expected exit: 0.
+const WRITTEN: i64 = 41;
+machine main() crashes Trap {
+    let mut backing: i64 = 17;
+    let original: &mut i64 = &mut backing;
+    let child: &mut i64 = original;
+    child = WRITTEN;
+    let observed: i64 = child;
+    transition observed == WRITTEN {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
