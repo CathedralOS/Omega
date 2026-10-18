@@ -239,7 +239,7 @@ def parse(text: str) -> list[dict]:
             continue
         if line.startswith("\t"):
             if not records:
-                raise ValueError(f"line {number}: diagnostic before any fixture")
+                continue
             records[-1]["diagnostics"].append(unescape(line[1:]))
             continue
         fields = line.split(" ")

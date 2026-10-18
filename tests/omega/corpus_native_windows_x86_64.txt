@@ -1351,6 +1351,15 @@ pass/facts/result_cleanup_guarantees_through_other_machine_exit built 7444ms exi
 pass/facts/result_cleanup_guarantees_through_other_state_exit built 6739ms exit:0 @ec38c6dfcf45
 pass/facts/result_cleanup_guarantees_through_parameter_exit built 7023ms exit:0 @ec38c6dfcf45
 pass/facts/result_cleanup_guarantees_through_target_body_exit built 7375ms exit:0 @ec38c6dfcf45
+pass/facts/signed_division_quotient_through_call_result_exit built 6626ms exit:0 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_const_name_exit built 6817ms exit:0 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_field_exit built 6605ms exit:0 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_local_exit built 6488ms exit:0 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_match_join_exit built 6855ms exit:0 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_other_machine_exit built 6440ms exit:0 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_other_state_exit built 6738ms exit:0 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_parameter_exit built 6667ms exit:0 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_target_body_exit built 6902ms exit:0 @623a499c00d9+wt
 pass/facts/view_extent_after_write_through_call_result_exit built 5643ms exit:0 @17acd2776c21
 pass/facts/view_extent_after_write_through_const_name_exit built 5611ms exit:0 @17acd2776c21
 pass/facts/view_extent_after_write_through_field_exit built 5873ms exit:0 @17acd2776c21

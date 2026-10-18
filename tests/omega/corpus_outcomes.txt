@@ -2004,6 +2004,27 @@ fail/facts/selected_native_code_layout_through_other_machine_rejected rejected 2
 fail/facts/selected_native_code_layout_through_other_state_rejected rejected 28ms expected @b2bd1ba421fd+wt
 fail/facts/selected_native_code_layout_through_parameter_rejected rejected 34ms expected @b2bd1ba421fd+wt
 fail/facts/selected_native_code_layout_through_target_body_rejected rejected 29ms expected @b2bd1ba421fd+wt
+fail/facts/signed_division_quotient_unproved_call_result rejected 2725ms expected @623a499c00d9+wt
+	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_division_quotient_unproved_const_name rejected 2929ms expected @623a499c00d9+wt
+	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_division_quotient_unproved_field rejected 2769ms expected @623a499c00d9+wt
+	exact arithmetic in machine `verify_field` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_division_quotient_unproved_local rejected 2549ms expected @623a499c00d9+wt
+	exact arithmetic in machine `divide_local` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_division_quotient_unproved_match_join rejected 2632ms expected @623a499c00d9+wt
+	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_division_quotient_unproved_other_machine rejected 2841ms expected @623a499c00d9+wt
+	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_division_quotient_unproved_other_state rejected 2672ms expected @623a499c00d9+wt
+	exact arithmetic in machine `verify_state` state `step` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_division_quotient_unproved_parameter rejected 2520ms expected @623a499c00d9+wt
+	exact arithmetic in machine `verify_parameter` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_division_quotient_unproved_target_body rejected 2618ms expected @623a499c00d9+wt
+	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/subslice_state_extent_wrong_view_rejected rejected 605ms expected @cbdcc23565fb
 fail/facts/temporary_case_cleanup_through_call_result_rejected rejected 1103ms expected @46f72294c589
 fail/facts/temporary_case_cleanup_through_const_name_rejected rejected 1102ms expected @46f72294c589
@@ -5721,6 +5742,15 @@ pass/facts/selected_native_code_layout_through_other_machine_exit checked 8202ms
 pass/facts/selected_native_code_layout_through_other_state_exit checked 7960ms check-target:linux_x86_64 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_parameter_exit checked 7910ms check-target:linux_x86_64 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_target_body_exit checked 7977ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/signed_division_quotient_through_call_result_exit checked 8588ms check-target:macos_arm64 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_const_name_exit checked 8844ms check-target:macos_arm64 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_field_exit checked 8655ms check-target:macos_arm64 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_local_exit checked 9489ms check-target:macos_arm64 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_match_join_exit checked 8961ms check-target:macos_arm64 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_other_machine_exit checked 8993ms check-target:macos_arm64 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_other_state_exit checked 9310ms check-target:macos_arm64 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_parameter_exit checked 8808ms check-target:macos_arm64 @623a499c00d9+wt
+pass/facts/signed_division_quotient_through_target_body_exit checked 9466ms check-target:macos_arm64 @623a499c00d9+wt
 pass/facts/subslice_state_extent_after_write_exit checked 3987ms check-target:macos_arm64 @cbdcc23565fb
 pass/facts/temporary_case_cleanup_original_exit checked 3691ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_call_result_exit checked 3690ms check-target:macos_arm64 @46f72294c589
