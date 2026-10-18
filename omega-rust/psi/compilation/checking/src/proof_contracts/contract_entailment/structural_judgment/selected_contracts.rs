@@ -925,6 +925,28 @@ pub(super) fn bound_term(
                 depth + 1,
             )?,
         ),
+        // Public guarantees observe the admitted conversion's value through
+        // the same denotation rule as ordinary contract expressions. Conversion
+        // formation remains a separate obligation at its authored occurrence.
+        ExpressionNode::Cast(cast) => {
+            let source = crate::parameter_expression_result_type_reference(
+                program, scope, parameters, cast.value,
+            )?;
+            super::super::structural_terms::denotation_preserving_conversion(program, cast, source)
+                .then(|| {
+                    bound_term(
+                        program,
+                        cast.value,
+                        scope,
+                        parameters,
+                        callable,
+                        bindings,
+                        result,
+                        depth + 1,
+                    )
+                })
+                .flatten()
+        }
         ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {
             super::super::structural_terms::structural_term(program, None, None, expression, None)
         }
