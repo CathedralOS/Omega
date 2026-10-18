@@ -71,13 +71,17 @@ Read the whole item's acceptance and verify its remaining gap against current
 main. Record the parent task and the exact requirement the next fact will
 discharge. Do not attach a task ID to an unrelated program after choosing it.
 Apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence):
-the nine places establish transport and carrier lowering, while the governing
-acceptance also covers fact establishment, identity and invalidation,
-composition and soundness where applicable. Record the requirement, linked
-positives/reject twins, demonstrated acceptance and remaining work in the fact
-README; keep producer/target-bound run records in the existing
-qualification/claim record or commit. Close only the acceptance that evidence
-actually establishes.
+each sample fact README lists how its nine places and reject twins prove out
+the end-to-end specification requirements—**establishment**, **identity and
+lifetime**, **composition**, **soundness boundaries**, **Terminal Psi and
+carrier lowering**, and **native realization, frame/layout encoding, and image
+emission** (including indirect aggregate return homes, symbolic frame addresses,
+block layout and branch relaxation, entry prologue and multi-return epilogue
+insertion with branch reflow, dispatch-table and read-only byte-pool
+relocations, and `omega run --both` execution agreement)—plus linked
+positives/reject twins and remaining open scope. Keep producer/target-bound run
+records in the existing qualification/claim record or commit. Close only the
+acceptance that evidence actually establishes.
 
 Use `python3 tools/sample_queue.py --facts` as witness evidence inside
 `samples/cli/facts`, not a global smallest-first assignment policy and not the

@@ -220,9 +220,9 @@ change becomes someone else's queue entry with no compiler work in it.
 
 ### Requirements and evidence
 
-Facts supply executable evidence; the accepted check/proof requirements define
-what must be complete. Read the governing specification and the owning task's
-full acceptance. Account for these obligations where they apply:
+Facts supply executable evidence; the accepted specification requirements define
+what must be complete end to end. Read the governing specification and the owning
+task's full acceptance. Prove out and list these obligations in the sample fact:
 
 - **Establishment:** construction, guards, entry contracts, completed calls or
   checked theorem evidence justify introducing the fact; an unproved goal does
@@ -236,12 +236,33 @@ full acceptance. Account for these obligations where they apply:
 - **Soundness boundaries:** proof preserves ownership, access authority and
   termination obligations, tracks transitive assumptions, and respects the
   boundary between erased mathematics and executable values.
+- **Terminal Psi and carrier lowering:** source constructs lower without loss into
+  Terminal Psi and target-neutral operations, preserving scalar/structural/unit
+  result forms, explicit `dyn` selector vs. data lanes, borrow/write-frame
+  custody, strongly connected control/ranking edges, and exact cleanup order
+  ([calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md),
+  [control flow](wiki/spec/terminal-psi/control_flow.md),
+  [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md),
+  [byte views](wiki/spec/terminal-psi/byte_views.md)).
+- **Native realization, frame/layout encoding, and image emission:** target
+  instruction selection, register home assignment and spill/callee-saved
+  preservation, indirect aggregate return homes (`sret`), symbolic frame-address
+  resolution, function-relative block layout and branch relaxation, entry
+  prologue and multi-return epilogue insertion with branch offset reflow,
+  immutable dispatch-table and read-only byte-pool relocations, and direct
+  PE/ELF/Mach-O image emission execute and agree with Terminal Psi
+  (`omega run --both`) across the four hosted targets
+  ([calling plans](wiki/spec/build/calling_plans.md),
+  [machine-state evidence](wiki/spec/build/machine_state_evidence.md),
+  [storage](wiki/spec/resources/storage.md),
+  [layout plans](wiki/spec/layouts/plans.md)).
 
 These are requirement categories, not a new test matrix or a claim that they
 exhaust the accepted language. Keep the concrete remaining requirements and
 acceptance on the existing task board. In the fact folder's README, name the
 owning task and exact requirement, link the positive witnesses and fact-sensitive
-reject twins, and state what that evidence establishes and what remains open.
+reject twins, and list how each applicable requirement above is established and
+what remains open.
 Keep run records in the existing qualification/claim record or commit, with
 producer revision and target; distinguish fresh results, applicable retained
 evidence and unverified cases. A missing or unrelated reject diagnostic is not
