@@ -395,6 +395,11 @@ fail/borrows/qualified_match_loan_missing_arm rejected 243ms expected @8a884ecc4
 	match arms produce incompatible values
 fail/borrows/qualified_match_loan_shared_to_mutable rejected 235ms expected @8a884ecc43d5+wt
 	machine `inspect` state `entry` local `selected` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/selected_projected_state_keeps_residual_loan rejected 1691ms expected @c06ac7359406
+	statement 6 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8 and it is released at state exit)
+	statement 6 reads `output.value` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8 and it is released at state exit)
+	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8 and it is released at state exit)
+	statement 7 reads `spare.value` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8 and it is released at state exit)
 fail/build/context_entry_returns_value rejected 1889ms expected @e7a4cfaa3c51+wt
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
 fail/build/entry_static_premise_does_not_establish_context rejected 3445ms expected @ba06013a36ec+wt
@@ -523,6 +528,8 @@ fail/drops/result_cleanup_wrong_result rejected 637ms expected @76ea4b8c7c50
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: missing bad.ready == true required by Token::drop clause `token.ready`
 fail/drops/selected_argument_retains_cleanup_prerequisite rejected 735ms expected @ab16f19fe1b1+wt
 	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 2: missing retained.ready == true required by Token::drop clause `token.ready`
+fail/drops/selected_projected_state_cleanup_prerequisite rejected 1672ms expected @c06ac7359406
+	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state finish after statement 0: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/address_count_partition_through_call_result_rejected rejected 229ms expected @70da601bb299+wt
 	exact arithmetic in construction of `Region` field `base` may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in construction of `Region` field `length` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -8037,6 +8044,7 @@ pass/drops/result_cleanup_integer_exit checked 3768ms check-target:macos_arm64 @
 pass/drops/result_cleanup_named_boolean_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
 pass/drops/result_cleanup_original_exit checked 3637ms check-target:macos_arm64 @76ea4b8c7c50
 pass/drops/result_cleanup_replacement_exit checked 3635ms check-target:macos_arm64 @76ea4b8c7c50
+pass/drops/runtime_selected_projected_state_cleanup_exit checked 3651ms check-target:macos_arm64 @c06ac7359406
 pass/drops/runtime_selected_transfer_nested_construction_exit checked 3451ms check-target:macos_arm64 @4030174fbc4e
 pass/drops/statement_result_cleanup_without_expression_home_exit checked 6424ms check-target:macos_arm64 @1a31c8fa5439
 pass/facts/address_count_partition_through_call_result_exit checked 4004ms check-target:macos_arm64 @70da601bb299+wt

@@ -950,8 +950,7 @@ defines the complete product bar.
     lifetime control: cleanup must not prolong a completed borrow-free
     producer's input loans.
   Acceptance: add corpus fixtures where native runs and the Terminal
-  interpreter preserve values and hook order across composed edges, including
-  a projected-argument jump edge closing residuals in order. Missing,
+  interpreter preserve values and hook order across composed edges. Missing,
   duplicate, reordered, overlapping, wrong-root and post-transfer cleanup,
   and transfer after disposal, reject. Fuel exhaustion commits no disposal;
   retry cannot repeat one. No affine occurrence outlives its required edge.

@@ -80,6 +80,19 @@ The compiler uses checked contextual subtree actions for those deaths, rather
 than disposing sibling geometry at the selection join or treating a partial
 Pair as an intact nominal receiver.
 
+The [projected state-jump variation](match_join/cleanup_receiver/order/projected_sibling/state_jump/main.omg)
+captures that selected Carrier as the explicit argument of `finish`. The entry
+state closes its Pair residuals and Marker before the successor receives the
+Carrier: `YBMX` then `A` for the first choice, and `YMXA` then `B` for the second.
+The successor's Keeper still writes 41 through the exact selected loan; the
+caller observes 41/other-zero after the helper returns. Its
+[code40 twin](match_join/cleanup_receiver/order/projected_sibling/state_jump/controls/prerequisite/main.omg)
+rejects Keeper's unchanged requirement in `finish`. The
+[early-read twin](match_join/cleanup_receiver/order/projected_sibling/state_jump/controls/held_residual/main.omg)
+reads the original Counter backing before the jump while the local candidate
+and selected loans remain active. This pins the projected-argument normal-edge
+witness required by CML4, without claiming its broader cleanup acceptance.
+
 The [owned-parameter replacement control](../../../../tests/omega/pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit/main.omg)
 keeps the same 41 writeback and `ABMCBMCA` order when another parameter supplies
 the replacement. Its [code40 twin](../../../../tests/omega/fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite/main.omg)

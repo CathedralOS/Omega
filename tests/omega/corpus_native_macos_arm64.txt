@@ -1178,6 +1178,7 @@ pass/drops/runtime_scalar_temporary_residual_partition_exit built 1782ms exit:0 
 pass/drops/runtime_selected_nominal_owner_cleanup_exit built 2884ms exit:0 stdout:match @63328daf043b+wt
 pass/drops/runtime_selected_partial_owner_cleanup_exit built 13675ms exit:0 stdout:match @8df1d091a810
 pass/drops/runtime_selected_projected_sibling_cleanup_exit built 3732ms exit:0 stdout:match @527339c11257
+pass/drops/runtime_selected_projected_state_cleanup_exit built 3754ms exit:0 stdout:match @c06ac7359406
 pass/drops/runtime_selected_transfer_fieldwise_construction_exit built 13168ms exit:0 stdout:match @212593d788a7
 pass/drops/runtime_selected_transfer_incomplete_construction_exit built 5331ms exit:0 stdout:match @9bf00044985b
 pass/drops/runtime_selected_transfer_nested_construction_exit built 3676ms exit:0 stdout:match @4030174fbc4e
