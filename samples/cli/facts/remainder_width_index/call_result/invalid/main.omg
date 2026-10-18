@@ -1,0 +1,28 @@
+// The remainder `value % width` is below `width`, so when `width` is proved
+// equal to a view's length it indexes that view.
+// Invalid: width is one greater than the view length, so the remainder may equal the length. Place: call result. A call's `ensures` equates its result with the view's
+// length through the result carrier.
+// Expected exit: 0
+machine measure(buckets: &[u8]) -> u64
+requires buckets.len > 0 && buckets.len < 100
+ensures result == buckets.len as u64 + 1
+{
+    buckets.len as u64 + 1
+}
+
+machine pick(value: u64, buckets: &[u8]) -> u8
+requires buckets.len > 0 && buckets.len < 100
+{
+    let width: u64 = measure(buckets);
+    buckets[value % width]
+}
+
+machine main() crashes Trap {
+    let buckets: [u8; 4] = [7, 8, 9, 6];
+    transition pick(10, &buckets[..]) == 9 && pick(15, &buckets[..]) == 6 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

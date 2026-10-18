@@ -2140,6 +2140,15 @@ pass/facts/guarded_line_loan_through_other_machine_exit built 5122ms exit:0 @866
 pass/facts/guarded_line_loan_through_other_state_exit built 5057ms exit:0 @866a955e52f8
 pass/facts/guarded_line_loan_through_parameter_exit built 5136ms exit:0 @866a955e52f8
 pass/facts/guarded_line_loan_through_target_body_exit built 5033ms exit:0 @866a955e52f8
+pass/facts/remainder_width_through_call_result_exit built 5810ms exit:0 @d070d134851d+wt
+pass/facts/remainder_width_through_const_name_exit built 5793ms exit:0 @d070d134851d+wt
+pass/facts/remainder_width_through_field_exit built 5725ms exit:0 @d070d134851d+wt
+pass/facts/remainder_width_through_local_exit built 5759ms exit:0 @d070d134851d+wt
+pass/facts/remainder_width_through_match_join_exit built 5776ms exit:0 @d070d134851d+wt
+pass/facts/remainder_width_through_other_machine_exit built 5679ms exit:0 @d070d134851d+wt
+pass/facts/remainder_width_through_other_state_exit built 5707ms exit:0 @d070d134851d+wt
+pass/facts/remainder_width_through_parameter_exit built 5661ms exit:0 @d070d134851d+wt
+pass/facts/remainder_width_through_target_body_exit built 5742ms exit:0 @d070d134851d+wt
 pass/filesystem/cross_linux_value_syscalls checked 25559ms @6c49683ce714
 pass/filesystem/dir_walk_wrappers_exit rejected 48831ms @e3eb5bdd566b
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`

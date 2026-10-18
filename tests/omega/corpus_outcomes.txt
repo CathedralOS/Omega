@@ -1833,6 +1833,8 @@ fail/collections/contract_length_sibling_selector_write rejected 1137ms expected
 	cannot prove index `0` is within unknown slice length of `views[cursor.position]` in first::entry
 fail/collections/contract_length_unmet_requires rejected 1249ms expected @510dbaffdefa
 	cannot prove requires contract for call extent from first: values.len > 0 (needs fact `values.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/collections/contract_length_wrapping_result_cast_rejected rejected 2355ms expected @d070d134851d+wt
+	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
 fail/collections/declared_range_index_too_wide rejected 5298ms expected @a9ae30e1c334+wt
 	cannot prove index `main.i` is within length 5 in Main::main::read
 fail/collections/element_view_descendant_uses_selected_extent rejected 1499ms expected @a9ae30e1c334+wt
@@ -3501,6 +3503,27 @@ fail/facts/matched_window_through_parameter_rejected rejected 651ms expected @a4
 	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
 fail/facts/matched_window_through_target_body_rejected rejected 649ms expected @a48b0ac286f5
 	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+fail/facts/remainder_width_through_call_result_rejected rejected 3201ms expected @d070d134851d+wt
+	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_const_name_rejected rejected 3244ms expected @d070d134851d+wt
+	cannot prove index `value % 5` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_field_rejected rejected 3194ms expected @d070d134851d+wt
+	cannot prove index `value % window.width` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_local_rejected rejected 3142ms expected @d070d134851d+wt
+	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_match_join_rejected rejected 3199ms expected @d070d134851d+wt
+	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_other_machine_rejected rejected 3172ms expected @d070d134851d+wt
+	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
+fail/facts/remainder_width_through_other_state_rejected rejected 3192ms expected @d070d134851d+wt
+	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::land
+fail/facts/remainder_width_through_parameter_rejected rejected 3149ms expected @d070d134851d+wt
+	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_target_body_rejected rejected 3256ms expected @d070d134851d+wt
+	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
+	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
+	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
+	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
 fail/facts/returned_write_destination_through_call_result_read rejected 2165ms expected @2ef2ab353498+wt
 	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_const_name_read rejected 2281ms expected @2ef2ab353498+wt
@@ -8447,6 +8470,15 @@ pass/facts/integer_range_delivery_through_other_machine_exit checked 23468ms che
 pass/facts/integer_range_delivery_through_other_state_exit checked 14796ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_parameter_exit checked 12770ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_target_body_exit checked 14948ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/remainder_width_through_call_result_exit checked 7565ms check-target:macos_arm64 @d070d134851d+wt
+pass/facts/remainder_width_through_const_name_exit checked 7523ms check-target:macos_arm64 @d070d134851d+wt
+pass/facts/remainder_width_through_field_exit checked 7512ms check-target:macos_arm64 @d070d134851d+wt
+pass/facts/remainder_width_through_local_exit checked 7480ms check-target:macos_arm64 @d070d134851d+wt
+pass/facts/remainder_width_through_match_join_exit checked 7476ms check-target:macos_arm64 @d070d134851d+wt
+pass/facts/remainder_width_through_other_machine_exit checked 7462ms check-target:macos_arm64 @d070d134851d+wt
+pass/facts/remainder_width_through_other_state_exit checked 7481ms check-target:macos_arm64 @d070d134851d+wt
+pass/facts/remainder_width_through_parameter_exit checked 7460ms check-target:macos_arm64 @d070d134851d+wt
+pass/facts/remainder_width_through_target_body_exit checked 7459ms check-target:macos_arm64 @d070d134851d+wt
 pass/facts/returned_write_destination_through_call_result_exit checked 6783ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_const_name_exit checked 6674ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_field_exit checked 7303ms check-target:macos_arm64 @2ef2ab353498+wt

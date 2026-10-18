@@ -73,7 +73,13 @@ pub fn normal_return_length_collection(
         } else {
             continue;
         };
-        let Some(member) = crate::length_member(program, measure) else {
+        // The measurement may be spelled through an Exact cast of the length
+        // member (`values.len as u64`, including a same-carrier no-op). The
+        // length identity lives under that admitted carrier coercion, so peel
+        // it for the member check; the original expression still supplies the
+        // compared operand type below.
+        let measure_source = length_measure_source(program, measure);
+        let Some(member) = crate::length_member(program, measure_source) else {
             continue;
         };
         let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
@@ -136,4 +142,24 @@ pub fn normal_return_length_collection(
         });
     }
     None
+}
+
+/// The value-preserving source of a declared collection measurement. A plain
+/// Exact cast changes the carrier, not the measured length; the cast was
+/// admitted by the same exact-cast judgment, so peeling it keeps the measurement
+/// relation. Bounded so a malformed cast chain cannot loop.
+fn length_measure_source(
+    program: &dyn crate::CheckingInput,
+    mut expression: ExpressionHandle,
+) -> ExpressionHandle {
+    for _ in 0..8 {
+        let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
+            break;
+        };
+        if !super::plain_exact_widening_cast(program, cast) {
+            break;
+        }
+        expression = cast.value;
+    }
+    expression
 }

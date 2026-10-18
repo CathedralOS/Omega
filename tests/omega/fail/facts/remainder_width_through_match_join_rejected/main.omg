@@ -1,0 +1,32 @@
+// The remainder `value % width` is below `width`, so when `width` is proved
+// equal to a view's length it indexes that view.
+// Invalid: width is one greater than the view length, so the remainder may equal the length. Place: match join. Both arms denote the same view length, so the joined
+// width still indexes the view.
+// Expected exit: 0
+machine measure(buckets: &[u8]) -> u64
+requires buckets.len > 0
+ensures result == buckets.len as u64
+{
+    buckets.len as u64
+}
+
+machine pick(value: u64, buckets: &[u8], flag: bool) -> u8
+requires buckets.len > 0 && buckets.len < 100
+{
+    let width: u64 = match flag {
+        true -> buckets.len as u64 + 1,
+        false -> measure(buckets)
+    };
+    buckets[value % width]
+}
+
+machine main() crashes Trap {
+    let buckets: [u8; 4] = [7, 8, 9, 6];
+    transition pick(10, &buckets[..], true) == 9 && pick(10, &buckets[..], false) == 9
+        && pick(15, &buckets[..], true) == 6 && pick(15, &buckets[..], false) == 6 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

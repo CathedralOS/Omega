@@ -1,0 +1,26 @@
+// The remainder `value % width` is below `width`, so when `width` is proved
+// equal to a view's length it indexes that view.
+// Invalid: width is one greater than the view length, so the remainder may equal the length. Place: another machine. A forwarding machine supplies the width equal to
+// the view's length.
+// Expected exit: 0
+machine read_at(value: u64, buckets: &[u8], width: u64) -> u8
+requires buckets.len > 0 && buckets.len < 100 && width == buckets.len as u64 + 1
+{
+    buckets[value % width]
+}
+
+machine pick(value: u64, buckets: &[u8]) -> u8
+requires buckets.len > 0 && buckets.len < 100
+{
+    read_at(value, buckets, buckets.len as u64 + 1)
+}
+
+machine main() crashes Trap {
+    let buckets: [u8; 4] = [7, 8, 9, 6];
+    transition pick(10, &buckets[..]) == 9 && pick(15, &buckets[..]) == 6 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,18 @@
+machine measure(buckets: &[u8]) -> u64
+requires buckets.len > 0
+ensures result == (buckets.len as u64 in Wrapping) as u64
+{
+    (buckets.len as u64 in Wrapping) as u64
+}
+machine pick(value: u64, buckets: &[u8]) -> u8
+requires buckets.len > 0
+{
+    let width: u64 = measure(buckets);
+    buckets[value % width]
+}
+machine main() crashes Trap {
+    let buckets: [u8; 4] = [7, 8, 9, 6];
+    transition pick(10, &buckets[..]) == 9 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

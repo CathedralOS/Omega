@@ -1,0 +1,49 @@
+// The remainder `value % width` is below `width`, so when `width` is proved
+// equal to a view's length it indexes that view.
+// Place: another target body. Every target body obtains the width from a
+// declared measurement and selects the element.
+// Expected exit: 0
+machine measure(buckets: &[u8]) -> u64
+requires buckets.len > 0
+ensures result == buckets.len as u64
+{
+    buckets.len as u64
+}
+
+linux_x86_64 machine read_at(value: u64, buckets: &[u8]) -> u8
+requires buckets.len > 0
+{
+    let width: u64 = measure(buckets);
+    buckets[value % width]
+}
+
+linux_arm64 machine read_at(value: u64, buckets: &[u8]) -> u8
+requires buckets.len > 0
+{
+    let width: u64 = measure(buckets);
+    buckets[value % width]
+}
+
+macos_arm64 machine read_at(value: u64, buckets: &[u8]) -> u8
+requires buckets.len > 0
+{
+    let width: u64 = measure(buckets);
+    buckets[value % width]
+}
+
+windows_x86_64 machine read_at(value: u64, buckets: &[u8]) -> u8
+requires buckets.len > 0
+{
+    let width: u64 = measure(buckets);
+    buckets[value % width]
+}
+
+machine main() crashes Trap {
+    let buckets: [u8; 4] = [7, 8, 9, 6];
+    transition read_at(10, &buckets[..]) == 9 && read_at(15, &buckets[..]) == 6 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

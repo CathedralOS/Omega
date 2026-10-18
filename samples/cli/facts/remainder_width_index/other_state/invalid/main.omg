@@ -1,0 +1,25 @@
+// The remainder `value % width` is below `width`, so when `width` is proved
+// equal to a view's length it indexes that view.
+// Invalid: width is one greater than the view length, so the remainder may equal the length. Place: another state. A successor state receives the width equal to the
+// view's length.
+// Expected exit: 0
+machine pick(value: u64, buckets: &[u8], width: u64) -> u8
+requires buckets.len > 0 && buckets.len < 100 && width == buckets.len as u64 + 1
+{
+    transition { _ -> land(value, buckets, width) }
+    state land(value: u64, buckets: &[u8], width: u64) -> u8
+    requires buckets.len > 0 && buckets.len < 100 && width == buckets.len as u64 + 1
+    {
+        buckets[value % width]
+    }
+}
+
+machine main() crashes Trap {
+    let buckets: [u8; 4] = [7, 8, 9, 6];
+    transition pick(10, &buckets[..], 5) == 9 && pick(15, &buckets[..], 5) == 6 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

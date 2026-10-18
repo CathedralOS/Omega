@@ -1,0 +1,20 @@
+// The remainder `value % width` is below `width`, so when `width` is proved
+// equal to a view's length it indexes that view.
+// Place: local. The width is a local copy of the view's length.
+// Expected exit: 0
+machine pick(value: u64, buckets: &[u8]) -> u8
+requires buckets.len > 0
+{
+    let width: u64 = buckets.len as u64;
+    buckets[value % width]
+}
+
+machine main() crashes Trap {
+    let buckets: [u8; 4] = [7, 8, 9, 6];
+    transition pick(10, &buckets[..]) == 9 && pick(15, &buckets[..]) == 6 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
