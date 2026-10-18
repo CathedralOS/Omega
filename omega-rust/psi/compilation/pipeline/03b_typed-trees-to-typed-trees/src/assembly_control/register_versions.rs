@@ -3,7 +3,9 @@
 //! keeps arithmetic premises and ZF's exact result relation alive independently
 //! of later writes to that register. Edges transport only the latest versions.
 use arena::{Handle, HandleSpan};
+use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{TypedTrees, name::Identifier};
@@ -15,13 +17,37 @@ pub(super) struct RegisterVersion {
     pub name: Identifier,
 }
 
+/// A register version replaces exactly one scalar register destination. Root
+/// traversal alone is address/capture analysis, not permission to erase a place.
+/// assembly.md (5a9b37dea3baa518c3640c1f05abab1c8f03ec58): each edge retains
+/// the exact modeled register, memory and place state; catalog semantics apply.
+pub(super) fn destination(
+    program: &TypedTrees,
+    target: ExpressionHandle,
+    mut registers: impl Iterator<Item = SymbolHandle>,
+) -> Result<Option<SymbolHandle>, Diagnostic> {
+    let Some(root) = super::normalization::root(program, target)
+        .filter(|root| registers.any(|register| register == *root))
+    else {
+        return Ok(None);
+    };
+    if !matches!(program.expression_table.expression(target), ExpressionNode::Name(path)
+        if path.head_symbol == root && path.symbol == root && path.members.len() == 1)
+    {
+        return Err(Diagnostic::error(
+            "assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes",
+        ));
+    }
+    Ok(Some(root))
+}
+
 pub(super) fn statement(
     program: &mut TypedTrees,
     owner: SymbolHandle,
     handle: Handle<StatementNode>,
     registers: &mut [RegisterVersion],
     ordinal: usize,
-) -> StatementNode {
+) -> Result<StatementNode, Diagnostic> {
     let mapping: Vec<_> = registers
         .iter()
         .map(|register| (register.source, register.current))
@@ -64,16 +90,21 @@ pub(super) fn statement(
         path.members = members;
     }
     let StatementNode::Assignment(assignment) = &statement else {
-        return statement;
+        return Ok(statement);
     };
-    let Some(root) = super::normalization::root(program, assignment.target) else {
-        return statement;
+    let Some(root) = destination(
+        program,
+        assignment.target,
+        registers.iter().map(|register| register.current),
+    )?
+    else {
+        return Ok(statement);
     };
     let Some(register) = registers
         .iter_mut()
         .find(|register| register.current == root)
     else {
-        return statement;
+        return Ok(statement);
     };
     let name = Identifier::generated(format!("{}$version${ordinal}", register.name));
     let symbol = program
@@ -84,11 +115,11 @@ pub(super) fn statement(
         )
         .handle_at(0);
     register.current = symbol;
-    StatementNode::LocalData(TableLocalData {
+    Ok(StatementNode::LocalData(TableLocalData {
         symbol,
         name,
         type_reference: register.carrier,
         initial_value: assignment.value,
         ..Default::default()
-    })
+    }))
 }

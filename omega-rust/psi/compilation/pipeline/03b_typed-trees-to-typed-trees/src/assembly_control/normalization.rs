@@ -143,9 +143,10 @@ fn target_reads(
     }
 }
 
-/// Intersection over all incoming edges, including the empty initial entry.
+/// Scalar destination admission and intersection over every incoming edge,
+/// including the empty initial entry.
 /// Storage zeros never enter this lattice. Assertions are reads, never writes.
-fn check_initialization(
+fn check_register_flow(
     program: &TypedTrees,
     state: &State,
     graph: &AssemblyControlFlow,
@@ -162,6 +163,22 @@ fn check_initialization(
                 .flatten()
         })
         .collect();
+    // Validate every authored destination before initialization or either
+    // normalization route can treat a rooted projection as a scalar write.
+    let statements = program.statement_table.statements(state.statement_nodes);
+    for block in blocks {
+        for statement in &statements
+            [body_start + block.start as usize..body_start + (block.start + block.count) as usize]
+        {
+            if let StatementNode::Assignment(assignment) = statement {
+                super::register_versions::destination(
+                    program,
+                    assignment.target,
+                    scratch.iter().flatten().copied(),
+                )?;
+            }
+        }
+    }
     let mut incoming = vec![u32::MAX; blocks.len()];
     let mut outgoing = incoming.clone();
     let mut reachable = vec![false; blocks.len()];
@@ -462,7 +479,7 @@ pub(crate) fn normalize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
                     cursor += 1;
                     continue;
                 }
-                check_initialization(&source, state, graph, cursor + 1)
+                check_register_flow(&source, state, graph, cursor + 1)
                     .map_err(|diagnostic| vec![diagnostic])?;
                 if !source
                     .statement_table
@@ -514,7 +531,8 @@ pub(crate) fn normalize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
                                 copied.handle_at((1 + offset) as u32),
                                 &mut registers,
                                 offset,
-                            );
+                            )
+                            .map_err(|diagnostic| vec![diagnostic])?;
                         }
                         next = self::successors(&source, graph, index)
                             .map_err(|diagnostic| vec![diagnostic])?
@@ -551,7 +569,7 @@ fn normalize_graph(
     graph: &AssemblyControlFlow,
     body_start: usize,
 ) -> Result<Vec<StatementNode>, Diagnostic> {
-    check_initialization(source, state, graph, body_start)?;
+    check_register_flow(source, state, graph, body_start)?;
     if owner.has_specialization_parameters() {
         return Err(Diagnostic::error(
             "scratch assembly requires a closed callable telescope before CFG normalization",
@@ -831,7 +849,7 @@ fn normalize_graph(
                 handle,
                 &mut registers,
                 ordinal,
-            );
+            )?;
             if let StatementNode::AssemblyFact(fact) = &statement
                 && fact.kind == AssemblyFactKind::Requires
             {
@@ -906,7 +924,7 @@ fn normalize_graph(
                 ordinal,
             )
         })
-        .collect();
+        .collect::<Result<_, _>>()?;
     let arguments: Vec<_> = bindings
         .iter()
         .map(|binding| {

@@ -369,6 +369,22 @@ fail/asm/backward_write_stale_ensures rejected 1154ms expected @6d0b8da07bdd+wt
 	cannot prove asm `ensures` fact at block exit in Subject::change state `change` (statement 5): subject.ready
 fail/asm/borrow_read_after_backward_write rejected 1165ms expected @6d0b8da07bdd+wt
 	statement 6 mutates `main.cell.value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 7)
+fail/asm/scratch_destination_finite_indexed rejected 3507ms expected @351c5ba81137+wt
+	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
+fail/asm/scratch_destination_indexed rejected 6153ms expected @351c5ba81137+wt
+	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
+fail/asm/scratch_destination_intrinsic_result rejected 5850ms expected @351c5ba81137+wt
+	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
+fail/asm/scratch_destination_member rejected 9903ms expected @351c5ba81137+wt
+	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
+fail/asm/scratch_destination_mutable_borrow rejected 8196ms expected @351c5ba81137+wt
+	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
+fail/asm/scratch_destination_nested_member_index rejected 9168ms expected @351c5ba81137+wt
+	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
+fail/asm/scratch_destination_shared_borrow rejected 9473ms expected @351c5ba81137+wt
+	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
+fail/asm/scratch_destination_structured_load rejected 8460ms expected @351c5ba81137+wt
+	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
 fail/facts/checked_asm_countdown_call_result_wrong_fallthrough rejected 3591ms expected @a0c34fdba779+wt
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_countdown_const_name_wrong_fallthrough rejected 5186ms expected @a0c34fdba779+wt
@@ -7234,6 +7250,7 @@ pass/asm/atomic_release_disposition_reference_exit checked 7899ms check-target:l
 pass/asm/atomic_release_disposition_replaced_contents_exit checked 8225ms check-target:linux_x86_64 @4bfe01cd2128
 pass/asm/atomic_release_disposition_returned_view_exit checked 8156ms check-target:linux_x86_64 @4bfe01cd2128
 pass/asm/atomic_release_disposition_state_exit checked 8014ms check-target:linux_x86_64 @4bfe01cd2128
+pass/asm/scratch_destination_ordinary_stores_exit checked 25933ms check-target:linux_x86_64 @351c5ba81137+wt
 pass/facts/checked_asm_countdown_call_result_exit checked 14392ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_const_name_exit checked 12105ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_field_exit checked 9422ms check-target:linux_x86_64 @a0c34fdba779+wt
