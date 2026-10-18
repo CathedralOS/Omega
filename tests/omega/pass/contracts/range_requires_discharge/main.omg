@@ -8,7 +8,7 @@ requires value <= 512
 {
     transition { _ -> (value) }
 }
-machine take_bounded(value: u64 [0..=bounded(256)]) -> u64 { value }
+machine take_bounded(value: u64) -> u64 requires value <= bounded(256) { value }
 
 data Main {}
 machine Main::main(main: &mut Main) {

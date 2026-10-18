@@ -28,7 +28,7 @@ data Main {
     view_after: [u8; 2];
 }
 
-machine replace(before: &mut Cell, index: u64 [0..=2], target: &mut Cell, after: &mut Cell) {
+machine replace(before: &mut Cell, index: u64, target: &mut Cell, after: &mut Cell) requires index <= 2 {
     before.text = "AAA";
     target.text = "BBB";
     after.text = "CCC";

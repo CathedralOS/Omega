@@ -78,7 +78,7 @@ reaches Console
 
 // Each selected transfer consumes its exact region. The skipped region stays
 // behind younger roots until normal death, including after condition mutation.
-data Token { value: u64 [1..=100]; byte: i32; }
+data Token where value >= 1 && value <= 100 { value: u64; byte: i32; }
 data Pair<Value> { first: Value; second: Value; }
 machine Token::drop(token: &mut Token) reaches Console { Console::write_byte(token.byte); }
 machine consume(token: Token) -> u64 reaches Console { token.value }

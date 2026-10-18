@@ -2,7 +2,7 @@ use omega_language_std::math;
 
 data Counter { calls: u32 in Wrapping; }
 
-machine step(counter: &mut Counter) -> i32 [-2..=-2] {
+machine step(counter: &mut Counter) -> i32 ensures result >= -2 && result <= -2 {
     counter.calls = counter.calls + 1u32;
     -2i32
 }

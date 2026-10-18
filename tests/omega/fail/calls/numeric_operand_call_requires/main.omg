@@ -1,7 +1,8 @@
 use omega_language_std::math;
 
-machine step(value: i32) -> i32 [-2..=-2]
-requires value >= -3i32 && value <= 3i32;
+machine step(value: i32) -> i32
+requires value >= -3i32 && value <= 3i32
+ensures result >= -2 && result <= -2;
 { -2i32 }
 
 machine main() {

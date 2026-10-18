@@ -3,25 +3,25 @@
 // initializer, and the guard and arithmetic facts at the call's own
 // evaluation point. Statement calls and calls nested in expressions use the
 // same judgment.
-machine admit(value: f64 [0.0..=0.5]) -> f64 { value }
+machine admit(value: f64) -> f64 requires value >= 0.0 && value <= 0.5 { value }
 
 machine outer(value: f64) -> f64 { value }
 
-machine forward(value: f64 [0.0..=0.25]) -> f64 {
-    let bounded: f64 [0.0..=0.5] = value;
+machine forward(value: f64) -> f64 requires value >= 0.0 && value <= 0.25 {
+    let bounded: f64 = value;
     let result: f64 = outer(admit(bounded));
     result
 }
 
 machine literal() -> f64 {
     let quarter: f64 = 0.25;
-    let bounded: f64 [0.0..=0.5] = 0.5;
+    let bounded: f64 = 0.5;
     _ = admit(quarter);
     _ = admit(bounded);
     admit(0.125)
 }
 
-machine count(value: u64 [0..=4]) -> u64 { value }
+machine count(value: u64) -> u64 requires value <= 4 { value }
 
 machine pick(index: u64) -> u64 {
     transition index < 4 {

@@ -194,7 +194,7 @@ machine read_byte(reader: dyn ByteReader<ByteValue>, subject: &mut ByteValue) ->
     ByteReader::read(reader, subject)
 }
 
-machine emit(character: i32[0..=255]) reaches Console + ProcessId {
+machine emit(character: i32) reaches Console + ProcessId requires character >= 0 && character <= 255 {
     let process: i32 = ProcessId::current();
     let mut byte: ByteValue = ByteValue { character: character };
     let selected: i32 = read_byte(ReadByte as dyn ByteReader<ByteValue>, &mut byte);
@@ -202,7 +202,7 @@ machine emit(character: i32[0..=255]) reaches Console + ProcessId {
         true -> write(character)
         _ -> failed()
     }
-    state write(character: i32[0..=255]) { Console::write_byte(character); }
+    state write(character: i32) requires character >= 0 && character <= 255 { Console::write_byte(character); }
     state failed() { Console::exit_process(73); }
 }
 

@@ -3,7 +3,10 @@ data Flags where first >= 0 && first <= 1, second >= 0 && second <= 1 {
     first: i32;
     second: i32;
 }
-data LiteralFlags { first: i32 [0..=1]; second: i32 [0..=1]; }
+data LiteralFlags {
+    first: i32;
+    second: i32;
+}
 data Main { flags: Flags; }
 machine assign(flags: &mut Flags, enabled: bool) {
     flags.first = enabled as i32;

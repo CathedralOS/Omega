@@ -1,31 +1,31 @@
 use omega_language_std::math;
 
-data Counter {
+data Counter where value >= -1 && value <= 1 {
     calls: u32 in Wrapping;
-    value: i32 [-1..=1];
+    value: i32;
 }
 
-machine step(counter: &mut Counter) -> i32 [-2..=-2] {
+machine step(counter: &mut Counter) -> i32 ensures result >= -2 && result <= -2 {
     counter.calls = counter.calls + 1u32;
     counter.value = 1i32;
     -2i32
 }
 
-machine magnitude(counter: &mut Counter) -> i32 [2..=2] {
+machine magnitude(counter: &mut Counter) -> i32 ensures result >= 2 && result <= 2 {
     abs_i32(step(counter))
 }
 
-machine ordered_second(counter: &mut Counter, expected: u32) -> i32 [1..=1] crashes Trap {
+machine ordered_second(counter: &mut Counter, expected: u32) -> i32 ensures result >= 1 && result <= 1 crashes Trap {
     let observed: u32 in Wrapping = counter.calls;
     transition observed == expected {
         true -> increment(counter)
         false -> bad()
     }
-    state increment(counter: &mut Counter) -> i32 [1..=1] {
+    state increment(counter: &mut Counter) -> i32 {
         counter.calls = counter.calls + 1u32;
         1i32
     }
-    state bad() -> i32 [1..=1] { crash Trap; }
+    state bad() -> i32 { crash Trap; }
 }
 
 machine main() crashes Trap {

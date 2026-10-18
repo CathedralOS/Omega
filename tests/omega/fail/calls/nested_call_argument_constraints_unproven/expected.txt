@@ -1,4 +1,1 @@
-cannot prove call argument `20.0` satisfies bounded parameter `value` for `admit` in `initialized.entry`
-cannot prove call argument `30.0` satisfies bounded parameter `value` for `admit` in `terminal.entry`
-cannot prove call argument `40.0` satisfies bounded parameter `value` for `admit` in `nested.entry`
-cannot prove call argument `left / right` satisfies `finite` for bounded parameter `value` for `finite` in `divided.entry`
+violates required fact `value >= 0.0 && value <= 0.5`

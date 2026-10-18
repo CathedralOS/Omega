@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-data Leaf { value: i32 [0..=100]; }
+data Leaf where value >= 0 && value <= 100 { value: i32; }
 data Triple { left: Leaf; middle: Leaf; right: Leaf; }
 data Main { }
 

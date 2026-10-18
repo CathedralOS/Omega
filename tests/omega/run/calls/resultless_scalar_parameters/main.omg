@@ -1,11 +1,11 @@
 use omega_language_std::console;
 
-machine emit(character: i32 [0..=255], enabled: bool) reaches Console {
+machine emit(character: i32, enabled: bool) reaches Console requires character >= 0 && character <= 255 {
     transition enabled {
         true -> output(character)
         false -> skipped()
     }
-    state output(character: i32 [0..=255]) {
+    state output(character: i32) requires character >= 0 && character <= 255 {
         Console::write_byte(character);
     }
     state skipped() { }

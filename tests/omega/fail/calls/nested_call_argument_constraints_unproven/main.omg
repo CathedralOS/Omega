@@ -4,7 +4,7 @@
 // call in a local initializer, a terminal expression or another call's
 // argument admitted 20.0 against `[0.0..=0.5]`, and `left / right` against
 // `in Finite`.
-machine admit(value: f64 [0.0..=0.5]) -> f64 { value }
+machine admit(value: f64) -> f64 requires value >= 0.0 && value <= 0.5 { value }
 
 machine finite(value: f64 in Finite) -> f64 { value }
 

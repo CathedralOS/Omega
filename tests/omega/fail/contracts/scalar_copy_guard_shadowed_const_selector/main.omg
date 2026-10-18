@@ -1,5 +1,5 @@
 data Bytes { items: [u8; 64]; }
-machine probe<const selector: u64 [0..=63]>(bytes: &Bytes, bad: u64) requires bad < 64 {
+machine probe<const selector: u64>(bytes: &Bytes, bad: u64) requires selector <= 63 && bad < 64 {
     let copied: u8 = bytes.items[selector];
     let selector: u64 = bad;
     transition copied >= 48 { true -> bounded(bytes, selector) false -> done() }

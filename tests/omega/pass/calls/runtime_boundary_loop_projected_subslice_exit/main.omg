@@ -9,7 +9,7 @@ machine fill(bytes: &mut [u8], value: u8) {
     state write(bytes: &mut [u8], value: u8) { bytes[0] = value; }
     state done() { }
 }
-data Main { bytes: [u8; 8]; start: u64 [0..=7]; }
+data Main where start <= 7 { bytes: [u8; 8]; start: u64; }
 machine Main::main(main: &mut Main) reaches Fill + Console {
     main.bytes[0] = 11;
     main.bytes[7] = 13;

@@ -1,11 +1,11 @@
 // A specialized reference result supplies one scalar selector snapshot.
-data Main { values: [i64; 2]; position: u64 [0..=1]; }
+data Main where position <= 1 { values: [i64; 2]; position: u64; }
 machine identity<'input, T>(position: &'input T) -> &'input T { position }
-machine reset(position: &mut u64 [0..=1]) -> i64 {
+machine reset(position: &mut u64) -> i64 requires position <= 1 ensures position <= 1 {
     position = 0;
     -17
 }
-machine replace(values: &write [i64; 2], position: &mut u64 [0..=1]) {
+machine replace(values: &write [i64; 2], position: &mut u64) requires position <= 1 ensures position <= 1 {
     values[identity(&position)] = reset(&mut position);
 }
 machine Main::main(main: &mut Main) crashes Trap {

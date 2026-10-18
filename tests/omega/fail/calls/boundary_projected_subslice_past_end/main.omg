@@ -1,5 +1,5 @@
 pub boundary trait Fill { machine fill(bytes: &mut [u8]); }
-data Main { bytes: [u8; 8]; start: u64 [0..=7]; }
+data Main where start <= 7 { bytes: [u8; 8]; start: u64; }
 machine Main::main(main: &mut Main) reaches Fill {
     Fill::fill(&mut main.bytes[main.start..9]);
 }
