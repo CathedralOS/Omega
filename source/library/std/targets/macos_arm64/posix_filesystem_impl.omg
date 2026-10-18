@@ -22,6 +22,20 @@ use posix_filesystem_host;
 use filesystem_host;
 use omega::language::core::layout;
 use omega::language::core::numeric_conversion;
+use math;
+use calling;
+use posix_byte_view_calling;
+
+// The explicit policy exports the borrowed view as pointer/count, not one byte.
+boundary trait PosixFilesystemDarwinByteViews: Calling<DarwinArm64ByteViewCalling> {
+    machine c_read(fd: i32, buffer: &mut [u8]) -> i64 reaches FilesystemContentRead;
+    machine c_write(fd: i32, bytes: &[u8]) -> i64 reaches FilesystemContentWrite;
+    machine c_read_at(fd: i32, buffer: &mut [u8], offset: i64) -> i64 reaches FilesystemContentRead;
+    machine c_write_at(fd: i32, bytes: &[u8], offset: i64) -> i64 reaches FilesystemContentWrite;
+    machine c_read_link(path: &[u8; 4096], buffer: &mut [u8]) -> i64 reaches FilesystemMetadataQuery;
+    machine c_read_dir(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64 reaches DirectoryEnumeration;
+}
+
 
 // Unlike the raw Linux syscall, libc consumes an aligned timespec[2] object.
 // Caller byte views need not have that alignment. Materialize only this native
@@ -370,14 +384,6 @@ boundary requirement PosixFilesystemDarwin::c_open_create(path: &u8, flags: i32,
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_create(path: &u8, mode: i32) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_read(fd: i32, buffer: &mut u8, count: u64) -> i64
-reaches FilesystemContentRead;
-boundary requirement PosixFilesystemDarwin::c_write(fd: i32, bytes: &u8, count: u64) -> i64
-reaches FilesystemContentWrite;
-boundary requirement PosixFilesystemDarwin::c_read_at(fd: i32, buffer: &mut u8, count: u64, offset: i64) -> i64
-reaches FilesystemContentRead;
-boundary requirement PosixFilesystemDarwin::c_write_at(fd: i32, bytes: &u8, count: u64, offset: i64) -> i64
-reaches FilesystemContentWrite;
 boundary requirement PosixFilesystemDarwin::c_close(fd: i32) -> i32
 ;
 boundary requirement PosixFilesystemDarwin::c_remove(path: &u8) -> i32
@@ -404,10 +410,6 @@ boundary requirement PosixFilesystemDarwin::c_hard_link(original: &u8, link: &u8
 reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_symlink(target: &u8, link: &u8) -> i32
 reaches FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_read_link(path: &u8, buffer: &mut u8, count: u64) -> i64
-reaches FilesystemMetadataQuery;
-boundary requirement PosixFilesystemDarwin::c_read_dir(fd: i32, buffer: &mut u8, count: u64, position: &mut i64) -> i64
-reaches DirectoryEnumeration;
 boundary requirement PosixFilesystemDarwin::c_remove_name(path: &u8) -> i32
 reaches FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_remove_dir_name(path: &u8) -> i32
@@ -448,14 +450,14 @@ macos_arm64 machine PosixFilesystemDarwinImports::c_open_create(path: &u8, flags
     satisfies PosixFilesystemDarwin::c_open_create via posix_darwin_open_private_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_create(path: &u8, mode: i32) -> i32
     satisfies PosixFilesystemDarwin::c_create via posix_darwin_creat_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_read(fd: i32, buffer: &mut u8, count: u64) -> i64
-    satisfies PosixFilesystemDarwin::c_read via posix_darwin_read_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_write(fd: i32, bytes: &u8, count: u64) -> i64
-    satisfies PosixFilesystemDarwin::c_write via posix_darwin_write_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_read_at(fd: i32, buffer: &mut u8, count: u64, offset: i64) -> i64
-    satisfies PosixFilesystemDarwin::c_read_at via posix_darwin_pread_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_write_at(fd: i32, bytes: &u8, count: u64, offset: i64) -> i64
-    satisfies PosixFilesystemDarwin::c_write_at via posix_darwin_pwrite_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_read(fd: i32, buffer: &mut [u8]) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_read via posix_darwin_read_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_write(fd: i32, bytes: &[u8]) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_write via posix_darwin_write_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_read_at(fd: i32, buffer: &mut [u8], offset: i64) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_read_at via posix_darwin_pread_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_write_at(fd: i32, bytes: &[u8], offset: i64) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_write_at via posix_darwin_pwrite_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_close(fd: i32) -> i32
     satisfies PosixFilesystemDarwin::c_close via posix_darwin_close_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_remove(path: &u8) -> i32
@@ -482,10 +484,10 @@ macos_arm64 machine PosixFilesystemDarwinImports::c_hard_link(original: &u8, lin
     satisfies PosixFilesystemDarwin::c_hard_link via posix_darwin_link_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_symlink(target: &u8, link: &u8) -> i32
     satisfies PosixFilesystemDarwin::c_symlink via posix_darwin_symlink_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_read_link(path: &u8, buffer: &mut u8, count: u64) -> i64
-    satisfies PosixFilesystemDarwin::c_read_link via posix_darwin_readlink_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_read_dir(fd: i32, buffer: &mut u8, count: u64, position: &mut i64) -> i64
-    satisfies PosixFilesystemDarwin::c_read_dir via posix_darwin_getdirentries64_private_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_read_link(path: &[u8; 4096], buffer: &mut [u8]) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_read_link via posix_darwin_readlink_binding();
+macos_arm64 machine PosixFilesystemDarwinImports::c_read_dir(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64
+    satisfies PosixFilesystemDarwinByteViews::c_read_dir via posix_darwin_getdirentries64_private_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_remove_name(path: &u8) -> i32
     satisfies PosixFilesystemDarwin::c_remove_name via posix_darwin_unlink_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_remove_dir_name(path: &u8) -> i32
@@ -536,6 +538,11 @@ macos_arm64 machine PosixFilesystemDarwin::failure_i64() -> i64
     let copied: u64 = PosixFilesystemDarwin::c_copy_from_address(&mut code[0], location, 4);
     let low: u8 = code[0];
     0 - (low as i64)
+}
+
+// Capture libc errno before restoring caller storage after a native write.
+macos_arm64 machine PosixFilesystemDarwin::normalize_i64(outcome: i64) -> i64 {
+    transition outcome < 0 { true -> PosixFilesystemDarwin::failure_i64() _ -> outcome }
 }
 
 // Darwin `ENAMETOOLONG`, answered without a call when a path does not fit.
@@ -606,114 +613,34 @@ macos_arm64 machine PosixFilesystemNativeProvider::read(fd: i32, buffer: &mut [u
     satisfies PosixFilesystemHost::read
 reaches FilesystemContentRead
 {
-    transition buffer.len > 0 {
-        true -> nonempty(fd, buffer, count)
-        _ -> empty(fd)
-    }
-
-    state nonempty(fd: i32, buffer: &mut [u8], count: u64) -> i64 {
-        let capacity: u64 = posix_shorter(count, buffer.len);
-        let outcome: i64 = PosixFilesystemDarwin::c_read(fd, &mut buffer[0], capacity);
-        transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i64())
-            _ -> (outcome)
-        }
-    }
-
-    state empty(fd: i32) -> i64 {
-        // Preserve the OS result for empty requests without indexing an empty view.
-        let mut dummy: [u8; 1];
-        let outcome: i64 = PosixFilesystemDarwin::c_read(fd, &mut dummy[0], 0);
-        transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i64())
-            _ -> (outcome)
-        }
-    }
+    let capacity: u64 = min_u64(count, buffer.len);
+    let outcome: i64 = PosixFilesystemDarwinImports::c_read(fd, &mut buffer[0..capacity]);
+    PosixFilesystemDarwin::normalize_i64(outcome)
 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::write(fd: i32, bytes: &[u8]) -> i64
     satisfies PosixFilesystemHost::write
 reaches FilesystemContentWrite
 {
-    transition bytes.len > 0 {
-        true -> nonempty(fd, bytes)
-        _ -> empty(fd)
-    }
-
-    state nonempty(fd: i32, bytes: &[u8]) -> i64 {
-        let outcome: i64 = PosixFilesystemDarwin::c_write(fd, &bytes[0], bytes.len);
-        transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i64())
-            _ -> (outcome)
-        }
-    }
-
-    state empty(fd: i32) -> i64 {
-        // Preserve the OS result for empty requests without indexing an empty view.
-        let mut dummy: [u8; 1];
-        let outcome: i64 = PosixFilesystemDarwin::c_write(fd, &dummy[0], 0);
-        transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i64())
-            _ -> (outcome)
-        }
-    }
+    let outcome: i64 = PosixFilesystemDarwinImports::c_write(fd, bytes);
+    PosixFilesystemDarwin::normalize_i64(outcome)
 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64
     satisfies PosixFilesystemHost::read_at
 reaches FilesystemContentRead
 {
-    transition buffer.len > 0 {
-        true -> nonempty(fd, buffer, count, offset)
-        _ -> empty(fd, offset)
-    }
-
-    state nonempty(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
-        let capacity: u64 = posix_shorter(count, buffer.len);
-        let outcome: i64 = PosixFilesystemDarwin::c_read_at(fd, &mut buffer[0], capacity, offset);
-        transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i64())
-            _ -> (outcome)
-        }
-    }
-
-    state empty(fd: i32, offset: i64) -> i64 {
-        // Preserve the OS result for empty requests without indexing an empty view.
-        let mut dummy: [u8; 1];
-        let outcome: i64 = PosixFilesystemDarwin::c_read_at(fd, &mut dummy[0], 0, offset);
-        transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i64())
-            _ -> (outcome)
-        }
-    }
+    let capacity: u64 = min_u64(count, buffer.len);
+    let outcome: i64 = PosixFilesystemDarwinImports::c_read_at(fd, &mut buffer[0..capacity], offset);
+    PosixFilesystemDarwin::normalize_i64(outcome)
 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::write_at(fd: i32, bytes: &[u8], offset: i64) -> i64
     satisfies PosixFilesystemHost::write_at
 reaches FilesystemContentWrite
 {
-    transition bytes.len > 0 {
-        true -> nonempty(fd, bytes, offset)
-        _ -> empty(fd, offset)
-    }
-
-    state nonempty(fd: i32, bytes: &[u8], offset: i64) -> i64 {
-        let outcome: i64 = PosixFilesystemDarwin::c_write_at(fd, &bytes[0], bytes.len, offset);
-        transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i64())
-            _ -> (outcome)
-        }
-    }
-
-    state empty(fd: i32, offset: i64) -> i64 {
-        // Preserve the OS result for empty requests without indexing an empty view.
-        let mut dummy: [u8; 1];
-        let outcome: i64 = PosixFilesystemDarwin::c_write_at(fd, &dummy[0], 0, offset);
-        transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i64())
-            _ -> (outcome)
-        }
-    }
+    let outcome: i64 = PosixFilesystemDarwinImports::c_write_at(fd, bytes, offset);
+    PosixFilesystemDarwin::normalize_i64(outcome)
 }
 
 macos_arm64 machine PosixFilesystemNativeProvider::close(fd: i32) -> i32
@@ -961,20 +888,11 @@ reaches FilesystemMetadataQuery
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_chunk_capacity(buffer, count);
-    let outcome: i64 = PosixFilesystemDarwin::c_read_link(&terminated[0], &mut chunk[0], capacity);
-    posix_drain_chunk(&chunk, buffer, outcome);
-    transition fits {
-        true -> settle(outcome)
-        _ -> (PosixFilesystemDarwin::name_too_long_i64())
-    }
-
-    state settle(outcome: i64) -> i64 {
-        transition outcome < 0 {
-            true -> (PosixFilesystemDarwin::failure_i64())
-            _ -> (outcome)
-        }
+    transition fits { true -> transfer(terminated, buffer, count) _ -> -63 }
+    state transfer(terminated: [u8; 4096], buffer: &mut [u8], count: u64) -> i64 {
+        let capacity: u64 = min_u64(count, buffer.len);
+        let outcome: i64 = PosixFilesystemDarwinImports::c_read_link(&terminated, &mut buffer[0..capacity]);
+        PosixFilesystemDarwin::normalize_i64(outcome)
     }
 }
 
@@ -982,13 +900,41 @@ macos_arm64 machine PosixFilesystemNativeProvider::read_dir(fd: i32, buffer: &mu
     satisfies PosixFilesystemHost::read_dir
 reaches DirectoryEnumeration
 {
-    let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_chunk_capacity(buffer, count);
-    let outcome: i64 = PosixFilesystemDarwin::c_read_dir(fd, &mut chunk[0], capacity, position);
-    posix_drain_chunk(&chunk, buffer, outcome);
-    transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i64())
-        _ -> (outcome)
+    let capacity: u64 = min_u64(count, buffer.len);
+    transition { _ -> transfer(fd, &mut buffer[0..capacity], position) }
+    state transfer(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64 {
+        transition {
+            buffer.len >= 1024 -> extended(fd, buffer, position)
+            _ -> ordinary(fd, buffer, position)
+        }
+    }
+    state ordinary(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64
+    {
+        let outcome: i64 = PosixFilesystemDarwinImports::c_read_dir(fd, buffer, position);
+        PosixFilesystemDarwin::normalize_i64(outcome)
+    }
+    state extended(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64
+    requires buffer.len >= 1024;
+    {
+        // ___getdirentries64 reserves four suffix bytes for private EOF flags
+        // at this threshold. Records occupy at most capacity - 4. Preserve the
+        // caller's suffix rather than exposing that auxiliary kernel write.
+        let first_index: u64 = buffer.len - 4;
+        let second_index: u64 = buffer.len - 3;
+        let third_index: u64 = buffer.len - 2;
+        let fourth_index: u64 = buffer.len - 1;
+        let first: u8 = buffer[first_index];
+        let second: u8 = buffer[second_index];
+        let third: u8 = buffer[third_index];
+        let fourth: u8 = buffer[fourth_index];
+        let outcome: i64 = PosixFilesystemDarwinImports::c_read_dir(fd, buffer, position);
+        // Capture errno before restoring bytes, including on a failed read.
+        let normalized: i64 = PosixFilesystemDarwin::normalize_i64(outcome);
+        buffer[first_index] = first;
+        buffer[second_index] = second;
+        buffer[third_index] = third;
+        buffer[fourth_index] = fourth;
+        normalized
     }
 }
 
@@ -1206,10 +1152,6 @@ macos_arm64 machine PosixFilesystemNativeProvider::provider_defaults(defaults: &
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_open, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_open_create, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_create, PosixFilesystemDarwinImports>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read, PosixFilesystemDarwinImports>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_write, PosixFilesystemDarwinImports>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_at, PosixFilesystemDarwinImports>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_write_at, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_close, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_remove, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_seek, PosixFilesystemDarwinImports>(defaults);
@@ -1223,8 +1165,6 @@ macos_arm64 machine PosixFilesystemNativeProvider::provider_defaults(defaults: &
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_rename, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_hard_link, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_symlink, PosixFilesystemDarwinImports>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_link, PosixFilesystemDarwinImports>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_dir, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_remove_name, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_remove_dir_name, PosixFilesystemDarwinImports>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemDarwin::c_read_file_metadata, PosixFilesystemDarwinImports>(defaults);

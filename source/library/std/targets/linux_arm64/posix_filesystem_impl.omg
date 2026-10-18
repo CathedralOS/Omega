@@ -4,23 +4,37 @@ use omega::language::core::filesystem_authority;
 // posix_filesystem_impl.omg`), satisfied with arm64 system call numbers.
 use omega::language::core::external_binding;
 use posix_filesystem_host;
+use math;
+use posix_byte_view_calling;
+use calling;
+
+// This native requirement application fixes its kernel calling convention.
+boundary trait PosixFilesystemLinuxArm64ByteViews: Calling<LinuxArm64ByteViewCalling> {
+    machine read(fd: i32, buffer: &mut [u8]) -> i64 reaches FilesystemContentRead;
+    machine write(fd: i32, bytes: &[u8]) -> i64 reaches FilesystemContentWrite;
+    machine pread64(fd: i32, buffer: &mut [u8], offset: i64) -> i64 reaches FilesystemContentRead;
+    machine pwrite64(fd: i32, bytes: &[u8], offset: i64) -> i64 reaches FilesystemContentWrite;
+    machine readlinkat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8]) -> i64 reaches FilesystemMetadataQuery;
+    machine getdents64(fd: i32, buffer: &mut [u8]) -> i64 reaches DirectoryEnumeration;
+}
+
 use filesystem_host;
 use targets::linux_x86_64::posix_filesystem_impl;
 
 linux_arm64 machine PosixFilesystemLinuxSyscalls::openat(dirfd: i32, path: &u8, flags: i32, mode: i32) -> i32
     satisfies PosixFilesystemLinux::openat
     via ForeignBinding::Syscall(56);
-linux_arm64 machine PosixFilesystemLinuxSyscalls::read(fd: i32, buffer: &mut u8, count: u64) -> i64
-    satisfies PosixFilesystemLinux::read
+linux_arm64 machine PosixFilesystemLinuxSyscalls::read(fd: i32, buffer: &mut [u8]) -> i64
+    satisfies PosixFilesystemLinuxArm64ByteViews::read
     via ForeignBinding::Syscall(63);
-linux_arm64 machine PosixFilesystemLinuxSyscalls::write(fd: i32, bytes: &u8, count: u64) -> i64
-    satisfies PosixFilesystemLinux::write
+linux_arm64 machine PosixFilesystemLinuxSyscalls::write(fd: i32, bytes: &[u8]) -> i64
+    satisfies PosixFilesystemLinuxArm64ByteViews::write
     via ForeignBinding::Syscall(64);
-linux_arm64 machine PosixFilesystemLinuxSyscalls::pread64(fd: i32, buffer: &mut u8, count: u64, offset: i64) -> i64
-    satisfies PosixFilesystemLinux::pread64
+linux_arm64 machine PosixFilesystemLinuxSyscalls::pread64(fd: i32, buffer: &mut [u8], offset: i64) -> i64
+    satisfies PosixFilesystemLinuxArm64ByteViews::pread64
     via ForeignBinding::Syscall(67);
-linux_arm64 machine PosixFilesystemLinuxSyscalls::pwrite64(fd: i32, bytes: &u8, count: u64, offset: i64) -> i64
-    satisfies PosixFilesystemLinux::pwrite64
+linux_arm64 machine PosixFilesystemLinuxSyscalls::pwrite64(fd: i32, bytes: &[u8], offset: i64) -> i64
+    satisfies PosixFilesystemLinuxArm64ByteViews::pwrite64
     via ForeignBinding::Syscall(68);
 linux_arm64 machine PosixFilesystemLinuxSyscalls::close(fd: i32) -> i32
     satisfies PosixFilesystemLinux::close
@@ -49,11 +63,11 @@ linux_arm64 machine PosixFilesystemLinuxSyscalls::linkat(from_dirfd: i32, from: 
 linux_arm64 machine PosixFilesystemLinuxSyscalls::symlinkat(target: &u8, link_dirfd: i32, link: &u8) -> i32
     satisfies PosixFilesystemLinux::symlinkat
     via ForeignBinding::Syscall(36);
-linux_arm64 machine PosixFilesystemLinuxSyscalls::readlinkat(dirfd: i32, path: &u8, buffer: &mut u8, size: u64) -> i64
-    satisfies PosixFilesystemLinux::readlinkat
+linux_arm64 machine PosixFilesystemLinuxSyscalls::readlinkat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8]) -> i64
+    satisfies PosixFilesystemLinuxArm64ByteViews::readlinkat
     via ForeignBinding::Syscall(78);
-linux_arm64 machine PosixFilesystemLinuxSyscalls::getdents64(fd: i32, buffer: &mut u8, count: u64) -> i64
-    satisfies PosixFilesystemLinux::getdents64
+linux_arm64 machine PosixFilesystemLinuxSyscalls::getdents64(fd: i32, buffer: &mut [u8]) -> i64
+    satisfies PosixFilesystemLinuxArm64ByteViews::getdents64
     via ForeignBinding::Syscall(61);
 linux_arm64 machine PosixFilesystemLinuxSyscalls::newfstatat(dirfd: i32, path: &u8, buffer: &mut u8, flags: i32) -> i32
     satisfies PosixFilesystemLinux::newfstatat
@@ -141,90 +155,30 @@ linux_arm64 machine PosixFilesystemNativeProvider::read(fd: i32, buffer: &mut [u
     satisfies PosixFilesystemHost::read
 reaches FilesystemContentRead
 {
-    transition buffer.len > 0 {
-        true -> nonempty(fd, buffer, count)
-        _ -> empty(fd)
-    }
-
-    state nonempty(fd: i32, buffer: &mut [u8], count: u64) -> i64 {
-        let capacity: u64 = posix_shorter(count, buffer.len);
-        let outcome: i64 = PosixFilesystemLinux::read(fd, &mut buffer[0], capacity);
-        outcome
-    }
-
-    state empty(fd: i32) -> i64 {
-        // Preserve the OS result for empty requests without indexing an empty view.
-        let mut dummy: [u8; 1];
-        let outcome: i64 = PosixFilesystemLinux::read(fd, &mut dummy[0], 0);
-        outcome
-    }
+    let capacity: u64 = min_u64(count, buffer.len);
+    PosixFilesystemLinuxSyscalls::read(fd, &mut buffer[0..capacity])
 }
 
 linux_arm64 machine PosixFilesystemNativeProvider::write(fd: i32, bytes: &[u8]) -> i64
     satisfies PosixFilesystemHost::write
 reaches FilesystemContentWrite
 {
-    transition bytes.len > 0 {
-        true -> nonempty(fd, bytes)
-        _ -> empty(fd)
-    }
-
-    state nonempty(fd: i32, bytes: &[u8]) -> i64 {
-        let outcome: i64 = PosixFilesystemLinux::write(fd, &bytes[0], bytes.len);
-        outcome
-    }
-
-    state empty(fd: i32) -> i64 {
-        // Preserve the OS result for empty requests without indexing an empty view.
-        let mut dummy: [u8; 1];
-        let outcome: i64 = PosixFilesystemLinux::write(fd, &dummy[0], 0);
-        outcome
-    }
+    PosixFilesystemLinuxSyscalls::write(fd, bytes)
 }
 
 linux_arm64 machine PosixFilesystemNativeProvider::read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64
     satisfies PosixFilesystemHost::read_at
 reaches FilesystemContentRead
 {
-    transition buffer.len > 0 {
-        true -> nonempty(fd, buffer, count, offset)
-        _ -> empty(fd, offset)
-    }
-
-    state nonempty(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
-        let capacity: u64 = posix_shorter(count, buffer.len);
-        let outcome: i64 = PosixFilesystemLinux::pread64(fd, &mut buffer[0], capacity, offset);
-        outcome
-    }
-
-    state empty(fd: i32, offset: i64) -> i64 {
-        // Preserve the OS result for empty requests without indexing an empty view.
-        let mut dummy: [u8; 1];
-        let outcome: i64 = PosixFilesystemLinux::pread64(fd, &mut dummy[0], 0, offset);
-        outcome
-    }
+    let capacity: u64 = min_u64(count, buffer.len);
+    PosixFilesystemLinuxSyscalls::pread64(fd, &mut buffer[0..capacity], offset)
 }
 
 linux_arm64 machine PosixFilesystemNativeProvider::write_at(fd: i32, bytes: &[u8], offset: i64) -> i64
     satisfies PosixFilesystemHost::write_at
 reaches FilesystemContentWrite
 {
-    transition bytes.len > 0 {
-        true -> nonempty(fd, bytes, offset)
-        _ -> empty(fd, offset)
-    }
-
-    state nonempty(fd: i32, bytes: &[u8], offset: i64) -> i64 {
-        let outcome: i64 = PosixFilesystemLinux::pwrite64(fd, &bytes[0], bytes.len, offset);
-        outcome
-    }
-
-    state empty(fd: i32, offset: i64) -> i64 {
-        // Preserve the OS result for empty requests without indexing an empty view.
-        let mut dummy: [u8; 1];
-        let outcome: i64 = PosixFilesystemLinux::pwrite64(fd, &dummy[0], 0, offset);
-        outcome
-    }
+    PosixFilesystemLinuxSyscalls::pwrite64(fd, bytes, offset)
 }
 
 linux_arm64 machine PosixFilesystemNativeProvider::close(fd: i32) -> i32
@@ -433,17 +387,11 @@ reaches FilesystemMetadataQuery
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_chunk_capacity(buffer, count);
-    let outcome: i64 = PosixFilesystemLinux::readlinkat(-100, &terminated[0], &mut chunk[0], capacity);
-    posix_drain_chunk(&chunk, buffer, outcome);
-    transition fits {
-        true -> settle(outcome)
-        _ -> (-36)
-    }
-
-    state settle(outcome: i64) -> i64 {
-        outcome
+    transition fits { true -> transfer(terminated, buffer, count) _ -> -36 }
+    state transfer(terminated: [u8; 4096], buffer: &mut [u8], count: u64) -> i64 {
+        // readlinkat's bufsiz is a signed int, not an arbitrary staging limit.
+        let capacity: u64 = min_u64(min_u64(count, buffer.len), 2147483647);
+        PosixFilesystemLinuxSyscalls::readlinkat(-100, &terminated, &mut buffer[0..capacity])
     }
 }
 
@@ -451,11 +399,9 @@ linux_arm64 machine PosixFilesystemNativeProvider::read_dir(fd: i32, buffer: &mu
     satisfies PosixFilesystemHost::read_dir
 reaches DirectoryEnumeration
 {
-    let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_chunk_capacity(buffer, count);
-    let outcome: i64 = PosixFilesystemLinux::getdents64(fd, &mut chunk[0], capacity);
-    posix_drain_chunk(&chunk, buffer, outcome);
-    outcome
+    // The directory callback's remaining-count field is a signed int.
+    let capacity: u64 = min_u64(min_u64(count, buffer.len), 2147483647);
+    PosixFilesystemLinuxSyscalls::getdents64(fd, &mut buffer[0..capacity])
 }
 
 linux_arm64 machine PosixFilesystemNativeProvider::remove_name(path: &[u8]) -> i32
@@ -631,10 +577,6 @@ reaches FilesystemMetadataMutation
 linux_arm64 machine PosixFilesystemNativeProvider::provider_defaults(defaults: &mut PosixFilesystemNativeProvider) {
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemHost, PosixFilesystemImplementation>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::openat, PosixFilesystemLinuxSyscalls>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::read, PosixFilesystemLinuxSyscalls>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::write, PosixFilesystemLinuxSyscalls>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::pread64, PosixFilesystemLinuxSyscalls>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::pwrite64, PosixFilesystemLinuxSyscalls>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::close, PosixFilesystemLinuxSyscalls>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::lseek, PosixFilesystemLinuxSyscalls>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::mkdirat, PosixFilesystemLinuxSyscalls>(defaults);
@@ -644,8 +586,6 @@ linux_arm64 machine PosixFilesystemNativeProvider::provider_defaults(defaults: &
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::renameat, PosixFilesystemLinuxSyscalls>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::linkat, PosixFilesystemLinuxSyscalls>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::symlinkat, PosixFilesystemLinuxSyscalls>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::readlinkat, PosixFilesystemLinuxSyscalls>(defaults);
-    PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::getdents64, PosixFilesystemLinuxSyscalls>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::newfstatat, PosixFilesystemLinuxSyscalls>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::fstat, PosixFilesystemLinuxSyscalls>(defaults);
     PosixFilesystemNativeProvider::select_provider<PosixFilesystemLinux::ftruncate, PosixFilesystemLinuxSyscalls>(defaults);
