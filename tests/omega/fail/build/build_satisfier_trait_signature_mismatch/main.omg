@@ -1,0 +1,3 @@
+use omega::language::core::extent;
+pub data Root {}
+machine Root::grant(root: Extent) -> Extent satisfies ExtentRootProvider::grant { root }

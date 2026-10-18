@@ -1,0 +1,16 @@
+// Product provider selection describes the core trait. That must not remove
+// the same trait from the checking context of this Build-owned satisfier.
+pub data HostRoot {}
+boundary machine HostRoot::grant(root: Extent) -> Extent
+satisfies ExtentRootProvider::grant;
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "build_satisfier_trait_retention");
+    Build::depend_as(builder, "std", Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<ExtentRootProvider, Root>(builder);
+    Build::select_provider<std::Console, std::ConsoleNativeProvider>(builder);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

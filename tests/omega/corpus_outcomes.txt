@@ -1343,6 +1343,8 @@ fail/build/build_log_counterfeit_facet_refused rejected 2795ms expected @a9ae30e
 	build-time evaluation of `build` failed: build logging requires the activation's compiler-issued BuildLog facet
 fail/build/build_machine_wrong_arity rejected 1ms expected @a9ae30e1c334+wt
 	tests/omega/fail/build/build_machine_wrong_arity/build.omg: invalid project build declaration: package build machine must have exactly one parameter: `builder: &mut Build`
+fail/build/build_satisfier_trait_signature_mismatch rejected 462ms expected @0b83826e3f77
+	machine `HostRoot::grant` state `grant` does not satisfy trait `ExtentRootProvider` machine `grant` parameter `root`: expected `Extent`, got `i32`
 fail/build/calling_policy_authored_rejection rejected 1123ms expected @a9ae30e1c334+wt
 	calling policy rejected the boundary: local
 fail/build/calling_policy_checked_helper_rejection rejected 1107ms expected @d9b96683b9fa+wt
@@ -7288,6 +7290,7 @@ pass/build/build_helper_call checked 9641ms @5041ef1af684+wt
 pass/build/build_log_line_written checked 10326ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/build_no_entry checked 9544ms @5041ef1af684+wt
 pass/build/build_package_root checked 9827ms @5041ef1af684+wt
+pass/build/build_satisfier_trait_retention_exit checked 5875ms check-target:macos_arm64 @0b83826e3f77
 pass/build/build_source_gen checked 9734ms @5041ef1af684+wt
 pass/build/build_state_machine checked 9751ms @5041ef1af684+wt
 pass/build/captured_named_input_required_output checked 20687ms published:files/named.txt @a9ae30e1c334+wt

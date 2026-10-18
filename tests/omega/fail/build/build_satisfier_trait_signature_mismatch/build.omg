@@ -1,0 +1,9 @@
+// Retaining the described trait must preserve its signature checking.
+pub data HostRoot {}
+boundary machine HostRoot::grant(root: i32) -> Extent
+satisfies ExtentRootProvider::grant;
+
+machine build(builder: &mut Build) {
+    Build::package(builder, "build_satisfier_trait_signature_mismatch");
+    Build::select_provider<ExtentRootProvider, Root>(builder);
+}

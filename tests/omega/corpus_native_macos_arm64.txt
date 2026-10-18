@@ -352,6 +352,7 @@ pass/build/build_helper_call checked 9641ms @5041ef1af684+wt
 pass/build/build_log_line_written built 1797ms @31926a3a0d06+wt
 pass/build/build_no_entry checked 10080ms @5041ef1af684+wt
 pass/build/build_package_root checked 9321ms @5041ef1af684+wt
+pass/build/build_satisfier_trait_retention_exit built 5772ms exit:42 @0b83826e3f77
 pass/build/build_source_gen checked 9798ms @5041ef1af684+wt
 pass/build/build_state_machine checked 9497ms @5041ef1af684+wt
 pass/build/conditional_root_binding built 283ms

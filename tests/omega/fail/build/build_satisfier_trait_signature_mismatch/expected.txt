@@ -1,0 +1,1 @@
+machine `HostRoot::grant` state `grant` does not satisfy trait `ExtentRootProvider` machine `grant` parameter `root`: expected `Extent`, got `i32`

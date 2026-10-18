@@ -1,0 +1,9 @@
+// Expected exit: 42. Build checks its own satisfier against the exact trait
+// also described by a Product provider selection. No root is granted or used.
+use omega::language::core::extent;
+use std::console;
+
+pub data Root {}
+machine Root::grant(root: Extent) -> Extent satisfies ExtentRootProvider::grant { root }
+
+machine main() reaches Console { Console::exit_process(42); }
