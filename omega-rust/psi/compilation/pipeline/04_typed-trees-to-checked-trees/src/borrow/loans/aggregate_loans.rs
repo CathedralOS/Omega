@@ -426,8 +426,15 @@ pub(super) fn result_source_loans(
                             },
                         )),
                         source_owner_symbol: source.source_owner_symbol,
-                        supplying_loans: if field.source == ViewReturnInputSource::Stored
-                            && source.parent_loan.is_valid()
+                        // A stored leaf or an unprojected referent result
+                        // transports this exact actual descriptor. Preserve its
+                        // supplier even when computed captured selectors cannot
+                        // prove spatial containment later. A projected referent
+                        // creates a child instead; backing coincidence cannot
+                        // turn that child into a descriptor transfer.
+                        supplying_loans: if source.parent_loan.is_valid()
+                            && (field.source == ViewReturnInputSource::Stored
+                                || projection.is_empty())
                         {
                             vec![source.parent_loan]
                         } else {

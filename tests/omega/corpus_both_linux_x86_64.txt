@@ -193,6 +193,7 @@ pass/control_flow/runtime_namespace_local_state_loan built 983ms exit:0 stdout:m
 pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit built 6983ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
 pass/control_flow/runtime_projected_case_payload_snapshots_exit built 18897ms exit:0 interpreter-exit:0 interpreter:agrees @1b12798e27f4
 pass/control_flow/runtime_selected_parent_state_loan_exit built 6609ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
+pass/control_flow/shared_view_selected_disposition_exit built 13300ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/control_flow/static_bounded_byte_state_loan_exit built 6885ms exit:0 interpreter-exit:0 interpreter:agrees @ebf51a574e10
 pass/domains/bitwise_live_membership_exit built 30632ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/domains/runtime_authored_borrowed_result_domain_exit built 47530ms exit:0 interpreter-exit:0 interpreter:agrees @be2b40493220+wt
@@ -211,6 +212,16 @@ pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 6296ms ex
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 5398ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d537c1f08618
 pass/expressions/call_result_comparison_operands_exit built 22382ms exit:70 interpreter-exit:70 interpreter:agrees @c48489ea6ad6
 pass/expressions/runtime_comparison_store_integer_exit built 24518ms exit:70 interpreter-exit:70 interpreter:agrees @c48489ea6ad6
+pass/facts/computed_record_window_mixed_lifecycle_exit built 23994ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
+pass/facts/computed_record_window_through_call_result_exit built 22116ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
+pass/facts/computed_record_window_through_const_name_exit built 23097ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
+pass/facts/computed_record_window_through_field_exit built 22268ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
+pass/facts/computed_record_window_through_local_exit built 20784ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
+pass/facts/computed_record_window_through_match_join_exit built 20955ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
+pass/facts/computed_record_window_through_other_machine_exit built 20633ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
+pass/facts/computed_record_window_through_other_state_exit built 20683ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
+pass/facts/computed_record_window_through_parameter_exit built 20912ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
+pass/facts/computed_record_window_through_target_body_exit built 20597ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/facts/index_every_width_through_call_result_exit built 11819ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
 pass/facts/index_every_width_through_const_name_exit built 6491ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
 pass/facts/index_every_width_through_field_exit built 7267ms exit:0 interpreter-exit:0 interpreter:agrees @465f5043822d+wt
@@ -388,7 +399,7 @@ pass/ranges/runtime_bounded_array_element_order_exit built 28716ms exit:0 interp
 pass/recast/borrowed_byte_scalar_views_exit built 60327ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/recast/callee_returned_aggregate_view_exit built 9356ms exit:0 interpreter-exit:0 interpreter:agrees @b7c17b88b59d
 pass/recast/callee_returned_mutable_view_exit built 10767ms exit:0 interpreter-exit:0 interpreter:agrees @f474fcca89fe
-pass/recast/returned_view_state_and_record_composition_exit built 11520ms exit:0 interpreter-exit:0 interpreter:agrees @f474fcca89fe
+pass/recast/returned_view_state_and_record_composition_exit built 9217ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/recast/runtime_bool_representation_recast_exit built 16216ms exit:70 interpreter-exit:70 interpreter:agrees @1b12798e27f4
 pass/recast/runtime_boolean_view_decision_exit built 18896ms exit:0 interpreter-exit:0 interpreter:agrees @1b12798e27f4
 pass/recast/runtime_float_range_representation_recast_exit built 6494ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
@@ -400,6 +411,7 @@ pass/recast/runtime_scalar_parameter_shared_views_exit built 2535ms exit:70 inte
 pass/recast/runtime_shared_domain_weakening_recast_exit built 7058ms exit:70 interpreter-exit:70 interpreter:agrees @f64782b89114+wt
 pass/slices/empty_fixed_array_slice_call_exit built 5495ms exit:0 interpreter-exit:0 interpreter:agrees @f04eab4d149c+wt
 pass/slices/negated_mutable_array_call_exit built 5652ms exit:0 interpreter-exit:0 interpreter:agrees @f04eab4d149c+wt
+pass/slices/returned_mutable_view_record_state_call built 9284ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/slices/runtime_affine_view_edge_cleanup_exit built 29244ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
 pass/slices/runtime_cut_byte_view_cycle_exit built 6139ms exit:70 interpreter-exit:70 interpreter:agrees @30ec6a20142f+wt
 pass/slices/runtime_element_write_preserves_view_extent_exit built 14018ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
@@ -494,6 +506,7 @@ run/ownership/temporary_projected_value_residual built 18658ms exit:0 interprete
 run/proofs/quotient_copy_paths built 36875ms exit:70 interpreter-exit:70 interpreter:agrees @73e466d6222f+wt
 run/providers/module_named_float_conversion_family_exit built 16000ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @77cde1c51efd+wt
 run/providers/target_family_provider_boundary_identity_exit built 66486ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @2775f035db79+wt
+run/slices/computed_record_window built 18411ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 run/slices/disjoint_local_state_windows built 9268ms exit:12 interpreter-exit:12 interpreter:agrees @1810e541fd15+wt
 run/stores/runtime_float_indexed_call_result_exit built 15768ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @77cde1c51efd+wt
 run/stores/runtime_float_store_selector_snapshot_exit built 16044ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @77cde1c51efd+wt

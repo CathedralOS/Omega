@@ -785,7 +785,7 @@ fail/borrows/copied_computed_backing_retains_nested_loan rejected 1615ms expecte
 fail/borrows/copied_reference_cohort_live_source_write rejected 1704ms expected @a9ae30e1c334+wt
 	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
-fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 789ms expected @e12a9f3ff2a3
+fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 1747ms expected @dd658fb23eef
 	state `spin` receives `sibling` as mutable more than once
 fail/borrows/direct_mutable_reference_from_immutable_bytes rejected 871ms expected @a9ae30e1c334+wt
 	argument `bytes` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
@@ -1101,6 +1101,9 @@ fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1705ms expected @a
 fail/borrows/returned_case_reference_live_source_write rejected 2145ms expected @a9ae30e1c334+wt
 	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 mutates `second.value` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2)
+fail/borrows/returned_computed_record_parent_stays_borrowed rejected 4151ms expected @dd658fb23eef
+	state `write_pair` receives `view` while local borrow `leading` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+	state `write_pair` receives `view` while local borrow `leading` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/returned_operand_parent_cannot_bypass_child rejected 1040ms expected @b7c17b88b59d
 	statement 3 mutates `whole.second.value` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/returned_reference_invalidated_membership rejected 842ms expected @2ef2ab353498+wt
@@ -3192,6 +3195,29 @@ fail/facts/compound_guard_through_target_body_compile rejected 2356ms expected @
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/facts/compound_guard_unequal_match_arm_compile rejected 2639ms expected @2ef2ab353498+wt
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/computed_record_window_nonhost_body_rejected rejected 3410ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+fail/facts/computed_record_window_through_call_result_rejected rejected 3581ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+fail/facts/computed_record_window_through_const_name_rejected rejected 3326ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+fail/facts/computed_record_window_through_field_rejected rejected 3466ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+fail/facts/computed_record_window_through_local_rejected rejected 3254ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 1: result.len == 2
+fail/facts/computed_record_window_through_match_join_rejected rejected 3484ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+fail/facts/computed_record_window_through_other_machine_rejected rejected 3334ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from select_window at statement 0: result.len == 2
+fail/facts/computed_record_window_through_other_state_rejected rejected 3308ms expected @dd658fb23eef
+	cannot prove requires contract for call carry from window: match which { 0 => mut samples[0..which + 1], _ => mut samples[2..4] }.len == 2 (needs fact `selected.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_record_window_through_parameter_rejected rejected 3537ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+fail/facts/computed_record_window_through_target_body_rejected rejected 3481ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 fail/facts/data_where_standing_through_call_result_rejected rejected 2381ms expected @07f1c64be9c1
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_through_const_name_rejected rejected 2160ms expected @07f1c64be9c1
@@ -7802,7 +7828,7 @@ pass/control_flow/self_loop_state_compile checked 1724ms @a9ae30e1c334+wt
 pass/control_flow/self_param_multi_case_compile checked 1627ms @a9ae30e1c334+wt
 pass/control_flow/sequential_transitions_same_state_compile checked 1814ms @a9ae30e1c334+wt
 pass/control_flow/shared_state_disjoint_receiver_store_exit checked 11444ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/control_flow/shared_view_selected_disposition_exit checked 11937ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/control_flow/shared_view_selected_disposition_exit checked 13496ms check-target:macos_arm64 @dd658fb23eef
 pass/control_flow/single_case_parameter_dispatch_exit checked 11448ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/single_case_result_dispatch_exit checked 12081ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/single_case_wildcard_dispatch_exit checked 11371ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8274,6 +8300,16 @@ pass/facts/compound_guard_through_other_machine_compile checked 2089ms @2ef2ab35
 pass/facts/compound_guard_through_other_state_compile checked 1834ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_parameter_compile checked 1854ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_target_body_compile checked 2049ms @2ef2ab353498+wt
+pass/facts/computed_record_window_mixed_lifecycle_exit checked 25778ms check-target:macos_arm64 @dd658fb23eef
+pass/facts/computed_record_window_through_call_result_exit checked 24962ms check-target:macos_arm64 @dd658fb23eef
+pass/facts/computed_record_window_through_const_name_exit checked 21470ms check-target:macos_arm64 @dd658fb23eef
+pass/facts/computed_record_window_through_field_exit checked 21335ms check-target:macos_arm64 @dd658fb23eef
+pass/facts/computed_record_window_through_local_exit checked 21139ms check-target:macos_arm64 @dd658fb23eef
+pass/facts/computed_record_window_through_match_join_exit checked 20025ms check-target:macos_arm64 @dd658fb23eef
+pass/facts/computed_record_window_through_other_machine_exit checked 20855ms check-target:macos_arm64 @dd658fb23eef
+pass/facts/computed_record_window_through_other_state_exit checked 20453ms check-target:macos_arm64 @dd658fb23eef
+pass/facts/computed_record_window_through_parameter_exit checked 20761ms check-target:macos_arm64 @dd658fb23eef
+pass/facts/computed_record_window_through_target_body_exit checked 20511ms check-target:macos_arm64 @dd658fb23eef
 pass/facts/data_where_standing_through_call_result_exit checked 8632ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_const_name_exit checked 8260ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_field_exit checked 8405ms check-target:macos_arm64 @07f1c64be9c1
@@ -9400,7 +9436,7 @@ pass/recast/reference_view_helper_backing_write_exit checked 3343ms check-target
 pass/recast/reference_view_shared_call_backing_exit checked 3329ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/reference_view_shared_primitive_neighbor_exit checked 3328ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/returned_same_type_view_capture_exit checked 4794ms check-target:macos_arm64 @82749ba0e736
-pass/recast/returned_view_state_and_record_composition_exit checked 5242ms check-target:macos_arm64 @22286cb27fcc
+pass/recast/returned_view_state_and_record_composition_exit checked 9057ms check-target:macos_arm64 @dd658fb23eef
 pass/recast/runtime_aggregate_slice_representation_recast_exit checked 12079ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_authored_toolchain_type_shadow_exit checked 10420ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/runtime_bool_representation_recast_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -9520,7 +9556,7 @@ pass/slices/qualified_subslice_composition_exit checked 4161ms check-target:maco
 pass/slices/recursive_subslice_element_accumulator_exit checked 13843ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/requires_field_count_alias_index_compile checked 1934ms @a9ae30e1c334+wt
 pass/slices/returned_collection_window_copy checked 4054ms check-target:macos_arm64 @e0119fc0aaa2
-pass/slices/returned_mutable_view_record_state_call checked 3678ms check-target:macos_arm64 @3fd4c8bce0d8
+pass/slices/returned_mutable_view_record_state_call checked 9063ms check-target:macos_arm64 @dd658fb23eef
 pass/slices/returned_record_mutable_parameter_post_length checked 3678ms check-target:macos_arm64 @3fd4c8bce0d8
 pass/slices/returned_record_window_length checked 5478ms check-target:macos_arm64 @2d4ff85790f0+wt
 pass/slices/returned_record_window_lower_bound checked 5475ms check-target:macos_arm64 @2d4ff85790f0+wt
@@ -10256,7 +10292,7 @@ run/proofs/quotient_copy_paths checked 19698ms check-target:macos_arm64 @73e466d
 run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt
 run/providers/target_family_provider_boundary_identity_exit checked 73525ms check-target:macos_arm64 @2775f035db79+wt
 run/slices/call_result_mutable_window_exit checked 13049ms check-target:macos_arm64 @73e11f08dcbb+wt
-run/slices/computed_record_window checked 12426ms check-target:macos_arm64 @b88c1c4b1ca5+wt
+run/slices/computed_record_window checked 16529ms check-target:macos_arm64 @dd658fb23eef
 run/slices/disjoint_local_state_windows checked 9595ms check-target:macos_arm64 @1810e541fd15+wt
 run/slices/edge_window_owned_backing checked 3657ms check-target:macos_arm64 @8d0af2d85467+wt
 run/slices/folded_window_endpoint_effects checked 3455ms check-target:macos_arm64 @fa0a8b1267bb+wt

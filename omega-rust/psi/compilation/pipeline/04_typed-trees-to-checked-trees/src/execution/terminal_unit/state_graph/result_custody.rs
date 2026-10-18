@@ -407,8 +407,54 @@ pub(super) fn account(
         // carrying the view whole continues that same loan in its target:
         // the carry is checked as at most one move per edge, and the
         // ordinary transfer count below must not book it as a second owner.
-        let release_owned_view =
-            view_source.is_some() && result.multiplicity == Multiplicity::Affine;
+        // A selected or transported descriptor has the same checked loan
+        // disposition as a direct view formation. Its value-graph variant
+        // need not expose one syntactic backing source after a join.
+        let affine_view = result.multiplicity == Multiplicity::Affine
+            && matches!(operation,
+            CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. }
+            ) if facts.values.structural_values.nodes.is_valid(*value)
+                && super::super::types::borrowed_slice_result(
+                    program,
+                    facts.values.structural_values.nodes.get(*value).type_reference,
+                ));
+        let installed_view_claims = affine_view
+            .then(|| {
+                installed_view_claims(
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    operation,
+                    result,
+                    &operations[producer_index + 1..],
+                )
+            })
+            .flatten()
+            .unwrap_or_default();
+        let (has_captured_view_loans, owns_local_view_claim, view_releases) = if affine_view {
+            view_loan_releases(
+                facts,
+                machine.symbol,
+                state.symbol,
+                result,
+                operation,
+                &installed_view_claims,
+            )
+            .map_err(|reason| {
+                trace.phase(reason);
+                trace.statement(Some(result.statement_index));
+            })
+            .ok()?
+        } else {
+            (false, false, 0)
+        };
+        // A local establishment owns its loan disposition even when a join
+        // hides one syntactic backing source. A call result instead continues
+        // its callee's claim frontier; its captured descriptor retirement is
+        // not an additional local Establish/Consume obligation.
+        let release_owned_view = affine_view && owns_local_view_claim;
+        let has_captured_view_loans = release_owned_view && has_captured_view_loans;
         if release_owned_view && successor_moves.iter().any(|(_, moves)| *moves > 1) {
             return None;
         }
@@ -767,36 +813,6 @@ pub(super) fn account(
         // An exact rebind ends the anonymous producer's residence. The
         // receiving home keeps the same loan until its later weakening;
         // that weakening cannot also dispose the transferred producer.
-        let installed_view_claims = release_owned_view
-            .then(|| {
-                installed_view_claims(
-                    facts,
-                    machine.symbol,
-                    state.symbol,
-                    operation,
-                    result,
-                    &operations[producer_index + 1..],
-                )
-            })
-            .flatten()
-            .unwrap_or_default();
-        let (has_captured_view_loans, view_releases) = if release_owned_view {
-            view_loan_releases(
-                facts,
-                machine.symbol,
-                state.symbol,
-                result,
-                operation,
-                &installed_view_claims,
-            )
-            .map_err(|reason| {
-                trace.phase(reason);
-                trace.statement(Some(result.statement_index));
-            })
-            .ok()?
-        } else {
-            (false, 0)
-        };
         // Whole cleanup and a scheduled reference release are physical
         // realizations of the captured holder's semantic loan disposition.
         // Both joins above resolve this exact storage occurrence and its loan
@@ -1032,7 +1048,7 @@ fn view_loan_releases(
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
     producer: &CheckedUnitEffectOperationPlan,
     installed_claims: &[language_semantics::PermissionClaimIdentity],
-) -> Result<(bool, usize), &'static str> {
+) -> Result<(bool, bool, usize), &'static str> {
     // The producer names its holder even for an anonymous return operand,
     // which need not appear in the state's named-result inventory.
     let owner = if result.local.symbol.is_valid() {
@@ -1057,7 +1073,7 @@ fn view_loan_releases(
         .map(|(_, borrowing)| borrowing)
         .filter(|borrowing| borrowing.machine_symbol == machine && borrowing.state_symbol == state);
     let Some(borrowing) = states.next() else {
-        return Ok((false, 0));
+        return Ok((false, false, 0));
     };
     if states.next().is_some() {
         return Err("state graph: view result has ambiguous borrow states");
@@ -1071,33 +1087,137 @@ fn view_loan_releases(
         .loans
         .span(loans)
         .ok_or("state graph: view holder has an invalid captured loan group")?;
-    let releases = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.kind == PermissionEventKind::Consume
-                && !installed_claims.contains(&event.claim_identity)
-                && event.machine_symbol == machine
-                && event.state_symbol == state
-                && matches!(event.claim_identity,
-                        language_semantics::PermissionClaimIdentity::Established {
-                            machine_symbol, state_symbol,
-                            source: PermissionEventSource::Statement { statement_index }, ..
-                        } if machine_symbol == machine && state_symbol == state
-                            && statement_index == result.statement_index as usize)
-                && facts.flow.ownership.borrow_claims.iter().any(|(_, claim)| {
-                    claim.claim_identity == event.claim_identity
-                        && facts.borrow.loans_contain(loans, claim.loan)
-                        && facts
-                            .borrow
-                            .loan_owner_path(facts.borrow.loans.get(claim.loan))
-                            .is_empty()
+    // One descriptor can retain several alternative loan activations. Their
+    // exact claim roster must close completely before the one physical
+    // descriptor death can realize it. Counting Consume rows as descriptors
+    // rejects joins; accepting any Consume would silently lose missing origins.
+    let mut claims = Vec::new();
+    let mut inherited = 0usize;
+    for (handle, loan) in facts
+        .borrow
+        .loan_group(loans)
+        .ok_or("state graph: view holder has an invalid captured loan group")?
+    {
+        if !facts.borrow.loan_owner_path(loan).is_empty() {
+            return Err("state graph: view root contains a projected loan claim");
+        }
+        let mut matching = facts
+            .flow
+            .ownership
+            .borrow_claims
+            .iter()
+            .filter_map(|(_, claim)| (claim.loan == handle).then_some(claim.claim_identity));
+        let claim = matching
+            .next()
+            .ok_or("state graph: view loan has no claim mapping")?;
+        if matching.next().is_some() {
+            return Err("state graph: view loan has duplicate claim mappings");
+        }
+        let claim @ language_semantics::PermissionClaimIdentity::Established {
+            machine_symbol,
+            state_symbol,
+            source,
+            ..
+        } = claim
+        else {
+            return Err("state graph: view loan has no established activation identity");
+        };
+        if machine_symbol != machine
+            || state_symbol != state
+            || source
+                != (PermissionEventSource::Statement {
+                    statement_index: result.statement_index as usize,
                 })
-        })
-        .count();
-    Ok((!captured_loans.is_empty(), releases))
+        {
+            inherited += 1;
+            continue;
+        }
+        if claims.contains(&claim) {
+            return Err("state graph: distinct view loans share one activation claim");
+        }
+        let mut establishments =
+            facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter_map(|(_, event)| {
+                    (event.machine_symbol == machine
+                        && event.state_symbol == state
+                        && event.claim_identity == claim
+                        && event.kind == PermissionEventKind::Establish)
+                        .then_some(event)
+                });
+        let establishment = establishments
+            .next()
+            .ok_or("state graph: view activation has no establishment")?;
+        if establishments.next().is_some() {
+            return Err("state graph: view activation has duplicate establishments");
+        }
+        if establishment.source != source
+            || establishment.access != language_semantics::PermissionAccess::Exclusive
+            || establishment.multiplicity != Multiplicity::Affine
+            || establishment.evaluation != checked_trees::FlowPermissionEvaluation::Statement
+        {
+            return Err("state graph: view activation has invalid establishment evidence");
+        }
+        claims.push(claim);
+    }
+    if !claims.is_empty() && inherited != 0 {
+        return Err("state graph: view activation roster mixes local and inherited claims");
+    }
+    let owns_local_claim = !claims.is_empty();
+    let mut closure = None;
+    for claim in claims
+        .iter()
+        .filter(|claim| !installed_claims.contains(claim))
+    {
+        let mut releases = facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter_map(|(_, event)| {
+                (event.machine_symbol == machine
+                    && event.state_symbol == state
+                    && event.claim_identity == *claim
+                    && event.kind == PermissionEventKind::Consume)
+                    .then_some(event)
+            });
+        let release = releases.next();
+        if releases.next().is_some() {
+            return Err("state graph: view activation has duplicate releases");
+        }
+        if let Some(release) = release {
+            let after_formation = match release.source {
+                PermissionEventSource::StateExit
+                | PermissionEventSource::InstructionExitDisposition { .. } => true,
+                PermissionEventSource::Statement { statement_index }
+                | PermissionEventSource::InstructionDisposition { statement_index }
+                | PermissionEventSource::Call {
+                    statement_index, ..
+                } => statement_index >= result.statement_index as usize,
+                PermissionEventSource::StateEntry => false,
+            };
+            if !after_formation
+                || release.access != language_semantics::PermissionAccess::Exclusive
+                || release.multiplicity != Multiplicity::Affine
+                || release.evaluation != checked_trees::FlowPermissionEvaluation::Statement
+            {
+                return Err("state graph: view activation has invalid release evidence");
+            }
+        }
+        let released = release.is_some();
+        if closure.is_some_and(|previous| previous != released) {
+            return Err("state graph: view activation roster has incomplete release coverage");
+        }
+        closure = Some(released);
+    }
+    Ok((
+        !captured_loans.is_empty(),
+        owns_local_claim,
+        usize::from(closure == Some(true)),
+    ))
 }
 
 /// A statement can form several unrelated descriptors. A permission release

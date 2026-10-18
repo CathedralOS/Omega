@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "cannot prove ensures contract for exit from select_window",
+    "result.len == 2"
+  ]
+}

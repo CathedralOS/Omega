@@ -338,9 +338,8 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     // came from a local, construction, or call. Completion owns this relation;
     // the binding conversion alone carries only value identity and custody.
     if let Some(result) = &mut structural_result
-        && (super::super::super::reference_results::stored_loan_parts(program, state.return_type)
-            .is_some()
-            || super::super::super::reference_results::is_reference_record(
+        && (validation::reference_shell(program, state.return_type).is_some()
+            || validation::reference_result_custody::is_reference_record(
                 program,
                 state.return_type,
             ))
@@ -451,6 +450,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         structural_result.as_ref(),
         &structural_results,
         &mut operations,
+        trace,
     )?;
     trace.phase("statement sequence: call count agreement");
     (call_count == calls.len()).then_some(StatementSequence {

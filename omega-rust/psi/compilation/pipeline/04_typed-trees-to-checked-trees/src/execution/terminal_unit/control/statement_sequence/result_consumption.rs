@@ -744,12 +744,14 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     returned: Option<&CheckedUnitStructuralReturnPlan>,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    trace: &super::super::LocalConstructionTrace,
 ) -> Option<()> {
     let authored_state = program.state_by_symbol(state)?;
     let order = program
         .statement_table
         .admitted_execution_order(authored_state.statement_nodes);
     let mut pending = Vec::new();
+    trace.phase("statement sequence: completion carrier inventory");
     // Retained call operands own real descriptor occurrences. Their output
     // transfers into the enclosing value, but borrowed input holders still
     // retire after that receiving value and before their backing homes.
@@ -762,6 +764,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         ) {
             let result = captured.result;
             let loans = captured.loans;
+            trace.statement(Some(result.statement_index));
             if operations
                 .iter()
                 .any(|operation| whole_result_discarded(operation, result))
@@ -784,6 +787,8 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             if returned.is_some_and(|returned| {
                 super::reference_retirement::returned_reference_binding(&order, returned, result)
             }) {
+                trace.phase("statement sequence: returned carrier loan boundary");
+                trace.statement(Some(result.statement_index));
                 let authored = program.state_by_symbol(state)?;
                 let statement_count = program
                     .statement_table
@@ -799,6 +804,8 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 }
                 continue;
             }
+            trace.phase("statement sequence: completion carrier release boundary");
+            trace.statement(Some(result.statement_index));
             let boundary = latest_loan_release_boundary(&order, facts, loans, |loan| {
                 super::super::super::reference_results::release_statement(
                     program, facts, machine, state, loan,
@@ -845,6 +852,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     }
     pending.sort_by_key(|(boundary, _, _)| order.position(*boundary as usize));
     let statement_index = authored_state.statement_nodes.count();
+    trace.phase("statement sequence: completion carrier transport");
     let transported_loans = super::reference_retirement::transport::collect(
         program,
         facts,
@@ -858,6 +866,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     // Reuse statement retirement's exact holder dependencies, allowing only
     // already scheduled exit releases to satisfy them. Computed backing
     // holders participate in the same fixed point rather than a later pass.
+    trace.phase("statement sequence: completion carrier retirement order");
     let mut scheduled = Vec::new();
     loop {
         let retirement = super::reference_retirement::Retirement {
@@ -929,6 +938,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             *discard = false;
         }
     }
+    trace.phase("statement sequence: completion carrier case conditions");
     super::reference_retirement::prepare_case_conditions(
         program,
         facts,

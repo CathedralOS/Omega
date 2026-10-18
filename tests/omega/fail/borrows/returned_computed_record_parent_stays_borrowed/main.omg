@@ -1,0 +1,35 @@
+// In the which == 0 arm, [0..which + 2] has length 2; hold preserves that
+// extent in its returned Held.values, through which write_pair writes the backing.
+// Expected exit: 0
+use omega::language::core::float_operations;
+use omega::language::core::numeric_conversion;
+
+data Held<'samples> { values: &'samples mut [f64]; }
+machine window<'samples>(samples: &'samples mut [f64; 4], which: i64, flag: bool) -> &'samples mut [f64]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut samples[0..(match flag { true -> which + 2, false -> 2 })]
+        _ -> &mut samples[2..4]
+    }
+}
+machine hold<'samples>(samples: &'samples mut [f64]) -> Held<'samples>
+requires samples.len == 2
+ensures result.values.len == 2
+{
+    Held { values: samples }
+}
+
+machine write_pair(window: &mut [f64])
+requires window.len >= 2 {
+    window[0] = 0.0;
+    window[1] = 1.0;
+}
+
+machine main() {
+    let mut samples: [f64; 4] = [9.0, 9.0, 9.0, 9.0];
+    let view: &mut [f64] = window(&mut samples, 0, true);
+    let leading: Held = hold(view);
+    write_pair(view);
+    write_pair(leading.values);
+}
