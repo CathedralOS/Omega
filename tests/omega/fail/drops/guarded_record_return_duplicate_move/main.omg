@@ -1,0 +1,13 @@
+data Observation { value: i32; }
+data Pair { first: Observation; second: Observation; }
+
+// A selected return is one path, not permission to transfer one owner twice.
+machine choose(value: i32) -> Pair {
+    let observation: Observation = Observation { value: value };
+    transition value != 0 {
+        true -> (Pair { first: observation, second: observation })
+        _ -> (Pair { first: Observation { value: 30 }, second: observation })
+    }
+}
+
+machine main() { let pair: Pair = choose(1); }

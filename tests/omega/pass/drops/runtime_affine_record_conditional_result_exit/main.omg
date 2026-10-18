@@ -1,0 +1,105 @@
+// Expected exit: 70
+// A scalar observation of an affine local does not consume its cleanup duty.
+// Each normal record-return arm retires that exact local occurrence.
+use omega_language_std::console;
+
+data Observation { value: i32; }
+data Receipt<'storage> { destination: &'storage mut i32; }
+data Answer [copy] { value: i32; }
+data Envelope { observation: Observation; }
+data Main {}
+
+machine observe(value: i32) -> i32 { value }
+machine record_cleanup(destination: &mut i32) {
+    destination = ((destination as i32 in Wrapping) + 1) as i32;
+}
+machine Receipt::drop(receipt: &mut Receipt<'storage>) {
+    record_cleanup(receipt.destination);
+}
+
+machine choose(value: i32) -> Answer {
+    let observation: Observation = Observation { value: observe(value) };
+    transition value != 0 && value == observation.value {
+        true -> (Answer { value: 30 })
+        _ -> (Answer { value: 40 })
+    }
+}
+
+machine with_cleanup(value: i32, destination: &mut i32) -> Answer {
+    let receipt: Receipt = Receipt { destination: destination };
+    transition value != 0 {
+        true -> (Answer { value: 30 })
+        _ -> (Answer { value: 40 })
+    }
+}
+
+machine consume(observation: Observation) -> i32 { observation.value }
+machine close(receipt: Receipt, value: i32) -> i32 { value }
+
+machine mixed(value: i32, destination: &mut i32) -> Answer {
+    transition { _ -> finish(value, destination) }
+    state finish(value: i32, destination: &mut i32) {
+        let receipt: Receipt = Receipt { destination: destination };
+        transition value != 0 {
+            true -> (Answer { value: close(receipt, 30) })
+            _ -> (Answer { value: 40 })
+        }
+    }
+}
+
+machine transfer(value: i32) -> Observation {
+    let observation: Observation = Observation { value: value };
+    transition value != 0 {
+        true -> (observation)
+        _ -> (observation)
+    }
+}
+
+machine wrap(value: i32) -> Envelope {
+    let observation: Observation = Observation { value: value };
+    transition value != 0 {
+        true -> (Envelope { observation: observation })
+        _ -> (Envelope { observation: observation })
+    }
+}
+
+machine after_rebind(value: i32) -> Answer {
+    let mut observation: Observation = Observation { value: 99 };
+    observation = Observation { value: value };
+    transition value != 0 {
+        true -> (Answer { value: consume(observation) })
+        _ -> (Answer { value: consume(observation) })
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let first: Answer = choose(1);
+    let second: Answer = choose(0);
+    let mut first_cleanup: i32 = 0;
+    let mut second_cleanup: i32 = 0;
+    let third: Answer = with_cleanup(1, &mut first_cleanup);
+    let fourth: Answer = with_cleanup(0, &mut second_cleanup);
+    let rebound: Answer = after_rebind(41);
+    let rebound_zero: Answer = after_rebind(0);
+    let mut moved_cleanup: i32 = 0;
+    let mut retained_cleanup: i32 = 0;
+    let moved: Answer = mixed(1, &mut moved_cleanup);
+    let retained: Answer = mixed(0, &mut retained_cleanup);
+    let direct: Observation = transfer(11);
+    let direct_zero: Observation = transfer(0);
+    let wrapped: Envelope = wrap(12);
+    let wrapped_zero: Envelope = wrap(0);
+    transition first.value == 30 && second.value == 40
+        && third.value == 30 && fourth.value == 40
+        && first_cleanup == 1 && second_cleanup == 1
+        && rebound.value == 41 && rebound_zero.value == 0
+        && moved.value == 30 && retained.value == 40
+        && moved_cleanup == 1 && retained_cleanup == 1
+        && direct.value == 11 && direct_zero.value == 0
+        && wrapped.observation.value == 12 && wrapped_zero.observation.value == 0 {
+        true -> passed(main)
+        _ -> failed(main)
+    }
+    state passed(main: &mut Main) { Console::exit_process(70); }
+    state failed(main: &mut Main) { Console::exit_process(71); }
+}

@@ -1,0 +1,13 @@
+data Obligation [linear] { value: i32; }
+data Answer [copy] { value: i32; }
+
+// Reading a linear field in the guard cannot authorize discarding its owner.
+machine choose(value: i32) -> Answer {
+    let obligation: Obligation = Obligation { value: value };
+    transition value != 0 && obligation.value == value {
+        true -> (Answer { value: 30 })
+        _ -> (Answer { value: 40 })
+    }
+}
+
+machine main() { let answer: Answer = choose(1); }

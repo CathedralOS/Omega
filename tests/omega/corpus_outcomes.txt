@@ -2961,6 +2961,10 @@ fail/drops/generic_cleanup_incomplete_compound_prerequisite rejected 2085ms expe
 	cannot prove contextual cleanup prerequisite for call forward$specialized$fe70d3b61e29b8d9$0 from main: token.ready does not establish Token::drop clause `token.ready && token.value == 7`
 fail/drops/generic_cleanup_mutated_integer_prerequisite rejected 1993ms expected @a9ae30e1c334+wt
 	cannot prove contextual cleanup prerequisite for call forward$specialized$fe70d3b61e29b8d9$0 from main: token.value does not establish Token::drop clause `token.value == 7`
+fail/drops/guarded_record_return_duplicate_move rejected 627ms expected @166de40fb052+wt
+	affine value `observation` was already transferred or consumed; it cannot be moved here
+fail/drops/guarded_record_return_linear_debt rejected 629ms expected @166de40fb052+wt
+	linear value `obligation` reaches scope exit without being consumed or transferred
 fail/drops/local_cleanup_unmet_prerequisite rejected 1531ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
 fail/drops/named_linear_container_abnormal_hook rejected 818ms expected @a9ae30e1c334+wt
@@ -8369,6 +8373,7 @@ pass/drops/owned_qualified_contextual_cleanup_exit checked 13947ms check-target:
 pass/drops/projected_case_subject_root_cleanup_exit checked 12228ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/reference_rebinding_preserves_pointee_exit checked 2294ms check-target:macos_arm64 @c1d3bd9711c2+wt
 pass/drops/runtime_abandoned_record_construction_prefix_exit checked 12772ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_affine_record_conditional_result_exit checked 6011ms check-target:macos_arm64 @166de40fb052+wt
 pass/drops/runtime_borrowed_nominal_replacement_exit checked 13039ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit checked 12207ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_borrowed_temporary_projection_cleanup_exit checked 3648ms check-target:macos_arm64 @0ec1d89748af

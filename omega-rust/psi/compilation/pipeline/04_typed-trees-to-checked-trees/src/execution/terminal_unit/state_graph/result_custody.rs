@@ -20,6 +20,10 @@
 //! Projected transfers and residual descriptor releases can jointly exhaust an
 //! array. Their exact typed frontier replaces store-only partition recognition;
 //! covering a nominal owner's fields still cannot discharge its own cleanup.
+//! Scalar and structural return tails account each selected guard prefix and
+//! value together with that exit's exact disposition. A consuming alternative
+//! cannot stand in for cleanup on a sibling, and terminal local aliases name
+//! only the current occupant after any body-level replacement.
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
     CheckedStructuralControlSuccessorPlan, CheckedUnitEffectOperationPlan,
@@ -62,17 +66,9 @@ pub(super) fn account(
         CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => {
             arms.first().map(|arm| arm.guard().clone())
         }
-        CheckedComposedUnitControlTerminatorPlan::Guarded { arms, .. } => {
-            match facts.flow.guarded_exits.exits.span(*arms)?.first() {
-                Some(arm) => Some(super::guards::retained_guard(
-                    facts,
-                    machine.symbol,
-                    state.symbol,
-                    arm.guard_statement_ordinal,
-                )?),
-                None => None,
-            }
-        }
+        // Guarded value returns account for each guard prefix together with
+        // its selected return below, as scalar exit computations already do.
+        CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => None,
         _ => None,
     };
     let construction_uses = construction_local_uses(facts, state.symbol, operations.iter())?;
@@ -90,6 +86,13 @@ pub(super) fn account(
         .iter()
         .map(|arm| construction_local_uses(facts, state.symbol, arm.operation_dependencies()))
         .collect::<Option<Vec<_>>>()?;
+    let guarded_return_construction_uses = match terminator {
+        CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => return_values
+            .iter()
+            .map(|value| construction_local_uses(facts, state.symbol, std::iter::once(value)))
+            .collect::<Option<Vec<_>>>()?,
+        _ => Vec::new(),
+    };
     let mut guarded_discards = Vec::new();
     for (producer_index, operation) in operations.iter().enumerate() {
         let Some((result, _)) = operation.discardable_structural_result() else {
@@ -107,6 +110,17 @@ pub(super) fn account(
         let occurrence_end = consumers
             .iter()
             .position(|consumer| consumer.ends_local_occurrence(result_local));
+        // Terminal computations see the current occupant, not the initial
+        // producer of a rebound home. Explicit production identities remain
+        // available after that named alias ceases to belong to this value.
+        let terminal_local =
+            if super::super::local_storage::occupant(program, state, operations, result_local)
+                == Some(result.binding_ordinal)
+            {
+                result_local
+            } else {
+                Default::default()
+            };
         let occupies_result = |source: &CheckedUnitStructuralArgumentSourcePlan, before: usize| {
             let source = match source {
                 CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
@@ -578,7 +592,7 @@ pub(super) fn account(
                         &facts.values,
                         state.symbol,
                         operation,
-                        result_local,
+                        terminal_local,
                     ) == 1
                     || uses
                         .iter()
@@ -592,14 +606,64 @@ pub(super) fn account(
                 .iter()
                 .any(|arm| !matches!(arm, CheckedConditionalReturnArm::Crash { .. }));
         let mut closed_sum_all_reference_returns = false;
+        // Every normal completion owes its own transfer or exact cleanup
+        // receipt. A move in one alternative cannot cover a sibling return.
+        // Repeated unrestricted observations carry no extra ownership debt.
+        let completion_owns = |transfers: usize, statement: u32, continuation: bool| {
+            (result.multiplicity == Multiplicity::Unrestricted && transfers > 0)
+                || transfers == 1
+                || (transfers == 0 && permits_disposal(Some(statement), continuation))
+        };
         let consumed = match terminator {
-            CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
-                result.multiplicity == Multiplicity::Unrestricted
-                    || return_values.iter().any(|value| {
-                        value.with_value_calls().skip(1).any(|operation| {
-                            terminator_call_consumes_result(operation, result.binding_ordinal)
-                        })
-                    })
+            CheckedComposedUnitControlTerminatorPlan::Guarded {
+                arms,
+                fallback,
+                return_values,
+            } => {
+                let arms = facts.flow.guarded_exits.exits.span(*arms)?;
+                if arms.len() + usize::from(fallback.is_some()) != return_values.len() {
+                    return None;
+                }
+                let mut prefix_transfers = 0;
+                let mut complete = !return_values.is_empty();
+                for (((guard, destination), value), uses) in arms
+                    .iter()
+                    .map(|arm| (Some(arm), &arm.destination))
+                    .chain(fallback.iter().map(|destination| (None, destination)))
+                    .zip(return_values)
+                    .zip(&guarded_return_construction_uses)
+                {
+                    if let Some(guard) = guard {
+                        prefix_transfers += super::guards::retained_guard(
+                            facts,
+                            machine.symbol,
+                            state.symbol,
+                            guard.guard_statement_ordinal,
+                        )?
+                        .definite_call_transfers(
+                            &facts.values,
+                            operation,
+                            terminal_local,
+                        );
+                    }
+                    let checked_trees::CheckedScalarBranchDestination::Return {
+                        statement_ordinal,
+                        is_continuation,
+                    } = destination
+                    else {
+                        return None;
+                    };
+                    let transfers = prefix_transfers
+                        + value.definite_call_transfers(&facts.values, operation, terminal_local)
+                        + uses
+                            .iter()
+                            .filter(|(_, argument)| {
+                                construction_owns_result(argument, operations.len())
+                            })
+                            .count();
+                    complete &= completion_owns(transfers, *statement_ordinal, *is_continuation);
+                }
+                complete
             }
             // A normal return retires every local it does not return, with
             // the same lexical state-exit disposal whatever the result kind:
@@ -617,7 +681,7 @@ pub(super) fn account(
                     &facts.flow.guarded_exits,
                     state.symbol,
                     operation,
-                    result_local,
+                    terminal_local,
                 )?;
                 !exits.is_empty()
                     && exits.iter().all(|(destination, transfers)| {
@@ -628,14 +692,7 @@ pub(super) fn account(
                         else {
                             return false;
                         };
-                        // Repeated unrestricted observations create no
-                        // additional custody owner. Affine and linear
-                        // transfers remain exact-one; zero still requires
-                        // the selected exit's real cleanup receipt.
-                        (result.multiplicity == Multiplicity::Unrestricted && *transfers > 0)
-                            || *transfers == 1
-                            || (*transfers == 0
-                                && permits_disposal(Some(*statement_ordinal), *is_continuation))
+                        completion_owns(*transfers, *statement_ordinal, *is_continuation)
                     })
             }
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
@@ -767,7 +824,7 @@ pub(super) fn account(
                 .sum::<usize>()
                 + if occurrence_end.is_none() {
                     let guard_transfers = entry_guard.as_ref().map_or(0, |guard| {
-                        guard.definite_call_transfers(&facts.values, operation, result_local)
+                        guard.definite_call_transfers(&facts.values, operation, terminal_local)
                     });
                     // Scalar exit computations are accounted per selected
                     // path above, together with that path's cleanup receipt.
