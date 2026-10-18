@@ -6,7 +6,9 @@
 //! machine Requires apply here only when this is the machine's entry state.
 
 use super::citations::{CitationFacts, machine_requires_facts};
-use super::structural_case_arms::recognize_structural_state_prefix;
+use super::structural_case_arms::{
+    recognize_structural_case_arms, recognize_structural_state_prefix,
+};
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use symbols::SymbolHandle;
 use typed_trees::{machine::Machine, state::State};
@@ -142,6 +144,36 @@ pub(super) fn observe_runtime_state_prefix(
         &crate::proof_only_classification(program),
         &mut diagnostics,
         visitor,
+    )?;
+    diagnostics.is_empty().then_some(())
+}
+
+/// An acyclic invocation retains every incoming substitution and guard. Start
+/// at machine entry, including all named primary/continuation edges; checking
+/// only the destination's outgoing graph would miss recurrent predecessors.
+/// Recurrent observations instead use their independently established state
+/// contract through `observe_runtime_state_prefix`.
+pub(super) fn observe_acyclic_invocation_prefix(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    visitor: &mut dyn StructuralPrefixVisitor,
+) -> Option<()> {
+    let entry = program.machine_states(machine).first()?;
+    if !crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
+        program, machine, entry,
+    ) {
+        return None;
+    }
+    let requires = machine_requires_facts(program, machine);
+    let judge = StructuralJudge::from_runtime_state_requires(program, machine, entry, &requires);
+    let mut diagnostics = Vec::new();
+    recognize_structural_case_arms(
+        program,
+        machine,
+        &judge,
+        &crate::proof_only_classification(program),
+        &mut diagnostics,
+        Some(visitor),
     )?;
     diagnostics.is_empty().then_some(())
 }

@@ -15,6 +15,15 @@ use crate::value_custody::places::{CanonicalPlace, canonical_place_from_expressi
 use std::collections::BTreeMap;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
+mod source_observations;
+use source_observations::SourceObservations;
+
+struct CaptureContext<'a> {
+    source: SourceObservations<'a>,
+    environment: &'a ValueEnvironment,
+    checked_values: &'a [super::expression_analysis::CheckedIntegerValue],
+}
+
 #[derive(Default)]
 pub(crate) struct CopiedIntegerValue {
     recipes: Vec<(
@@ -33,12 +42,19 @@ pub(crate) struct CopiedIntegerValue {
 impl CopiedIntegerValue {
     pub(crate) fn capture(
         program: &dyn crate::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: Option<&typed_trees::state::State>,
         expression: ExpressionHandle,
         environment: &ValueEnvironment,
         checked_values: &[super::expression_analysis::CheckedIntegerValue],
     ) -> Self {
         let mut value = Self::default();
-        value.capture_at(program, expression, "", &[], environment, checked_values);
+        let context = CaptureContext {
+            source: SourceObservations::new(program, machine, state, expression),
+            environment,
+            checked_values,
+        };
+        value.capture_at(&context, expression, "", &[], &[]);
         value
     }
 
@@ -224,7 +240,15 @@ impl CopiedIntegerValue {
         else {
             return;
         };
-        for field in program.expression_table.struct_fields(literal.fields) {
+        let fields = program.expression_table.struct_fields(literal.fields);
+        let source = SourceObservations::new(program, machine, Some(state), expression);
+        // This environment is after the entire initializer. A field copied
+        // before a later sibling writes its source is no longer equal to a
+        // current read of that source. Walk backward to accumulate the exact
+        // intervening effects; nested literals inherit the outer suffix too.
+        // Unknown effects withhold earlier identities, never revive them.
+        let mut written = written.to_vec();
+        for field in fields.iter().rev() {
             let primitive = integer_field_primitive(program, machine, state, field.value);
             let field_operand = ordered_values::Operand::Field {
                 receiver: Box::new(destination.clone()),
@@ -236,7 +260,7 @@ impl CopiedIntegerValue {
                 if let Some(observed) =
                     ordered_values::operand(program, machine, state, field.value, None)
                 {
-                    self.capture_scalar_equality(observed, field_operand.clone(), written);
+                    self.capture_scalar_equality(observed, field_operand.clone(), &written);
                 }
                 if let Some(length) = super::slice_lengths::denoted_collection_length(
                     program,
@@ -245,7 +269,7 @@ impl CopiedIntegerValue {
                     environment,
                     field.value,
                 ) {
-                    self.capture_scalar_equality(length, field_operand, written);
+                    self.capture_scalar_equality(length, field_operand, &written);
                 }
             } else {
                 self.capture_aggregate_identities(
@@ -254,9 +278,12 @@ impl CopiedIntegerValue {
                     state,
                     field.value,
                     &field_operand,
-                    written,
+                    &written,
                     environment,
                 );
+            }
+            if !source.include_effects(field.value, &mut written) {
+                break;
             }
         }
     }
@@ -288,50 +315,73 @@ impl CopiedIntegerValue {
 
     fn capture_at(
         &mut self,
-        program: &dyn crate::CheckingInput,
+        context: &CaptureContext<'_>,
         expression: ExpressionHandle,
         suffix: &str,
         segments: &[facts::PlaceSegment],
-        environment: &ValueEnvironment,
-        checked_values: &[super::expression_analysis::CheckedIntegerValue],
+        later_writes: &[String],
     ) {
+        let program = context.source.program;
+        let environment = context.environment;
+        let checked_values = context.checked_values;
         match program.expression_table.expression(expression) {
             ExpressionNode::StructLiteral(literal) => {
-                for field in program.expression_table.struct_fields(literal.fields) {
+                let mut later_writes = later_writes.to_vec();
+                for field in program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .rev()
+                {
                     let mut field_segments = segments.to_vec();
                     field_segments.push(facts::PlaceSegment::Field {
                         symbol: field.field_symbol,
                     });
                     self.capture_at(
-                        program,
+                        context,
                         field.value,
                         &format!("{suffix}.{}", field.name),
                         &field_segments,
-                        environment,
-                        checked_values,
+                        &later_writes,
                     );
+                    if !context
+                        .source
+                        .include_effects(field.value, &mut later_writes)
+                    {
+                        break;
+                    }
                 }
             }
             ExpressionNode::ArrayLiteral(elements) => {
+                let mut later_writes = later_writes.to_vec();
                 for (index, element) in program
                     .expression_table
                     .expression_handles(*elements)
                     .iter()
                     .enumerate()
+                    .rev()
                 {
                     let mut element_segments = segments.to_vec();
                     element_segments.push(facts::PlaceSegment::FixedIndex { index });
                     self.capture_at(
-                        program,
+                        context,
                         *element,
                         &format!("{suffix}[{index}]"),
                         &element_segments,
-                        environment,
-                        checked_values,
+                        &later_writes,
                     );
+                    if !context.source.include_effects(*element, &mut later_writes) {
+                        break;
+                    }
                 }
             }
             _ => {
+                // Arrival analysis can recheck these leaves in the completed
+                // environment too. Neither its recipe nor a current-source
+                // range/float alias is an earlier occurrence snapshot.
+                if !context.source.permits(expression, later_writes) {
+                    return;
+                }
                 if let Some(source) = canonical_place_from_expression(program, expression) {
                     for stored in &environment.integer_ranges {
                         if stored.place.root == source.root

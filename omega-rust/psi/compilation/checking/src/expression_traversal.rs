@@ -459,17 +459,8 @@ pub fn collect_expression_tree(
     expression: ExpressionHandle,
     handles: &mut Vec<ExpressionHandle>,
 ) {
-    if !expression.is_valid() || handles.contains(&expression) {
-        return;
-    }
-    handles.push(expression);
-    children(
-        program,
-        program.expression_table.expression(expression),
-        |child| {
-            collect_expression_tree(program, child, handles);
-        },
-    );
+    let mut seen: HashSet<_, symbols::BuildSymbolHasher> = handles.iter().copied().collect();
+    collect_expression_nodes(program, expression, handles, &mut seen);
 }
 
 /// Collect the structural roots rewritten by typed preparation. An assembly

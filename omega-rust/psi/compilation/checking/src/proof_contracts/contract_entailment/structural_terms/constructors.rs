@@ -93,9 +93,6 @@ pub(in super::super) fn case_value_term(
     if !program.data_payload_fields(variant).is_empty() {
         return None;
     }
-    if !definition.where_facts.is_empty() || !variant.where_facts.is_empty() {
-        return None;
-    }
     let fields = constructor_fields(program, definition, Some(variant))
         .into_iter()
         .map(|field| {
@@ -114,7 +111,7 @@ pub(in super::super) fn case_value_term(
 pub(in super::super) fn constructor_literal_term(
     program: &dyn crate::CheckingInput,
     literal: &TableStructLiteral,
-    mut supplied_term: impl FnMut(&TableStructLiteralField) -> Option<StructuralTerm>,
+    mut field_term: impl FnMut(&DataField, Option<&TableStructLiteralField>) -> Option<StructuralTerm>,
 ) -> Option<StructuralTerm> {
     let definition = program.data_definition_by_symbol(literal.type_symbol)?;
     let variant = match literal.case_symbol {
@@ -140,15 +137,10 @@ pub(in super::super) fn constructor_literal_term(
     };
     let declared = constructor_fields(program, definition, variant);
     let supplied = program.expression_table.struct_fields(literal.fields);
-    // Field omission must not silently establish an owner/case predicate.
-    // Explicit construction keeps its ordinary formation checks; defaults
-    // need positive predicate evidence before this normalizer can fill them.
-    if declared.len() != supplied.len()
-        && (!definition.where_facts.is_empty()
-            || variant.is_some_and(|variant| !variant.where_facts.is_empty()))
-    {
-        return None;
-    }
+    // This forms a value term, not a predicate certificate. Source admission
+    // independently checks the owner and selected case at their operand entry,
+    // before this value exists. An omitted field still needs its own established
+    // zero; the enclosing clause neither blocks normalization nor supplies it.
     // No field may disappear, occur twice, or be rebound by its spelling.
     if supplied.iter().any(|field| {
         !declared
@@ -166,12 +158,24 @@ pub(in super::super) fn constructor_literal_term(
             if matches.next().is_some() {
                 return None;
             }
-            supplied_term(supplied)?
+            field_term(field, Some(supplied))?
         } else {
-            if field.relevance.is_erased() {
+            if field.relevance.is_erased()
+                || crate::value_custody::data::type_requires_establishment(
+                    program,
+                    field.type_reference,
+                )
+                || crate::proof_only_classification(program)
+                    .proof_only_mention(program, field.type_reference)
+                    .is_some()
+            {
                 return None;
             }
-            zero_value_structural_term(program, field.type_reference)?
+            // A completed runtime value may retain an opaque field identity
+            // when this independently established zero has no mathematical
+            // denotation. Pure term callers decline that observation.
+            zero_value_structural_term(program, field.type_reference)
+                .or_else(|| field_term(field, None))?
         };
         fields.push((field.name.as_str().to_owned(), value));
     }
@@ -274,6 +278,15 @@ fn zero_term(
                 case: "false".to_owned(),
                 fields: Vec::new(),
             }),
+            PrimitiveType::F32 | PrimitiveType::F64 => Some(StructuralTerm::Float(
+                numerics::literals::FloatLiteral::from_f64(0.0).with_landing(
+                    if primitive == PrimitiveType::F32 {
+                        numerics::literals::FloatFormat::F32
+                    } else {
+                        numerics::literals::FloatFormat::F64
+                    },
+                ),
+            )),
             primitive if primitive.accepts_integer_literal() => {
                 Some(StructuralTerm::Integer(BigInt::zero()))
             }

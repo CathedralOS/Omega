@@ -791,7 +791,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     subject_expression,
                 )
                 .unwrap_or_default();
-                for outcome in observed.normal_return_paths(
+                for mut outcome in observed.normal_return_paths(
                     subject_expression,
                     &environment,
                     (machine, state, subject_type),
@@ -821,6 +821,22 @@ fn recognize_structural_state_leaves_from<'a>(
                         ));
                     }
                     next_remaining.push((outcome.judge.clone(), skipped_equations));
+                    if let Some((definition, variant)) =
+                        super::structural_terms::case_guard_classifier(
+                            program,
+                            machine,
+                            Some(state),
+                            guard,
+                        )
+                    {
+                        // Only this successful arm owns the case predicate.
+                        // Failed and sibling arms retain their prior context.
+                        outcome.judge.intake_selected_case_predicates(
+                            definition,
+                            variant,
+                            &constructor,
+                        );
+                    }
                     match subject {
                         StructuralTerm::Variable(subject) => {
                             branch_hypotheses.push((subject, constructor.clone()));
@@ -904,19 +920,27 @@ fn recognize_structural_state_leaves_from<'a>(
                             ));
                         }
                     }
-                    TransitionTargetNode::Named {
-                        path: target,
-                        arguments,
-                        ..
-                    } => {
-                        let [state_name] =
-                            program.statement_table.name_path_members(target.members)
-                        else {
-                            return None;
-                        };
-                        let target_state = states[1..]
-                            .iter()
-                            .find(|candidate| candidate.name.as_str() == state_name.as_str())?;
+                    TransitionTargetNode::Named { arguments, .. } => {
+                        let target_state =
+                            crate::machine_calls::calls::named_transition_target_state(
+                                program,
+                                machine,
+                                state,
+                                transition.target,
+                            )?;
+                        if requirement.as_deref().is_some_and(|observer| {
+                            !crate::machine_calls::calls::named_state_may_reach(
+                                program,
+                                machine,
+                                target_state,
+                                observer.site().state,
+                            )
+                        }) {
+                            // This transferred path cannot execute the queried
+                            // occurrence. Its effects and mathematical opacity
+                            // cannot supply or erase that occurrence's facts.
+                            continue;
+                        }
                         let target_parameters = program.state_parameters(target_state);
                         let argument_handles =
                             program.statement_table.expression_handles(*arguments);

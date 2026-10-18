@@ -952,6 +952,8 @@ impl ArrivalWalk<'_, '_> {
                 interval: analysis.value.interval,
                 copied: CopiedIntegerValue::capture(
                     self.program,
+                    self.machine,
+                    Some(source),
                     expression,
                     environment,
                     &analysis.decisions.expression_values,

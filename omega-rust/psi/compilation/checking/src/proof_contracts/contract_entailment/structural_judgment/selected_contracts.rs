@@ -359,7 +359,7 @@ impl StructuralJudge<'_> {
         {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 if let ProofFact::Expression(guarantee) = fact {
-                    capture_equations(
+                    capture_guarantees(
                         program,
                         *guarantee,
                         callable,
@@ -622,7 +622,7 @@ pub(super) fn independent_application(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn capture_equations(
+pub(super) fn capture_guarantees(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     scope: SymbolHandle,
@@ -636,14 +636,14 @@ pub(super) fn capture_equations(
     if depth >= 64 {
         return;
     }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return;
-    };
-    if binary.operator == BinaryOperator::And {
-        // Decompose the compiler-owned connective, then authenticate each
-        // equality separately. A neighboring tag guarantee grants no scalar
-        // equation and cannot suppress an independently selected equality.
-        capture_equations(
+    let binary = program.expression_table.binary_node(expression);
+    if let Some(binary) = binary
+        && binary.operator == BinaryOperator::And
+    {
+        // Decompose the compiler-owned conjunction. Each leaf retains its
+        // selected meaning; a tag guarantee grants no scalar identity and
+        // cannot suppress a neighboring predicate.
+        capture_guarantees(
             program,
             binary.left,
             scope,
@@ -654,7 +654,7 @@ pub(super) fn capture_equations(
             equations,
             depth + 1,
         );
-        capture_equations(
+        capture_guarantees(
             program,
             binary.right,
             scope,
@@ -667,47 +667,46 @@ pub(super) fn capture_equations(
         );
         return;
     }
-    if binary.operator != BinaryOperator::Equal {
-        return;
-    }
-    if !super::super::structural_terms::has_identity_equality_meaning(
-        program, scope, parameters, expression,
-    ) {
-        return;
-    }
-    if let (Some(left), Some(right)) = (
-        bound_term(
-            program,
-            binary.left,
-            scope,
-            parameters,
-            callable,
-            bindings,
-            Some(result),
-            0,
-        ),
-        bound_term(
-            program,
-            binary.right,
-            scope,
-            parameters,
-            callable,
-            bindings,
-            Some(result),
-            0,
-        ),
-    ) {
+    if let Some(binary) = binary
+        && binary.operator == BinaryOperator::Equal
+        && super::super::structural_terms::has_identity_equality_meaning(
+            program, scope, parameters, expression,
+        )
+        && let (Some(left), Some(right)) = (
+            bound_term(
+                program,
+                binary.left,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                Some(result),
+                0,
+            ),
+            bound_term(
+                program,
+                binary.right,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                Some(result),
+                0,
+            ),
+        )
+    {
         let references = [binary.left, binary.right].map(|operand| {
             crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
         });
-        let Some(references) =
+        if let Some(references) =
             crate::value_custody::expression_types::builtin_scalar_operand_references(
                 program, binary, references, None,
             )
-        else {
-            return;
-        };
-        if super::super::structural_terms::scalar_operand_is_observed(program, references[0], &left)
+            && super::super::structural_terms::scalar_operand_is_observed(
+                program,
+                references[0],
+                &left,
+            )
             && super::super::structural_terms::scalar_operand_is_observed(
                 program,
                 references[1],
@@ -715,7 +714,30 @@ pub(super) fn capture_equations(
             )
         {
             equations.push((left, right));
+            return;
         }
+    }
+    let Some(predicate) = bound_term(
+        program,
+        expression,
+        scope,
+        parameters,
+        callable,
+        bindings,
+        Some(result),
+        depth + 1,
+    ) else {
+        return;
+    };
+    let boolean =
+        crate::parameter_expression_result_type_reference(program, scope, parameters, expression)
+            .and_then(|reference| program.primitive_type_reference(reference))
+            == Some(typed_trees::types::PrimitiveType::Bool);
+    if boolean || predicate.is_mathematical_predicate() {
+        // Normal return establishes this exact public predicate. Keeping its
+        // truth does not turn IEEE equality into identity or select an arm of
+        // a disjunction. Each later consumer authenticates the selected meaning.
+        equations.push((predicate, super::value_predicates::boolean_term(true)));
     }
 }
 
@@ -851,18 +873,23 @@ pub(super) fn bound_term(
             })
         }
         ExpressionNode::StructLiteral(literal) => {
-            super::super::structural_terms::constructor_literal_term(program, literal, |field| {
-                bound_term(
-                    program,
-                    field.value,
-                    scope,
-                    parameters,
-                    callable,
-                    bindings,
-                    result,
-                    depth + 1,
-                )
-            })
+            super::super::structural_terms::constructor_literal_term(
+                program,
+                literal,
+                |_, field| {
+                    let field = field?;
+                    bound_term(
+                        program,
+                        field.value,
+                        scope,
+                        parameters,
+                        callable,
+                        bindings,
+                        result,
+                        depth + 1,
+                    )
+                },
+            )
         }
         ExpressionNode::Unary(unary) => super::super::structural_terms::logical_not_term_in_scope(
             program,

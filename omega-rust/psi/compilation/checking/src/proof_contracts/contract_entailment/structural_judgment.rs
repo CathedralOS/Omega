@@ -21,7 +21,8 @@ use licenses::{
     sorted_multiset_subtract, term_uses_application,
 };
 
-pub(super) enum StructuralJudgment {
+#[derive(Clone, Copy)]
+pub(crate) enum StructuralJudgment {
     Proven,
     Refuted,
     Unknown,
@@ -379,6 +380,7 @@ impl<'program> StructuralJudge<'program> {
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {
             judge.intake(program, *fact);
+            judge.intake_preserved_predicate(*fact);
         }
         judge
     }
@@ -397,6 +399,10 @@ impl<'program> StructuralJudge<'program> {
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {
             judge.intake(program, *fact);
+            // At entry the admitted subjects have suffered no prefix effects.
+            // Retain selected inequalities as well as identity equations;
+            // subsequent writes retire their live observations normally.
+            judge.intake_preserved_predicate(*fact);
         }
         judge.intake_entry_domain_predicates(machine, state);
         judge
@@ -443,7 +449,11 @@ impl<'program> StructuralJudge<'program> {
         Self::from_declaration_requires(
             program,
             judged_machine.symbol,
-            &[],
+            program
+                .machine_states(judged_machine)
+                .first()
+                .map(|entry| program.state_parameters(entry))
+                .unwrap_or_default(),
             requires,
             resolve_applications,
         )
@@ -508,6 +518,12 @@ impl<'program> StructuralJudge<'program> {
     fn declaration_scope(
         &self,
     ) -> Option<(SymbolHandle, &[typed_trees::signature::StateParameter])> {
+        // Declaration formation supplies its complete telescope. It can be a
+        // non-entry state or a data/trait owner; substituting machine entry
+        // parameters here would change the identity of its exact binders.
+        if !self.runtime_body_values {
+            return Some((self.machine_symbol, &self.declaration_parameters));
+        }
         let Some(machine) = self.program.machine(self.machine_symbol) else {
             return Some((self.machine_symbol, &self.declaration_parameters));
         };
@@ -732,7 +748,7 @@ impl<'program> StructuralJudge<'program> {
         } else if let Some(term) = self.declaration_term(fact) {
             let predicate = match &term {
                 StructuralTerm::MathematicalBinary { .. } => term.is_mathematical_predicate(),
-                StructuralTerm::ScalarBinary { .. } => {
+                StructuralTerm::ScalarBinary { .. } | StructuralTerm::Application { .. } => {
                     self.declaration_expression_type(fact)
                         .and_then(|reference| program.primitive_type_reference(reference))
                         == Some(typed_trees::types::PrimitiveType::Bool)
@@ -1675,9 +1691,19 @@ impl<'program> StructuralJudge<'program> {
                 program, expression,
             )
         {
+            let reference = scope
+                .and_then(|(machine, state, _)| {
+                    crate::expression_result_type_reference(program, machine, state, argument)
+                })
+                .or_else(|| {
+                    crate::proof_contracts::proof_embeddings::expression_type_reference(
+                        program, argument,
+                    )
+                })?;
             return super::structural_terms::integer_embedding_term(
                 program,
                 expression,
+                reference,
                 self.callee_term(argument, environment, machine_environment, scope, depth + 1)?,
             );
         }
@@ -1798,7 +1824,8 @@ impl<'program> StructuralJudge<'program> {
                 self.observed_field_term(receiver_term, member.member.as_str(), depth)
             }
             ExpressionNode::StructLiteral(literal) => {
-                super::structural_terms::constructor_literal_term(program, literal, |field| {
+                super::structural_terms::constructor_literal_term(program, literal, |_, field| {
+                    let field = field?;
                     self.callee_term(
                         field.value,
                         environment,

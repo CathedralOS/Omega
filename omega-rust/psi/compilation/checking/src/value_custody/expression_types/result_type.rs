@@ -915,12 +915,38 @@ fn binary_result(
             let compatible = if equality || mathematical {
                 true
             } else if let Some(carrier) = operands.into_iter().flatten().next() {
-                let primitive = primitive(program, carrier)?;
-                let supported = integer(program, carrier)
+                // Builtin selection above consumed the original declarations.
+                // Its comparison observes readable scalar referents as well
+                // as owned scalars; the Bool result cannot inherit a reference
+                // shell or require an owned operand to establish its type.
+                let meaning =
+                    super::scalar_observations::scalar_observation_meaning(program, carrier)?;
+                let primitive = meaning.0;
+                let supported = primitive.is_integer()
                     || matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
                     || (matches!(binary.operator, Equal | NotEqual)
                         && primitive == PrimitiveType::Bool);
-                supported && compatible_operands(program, binary, operands, carrier)
+                supported
+                    && [binary.left, binary.right].into_iter().zip(operands).all(
+                        |(expression, reference)| {
+                            reference.map_or_else(
+                                || {
+                                    crate::value_custody::literals::has_anonymous_numeric_results(
+                                        program, expression,
+                                    )
+                                },
+                                |reference| {
+                                    super::scalar_observations::scalar_observation_meaning(
+                                        program, reference,
+                                    )
+                                    .is_some_and(|other| {
+                                        (primitive.is_fixed_integer() && other.0.is_fixed_integer())
+                                            || other == meaning
+                                    })
+                                },
+                            )
+                        },
+                    )
             } else {
                 [binary.left, binary.right].into_iter().all(|operand| {
                     crate::value_custody::literals::has_anonymous_numeric_results(program, operand)

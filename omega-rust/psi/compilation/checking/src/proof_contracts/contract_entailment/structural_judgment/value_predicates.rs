@@ -268,6 +268,185 @@ impl StructuralJudge<'_> {
         Some((comparison, left, right))
     }
 
+    /// Inspect a retained predicate's selected meaning without resolving the
+    /// predicate through its own truth rewrite. Only its completed operands
+    /// are normalized; bounded public contract equations expose sealed calls.
+    fn completed_float_comparison(
+        &self,
+        predicate: &StructuralTerm,
+        depth: usize,
+    ) -> Option<(FloatSemanticComparison, StructuralTerm, StructuralTerm)> {
+        let mut predicate = predicate.clone();
+        for depth in depth..32 {
+            if let Some((comparison, left, right)) = self.selected_float_comparison(&predicate) {
+                return Some((
+                    comparison,
+                    self.resolve_at(left.clone(), depth + 1),
+                    self.resolve_at(right.clone(), depth + 1),
+                ));
+            }
+            predicate = self.selected_contract_normal_form(&predicate, depth + 1)?;
+        }
+        None
+    }
+
+    /// One exact sealed projection keeps its format and completed scalar.
+    /// Similar type names or literal spellings supply no projection law.
+    fn float_projection<'term>(
+        &self,
+        term: &'term StructuralTerm,
+    ) -> Option<(numerics::literals::FloatFormat, &'term StructuralTerm)> {
+        let StructuralTerm::Application {
+            target,
+            result_type,
+            selections,
+            arguments,
+            ..
+        } = term
+        else {
+            return None;
+        };
+        if !selections.is_empty() {
+            return None;
+        }
+        let [value] = arguments.as_slice() else {
+            return None;
+        };
+        let operator = self.program.operator_definition_by_symbol(*target)?;
+        if !crate::declared_carriers_match(self.program, *result_type, operator.return_type) {
+            return None;
+        }
+        let [namespace, name] = self.program.operator_path_members(operator.name) else {
+            return None;
+        };
+        let operation =
+            FloatProjectionOperation::from_source_identity(namespace.as_str(), name.as_str())?;
+        let primitive = crate::proof_contracts::float_projection_bindings::exact_toolchain_float_projection_primitive(
+            self.program, operator, operation)?;
+        let [parameter] = self.program.operator_parameters(operator) else {
+            return None;
+        };
+        if !super::super::structural_terms::scalar_operand_is_observed(
+            self.program,
+            parameter.type_reference,
+            value,
+        ) {
+            return None;
+        }
+        let format = match primitive {
+            PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
+            PrimitiveType::F64 => numerics::literals::FloatFormat::F64,
+            _ => return None,
+        };
+        // A previously landed literal cannot silently change format here.
+        if let StructuralTerm::Float(literal) = value.semantic_value()
+            && literal.landing().is_some_and(|landing| landing != format)
+        {
+            return None;
+        }
+        Some((format, value))
+    }
+
+    fn float_literal_endpoint(
+        &self,
+        term: &StructuralTerm,
+    ) -> Option<(
+        numerics::literals::FloatFormat,
+        numerics::bignum::ExactFloat,
+    )> {
+        let (format, value) = self.float_projection(term)?;
+        let StructuralTerm::Float(literal) = value.semantic_value() else {
+            return None;
+        };
+        // Read the decimal directly in the authenticated format, once.
+        Some((
+            format,
+            match format {
+                numerics::literals::FloatFormat::F32 => {
+                    numerics::bignum::ExactFloat::from_f32(literal.value_f32())
+                }
+                numerics::literals::FloatFormat::F64 => {
+                    numerics::bignum::ExactFloat::from_f64(literal.value_f64())
+                }
+            },
+        ))
+    }
+
+    fn float_bound_observation(
+        &self,
+        comparison: FloatSemanticComparison,
+        left: &StructuralTerm,
+        right: &StructuralTerm,
+    ) -> Option<(StructuralTerm, facts::FloatPredicate)> {
+        let operator = float_binary_operator(comparison);
+        let (subject, format, operator, bound) =
+            if let Some((format, bound)) = self.float_literal_endpoint(right) {
+                (left, format, operator, bound)
+            } else {
+                let (format, bound) = self.float_literal_endpoint(left)?;
+                (right, format, reverse_comparison(operator), bound)
+            };
+        if self.float_projection(subject)?.0 != format {
+            return None;
+        }
+        Some((
+            subject.clone(),
+            facts::FloatPredicate::comparison(format, operator, &bound)?,
+        ))
+    }
+
+    fn observed_float_comparison_truth(
+        &self,
+        comparison: FloatSemanticComparison,
+        left: &StructuralTerm,
+        right: &StructuralTerm,
+        depth: usize,
+    ) -> Option<bool> {
+        if let Some(((left_format, left), (right_format, right))) = self
+            .float_literal_endpoint(left)
+            .zip(self.float_literal_endpoint(right))
+            && left_format == right_format
+        {
+            use numerics::float_semantics::{FloatMeaning, FloatSemantics};
+            let left = FloatMeaning::from_f64(left.to_f64());
+            let right = FloatMeaning::from_f64(right.to_f64());
+            return Some(match comparison {
+                FloatSemanticComparison::Equal => FloatSemantics::equal(&left, &right),
+                FloatSemanticComparison::NotEqual => FloatSemantics::not_equal(&left, &right),
+                FloatSemanticComparison::Less => FloatSemantics::less(&left, &right),
+                FloatSemanticComparison::LessOrEqual => {
+                    FloatSemantics::less_or_equal(&left, &right)
+                }
+                FloatSemanticComparison::Greater => FloatSemantics::greater(&left, &right),
+                FloatSemanticComparison::GreaterOrEqual => {
+                    FloatSemantics::greater_or_equal(&left, &right)
+                }
+            });
+        }
+        let (subject, required) = self.float_bound_observation(comparison, left, right)?;
+        for (predicate, truth) in self.rewrites.iter() {
+            // Only positive observed IEEE predicates exclude NaN. Inverting a
+            // false ordered predicate would grant an invalid integer law.
+            if boolean_value(truth) != Some(true) {
+                continue;
+            }
+            let Some((comparison, left, right)) =
+                self.completed_float_comparison(predicate, depth + 1)
+            else {
+                continue;
+            };
+            let Some((observed_subject, observed)) =
+                self.float_bound_observation(comparison, &left, &right)
+            else {
+                continue;
+            };
+            if observed_subject == subject && observed.implies(required) {
+                return Some(true);
+            }
+        }
+        None
+    }
+
     fn float_comparison_truth(
         &self,
         comparison: FloatSemanticComparison,
@@ -277,6 +456,11 @@ impl StructuralJudge<'_> {
     ) -> Option<bool> {
         if depth >= 32 {
             return None;
+        }
+        if let Some(truth) =
+            self.observed_float_comparison_truth(comparison, left, right, depth + 1)
+        {
+            return Some(truth);
         }
         // IEEE equality and inequality are exact Boolean complements even
         // for NaNs and signed zeros. Use only a completed predicate over the
@@ -421,4 +605,25 @@ fn operator_application(
         ),
         arguments: vec![argument],
     })
+}
+
+fn float_binary_operator(comparison: FloatSemanticComparison) -> BinaryOperator {
+    match comparison {
+        FloatSemanticComparison::Equal => BinaryOperator::Equal,
+        FloatSemanticComparison::NotEqual => BinaryOperator::NotEqual,
+        FloatSemanticComparison::Less => BinaryOperator::Less,
+        FloatSemanticComparison::LessOrEqual => BinaryOperator::LessOrEqual,
+        FloatSemanticComparison::Greater => BinaryOperator::Greater,
+        FloatSemanticComparison::GreaterOrEqual => BinaryOperator::GreaterOrEqual,
+    }
+}
+
+fn reverse_comparison(operator: BinaryOperator) -> BinaryOperator {
+    match operator {
+        BinaryOperator::Less => BinaryOperator::Greater,
+        BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+        BinaryOperator::Greater => BinaryOperator::Less,
+        BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+        operator => operator,
+    }
 }

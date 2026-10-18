@@ -216,8 +216,18 @@ pub(super) fn infer_expression_type(
         }
         ExpressionNode::Member(member) => {
             let receiver = infer_expression_type(program, member.receiver, environment, visited)?;
-            let symbol = resolve_member_symbol(program, receiver, member)?;
-            crate::declaration_type_reference(program, symbol).map(InferredType::TypeReference)
+            if let Some(symbol) = resolve_member_symbol(program, receiver, member) {
+                return crate::declaration_type_reference(program, symbol)
+                    .map(InferredType::TypeReference);
+            }
+            // Measures have no authored field declaration. Their selected
+            // receiver fixes a count carrier in declaration contracts too.
+            collection_measure_in_environment(program, member, receiver)?;
+            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                program,
+                symbols::BuiltinTypeAtom::U64,
+            )
+            .map(InferredType::TypeReference)
         }
         ExpressionNode::Call(call) => {
             if let Some(operator) =

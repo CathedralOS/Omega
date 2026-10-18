@@ -1,0 +1,163 @@
+// The landed record window used a literal `[0..2]`. This spelling uses the
+// matched subject: in the arm `which == 0`, `[0..which + 2]` is that same
+// window. The caller writes through the returned record field.
+//
+// The subject is a parameter, a local, and a field. The end itself is also
+// a call whose ensured result is 2. Each window is written through the
+// record.
+//
+// Expected exit: 0
+use omega::language::core::float_operations;
+use omega::language::core::numeric_conversion;
+
+data Held<'samples> { values: &'samples mut [f64]; }
+data Holder { which: i64; samples: [f64; 4]; }
+
+machine endpoint() -> i64
+ensures result == 2
+{
+    2
+}
+
+machine window<'samples>(samples: &'samples mut [f64; 4], which: i64) -> &'samples mut [f64]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut samples[0..which + 2]
+        _ -> &mut samples[2..4]
+    }
+}
+
+machine window_local<'samples>(samples: &'samples mut [f64; 4], which: i64) -> &'samples mut [f64]
+ensures result.len == 2
+{
+    let index: i64 = which;
+    match index {
+        0 -> &mut samples[0..index + 2]
+        _ -> &mut samples[2..4]
+    }
+}
+
+machine window_field<'row>(holder: &'row mut Holder) -> &'row mut [f64]
+ensures result.len == 2
+{
+    match holder.which {
+        0 -> &mut holder.samples[0..holder.which + 2]
+        _ -> &mut holder.samples[2..4]
+    }
+}
+
+machine window_call<'samples>(samples: &'samples mut [f64; 4], which: i64) -> &'samples mut [f64]
+ensures result.len == 2
+{
+    match which {
+        0 -> &mut samples[0..endpoint()]
+        _ -> &mut samples[2..4]
+    }
+}
+
+machine hold<'samples>(samples: &'samples mut [f64]) -> Held<'samples>
+requires samples.len == 2
+ensures result.values.len == 2
+{
+    Held { values: samples }
+}
+
+machine write_pair(window: &mut [f64])
+requires window.len >= 2 {
+    window[0] = 0.0;
+    window[1] = 1.0;
+}
+
+machine exercise_local() crashes Trap {
+    let mut samples: [f64; 4] = [9.0, 9.0, 9.0, 9.0];
+    let view: &mut [f64] = window_local(&mut samples, 0);
+    let leading: Held = hold(view);
+    write_pair(leading.values);
+    transition {
+        _ -> check(&mut samples)
+    }
+    state check(samples: &mut [f64; 4]) {
+        let first: i32 in Saturating = I32::from_f64(samples[0]);
+        let second: i32 in Saturating = I32::from_f64(samples[1]);
+        let third: i32 in Saturating = I32::from_f64(samples[2]);
+        transition first == 0 && second == 1 && third == 9 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine exercise_field() crashes Trap {
+    let mut holder: Holder = Holder { which: 0, samples: [9.0, 9.0, 9.0, 9.0] };
+    let view: &mut [f64] = window_field(&mut holder);
+    let leading: Held = hold(view);
+    write_pair(leading.values);
+    transition {
+        _ -> check(&mut holder)
+    }
+    state check(holder: &mut Holder) {
+        let first: i32 in Saturating = I32::from_f64(holder.samples[0]);
+        let second: i32 in Saturating = I32::from_f64(holder.samples[1]);
+        let third: i32 in Saturating = I32::from_f64(holder.samples[2]);
+        transition first == 0 && second == 1 && third == 9 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine exercise_call() crashes Trap {
+    let mut samples: [f64; 4] = [9.0, 9.0, 9.0, 9.0];
+    let view: &mut [f64] = window_call(&mut samples, 0);
+    let leading: Held = hold(view);
+    write_pair(leading.values);
+    transition {
+        _ -> check(&mut samples)
+    }
+    state check(samples: &mut [f64; 4]) {
+        let first: i32 in Saturating = I32::from_f64(samples[0]);
+        let second: i32 in Saturating = I32::from_f64(samples[1]);
+        let third: i32 in Saturating = I32::from_f64(samples[2]);
+        transition first == 0 && second == 1 && third == 9 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    exercise_local();
+    exercise_field();
+    exercise_call();
+    let mut trace: [f64; 4] = [9.0, 9.0, 9.0, 9.0];
+    let view: &mut [f64] = window(&mut trace, 0);
+    let leading: Held = hold(view);
+    write_pair(leading.values);
+    let span: u64 = leading.values.len;
+    transition span == 2 {
+        true -> tail(&mut trace)
+        false -> bad()
+    }
+    state tail(trace: &mut [f64; 4]) {
+        let selected: &mut [f64] = window(trace, 1);
+        let trailing: Held = hold(selected);
+        write_pair(trailing.values);
+        let first: i32 in Saturating = I32::from_f64(trace[0]);
+        let second: i32 in Saturating = I32::from_f64(trace[1]);
+        let third: i32 in Saturating = I32::from_f64(trace[2]);
+        let fourth: i32 in Saturating = I32::from_f64(trace[3]);
+        transition first == 0 && second == 1 && third == 0 && fourth == 1 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -158,16 +158,26 @@ impl StructuralJudge<'_> {
             super::value_predicates::boolean_term(true),
             depth + 1,
         ) {
-            StructuralJudgment::Unknown if self.proves_observed_integer_predicate(&predicate) => {
-                StructuralJudgment::Proven
-            }
+            StructuralJudgment::Unknown => self.observed_integer_predicate_judgment(&predicate),
             judgment => judgment,
         }
     }
 
     fn proves_observed_integer_predicate(&self, predicate: &StructuralTerm) -> bool {
+        matches!(
+            self.observed_integer_predicate_judgment(predicate),
+            StructuralJudgment::Proven
+        )
+    }
+
+    /// Refutation owes the same admitted operations and captured premises as
+    /// proof. An unknown relation is never converted to its opposite.
+    fn observed_integer_predicate_judgment(
+        &self,
+        predicate: &StructuralTerm,
+    ) -> StructuralJudgment {
         if !self.runtime_body_values || self.case_facts_only {
-            return false;
+            return StructuralJudgment::Unknown;
         }
         let mut observations = IntegerObservations {
             engine: Engine::for_explicit_bindings(self.program),
@@ -177,20 +187,20 @@ impl StructuralJudge<'_> {
         };
         let Some((operator, left, right)) = self.integer_comparison(predicate, &mut observations)
         else {
-            return false;
+            return StructuralJudgment::Unknown;
         };
         let goal_operations = 0..observations.operations.len();
         let mut comparisons = self.observed_integer_premises(&mut observations);
         if !observations.install_premises(&mut comparisons)
             || !observations.admitted(goal_operations)
         {
-            return false;
+            return StructuralJudgment::Unknown;
         }
         let engine = &observations.engine;
         let proves = |difference: Polynomial, minimum| {
             engine.prove_at_least(&engine.substituted(&difference), &BigInt::from_i64(minimum))
         };
-        match operator {
+        let holds = |operator| match operator {
             BinaryOperator::Less => proves(right.sub(&left), 1),
             BinaryOperator::LessOrEqual => proves(right.sub(&left), 0),
             BinaryOperator::Greater => proves(left.sub(&right), 1),
@@ -202,6 +212,13 @@ impl StructuralJudge<'_> {
                     || proves(right.sub(&left), 1)
             }
             _ => false,
+        };
+        if holds(operator) {
+            StructuralJudgment::Proven
+        } else if holds(negate(operator)) {
+            StructuralJudgment::Refuted
+        } else {
+            StructuralJudgment::Unknown
         }
     }
 
@@ -449,11 +466,11 @@ impl StructuralJudge<'_> {
             {
                 return None;
             }
-            if meaning[0].0 != primitive {
-                return None;
-            }
             let start = observations.operations.len();
-            let left = self.integer_value(left, primitive, observations, depth + 1)?;
+            // Exact conversions retain this computation's mathematical value.
+            // Its formation still belongs to its original selected carriers,
+            // independently of the carrier observing the completed result.
+            let left = self.integer_value(left, meaning[0].0, observations, depth + 1)?;
             let right = self.integer_value(right, meaning[1].0, observations, depth + 1)?;
             let value = observations.engine.selected_integer_binary_value(
                 *operator,

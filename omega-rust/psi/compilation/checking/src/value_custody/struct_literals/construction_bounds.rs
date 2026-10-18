@@ -1,10 +1,10 @@
 //! Constructor predicates consume the exact field valuation and declared scope.
-//! Source literals supply their observed operands; entry zero provisioning
-//! supplies primitive zeros and leaves unsupported aggregate facts unknown.
-//! Both use one predicate fold, so a clause cannot become either a blanket
-//! refusal or a qualification granted without establishing its facts.
+//! Source literals use ordered captured operands through the ordinary structural
+//! judge, before the constructed result can donate its own invariant. Entry zero
+//! provisioning has no executed occurrence: its conservative fold supplies only
+//! independently permitted primitive zeros. Neither route grants qualification
+//! from the presence of a clause.
 
-use super::observations::ConstructionObservations;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::JoinedPath;
@@ -18,7 +18,6 @@ use typed_trees::types::PrimitiveType;
 #[derive(Clone, Copy)]
 pub(super) struct Bounds {
     interval: crate::proof_contracts::arithmetic_domains::Interval,
-    symbol: symbols::SymbolHandle,
     length: Option<i64>,
     capacity: Option<i64>,
     float_primitive: Option<PrimitiveType>,
@@ -28,7 +27,6 @@ pub(super) struct Bounds {
 impl Bounds {
     const UNKNOWN: Bounds = Bounds {
         interval: crate::proof_contracts::arithmetic_domains::Interval::UNBOUNDED,
-        symbol: symbols::SymbolHandle::invalid(),
         length: None,
         capacity: None,
         float_primitive: None,
@@ -40,7 +38,6 @@ impl Bounds {
             ..Bounds::UNKNOWN
         }
     }
-
     fn floating(primitive: PrimitiveType, interval: Option<(f64, f64)>) -> Bounds {
         Bounds {
             float_primitive: Some(primitive),
@@ -60,109 +57,12 @@ impl Bounds {
             _ => Bounds::UNKNOWN,
         }
     }
-
-    fn sequence(byte_length: usize) -> Bounds {
-        let measure = i64::try_from(byte_length).ok();
-        Bounds {
-            length: measure,
-            capacity: measure,
-            ..Bounds::UNKNOWN
-        }
-    }
 }
 
 pub(super) enum Truth {
     True,
     False,
     Unknown,
-}
-
-/// Bounds belong to the field's evaluated value. The shared observation walk
-/// retains prefix assignments and guards only across non-overlapping writes.
-/// A sibling operand's later effects cannot change an already copied scalar.
-fn value_bounds(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    observations: &ConstructionObservations<'_>,
-    expression: ExpressionHandle,
-    destination: Option<PrimitiveType>,
-) -> Bounds {
-    if let Some(primitive @ (PrimitiveType::F32 | PrimitiveType::F64)) = destination {
-        let environment = observations.environment(expression);
-        let captured = crate::proof_contracts::arithmetic_domains::capture_float_assignment(
-            program,
-            machine,
-            Some(state),
-            &environment,
-            Some(primitive),
-            expression,
-        );
-        return Bounds::floating(
-            primitive,
-            captured
-                .and_then(|value| value.bounds)
-                .map(|value| (value.minimum, value.maximum)),
-        );
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::String(literal) => return Bounds::sequence(literal.len()),
-        ExpressionNode::Integer(value) => {
-            return value
-                .text()
-                .parse::<i64>()
-                .map(Bounds::point)
-                .unwrap_or(Bounds::UNKNOWN);
-        }
-        ExpressionNode::Borrow(inner) => {
-            return value_bounds(
-                program,
-                machine,
-                state,
-                observations,
-                inner.target,
-                destination,
-            );
-        }
-        _ => {}
-    }
-    let environment = observations.environment(expression);
-    let mut diagnostics = Vec::new();
-    let interval = crate::proof_contracts::arithmetic_domains::validate_arithmetic_domains(
-        program,
-        machine,
-        Some(state),
-        expression,
-        &environment,
-        None,
-        numerics::arithmetic::ArithmeticDomain::Exact,
-        "construction value",
-        &mut diagnostics,
-    );
-    let mut bounds = if diagnostics.is_empty() {
-        Bounds {
-            interval,
-            ..Bounds::UNKNOWN
-        }
-    } else {
-        Bounds::UNKNOWN
-    };
-    if let Some(path) = program.expression_table.name_path_node(expression) {
-        bounds.symbol = path.symbol;
-        // Sequence measures are not integer-value intervals. Preserve the
-        // literal size only for an exact immutable declaration, never by name
-        // matching or by replaying a mutable local's obsolete initializer.
-        if let Some((_, local)) = program.state_local_declaration(state, path.symbol)
-            && !local.is_mutable
-            && let ExpressionNode::String(literal) =
-                program.expression_table.expression(local.initial_value)
-        {
-            let sequence = Bounds::sequence(literal.len());
-            bounds.length = sequence.length;
-            bounds.capacity = sequence.capacity;
-        }
-    }
-    bounds
 }
 
 /// Fold a `where` fact over the field-value intervals. Comparisons yield a
@@ -185,8 +85,8 @@ pub(super) fn bounds_fold(
 }
 
 /// Judge the active case's predicates at the actual zero field valuation.
-/// Entry provisioning uses the same constructor fold, not the presence of a
-/// clause or the conservative zero-gate flag as a positive certificate.
+/// Entry provisioning has no source evaluation to observe. The scalar fold
+/// judges actual zeros, never the clause's presence as a positive certificate.
 /// Only declared primitive fields have a scalar zero; aggregate observations,
 /// membership and proof applications require their own evidence and decline.
 pub fn case_predicates_admit_zero(
@@ -475,10 +375,9 @@ fn equality(left: Bounds, right: Bounds, wants_equal: bool) -> Truth {
         && right.interval.low == right.interval.high
         && left.interval.low.is_some()
         && left.interval.low == right.interval.low;
-    let same_symbol = left.symbol.is_valid() && left.symbol == right.symbol;
     let disjoint = matches!((left.interval.high, right.interval.low), (Some(a), Some(b)) if a < b)
         || matches!((right.interval.high, left.interval.low), (Some(a), Some(b)) if a < b);
-    match (same_point || same_symbol, disjoint, wants_equal) {
+    match (same_point, disjoint, wants_equal) {
         (true, _, true) | (_, true, false) => Truth::True,
         (true, _, false) | (_, true, true) => Truth::False,
         _ => Truth::Unknown,
@@ -523,16 +422,14 @@ fn tri(truth: Truth) -> Bounds {
     }
 }
 
-/// R2 rung 2b: fold every default-domain fact at the LITERAL's field
-/// valuation. Field names read the literal's integer value (omitted -> 0);
-/// literals, `+ - *`, comparisons, and `&&`/`||` fold. A fact that fails
-/// refuses naming it; a fact that cannot fold (a runtime-valued field)
-/// refuses as unverifiable.
+/// Prove the owner's default domain on the ordered operand snapshots before
+/// producing the aggregate. Field omission retains its independent zero gate.
 pub(super) fn validate_literal_default_domain(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    observations: &ConstructionObservations<'_>,
+    expression: ExpressionHandle,
+    statement_index: usize,
     literal: &TableStructLiteral,
     data_definition: &DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
@@ -543,11 +440,12 @@ pub(super) fn validate_literal_default_domain(
     // A type-wide fact may read only the data's common fields; case payloads
     // are indexed by the active case and are never in scope here.
     let declared = common_field_symbols(program, data_definition);
-    fold_literal_facts(
+    validate_literal_facts(
         program,
         machine,
         state,
-        observations,
+        expression,
+        statement_index,
         literal,
         data_definition.symbol,
         data_definition.where_facts,
@@ -567,7 +465,8 @@ pub(super) fn validate_literal_case_constraints(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    observations: &ConstructionObservations<'_>,
+    expression: ExpressionHandle,
+    statement_index: usize,
     literal: &TableStructLiteral,
     data_definition: &DataDefinition,
     case_name: &str,
@@ -597,18 +496,19 @@ pub(super) fn validate_literal_case_constraints(
     if !out_of_scope.is_empty() {
         diagnostics.push(Diagnostic::error(format!(
             "data `{}` case `{case_name}` constraint names `{}`, which is not in scope: \
-             a case `where` fact may read only the case's payload bindings and \
-             the data's common fields (a sibling case's payload is never in scope)",
+             a case `where` fact may read the case's payload bindings, common fields and \
+             lexically available contract names (a sibling case's payload is never in scope)",
             literal.type_name.as_str(),
             out_of_scope.join("`, `"),
         )));
         return;
     }
-    fold_literal_facts(
+    validate_literal_facts(
         program,
         machine,
         state,
-        observations,
+        expression,
+        statement_index,
         literal,
         data_definition.symbol,
         variant.where_facts,
@@ -635,10 +535,9 @@ fn common_field_symbols(
         .collect()
 }
 
-/// Collect the leaf names one fact expression consults that are not declared
-/// in scope: `Name` leaves and the receiver of a `len`/`capacity` measure,
-/// mirroring the leaf shapes `bounds_eval` resolves against the literal's
-/// field valuation. Other leaf kinds carry no field name.
+/// Resolved field roots belong to the common or active payload roster.
+/// Descendant member selectors have their own declared owners; lexical names
+/// retain their resolved identity instead of being mistaken for omitted fields.
 fn collect_out_of_scope_leaf_names(
     program: &dyn crate::CheckingInput,
     declared: &[symbols::SymbolHandle],
@@ -651,36 +550,26 @@ fn collect_out_of_scope_leaf_names(
                 .expression_table
                 .name_path_members(path.members)
                 .last()
-                && !declared.contains(&path.symbol)
+                && (!path.symbol.is_valid()
+                    || (program.symbols.get(path.symbol).kind == symbols::SymbolKind::Field
+                        && !declared.contains(&path.symbol)))
                 && !out_of_scope.iter().any(|name| name == last.as_str())
             {
                 out_of_scope.push(last.as_str().to_owned());
             }
         }
-        ExpressionNode::Member(member)
-            if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
-        {
-            collect_out_of_scope_leaf_names(program, declared, member.receiver, out_of_scope);
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_out_of_scope_leaf_names(program, declared, binary.left, out_of_scope);
-            collect_out_of_scope_leaf_names(program, declared, binary.right, out_of_scope);
-        }
-        ExpressionNode::Borrow(inner) => {
-            collect_out_of_scope_leaf_names(program, declared, inner.target, out_of_scope);
-        }
-        ExpressionNode::Unary(unary) => {
-            collect_out_of_scope_leaf_names(program, declared, unary.operand, out_of_scope);
-        }
-        _ => {}
+        node => crate::expression_traversal::children(program, node, |child| {
+            collect_out_of_scope_leaf_names(program, declared, child, out_of_scope);
+        }),
     }
 }
 
-fn fold_literal_facts(
+fn validate_literal_facts(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    observations: &ConstructionObservations<'_>,
+    expression: ExpressionHandle,
+    statement_index: usize,
     literal: &TableStructLiteral,
     owner: symbols::SymbolHandle,
     facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
@@ -690,44 +579,69 @@ fn fold_literal_facts(
     fact_adjective: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // Snapshot each field at its own source observation, including operand effects.
-    let mut valuation = Vec::new();
-    for field in program.expression_table.struct_fields(literal.fields) {
-        let destination =
-            super::selected_construction_field_type(program, literal, field.field_symbol)
-                .and_then(|reference| program.primitive_type_reference(reference));
-        let value = value_bounds(
-            program,
-            machine,
-            state,
-            observations,
-            field.value,
-            destination,
-        );
-        valuation.push((field.field_symbol, value));
-    }
-    // Omitted IEEE fields contribute their format's zero, never an integer
-    // stand-in. Other omitted values retain their existing zero/measure rules.
-    for symbol in declared {
-        if !valuation.iter().any(|(field, _)| field == symbol) {
-            let primitive = super::selected_construction_field_type(program, literal, *symbol)
-                .and_then(|reference| program.primitive_type_reference(reference));
-            if matches!(primitive, Some(PrimitiveType::F32 | PrimitiveType::F64)) {
-                valuation.push((*symbol, Bounds::zero(primitive)));
-            }
-        }
-    }
+    let Some(definition) = program.data_definition_by_symbol(owner) else {
+        return;
+    };
+    let parameters = declared
+        .iter()
+        .filter_map(|symbol| {
+            let field =
+                program
+                    .data_members(definition)
+                    .iter()
+                    .find_map(|member| match member {
+                        typed_trees::data::DataMember::Field(field) if field.symbol == *symbol => {
+                            Some(field)
+                        }
+                        typed_trees::data::DataMember::Variant(variant) => program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .find(|field| field.symbol == *symbol),
+                        _ => None,
+                    })?;
+            Some(typed_trees::signature::StateParameter {
+                symbol: field.symbol,
+                name: field.name.clone(),
+                type_reference: super::selected_construction_field_type(
+                    program,
+                    literal,
+                    field.symbol,
+                )
+                .unwrap_or_default(),
+                ..Default::default()
+            })
+        })
+        .collect::<Vec<_>>();
+    let predicates = program
+        .proof_facts
+        .span_or_empty(facts)
+        .iter()
+        .filter_map(|fact| fact.as_expression().copied())
+        .collect::<Vec<_>>();
+    let judgments = crate::proof_contracts::contract_entailment::construction_predicate_judgments(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        literal,
+        &parameters,
+        &predicates,
+    );
+    let mut judgments = judgments.into_iter();
+    let mut predicate_diagnostics = Vec::new();
     for fact in program.proof_facts.span_or_empty(facts) {
         match fact {
-            typed_trees::domain::ProofFact::Expression(expression) => {
-                match bounds_fold(program, owner, &valuation, declared, *expression) {
-                    Truth::True => {}
-                    Truth::False => diagnostics.push(Diagnostic::error(format!(
+            typed_trees::domain::ProofFact::Expression(_) => {
+                use crate::proof_contracts::contract_entailment::structural_judgment::StructuralJudgment;
+                match judgments.next().unwrap_or(StructuralJudgment::Unknown) {
+                    StructuralJudgment::Proven => {}
+                    StructuralJudgment::Refuted => predicate_diagnostics.push(Diagnostic::error(format!(
                         "{subject} literal violates {fact_label}: a `where` \
                          fact evaluates FALSE at this construction (ch12: construction is \
                          the gate)"
                     ))),
-                    Truth::Unknown => diagnostics.push(Diagnostic::error(format!(
+                    StructuralJudgment::Unknown => predicate_diagnostics.push(Diagnostic::error(format!(
                         "{subject} literal cannot prove {fact_label}: a \
                          `where` fact is not established by the values observed at this \
                          construction -- establish the required bounds before constructing the value"
@@ -761,7 +675,7 @@ fn fold_literal_facts(
                     },
                 );
                 if !proven {
-                    diagnostics.push(Diagnostic::error(format!(
+                    predicate_diagnostics.push(Diagnostic::error(format!(
                         "{subject} literal cannot prove {fact_adjective} fact: \
                          field `{}` is not known to satisfy domain `{}` at construction",
                         field_name.unwrap_or("<unknown>"),
@@ -770,13 +684,19 @@ fn fold_literal_facts(
                 }
             }
             typed_trees::domain::ProofFact::Proposition(application) => {
-                diagnostics.push(Diagnostic::error(format!(
+                predicate_diagnostics.push(Diagnostic::error(format!(
                     "{subject} literal cannot prove {fact_adjective} proposition `{}` at construction",
                     application.name.as_str(),
                 )));
             }
         }
     }
+    let source_span = program.expression_table.source_span(expression);
+    diagnostics.extend(
+        predicate_diagnostics
+            .into_iter()
+            .map(|diagnostic| diagnostic.with_source_span(source_span)),
+    );
 }
 
 fn membership_domain_label(

@@ -238,11 +238,15 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalOperationEntry<'program>>> {
+        // Earlier siblings still execute in order, but their unused aggregate
+        // values need not be retained to observe this operation's operands.
+        // The requested operation and every effectful child keep value demand.
+        let observations = [call];
         let operands = self.statement_observation_operands(
             statement_index,
             call,
             scope,
-            NormalValueDemand::Value,
+            NormalValueDemand::Observe(&observations),
         )?;
         let mut entries = Vec::new();
         self.clone().evaluate_normal_operands(
@@ -938,16 +942,50 @@ impl<'program> StructuralJudge<'program> {
                 }
                 if let ExpressionNode::StructLiteral(literal) = node {
                     let fields = program.expression_table.struct_fields(literal.fields);
-                    value = super::super::structural_terms::constructor_literal_term(
+                    let constructed = super::super::structural_terms::constructor_literal_term(
                         program,
                         literal,
-                        |field| {
-                            let position = fields
-                                .iter()
-                                .position(|source| source.field_symbol == field.field_symbol)?;
-                            inputs.get(position).map(|(_, value)| value.clone())
+                        |declared, supplied| {
+                            if let Some(field) = supplied {
+                                let position = fields
+                                    .iter()
+                                    .position(|source| source.field_symbol == field.field_symbol)?;
+                                return inputs.get(position).map(|(_, value)| value.clone());
+                            }
+                            if !judge.runtime_body_values
+                                || !crate::has_contents(
+                                    program,
+                                    declared.type_reference,
+                                    &[],
+                                    crate::value_custody::storage_contents::ContentsRequirement::BorrowFree,
+                                )
+                            {
+                                return None;
+                            }
+                            // Default-domain admission is not a loan origin.
+                            // Only finite borrow-free runtime zeros receive an
+                            // opaque identity; erased terms and reference-bearing
+                            // defaults still need their independent producers.
+                            judge.capture_sequence += 1;
+                            Some(StructuralTerm::CapturedValue {
+                                expression,
+                                callable: SymbolHandle::invalid(),
+                                occurrence: judge.capture_sequence,
+                                result_type: declared.type_reference,
+                            })
                         },
-                    )?;
+                    );
+                    value = match constructed {
+                        Some(constructed) => constructed,
+                        None if judge.runtime_body_values => {
+                            // A completed construction can contain an omitted
+                            // established value with no mathematical denotation.
+                            // Preserve its executed effects and a fresh result;
+                            // an unrelated later predicate still sees its prefix.
+                            judge.capture_unknown_value(expression, scope)?
+                        }
+                        None => return None,
+                    };
                 }
                 if let ExpressionNode::Binary(_) = node {
                     let [(_, left), (_, right)] = inputs.as_slice() else {
@@ -1051,6 +1089,34 @@ impl<'program> StructuralJudge<'program> {
             })?,
         };
         self.intake_current_storage_fields(scope.0, scope.1, expression, &value);
+        if let StructuralTerm::CapturedValue { result_type, .. } = &value {
+            self.intake_admitted_scalar_bounds(*result_type, &value);
+        }
+        if let ExpressionNode::String(bytes) = self.program.expression_table.expression(expression)
+            && let StructuralTerm::CapturedValue { result_type, .. } = &value
+        {
+            // The completed quoted-byte view has exact descriptor geometry.
+            // Its contents remain opaque: a byte count supplies neither an
+            // encoding predicate nor authority to observe another referent.
+            let extent = StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
+                u64::try_from(bytes.len()).ok()?,
+            ));
+            for measure in [
+                language_semantics::declaration_selection::CollectionMeasure::Length,
+                language_semantics::declaration_selection::CollectionMeasure::Capacity,
+            ] {
+                if let Some(observation) =
+                    super::super::structural_terms::observed_collection_measure(
+                        self.program,
+                        *result_type,
+                        measure,
+                        || Some(value.clone()),
+                    )
+                {
+                    self.assume_normal_equation(observation, extent.clone());
+                }
+            }
+        }
         Some(value)
     }
 
@@ -1447,7 +1513,7 @@ impl<'program> StructuralJudge<'program> {
                 owner_symbol(&owner),
             );
         }
-        self.intake_declared_value_domains(result_type, captured.clone());
+        self.intake_admitted_value_predicates(result_type, captured.clone());
         std::sync::Arc::make_mut(&mut self.normal_results).push((expression, captured));
         for (left, right) in equations {
             std::sync::Arc::make_mut(&mut self.captured_result_equations)

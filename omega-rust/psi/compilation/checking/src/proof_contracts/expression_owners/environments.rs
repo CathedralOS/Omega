@@ -424,23 +424,75 @@ pub(super) fn data_type_environments(
                 })
             })
             .collect::<Vec<_>>();
+        // A data predicate has its own exact common-field telescope. Each
+        // case adds only its active payload; no sibling's names or types enter
+        // the owner of a nested projection or compiler-owned measure.
+        let mut common = bindings;
+        common.extend(
+            program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| {
+                    let field = member.as_field()?;
+                    Some(Binding {
+                        name: field.name.to_string(),
+                        symbol: field.symbol,
+                        type_reference: field.type_reference,
+                    })
+                }),
+        );
         let mut reached = Vec::new();
         for fact in program.proof_facts.span_or_empty(definition.where_facts) {
             reached.extend(super::indexing::proof_fact_reachable_expressions(
                 program, fact,
             ));
         }
-        for field in program.data_member_fields(program.data_members(definition)) {
-            reached.extend(super::indexing::type_reference_reachable_expressions(
-                program,
-                field.type_reference,
-            ));
+        for member in program.data_members(definition) {
+            match member {
+                typed_trees::data::DataMember::Field(field) => {
+                    reached.extend(super::indexing::type_reference_reachable_expressions(
+                        program,
+                        field.type_reference,
+                    ));
+                }
+                typed_trees::data::DataMember::Variant(variant) => {
+                    let mut payload_reached = Vec::new();
+                    for fact in program.proof_facts.span_or_empty(variant.where_facts) {
+                        payload_reached.extend(super::indexing::proof_fact_reachable_expressions(
+                            program, fact,
+                        ));
+                    }
+                    let mut payload = common.clone();
+                    for field in program.data_payload_fields(variant) {
+                        payload.push(Binding {
+                            name: field.name.to_string(),
+                            symbol: field.symbol,
+                            type_reference: field.type_reference,
+                        });
+                        payload_reached.extend(
+                            super::indexing::type_reference_reachable_expressions(
+                                program,
+                                field.type_reference,
+                            ),
+                        );
+                    }
+                    if !payload_reached.is_empty() {
+                        environments.push((
+                            payload_reached,
+                            TypeEnvironment {
+                                bindings: payload,
+                                ..Default::default()
+                            },
+                        ));
+                    }
+                }
+            }
         }
         if !reached.is_empty() {
             environments.push((
                 reached,
                 TypeEnvironment {
-                    bindings,
+                    bindings: common,
                     ..Default::default()
                 },
             ));

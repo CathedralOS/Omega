@@ -80,9 +80,11 @@ mod call_requirements;
 mod citations;
 mod completed_domains;
 mod completed_values;
+mod construction_predicates;
 pub use completed_domains::{
     completed_value_proves_domain_predicate, completed_value_refutes_domain,
 };
+pub(crate) use construction_predicates::construction_predicate_judgments;
 mod const_ranges;
 mod content_conservation;
 mod contract_refinement;

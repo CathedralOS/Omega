@@ -419,6 +419,7 @@ pass/core/runtime_guarded_trapping_conversion_exit built 2719ms exit:70 interpre
 pass/core/scoped_integer_call_exact_actual_requires_formation built 1735ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
 pass/core/scoped_integer_call_guarantees_composed_exit built 1786ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
 pass/core/scoped_integer_call_unrelated_trait_operator_requires_formation built 1738ms exit:0 interpreter-exit:0 interpreter:agrees @cba4ef8c9ab1
+pass/data/runtime_case_payload_call_result_window_exit built 8466ms exit:0 interpreter-exit:0 interpreter:agrees @408e4fc23fbc
 pass/data/runtime_mixed_case_nested_common_fields_exit built 3565ms exit:0 interpreter-exit:0 interpreter:agrees @9cc6a58bcdc4+wt
 pass/data/runtime_mixed_case_payload_dispatch_exit built 1553ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35
 pass/data/runtime_zeroed_first_case_enum_payload_exit built 1462ms exit:70 interpreter-exit:70 interpreter:agrees @194c7a0f42ea+wt
@@ -523,6 +524,7 @@ pass/facts/bound_through_other_machine_exit built 3834ms exit:0 interpreter-exit
 pass/facts/bound_through_other_state_exit built 3824ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/bound_through_parameter_exit built 3868ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/bound_through_target_body_exit built 3875ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
+pass/facts/computed_record_window_original_exit built 8596ms exit:0 interpreter-exit:0 interpreter:agrees @408e4fc23fbc
 pass/facts/reference_arrival_handoff_through_call_result_exit built 6175ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_const_name_exit built 6175ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_field_exit built 6322ms exit:0 interpreter-exit:0 interpreter:agrees @3424ad143d6e

@@ -67,36 +67,19 @@ impl<'program> SpecificationCaller<'program> {
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<StructuralTerm> {
-        match self {
-            Self::Machine(machine, Some(state)) => super::structural_terms::structural_term(
-                program,
-                Some((machine, state, Default::default())),
-                None,
-                expression,
-                None,
-            ),
-            Self::Machine(machine, None) => super::structural_terms::structural_term(
-                program,
-                None,
-                Some((
-                    machine.symbol,
-                    program
-                        .machine_states(machine)
-                        .first()
-                        .map(|entry| program.state_parameters(entry))
-                        .unwrap_or_default(),
-                )),
-                expression,
-                None,
-            ),
-            Self::Declaration(symbol, parameters) => super::structural_terms::structural_term(
-                program,
-                None,
-                Some((symbol, parameters)),
-                expression,
-                None,
-            ),
-        }
+        let parameters = self
+            .parameters(program)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        structural_term(
+            program,
+            self.state_scope()
+                .map(|(machine, state)| (machine, state, Default::default())),
+            Some((self.symbol(), &parameters)),
+            expression,
+            None,
+        )
     }
 }
 

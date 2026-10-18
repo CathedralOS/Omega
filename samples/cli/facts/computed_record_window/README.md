@@ -58,3 +58,11 @@ gap: state loan chains resolved a lent local's completed home only among
 discardable record results, so an array or byte-view local's binding answered
 "no exact completed home". All structural result bindings share the one
 establishment ordinal namespace; the lookup now names any of them.
+
+`case_payload/main.omg` keeps the same computed length-2 window and original
+backing write through `Outcome::Some { held: hold(window(samples, 0)) }`.
+Its selected case requires `held.values.len == 2` before construction; matching
+then carries that established condition into the state calling `write_pair`.
+The invalid twin changes only the window extent to 1. The constructor must
+consume completed operand snapshots and public call guarantees, without using
+its own not-yet-established case condition as a premise.

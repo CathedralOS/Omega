@@ -1,4 +1,4 @@
-//! Read-only named-transition topology queries for write-frame inference.
+//! Read-only named-transition topology for write frames and prefix observations.
 //!
 //! This leaf resolves authored named edges within one machine, checks the
 //! reachable named-transition subgraph for cycles, recognizes exact
@@ -96,7 +96,58 @@ pub(crate) fn named_state_transition_subgraph_is_acyclic(
         })
 }
 
-pub(super) fn named_transition_target_state<'program>(
+/// Whether a named successor can contribute to an observation in `destination`.
+/// Unknown edges remain relevant; only a complete negative topology result
+/// permits a prefix observer to omit an unrelated execution branch.
+pub(crate) fn named_state_may_reach(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    source: &State,
+    destination: SymbolHandle,
+) -> bool {
+    fn visit(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        destination: SymbolHandle,
+        visited: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if state.symbol == destination {
+            return true;
+        }
+        if visited.contains(&state.symbol) {
+            return false;
+        }
+        visited.push(state.symbol);
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let Some(transition) = statement.as_transition() else {
+                continue;
+            };
+            for edge in transition.targets() {
+                if super::terminal_calls::target(program, machine, edge).is_valid()
+                    || !matches!(
+                        program.statement_table.transition_target(edge),
+                        TransitionTargetNode::Named { .. }
+                    )
+                {
+                    continue;
+                }
+                let Some(next) = named_transition_target_state(program, machine, state, edge)
+                else {
+                    return true;
+                };
+                if visit(program, machine, next, destination, visited) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    visit(program, machine, source, destination, &mut Vec::new())
+}
+
+pub(crate) fn named_transition_target_state<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     source: &'program State,

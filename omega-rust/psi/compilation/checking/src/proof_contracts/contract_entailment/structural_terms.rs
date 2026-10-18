@@ -64,12 +64,11 @@ pub(super) fn denotation_preserving_conversion(
 pub(super) fn integer_embedding_term(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
     value: StructuralTerm,
 ) -> Option<StructuralTerm> {
-    let (_, argument) =
+    let (_, _argument) =
         crate::proof_contracts::proof_embeddings::integer_embedding_argument(program, expression)?;
-    let reference =
-        crate::proof_contracts::proof_embeddings::expression_type_reference(program, argument)?;
     Some(StructuralTerm::IntegerEmbedding {
         reference,
         value: Box::new(value),
@@ -526,9 +525,20 @@ pub(super) fn structural_term(
     if let Some((_, argument)) =
         crate::proof_contracts::proof_embeddings::integer_embedding_argument(program, expression)
     {
+        let reference = if let Some((owner, parameters)) = frame {
+            crate::parameter_expression_result_type_reference(program, owner, parameters, argument)
+        } else {
+            scope.and_then(|(machine, state, _)| {
+                crate::expression_result_type_reference(program, machine, state, argument)
+            })
+        }
+        .or_else(|| {
+            crate::proof_contracts::proof_embeddings::expression_type_reference(program, argument)
+        })?;
         return integer_embedding_term(
             program,
             expression,
+            reference,
             structural_term(program, scope, frame, argument, bindings)?,
         );
     }
@@ -543,6 +553,34 @@ pub(super) fn structural_term(
                 return Some(StructuralTerm::BoundValue(path.symbol));
             }
             let members = program.expression_table.name_path_members(path.members);
+            if let Some((owner, parameters)) = frame {
+                // A declaration's formal is selected by its resolved symbol.
+                // Lexical names must retain their own identity: a same-named
+                // caller local cannot supply a constructor/contract premise.
+                if let Some(parameter) = parameters
+                    .iter()
+                    .find(|parameter| path.symbol.is_valid() && parameter.symbol == path.symbol)
+                {
+                    return Some(StructuralTerm::Variable(parameter.name.to_string()));
+                }
+                if crate::reserved_result_owner(program, expression)
+                    .is_some_and(|result_owner| result_owner.0 == owner)
+                {
+                    return Some(StructuralTerm::Variable("result".to_owned()));
+                }
+                if case_classifier(program, expression).is_some() {
+                    return case_value_term(program, expression);
+                }
+                if path.symbol.is_valid()
+                    && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Field
+                {
+                    return None;
+                }
+                return path
+                    .symbol
+                    .is_valid()
+                    .then_some(StructuralTerm::BoundValue(path.symbol));
+            }
             match members {
                 [single] => {
                     // Immutability preserves the stored value, not the source
@@ -565,7 +603,8 @@ pub(super) fn structural_term(
             }
         }
         ExpressionNode::StructLiteral(literal) => {
-            constructor_literal_term(program, literal, |field| {
+            constructor_literal_term(program, literal, |_, field| {
+                let field = field?;
                 structural_term(program, scope, frame, field.value, bindings)
             })
         }

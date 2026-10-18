@@ -11,7 +11,8 @@
 //! stores. The existing scan retains their exact field/value decisions and
 //! statement coordinates for CheckFacts; occurrence-bound analysis supplies
 //! prefix and operand effects without replaying local initializers here.
-//! Default-domain and case predicates use those same observation environments.
+//! Default-domain and case predicates consume the normal operation's captured
+//! operands before constructor admission, including completed child guarantees.
 //! An unrelated mutable operand does not erase an earlier guard; an overlapping
 //! write does. The syntax scan locates obligations, not a second fact-flow model.
 //!
@@ -93,6 +94,12 @@ pub(crate) fn validate_struct_literal_fields(
                 .statement_table
                 .indexed_statements(state.statement_nodes)
             {
+                // Arm markers duplicate the dispatch subject for independent
+                // destructure/exhaustiveness validation. They do not evaluate
+                // a value; construction is checked at its real guard or root.
+                if crate::proof_contracts::contract_entailment::is_arm_pattern_marker(statement) {
+                    continue;
+                }
                 match statement {
                     StatementNode::Assembly(_) => {}
                     StatementNode::RootBinding(binding) => {
@@ -303,7 +310,8 @@ fn scan_expression(
                 program,
                 machine,
                 state,
-                observations,
+                expression,
+                statement_index,
                 literal,
                 diagnostics,
             );
@@ -546,7 +554,8 @@ fn scan_expression(
                 program,
                 machine,
                 state,
-                observations,
+                expression,
+                statement_index,
                 &literal,
                 diagnostics,
             );
@@ -562,7 +571,8 @@ fn validate_literal_field_names(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    observations: &ConstructionObservations<'_>,
+    expression: ExpressionHandle,
+    statement_index: usize,
     literal: &TableStructLiteral,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -644,7 +654,8 @@ fn validate_literal_field_names(
         program,
         machine,
         state,
-        observations,
+        expression,
+        statement_index,
         literal,
         data_definition,
         diagnostics,
@@ -695,7 +706,8 @@ fn validate_literal_field_names(
                 program,
                 machine,
                 state,
-                observations,
+                expression,
+                statement_index,
                 literal,
                 data_definition,
                 case_name.as_str(),

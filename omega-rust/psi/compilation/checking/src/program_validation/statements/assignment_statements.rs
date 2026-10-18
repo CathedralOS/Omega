@@ -379,6 +379,8 @@ pub(super) fn validate<'a, 'p>(
     }
     let copied_value = arithmetic_domains::CopiedIntegerValue::capture(
         program,
+        machine,
+        current_state,
         assignment.value,
         value_environment,
         &arithmetic_decisions.expression_values[first_checked_interval..],

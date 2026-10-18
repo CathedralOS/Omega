@@ -277,6 +277,8 @@ pub(super) fn validate(
     if local_data.initial_value.is_valid() {
         let mut copied_value = arithmetic_domains::CopiedIntegerValue::capture(
             program,
+            machine,
+            current_state,
             local_data.initial_value,
             value_environment,
             &arithmetic_decisions.expression_values[first_checked_interval..],

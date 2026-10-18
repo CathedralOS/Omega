@@ -1577,13 +1577,12 @@ defines the complete product bar.
     out-of-range indexed writes; remaining recast customers and hosts stay open.
     Run `pass/float/named_integer_conversion_source_proofs_exit` (data `where`,
     exit 78) on Linux/Windows, keeping its invalid-write control.
-    Constructor bounds now use the shared occurrence environment in
-    `checking/src/value_custody/struct_literals/construction_bounds.rs`, not
-    the retired immutable-operand filter or obsolete local initializers.
-    `python3 tools/corpus_gate.py --native --filter data/runtime_constructor_observation_exit`
-    executes with exit 70 on macOS ARM64; stale-local and earlier-operand
-    mutation controls reject. Ordinary CLI package preparation still requires
-    this new fixture's local package review; no acceptance policy is committed.
+    Construction predicates consume completed ordered operands through
+    `checking/src/proof_contracts/contract_entailment/construction_predicates.rs`.
+    Keep `data/runtime_constructor_observation_exit` (70) and
+    `data/runtime_case_payload_call_result_window_exit` (0), with stale-local,
+    earlier-operand mutation and distinct-field-version refusals. Preserve the
+    computed-window fact row and its constrained-case payload composition.
     Keep the [19-position reference-carrier inventory](wiki/drafts/designs/range_suffix_migration.md#audited-bounded-reference-carriers)
     and its six authored exit-70 witnesses as regression constraints: nested
     reference arrays/records, constructor transfers, shared cohorts and case

@@ -1,4 +1,4 @@
-//! Predicate consequences of independently established incoming membership.
+//! Predicate consequences of independently established incoming values.
 //!
 //! State parameters and Requires describe this invocation's admitted inputs;
 //! a completed call's declared result describes that exact returned value.
@@ -14,6 +14,56 @@ use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::types::TypeReferenceHandle;
 
 impl StructuralJudge<'_> {
+    /// A successful nominal guard establishes only the selected case's facts.
+    /// Its fresh common/payload terms identify this observed value, so later
+    /// state substitution transports the predicate without rereading storage.
+    pub(in crate::proof_contracts::contract_entailment) fn intake_selected_case_predicates(
+        &mut self,
+        definition: &typed_trees::data::DataDefinition,
+        variant: &typed_trees::data::DataVariant,
+        value: &StructuralTerm,
+    ) {
+        let StructuralTerm::Constructor { fields, .. } = value else {
+            return;
+        };
+        let program = self.program;
+        let declared = program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| member.as_field())
+            .chain(program.data_payload_fields(variant));
+        let mut parameters = Vec::new();
+        let mut bindings = Vec::new();
+        for field in declared {
+            let mut values = fields
+                .iter()
+                .filter(|(name, _)| name == field.name.as_str());
+            let Some((_, value)) = values.next() else {
+                return;
+            };
+            if values.next().is_some() {
+                return;
+            }
+            parameters.push(StateParameter {
+                symbol: field.symbol,
+                name: field.name.clone(),
+                type_reference: field.type_reference,
+                ..Default::default()
+            });
+            bindings.push((field.name.to_string(), value.clone()));
+        }
+        for fact in program.proof_facts.span_or_empty(variant.where_facts) {
+            if let ProofFact::Expression(expression) = fact {
+                self.intake_instantiated_predicate(
+                    definition.symbol,
+                    &parameters,
+                    *expression,
+                    &bindings,
+                );
+            }
+        }
+    }
+
     pub(super) fn intake_entry_domain_predicates(
         &mut self,
         machine: &typed_trees::machine::Machine,
@@ -21,7 +71,7 @@ impl StructuralJudge<'_> {
     ) {
         let program = self.program;
         for parameter in program.state_parameters(state) {
-            self.intake_declared_value_domains(
+            self.intake_admitted_value_predicates(
                 parameter.type_reference,
                 StructuralTerm::Variable(parameter.name.as_str().to_owned()),
             );
@@ -70,11 +120,12 @@ impl StructuralJudge<'_> {
         }
     }
 
-    pub(super) fn intake_declared_value_domains(
+    pub(super) fn intake_admitted_value_predicates(
         &mut self,
         reference: TypeReferenceHandle,
         value: StructuralTerm,
     ) {
+        self.intake_admitted_scalar_bounds(reference, &value);
         let program = self.program;
         for row in crate::field_domains::declared_type_domain_rows(program, reference) {
             let Some(projected) = super::super::observed_projections::project_observed_value(
@@ -97,6 +148,120 @@ impl StructuralJudge<'_> {
                 &mut Vec::new(),
             );
         }
+        self.intake_admitted_data_predicates(reference, value, &mut Vec::new());
+    }
+
+    /// The carrier belongs to this completed value, even after conversion or
+    /// a later write to its former source. A reference descriptor alone does
+    /// not establish a scalar observation. These intrinsic integer facts say
+    /// nothing about user domains, a call's private body or a pending result.
+    pub(super) fn intake_admitted_scalar_bounds(
+        &mut self,
+        reference: TypeReferenceHandle,
+        value: &StructuralTerm,
+    ) {
+        let program = self.program;
+        let Some(meaning) =
+            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+        else {
+            return;
+        };
+        // Address geometry remains symbolic and target-independent; the
+        // hosted implementation's Addr integer_bounds is not that contract.
+        if !meaning.0.is_fixed_integer() {
+            return;
+        }
+        let Some((minimum, maximum)) = meaning.0.integer_bounds() else {
+            return;
+        };
+        if !super::super::structural_terms::scalar_operand_is_observed(program, reference, value) {
+            return;
+        }
+        for (operator, bound) in [
+            (BinaryOperator::GreaterOrEqual, minimum),
+            (BinaryOperator::LessOrEqual, maximum),
+        ] {
+            let predicate = StructuralTerm::ScalarBinary {
+                references: [reference; 2],
+                operator,
+                meaning: [meaning; 2],
+                left: Box::new(value.clone()),
+                right: Box::new(StructuralTerm::Integer(
+                    numerics::bignum::BigInt::from_i128(bound),
+                )),
+            };
+            self.intake_equation(predicate, super::value_predicates::boolean_term(true), 0);
+        }
+    }
+
+    /// Only admitted inputs and completed call results enter here. A pending
+    /// constructor's receiving annotation is not evidence of its own `where`.
+    /// Readable input references expose their entry value; produced reference
+    /// descriptors still cannot manufacture observations of their referents.
+    fn intake_admitted_data_predicates(
+        &mut self,
+        reference: TypeReferenceHandle,
+        value: StructuralTerm,
+        active: &mut Vec<SymbolHandle>,
+    ) {
+        let program = self.program;
+        let Some(definition) =
+            crate::field_domains::readable_nominal_definition(program, reference)
+        else {
+            return;
+        };
+        if active.contains(&definition.symbol) {
+            return;
+        }
+        active.push(definition.symbol);
+        let mut parameters = Vec::new();
+        let mut bindings = Vec::new();
+        // Unknown case identity admits only common fields. Payload predicates
+        // enter through the separately authenticated selected-case arm; reading
+        // every variant here would project inactive same-named payloads onto
+        // one subject and lend their unrelated default-domain facts.
+        for field in program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| member.as_field())
+        {
+            let path = [facts::PlaceSegment::Field {
+                symbol: field.symbol,
+            }];
+            let Some(projected) = super::super::observed_projections::project_observed_value(
+                program,
+                reference,
+                value.clone(),
+                &path,
+            ) else {
+                continue;
+            };
+            let Some(projected_type) =
+                crate::project_type_reference_from_segments(program, reference, &path)
+            else {
+                continue;
+            };
+            parameters.push(StateParameter {
+                symbol: field.symbol,
+                name: field.name.clone(),
+                type_reference: projected_type,
+                ..Default::default()
+            });
+            bindings.push((field.name.to_string(), projected.clone()));
+            self.intake_admitted_scalar_bounds(projected_type, &projected);
+            self.intake_admitted_data_predicates(projected_type, projected, active);
+        }
+        for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+            if let ProofFact::Expression(expression) = fact {
+                self.intake_instantiated_predicate(
+                    definition.symbol,
+                    &parameters,
+                    *expression,
+                    &bindings,
+                );
+            }
+        }
+        active.pop();
     }
 
     fn intake_domain_predicates(

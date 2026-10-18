@@ -397,6 +397,12 @@ fail/build/uefi_storage_entry_undeclared_port rejected 2320ms expected @d0390620
 	machine `selected_continuation` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
 	machine `selected_continuation` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
 	machine `selected_continuation` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
+fail/data/constructor_case_payload_call_result_window rejected 519ms expected @408e4fc23fbc
+	data `Outcome` case `Some` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/data/constructor_distinct_field_versions rejected 183ms expected @408e4fc23fbc
+	data `Snapshot` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/dependent/inactive_payload_cannot_supply_common_fact rejected 623ms expected @408e4fc23fbc
+	cannot prove requires contract for call need from inspect: item.value <= 5 (needs fact `value <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `selected`
 fail/facts/checked_asm_countdown_call_result_wrong_fallthrough rejected 3591ms expected @a0c34fdba779+wt
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_countdown_const_name_wrong_fallthrough rejected 5186ms expected @a0c34fdba779+wt
@@ -1713,18 +1719,18 @@ fail/calls/constructed_argument_wrong_nominal_type rejected 917ms expected @a9ae
 	argument `value` for state `entry` expects `Required<i32>`, got `struct literal`
 fail/calls/constructed_case_invalid_common_zero rejected 836ms expected @a9ae30e1c334+wt
 	data `Reply` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/calls/constructor_child_distinct_epochs_not_equal rejected 1595ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call observe from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced37:Main.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced37:Main.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `value.first == value.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/calls/constructor_child_effectful_calls_not_equal rejected 1477ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call observe from main: constructor:4:Pair6:record17:common:name:first23:Holder.flip(mut holder)18:common:name:second23:Holder.flip(mut holder).first == constructor:4:Pair6:record17:common:name:first23:Holder.flip(mut holder)18:common:name:second23:Holder.flip(mut holder).second (needs fact `value.first == value.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/calls/constructor_child_inherited_epochs_not_equal rejected 1705ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call observe from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `pair.first == pair.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/calls/constructor_child_local_epochs_not_equal rejected 1567ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call observe from main: pair.first == pair.second (needs fact `value.first == value.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/calls/constructor_child_membership_precedes_repair rejected 1600ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call observe from main: holder.ticket in Ticket::Issued
-fail/calls/constructor_child_named_state_epochs_not_equal rejected 1603ms expected @a9ae30e1c334+wt
-	cannot prove requires contract for call selected from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `captured.first == captured.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/constructor_child_distinct_epochs_not_equal rejected 617ms expected @408e4fc23fbc
+	cannot prove requires contract for call observe from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced37:Main.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced37:Main.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `value.first == value.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/calls/constructor_child_effectful_calls_not_equal rejected 620ms expected @408e4fc23fbc
+	cannot prove requires contract for call observe from main: constructor:4:Pair6:record17:common:name:first23:Holder.flip(mut holder)18:common:name:second23:Holder.flip(mut holder).first == constructor:4:Pair6:record17:common:name:first23:Holder.flip(mut holder)18:common:name:second23:Holder.flip(mut holder).second (needs fact `value.first == value.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/calls/constructor_child_inherited_epochs_not_equal rejected 618ms expected @408e4fc23fbc
+	cannot prove requires contract for call observe from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `pair.first == pair.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/calls/constructor_child_local_epochs_not_equal rejected 615ms expected @408e4fc23fbc
+	cannot prove requires contract for call observe from main: pair.first == pair.second (needs fact `value.first == value.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/calls/constructor_child_membership_precedes_repair rejected 616ms expected @408e4fc23fbc
+	cannot prove requires contract for call observe from main: holder.ticket in Ticket::Issued in state `entry`
+fail/calls/constructor_child_named_state_epochs_not_equal rejected 618ms expected @408e4fc23fbc
+	cannot prove requires contract for call selected from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `captured.first == captured.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/constructor_projected_membership_precedes_repair rejected 684ms expected @d75fe4ba5012+wt
 	cannot prove requires contract for call observe from main: holder.envelope.ticket in Ticket::Issued in state `entry`
 fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source rejected 851ms expected @ef7962801508
@@ -2498,7 +2504,8 @@ fail/data/boundary_data_relaxed_carry_unadmitted rejected 831ms expected @a9ae30
 	opaque boundary data `Lease` cannot relax its carry policy without an admitted property receipt
 fail/data/case_payload_equality_interim rejected 47ms expected @a9ae30e1c334+wt
 	cannot compare against payload-bearing case `Command::Move` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `CommandEquality satisfies Equatable<Command> { }` to synthesize structural equality
-fail/data/constructor_prior_operand_write rejected 825ms expected @a9ae30e1c334+wt
+fail/data/constructor_prior_operand_write rejected 181ms expected @408e4fc23fbc
+	data `Bounded` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Bounded` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/data/constructor_stale_local_bounds rejected 925ms expected @a9ae30e1c334+wt
 	data `Bounded` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
@@ -2542,8 +2549,8 @@ fail/dependent/applied_default_domain_wrapping_is_not_integer_subtraction reject
 	data `Counter`'s default domain is still FALSE at state exit: the invariant window opened on `counter` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/case_where_payload_write_exit_open rejected 807ms expected @a9ae30e1c334+wt
 	data `Interval`'s default domain is still FALSE at state exit: the invariant window opened on `main.interval` in a predecessor state must close first -- restore the `where` facts before this consumption point (ch11 window transport)
-fail/dependent/case_where_sibling_payload_scope rejected 820ms expected @a9ae30e1c334+wt
-	data `Pair` case `B` constraint names `x`, which is not in scope: a case `where` fact may read only the case's payload bindings and the data's common fields (a sibling case's payload is never in scope)
+fail/dependent/case_where_sibling_payload_scope rejected 182ms expected @408e4fc23fbc
+	data `Pair` case `B` constraint names `x`, which is not in scope: a case `where` fact may read the case's payload bindings, common fields and lexically available contract names (a sibling case's payload is never in scope)
 fail/dependent/case_where_unproved_bound_rejected rejected 806ms expected @a9ae30e1c334+wt
 	data `Interval` case `Range` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/dependent/case_where_zero_payload_requires_establishment rejected 150ms expected @2b888a3f0e32
@@ -4234,8 +4241,8 @@ fail/float/same_carrier_cast_cannot_mint_finite rejected 517ms expected @9c4d1c4
 	cannot prove initializer `identity(value) as f64` satisfies `finite` for the bounded value of machine `invalid` state `entry` local `finite`
 fail/float/state_arrival_ieee_predicate_unsatisfied rejected 1645ms expected @9c4d1c444502
 	cannot prove requires contract for call bounded from Main::main: main.value == main.value && main.value >= 0.0 && main.value < 1000.0 (needs fact `value == value && value >= 0.0 && value < 1000.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/float/state_constructor_ieee_reflexivity rejected 552ms expected @9c4d1c444502
-	cannot prove requires contract for call conclude from invalid: constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail87:constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail4:tail == constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail87:constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail4:tail (needs fact `Chain == Chain` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/float/state_constructor_ieee_reflexivity rejected 612ms expected @408e4fc23fbc
+	cannot prove requires contract for call conclude from invalid: constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail87:constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail4:tail == constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail87:constructor:5:Chain9:name:Cons17:payload:name:head9:0.0 / 0.017:payload:name:tail4:tail (needs fact `Chain == Chain` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/suffix_format_disagrees_rejected rejected 3311ms expected @1b12798e27f4
 	literal `1.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/float/symbolic_integer_conversion_requires_preserves_exact_cast rejected 484ms expected @9c4d1c444502
@@ -7307,6 +7314,7 @@ pass/asm/atomic_release_disposition_replaced_contents_exit checked 8225ms check-
 pass/asm/atomic_release_disposition_returned_view_exit checked 8156ms check-target:linux_x86_64 @4bfe01cd2128
 pass/asm/atomic_release_disposition_state_exit checked 8014ms check-target:linux_x86_64 @4bfe01cd2128
 pass/asm/scratch_destination_ordinary_stores_exit checked 25933ms check-target:linux_x86_64 @351c5ba81137+wt
+pass/data/runtime_case_payload_call_result_window_exit checked 8218ms check-target:macos_arm64 @408e4fc23fbc
 pass/facts/checked_asm_countdown_call_result_exit checked 14392ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_const_name_exit checked 12105ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_field_exit checked 9422ms check-target:linux_x86_64 @a0c34fdba779+wt
@@ -9002,6 +9010,7 @@ pass/facts/compound_guard_through_other_state_compile checked 1834ms @2ef2ab3534
 pass/facts/compound_guard_through_parameter_compile checked 1854ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_target_body_compile checked 2049ms @2ef2ab353498+wt
 pass/facts/computed_record_window_mixed_lifecycle_exit checked 25778ms check-target:macos_arm64 @dd658fb23eef
+pass/facts/computed_record_window_original_exit checked 8376ms check-target:macos_arm64 @408e4fc23fbc
 pass/facts/computed_record_window_through_call_result_exit checked 24962ms check-target:macos_arm64 @dd658fb23eef
 pass/facts/computed_record_window_through_const_name_exit checked 21470ms check-target:macos_arm64 @dd658fb23eef
 pass/facts/computed_record_window_through_field_exit checked 21335ms check-target:macos_arm64 @dd658fb23eef
