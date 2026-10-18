@@ -3,7 +3,7 @@
 // guard. `read` does not see the literal store. `Main::main` calls it
 // from the entry and again from `successor`.
 //
-// Compile-checked only: no ProcessExit provider.
+// Expected exit: 0
 
 data Main where 0 <= k, k <= 3 {
     arr: [i32 in Wrapping; 5];
@@ -16,12 +16,21 @@ machine read(main: &Main) -> i32 in Wrapping {
     main.arr[main.k + 1]
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) crashes Trap {
+    main.arr = [10, 20, 30, 40, 50];
     main.k = 2;
-    main.r = read(main);
-    transition { _ -> successor(main) }
-    state successor(main: &mut Main) {
-        main.r = read(main);
-        main.hits = main.r;
+    let first: i32 in Wrapping = read(main);
+    transition { _ -> successor(main, first) }
+    state successor(main: &mut Main, first: i32 in Wrapping) {
+        main.k = 3;
+        let second: i32 in Wrapping = read(main);
+        transition first == 40 && second == 50 {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state done() {}
+    state bad() {
+        crash Trap;
     }
 }

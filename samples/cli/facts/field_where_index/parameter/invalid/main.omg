@@ -1,6 +1,10 @@
-// No standing where bound. The call cannot prove `read_at`'s requires.
+// The standing field fact passed as a parameter still discharges
+// `arr[index + 1]`. `use` proves `read_at`'s requires from `main.k`
+// with no guard.
+//
+// Reject control: k <= 4 allows index + 1 == 5 out of bounds for length 5.
 
-data Main {
+data Main where 0 <= k, k <= 4 {
     arr: [i32 in Wrapping; 5];
     k: u64;
     r: i32 in Wrapping;
@@ -8,7 +12,7 @@ data Main {
 }
 
 machine read_at(main: &Main, index: u64) -> i32 in Wrapping
-requires 0 <= index && index <= 3
+requires 0 <= index && index <= 4
 {
     main.arr[index + 1]
 }

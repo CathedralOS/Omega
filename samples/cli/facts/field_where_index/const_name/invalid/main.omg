@@ -1,4 +1,7 @@
-// `LIMIT` is 4, so `k <= LIMIT` must not prove `k + 1` is inside length 5.
+// A const name of the standing ceiling still discharges
+// `arr[main.k + 1]`. `k <= LIMIT` is the where roster; `LIMIT` is 3.
+//
+// Reject control: k <= 4 allows index + 1 == 5 out of bounds for length 5.
 
 const LIMIT: u64 = 4;
 

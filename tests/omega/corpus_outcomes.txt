@@ -3619,27 +3619,27 @@ fail/facts/exact_sub_guard_through_target_body_rejected rejected 607ms expected 
 	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/field_where_index_through_call_result_rejected rejected 1746ms expected @7f2341031b3c
-	cannot prove ensures contract for exit from current at statement 0: 0 <= result && result <= 3
-fail/facts/field_where_index_through_const_name_rejected rejected 1717ms expected @7f2341031b3c
+fail/facts/field_where_index_through_call_result_rejected rejected 3225ms expected @a1b70f5ad427+wt
+	cannot prove index `current(main) + 1` is within length 5 in use::entry
+fail/facts/field_where_index_through_const_name_rejected rejected 3211ms expected @a1b70f5ad427+wt
 	cannot prove index `main.k + 1` is within length 5 in read::entry
-fail/facts/field_where_index_through_field_rejected rejected 545ms expected @7f2341031b3c
-	exact arithmetic in machine `read` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/field_where_index_through_local_rejected rejected 563ms expected @7f2341031b3c
-	exact arithmetic in machine `read` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/field_where_index_through_match_join_rejected rejected 549ms expected @7f2341031b3c
-	exact arithmetic in machine `joined` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/field_where_index_through_other_machine_rejected rejected 1563ms expected @7f2341031b3c
-	cannot prove ensures contract for exit from produced at statement 0: 0 <= result && result <= 3
-fail/facts/field_where_index_through_other_state_rejected rejected 1581ms expected @7f2341031b3c
-	cannot prove requires contract for call pick from use: 0 <= main.k && main.k <= 3 (needs fact `0 <= index && index <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/field_where_index_through_parameter_rejected rejected 1320ms expected @7f2341031b3c
-	cannot prove requires contract for call read_at from use: 0 <= main.k && main.k <= 3 (needs fact `0 <= index && index <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/field_where_index_through_target_body_rejected rejected 531ms expected @7f2341031b3c
-	exact arithmetic in machine `read_target` state `entry` local `__hoist_14` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `read_target` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `read_target` state `entry` local `__hoist_16` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `read_target` state `entry` local `__hoist_17` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/field_where_index_through_field_rejected rejected 3176ms expected @a1b70f5ad427+wt
+	cannot prove index `main.k + 1` is within length 5 in read::entry
+fail/facts/field_where_index_through_local_rejected rejected 2895ms expected @a1b70f5ad427+wt
+	cannot prove index `index + 1` is within length 5 in read::entry
+fail/facts/field_where_index_through_match_join_rejected rejected 2936ms expected @a1b70f5ad427+wt
+	cannot prove index `index + 1` is within length 5 in joined::entry
+fail/facts/field_where_index_through_other_machine_rejected rejected 2834ms expected @a1b70f5ad427+wt
+	cannot prove index `index + 1` is within length 5 in consumed::entry
+fail/facts/field_where_index_through_other_state_rejected rejected 3036ms expected @a1b70f5ad427+wt
+	cannot prove index `index + 1` is within length 5 in use::pick
+fail/facts/field_where_index_through_parameter_rejected rejected 2832ms expected @a1b70f5ad427+wt
+	cannot prove index `index + 1` is within length 5 in read_at::entry
+fail/facts/field_where_index_through_target_body_rejected rejected 2711ms expected @a1b70f5ad427+wt
+	cannot prove index `main.k + 1` is within length 5 in read_target::entry
+	cannot prove index `main.k + 1` is within length 5 in read_target::entry
+	cannot prove index `main.k + 1` is within length 5 in read_target::entry
+	cannot prove index `main.k + 1` is within length 5 in read_target::entry
 fail/facts/float_delivery_through_call_result_rejected rejected 6539ms expected @1dcced2fa00f+wt
 	cannot prove requires contract for call admit from probe: source(reading) >= 0.0 && source(reading) <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/float_delivery_through_const_name_rejected rejected 7872ms expected @1dcced2fa00f+wt
@@ -9004,15 +9004,15 @@ pass/facts/exact_sub_guard_through_other_machine_compile checked 3088ms @9115912
 pass/facts/exact_sub_guard_through_other_state_compile checked 3334ms @9115912f0074
 pass/facts/exact_sub_guard_through_parameter_compile checked 3329ms @9115912f0074
 pass/facts/exact_sub_guard_through_target_body_compile checked 3066ms @9115912f0074
-pass/facts/field_where_index_through_call_result_compile checked 1897ms @7f2341031b3c
-pass/facts/field_where_index_through_const_name_compile checked 1946ms @7f2341031b3c
-pass/facts/field_where_index_through_field_compile checked 1741ms @7f2341031b3c
-pass/facts/field_where_index_through_local_compile checked 1918ms @7f2341031b3c
-pass/facts/field_where_index_through_match_join_compile checked 1903ms @7f2341031b3c
-pass/facts/field_where_index_through_other_machine_compile checked 1870ms @7f2341031b3c
-pass/facts/field_where_index_through_other_state_compile checked 1935ms @7f2341031b3c
-pass/facts/field_where_index_through_parameter_compile checked 1905ms @7f2341031b3c
-pass/facts/field_where_index_through_target_body_compile checked 1483ms @7f2341031b3c
+pass/facts/field_where_index_through_call_result_compile checked 3649ms @a1b70f5ad427+wt
+pass/facts/field_where_index_through_const_name_compile checked 3667ms @a1b70f5ad427+wt
+pass/facts/field_where_index_through_field_compile checked 3582ms @a1b70f5ad427+wt
+pass/facts/field_where_index_through_local_compile checked 3543ms @a1b70f5ad427+wt
+pass/facts/field_where_index_through_match_join_compile checked 3622ms @a1b70f5ad427+wt
+pass/facts/field_where_index_through_other_machine_compile checked 3560ms @a1b70f5ad427+wt
+pass/facts/field_where_index_through_other_state_compile checked 3540ms @a1b70f5ad427+wt
+pass/facts/field_where_index_through_parameter_compile checked 3703ms @a1b70f5ad427+wt
+pass/facts/field_where_index_through_target_body_compile checked 3658ms @a1b70f5ad427+wt
 pass/facts/float_delivery_through_call_result_exit checked 18900ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/facts/float_delivery_through_const_name_exit checked 16893ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/facts/float_delivery_through_field_exit checked 22490ms check-target:macos_arm64 @1dcced2fa00f+wt

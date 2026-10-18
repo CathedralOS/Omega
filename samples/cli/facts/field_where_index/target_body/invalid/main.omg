@@ -1,6 +1,9 @@
-// No standing where bound. A target body must not discharge `main.k + 1`.
+// Every target body indexes through the standing field fact
+// `k <= 3`, so `main.arr[main.k + 1]` compiles with no guard.
+//
+// Reject control: k <= 4 allows index + 1 == 5 out of bounds for length 5.
 
-data Main {
+data Main where 0 <= k, k <= 4 {
     arr: [i32 in Wrapping; 5];
     k: u64;
     r: i32 in Wrapping;

@@ -5,8 +5,8 @@ holds for every `Main` value, so `arr[k + 1]` into an array of length 5
 compiles with no guard. The indexing machine does not see the literal
 store of `k`; the where fact is the proof.
 
-Compile-checked only. There is no ProcessExit provider and no runtime
-exit oracle.
+All nine places verify at runtime (`Expected exit: 0` with `crashes Trap`) that
+`arr[k + 1]` reads array elements 40 (at `k = 2`) and 50 (at `k = 3`).
 
 Nine places, one fact:
 
@@ -20,8 +20,8 @@ Nine places, one fact:
 - `other_machine/` — another machine producing and consuming the bound
 - `target_body/` — the same field index in every target body
 
-Each place has `invalid/`. Removing the standing bound, raising
-the const ceiling to 4, or joining an unbounded arm must reject.
+Each place has `invalid/`. Raising the upper bound to `k <= 4` allows `index + 1 == 5`
+out of bounds for `[i32 in Wrapping; 5]` and rejects with `cannot prove index ... is within length 5`.
 
 ```sh
 mbx run -p omega -- --check samples/cli/facts/field_where_index/local/main.omg
