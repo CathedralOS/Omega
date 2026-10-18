@@ -104,8 +104,12 @@ macos_arm64 machine PosixFilesystem::decode_directory_kind(filesystem: &mut Posi
 }
 macos_arm64 machine PosixFilesystem::metadata_no_follow_flag() -> i32 { 32 }
 
-macos_arm64 machine PosixFilesystem::directory_type_offset() -> u64[18..=20] { 20 }
-macos_arm64 machine PosixFilesystem::directory_name_offset() -> u64[19..=21] { 21 }
+macos_arm64 machine PosixFilesystem::directory_type_offset() -> u64
+    ensures result >= 18 && result <= 20
+{ 20 }
+macos_arm64 machine PosixFilesystem::directory_name_offset() -> u64
+    ensures result >= 19 && result <= 21
+{ 21 }
 macos_arm64 machine PosixFilesystem::remove_directory_flag() -> i32 { 128 }
 macos_arm64 machine PosixFilesystem::directory_descent_flags() -> i32 { 1048832 }
 

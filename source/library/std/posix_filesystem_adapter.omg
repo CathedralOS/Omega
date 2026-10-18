@@ -1446,7 +1446,9 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
         let name_length: u64 = filesystem.rd_j as u64;
         transition name_length < 256 { true -> rdef_metadata(filesystem, name_length) _ -> rdef_malformed(filesystem) }
     }
-    state rdef_metadata(filesystem: &mut PosixFilesystem, name_length: u64[0..=255]) -> DirEntryResult {
+    state rdef_metadata(filesystem: &mut PosixFilesystem, name_length: u64) -> DirEntryResult
+        requires name_length <= 255
+    {
         let outcome: i32 = PosixFilesystemHost::read_metadata_at(filesystem.directory_descriptor,
             filesystem.entry_name[0..name_length], &mut filesystem.stat_buf,
             PosixFilesystem::metadata_no_follow_flag());
@@ -1617,7 +1619,9 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     state rds_rm_child(filesystem: &mut PosixFilesystem, entry: DirEntry) {
         transition entry.name_len < 256 { true -> rds_rm_child_go(filesystem, entry, entry.name_len) _ -> rds_fail(filesystem) }
     }
-    state rds_rm_child_go(filesystem: &mut PosixFilesystem, entry: DirEntry, name_len: u64[0..=255]) {
+    state rds_rm_child_go(filesystem: &mut PosixFilesystem, entry: DirEntry, name_len: u64)
+        requires name_len <= 255
+    {
         filesystem.rda_rc = PosixFilesystemHost::unlink_at(filesystem.rda_fd, entry.name[0..name_len], PosixFilesystem::remove_directory_flag());
         transition filesystem.rda_rc == 0 { true -> rds_continue(filesystem) _ -> rds_fail(filesystem) }
     }
@@ -1625,17 +1629,23 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     state rds_entry(filesystem: &mut PosixFilesystem, entry: DirEntry) {
         transition entry.name_len < 256 { true -> rds_kind(filesystem, entry, entry.name_len) _ -> rds_fail(filesystem) }
     }
-    state rds_kind(filesystem: &mut PosixFilesystem, entry: DirEntry, name_len: u64[0..=255]) {
+    state rds_kind(filesystem: &mut PosixFilesystem, entry: DirEntry, name_len: u64)
+        requires name_len <= 255
+    {
         transition entry.is_dir {
             true -> rds_descend(filesystem, entry, name_len)
             false -> rds_unlink(filesystem, entry, name_len)
         }
     }
-    state rds_unlink(filesystem: &mut PosixFilesystem, entry: DirEntry, name_len: u64[0..=255]) {
+    state rds_unlink(filesystem: &mut PosixFilesystem, entry: DirEntry, name_len: u64)
+        requires name_len <= 255
+    {
         filesystem.rda_rc = PosixFilesystemHost::unlink_at(filesystem.rda_fd, entry.name[0..name_len], 0);
         transition filesystem.rda_rc == 0 { true -> rds_continue(filesystem) _ -> rds_fail(filesystem) }
     }
-    state rds_descend(filesystem: &mut PosixFilesystem, entry: DirEntry, name_len: u64[0..=255]) {
+    state rds_descend(filesystem: &mut PosixFilesystem, entry: DirEntry, name_len: u64)
+        requires name_len <= 255
+    {
         filesystem.rda_sub = PosixFilesystemHost::open_at(filesystem.rda_fd, entry.name[0..name_len], filesystem.read_flags);
         filesystem.rda_rc = filesystem.rda_sub;
         transition filesystem.rda_sub >= 0 { true -> rds_push(filesystem) _ -> rds_fail(filesystem) }
@@ -1658,23 +1668,32 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     state rds_fail(filesystem: &mut PosixFilesystem) { filesystem.rda_verdict = filesystem.rda_rc; }
 }
 
-machine PosixFilesystem::release_directory_stack(filesystem: &mut PosixFilesystem, remaining: u64[0..=16])
+machine PosixFilesystem::release_directory_stack(filesystem: &mut PosixFilesystem, remaining: u64)
+requires remaining <= 16
 terminates by remaining;
 {
     transition remaining > 0 { true -> entry(filesystem, remaining) _ -> done(filesystem) }
-    state entry(filesystem: &mut PosixFilesystem, remaining: u64[1..=16]) {
+    state entry(filesystem: &mut PosixFilesystem, remaining: u64)
+        requires remaining >= 1 && remaining <= 16
+    {
         let index: u64 = remaining - 1;
         transition index < 16 { true -> present(filesystem, index) _ -> done(filesystem) }
     }
-    state present(filesystem: &mut PosixFilesystem, index: u64[0..=15]) {
+    state present(filesystem: &mut PosixFilesystem, index: u64)
+        requires index <= 15
+    {
         transition index < filesystem.rda_depth { true -> close(filesystem, index) _ -> next(filesystem, index) }
     }
-    state close(filesystem: &mut PosixFilesystem, index: u64[0..=15]) {
+    state close(filesystem: &mut PosixFilesystem, index: u64)
+        requires index <= 15
+    {
         let descriptor: i32 = filesystem.rda_stack[index];
         let closed: i32 = PosixFilesystemHost::close(descriptor);
         transition { _ -> next(filesystem, index) }
     }
-    state next(filesystem: &mut PosixFilesystem, remaining: u64[0..=15]) {
+    state next(filesystem: &mut PosixFilesystem, remaining: u64)
+        requires remaining <= 15
+    {
         transition { _ -> release_directory_stack(filesystem, remaining) }
     }
     state done(filesystem: &mut PosixFilesystem) { filesystem.rda_depth = 0; }

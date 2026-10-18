@@ -1,5 +1,5 @@
 
-use calling;
+use omega::language::std::calling;
 
 data HookProcedurePolicy { }
 pub HookProcedurePolicyCallingPolicy satisfies CallingPolicy {
@@ -79,9 +79,11 @@ pub RegistrarPolicyCallingPolicy satisfies CallingPolicy {
 
 machine BoundaryEntryPlan::write_integer_register_parameter(
     output: &mut BoundaryEntryPlan,
-    index: u64 [0..=31],
+    index: u64,
     register: MachineRegister
-) {
+)
+requires index <= 31
+{
     output.call.parameters[index].shape.class = AbiValueClass::Integer;
     output.call.parameters[index].shape.byte_size = 8;
     output.call.parameters[index].shape.alignment = 8;

@@ -104,8 +104,12 @@ linux_arm64 machine PosixFilesystem::decode_directory_kind(filesystem: &mut Posi
 }
 linux_arm64 machine PosixFilesystem::metadata_no_follow_flag() -> i32 { 256 }
 
-linux_arm64 machine PosixFilesystem::directory_type_offset() -> u64[18..=20] { 18 }
-linux_arm64 machine PosixFilesystem::directory_name_offset() -> u64[19..=21] { 19 }
+linux_arm64 machine PosixFilesystem::directory_type_offset() -> u64
+    ensures result >= 18 && result <= 20
+{ 18 }
+linux_arm64 machine PosixFilesystem::directory_name_offset() -> u64
+    ensures result >= 19 && result <= 21
+{ 19 }
 linux_arm64 machine PosixFilesystem::remove_directory_flag() -> i32 { 512 }
 linux_arm64 machine PosixFilesystem::directory_descent_flags() -> i32 { 49152 }
 linux_arm64 machine PosixFilesystem::would_block_error() -> i32 { 11 }
