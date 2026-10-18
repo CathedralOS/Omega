@@ -283,11 +283,36 @@ fn walk_declared_origins(
                 pending.push(walk.push(Some(step), *element_type, Some(selector))?);
             }
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
-                let (definition, scope) = walk.scopes.definition(program, reference, scope)?;
+                // A bare type parameter, an ambiguous spelling, or a non-data
+                // head exposes no internal field roster — the same position an
+                // opaque-supply declaration occupies. Keep the region unknown
+                // rather than rejecting the inventory: failing closed here
+                // discards every independently declared sibling leaf with it.
+                let Some((definition, scope)) = walk
+                    .scopes
+                    .definition(program, reference, scope)
+                    .filter(|(definition, _)| {
+                        program.symbols.get(definition.symbol).kind == SymbolKind::Data
+                    })
+                else {
+                    if detail == OriginDetail::Paths {
+                        for segments in walk.paths(step) {
+                            let (path, _) = super::super::place_paths::coordinate_storage_path(
+                                program, name, &segments,
+                            );
+                            origins.references.push(StoredWriteOrigin {
+                                kind: super::StoredOriginKind::OpaqueRegion,
+                                local_symbol: origins.local_symbol,
+                                local_path: path,
+                                local_segments: segments,
+                                may_select: false,
+                                origin: None,
+                            });
+                        }
+                    }
+                    continue;
+                };
                 walk.steps[step as usize].scope = scope;
-                if program.symbols.get(definition.symbol).kind != SymbolKind::Data {
-                    return None;
-                }
                 if definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
                     // The boundary declaration exposes no internal field roster.
                     // Keep its entire region unknown, so overlapping writes and

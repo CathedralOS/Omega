@@ -1,0 +1,28 @@
+// A ranked machine whose body moves an owned element of generic type `T`
+// out of borrowed aggregate storage and stores it back. The caller-visible
+// write-frame walk must treat the unresolved `T` as an opaque region rather
+// than aborting the inventory, so the recursive edge can still prove that
+// the rank carrier `at` is preserved.
+machine walk<T [copy]>(b: &mut Box<T>, at: u64) -> u64
+requires at < 8
+terminates by at -> Nat::Descending in 0..=7;
+{
+    transition at == 0 {
+        true -> done(b)
+        _ -> swap(b, at)
+    }
+    state swap(b: &mut Box<T>, at: u64)
+        requires at >= 1
+        requires at < 8
+    {
+        let tmp: T = b.items[0];
+        b.items[0] = tmp;
+        transition { _ -> walk(b, at - 1) }
+    }
+    state done(b: &mut Box<T>) -> u64 {
+        transition { _ -> (0) }
+    }
+}
+data Box<T> { items: [T; 8]; len: u64; }
+data Main {}
+machine Main::main(main: &mut Main) { }

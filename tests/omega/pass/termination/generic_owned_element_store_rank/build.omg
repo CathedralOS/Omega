@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "generic_owned_element_store_rank");
+    builder.freestanding = true;
+}

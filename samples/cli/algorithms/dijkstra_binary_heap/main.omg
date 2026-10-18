@@ -1,0 +1,323 @@
+// Single-source shortest paths over a fixed weighted digraph held in CSR
+// form (offsets + targets + weights), using a generic fixed-capacity binary
+// min-heap parameterized by an ordering machine binder.
+//
+// `Heap<T>` stores sixteen cells; `push_heap`/`pop_heap` sift by the
+// caller-supplied `machine Less(left: &T, right: &T) -> bool` ordering.
+// Entries pack `dist * 256 + node` into a u64, so `ent_less` is ordinary
+// u64 comparison ordered distance-major, node as tiebreak. Pop runs lazy
+// Dijkstra: stale heap entries are skipped by the `nd <= dist[node]`
+// guard, relaxation writes `dist`/`prev`, and the prev-chain walk from
+// node 11 back to the source reconstructs the path.
+//
+// Expected exit: 154 = shortest-distance sum (150) + path hops (4).
+// Distances from 0: [0, 4, 2, 9, 11, 14, 15, 17, 20, 21, 22, 15];
+// path 11 <- 4 <- 3 <- 1 <- 0.
+use omega_language_std::console;
+
+data Heap<T> { items: [T; 16]; len: u64; }
+
+data Popped<T [copy]> [copy] { value: T; }
+
+machine ent_less(left: &u64, right: &u64) -> bool {
+    left < right
+}
+
+machine push_heap<T [copy], machine Less>(h: &mut Heap<T>, value: &T)
+where machine Less(left: &T, right: &T) -> bool;
+{
+    transition h.len < 16 { true -> place(h, value, h.len) _ -> full(h) }
+    state place(h: &mut Heap<T>, value: &T, at: u64)
+        requires at < 16
+    {
+        let tmp: T = value;
+        h.items[at] = tmp;
+        h.len = at + 1;
+        transition { _ -> up(h, at) }
+    }
+    state up(h: &mut Heap<T>, at: u64)
+        requires at < 16
+    {
+        let parent: u64 = at / 2;
+        transition at > 0 && Less(&h.items[at], &h.items[parent]) {
+            true -> sift(h, at, parent)
+            _ -> {}
+        }
+    }
+    state sift(h: &mut Heap<T>, at: u64, parent: u64)
+        requires at < 16
+        requires parent < 16
+    {
+        let moved: T = h.items[at];
+        let hole: T = h.items[parent];
+        h.items[at] = hole;
+        h.items[parent] = moved;
+        transition { _ -> up(h, parent) }
+    }
+    state full(h: &mut Heap<T>) {}
+}
+
+machine pop_heap<T [copy], machine Less>(h: &mut Heap<T>, root: &mut Popped<T>)
+where machine Less(left: &T, right: &T) -> bool;
+    requires h.len >= 1
+    requires h.len <= 16
+{
+    transition h.len >= 2 { true -> lift(h, root) _ -> take(h, root) }
+    state take(h: &mut Heap<T>, root: &mut Popped<T>)
+        requires h.len >= 1
+    {
+        let top: T = h.items[0];
+        root.value = top;
+        h.len = 0;
+    }
+    state lift(h: &mut Heap<T>, root: &mut Popped<T>)
+        requires h.len >= 2
+        requires h.len <= 16
+    {
+        let top: T = h.items[0];
+        root.value = top;
+        let n: u64 = h.len - 1;
+        let moved: T = h.items[n];
+        h.items[0] = moved;
+        transition n >= 1 && n <= 15 {
+            true -> sink(h, 0, n)
+            _ -> finish(h, n)
+        }
+    }
+    state sink(h: &mut Heap<T>, at: u64, n: u64)
+        requires at < n
+        requires n <= 16
+    {
+        let left: u64 = at * 2 + 1;
+        transition left < n {
+            true -> right_child(h, at, left, n)
+            _ -> finish(h, n)
+        }
+    }
+    state right_child(h: &mut Heap<T>, at: u64, left: u64, n: u64)
+        requires at < n
+        requires left < n
+        requires n <= 16
+    {
+        let right: u64 = left + 1;
+        transition right < n && Less(&h.items[right], &h.items[left]) {
+            true -> maybe(h, at, right, n)
+            _ -> maybe(h, at, left, n)
+        }
+    }
+    state maybe(h: &mut Heap<T>, at: u64, child: u64, n: u64)
+        requires at < n
+        requires child < n
+        requires n <= 16
+    {
+        transition Less(&h.items[child], &h.items[at]) {
+            true -> swap(h, at, child, n)
+            _ -> finish(h, n)
+        }
+    }
+    state swap(h: &mut Heap<T>, at: u64, child: u64, n: u64)
+        requires at < n
+        requires child < n
+        requires n <= 16
+    {
+        let moved: T = h.items[child];
+        let hole: T = h.items[at];
+        h.items[child] = hole;
+        h.items[at] = moved;
+        transition { _ -> sink(h, child, n) }
+    }
+    state finish(h: &mut Heap<T>, n: u64)
+        requires n <= 16
+    {
+        h.len = n;
+    }
+}
+
+data Graph { off: [u64; 13]; dst: [u64; 18]; wgt: [u64; 18]; }
+
+data Main {
+    graph: Graph;
+    dist: [u64; 12];
+    prev: [u64; 12];
+    heap: Heap<u64>;
+}
+
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    // 12-node weighted digraph; edges sorted by tail.
+    // 0: ->1(4) ->2(2)      1: ->2(1) ->3(5)      2: ->3(8) ->4(10)
+    // 3: ->4(2) ->5(6)      4: ->5(3) ->11(4)     5: ->6(1) ->11(9)
+    // 6: ->7(2)             7: ->8(3)             8: ->9(1) ->10(2)
+    // 9: ->11(2)            10: ->11(5)           11: none
+    main.graph = Graph {
+        off: [0, 2, 4, 6, 8, 10, 12, 13, 14, 16, 17, 18, 18],
+        dst: [1, 2, 2, 3, 3, 4, 4, 5, 5, 11, 6, 11, 7, 8, 9, 10, 11, 11],
+        wgt: [4, 2, 1, 5, 8, 10, 2, 6, 3, 4, 1, 9, 2, 3, 1, 2, 2, 5],
+    };
+    main.heap.len = 0;
+    transition { _ -> clear(main, 0) }
+
+    state clear(main: &mut Main, i: u64)
+        requires i <= 12
+    {
+        transition i < 12 {
+            true -> wipe(main, i)
+            _ -> boot(main)
+        }
+    }
+    state wipe(main: &mut Main, i: u64)
+        requires i < 12
+    {
+        main.dist[i] = 1000000;
+        main.prev[i] = 12;
+        transition { _ -> clear(main, i + 1) }
+    }
+    state boot(main: &mut Main) {
+        main.dist[0] = 0;
+        let e: u64 = 0;
+        push_heap<ent_less>(&mut main.heap, &e);
+        transition { _ -> step(main) }
+    }
+    state step(main: &mut Main) {
+        transition main.heap.len >= 1 && main.heap.len <= 16 {
+            true -> take(main)
+            _ -> score(main, 0, 0)
+        }
+    }
+    state take(main: &mut Main)
+        requires main.heap.len >= 1
+        requires main.heap.len <= 16
+    {
+        let mut popped: Popped<u64> = Popped { value: 0 };
+        pop_heap<ent_less>(&mut main.heap, &mut popped);
+        let node: u64 = popped.value % 256;
+        let nd: u64 = popped.value / 256;
+        transition node < 12 && nd <= 1000000 && nd <= main.dist[node] {
+            true -> edges(main, node, nd)
+            _ -> step(main)
+        }
+    }
+    state edges(main: &mut Main, v: u64, vd: u64)
+        requires v < 12
+        requires vd <= 1000000
+    {
+        let first: u64 = main.graph.off[v];
+        let after: u64 = main.graph.off[v + 1];
+        transition first <= after && after <= 18 {
+            true -> relax(main, v, vd, first, after)
+            _ -> step(main)
+        }
+    }
+    state relax(main: &mut Main, v: u64, vd: u64, edge: u64, after: u64)
+        requires v < 12
+        requires vd <= 1000000
+        requires edge <= after
+        requires after <= 18
+    {
+        transition edge < after {
+            true -> visit(main, v, vd, edge, after)
+            _ -> step(main)
+        }
+    }
+    state visit(main: &mut Main, v: u64, vd: u64, edge: u64, after: u64)
+        requires v < 12
+        requires vd <= 1000000
+        requires edge < after
+        requires after <= 18
+    {
+        let w: u64 = main.graph.wgt[edge];
+        transition w <= 1000000 {
+            true -> weigh(main, v, vd, w, edge, after)
+            _ -> bad(main)
+        }
+    }
+    state weigh(main: &mut Main, v: u64, vd: u64, w: u64, edge: u64, after: u64)
+        requires v < 12
+        requires vd <= 1000000
+        requires w <= 1000000
+        requires edge < after
+        requires after <= 18
+    {
+        let to: u64 = main.graph.dst[edge];
+        let nd: u64 = vd + w;
+        transition to < 12 && nd < main.dist[to] {
+            true -> improve(main, to, nd, v, edge, after, vd)
+            _ -> relax(main, v, vd, edge + 1, after)
+        }
+    }
+    state improve(main: &mut Main, to: u64, nd: u64, v: u64, edge: u64, after: u64, vd: u64)
+        requires to < 12
+        requires v < 12
+        requires nd <= 2000000
+        requires vd <= 1000000
+        requires edge < after
+        requires after <= 18
+    {
+        main.dist[to] = nd;
+        main.prev[to] = v;
+        let e: u64 = nd * 256 + to;
+        push_heap<ent_less>(&mut main.heap, &e);
+        transition { _ -> relax(main, v, vd, edge + 1, after) }
+    }
+    state score(main: &mut Main, i: u64, sum: u64)
+        requires i <= 12
+        requires sum <= i * 1000000
+    {
+        transition i < 12 {
+            true -> gather(main, i, sum)
+            _ -> walk_prev(main, 11, 0, sum)
+        }
+    }
+    state gather(main: &mut Main, i: u64, sum: u64)
+        requires i < 12
+        requires sum <= i * 1000000
+    {
+        let d: u64 = main.dist[i];
+        transition d <= 1000000 {
+            true -> add(main, i, sum, d)
+            _ -> bad(main)
+        }
+    }
+    state add(main: &mut Main, i: u64, sum: u64, d: u64)
+        requires i < 12
+        requires sum <= i * 1000000
+        requires d <= 1000000
+    {
+        transition { _ -> score(main, i + 1, sum + d) }
+    }
+    state walk_prev(main: &mut Main, at: u64, hops: u64, sum: u64)
+        requires at < 13
+        requires hops <= 12
+    {
+        transition at == 0 || hops == 12 {
+            true -> done(main, sum, hops)
+            _ -> bound_at(main, at, hops, sum)
+        }
+    }
+    state bound_at(main: &mut Main, at: u64, hops: u64, sum: u64)
+        requires at < 13
+        requires hops < 12
+    {
+        transition at >= 1 && at < 12 {
+            true -> climb(main, at, hops, sum)
+            _ -> bad(main)
+        }
+    }
+    state climb(main: &mut Main, at: u64, hops: u64, sum: u64)
+        requires at < 12
+        requires hops < 12
+    {
+        let nxt: u64 = main.prev[at];
+        transition nxt <= 12 {
+            true -> walk_prev(main, nxt, hops + 1, sum)
+            _ -> bad(main)
+        }
+    }
+    state done(main: &mut Main, sum: u64, hops: u64) {
+        transition sum == 150 && hops == 4 {
+            true -> good(main, sum + hops)
+            _ -> bad(main)
+        }
+    }
+    state good(main: &mut Main, code: u64) { Console::exit_process(code as i32); }
+    state bad(main: &mut Main) { crash Trap; }
+}

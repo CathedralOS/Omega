@@ -9545,6 +9545,7 @@ pass/termination/default_order_slice_length_compile checked 1620ms @a9ae30e1c334
 pass/termination/distance_conjunction_guard_exit checked 15651ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/distance_constant_bound_exit checked 12986ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/external_result_ranked_arrival_compile checked 2460ms @a9ae30e1c334+wt
+pass/termination/generic_owned_element_store_rank checked 3665ms @03a2c2a6ba31+wt
 pass/termination/identity_measure_rank_range checked 1770ms @a9ae30e1c334+wt
 pass/termination/identity_measure_widths checked 10061ms @5041ef1af684+wt
 pass/termination/implicit_cleanup_with_progress checked 573ms @48173da96776+wt

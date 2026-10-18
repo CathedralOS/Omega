@@ -1,0 +1,30 @@
+// Intended-invalid control for dijkstra_binary_heap: `pop_heap`'s
+// `requires h.len >= 1` must reject a caller that never established the
+// heap is non-empty — `main.heap.len` is 0 here, so the pop is unproven.
+use omega_language_std::console;
+
+data Heap<T> { items: [T; 16]; len: u64; }
+data Popped<T [copy]> [copy] { value: T; }
+
+machine ent_less(left: &u64, right: &u64) -> bool {
+    left < right
+}
+
+data Main { heap: Heap<u64>; }
+
+machine pop_heap<T [copy], machine Less>(h: &mut Heap<T>, root: &mut Popped<T>)
+where machine Less(left: &T, right: &T) -> bool;
+    requires h.len >= 1
+    requires h.len <= 16
+{
+    let top: T = h.items[0];
+    root.value = top;
+    h.len = 0;
+}
+
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    main.heap.len = 0;
+    let mut popped: Popped<u64> = Popped { value: 0 };
+    pop_heap<ent_less>(&mut main.heap, &mut popped);
+    Console::exit_process(0);
+}
