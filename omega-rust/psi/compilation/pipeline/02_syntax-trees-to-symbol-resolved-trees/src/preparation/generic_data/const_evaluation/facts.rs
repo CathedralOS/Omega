@@ -8,9 +8,9 @@
 //! obligations therefore precede fact replay. A generic carrier does not supply
 //! a selected algebra for the subject; only carrier-independent facts can close here.
 use super::super::{
-    CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionHandle, ExpressionNode, HashMap,
-    HashSet, Item, ProofFact, SyntaxTrees, TypeConstraintNode, TypeParameterKind,
-    TypeReferenceHandle, TypeReferenceNode,
+    ConstDefinition, Diagnostic, ExpressionHandle, ExpressionNode, HashMap, HashSet, Item,
+    ProofFact, SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle,
+    TypeReferenceNode,
 };
 use arena::HandleSpan;
 use symbols::JoinedPath;
@@ -421,30 +421,6 @@ impl<'a> ConstFactSubject<'a> {
             }
             _ => None,
         }
-    }
-}
-
-/// Decode one canonical leaf to the scalar a `subject.<name>` or `subject[<index>]`
-/// read binds. Leaves without a scalar payload — nested aggregates, arrays,
-/// variants and floats — stay unbound rather than folding into a guessed
-/// identity.
-fn scalar_subject_leaf(
-    value: &language_semantics::const_value::DecodedCanonicalConstValue,
-) -> Option<ConstScalarValue> {
-    match value {
-        language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-            type_name,
-            value,
-        } => LandedIntegerType::from_name(type_name).map(|integer_type| {
-            ConstScalarValue::DeclaredInteger {
-                value: *value,
-                integer_type,
-            }
-        }),
-        language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value) => {
-            Some(ConstScalarValue::Boolean(*value))
-        }
-        _ => None,
     }
 }
 
@@ -1500,152 +1476,8 @@ fn prove_const_domain_constraint(
     }
 }
 
-/// Discharge a constrained const declaration's domain constraints at its
-/// canonical value — the declaration-site proof a constrained carrier owes
-/// before it may publish compatibility identity. Every constraint must be a
-/// `Domain` application whose authored spelling selects one exact owner under
-/// module name law (the same selection the resolver later applies to the
-/// declaration's retained type); its facts then replay with the subject bound to
-/// the value through the same evaluator `where`-membership discharge uses. A
-/// closed index application additionally binds the family's index binders to
-/// its evaluated arguments before that replay. Integer and Boolean canonical
-/// values bind the subject directly; a record binds the subject through its
-/// scalar-decodable fields and a variant through its selected case's
-/// scalar-decodable payload fields, each for `subject.<name>` reads. Non-domain constraints,
-/// other aggregate values, contested or unreachable owners, open arguments,
-/// and unprovable facts keep the declaration fenced rather than publishing
-/// identity against a guessed or absent owner.
-///
-/// Without a `ConstantSelection` (source-free canonicalization) the evaluator
-/// falls back to exact declared-name matching, which cannot see module
-/// ownership. That fallback may only select an unmoduled domain declared
-/// exactly once — a module-owned or duplicated leaf match stays fenced rather
-/// than borrowing an owner the name alone cannot establish.
-pub(crate) fn prove_declared_const_domain_constraints(
-    syntax: &SyntaxTrees,
-    definition: &ConstDefinition,
-    constraints: &[TypeConstraintNode],
-    value: &CanonicalConstValue,
-    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
-) -> Result<(), String> {
-    let record_fields: Vec<(String, ConstScalarValue)>;
-    let array_elements: Vec<Option<ConstScalarValue>>;
-    let variant_fields: Vec<(String, ConstScalarValue)>;
-    let (carrier, subject_binding) = match value.decode_encoding() {
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-            type_name,
-            value,
-        }) => {
-            let Some(integer_type) = LandedIntegerType::from_name(&type_name) else {
-                return Err(CONSTRAINED_CONST_FENCE.to_owned());
-            };
-            (
-                type_name,
-                ConstSubjectBinding::Scalar(ConstScalarValue::DeclaredInteger {
-                    value,
-                    integer_type,
-                }),
-            )
-        }
-        // The `bool` carrier is the only other scalar canonical encoding; its
-        // domain target check and the subject binding are exactly the integer
-        // route's.
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value)) => (
-            "bool".to_owned(),
-            ConstSubjectBinding::Scalar(ConstScalarValue::Boolean(value)),
-        ),
-        // A record carrier binds the subject through its scalar-decodable fields:
-        // `subject.<name>` reads project canonical leaves while whole-aggregate
-        // operands and fields without a scalar leaf stay unbound.
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Record {
-            type_name,
-            fields,
-        }) => {
-            record_fields = fields
-                .iter()
-                .filter_map(|(name, field)| {
-                    scalar_subject_leaf(field).map(|value| (name.clone(), value))
-                })
-                .collect();
-            (type_name, ConstSubjectBinding::Record(&record_fields))
-        }
-        // An array carrier binds the subject through its scalar-decodable elements:
-        // `subject[<index>]` reads project canonical leaves positionally while
-        // whole-aggregate operands, non-integer or out-of-bounds indices, and
-        // elements without a scalar leaf stay unbound.
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Array {
-            type_name,
-            values,
-        }) => {
-            array_elements = values.iter().map(scalar_subject_leaf).collect();
-            (type_name, ConstSubjectBinding::Elements(&array_elements))
-        }
-        // A variant carrier binds the subject through the selected case's
-        // scalar-decodable payload fields: `subject.<name>` reads project
-        // canonical leaves while whole-aggregate operands, a different case's
-        // fields, and payload fields without a scalar leaf stay unbound.
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Variant {
-            type_name,
-            fields,
-            ..
-        }) => {
-            variant_fields = fields
-                .iter()
-                .filter_map(|(name, field)| {
-                    scalar_subject_leaf(field).map(|value| (name.clone(), value))
-                })
-                .collect();
-            (type_name, ConstSubjectBinding::Variant(&variant_fields))
-        }
-        _ => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
-    };
-    let const_values =
-        crate::preparation::generic_data::module_constants::lexical_integer_const_values(syntax);
-    let mut warnings = Vec::new();
-    for constraint in constraints {
-        let TypeConstraintNode::Domain(domain) = constraint else {
-            return Err(CONSTRAINED_CONST_FENCE.to_owned());
-        };
-        if domain.arguments.is_empty() && selection.is_none() {
-            let authored = domain.name.as_str();
-            let expanded = format!("{carrier}::{authored}");
-            let mut matches = syntax.root_items().filter_map(|item| match item {
-                Item::Domain(domain)
-                    if domain.name.as_str() == authored || domain.name.as_str() == expanded =>
-                {
-                    Some(domain)
-                }
-                _ => None,
-            });
-            let unmoduled_unique = matches.next().is_some_and(|domain| {
-                matches.next().is_none()
-                    && crate::preparation::generic_data::module_constants::module_path(
-                        syntax,
-                        domain.name.source_span().source_id,
-                    )
-                    .is_none()
-            });
-            if !unmoduled_unique {
-                return Err(CONSTRAINED_CONST_FENCE.to_owned());
-            }
-        }
-        prove_const_domain_constraint(
-            syntax,
-            constraint,
-            &carrier,
-            subject_binding,
-            &const_values,
-            selection,
-            &mut warnings,
-            &format!("const `{}`", super::qualified_const_name(definition)),
-        )?;
-    }
-    Ok(())
-}
-
 /// Discharge the `Domain` constraints a `Constrained` leaf carrier declares —
-/// the same declaration-site proof `prove_declared_const_domain_constraints`
-/// owes a whole declaration, applied to each leaf a constrained field or
+/// applied to each leaf a constrained field or
 /// element type names as an initializer canonicalizes through
 /// `canonicalize_const_expression`. Aggregate leaves bind the subject through their
 /// scalar-decodable members exactly as the declaration path does; a leaf

@@ -313,23 +313,36 @@ impl SyntaxCopy<'_> {
                     members,
                 })
             }
-            Item::Const(constant) => Item::Const(crate::item::ConstDefinition {
-                scope: constant.scope.clone(),
-                name: constant.name.clone(),
-                is_public: constant.is_public,
-                type_reference: self.copy_type_reference_handle(other, constant.type_reference),
-                value: self.copy_expression_handle(other, constant.value),
-                normalization: constant.normalization.as_ref().map(|normalization| {
-                    crate::item::ConstInitializerNormalization {
-                        authored_expression: self
-                            .copy_expression_handle(other, normalization.authored_expression),
-                        result_value: normalization.result_value.clone(),
-                        selections: normalization.selections.clone(),
-                        builtin_operators: normalization.builtin_operators.clone(),
-                        call_selections: normalization.call_selections.clone(),
-                    }
-                }),
-            }),
+            Item::Const(constant) => {
+                let type_reference =
+                    self.copy_type_reference_handle(other, constant.type_reference);
+                let value = self.copy_expression_handle(other, constant.value);
+                Item::Const(crate::item::ConstDefinition {
+                    scope: constant.scope.clone(),
+                    name: constant.name.clone(),
+                    is_public: constant.is_public,
+                    type_reference,
+                    value,
+                    normalization: constant.normalization.as_ref().map(|normalization| {
+                        crate::item::ConstInitializerNormalization {
+                            authored_expression: self
+                                .copy_expression_handle(other, normalization.authored_expression),
+                            result_value: normalization.result_value.clone(),
+                            selections: normalization.selections.clone(),
+                            builtin_operators: normalization.builtin_operators.clone(),
+                            call_selections: normalization.call_selections.clone(),
+                        }
+                    }),
+                    qualification: constant.qualification.as_ref().and_then(|qualification| {
+                        (qualification.destination == constant.type_reference
+                            && qualification.initializer == constant.value)
+                            .then_some(crate::item::ConstQualification {
+                                destination: type_reference,
+                                initializer: value,
+                            })
+                    }),
+                })
+            }
             Item::Data(data) => Item::Data(self.copy_data_definition(other, data)),
             Item::Domain(domain) => Item::Domain(DomainDefinition {
                 name: domain.name.clone(),

@@ -199,6 +199,19 @@ pub fn resolve_numeric_probe(
     drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
 
+/// Retain unfinished constant values while resolving a declaration-check probe.
+/// No pending initializer becomes a substituted value or public identity. The
+/// consumer demands only its exact completed probe roots; their ordinary typed
+/// checking cannot read an unavailable initializer as a completed constant.
+pub fn resolve_deferred_initializer_probe(
+    request: ResolutionRequest,
+) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+    let sources = request.sources.clone();
+    let bindings = request.top_level_bindings.clone();
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
+    index_deferred(syntax, lowerer, sources, bindings)
+}
+
 /// Resolve declaration dependencies without inventing provisional values.
 /// Computed fixed-integer/Boolean initializers remain authored expression roots
 /// with no canonical encoding. Every operator occurrence remains an obligation

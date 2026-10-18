@@ -433,7 +433,7 @@ pub(super) fn append_extent_probe(
     name
 }
 
-fn append_named_probe(
+pub(super) fn append_named_probe(
     syntax: &mut SyntaxTrees,
     name: Identifier,
     expression: ExpressionHandle,

@@ -152,14 +152,25 @@ impl ConstInitializerSelection {
         .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(reference)])
     }
 
-    pub fn canonicalize_value(
+    /// Encode completed initializer payloads, without asserting the destination's
+    /// qualification. The compile-time owner checks that separate result judgment
+    /// before returning the authoritative declaration to normal resolution.
+    pub fn canonicalize_initializer_value(
         &self,
         syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        let mut payload = definition.clone();
+        while let syntax_trees::types::TypeReferenceNode::Constrained { base_type, .. } = syntax
+            .type_references
+            .type_reference(payload.type_reference)
+        {
+            payload.type_reference = *base_type;
+        }
+        payload.qualification = None;
         crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
             syntax,
-            definition,
+            &payload,
             Some(&self.selection),
         )
     }

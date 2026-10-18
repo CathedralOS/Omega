@@ -426,40 +426,14 @@ pub fn declared_constant_array_type(
     ) {
         return None;
     }
-    let mut selected_type = None;
-    for occurrence in program
-        .expression_table
-        .authored_selection_occurrences(value)
-    {
-        let selection = program.authored_declaration_selections().get(occurrence)?;
-        // Substitution keeps inherited initializer selections as provenance.
-        // Only this authored use supplies the receiving declaration's type;
-        // an inherited alias must not compete via its separately stored type.
-        if selection.source_span() != program.expression_table.source_span(value) {
-            continue;
-        }
-        let target = selection.target();
-        let Some(selected) = target.as_resolved() else {
-            continue;
-        };
-        let Some(declaration) = program.const_declaration_by_symbol(selected.selected_symbol())
-        else {
-            continue;
-        };
-        if !matches!(
-            program
-                .type_reference_table
-                .type_reference(array_carrier_type(program, declaration.declared_type)),
-            TypeReferenceNode::FixedArray { .. }
-        ) {
-            return None;
-        }
-        if selected_type.is_some_and(|previous| previous != declaration.declared_type) {
-            return None;
-        }
-        selected_type = Some(declaration.declared_type);
-    }
-    selected_type
+    let declaration = program.expression_const_declaration(value)?;
+    matches!(
+        program
+            .type_reference_table
+            .type_reference(array_carrier_type(program, declaration.declared_type)),
+        TypeReferenceNode::FixedArray { .. }
+    )
+    .then_some(declaration.declared_type)
 }
 
 /// Type of a fixed builtin projection from a selected constant value. This

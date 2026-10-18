@@ -84,6 +84,16 @@ pub struct ConstDefinition {
     pub value: crate::expression::ExpressionHandle,
     /// Present when semantic evaluation has replaced the authored initializer.
     pub normalization: Option<ConstInitializerNormalization>,
+    /// The compile-time owner's ordinary checked return judgment for this exact
+    /// completed initializer and declared qualification. Private probe forests
+    /// clear this judgment when changing either input.
+    pub qualification: Option<ConstQualification>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstQualification {
+    pub destination: crate::types::TypeReferenceHandle,
+    pub initializer: crate::expression::ExpressionHandle,
 }
 
 /// Authored syntax and exact source custody retained when a constant initializer

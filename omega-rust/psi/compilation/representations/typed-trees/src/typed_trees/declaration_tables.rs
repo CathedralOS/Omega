@@ -365,6 +365,37 @@ impl TypedTrees {
             .find(|declaration| declaration.symbol == symbol)
     }
 
+    /// The declaration selected by this substituted value occurrence. An alias
+    /// retains transitive initializer selections, but only the current authored
+    /// use supplies its complete declared type and proved qualification.
+    pub fn expression_const_declaration(
+        &self,
+        expression: crate::expression::ExpressionHandle,
+    ) -> Option<&crate::constant::ConstDeclaration> {
+        let mut declaration: Option<&crate::constant::ConstDeclaration> = None;
+        for occurrence in self
+            .expression_table
+            .authored_selection_occurrences(expression)
+        {
+            let selection = self.authored_declaration_selections().get(occurrence)?;
+            if selection.source_span() != self.expression_table.source_span(expression) {
+                continue;
+            }
+            let target = selection.target();
+            let Some(selected) = target.as_resolved() else {
+                continue;
+            };
+            let Some(current) = self.const_declaration_by_symbol(selected.selected_symbol()) else {
+                continue;
+            };
+            if declaration.is_some_and(|previous| previous.symbol != current.symbol) {
+                return None;
+            }
+            declaration = Some(current);
+        }
+        declaration
+    }
+
     pub fn record_resolved_authored_declaration_selection_once(
         &mut self,
         source_span: source::SourceSpan,

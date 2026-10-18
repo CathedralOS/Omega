@@ -25,7 +25,6 @@ pub(crate) use fact_values::{
 pub(in crate::preparation::generic_data) use facts::prove_const_leaf_domain_constraints;
 pub(crate) use facts::{
     evaluate_const_fact_expression, evaluate_const_membership_fact, prove_const_literal_predicates,
-    prove_declared_const_domain_constraints,
 };
 use remainder::validate_anonymous_remainder;
 pub(in crate::preparation) use templates::collect_type_positions;

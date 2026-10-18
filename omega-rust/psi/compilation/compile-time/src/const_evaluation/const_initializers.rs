@@ -86,6 +86,7 @@ pub(crate) fn evaluate(
     authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     use syntax_trees_to_symbol_resolved_trees::pre_resolution::requires_const_initializer_evaluation;
+    syntax = super::const_qualifications::prove_ready(syntax, sources.clone(), bindings)?;
     if !syntax.root_items().any(|item| {
         matches!(item, Item::Const(definition)
         if requires_const_initializer_evaluation(&syntax, definition))
@@ -97,6 +98,7 @@ pub(crate) fn evaluate(
     // value and carrier in this private forest, but defer that qualification
     // just as the later typed probes do for provisional indices.
     let mut selection_syntax = syntax.clone();
+    super::const_qualifications::defer_unproved(&mut selection_syntax);
     let selection_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
             &syntax,
@@ -228,7 +230,7 @@ pub(crate) fn evaluate(
                 // retained literal whose extent was pending can now encode its
                 // actual children under that completed declared geometry.
                 let value = preparation
-                    .canonicalize_value(&syntax, &declarations[dependency].definition)
+                    .canonicalize_initializer_value(&syntax, &declarations[dependency].definition)
                     .map_err(|reason| {
                         failure(
                             declarations[dependency].definition.name.source_span(),
@@ -607,7 +609,7 @@ pub(crate) fn evaluate(
                 let mut materialized_definition = definition.clone();
                 materialized_definition.value = value;
                 preparation
-                    .canonicalize_value(&syntax, &materialized_definition)
+                    .canonicalize_initializer_value(&syntax, &materialized_definition)
                     .map_err(|reason| {
                         failure(syntax.expressions.source_span(authored_expression), reason)
                     })?
@@ -622,6 +624,7 @@ pub(crate) fn evaluate(
                 call_selections,
             });
             definition.value = value;
+            definition.qualification = None;
             syntax
                 .items
                 .replace_item(declarations[ordinal].item, Item::Const(definition.clone()));
@@ -636,6 +639,12 @@ pub(crate) fn evaluate(
                     .clone(),
             );
             declarations[ordinal].leaves.clear();
+        }
+        syntax = super::const_qualifications::prove_ready(syntax, sources.clone(), bindings)?;
+        for declaration in &mut declarations {
+            if let Item::Const(definition) = syntax.root_item(declaration.item) {
+                declaration.definition = definition.clone();
+            }
         }
     }
     Ok(syntax)

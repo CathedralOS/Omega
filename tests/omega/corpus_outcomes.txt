@@ -903,6 +903,9 @@ fail/concurrency/suspend_retained_loan_conflicting_backing_write rejected 1533ms
 fail/concurrency/suspend_with_indirect_resource_backing rejected 1581ms expected @a9ae30e1c334+wt
 fail/constants/affine_rational_named_constant rejected 2155ms expected @a9ae30e1c334+wt
 fail/constants/const_shadows_case rejected 68ms expected @a9ae30e1c334+wt
+fail/constants/mathematical_constant_domain_false rejected 65ms expected @d2f0e31ca0d4+wt
+	cannot prove default-domain field requirement for return from @const-qualification-DIGIT-0 at statement 0: Digit requires Digit::Decimal
+	construction value is not proven in domain `Digit::Decimal` in @const-qualification-DIGIT-0 state `@const-qualification-DIGIT-0` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/constants/predicate_constant_field_shadows_outer_constant rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
 fail/constants/predicate_constant_generic_static_index_fence rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
 fail/constants/predicate_constant_nested_projection_shadow rejected 5ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
@@ -912,6 +915,8 @@ fail/constants/unused_default_domain_constant rejected 6ms expected @ea68f95d0ac
 fail/constants/unused_empty_case_predicate_constant rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
 fail/constants/unused_generic_default_domain_constant rejected 10ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
 fail/constants/unused_nested_default_domain_constant rejected 6ms expected @ea68f95d0acea7b04f53f3efe179629294cb3491
+fail/constants/unused_routed_constant_requires_issuer rejected 39ms expected @d2f0e31ca0d4+wt
+	cannot prove scalar result domain for return from @const-qualification-FORGED-0 at statement 0: u64::Issued
 fail/constants/unused_scalar_constant_range rejected 49ms expected @a9ae30e1c334+wt
 fail/constraints/anonymous_integer_local_range rejected 888ms expected @a9ae30e1c334+wt
 fail/constraints/bounded_mutable_initializer_outside_range rejected 813ms expected @a9ae30e1c334+wt
@@ -1903,6 +1908,27 @@ fail/facts/nested_result_extent_through_other_machine_rejected rejected 558ms ex
 fail/facts/nested_result_extent_through_other_state_rejected rejected 553ms expected @8a884ecc43d5+wt
 fail/facts/nested_result_extent_through_parameter_rejected rejected 554ms expected @8a884ecc43d5+wt
 fail/facts/nested_result_extent_through_target_body_rejected rejected 564ms expected @8a884ecc43d5+wt
+fail/facts/no_wrap_domain_through_call_result_requires_geometry rejected 2874ms expected @d2f0e31ca0d4+wt
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/no_wrap_domain_through_const_name_requires_geometry rejected 2876ms expected @d2f0e31ca0d4+wt
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/no_wrap_domain_through_field_requires_geometry rejected 2682ms expected @d2f0e31ca0d4+wt
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/no_wrap_domain_through_local_requires_geometry rejected 3197ms expected @d2f0e31ca0d4+wt
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/no_wrap_domain_through_match_join_requires_geometry rejected 3172ms expected @d2f0e31ca0d4+wt
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/no_wrap_domain_through_other_machine_requires_geometry rejected 2606ms expected @d2f0e31ca0d4+wt
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/no_wrap_domain_through_other_state_requires_geometry rejected 2439ms expected @d2f0e31ca0d4+wt
+	exact arithmetic in machine `cut` state `finish` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/no_wrap_domain_through_parameter_requires_geometry rejected 2813ms expected @d2f0e31ca0d4+wt
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/no_wrap_domain_through_target_body_requires_geometry rejected 2583ms expected @d2f0e31ca0d4+wt
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nominal_loan_backing_cleanup_through_call_result_cleanup_prerequisite rejected 8874ms expected @753e7ce7a36e+wt
 fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite rejected 7088ms expected @753e7ce7a36e+wt
 fail/facts/nominal_loan_backing_cleanup_through_field_cleanup_prerequisite rejected 4487ms expected @753e7ce7a36e+wt
@@ -4609,7 +4635,9 @@ pass/constants/const_data_param checked 9178ms @5041ef1af684+wt
 pass/constants/constant_bound_distance checked 9301ms @5041ef1af684+wt
 pass/constants/lexical_const_shadow checked 9593ms @5041ef1af684+wt
 pass/constants/machine_const_indices checked 9568ms @5041ef1af684+wt
+pass/constants/mathematical_constant_domain_selection checked 9382ms @d2f0e31ca0d4+wt
 pass/constants/nested_const_projection checked 12369ms @5041ef1af684+wt
+pass/constants/qualified_variant_constant checked 1876ms @d2f0e31ca0d4+wt
 pass/constants/runtime_predicate_constant_materialization_exit checked 4187ms check-target:macos_arm64 @ea68f95d0acea7b04f53f3efe179629294cb3491
 pass/constants/runtime_scoped_const_exit checked 16161ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/constants/static_namespace_constant checked 9370ms @5041ef1af684+wt
@@ -5681,6 +5709,15 @@ pass/facts/nested_result_extent_through_other_machine_exit checked 3330ms check-
 pass/facts/nested_result_extent_through_other_state_exit checked 3330ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_parameter_exit checked 3399ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_target_body_exit checked 3423ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/no_wrap_domain_through_call_result_exit checked 9711ms check-target:macos_arm64 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_const_name_exit checked 9354ms check-target:macos_arm64 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_field_exit checked 9129ms check-target:macos_arm64 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_local_exit checked 8394ms check-target:macos_arm64 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_match_join_exit checked 8972ms check-target:macos_arm64 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_other_machine_exit checked 8708ms check-target:macos_arm64 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_other_state_exit checked 8892ms check-target:macos_arm64 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_parameter_exit checked 9155ms check-target:macos_arm64 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_target_body_exit checked 8800ms check-target:macos_arm64 @d2f0e31ca0d4+wt
 pass/facts/nominal_loan_backing_cleanup_through_call_result_exit checked 12631ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/facts/nominal_loan_backing_cleanup_through_const_name_exit checked 11019ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/facts/nominal_loan_backing_cleanup_through_field_exit checked 16379ms check-target:linux_x86_64 @753e7ce7a36e+wt

@@ -37,6 +37,7 @@ pub(super) fn parse_const_definition<'tokens, 'source>(
             type_reference,
             value,
             normalization: None,
+            qualification: None,
         },
         input,
     ))

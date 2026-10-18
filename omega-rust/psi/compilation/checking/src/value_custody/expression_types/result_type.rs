@@ -157,6 +157,12 @@ fn result_type(
     if !program.expression_table.expression_is_valid(expression) || active.contains(&expression) {
         return None;
     }
+    // Const substitution erases value storage, not the declaration's checked
+    // type. Rejoin this exact authored selection before inferring a bare
+    // constructor or numeric carrier from its materialized payload.
+    if let Some(declaration) = program.expression_const_declaration(expression) {
+        return Some(declaration.declared_type);
+    }
     active.push(expression);
     let result = match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => result_type(program, owner, atomic.value, active),

@@ -1006,7 +1006,9 @@ pass/constants/const_data_param checked 17468ms @6c49683ce714
 pass/constants/constant_bound_distance checked 17473ms @6c49683ce714
 pass/constants/lexical_const_shadow checked 17321ms @6c49683ce714
 pass/constants/machine_const_indices checked 17907ms @6c49683ce714
+pass/constants/mathematical_constant_domain_selection checked 8825ms @d2f0e31ca0d4+wt
 pass/constants/nested_const_projection checked 26759ms @6c49683ce714
+pass/constants/qualified_variant_constant checked 1477ms @d2f0e31ca0d4+wt
 pass/constants/runtime_predicate_constant_materialization_exit built 17787ms exit:0 @6c49683ce714
 pass/constants/runtime_scoped_const_exit built 15060ms exit:70 @6c49683ce714
 pass/constants/static_namespace_constant checked 17528ms @6c49683ce714
@@ -1661,6 +1663,15 @@ pass/facts/indexed_element_mut_loan_through_other_machine_exit built 10134ms exi
 pass/facts/indexed_element_mut_loan_through_other_state_exit built 10435ms exit:0 @907be3818acc
 pass/facts/indexed_element_mut_loan_through_parameter_exit built 8325ms exit:0 @907be3818acc
 pass/facts/indexed_element_mut_loan_through_target_body_exit built 9465ms exit:0 @907be3818acc
+pass/facts/no_wrap_domain_through_call_result_exit built 9472ms exit:0 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_const_name_exit built 8985ms exit:0 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_field_exit built 9329ms exit:0 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_local_exit built 9808ms exit:0 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_match_join_exit built 9764ms exit:0 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_other_machine_exit built 8095ms exit:0 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_other_state_exit built 8896ms exit:0 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_parameter_exit built 8691ms exit:0 @d2f0e31ca0d4+wt
+pass/facts/no_wrap_domain_through_target_body_exit built 8261ms exit:0 @d2f0e31ca0d4+wt
 pass/facts/returned_write_destination_through_match_join_exit built 7332ms exit:0 @adb7b6ab515b+wt
 pass/facts/selected_native_code_layout_through_call_result_exit built 7797ms exit:0 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_const_name_exit built 8132ms exit:0 @b2bd1ba421fd+wt

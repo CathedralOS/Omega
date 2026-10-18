@@ -166,6 +166,11 @@ pub fn evaluate_pre_resolution(
         source_scoped_top_level_bindings,
         selection_authority.as_deref(),
     )?;
+    let syntax_trees = crate::const_evaluation::const_qualifications::prove_ready(
+        syntax_trees,
+        sources.clone(),
+        source_scoped_top_level_bindings,
+    )?;
     // Canonical ranges must exist before the const-call probe normalizes its
     // syntax clone: that clone's generic synthesis is itself an equation
     // customer, so retained endpoints cannot arrive after it.

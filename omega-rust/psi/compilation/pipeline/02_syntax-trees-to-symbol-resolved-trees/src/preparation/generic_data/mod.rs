@@ -60,7 +60,7 @@ pub(in crate::preparation::generic_data) use arguments::{
 pub(crate) use const_evaluation::{
     ConstFactValue, ConstScalarSpelling, ConstScalarValue, closed_fixed_array_length,
     evaluate_const_fact_binary, evaluate_const_fact_expression, evaluate_const_membership_fact,
-    prove_const_literal_predicates, prove_declared_const_domain_constraints,
+    prove_const_literal_predicates,
 };
 pub(in crate::preparation::generic_data) use const_evaluation::{
     EvaluatedConst, canonicalize_closed_domain_indices, canonicalize_const_definition,
@@ -345,10 +345,9 @@ fn unique_domain_index_parameters<'syntax>(
 /// This is the narrow handoff used by declaration/API retention. The returned
 /// value's structural encoding is semantic material; its display text remains
 /// diagnostic-only. A constrained carrier canonicalizes at its base and then
-/// owes declaration-site proof: each unindexed domain constraint must
-/// discharge against the canonical value through the same exact owner
-/// selection and fact evaluator `where`-membership uses, or the declaration
-/// stays fenced rather than publishing an unproved identity.
+/// owes the compile-time owner's checked declaration-site result judgment.
+/// The judgment retains the exact destination and completed initializer;
+/// encoding alone cannot publish an unproved qualification.
 pub fn canonicalize_declared_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
@@ -361,21 +360,43 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
     definition: &ConstDefinition,
     selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
-    let value = canonicalize_selected_declaration_value(syntax, definition, selection)?;
-    if let TypeReferenceNode::Constrained { constraints, .. } = syntax
+    let mut payload = definition.clone();
+    if let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = syntax
         .tables
         .type_references
         .type_reference(definition.type_reference)
     {
-        prove_declared_const_domain_constraints(
-            syntax,
-            definition,
-            syntax.tables.type_references.constraints(*constraints),
-            &value,
-            selection,
-        )?;
+        let has_domain = syntax
+            .tables
+            .type_references
+            .constraints(*constraints)
+            .iter()
+            .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
+        if has_domain
+            && !definition
+                .qualification
+                .as_ref()
+                .is_some_and(|qualification| {
+                    qualification.destination == definition.type_reference
+                        && qualification.initializer == definition.value
+                })
+        {
+            return Err(
+                "constant qualification requires a checked declaration-site result judgment"
+                    .to_owned(),
+            );
+        }
+        if has_domain {
+            // The checked result judgment owns this exact outer qualification.
+            // Encoding recursively checks the underlying payload and its member
+            // obligations without re-proving that judgment in the syntax subset.
+            payload.type_reference = *base_type;
+        }
     }
-    Ok(value)
+    canonicalize_selected_declaration_value(syntax, &payload, selection)
 }
 
 /// Find `Base<Args..>` spellings in FIELD type position where `Base` is a
