@@ -1,19 +1,24 @@
-machine wide(value: u64[0..=9223372036854775807]) -> u64
+machine wide(value: u64) -> u64
+    requires value <= 9223372036854775807
     ensures (value << 1u64) <= 18446744073709551614
 {
     value << 1u64
 }
 
-machine varied(value: u64[1..=7], count: i8[1..=3]) -> u64[2..=56]
+machine varied(value: u64, count: i8) -> u64
+    requires value >= 1 && value <= 7 && count >= 1 && count <= 3
     ensures (value << count) >= 2
     ensures (value << count) <= 56
+    ensures result >= 2 && result <= 56
 {
     value << count
 }
 
-machine signed(value: i8[-8..=7], count: i16[1..=3]) -> i8[-64..=56]
+machine signed(value: i8, count: i16) -> i8
+    requires value >= -8 && value <= 7 && count >= 1 && count <= 3
     ensures (value << count) >= -64
     ensures (value << count) <= 56
+    ensures result >= -64 && result <= 56
 {
     value << count
 }

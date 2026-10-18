@@ -1,1 +1,1 @@
-cannot prove initializer `3`
+data `Bounded` literal violates the default domain

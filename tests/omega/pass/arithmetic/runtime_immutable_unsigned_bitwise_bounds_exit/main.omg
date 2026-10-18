@@ -1,11 +1,16 @@
-machine half(value: u64) -> u64 [0..=9223372036854775807]
+machine half(value: u64) -> u64
     ensures (value >> 1u64) <= 9223372036854775807
+    ensures result <= 9223372036854775807
 { value >> 1u64 }
-machine shifted(value: u64, count: i8 [1..=63]) -> u64 [0..=9223372036854775807]
+machine shifted(value: u64, count: i8) -> u64
+    requires count >= 1 && count <= 63
     ensures (value >> count) <= 9223372036854775807
+    ensures result <= 9223372036854775807
 { value >> count }
-machine masked(value: u64 [16..=31]) -> u64 [16..=16]
+machine masked(value: u64) -> u64
+    requires value >= 16 && value <= 31
     ensures (value & 16u64) >= 16
+    ensures result == 16
 { value & 16u64 }
 machine main() crashes Trap {
     let high: u64 = half(18446744073709551615u64);

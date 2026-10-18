@@ -6307,7 +6307,7 @@ fail/range/refined_element_view_outside_field_domain rejected 892ms expected @a9
 fail/ranges/array_window_copy_requires_element_qualification rejected 313ms expected @308fbdc54ba0
 	array window replacement source must preserve the complete destination element type, including its qualifications
 fail/ranges/borrowed_array_literal_element_out_of_range rejected 311ms expected @308fbdc54ba0
-	cannot prove initializer `3` satisfies the bounded value of machine `bad` state `entry` array element 1; expected 0..=2
+	data `Bounded` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/ranges/case_payload_domain_literal_out_of_range rejected 2935ms expected @a9ae30e1c334+wt
 	construction of `Level` field `amount`: value 11 is outside its declared range `0..=10`
 fail/ranges/index_signed_guard_below_zero rejected 5864ms expected @a9ae30e1c334+wt
@@ -6315,7 +6315,7 @@ fail/ranges/index_signed_guard_below_zero rejected 5864ms expected @a9ae30e1c334
 fail/ranges/loop_increment_index_unbounded rejected 5723ms expected @a9ae30e1c334+wt
 	cannot prove index `main.i` is within length 4 in Main::main::body
 fail/ranges/qualified_array_literal_element_full_width_out_of_range rejected 319ms expected @308fbdc54ba0
-	cannot prove initializer `18446744073709551615` satisfies the bounded value of machine `bad` state `entry` array element 0; expected 0..=9223372036854775808
+	data `Bounded` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/ranges/relative_midpoint_at_slice_end rejected 526ms expected @4c1d863a7eae+wt
 	cannot prove index `position` is within unknown slice length of `values` in read::entry
 fail/ranges/slice_bound_unbound_container_binder_rejected rejected 1656ms expected @a9ae30e1c334+wt
