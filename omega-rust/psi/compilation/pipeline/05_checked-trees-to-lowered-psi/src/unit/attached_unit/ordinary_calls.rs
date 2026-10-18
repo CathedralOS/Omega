@@ -94,6 +94,7 @@ pub(super) fn prepare(
     caller_scalar_values: &[ValueDeclaration],
     caller_erased_scalar_parameters: &[ValueDeclaration],
     caller_erased_proof_parameters: &[checked_trees::CheckedErasedProofParameterPlan],
+    caller_observation_parameters: &[(u32, StructuralParameterDeclaration)],
     parameters: &[StructuralParameterDeclaration],
     local_places: &[StructuralPlaceDeclaration],
     structural_result_places: &[(Option<StructuralPlaceDeclaration>, bool)],
@@ -153,11 +154,13 @@ pub(super) fn prepare(
             let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument else {
                 return unsupported("erased Unit call actual must be a pure checked expression");
             };
-            crate::proofs::crash_routes::checked_scalar_term(
+            crate::scalar_lowering::contracts::erased_actual_term(
                 identities,
                 expression,
                 caller_scalar_values,
                 caller_erased_scalar_parameters,
+                caller_observation_parameters,
+                structural_types,
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

@@ -376,6 +376,29 @@ pub(crate) fn proposition(
     )
 }
 
+/// Lower a proof-only call observation in the caller's exact source namespace.
+/// This retains structural field identity as a term; it emits no runtime read
+/// and grants no premise beyond the source-admitted call's existing facts.
+pub(crate) fn erased_actual_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    expression: &CheckedScalarExpression,
+    namespace: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
+    parameters: &[(u32, StructuralParameterDeclaration)],
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<ScalarTerm, LoweringError> {
+    ScalarContractTerms {
+        namespace,
+        erased,
+        views: ContractViewNamespace {
+            parameters,
+            structural_types,
+            ..ContractViewNamespace::EMPTY
+        },
+    }
+    .scalar(identities, expression)
+}
+
 struct ScalarContractTerms<'namespace> {
     namespace: &'namespace [ValueDeclaration],
     erased: &'namespace [ValueDeclaration],
