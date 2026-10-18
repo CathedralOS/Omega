@@ -69,8 +69,7 @@ fn admitted_object_binding_rejects_a_different_valid_object() {
                 semantic_entry_symbol: object_file::ObjectLocalSymbolId::new(1).unwrap(),
                 normalized_imports: Vec::new(),
                 unresolved_normalized_foreign_calls: Vec::new(),
-                unresolved_byte_literal_addresses: Vec::new(),
-                unresolved_implementation_table_addresses: Vec::new(),
+                unresolved_image_addresses: Vec::new(),
                 relocation_record_count: 0,
                 relocation_requirements:
                     object_file::RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
@@ -98,8 +97,7 @@ fn admitted_object_binding_rejects_a_different_valid_object() {
             functions: Vec::new(),
             resolved_internal_machine_calls: Vec::new(),
             unresolved_normalized_foreign_calls: Vec::new(),
-            unresolved_byte_literal_addresses: Vec::new(),
-            unresolved_implementation_table_addresses: Vec::new(),
+            unresolved_image_addresses: Vec::new(),
             relocation_requirements:
                 machine_code::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
         }),

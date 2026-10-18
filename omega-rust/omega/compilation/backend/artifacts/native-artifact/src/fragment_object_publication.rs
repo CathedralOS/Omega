@@ -252,10 +252,6 @@ pub fn emit_fragment_object(
         image_emission::FunctionFragmentObjectArtifactRequest {
             replay: std::sync::Arc::clone(&source),
             dynamic_dispatch: &plan.dynamic_dispatch,
-            implementation_table_addresses: &source
-                .source()
-                .text_section()
-                .unresolved_implementation_table_addresses,
         },
     )
     .map_err(|error| crate::native_artifact_error("fragment object publication", error))?;

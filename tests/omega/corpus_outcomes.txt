@@ -10473,6 +10473,7 @@ pass/traits/runtime_dyn_nested_result_exit checked 10637ms check-target:macos_ar
 pass/traits/runtime_dyn_qualified_byte_result checked 4343ms check-target:macos_arm64 @8c69b643aa24
 pass/traits/runtime_dyn_rebound_selector_forwarded_exit checked 11037ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/runtime_dyn_requirement_contract_exit checked 12200ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/runtime_dyn_selector_and_literal_addresses_exit checked 5921ms check-target:macos_arm64 @378a471091d2
 pass/traits/runtime_dyn_selector_beside_scalar_field_variants_exit checked 5062ms check-target:macos_arm64 @2ff7be544fd3
 pass/traits/runtime_dyn_selector_beside_u64_field_store_exit checked 5058ms check-target:macos_arm64 @2ff7be544fd3
 pass/traits/runtime_dyn_selector_record_field_exit checked 11577ms check-target:macos_arm64 @a9ae30e1c334+wt

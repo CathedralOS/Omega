@@ -2430,6 +2430,7 @@ pass/traits/runtime_dyn_local_selection_exit built 1066ms exit:70 @fc55f70a381c
 pass/traits/runtime_dyn_mixed_scalar_borrow_boolean_exit built 1069ms exit:70 @fc55f70a381c
 pass/traits/runtime_dyn_rebound_selector_forwarded_exit built 1085ms exit:70 @fc55f70a381c
 pass/traits/runtime_dyn_requirement_contract_exit built 2729ms exit:70 @e83cb166de5f+wt
+pass/traits/runtime_dyn_selector_and_literal_addresses_exit built 6024ms exit:70 stdout:match @378a471091d2
 pass/traits/runtime_dyn_selector_record_field_exit built 1099ms exit:70 @fc55f70a381c
 pass/traits/runtime_dyn_two_impl_dispatch_exit built 1039ms exit:70 @fc55f70a381c
 pass/traits/runtime_exact_requirement_edge_exit built 2028ms exit:1 @e3131e3bcd65+wt

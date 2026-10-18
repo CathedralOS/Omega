@@ -7,7 +7,7 @@
 
 use super::{Error, host};
 use crate::ObjectFunction;
-use machine_code::{ByteLiteralAddressFields, PlacedImplementationTableAddress};
+use machine_code::{ImageAddressFields, PlacedImageAddress};
 use object_file::{
     ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
     RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
@@ -17,7 +17,7 @@ use terminal_psi::TerminalDynamicDispatchCatalog;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ObjectImplementationTablePool {
     pub catalog: TerminalDynamicDispatchCatalog,
-    pub addresses: Vec<PlacedImplementationTableAddress>,
+    pub addresses: Vec<PlacedImageAddress>,
     pub tables: Vec<ObjectImplementationTable>,
 }
 
@@ -31,9 +31,14 @@ pub(crate) struct ObjectImplementationTable {
 
 pub(super) fn place(
     catalog: &TerminalDynamicDispatchCatalog,
-    addresses: &[PlacedImplementationTableAddress],
+    addresses: &[PlacedImageAddress],
     object: &mut ObjectPlan,
 ) -> Result<(Option<ObjectImplementationTablePool>, Vec<u8>), Error> {
+    let addresses = addresses
+        .iter()
+        .filter(|address| address.implementation_table().is_some())
+        .copied()
+        .collect::<Vec<_>>();
     if catalog.tables.is_empty() {
         if !addresses.is_empty() {
             return Err(Error::Mismatch(
@@ -163,7 +168,7 @@ fn records_for_symbols(
         let table = pool
             .tables
             .iter()
-            .find(|table| table.table == address.reference.table)
+            .find(|table| Some(table.table) == address.implementation_table())
             .ok_or(Error::Mismatch(
                 "implementation address names an absent table",
             ))?;
@@ -186,10 +191,10 @@ fn records_for_symbols(
             Ok(())
         };
         match address.fields {
-            ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
+            ImageAddressFields::X86_64Relative32 { patch_offset } => {
                 record(patch_offset, RelocationKind::X86_64Relative32)?
             }
-            ByteLiteralAddressFields::Aarch64PageAddress {
+            ImageAddressFields::Aarch64PageAddress {
                 page_patch_offset,
                 page_offset_patch_offset,
             } => {
@@ -215,8 +220,8 @@ pub(super) fn relocation_count(pool: Option<&ObjectImplementationTablePool>) -> 
                 .addresses
                 .iter()
                 .map(|address| match address.fields {
-                    ByteLiteralAddressFields::X86_64Relative32 { .. } => 1,
-                    ByteLiteralAddressFields::Aarch64PageAddress { .. } => 2,
+                    ImageAddressFields::X86_64Relative32 { .. } => 1,
+                    ImageAddressFields::Aarch64PageAddress { .. } => 2,
                 })
                 .sum::<usize>()
     })
@@ -247,7 +252,11 @@ pub(super) fn validate(
             != source
                 .source()
                 .text_section()
-                .unresolved_implementation_table_addresses
+                .unresolved_image_addresses
+                .iter()
+                .filter(|address| address.implementation_table().is_some())
+                .copied()
+                .collect::<Vec<_>>()
     {
         return Err(Error::Mismatch(
             "implementation table inputs differ from admitted source",
@@ -261,7 +270,7 @@ pub(super) fn validate(
             .filter(|operation| {
                 matches!(operation,
             abstract_operations::AbstractOperation::SelectImplementation {psi_operation,table,..}
-            if *psi_operation==address.operation && *table==address.reference.table)
+            if *psi_operation==address.operation && Some(*table)==address.implementation_table())
             })
             .count()
             != 1

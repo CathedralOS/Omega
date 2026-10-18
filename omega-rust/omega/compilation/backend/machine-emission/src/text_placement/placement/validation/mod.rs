@@ -68,9 +68,7 @@ fn expected_requirements(
 ) -> TextSectionRelocationRequirements {
     let rows = || fragments.instructions();
     let has_foreign = rows().any(|row| row.normalized_foreign_call_fixup.is_some());
-    let has_literals = rows().any(|row| {
-        row.byte_literal_address_fixup.is_some() || row.implementation_table_address_fixup.is_some()
-    });
+    let has_literals = rows().any(|row| row.image_address_fixup.is_some());
     if has_literals {
         TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1
     } else if has_foreign {

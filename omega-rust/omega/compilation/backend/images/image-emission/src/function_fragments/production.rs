@@ -12,7 +12,6 @@ use std::sync::Arc;
 pub struct FunctionFragmentObjectArtifactRequest<'inputs> {
     pub replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
     pub dynamic_dispatch: &'inputs terminal_psi::TerminalDynamicDispatchCatalog,
-    pub implementation_table_addresses: &'inputs [machine_code::PlacedImplementationTableAddress],
 }
 
 /// Project admitted current fragments into an ordinary linkable module object.
@@ -24,7 +23,6 @@ pub fn build_function_fragment_object_artifact(
     let FunctionFragmentObjectArtifactRequest {
         replay,
         dynamic_dispatch,
-        implementation_table_addresses,
     } = request;
     let source = replay.as_ref();
     let text = source.source().text_section();
@@ -184,7 +182,7 @@ pub fn build_function_fragment_object_artifact(
     let byte_literal_pool = super::byte_literals::place(source, &mut object, &mut text_bytes)?;
     let (implementation_table_pool, data_bytes) = super::implementation_tables::place(
         dynamic_dispatch,
-        implementation_table_addresses,
+        &source.source().text_section().unresolved_image_addresses,
         &mut object,
     )?;
     // The text section is sized last: it covers program, private and pool bytes.

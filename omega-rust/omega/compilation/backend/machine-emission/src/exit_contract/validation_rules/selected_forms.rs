@@ -64,8 +64,7 @@ pub(in crate::exit_contract) fn encoded_form_and_layout(
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
+            image_address_fixup: None,
         },
     )
 }

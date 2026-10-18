@@ -5,14 +5,13 @@
 //! Unplaced function fragments retain their own identity before image assembly.
 
 pub mod boundary;
-pub mod byte_literals;
 pub mod calls;
 pub mod control_flow;
 pub mod encoding;
 pub mod fragments;
 pub mod functions;
 mod identity_encoding;
-pub mod implementation_tables;
+pub mod image_addresses;
 pub mod instructions;
 pub mod layout;
 pub mod ownership;
@@ -24,10 +23,6 @@ pub use boundary::{
     BoundaryScalarResultRecord, BoundarySettlementRecord, BoundaryStructuralResultRecord,
     CompletionProviderCustodyBinding, PortEffectRecord, ProviderExecutionRecord,
     derive_completion_provider_custody, execution, ports, settlements,
-};
-pub use byte_literals::{
-    ByteLiteralAddressFields, ByteLiteralReference, FunctionFragmentByteLiteralAddressFixup,
-    PlacedByteLiteralAddress, SelectedFormByteLiteralAddressFixup,
 };
 pub use calls::{
     Aarch64ForeignCallFloatingControlRecord, CallbackAddressDestination, CallbackAddressEncoding,
@@ -79,9 +74,9 @@ pub use functions::{
     WholeFunctionReturnEvidence, WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
     WholeFunctionReturnValueEvidence, exit_contract, whole_function_exit_contract_identity,
 };
-pub use implementation_tables::{
-    FunctionFragmentImplementationTableAddressFixup, ImplementationTableReference,
-    PlacedImplementationTableAddress, SelectedFormImplementationTableAddressFixup,
+pub use image_addresses::{
+    ByteLiteralReference, FunctionFragmentImageAddressFixup, ImageAddressFields,
+    PlacedImageAddress, SelectedFormImageAddressFixup,
 };
 pub use instructions::{
     X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat,

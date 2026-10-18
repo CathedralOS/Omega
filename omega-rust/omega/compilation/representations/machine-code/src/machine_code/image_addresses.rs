@@ -1,14 +1,13 @@
-//! Unresolved addresses of byte literals' read-only image storage.
+//! Unresolved image addresses, independent of their referent's ownership.
 //!
-//! A quoted literal's view denotes immutable image storage, not a slot in the
-//! activation that establishes it. Selection therefore names the literal's
-//! octets by the Terminal operation and place that establish them, and the
-//! encoded instruction materializes their address PC-relatively with its
-//! address field left zero. That field travels unchanged through layout,
+//! Selection names an exact referent, and the encoded instruction materializes
+//! its address PC-relatively with the address field left zero. That field
+//! travels unchanged through layout,
 //! fragment emission, frame application and text placement, translated only
 //! from row- to function- to section-relative coordinates; object
-//! construction binds it to the literal's read-only image symbol. No layer
-//! patches it in place.
+//! construction binds it to the owning symbol. Literals and implementation
+//! tables have different placement owners, not different relocation mechanics.
+//! An address observation itself supplies neither a borrow nor storage custody.
 
 use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{MachineId, OperationId, PlaceId};
@@ -21,11 +20,11 @@ pub struct ByteLiteralReference {
     pub place: PlaceId,
 }
 
-/// The unresolved field(s) of one byte-literal address materialization.
+/// The unresolved field(s) of one image address materialization.
 /// Offsets are relative to whatever the containing record names: the
 /// encoded row, the function, or the text section.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ByteLiteralAddressFields {
+pub enum ImageAddressFields {
     /// `lea reg, [rip + disp32]`; the disp32 is the field, and it ends the
     /// instruction, so its reference point is the next instruction.
     X86_64Relative32 { patch_offset: u64 },
@@ -36,7 +35,7 @@ pub enum ByteLiteralAddressFields {
     },
 }
 
-impl ByteLiteralAddressFields {
+impl ImageAddressFields {
     /// The same fields after their containing span moves by `by` bytes.
     fn shifted_by(self, by: u64, offset: impl Fn(u64, u64) -> Option<u64>) -> Option<Self> {
         Some(match self {
@@ -89,41 +88,62 @@ impl ByteLiteralReference {
     }
 }
 
-/// Row-relative unresolved byte-literal address carried from encoding
+/// Row-relative unresolved image address carried from encoding
 /// through resolved layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SelectedFormByteLiteralAddressFixup {
-    pub literal: ByteLiteralReference,
-    pub fields: ByteLiteralAddressFields,
+pub struct SelectedFormImageAddressFixup {
+    pub reference: selected_instructions::SelectedImageAddressReference,
+    pub fields: ImageAddressFields,
 }
 
-/// Function-relative unresolved byte-literal address inside one fragment.
+/// Function-relative unresolved image address inside one fragment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FunctionFragmentByteLiteralAddressFixup {
-    pub literal: ByteLiteralReference,
-    pub fields: ByteLiteralAddressFields,
+pub struct FunctionFragmentImageAddressFixup {
+    pub reference: selected_instructions::SelectedImageAddressReference,
+    pub fields: ImageAddressFields,
 }
 
-/// Section-relative placement of one unresolved byte-literal address. The
+/// Section-relative placement of one unresolved image address. The
 /// instruction's bytes keep their zero field; object construction binds it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PlacedByteLiteralAddress {
+pub struct PlacedImageAddress {
     pub machine: MachineId,
     pub block: SelectedBlockId,
     pub instruction: SelectedInstructionId,
-    pub literal: ByteLiteralReference,
+    pub reference: selected_instructions::SelectedImageAddressReference,
+    pub operation: OperationId,
     pub instruction_function_offset: u64,
     pub instruction_section_offset: u64,
     pub instruction_byte_count: u64,
-    pub fields: ByteLiteralAddressFields,
+    pub fields: ImageAddressFields,
 }
 
-impl PlacedByteLiteralAddress {
+impl PlacedImageAddress {
+    pub fn byte_literal(&self) -> Option<ByteLiteralReference> {
+        match self.reference {
+            selected_instructions::SelectedImageAddressReference::ByteLiteral {
+                operation,
+                place,
+            } => Some(ByteLiteralReference { operation, place }),
+            _ => None,
+        }
+    }
+
+    pub fn implementation_table(&self) -> Option<u32> {
+        match self.reference {
+            selected_instructions::SelectedImageAddressReference::ImplementationTable { table } => {
+                Some(table)
+            }
+            _ => None,
+        }
+    }
+
     pub fn encode_identity(&self, bytes: &mut Vec<u8>) {
         crate::codec_bytes::push_encoded(bytes, self.machine.get().to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, self.block.0.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, self.instruction.0.to_le_bytes());
-        self.literal.encode_identity(bytes);
+        self.reference.encode_identity(bytes);
+        crate::codec_bytes::push_encoded(bytes, self.operation.get().to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, self.instruction_function_offset.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, self.instruction_section_offset.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, self.instruction_byte_count.to_le_bytes());

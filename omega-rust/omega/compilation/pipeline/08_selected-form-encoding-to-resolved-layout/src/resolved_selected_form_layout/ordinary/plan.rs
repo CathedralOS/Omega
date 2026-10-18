@@ -216,8 +216,7 @@ fn instruction_size(
             }
             Ok(row.code.byte_count)
         }
-        SelectedFormEncodingState::UnresolvedByteLiteralAddress { .. }
-        | SelectedFormEncodingState::UnresolvedImplementationTableAddress { .. } => {
+        SelectedFormEncodingState::UnresolvedImageAddress { .. } => {
             if !matches!(
                 instruction.kind,
                 SelectedInstructionKind::ImmutableImageAddress { .. }

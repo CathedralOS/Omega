@@ -139,16 +139,11 @@ fn assemble_object(
         semantic_entry_symbol,
         normalized_imports,
         relocation_record_count: u64::try_from(
-            unresolved_normalized_foreign_calls.len()
-                + text.unresolved_byte_literal_addresses.len()
-                + text.unresolved_implementation_table_addresses.len(),
+            unresolved_normalized_foreign_calls.len() + text.unresolved_image_addresses.len(),
         )
         .map_err(|_| RelocationFreeObjectFromTextError::LengthOverflow)?,
         unresolved_normalized_foreign_calls,
-        unresolved_byte_literal_addresses: text.unresolved_byte_literal_addresses.clone(),
-        unresolved_implementation_table_addresses: text
-            .unresolved_implementation_table_addresses
-            .clone(),
+        unresolved_image_addresses: text.unresolved_image_addresses.clone(),
         relocation_requirements,
     };
     object.identity = object
@@ -206,8 +201,7 @@ mod tests {
             relocation_requirements:
                 TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
             unresolved_normalized_foreign_calls: vec![],
-            unresolved_byte_literal_addresses: Vec::new(),
-            unresolved_implementation_table_addresses: Vec::new(),
+            unresolved_image_addresses: Vec::new(),
         }
     }
 

@@ -59,8 +59,7 @@ pub(in crate::text_placement::placement) fn place(
     let mut functions = Vec::with_capacity(fragments.functions.len());
     let mut resolved = Vec::new();
     let mut unresolved_foreign = Vec::new();
-    let mut unresolved_literals = Vec::new();
-    let mut unresolved_tables = Vec::new();
+    let mut unresolved_addresses = Vec::new();
     let mut seen_entry = BTreeSet::new();
 
     for (source_function_index, function) in fragments.functions.iter().enumerate() {
@@ -139,18 +138,8 @@ pub(in crate::text_placement::placement) fn place(
                         &function_bytes,
                     )?);
                 }
-                if let Some(fixup) = instruction.byte_literal_address_fixup {
-                    unresolved_literals.push(place_byte_literal_address(
-                        function.machine,
-                        block.block,
-                        instruction,
-                        section_offset,
-                        fixup,
-                        &function_bytes,
-                    )?);
-                }
-                if let Some(fixup) = instruction.implementation_table_address_fixup {
-                    unresolved_tables.push(place_implementation_table_address(
+                if let Some(fixup) = instruction.image_address_fixup {
+                    unresolved_addresses.push(place_image_address(
                         function.machine,
                         block.block,
                         instruction,
@@ -180,18 +169,13 @@ pub(in crate::text_placement::placement) fn place(
         .instructions()
         .filter(|instruction| instruction.normalized_foreign_call_fixup.is_some())
         .count();
-    let source_literals = fragments
+    let source_addresses = fragments
         .instructions()
-        .filter(|instruction| instruction.byte_literal_address_fixup.is_some())
-        .count();
-    let source_tables = fragments
-        .instructions()
-        .filter(|instruction| instruction.implementation_table_address_fixup.is_some())
+        .filter(|instruction| instruction.image_address_fixup.is_some())
         .count();
     if resolved.len() != source_fixups
         || unresolved_foreign.len() != source_foreign
-        || unresolved_literals.len() != source_literals
-        || unresolved_tables.len() != source_tables
+        || unresolved_addresses.len() != source_addresses
         || usize_to_u64(bytes.len())? != next_offset
     {
         return Err(TextPlacementError::UnresolvedInternalMachineFixups);
@@ -212,8 +196,7 @@ pub(in crate::text_placement::placement) fn place(
         bytes,
         functions,
         resolved_internal_machine_calls: resolved,
-        relocation_requirements: if !unresolved_literals.is_empty() || !unresolved_tables.is_empty()
-        {
+        relocation_requirements: if !unresolved_addresses.is_empty() {
             TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1
         } else if unresolved_foreign.is_empty() {
             TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
@@ -221,8 +204,7 @@ pub(in crate::text_placement::placement) fn place(
             TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1
         },
         unresolved_normalized_foreign_calls: unresolved_foreign,
-        unresolved_byte_literal_addresses: unresolved_literals,
-        unresolved_implementation_table_addresses: unresolved_tables,
+        unresolved_image_addresses: unresolved_addresses,
     };
     section.identity = section.recomputed_identity();
     Ok(section)
@@ -230,7 +212,7 @@ pub(in crate::text_placement::placement) fn place(
 
 fn check_address_fields(
     instruction: &machine_code::FunctionFragmentInstructionSpan,
-    fields: machine_code::ByteLiteralAddressFields,
+    fields: machine_code::ImageAddressFields,
     function_bytes: &[u8],
 ) -> Result<(), TextPlacementError> {
     let instruction_end = instruction
@@ -246,10 +228,10 @@ fn check_address_fields(
         function_bytes.get(start..start.checked_add(4)?)
     };
     let canonical = match fields {
-        machine_code::ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
+        machine_code::ImageAddressFields::X86_64Relative32 { patch_offset } => {
             field(patch_offset) == Some(&[0, 0, 0, 0][..])
         }
-        machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+        machine_code::ImageAddressFields::Aarch64PageAddress {
             page_patch_offset,
             page_offset_patch_offset,
         } => {
@@ -271,42 +253,16 @@ fn check_address_fields(
 
 /// Keep a literal address field unresolved: record its section coordinates
 /// and require the placed bytes to still hold the canonical zero field.
-fn place_byte_literal_address(
+fn place_image_address(
     machine: semantic_vocabulary::MachineId,
     block: selected_instructions::SelectedBlockId,
     instruction: &machine_code::FunctionFragmentInstructionSpan,
     section_offset: u64,
-    fixup: machine_code::FunctionFragmentByteLiteralAddressFixup,
+    fixup: machine_code::FunctionFragmentImageAddressFixup,
     function_bytes: &[u8],
-) -> Result<machine_code::PlacedByteLiteralAddress, TextPlacementError> {
+) -> Result<machine_code::PlacedImageAddress, TextPlacementError> {
     check_address_fields(instruction, fixup.fields, function_bytes)?;
-    Ok(machine_code::PlacedByteLiteralAddress {
-        machine,
-        block,
-        instruction: instruction.instruction,
-        literal: fixup.literal,
-        instruction_function_offset: instruction.offset,
-        instruction_section_offset: section_offset
-            .checked_add(instruction.offset)
-            .ok_or(TextPlacementError::OffsetOverflow)?,
-        instruction_byte_count: usize_to_u64(instruction.bytes.len())?,
-        fields: fixup
-            .fields
-            .shifted(section_offset)
-            .ok_or(TextPlacementError::OffsetOverflow)?,
-    })
-}
-
-fn place_implementation_table_address(
-    machine: semantic_vocabulary::MachineId,
-    block: selected_instructions::SelectedBlockId,
-    instruction: &machine_code::FunctionFragmentInstructionSpan,
-    section_offset: u64,
-    fixup: machine_code::FunctionFragmentImplementationTableAddressFixup,
-    function_bytes: &[u8],
-) -> Result<machine_code::PlacedImplementationTableAddress, TextPlacementError> {
-    check_address_fields(instruction, fixup.fields, function_bytes)?;
-    Ok(machine_code::PlacedImplementationTableAddress {
+    Ok(machine_code::PlacedImageAddress {
         machine,
         block,
         instruction: instruction.instruction,

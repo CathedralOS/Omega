@@ -214,39 +214,21 @@ pub(crate) fn validate(
             // The field coordinates come from the target's own declaration,
             // never from the producer's fixup.
             let fields = match architecture {
-                Architecture::X86_64 => machine_code::ByteLiteralAddressFields::X86_64Relative32 {
+                Architecture::X86_64 => machine_code::ImageAddressFields::X86_64Relative32 {
                     patch_offset: u64::from(isa_x86_64::X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET),
                 },
-                Architecture::Aarch64 => {
-                    machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
-                        page_patch_offset: u64::from(
-                            isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
-                        ),
-                        page_offset_patch_offset: u64::from(
-                            isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET,
-                        ),
-                    }
-                }
+                Architecture::Aarch64 => machine_code::ImageAddressFields::Aarch64PageAddress {
+                    page_patch_offset: u64::from(
+                        isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
+                    ),
+                    page_offset_patch_offset: u64::from(
+                        isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET,
+                    ),
+                },
             };
-            let matched = match (reference, &row.state) {
-                (
-                    selected_instructions::SelectedImageAddressReference::ByteLiteral {
-                        operation,
-                        place,
-                    },
-                    SelectedFormEncodingState::UnresolvedByteLiteralAddress { fixup },
-                ) => {
-                    fixup.literal == machine_code::ByteLiteralReference { operation, place }
-                        && fixup.fields == fields
-                }
-                (
-                    selected_instructions::SelectedImageAddressReference::ImplementationTable {
-                        table,
-                    },
-                    SelectedFormEncodingState::UnresolvedImplementationTableAddress { fixup },
-                ) => fixup.reference.table == table && fixup.fields == fields,
-                _ => false,
-            };
+            let matched = matches!(&row.state,
+                SelectedFormEncodingState::UnresolvedImageAddress { fixup }
+                    if fixup.reference == reference && fixup.fields == fields);
             if !matched {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }

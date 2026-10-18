@@ -60,8 +60,7 @@ fn fixture(instruction_count: u32) -> (SelectedFunction, ResolvedSelectedFunctio
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
+            image_address_fixup: None,
         });
     }
     let machine = MachineId::new(1).unwrap();

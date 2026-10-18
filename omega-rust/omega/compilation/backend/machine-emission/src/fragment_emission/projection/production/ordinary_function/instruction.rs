@@ -46,9 +46,7 @@ pub(super) fn emit(
         false
     };
     let normalized_foreign_call_fixup = translate_foreign_fixup(row, instruction, import_free)?;
-    let byte_literal_address_fixup = translate_byte_literal_fixup(row, instruction)?;
-    let implementation_table_address_fixup =
-        translate_implementation_table_fixup(row, instruction)?;
+    let image_address_fixup = translate_byte_literal_fixup(row, instruction)?;
     bytes.extend_from_slice(&row.bytes);
     Ok(FunctionFragmentInstructionSpan {
         instruction: row.instruction,
@@ -82,8 +80,7 @@ pub(super) fn emit(
         }),
         internal_machine_fixup,
         normalized_foreign_call_fixup,
-        byte_literal_address_fixup,
-        implementation_table_address_fixup,
+        image_address_fixup,
         provenance: instruction.provenance.clone(),
         control,
     })
@@ -94,58 +91,22 @@ pub(super) fn emit(
 fn translate_byte_literal_fixup(
     row: &ResolvedSelectedFormRow,
     instruction: &SelectedInstruction,
-) -> Result<
-    Option<machine_code::FunctionFragmentByteLiteralAddressFixup>,
-    ResolvedFragmentEmissionError,
-> {
-    let literal = match instruction.kind {
-        SelectedInstructionKind::ImmutableImageAddress {
-            reference:
-                selected_instructions::SelectedImageAddressReference::ByteLiteral { operation, place },
-        } => Some(machine_code::ByteLiteralReference { operation, place }),
+) -> Result<Option<machine_code::FunctionFragmentImageAddressFixup>, ResolvedFragmentEmissionError>
+{
+    let reference = match instruction.kind {
+        SelectedInstructionKind::ImmutableImageAddress { reference } => Some(reference),
         _ => None,
     };
-    match (row.byte_literal_address_fixup, literal) {
+    match (row.image_address_fixup, reference) {
         (None, None) => Ok(None),
-        (Some(fixup), Some(literal)) if fixup.literal == literal && row.branch.is_none() => Ok(
-            Some(machine_code::FunctionFragmentByteLiteralAddressFixup {
-                literal,
+        (Some(fixup), Some(reference)) if fixup.reference == reference && row.branch.is_none() => {
+            Ok(Some(machine_code::FunctionFragmentImageAddressFixup {
+                reference,
                 fields: fixup
                     .fields
                     .shifted(row.offset)
                     .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)?,
-            }),
-        ),
-        _ => Err(ResolvedFragmentEmissionError::RootMismatch),
-    }
-}
-
-fn translate_implementation_table_fixup(
-    row: &ResolvedSelectedFormRow,
-    instruction: &SelectedInstruction,
-) -> Result<
-    Option<machine_code::FunctionFragmentImplementationTableAddressFixup>,
-    ResolvedFragmentEmissionError,
-> {
-    let reference = match instruction.kind {
-        SelectedInstructionKind::ImmutableImageAddress {
-            reference:
-                selected_instructions::SelectedImageAddressReference::ImplementationTable { table },
-        } => Some(machine_code::ImplementationTableReference { table }),
-        _ => None,
-    };
-    match (row.implementation_table_address_fixup, reference) {
-        (None, None) => Ok(None),
-        (Some(fixup), Some(reference)) if fixup.reference == reference && row.branch.is_none() => {
-            Ok(Some(
-                machine_code::FunctionFragmentImplementationTableAddressFixup {
-                    reference,
-                    fields: fixup
-                        .fields
-                        .shifted(row.offset)
-                        .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)?,
-                },
-            ))
+            }))
         }
         _ => Err(ResolvedFragmentEmissionError::RootMismatch),
     }
@@ -328,8 +289,7 @@ mod tests {
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
+            image_address_fixup: None,
         };
         assert_eq!(
             super::translate_foreign_fixup(&row, &instruction, true).unwrap(),
@@ -351,8 +311,7 @@ mod tests {
             branch: None,
             internal_machine_fixup: Some(fixup),
             normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
+            image_address_fixup: None,
         }
     }
 

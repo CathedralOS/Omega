@@ -342,8 +342,7 @@ fn fixture() -> (FunctionFragment, AbstractFunction) {
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
+            image_address_fixup: None,
             provenance: selected_instructions::SelectedInstructionProvenance {
                 operations: operation.into_iter().collect(),
                 ..Default::default()

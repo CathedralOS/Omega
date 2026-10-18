@@ -206,40 +206,20 @@ fn validate_function(
                 candidate_row.normalized_foreign_call_fixup.clone(),
                 shift,
             )?;
-            let expected_literal = source_row
-                .byte_literal_address_fixup
+            let expected_address = source_row
+                .image_address_fixup
                 .map(|fixup| {
                     fixup
                         .fields
                         .shifted(shift)
-                        .map(
-                            |fields| machine_code::FunctionFragmentByteLiteralAddressFixup {
-                                fields,
-                                ..fixup
-                            },
-                        )
-                        .ok_or(FrameApplicationError::OffsetOverflow)
-                })
-                .transpose()?;
-            if candidate_row.byte_literal_address_fixup != expected_literal {
-                return Err(FrameApplicationError::ArtifactMismatch);
-            }
-            let expected_table = source_row
-                .implementation_table_address_fixup
-                .map(|fixup| {
-                    fixup
-                        .fields
-                        .shifted(shift)
-                        .map(|fields| {
-                            machine_code::FunctionFragmentImplementationTableAddressFixup {
-                                fields,
-                                ..fixup
-                            }
+                        .map(|fields| machine_code::FunctionFragmentImageAddressFixup {
+                            fields,
+                            ..fixup
                         })
                         .ok_or(FrameApplicationError::OffsetOverflow)
                 })
                 .transpose()?;
-            if candidate_row.implementation_table_address_fixup != expected_table {
+            if candidate_row.image_address_fixup != expected_address {
                 return Err(FrameApplicationError::ArtifactMismatch);
             }
             cursor = advance(cursor, candidate_row.bytes.len())?;

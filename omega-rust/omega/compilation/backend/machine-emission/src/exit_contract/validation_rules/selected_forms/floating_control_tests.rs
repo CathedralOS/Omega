@@ -82,8 +82,7 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
+            image_address_fixup: None,
         };
         validate_non_return(
             target::Architecture::Aarch64,

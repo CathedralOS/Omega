@@ -1,0 +1,2 @@
+selected image addresses
+literal after selection

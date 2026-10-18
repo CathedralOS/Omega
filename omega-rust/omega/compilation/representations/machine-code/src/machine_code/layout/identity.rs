@@ -111,15 +111,9 @@ pub fn resolved_machine_layout_identity(
                     }
                 }
                 encode_internal_fixup(&mut hasher, instruction.internal_machine_fixup);
-                // A row without a byte-literal address keeps its earlier identity.
-                if let Some(fixup) = instruction.byte_literal_address_fixup {
-                    let mut identity = b"byte-literal-address".to_vec();
-                    fixup.literal.encode_identity(&mut identity);
-                    fixup.fields.encode_identity(&mut identity);
-                    hasher.raw(&identity);
-                }
-                if let Some(fixup) = instruction.implementation_table_address_fixup {
-                    let mut identity = b"implementation-table-address".to_vec();
+                // A row without an image address keeps its earlier identity.
+                if let Some(fixup) = instruction.image_address_fixup {
+                    let mut identity = b"image-address-v2".to_vec();
                     fixup.reference.encode_identity(&mut identity);
                     fixup.fields.encode_identity(&mut identity);
                     hasher.raw(&identity);

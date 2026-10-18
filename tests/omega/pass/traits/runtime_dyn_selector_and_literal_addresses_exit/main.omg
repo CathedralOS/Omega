@@ -1,0 +1,47 @@
+// Expected exit: 70
+// Expected output contains: selected image addresses
+// A function interleaves literal and implementation-table addresses. Their
+// shared relocation roster must preserve both referent identities and order.
+use omega_language_std::console;
+
+trait Scale<T> {
+    machine scale(value: &T) -> i32;
+}
+
+data Amount {
+    value: i32 in Wrapping;
+}
+
+Triple satisfies Scale<Amount> {
+    machine scale(value: &Amount) -> i32 {
+        transition { _ -> (value.value * 3) as i32 }
+    }
+}
+
+data Scaler {
+    operations: dyn Scale<Amount>;
+}
+
+data Main {
+    amount: Amount;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    Console::write_line("selected image addresses");
+    main.amount.value = 7;
+    let scaler: Scaler = Scaler { operations: Triple as dyn Scale<Amount> };
+    let result: i32 = Scale::scale(scaler.operations, &main.amount);
+    Console::write_line("literal after selection");
+    transition result == 21 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+
+    state good(main: &mut Main) {
+        Console::exit_process(70);
+    }
+
+    state bad(main: &mut Main) {
+        Console::exit_process(71);
+    }
+}

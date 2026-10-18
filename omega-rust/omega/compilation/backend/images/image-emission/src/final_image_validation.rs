@@ -404,10 +404,10 @@ fn validate_byte_literal_address_targets(
             .and_then(|pool_address| pool_address.checked_add(address.pool_offset as u64))
             .ok_or_else(|| Diagnostic::error("byte-literal target address overflows"))?;
         let actual_target = match address.fields {
-            machine_code::ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
+            machine_code::ImageAddressFields::X86_64Relative32 { patch_offset } => {
                 decode_x86_relative_target(output, to_offset(patch_offset)?)?
             }
-            machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+            machine_code::ImageAddressFields::Aarch64PageAddress {
                 page_patch_offset,
                 page_offset_patch_offset,
             } => decode_aarch64_page_target(

@@ -309,13 +309,7 @@ pub(super) fn shift_row_fixups(
     if let Some(fixup) = &mut row.normalized_foreign_call_fixup {
         shift_foreign_fixup(fixup, shift)?;
     }
-    if let Some(fixup) = &mut row.byte_literal_address_fixup {
-        fixup.fields = fixup
-            .fields
-            .shifted(shift)
-            .ok_or(FrameApplicationError::OffsetOverflow)?;
-    }
-    if let Some(fixup) = &mut row.implementation_table_address_fixup {
+    if let Some(fixup) = &mut row.image_address_fixup {
         fixup.fields = fixup
             .fields
             .shifted(shift)
@@ -447,8 +441,7 @@ mod tests {
                 addend: 0,
             }),
             normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
+            image_address_fixup: None,
             provenance: SelectedInstructionProvenance::default(),
             control: FunctionFragmentControlProvenance::InternalCall { target: selected_instructions::SelectedCallTarget::Machine(callee), owner: target_operations::CallSiteOwner::Operation(semantic_vocabulary::OperationId::new(1).unwrap()) },
         };
@@ -463,8 +456,7 @@ mod tests {
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
+            image_address_fixup: None,
             provenance: SelectedInstructionProvenance::default(),
             control: FunctionFragmentControlProvenance::Return {
                 psi_return_edge: EdgeId::new(1).unwrap(),

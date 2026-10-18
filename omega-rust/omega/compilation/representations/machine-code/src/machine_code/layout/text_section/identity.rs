@@ -108,20 +108,11 @@ pub fn relocation_free_text_section_identity(
         hasher.byte(resolution.field_byte_width);
         hasher.raw(&resolution.addend.to_le_bytes());
     }
-    // A section without byte-literal addresses keeps its earlier identity.
-    if !section.unresolved_byte_literal_addresses.is_empty() {
-        hasher.raw(b"byte-literal-addresses");
-        hasher.u64(section.unresolved_byte_literal_addresses.len() as u64);
-        for placed in &section.unresolved_byte_literal_addresses {
-            let mut identity = Vec::new();
-            placed.encode_identity(&mut identity);
-            hasher.raw(&identity);
-        }
-    }
-    if !section.unresolved_implementation_table_addresses.is_empty() {
-        hasher.raw(b"implementation-table-addresses");
-        hasher.u64(section.unresolved_implementation_table_addresses.len() as u64);
-        for placed in &section.unresolved_implementation_table_addresses {
+    // A section without image addresses contributes no address roster.
+    if !section.unresolved_image_addresses.is_empty() {
+        hasher.raw(b"image-addresses-v2");
+        hasher.u64(section.unresolved_image_addresses.len() as u64);
+        for placed in &section.unresolved_image_addresses {
             let mut identity = Vec::new();
             placed.encode_identity(&mut identity);
             hasher.raw(&identity);
@@ -211,8 +202,7 @@ mod tests {
             }],
             resolved_internal_machine_calls: Vec::new(),
             unresolved_normalized_foreign_calls: Vec::new(),
-            unresolved_byte_literal_addresses: Vec::new(),
-            unresolved_implementation_table_addresses: Vec::new(),
+            unresolved_image_addresses: Vec::new(),
             relocation_requirements:
                 TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
         };
@@ -287,8 +277,7 @@ mod tests {
                 },
             ],
             unresolved_normalized_foreign_calls: Vec::new(),
-            unresolved_byte_literal_addresses: Vec::new(),
-            unresolved_implementation_table_addresses: Vec::new(),
+            unresolved_image_addresses: Vec::new(),
             resolved_internal_machine_calls: vec![
                 PlacedInternalMachineCallResolution {
                     kind: InternalMachineCallResolutionKind::X86Relative32FromNextInstructionToInternalMachineV1,

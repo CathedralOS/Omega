@@ -259,19 +259,11 @@ fn encode_encoding_row(
             encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
             encode_normalized_foreign_fixup(hasher, fixup);
         }
-        SelectedFormEncodingState::UnresolvedImplementationTableAddress { fixup } => {
-            hasher.byte(5);
+        SelectedFormEncodingState::UnresolvedImageAddress { fixup } => {
+            hasher.byte(6);
             encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
             let mut identity = Vec::new();
             fixup.reference.encode_identity(&mut identity);
-            fixup.fields.encode_identity(&mut identity);
-            hasher.raw(&identity);
-        }
-        SelectedFormEncodingState::UnresolvedByteLiteralAddress { fixup } => {
-            hasher.byte(4);
-            encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
-            let mut identity = Vec::new();
-            fixup.literal.encode_identity(&mut identity);
             fixup.fields.encode_identity(&mut identity);
             hasher.raw(&identity);
         }
@@ -383,10 +375,10 @@ fn encode_counts(
     ] {
         hasher.raw(&count.to_le_bytes());
     }
-    // Absent byte-literal fixups leave every earlier encoding identity intact.
-    if counts.ordinary_byte_literal_address_fixups != 0 {
-        hasher.raw(b"byte-literal-address-fixups");
-        hasher.raw(&counts.ordinary_byte_literal_address_fixups.to_le_bytes());
+    // An empty image-address roster contributes no additional identity bytes.
+    if counts.ordinary_image_address_fixups != 0 {
+        hasher.raw(b"image-address-fixups-v2");
+        hasher.raw(&counts.ordinary_image_address_fixups.to_le_bytes());
     }
 }
 

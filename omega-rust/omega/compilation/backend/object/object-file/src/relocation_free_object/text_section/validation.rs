@@ -26,7 +26,7 @@ pub(crate) fn validate_relocation_free_object_from_text(
         || object.symbols.len() != text.functions.len()
         || object.unresolved_normalized_foreign_calls.len()
             != text.unresolved_normalized_foreign_calls.len()
-        || object.unresolved_byte_literal_addresses != text.unresolved_byte_literal_addresses
+        || object.unresolved_image_addresses != text.unresolved_image_addresses
     {
         return Err(RelocationFreeObjectFromTextError::SourceMismatch);
     }
@@ -43,11 +43,6 @@ pub(crate) fn validate_relocation_free_object_from_text(
             TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1,
         )
     ) {
-        return Err(RelocationFreeObjectFromTextError::SourceMismatch);
-    }
-    if object.unresolved_implementation_table_addresses
-        != text.unresolved_implementation_table_addresses
-    {
         return Err(RelocationFreeObjectFromTextError::SourceMismatch);
     }
     // Canonical object admission above fixes ordinal, name, role and linkage.

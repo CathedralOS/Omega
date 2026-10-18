@@ -135,8 +135,7 @@ fn conditional_function(
                     ))),
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
-                    byte_literal_address_fixup: None,
-                    implementation_table_address_fixup: None,
+                    image_address_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -154,8 +153,7 @@ fn conditional_function(
                     branch: None,
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
-                    byte_literal_address_fixup: None,
-                    implementation_table_address_fixup: None,
+                    image_address_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -173,8 +171,7 @@ fn conditional_function(
                     branch: None,
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
-                    byte_literal_address_fixup: None,
-                    implementation_table_address_fixup: None,
+                    image_address_fixup: None,
                 }],
             },
         ],
@@ -214,8 +211,7 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
                     branch: None,
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
-                    byte_literal_address_fixup: None,
-                    implementation_table_address_fixup: None,
+                    image_address_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -244,8 +240,7 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
                     ))),
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
-                    byte_literal_address_fixup: None,
-                    implementation_table_address_fixup: None,
+                    image_address_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -263,8 +258,7 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
                     branch: None,
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
-                    byte_literal_address_fixup: None,
-                    implementation_table_address_fixup: None,
+                    image_address_fixup: None,
                 }],
             },
         ],
@@ -319,8 +313,7 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     ))),
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
-                    byte_literal_address_fixup: None,
-                    implementation_table_address_fixup: None,
+                    image_address_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -349,8 +342,7 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     ))),
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
-                    byte_literal_address_fixup: None,
-                    implementation_table_address_fixup: None,
+                    image_address_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -368,8 +360,7 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     branch: None,
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
-                    byte_literal_address_fixup: None,
-                    implementation_table_address_fixup: None,
+                    image_address_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -387,8 +378,7 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     branch: None,
                     internal_machine_fixup: None,
                     normalized_foreign_call_fixup: None,
-                    byte_literal_address_fixup: None,
-                    implementation_table_address_fixup: None,
+                    image_address_fixup: None,
                 }],
             },
         ],
@@ -977,8 +967,7 @@ fn branch_chain_function(
                 ))),
                 internal_machine_fixup: None,
                 normalized_foreign_call_fixup: None,
-                byte_literal_address_fixup: None,
-                implementation_table_address_fixup: None,
+                image_address_fixup: None,
             }],
         });
     }
@@ -997,8 +986,7 @@ fn branch_chain_function(
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
+            image_address_fixup: None,
         }],
     });
     blocks.push(ResolvedSelectedBlockLayout {
@@ -1016,8 +1004,7 @@ fn branch_chain_function(
             branch: None,
             internal_machine_fixup: None,
             normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
+            image_address_fixup: None,
         }],
     });
     ResolvedSelectedFunctionLayout {

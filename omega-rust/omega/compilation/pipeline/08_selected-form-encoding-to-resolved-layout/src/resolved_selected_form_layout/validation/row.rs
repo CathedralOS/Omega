@@ -45,8 +45,7 @@ pub(super) fn validate(
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.is_some()
-                || candidate.byte_literal_address_fixup.is_some()
-                || candidate.implementation_table_address_fixup.is_some()
+                || candidate.image_address_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
@@ -61,8 +60,7 @@ pub(super) fn validate(
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup != Some(*fixup)
                 || candidate.normalized_foreign_call_fixup.is_some()
-                || candidate.byte_literal_address_fixup.is_some()
-                || candidate.implementation_table_address_fixup.is_some()
+                || candidate.image_address_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
@@ -77,8 +75,7 @@ pub(super) fn validate(
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.as_ref() != Some(fixup)
-                || candidate.byte_literal_address_fixup.is_some()
-                || candidate.implementation_table_address_fixup.is_some()
+                || candidate.image_address_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
@@ -86,31 +83,14 @@ pub(super) fn validate(
         }
         (
             SelectedFormMachineDisposition::RetainedV1,
-            SelectedFormEncodingState::UnresolvedByteLiteralAddress { fixup },
+            SelectedFormEncodingState::UnresolvedImageAddress { fixup },
         ) => {
-            if !matches!(instruction.kind, SelectedInstructionKind::ImmutableImageAddress { reference: selected_instructions::SelectedImageAddressReference::ByteLiteral { operation, place } } if fixup.literal == (machine_code::ByteLiteralReference { operation, place }))
+            if !matches!(instruction.kind, SelectedInstructionKind::ImmutableImageAddress { reference } if fixup.reference == reference)
                 || candidate.bytes != bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.is_some()
-                || candidate.byte_literal_address_fixup != Some(*fixup)
-                || candidate.implementation_table_address_fixup.is_some()
-            {
-                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
-            }
-            Ok(())
-        }
-        (
-            SelectedFormMachineDisposition::RetainedV1,
-            SelectedFormEncodingState::UnresolvedImplementationTableAddress { fixup },
-        ) => {
-            if !matches!(instruction.kind, SelectedInstructionKind::ImmutableImageAddress {reference:selected_instructions::SelectedImageAddressReference::ImplementationTable {table}} if table==fixup.reference.table)
-                || candidate.bytes != bytes
-                || candidate.branch.is_some()
-                || candidate.internal_machine_fixup.is_some()
-                || candidate.normalized_foreign_call_fixup.is_some()
-                || candidate.byte_literal_address_fixup.is_some()
-                || candidate.implementation_table_address_fixup != Some(*fixup)
+                || candidate.image_address_fixup != Some(*fixup)
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }

@@ -144,9 +144,6 @@ impl SelectedFormEncodedRowStore {
 /// encoding can bind yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedFormEncodingState {
-    UnresolvedImplementationTableAddress {
-        fixup: crate::SelectedFormImplementationTableAddressFixup,
-    },
     Encoded,
     DeferredControl {
         reason: DeferredControlEncodingReason,
@@ -160,11 +157,10 @@ pub enum SelectedFormEncodingState {
     UnresolvedNormalizedForeignCall {
         fixup: crate::SelectedFormNormalizedForeignCallFixup,
     },
-    /// PC-relative address of a byte literal's read-only image storage whose
-    /// address field stays zero until object construction binds it to the
-    /// literal's image symbol.
-    UnresolvedByteLiteralAddress {
-        fixup: crate::SelectedFormByteLiteralAddressFixup,
+    /// Image-relative address whose field stays unresolved until its exact
+    /// referent is placed. The reference describes identity, not RAM authority.
+    UnresolvedImageAddress {
+        fixup: crate::SelectedFormImageAddressFixup,
     },
 }
 
@@ -214,7 +210,7 @@ pub struct SelectedFormEncodingCounts {
     pub ordinary_normalized_foreign_import_fixups: u64,
     /// Encoded byte-literal image addresses whose fields stay unresolved
     /// until object construction binds them to read-only image symbols.
-    pub ordinary_byte_literal_address_fixups: u64,
+    pub ordinary_image_address_fixups: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

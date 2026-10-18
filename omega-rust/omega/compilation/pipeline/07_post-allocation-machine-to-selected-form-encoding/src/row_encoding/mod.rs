@@ -153,7 +153,7 @@ pub(super) fn encode_row(
         }
         RowRoute::ByteLiteralAddress => {
             reject_unrouted_address(address)?;
-            byte_literal_address(target, selected.id, selected.kind, machine, physical)?
+            image_address(target, selected.id, selected.kind, machine, physical)?
         }
         RowRoute::DeferredControlFlow => {
             reject_unrouted_address(address)?;
@@ -192,7 +192,7 @@ pub(super) fn encode_row(
 /// Encode the self-contained `adrp`/`add` or `lea [rip]` form, then name
 /// the address field(s) it leaves zero. The field offsets are the ISA's own
 /// declaration; `validation::row` re-derives them from the target alone.
-fn byte_literal_address(
+fn image_address(
     target: NativeTarget,
     instruction: SelectedInstructionId,
     kind: SelectedInstructionKind,
@@ -211,35 +211,21 @@ fn byte_literal_address(
         machine,
         physical,
     )?
-    .retagged(match reference {
-        selected_instructions::SelectedImageAddressReference::ByteLiteral { operation, place } => {
-            SelectedFormEncodingState::UnresolvedByteLiteralAddress {
-                fixup: machine_code::SelectedFormByteLiteralAddressFixup {
-                    literal: machine_code::ByteLiteralReference { operation, place },
-                    fields: byte_literal_address_fields(target.architecture),
-                },
-            }
-        }
-        selected_instructions::SelectedImageAddressReference::ImplementationTable { table } => {
-            SelectedFormEncodingState::UnresolvedImplementationTableAddress {
-                fixup: machine_code::SelectedFormImplementationTableAddressFixup {
-                    reference: machine_code::ImplementationTableReference { table },
-                    fields: byte_literal_address_fields(target.architecture),
-                },
-            }
-        }
+    .retagged(SelectedFormEncodingState::UnresolvedImageAddress {
+        fixup: machine_code::SelectedFormImageAddressFixup {
+            reference,
+            fields: image_address_fields(target.architecture),
+        },
     })
 }
 
 /// The row-relative address field(s) of a byte-literal image address.
-pub(super) fn byte_literal_address_fields(
-    architecture: Architecture,
-) -> machine_code::ByteLiteralAddressFields {
+pub(super) fn image_address_fields(architecture: Architecture) -> machine_code::ImageAddressFields {
     match architecture {
-        Architecture::X86_64 => machine_code::ByteLiteralAddressFields::X86_64Relative32 {
+        Architecture::X86_64 => machine_code::ImageAddressFields::X86_64Relative32 {
             patch_offset: u64::from(isa_x86_64::X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET),
         },
-        Architecture::Aarch64 => machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
+        Architecture::Aarch64 => machine_code::ImageAddressFields::Aarch64PageAddress {
             page_patch_offset: u64::from(
                 isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
             ),

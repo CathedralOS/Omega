@@ -16,7 +16,7 @@
 use super::{Error, host, source};
 use crate::{ObjectArtifact, ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectFunction};
 use abstract_operations::AbstractOperation;
-use machine_code::{ByteLiteralAddressFields, PlacedByteLiteralAddress};
+use machine_code::{ImageAddressFields, PlacedImageAddress};
 use object_file::{
     ObjectPlan, RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
     StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
@@ -147,8 +147,8 @@ pub(super) fn relocation_count(pool: Option<&ObjectByteLiteralPool>) -> usize {
         pool.addresses
             .iter()
             .map(|address| match address.fields {
-                ByteLiteralAddressFields::X86_64Relative32 { .. } => 1,
-                ByteLiteralAddressFields::Aarch64PageAddress { .. } => 2,
+                ImageAddressFields::X86_64Relative32 { .. } => 1,
+                ImageAddressFields::Aarch64PageAddress { .. } => 2,
             })
             .sum()
     })
@@ -178,11 +178,11 @@ fn expected_records(
         })
     };
     match address.fields {
-        ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => Ok(vec![record(
+        ImageAddressFields::X86_64Relative32 { patch_offset } => Ok(vec![record(
             patch_offset,
             RelocationKind::X86_64Relative32,
         )?]),
-        ByteLiteralAddressFields::Aarch64PageAddress {
+        ImageAddressFields::Aarch64PageAddress {
             page_patch_offset,
             page_offset_patch_offset,
         } => Ok(vec![
@@ -204,28 +204,33 @@ fn pool_contents(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     text_offset: usize,
 ) -> Result<Option<(Vec<u8>, Vec<ObjectByteLiteralAddress>)>, Error> {
-    let placed = &source
+    let placed = source
         .source()
         .text_section()
-        .unresolved_byte_literal_addresses;
+        .unresolved_image_addresses
+        .iter()
+        .filter_map(|row| row.byte_literal().map(|literal| (row, literal)))
+        .collect::<Vec<_>>();
     if placed.is_empty() {
         return Ok(None);
     }
     let literals = placed
         .iter()
-        .map(|row| literal_octets(source, row))
+        .map(|(row, _)| literal_octets(source, row))
         .collect::<Result<Vec<_>, _>>()?;
     let (pool, offsets) = pack_octets(&literals, text_offset)?;
     let addresses = placed
         .iter()
         .zip(literals.iter().zip(offsets))
-        .map(|(row, (octets, pool_offset))| ObjectByteLiteralAddress {
-            machine: row.machine,
-            literal: row.literal,
-            fields: row.fields,
-            pool_offset,
-            byte_count: octets.len(),
-        })
+        .map(
+            |((row, literal), (octets, pool_offset))| ObjectByteLiteralAddress {
+                machine: row.machine,
+                literal: *literal,
+                fields: row.fields,
+                pool_offset,
+                byte_count: octets.len(),
+            },
+        )
         .collect();
     Ok(Some((pool, addresses)))
 }
@@ -258,8 +263,14 @@ fn pack_octets(literals: &[&[u8]], text_offset: usize) -> Result<(Vec<u8>, Vec<u
 /// The exact octets of the one retained literal establishment the row names.
 fn literal_octets<'a>(
     source: &'a StagedOptimizedRelocationFreeObjectContainer,
-    row: &PlacedByteLiteralAddress,
+    row: &PlacedImageAddress,
 ) -> Result<&'a [u8], Error> {
+    let literal = row
+        .byte_literal()
+        .ok_or(Error::Mismatch("non-literal address in literal pool"))?;
+    if row.operation != literal.operation {
+        return Err(Error::Mismatch("literal address operation changed"));
+    }
     let (abstracted, _) = source::function(source, row.machine)?;
     let mut matches = abstracted
         .operations
@@ -270,7 +281,7 @@ fn literal_octets<'a>(
                 place,
                 bytes,
                 ..
-            } if *psi_operation == row.literal.operation && place.id == row.literal.place => {
+            } if *psi_operation == literal.operation && place.id == literal.place => {
                 Some(bytes.as_slice())
             }
             _ => None,

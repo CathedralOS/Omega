@@ -7,7 +7,7 @@
 
 use diagnostics::Diagnostic;
 use image::EmittedImageOutput;
-use machine_code::ByteLiteralAddressFields;
+use machine_code::ImageAddressFields;
 
 use crate::private_object_composition::ObjectNamespace;
 
@@ -23,7 +23,7 @@ pub(super) fn validate_targets(
         let table = pool
             .tables
             .iter()
-            .find(|table| table.table == address.reference.table)
+            .find(|table| Some(table.table) == address.implementation_table())
             .ok_or_else(|| Diagnostic::error("final implementation address has no table"))?;
         let expected_target = section_address(
             output.final_image_layout.data_address,
@@ -36,10 +36,10 @@ pub(super) fn validate_targets(
                 .ok_or_else(|| Diagnostic::error("implementation address field offset overflows"))
         };
         let actual_target = match address.fields {
-            ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
+            ImageAddressFields::X86_64Relative32 { patch_offset } => {
                 super::decode_x86_relative_target(output, field_offset(patch_offset)?)?
             }
-            ByteLiteralAddressFields::Aarch64PageAddress {
+            ImageAddressFields::Aarch64PageAddress {
                 page_patch_offset,
                 page_offset_patch_offset,
             } => super::decode_aarch64_page_target(

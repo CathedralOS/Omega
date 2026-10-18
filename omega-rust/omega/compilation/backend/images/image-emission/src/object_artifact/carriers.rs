@@ -68,7 +68,7 @@ pub struct ObjectByteLiteralAddress {
     pub machine: MachineId,
     pub literal: machine_code::ByteLiteralReference,
     /// Text-section coordinates of the instruction's unresolved field(s).
-    pub fields: machine_code::ByteLiteralAddressFields,
+    pub fields: machine_code::ImageAddressFields,
     /// Offset of the literal's octets from the pool symbol.
     pub pool_offset: usize,
     pub byte_count: usize,
