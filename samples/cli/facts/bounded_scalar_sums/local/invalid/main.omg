@@ -1,10 +1,21 @@
-// A local copy of a full-range u64 does not prove an exact sum.
-machine add(a: u64 [0..=18446744073709551615], b: u64 [0..=18446744073709551615]) -> u64 {
+// Bounded u64 operands a <= 50 and b <= 50 make the exact sum
+// a + b fit result <= 100; no Wrapping domain and no as.
+// Place: local (invalid twin). Plain u64 operands do not prove an exact sum.
+machine add(a: u64, b: u64) -> u64 {
     let left: u64 = a;
     let right: u64 = b;
     left + right
 }
 
-machine main() {
-    _ = add(30, 40);
+machine probe(a: u64, b: u64) -> u64 {
+    add(a, b)
+}
+
+machine main() crashes Trap {
+    transition probe(30, 40) == 70 && probe(50, 50) == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
 }

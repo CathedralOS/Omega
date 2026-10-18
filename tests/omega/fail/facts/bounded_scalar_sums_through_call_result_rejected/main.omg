@@ -1,12 +1,23 @@
-// A call result spanning all of u64 does not prove an exact sum.
-machine bounded(value: u64 [0..=18446744073709551615]) -> u64 [0..=18446744073709551615] {
+// Bounded u64 operands a <= 50 and b <= 50 make the exact sum
+// a + b fit result <= 100; no Wrapping domain and no as.
+// Place: call result (invalid twin). Plain u64 call results do not prove an exact sum.
+machine supply(value: u64) -> u64 {
     value
 }
 
-machine add(a: u64 [0..=18446744073709551615], b: u64 [0..=18446744073709551615]) -> u64 {
-    bounded(a) + bounded(b)
+machine add(left: u64, right: u64) -> u64 {
+    supply(left) + supply(right)
 }
 
-machine main() {
-    _ = add(30, 40);
+machine probe(a: u64, b: u64) -> u64 {
+    add(a, b)
+}
+
+machine main() crashes Trap {
+    transition probe(30, 40) == 70 && probe(50, 50) == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
 }

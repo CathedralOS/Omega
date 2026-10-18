@@ -1,16 +1,33 @@
-// A call result bounded by u64 [0..=50] still proves the sum cannot overflow.
-// Compile-checked only: no ProcessExit provider.
-machine bounded(value: u64 [0..=50]) -> u64 [0..=50] {
+// Bounded u64 operands a <= 50 and b <= 50 make the exact sum
+// a + b fit result <= 100; no Wrapping domain and no as.
+// Place: call result. Both operands arrive from calls with declared result ranges.
+// Expected exit: 0
+machine supply(value: u64) -> u64
+    requires value <= 50
+    ensures result <= 50
+{
     value
 }
 
-machine add(a: u64 [0..=50], b: u64 [0..=50]) -> u64 [0..=100] {
-    bounded(a) + bounded(b)
+machine add(left: u64, right: u64) -> u64
+    requires left <= 50 && right <= 50
+    ensures result <= 100
+{
+    supply(left) + supply(right)
 }
 
-machine main() {
-    let total: u64 [0..=100] = add(30, 40);
-    transition total == 70 { true -> pass() _ -> fail() }
-    state pass() {}
-    state fail() {}
+machine probe(a: u64, b: u64) -> u64
+    requires a <= 50 && b <= 50
+    ensures result <= 100
+{
+    add(a, b)
+}
+
+machine main() crashes Trap {
+    transition probe(30, 40) == 70 && probe(50, 50) == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
 }

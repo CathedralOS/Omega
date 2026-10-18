@@ -1,46 +1,36 @@
-// Bounded scalar carriers — `u64 [a..=b]` on parameters, results, and
-// record fields — and the exact-arithmetic payoff: with declared bounds
-// the checker proves sums cannot overflow, so no Wrapping domain and no
-// `as` widening is needed (decision-17 narrowing).
-//
-//   * `add50(a, b) -> u64 [0..=100]` — the result bound is proven from
-//     the two parameter bounds; the body is a plain exact `a + b`.
-//   * `main.left + main.right` is exact for the same reason — bounded
-//     record fields narrow operands to [0, 100].
-//   * `main.result: u64 [0..=100]` — a bounded field; the call result
-//     flows straight in, and 30 + 40 = 70 is verified by the guard.
-//
-// Compile-checked only: no standard-library dependency, no ProcessExit
-// provider.
-
-machine add50(a: u64 [0..=50], b: u64 [0..=50]) -> u64 [0..=100] {
+// Bounded u64 operands a <= 50 and b <= 50 make the exact sum
+// a + b fit result <= 100; no Wrapping domain and no as.
+// Expected exit: 0
+machine add50(a: u64, b: u64) -> u64
+    requires a <= 50 && b <= 50
+    ensures result <= 100
+{
     a + b
 }
 
-data Main {
-    left: u64 [0..=50];
-    right: u64 [0..=50];
-    result: u64 [0..=100];
+data Pair where left <= 50, right <= 50, result <= 100 {
+    left: u64;
+    right: u64;
+    result: u64;
 }
 
-machine Main::main(main: &mut Main) {
-    main.left = 30;
-    main.right = 40;
-    // Call-result bound [0..100] matches the field bound exactly.
-    main.result = add50(main.left, main.right);
-    // Field-bounded operands narrow the sum to [0, 100] — exact,
-    // no domain, no cast.
-    let again: u64 = main.left + main.right;
-    transition main.result == 70 && again == 70 {
-        true -> Main::pass(main)
-        _ -> Main::fail(main)
+machine compute(left: u64, right: u64) -> u64
+    requires left <= 50 && right <= 50
+    ensures result <= 100
+{
+    let pair: Pair = Pair { left: left, right: right, result: add50(left, right) };
+    let again: u64 = pair.left + pair.right;
+    transition pair.result == again {
+        true -> pair.result
+        _ -> 0
     }
 }
 
-machine Main::pass(main: &mut Main) {
-    main.result = 100;
-}
-
-machine Main::fail(main: &mut Main) {
-    main.result = 0;
+machine main() crashes Trap {
+    transition compute(30, 40) == 70 && compute(50, 50) == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
 }
