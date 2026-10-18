@@ -739,6 +739,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
 
     fn append_operand_child(
         &mut self,
+        parent: ExpressionHandle,
         path: &[facts::PlaceSegment],
         type_reference: TypeReferenceHandle,
         capture: checked_trees::FlowOperandFact,
@@ -754,6 +755,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             &mut self.context.control.operand_children,
             children,
             checked_trees::FlowOperandChild {
+                parent,
                 path,
                 value,
                 type_reference,
@@ -1169,7 +1171,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         contexts,
                         constraints,
                     );
-                    self.append_operand_child(&path, child_type, evaluated.capture, children);
+                    self.append_operand_child(
+                        expression,
+                        &path,
+                        child_type,
+                        evaluated.capture,
+                        children,
+                    );
                 }
             }
             ExpressionNode::StructLiteral(value) => {
@@ -1212,7 +1220,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         contexts,
                         constraints,
                     );
-                    self.append_operand_child(&path, child_type, evaluated.capture, children);
+                    self.append_operand_child(
+                        expression,
+                        &path,
+                        child_type,
+                        evaluated.capture,
+                        children,
+                    );
                 }
                 if let Some(variant) = value.case_symbol.filter(|variant| variant.is_valid())
                     && self.program.symbols.get(variant).kind == symbols::SymbolKind::Variant

@@ -191,12 +191,35 @@ impl SelectedRequirement {
             &self.current.contexts,
         );
         retained.extend(self.current.guarantees.iter().cloned());
+        let mut required = self.predicate.clone();
+        let disposition = facts.contextual_cleanup.dispositions.get(self.disposition);
+        if let Some(state) = facts.flow.control.states.iter().find_map(|(_, state)| {
+            (state.machine_symbol == disposition.machine && state.state_symbol == disposition.state)
+                .then_some(state)
+        }) {
+            retained.extend(crate::checks::contracts::cleanup_predicates(
+                program,
+                facts,
+                state,
+                &self.current.contexts,
+                &mut required,
+                |binding| {
+                    self.current.entry_stable(
+                        program,
+                        &BoundPredicate {
+                            bindings: vec![binding.clone()],
+                            ..self.predicate.clone()
+                        },
+                    )
+                },
+            ));
+        }
         crate::checks::contracts::proves_captured_predicates(
             program,
             &facts.semantic,
             &self.current.contexts,
             &retained,
-            &self.predicate,
+            &required,
             |place| {
                 self.current
                     .value_at_place(program, facts, place)

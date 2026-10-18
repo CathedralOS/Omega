@@ -63,6 +63,10 @@ pub struct FlowOperandFact {
 /// identities and are stored in `FlowControlFacts::operand_child_paths`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FlowOperandChild {
+    /// The actual constructing occurrence, retained even when a later place
+    /// projection or reference keeps only its selected storage. Together with
+    /// the child's state/statement and path this names one completed capture.
+    pub parent: ExpressionHandle,
     pub path: HandleSpan<facts::PlaceSegment>,
     pub value: Handle<FlowOperandFact>,
     /// Declared destination type, including reference access/qualification.

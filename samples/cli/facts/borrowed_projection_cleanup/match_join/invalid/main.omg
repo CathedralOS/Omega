@@ -1,0 +1,19 @@
+// Seed.code == 7 survives each place into a shared loan of an anonymous Pair child, whose whole owner cleans after the Unit call.
+data Seed [copy] { code: u64; }
+data Receipt [linear] { code: u64; }
+machine Receipt::drop(receipt: &mut Receipt) requires receipt.code == 7 {}
+data Pair { first: Receipt; second: Receipt; }
+machine Pair::drop(pair: &mut Pair) {}
+machine observe(receipt: &Receipt) crashes Trap {
+    transition receipt.code == 7 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine through(choose: bool) crashes Trap {
+    let seed: Seed = match choose { true -> Seed { code: 7 }, false -> Seed { code: 6 } };
+    observe(&Pair { first: Receipt { code: 7 }, second: Receipt { code: seed.code } }.second);
+}
+machine main() crashes Trap {
+    through(true);
+    through(false);
+}

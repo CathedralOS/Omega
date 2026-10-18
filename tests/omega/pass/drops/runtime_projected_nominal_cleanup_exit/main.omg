@@ -104,6 +104,7 @@ machine Main::main(main: &mut Main) reaches Console {
     select(input, marker);
     Console::write_byte(10);
     exercise_scalar_temporaries();
+    exercise_unit_projection();
 }
 
 // A scalar-result consumer captures before reverse completed-owner cleanup.
@@ -135,4 +136,24 @@ machine exercise_scalar_temporaries() reaches Console {
     transition captured == 70 && count == 2 { true -> done() false -> bad() }
     state done() { Console::write_byte(10); }
     state bad() { Console::exit_process(1); }
+}
+
+// A Unit consumer observes the selected child before the complete anonymous
+// owner's parent-first, reverse-child cleanup. The sibling is still linear.
+data LoanReceipt [linear] { byte: i32; }
+machine LoanReceipt::drop(receipt: &mut LoanReceipt) reaches Console {
+    Console::write_byte(receipt.byte);
+}
+data LoanPair { first: LoanReceipt; second: LoanReceipt; }
+machine LoanPair::drop(pair: &mut LoanPair) reaches Console {
+    Console::write_byte(80);
+}
+machine observe_loan(receipt: &LoanReceipt) reaches Console {
+    Console::write_byte(79);
+}
+machine exercise_unit_projection() reaches Console {
+    observe_loan(&LoanPair {
+        first: LoanReceipt { byte: 65 }, second: LoanReceipt { byte: 66 }
+    }.second);
+    Console::write_byte(10);
 }

@@ -249,18 +249,32 @@ pub(super) fn account(
                 operation,
                 operations,
             )
-            .map_or(0, |captured| {
-                operations[producer_index + 1..]
-                    .iter()
-                    .filter(|operation| {
-                        control::statement_sequence::release_matches(
-                            operation,
-                            captured.result,
-                            captured.loans,
-                        )
-                    })
-                    .count()
-            })
+            .map_or_else(
+                || {
+                    operations[producer_index + 1..]
+                        .iter()
+                        .filter(|operation| {
+                            control::statement_sequence::release_matches(
+                                operation,
+                                result,
+                                Default::default(),
+                            )
+                        })
+                        .count()
+                },
+                |captured| {
+                    operations[producer_index + 1..]
+                        .iter()
+                        .filter(|operation| {
+                            control::statement_sequence::release_matches(
+                                operation,
+                                captured.result,
+                                captured.loans,
+                            )
+                        })
+                        .count()
+                },
+            )
         } else {
             0
         };

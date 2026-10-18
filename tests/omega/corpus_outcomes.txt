@@ -487,6 +487,20 @@ fail/data/qualified_record_pattern_unrouted rejected 707ms expected @4e9f61cedcd
 	construction value is not proven in domain `Point::Screen` in rebuild state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 fail/dependent/inactive_payload_cannot_supply_common_fact rejected 623ms expected @408e4fc23fbc
 	cannot prove requires contract for call need from inspect: item.value <= 5 (needs fact `value <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `selected`
+fail/drops/borrowed_projection_capture_after_source_write rejected 1718ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/drops/borrowed_projection_declared_index_not_storage rejected 649ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Receipt does not establish Receipt::drop clause `receipt.code == 7`
+fail/drops/borrowed_projection_destination_write_retires_capture rejected 1717ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 4: pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/drops/borrowed_projection_disjunctive_capture rejected 1709ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/drops/borrowed_projection_earlier_call_false_capture rejected 648ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.first does not establish Receipt::drop clause `receipt.code == 7`
+fail/drops/borrowed_projection_moved_child_reuse rejected 282ms expected @dec223be05fb
+	cannot use `first.receipt` in machine `main` state `entry` (statement 2) after `first.receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first.receipt` first
+fail/drops/borrowed_projection_unselected_child_prerequisite rejected 1734ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
 fail/drops/result_cleanup_disjunctive_result rejected 657ms expected @76ea4b8c7c50
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
 fail/drops/result_cleanup_false_guarantee rejected 673ms expected @76ea4b8c7c50
@@ -558,6 +572,27 @@ fail/facts/address_count_partition_through_target_body_rejected rejected 246ms e
 	exact arithmetic in machine `split` state `entry` local `right` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `split` state `entry` local `right` may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `split` state `entry` local `right` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite rejected 1724ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite rejected 1746ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_field_prerequisite rejected 1744ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_local_prerequisite rejected 1720ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_match_join_prerequisite rejected 1720ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_other_machine_prerequisite rejected 1762ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_other_state_prerequisite rejected 1775ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from main state next after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_parameter_prerequisite rejected 1747ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite rejected 1720ms expected @dec223be05fb
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
 fail/facts/checked_asm_countdown_call_result_wrong_fallthrough rejected 3591ms expected @a0c34fdba779+wt
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_countdown_const_name_wrong_fallthrough rejected 5186ms expected @a0c34fdba779+wt
@@ -7573,6 +7608,9 @@ pass/core/interval_content_length_partition_exit checked 3960ms check-target:mac
 pass/core/interval_content_partition_exit checked 4124ms check-target:macos_arm64 @b794c35ad5f8+wt
 pass/data/qualified_record_pattern_exit checked 3896ms check-target:macos_arm64 @4e9f61cedcd7+wt
 pass/data/runtime_case_payload_call_result_window_exit checked 8218ms check-target:macos_arm64 @408e4fc23fbc
+pass/drops/borrowed_projection_captures_before_sibling_write_exit checked 8036ms check-target:macos_arm64 @dec223be05fb
+pass/drops/borrowed_projection_earlier_call_capture_exit checked 8208ms check-target:macos_arm64 @dec223be05fb
+pass/drops/borrowed_projection_moved_aggregate_capture_exit checked 7888ms check-target:macos_arm64 @dec223be05fb
 pass/drops/result_cleanup_implicit_boolean_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
 pass/drops/result_cleanup_integer_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
 pass/drops/result_cleanup_named_boolean_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
@@ -7587,6 +7625,15 @@ pass/facts/address_count_partition_through_other_machine_exit checked 4002ms che
 pass/facts/address_count_partition_through_other_state_exit checked 4004ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_parameter_exit checked 3998ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_target_body_exit checked 4145ms check-target:macos_arm64 @70da601bb299+wt
+pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 7801ms check-target:macos_arm64 @dec223be05fb
+pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 6361ms check-target:macos_arm64 @dec223be05fb
+pass/facts/borrowed_projection_cleanup_through_field_exit checked 6543ms check-target:macos_arm64 @dec223be05fb
+pass/facts/borrowed_projection_cleanup_through_local_exit checked 7729ms check-target:macos_arm64 @dec223be05fb
+pass/facts/borrowed_projection_cleanup_through_match_join_exit checked 7555ms check-target:macos_arm64 @dec223be05fb
+pass/facts/borrowed_projection_cleanup_through_other_machine_exit checked 4253ms check-target:macos_arm64 @dec223be05fb
+pass/facts/borrowed_projection_cleanup_through_other_state_exit checked 4159ms check-target:macos_arm64 @dec223be05fb
+pass/facts/borrowed_projection_cleanup_through_parameter_exit checked 3641ms check-target:macos_arm64 @dec223be05fb
+pass/facts/borrowed_projection_cleanup_through_target_body_exit checked 3641ms check-target:macos_arm64 @dec223be05fb
 pass/facts/checked_asm_countdown_call_result_exit checked 14392ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_const_name_exit checked 12105ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_field_exit checked 9422ms check-target:linux_x86_64 @a0c34fdba779+wt

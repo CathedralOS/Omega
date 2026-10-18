@@ -242,12 +242,10 @@ fn loan_schedule_owns_window(
     })
 }
 
-/// Dispose anonymous argument owners at the call's normal continuation.
-/// The argument's access determines whether the whole owner or its maximal
-/// complement dies. Captured reference descriptors instead keep their one
-/// release in the loan schedule, including any returned descendant's lifetime.
-/// Results follow establishment order, so reverse traversal also orders mixed
-/// borrowed owners and partially transferred owners without regrouping them.
+/// Select the already admitted normal deaths of this invocation. Operand
+/// graphs authenticate completed storage; they do not decide which values die.
+/// In particular, a reference operand can retain a distinct backing owner that
+/// is absent from the call's direct result-binding roster.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn append_continuation(
     program: &dyn ::validation::CheckingInput,
@@ -262,52 +260,27 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     let invocation = operations
         .iter()
         .rev()
-        .find(|operation| operation.invocation_coordinate() == Some(coordinate))?;
-    // Normal completion retires an anonymous holder independently of the
-    // callee route. Boundary receipts settle claims, not a borrowed holder's
-    // physical carrier; whole transfers below still belong to the callee.
-    let mut dying = Vec::new();
-    let mut cleanup_actions = Vec::new();
-    for (result, root) in results.iter().rev() {
-        if result.statement_index != coordinate.statement_index
-            || !matches!(root, facts::PlaceRoot::Expression(_))
-            || result.multiplicity == Multiplicity::Unrestricted
-        {
-            continue;
-        }
-        let arguments = invocation
-            .structural_operands()
-            .iter()
-            .filter(|argument| {
-                argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
-            })
-            .collect::<Vec<_>>();
-        if arguments.is_empty() {
-            continue;
-        }
-        let transfers = arguments
-            .iter()
-            .filter(|argument| argument.access == CheckedStructuralAccess::Owned)
-            .collect::<Vec<_>>();
-        if transfers.iter().any(|argument| argument.path.is_empty()) {
-            // Whole transfers carry custody into the callee, including claims.
-            continue;
-        }
-        if result.multiplicity != Multiplicity::Affine {
-            // Automatic disposal cannot discharge a live linear obligation.
-            return None;
-        }
-        let source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-            binding_ordinal: result.binding_ordinal,
-        };
-        if transfers.is_empty() {
-            // The reference scheduler owns this exact carrier's retirement.
-            // A call can return a descendant that still borrows its operand;
-            // immediate continuation cleanup would retire that operand twice
-            // and, before the child ends, destroy backing that remains live.
-            // A mutable or shared window returned into the argument has the
-            // same obligation when its loan roster is empty: the producer
-            // minted no return-discard, and demanding one refuses the call.
+        .find(|operation| operation.invocation_coordinate() == Some(coordinate))?
+        .clone();
+    // Descriptor-only custody has its own checked completion law. Use the
+    // same operation for statement calls and calls retained inside a value;
+    // neither the descriptor's type nor its death can dispose its backing.
+    if let Some(call) = invocation.call() {
+        let completions = crate::execution::terminal_unit::calls::temporary_descriptor_completions(
+            call, operations, shapes,
+        )?;
+        for completion in completions.iter() {
+            let CheckedUnitEffectOperationPlan::ReleaseReference {
+                source:
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
+                ..
+            } = completion
+            else {
+                return None;
+            };
+            let result = results.iter().find_map(|(result, _)| {
+                (result.binding_ordinal == *binding_ordinal).then_some(result)
+            })?;
             if operations.iter().any(|producer| {
                 super::super::control::statement_sequence::captured_reference_result(
                     program,
@@ -320,67 +293,167 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
                 )
                 .is_some_and(|captured| captured.result == result)
             }) || loan_schedule_owns_window(program, operations, result)
+                || operations.iter().any(|operation| {
+                    super::super::control::statement_sequence::release_matches(
+                        operation,
+                        result,
+                        Default::default(),
+                    )
+                })
             {
                 continue;
             }
-            cleanup_actions.push(CheckedNormalCleanupAction::Discard(
-                CheckedUnitPartialAffineDiscardPlan {
-                    source,
-                    path: Vec::new(),
-                    type_identity: result.type_identity,
-                    case_conditions: Default::default(),
-                },
-            ));
-        } else {
-            let [argument] = transfers.as_slice() else {
-                return None;
-            };
-            let residuals = partial_affine_residuals(
-                &shapes.types,
-                &source,
-                result.type_identity,
-                &[(argument.path.clone(), argument.type_identity)],
-            )?;
-            validate_permissions_at(
-                program,
-                &facts.flow,
-                machine.symbol,
-                state.symbol,
-                *root,
-                usize::try_from(coordinate.statement_index).ok()?,
-                usize::try_from(coordinate.call_ordinal).ok()?,
-                &source,
-                &residuals,
-            )?;
-            cleanup_actions.extend(projected_owner_actions(
-                source,
-                result.type_identity,
-                residuals,
-            ));
+            let (_, discard) = operations.iter_mut().find_map(|operation| {
+                operation.discardable_structural_result_by_ordinal_mut(*binding_ordinal)
+            })?;
+            *discard = false;
+            operations.push(completion.clone());
         }
-        dying.push(result);
+    }
+    let statement = coordinate.statement_index;
+    let values = &facts.values.structural_values;
+    let mut dying = Vec::new();
+    for (_, disposition) in facts.contextual_cleanup.dispositions.iter().filter(|(_, disposition)| {
+        disposition.machine == machine.symbol && disposition.state == state.symbol
+            && matches!(disposition.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
+                if statement_index == statement as usize && call_ordinal == coordinate.call_ordinal as usize)
+    }) {
+        let Some(expression) = disposition.root.as_expression() else { continue; };
+        if !dying.contains(&expression) { dying.push(expression); }
     }
     if dying.is_empty() {
         return Some(());
     }
-    for result in dying {
-        // Establishments and calls publish the same disposal debt. Move it
-        // to this continuation exactly once, never leave a second return drop.
-        let mut producers = operations.iter_mut().filter_map(|operation| {
-            operation
-                .discardable_structural_result_mut()
-                .filter(|(produced, _)| produced.binding_ordinal == result.binding_ordinal)
-        });
-        let (produced, discard_on_return) = producers.next()?;
-        if producers.next().is_some() || *produced != *result || !*discard_on_return {
+    let mut retained = Vec::new();
+    for argument in invocation.structural_operands() {
+        let root = if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
+            let mut bindings = results
+                .iter()
+                .filter(|(result, _)| result.binding_ordinal == ordinal);
+            let (_, root) = bindings.next()?;
+            if bindings.next().is_some() {
+                return None;
+            }
+            *root
+        } else if let Some(root) = argument.structural_storage_root() {
+            root
+        } else {
+            continue;
+        };
+        let Some(expression) = root.as_expression() else {
+            continue;
+        };
+        let Some(root) = values.root_for_expression(state.symbol, statement, expression) else {
+            continue;
+        };
+        retained.extend(values.value_dependencies(root.root)?);
+    }
+    let (_, statement_node) = program
+        .statement_table
+        .indexed_statements(state.statement_nodes)
+        .find(|(index, _)| *index == statement as usize)?;
+    let completed = crate::checks::ownership_occurrences::completed_expressions(
+        program,
+        machine,
+        state,
+        statement as usize,
+        statement_node,
+        &facts.operators,
+    );
+    if dying.iter().any(|expression| {
+        completed
+            .iter()
+            .filter(|value| *value == expression)
+            .count()
+            != 1
+    }) {
+        return None;
+    }
+    dying.sort_by_key(|expression| {
+        std::cmp::Reverse(completed.iter().position(|value| value == expression))
+    });
+    let mut cleanup_actions = Vec::new();
+    for expression in dying {
+        let root = values.root_for_expression(state.symbol, statement, expression)?;
+        if root.machine != machine.symbol || !retained.contains(&root.root) {
             return None;
         }
-        *discard_on_return = false;
+        let mut bindings = results.iter().filter(|(result, source)| {
+            result.statement_index == statement
+                && *source == facts::PlaceRoot::Expression(expression)
+        });
+        let source = if let Some((result, _)) = bindings.next() {
+            if bindings.next().is_some() {
+                return None;
+            }
+            // Captured loan carriers keep the independently checked release
+            // schedule, including descendants returned by this invocation.
+            // A backing owner is a separate root, never this descriptor.
+            if operations.iter().any(|producer| {
+                super::super::control::statement_sequence::captured_reference_result(
+                    program,
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    results,
+                    producer,
+                    operations,
+                )
+                .is_some_and(|captured| captured.result == result)
+            }) || loan_schedule_owns_window(program, operations, result)
+                || operations.iter().any(|operation| {
+                    super::super::control::statement_sequence::release_matches(
+                        operation,
+                        result,
+                        Default::default(),
+                    )
+                })
+            {
+                continue;
+            }
+            let mut producers = operations.iter_mut().filter_map(|operation| {
+                operation
+                    .discardable_structural_result_mut()
+                    .filter(|(produced, _)| produced.binding_ordinal == result.binding_ordinal)
+            });
+            let (produced, discard_on_return) = producers.next()?;
+            if producers.next().is_some() || *produced != *result {
+                return None;
+            }
+            // Scheduling metadata is not custody. Linear values and retained
+            // calls can already have no automatic return discard; their exact
+            // contextual hook partition still authorizes this normal death.
+            *discard_on_return = false;
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            }
+        } else {
+            // Reference establishment retains its completed backing under this
+            // exact expression home. Cleanup resolves that existing storage;
+            // it never creates another result or reevaluates the producer.
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
+        };
+        if operations.iter().any(|operation| matches!(operation,
+            CheckedUnitEffectOperationPlan::ContinuationCleanup { cleanup_actions, .. }
+                if cleanup_actions.iter().any(|action| action.source() == &source && action.path().is_empty()))) {
+            return None;
+        }
+        cleanup_actions.push(CheckedNormalCleanupAction::RetireHome {
+            source,
+            type_identity: base_type_identity(
+                program,
+                root.type_reference,
+                &crate::execution::terminal_unit::types::machine_binders(program, machine),
+                &[],
+            )?,
+        });
     }
-    operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
-        selected_regions: Vec::new(),
-        boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
-        cleanup_actions,
-    });
+    if !cleanup_actions.is_empty() {
+        operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            selected_regions: Vec::new(),
+            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
+            cleanup_actions,
+        });
+    }
     Some(())
 }

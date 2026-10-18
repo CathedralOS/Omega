@@ -230,6 +230,9 @@ pub(super) struct Retirement<'a> {
     pub(super) statement_index: u32,
     pub(super) results: &'a Results,
     pub(super) operations: &'a [CheckedUnitEffectOperationPlan],
+    /// Only this operation prefix has completed at the insertion point.
+    /// A selected future owner death cannot settle a holder needed before it.
+    pub(super) completed_operations: usize,
     pub(super) pending: &'a [CheckedUnitEffectOperationPlan],
     /// Deferred edge releases count only once completion schedules them.
     /// Ordinary statement expiry cannot consume a future edge's custody.
@@ -1225,8 +1228,14 @@ impl Retirement<'_> {
                         && disposition.path.is_empty()
                         && disposition.exclusions.is_empty()
                         && matches!(disposition.source,
-                        language_semantics::PermissionEventSource::Call { statement_index, .. }
-                            if statement_index == loan.statement_index)
+                        language_semantics::PermissionEventSource::Call { statement_index, call_ordinal, .. }
+                            if statement_index == loan.statement_index
+                                && (self.at_exit || self.operations[..self.completed_operations].iter().any(|operation| {
+                                    matches!(operation, CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                                        boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), ..
+                                    } if coordinate.statement_index as usize == statement_index
+                                        && coordinate.call_ordinal as usize == call_ordinal)
+                                })))
                 })
         {
             return true;

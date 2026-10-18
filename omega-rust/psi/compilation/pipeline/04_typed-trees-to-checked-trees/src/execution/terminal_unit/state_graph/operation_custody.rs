@@ -48,11 +48,10 @@ pub(super) fn admit(
                 if call_argument_admitted(destination, &operations[..operation_index]) => {}
             // The common source replay authenticates construction and each
             // issuance or transferred claim. A state graph changes only the
-            // selected-edge disposition, not establishment authority.
-            CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-                discard_result_on_return: false,
-                ..
-            })
+            // selected-edge disposition, not establishment authority. The
+            // result accountant below checks its exact normal disposition;
+            // an automatic-return scheduling flag does not classify a producer.
+            CheckedUnitEffectOperationPlan::EstablishLocal(checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { .. })
             // A view-subslice local owns nothing: its shared view ends
             // with the loan, on every selected edge alike.
             | checked_trees::byte_sequence_establishment_pattern!()

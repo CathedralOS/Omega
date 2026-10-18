@@ -141,6 +141,7 @@ pub(super) fn append_constructed_field_values(
             let payload = match fact.payload {
                 FactPayload::AssignedValue { .. }
                 | FactPayload::AssignedScalarValue { .. }
+                | FactPayload::AssignedValueCapture { .. }
                 | FactPayload::FloatPredicate { .. } => fact.payload,
                 facts::domain_membership_fields_pattern!(
                     domain,

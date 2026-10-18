@@ -55,6 +55,8 @@ pub(crate) use prover::contexts_prove_proposition_label;
 
 // Provers the call requirement and exit checks consult directly.
 mod call_bounds;
+mod captured_predicates;
+pub(crate) use captured_predicates::cleanup_predicates;
 pub(crate) mod call_values;
 mod capture_coordinates;
 mod content_preservation;

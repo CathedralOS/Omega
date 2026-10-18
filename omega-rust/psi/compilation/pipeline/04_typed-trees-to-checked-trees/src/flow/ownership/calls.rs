@@ -76,6 +76,22 @@ pub(in crate::flow) fn append_call_ownership_events(
 
     for (parameter, argument) in parameters.zip(arguments.iter()) {
         if !parameter_transfers(parameter) {
+            // Lending the completed argument does not lend the operands used
+            // to construct it. Observe existing places, but retain moves into
+            // fresh caller-side values at their actual evaluation occurrence.
+            // The borrowed formal receives no ownership or claim transfer.
+            if !parameter.is_const && !parameter.relevance.is_erased() && !proof_call {
+                moves::observations::append(
+                    program,
+                    sink,
+                    state.symbol,
+                    borrow_call.statement_index,
+                    *argument,
+                    FlowOwnershipEventSource::Statement {
+                        statement_index: borrow_call.statement_index,
+                    },
+                );
+            }
             continue;
         }
 

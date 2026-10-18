@@ -94,14 +94,10 @@ pub(in crate::execution::terminal_unit) fn operations(
         else {
             continue;
         };
-        let Some(consumer) = operations[..operation_index]
+        operations[..operation_index]
             .iter()
             .rev()
-            .filter_map(CheckedUnitEffectOperationPlan::call)
-            .find(|call| call.coordinate == *coordinate)
-        else {
-            continue;
-        };
+            .find(|operation| operation.invocation_coordinate() == Some(*coordinate))?;
         let mut sources = Vec::new();
         let mut completed = Vec::new();
         for action in cleanup_actions {
@@ -110,16 +106,40 @@ pub(in crate::execution::terminal_unit) fn operations(
                 continue;
             }
             sources.push(source.clone());
-            let CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } =
-                *source
-            else {
-                return None;
+            let root = match *source {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                    let mut producers = operations[..operation_index].iter().filter(|operation| {
+                        operation
+                            .structural_result_binding()
+                            .is_some_and(|result| result.binding_ordinal == binding_ordinal)
+                    });
+                    let producer = producers.next()?;
+                    if producers.next().is_some() {
+                        return None;
+                    }
+                    super::normal_edges::producer_root(facts, state, producer)?
+                }
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+                    facts::PlaceRoot::Expression(expression)
+                }
+                _ => return None,
             };
-            if !consumer
-                .structural_arguments
-                .iter()
-                .any(|argument| argument.source == *source)
-            {
+            let contextual = facts.contextual_cleanup.dispositions.iter().any(|(_, row)| {
+                row.machine == machine && row.state == state && row.root == root
+                    && matches!(row.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
+                        if statement_index == coordinate.statement_index as usize
+                            && call_ordinal == coordinate.call_ordinal as usize)
+            });
+            if !contextual {
+                // Independent result/descriptor disposal retains its existing
+                // authority. A contextual owner seed must instead resolve its
+                // complete partition, including an admitted empty complement.
+                if cleanup_actions.iter().any(|action| {
+                    action.source() == source
+                        && matches!(action, CheckedNormalCleanupAction::RetireHome { .. })
+                }) {
+                    return None;
+                }
                 completed.extend(
                     cleanup_actions
                         .iter()
@@ -128,12 +148,6 @@ pub(in crate::execution::terminal_unit) fn operations(
                 );
                 continue;
             }
-            let producer = operations[..operation_index].iter().find(|operation| {
-                operation
-                    .structural_result_binding()
-                    .is_some_and(|result| result.binding_ordinal == binding_ordinal)
-            })?;
-            let root = super::normal_edges::producer_root(facts, state, producer)?;
             completed.extend(selected_actions(
                 program,
                 facts,

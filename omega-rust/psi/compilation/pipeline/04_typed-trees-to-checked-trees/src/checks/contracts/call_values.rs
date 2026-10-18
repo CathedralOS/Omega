@@ -14,7 +14,7 @@ use facts::FactContextHandle;
 use symbols::SymbolHandle;
 use typed_trees::{expression::ExpressionHandle, signature::StateParameter};
 
-mod captured_predicates;
+use super::captured_predicates;
 
 pub(crate) fn target_machine(
     program: &dyn ::validation::CheckingInput,

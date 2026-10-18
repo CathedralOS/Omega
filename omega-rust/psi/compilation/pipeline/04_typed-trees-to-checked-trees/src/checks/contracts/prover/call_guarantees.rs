@@ -1064,7 +1064,9 @@ fn captured_place(
     }) {
         if !matches!(
             fact.payload,
-            FactPayload::AssignedValue { .. } | FactPayload::AssignedScalarValue { .. }
+            FactPayload::AssignedValue { .. }
+                | FactPayload::AssignedScalarValue { .. }
+                | FactPayload::AssignedValueCapture { .. }
         ) {
             continue;
         }

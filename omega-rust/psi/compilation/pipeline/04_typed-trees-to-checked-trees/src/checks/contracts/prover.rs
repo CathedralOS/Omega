@@ -365,6 +365,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         | FactPayload::AssignedIntegerBounds { .. }
         | FactPayload::FloatPredicate { .. }
         | FactPayload::AssignedScalarValue { .. }
+        | FactPayload::AssignedValueCapture { .. }
         | FactPayload::StorageDependency { .. }
         | FactPayload::BytePredicate { .. }
         | FactPayload::BooleanValue { .. }

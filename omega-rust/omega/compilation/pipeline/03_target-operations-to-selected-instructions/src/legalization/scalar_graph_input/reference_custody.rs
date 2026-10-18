@@ -2819,10 +2819,12 @@ fn apply_cleanup_actions(
                 continue;
             }
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                if !cleanup.requirement_obligations.is_empty()
-                    || source_contract(function, custody, cleanup.place)
-                        .and_then(|root| leaf_type(types, root, &cleanup.path))
-                        != Some(cleanup.structural_type)
+                // Psi owns each proved call requirement. Reference custody
+                // checks the receiver's physical type and outstanding loans;
+                // a nonempty proof roster does not change that storage law.
+                if source_contract(function, custody, cleanup.place)
+                    .and_then(|root| leaf_type(types, root, &cleanup.path))
+                    != Some(cleanup.structural_type)
                     || storage_access_conflicts(
                         function,
                         custody,

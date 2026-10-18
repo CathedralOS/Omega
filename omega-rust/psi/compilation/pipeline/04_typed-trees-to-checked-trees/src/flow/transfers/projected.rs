@@ -121,6 +121,7 @@ pub(super) fn append_copied_field_predicates(
             }
             FactPayload::AssignedCase { .. }
             | FactPayload::AssignedScalarValue { .. }
+            | FactPayload::AssignedValueCapture { .. }
             | FactPayload::BytePredicate { .. }
             | FactPayload::FloatPredicate { .. } => fact.payload,
             _ => continue,

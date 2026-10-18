@@ -171,6 +171,7 @@ pub use value_custody::places::{
     mutable_byte_slice_parameter_element, place_has_builtin_coordinates, saved_dispatch_call,
     saved_dispatch_subject, structural_scalar_field, structural_scalar_field_at_coordinate,
     structural_scalar_field_in_parameters, structural_source, subslice_expression,
+    value_has_builtin_coordinates,
 };
 
 pub use proof_contracts::bound_expression_meaning::{

@@ -221,6 +221,14 @@ pub enum FactPayload {
     AssignedScalarValue {
         value: Handle<ScalarValue>,
     },
+    /// Established owned contents retain this exact constructed child completion.
+    /// The source place and point join the flow operand's typed capture; they
+    /// are historical value identity, not a live source-storage dependency or
+    /// an expression to evaluate. Writes retire the destination fact normally.
+    AssignedValueCapture {
+        source: PlaceHandle,
+        point: ProgramPoint,
+    },
     /// Exact immutable value installed at `Fact.place` by a checked statement.
     /// The statement coordinate lives on the enclosing fact. Only literals
     /// are retained; this is not a deferred read of the source expression.
@@ -474,6 +482,7 @@ impl QualificationPayloadIdentity {
             | FactPayload::AssignedIntegerBounds { .. }
             | FactPayload::FloatPredicate { .. }
             | FactPayload::AssignedScalarValue { .. }
+            | FactPayload::AssignedValueCapture { .. }
             | FactPayload::StorageDependency { .. }
             | FactPayload::BytePredicate { .. }
             | FactPayload::BooleanValue { .. }

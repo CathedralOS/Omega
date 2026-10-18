@@ -66,6 +66,58 @@ fn replacement_owns_release(
     replacement.is_some()
 }
 
+/// A selected call death closes this descriptor's anonymous backing before
+/// the frame return. The retained graph authenticates membership; the exact
+/// contextual disposition, not that membership, authorizes the owner's death.
+fn normal_call_disposes_backing(
+    facts: &CheckFacts,
+    state: SymbolHandle,
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    operations: &[CheckedUnitEffectOperationPlan],
+    binding: u32,
+) -> bool {
+    let values = &facts.values.structural_values;
+    let Some((holder, facts::PlaceRoot::Expression(expression))) = results
+        .iter()
+        .find(|(result, _)| result.binding_ordinal == binding)
+    else {
+        return false;
+    };
+    let Some(root) = values.root_for_expression(state, holder.statement_index, *expression) else {
+        return false;
+    };
+    let Some(dependencies) = values.value_dependencies(root.root) else {
+        return false;
+    };
+    operations.iter().rev().take_while(|operation| matches!(operation,
+        CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(_), ..
+        })).any(|operation| {
+        let CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), cleanup_actions, ..
+        } = operation else { return false; };
+        cleanup_actions.iter().any(|action| {
+            let expression = match *action.source() {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => expression,
+                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                    let Some((_, owner)) = results.iter().find(|(result, _)| result.binding_ordinal == binding_ordinal) else { return false; };
+                    let Some(expression) = owner.as_expression() else { return false; }; expression
+                }
+                _ => return false,
+            };
+            let Some(owner) = values.root_for_expression(state, coordinate.statement_index, expression) else { return false; };
+            owner.root != root.root && dependencies.contains(&owner.root)
+                && facts.contextual_cleanup.dispositions.iter().any(|(_, disposition)| {
+                    disposition.machine == root.machine && disposition.state == state
+                        && disposition.root == facts::PlaceRoot::Expression(expression)
+                        && matches!(disposition.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
+                            if statement_index == coordinate.statement_index as usize
+                                && call_ordinal == coordinate.call_ordinal as usize)
+                })
+        })
+    })
+}
+
 /// Source groups identify named loan resources. A computed descriptor has no
 /// such group, so its exact result occurrence identifies its one release.
 pub(in crate::execution::terminal_unit) fn release_matches(
@@ -366,6 +418,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 statement_index,
                 results,
                 operations,
+                completed_operations: operations.len(),
                 pending: &pending,
                 at_exit: false,
                 returned: None,
@@ -396,6 +449,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 statement_index,
                 results,
                 operations,
+                completed_operations: operations.len(),
                 pending: &pending,
                 at_exit: false,
                 returned: None,
@@ -456,6 +510,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                 statement_index,
                 results,
                 operations,
+                completed_operations: operations.len(),
                 pending: &pending,
                 at_exit: false,
                 returned: None,
@@ -581,6 +636,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             statement_index,
             results,
             operations,
+            completed_operations: operations.len(),
             pending: &pending,
             at_exit: false,
             returned: None,
@@ -706,6 +762,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             statement_index,
             results,
             operations,
+            completed_operations: operations.len(),
             pending: &pending,
             at_exit: false,
             returned: None,
@@ -733,7 +790,22 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         results,
         &mut pending,
     )?;
-    operations.extend(pending);
+    // This boundary closes the previous statement's loans before disposing
+    // its anonymous backing. Call continuations have already selected those
+    // deaths; a descriptor release appended after their hooks would keep an
+    // overlapping loan live while the owner is disposed. Only trailing call
+    // cleanup moves behind this independently admitted weakening: no call or
+    // operand evaluation is crossed.
+    let insertion = operations
+        .iter()
+        .rposition(|operation| {
+            !matches!(operation,
+        CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), ..
+        } if order.precedes(coordinate.statement_index as usize, statement_index as usize))
+        })
+        .map_or(0, |position| position + 1);
+    operations.splice(insertion..insertion, pending);
     Some(())
 }
 
@@ -885,6 +957,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             statement_index,
             results,
             operations,
+            completed_operations: operations.len(),
             pending: &scheduled,
             at_exit: true,
             returned,
@@ -930,6 +1003,72 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         }
         scheduled.extend(releases);
     }
+    let insertion = operations
+        .iter()
+        .rposition(|operation| {
+            !matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(_),
+                    ..
+                }
+            )
+        })
+        .map_or(0, |position| position + 1);
+    for index in 0..scheduled.len() {
+        if let CheckedUnitEffectOperationPlan::ReleaseReference {
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
+            path,
+            ..
+        } = &scheduled[index]
+            && path.is_empty()
+            && normal_call_disposes_backing(facts, state, results, operations, *binding_ordinal)
+        {
+            let captured = operations
+                .iter()
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .filter_map(|operation| {
+                    captured_reference_result(
+                        program, facts, machine, state, results, operation, operations,
+                    )
+                })
+                .find(|captured| captured.result.binding_ordinal == *binding_ordinal)?;
+            // Exit readiness may depend on releases deferred until after
+            // outgoing values are captured. Recheck against only immediate
+            // dispositions before moving this descriptor ahead of owner hooks.
+            // The existing child-first order makes earlier promotions visible;
+            // a deferred descendant or returned holder cannot justify one.
+            let retirement = super::reference_retirement::Retirement {
+                program,
+                facts,
+                machine,
+                state: authored_state,
+                order: &order,
+                statement_index,
+                results,
+                operations,
+                completed_operations: insertion,
+                pending: &scheduled[..index],
+                at_exit: false,
+                returned: None,
+                transported_loans: &transported_loans,
+            };
+            if retirement.carrier_children_retired(captured.result)
+                && captured
+                    .storage_loans
+                    .iter()
+                    .all(|loan| retirement.holder_retired(*loan))
+                && facts
+                    .borrow
+                    .loan_group(captured.loans)?
+                    .all(|(loan, _)| retirement.children_retired(loan))
+                && let CheckedUnitEffectOperationPlan::ReleaseReference { defer_to_exit, .. } =
+                    &mut scheduled[index]
+            {
+                *defer_to_exit = false;
+            }
+        }
+    }
     for release in &scheduled {
         if let CheckedUnitEffectOperationPlan::ReleaseReference {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
@@ -956,7 +1095,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         results,
         &mut scheduled,
     )?;
-    operations.extend(scheduled);
+    operations.splice(insertion..insertion, scheduled);
     Some(())
 }
 

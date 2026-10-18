@@ -17,6 +17,10 @@ use typed_trees::expression::ExpressionHandle;
 pub(super) enum ConstructedValue {
     Scalar(ScalarValue),
     Case(symbols::SymbolHandle),
+    Capture {
+        source: facts::PlaceHandle,
+        point: ProgramPoint,
+    },
 }
 
 impl Execution<'_, '_, '_> {
@@ -29,7 +33,35 @@ impl Execution<'_, '_, '_> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
-        let values = self.constructed_values(destination, type_reference, evaluated);
+        let mut values = self.constructed_values(destination, type_reference, evaluated);
+        if validation::has_contents(
+            self.program,
+            type_reference,
+            &[],
+            validation::ContentsRequirement::BorrowFree,
+        ) && !values.iter().any(|(path, value)| {
+            path == destination
+                && matches!(
+                    value,
+                    ConstructedValue::Scalar(_) | ConstructedValue::Capture { .. }
+                )
+        }) {
+            let source = self.semantic.append_expression_place(parent);
+            for segment in destination {
+                self.semantic.push_place_segment(source, *segment);
+            }
+            values.push((
+                destination.to_vec(),
+                ConstructedValue::Capture {
+                    source,
+                    point: ProgramPoint::Statement {
+                        machine_symbol: self.machine.symbol,
+                        state_symbol: self.state.symbol,
+                        statement_index: self.statement_index,
+                    },
+                },
+            ));
+        }
         self.publish_constructed_values(parent, values, contexts, constraints);
     }
 
@@ -84,14 +116,12 @@ impl Execution<'_, '_, '_> {
             // A selected indexing operation need not read these storage
             // coordinates. Its completed result needs its own expression
             // facts; only builtin place geometry may reuse stored values.
-            if matches!(source.root, facts::PlaceRoot::Symbol(_))
-                && !validation::place_has_builtin_coordinates(
-                    self.program,
-                    self.machine,
-                    Some(self.state),
-                    evaluated.capture.expression,
-                )
-            {
+            if !validation::value_has_builtin_coordinates(
+                self.program,
+                self.machine,
+                self.state,
+                evaluated.capture.expression,
+            ) {
                 return None;
             }
             crate::values::scalar_value_at_place(
@@ -209,6 +239,9 @@ impl Execution<'_, '_, '_> {
                         FactPayload::AssignedCase { variant } => {
                             Some(ConstructedValue::Case(variant))
                         }
+                        FactPayload::AssignedValueCapture { source, point } => {
+                            Some(ConstructedValue::Capture { source, point })
+                        }
                         _ => (crate::checks::contracts::boolean_value_at_place(
                             self.program,
                             self.context.operators,
@@ -256,6 +289,9 @@ impl Execution<'_, '_, '_> {
                     value: self.semantic.scalar_values.append(value),
                 },
                 ConstructedValue::Case(variant) => FactPayload::AssignedCase { variant },
+                ConstructedValue::Capture { source, point } => {
+                    FactPayload::AssignedValueCapture { source, point }
+                }
             };
             self.append_constructed_observation(parent, &path, payload, contexts, constraints);
         }

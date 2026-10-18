@@ -311,6 +311,67 @@ pub fn value_element_has_builtin_coordinate(
         && crate::has_builtin_bound_expression_meaning(program, machine, state, indexed.index)
 }
 
+/// Authenticate selectors above an already produced value. Calls and
+/// constructors own fresh observation namespaces; their result types supply
+/// each collection carrier, but never grant builtin meaning to its selectors.
+/// This grants no value, bounds, custody, or lifetime evidence.
+pub fn value_has_builtin_coordinates(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    mut expression: ExpressionHandle,
+) -> bool {
+    for depth in 0..program.expression_table.expression_count() {
+        let Some(node) = program
+            .expression_table
+            .expression_at_depth(expression, depth)
+        else {
+            return false;
+        };
+        match node {
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Indexed(indexed) => {
+                let collection = crate::expression_result_type_reference(
+                    program,
+                    machine,
+                    state,
+                    indexed.collection,
+                );
+                if !indexed_operation_has_builtin_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                    collection,
+                ) {
+                    return false;
+                }
+                let bounds = program
+                    .expression_table
+                    .range_node(indexed.index)
+                    .map_or([indexed.index, ExpressionHandle::invalid()], |range| {
+                        [range.start, range.end]
+                    });
+                if bounds.into_iter().any(|bound| {
+                    bound.is_valid()
+                        && !crate::has_builtin_bound_expression_meaning(
+                            program,
+                            machine,
+                            Some(state),
+                            bound,
+                        )
+                }) {
+                    return false;
+                }
+                expression = indexed.collection;
+            }
+            _ => return true,
+        }
+    }
+    false
+}
+
 /// The element type when `symbol` names a state parameter whose declared
 /// type is a mutable view over bytes (`&mut [u8]`). Other collection shapes
 /// and other access permissions have no builtin byte-write geometry.

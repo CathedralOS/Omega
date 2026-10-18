@@ -59,6 +59,7 @@ pub(super) fn transport(
                     FactPayload::AssignedCase { .. }
                     | FactPayload::AssignedValue { .. }
                     | FactPayload::AssignedScalarValue { .. }
+                    | FactPayload::AssignedValueCapture { .. }
                     | FactPayload::BytePredicate { .. }
                     | FactPayload::FloatPredicate { .. } => {
                         if !stable_value_target || !value_carriers_agree {
