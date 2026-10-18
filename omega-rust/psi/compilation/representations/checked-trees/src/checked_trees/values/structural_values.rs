@@ -80,6 +80,10 @@ pub enum CheckedQuotientAdaptationLicense {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedStructuralValueKind {
+    /// Selected executable demand, not a runtime invocation or constant value.
+    NativeCodeLayout {
+        selected_state: SymbolHandle,
+    },
     /// Exact sealed source request, distinct from an ordinary FlowCallFact.
     /// Publication must join the checked correspondence for this request.
     /// The ordinary selected body computes the result; its primitive result

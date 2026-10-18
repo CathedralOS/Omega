@@ -4122,25 +4122,28 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   or interpreter-ID interchange and stays separate from
   [instruction interpretation](wiki/spec/language/assembly.md#interpreted-execution).
 
-- **NATIVE-CODE-LAYOUT-QUERIES.** (new-scope) Source cannot query
+- **NATIVE-CODE-LAYOUT-QUERIES.** Direct
   [`code_layout<Machine>()`](wiki/spec/language/counts_and_addresses.md#native-code-layout-queries)
-  for a selected application: entry address plus exact emitted instruction
-  regions (`addr` bases, `u64` lengths). The low-level editor customer needs
-  actual regions, not a guessed window or next-symbol subtraction.
-  `omega-rust/omega/compilation/backend/machine-emission/src/code_layout.rs`
-  (`describe_code_layouts`) already projects `PlacedInstructionSpan` geometry
-  per placed application but has no caller. Missing: Psi admission and demand
-  (reusing **ADDRESS-EXPOSURE**'s), and joining the descriptions plus final
-  relocations into the selected application's runtime metadata. Psi records
-  demand without running a second compiler or evaluating the unfinished native
-  product.
+  queries of a bodyless target-family head remain unsupported and reject
+  explicitly. Preserve the complete exact family application in portable Psi,
+  then resolve its deployment-selected native member at the existing physical
+  selection boundary. This supplies metadata demand without invoking the
+  member, importing its authority/effects, or feeding selected-target geometry
+  back into semantic checking.
 
-  Acceptance: a native corpus program reads `code_layout` of an otherwise
-  uncalled generic body and the metadata matches the final artifact, including
-  split/shared regions, excluding padding, pools and callees. Fail fixtures
-  reject a missing native realization and use inside the same product's
-  type/constant/layout or optimization computation. Interpreted entries get no
-  fabricated code size or region.
+  The current geometry owner also requires one placed fragment and one frame
+  record per application. Multiple fragments refuse rather than guessing their
+  entry or attribution. Carry explicit entry and frame custody through a real
+  split/shared native producer, then compare its metadata with that artifact;
+  projection tests for holes/overlap do not establish this production coverage.
+
+  Remaining acceptance: a complete family application yields the selected
+  member's final entry and exact attributed regions, including real split/shared
+  production; missing or ambiguous native realizations refuse. Keep all members
+  source-checked, retain the late constant/type/layout/optimization refusal, and
+  never substitute interpreter identities for native addresses. Ordinary exact
+  single-fragment generic applications are covered by
+  `samples/cli/facts/selected_native_code_layout` and its nine pairs.
 
 - **ASSUMED-BINDING-CONTRACTS.** (new-scope) The root-only
   [`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`](wiki/spec/build/assumed_binding_contracts.md)

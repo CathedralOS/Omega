@@ -30,6 +30,7 @@ mod descriptor_operands;
 mod leaf_copy;
 mod literals;
 mod local_storage;
+mod native_code_layout;
 pub(super) use local_storage::{byte_field_argument, fixed_array_argument};
 mod case_membership;
 mod element_establishment;
@@ -445,6 +446,13 @@ pub(super) fn operation(
             | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
     ) {
         scalar_store::emit(source, row, builder)?;
+        return Ok(true);
+    }
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. }
+    ) {
+        native_code_layout::establish(source, builder, row)?;
         return Ok(true);
     }
     if matches!(

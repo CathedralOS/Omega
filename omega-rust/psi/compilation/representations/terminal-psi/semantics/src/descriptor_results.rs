@@ -92,10 +92,46 @@ pub enum DescriptorCallOrigin {
         source: PlaceId,
         projection: Projection,
     },
+    /// Immutable image backing identity, including late native metadata.
+    /// Contents evaluation separately requires a byte-literal producer;
+    /// this identity is neither a semantic value nor exclusive allocation.
     Literal {
         machine: MachineId,
         place: PlaceId,
     },
+}
+
+/// Exact shared descriptor slot backed by a native layout's immutable image.
+/// No caller-relative loan or compile-time contents are supplied here.
+pub fn native_code_layout_regions(
+    types: &[StructuralTypeDeclaration],
+    result: &terminal_psi::StructuralOperationResult,
+) -> Option<DescriptorLocation> {
+    let StructuralTypeShape::Record { fields, .. } =
+        &terminal_psi::find_structural_type(types, result.structural_type)?.shape
+    else {
+        return None;
+    };
+    if fields.len() != 2 {
+        return None;
+    }
+    let terminal_psi::StructuralFieldType::Structural(view) = fields[1].field_type else {
+        return None;
+    };
+    let StructuralTypeShape::ElementView { access, .. } =
+        terminal_psi::find_structural_type(types, view)?.shape
+    else {
+        return None;
+    };
+    if access.is_some_and(|access| access != StructuralAccess::SharedBorrow) {
+        return None;
+    }
+    Some(DescriptorLocation {
+        root: result.place,
+        path: vec![crate::descriptor_lifetimes::DescriptorPathSegment::Field(
+            fields[1].id,
+        )],
+    })
 }
 
 /// Receiving-only identity of a descriptor's backing. An incoming slot denotes

@@ -333,7 +333,10 @@ pub(crate) fn collect_expression_type_roots(
                 );
             }
             ExpressionNode::Call(call) => {
-                collect_static_argument_type_roots(&call.machine_arguments, roots)
+                collect_static_argument_type_roots(&call.machine_arguments, roots);
+                if let Some(query) = &call.native_code_layout {
+                    collect_static_argument_type_roots(std::slice::from_ref(&query.operand), roots);
+                }
             }
             ExpressionNode::ZeroValue(type_reference) => roots.push(*type_reference),
             _ => {}

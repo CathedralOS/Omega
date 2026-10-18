@@ -137,6 +137,11 @@ impl NativeExecutionScope {
                     }
                 }
                 match operation {
+                    // Querying exact native metadata demands this executable
+                    // realization and its dependencies without invoking it.
+                    AbstractOperation::EstablishNativeCodeLayout { machine, .. } => {
+                        pending.push(*machine)
+                    }
                     AbstractOperation::Call { callee, .. } => pending.push(*callee),
                     AbstractOperation::CallStructural {
                         callee: AbstractCallTarget::Machine(callee),

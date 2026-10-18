@@ -36,7 +36,7 @@ impl TerminalFuelSchedule {
 
     pub const fn operation_units(self, kind: &OperationKind) -> u64 {
         match kind {
-            OperationKind::EstablishPlacedReference { .. }
+            OperationKind::EstablishNativeCodeLayout { .. } | OperationKind::EstablishPlacedReference { .. }
             | OperationKind::EstablishReference { .. }
             | OperationKind::ReleaseReference { .. }
             | OperationKind::EstablishScalarCase { .. }

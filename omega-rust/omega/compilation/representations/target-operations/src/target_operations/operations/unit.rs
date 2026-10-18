@@ -84,6 +84,11 @@ impl TargetFloatResultPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    EstablishNativeCodeLayout {
+        psi_operation: OperationId,
+        result_home: crate::TargetStructuralHomeRequirement,
+        machine: semantic_vocabulary::MachineId,
+    },
     /// One observable non-atomic scalar event on the original placed backing.
     PlacedScalarAccess {
         psi_operation: OperationId,
@@ -707,6 +712,11 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::EstablishStructuralLocal {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::EstablishNativeCodeLayout {
                 psi_operation,
                 result_home,
                 ..

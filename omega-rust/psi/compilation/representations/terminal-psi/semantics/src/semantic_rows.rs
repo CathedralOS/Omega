@@ -203,6 +203,7 @@ operation_semantic_rows! {
     ElementViewSubslice => ("schema:operation:element-view-subslice", LeafDenotation, None),
     EstablishTrivialAffineLocal => ("schema:operation:establish-trivial-affine-local", LeafDenotation, None),
     EstablishRecord => ("schema:operation:establish-record", LeafDenotation, None),
+    EstablishNativeCodeLayout => ("schema:operation:establish-native-code-layout", LeafDenotation, None),
     Call => ("algebra:call:call", CallComposition, None),
     CallUnit => ("algebra:call:call-unit", CallComposition, None),
     CallStructuralScalar => ("algebra:call:call-structural-scalar", CallComposition, None),

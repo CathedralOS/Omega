@@ -1478,9 +1478,21 @@ pub struct TableCallExpression {
     /// exact selected layout after the Psi boundary; typed source is never
     /// rewritten into a target-dependent literal.
     pub layout_query: Option<DataLayoutQueryRequest>,
+    /// Exact selected application whose late native descriptor is requested.
+    pub native_code_layout: Option<NativeCodeLayoutRequest>,
     pub arguments: HandleSpan<ExpressionHandle>,
     pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
+}
+
+/// A compiler-known native query, never an invocation of its selected machine.
+/// The selected application remains symbolic until native placement supplies
+/// relocatable entry and exact instruction-region metadata.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeCodeLayoutRequest {
+    pub operand: StaticMachineArgument,
+    /// Source statement position explicitly discards this pure query.
+    pub discards_result: bool,
 }
 
 /// A factory selection, not an address, resource profile or custody grant.

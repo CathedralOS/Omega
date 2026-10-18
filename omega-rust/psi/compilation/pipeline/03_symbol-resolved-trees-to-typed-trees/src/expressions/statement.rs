@@ -106,6 +106,54 @@ fn lower_statement_node(
                 receiving_type: typed::types::TypeReferenceHandle::invalid(),
             }),
         ),
+        resolved::statement::StatementNode::Call(call)
+            if call.target.as_str() == "code_layout"
+                && !call.target_symbol.is_valid()
+                && call.receiver.is_empty() =>
+        {
+            let mut request = crate::expressions::expression::native_code_layout::lower_request(
+                Some(lowerer.source_trees),
+                &mut lowerer.typed_trees,
+                lowerer.type_reference_exposure,
+                &call.machine_arguments,
+                call.arguments.len(),
+                call.evidence_arguments.len(),
+            )?;
+            request.discards_result = true;
+            let result = crate::expressions::expression::native_code_layout::result_type(
+                Some(lowerer.source_trees),
+                &mut lowerer.typed_trees,
+            )?;
+            let expression = lowerer.typed_trees.expression_table.insert(
+                typed::expression::ExpressionNode::Call(typed::expression::TableCallExpression {
+                    authored_machine_application: Default::default(),
+                    exact_coercion_target: Default::default(),
+                    requirement_application: Default::default(),
+                    receiver: Default::default(),
+                    target_symbol: Default::default(),
+                    static_machine_parameter: Default::default(),
+                    target: crate::lowerer::name::lower_name(&call.target),
+                    static_requirement_dispatch: None,
+                    machine_arguments: Box::default(),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    layout_query: None,
+                    native_code_layout: Some(request),
+                    arguments: Default::default(),
+                    evidence_arguments: Box::default(),
+                    operational_acknowledgement: call.operational_acknowledgement,
+                }),
+            );
+            lowerer
+                .typed_trees
+                .expression_table
+                .set_constructed_value_type_reference(expression, result);
+            lowerer
+                .typed_trees
+                .expression_table
+                .set_source_span(expression, call.target.source_span());
+            Ok(typed::statement::StatementNode::Expression(expression))
+        }
         resolved::statement::StatementNode::Call(call) => Ok(
             typed::statement::StatementNode::Call(lower_call_statement(lowerer, call)?),
         ),

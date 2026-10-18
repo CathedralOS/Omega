@@ -474,7 +474,8 @@ fn select_function(
                     | LegalizedScalarInstructionKind::WrappingSubtract { .. } => {
                         integer_arithmetic::emit(function, environment, operation, &mut builder)?
                     }
-                    LegalizedScalarInstructionKind::EstablishRecord { .. }
+                    LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. }
+                    | LegalizedScalarInstructionKind::EstablishRecord { .. }
                     | LegalizedScalarInstructionKind::EstablishCase { .. }
                     | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }

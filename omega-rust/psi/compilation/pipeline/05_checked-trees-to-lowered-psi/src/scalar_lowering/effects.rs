@@ -221,6 +221,31 @@ pub(crate) fn emit(
                     case, values, next_value, operations, calls,
                 )?
             }
+            LoweredScalarEffect::EstablishNativeCodeLayout {
+                place,
+                structural_type,
+                selected_state,
+            } => {
+                let (selected, _) =
+                    validation::find_machine_by_entry_state(&checked.typed, *selected_state)
+                        .ok_or(LoweringError::Unsupported(
+                            "native query lost its selected executable entry",
+                        ))?;
+                let machine = lookup_machine_id(calls.machine_ids, selected.symbol)?;
+                let operation = operations.allocate();
+                operations.push(terminal_psi::Operation {
+                    id: operation,
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    result:
+                        crate::emission::operation_emission::buffer::structural_result_declaration(
+                            *place,
+                            *structural_type,
+                            terminal_psi::StructuralMultiplicity::Unrestricted,
+                        ),
+                    kind: OperationKind::EstablishNativeCodeLayout { machine },
+                });
+            }
             LoweredScalarEffect::EstablishByteSequenceLiteral {
                 literal,
                 memberships,

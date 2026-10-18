@@ -252,6 +252,23 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        AbstractOperation::EstablishNativeCodeLayout {
+            psi_operation,
+            result,
+            machine,
+        } => {
+            let result_home =
+                super::aggregate_results::home(*psi_operation, result, structural_types)?;
+            live.structural_homes
+                .insert(result.place, result_home.clone());
+            operations.push(TargetUnitOperation::EstablishNativeCodeLayout {
+                psi_operation: *psi_operation,
+                result_home,
+                machine: *machine,
+            });
+            provenance.operations.push(*psi_operation);
+            Ok(())
+        }
         AbstractOperation::EstablishRecord { .. }
         | abstract_operations::structural_array_or_case_pattern!(..) => super::records::establish(
             operation,

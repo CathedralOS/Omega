@@ -425,7 +425,31 @@ impl Builder<'_, '_> {
         {
             return self.quotient_call_value(expression, expected);
         }
-        let kind = if let Some(primitive) = self.program.primitive_type_reference(expected) {
+        let kind = if let ExpressionNode::Call(call) =
+            self.program.expression_table.expression(expression)
+            && let Some(query) = &call.native_code_layout
+        {
+            let selected_state = self
+                .program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == query.operand.symbol)
+                .and_then(|machine| self.program.machine_states(machine).first())
+                .map(|state| state.symbol)
+                .unwrap_or(query.operand.symbol);
+            // Exact carrier type comes from query typing, not a guessed
+            // selected-machine return type or an invocation contract.
+            let actual = self
+                .program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            if self.program.normalized_type_identity(actual)
+                != self.program.normalized_type_identity(expected)
+            {
+                return None;
+            }
+            CheckedStructuralValueKind::NativeCodeLayout { selected_state }
+        } else if let Some(primitive) = self.program.primitive_type_reference(expected) {
             // Scalar storage is independent of its containing record, array,
             // or argument. Keep the complete receiving type on this node;
             // lowering owes its restriction when it establishes the home.

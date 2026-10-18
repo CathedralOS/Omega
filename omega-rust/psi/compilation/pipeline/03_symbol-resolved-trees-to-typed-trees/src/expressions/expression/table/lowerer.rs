@@ -159,6 +159,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             self.target()
                 .set_constructed_value_type_reference(lowered, result);
         }
+        if matches!(self.target().expression(lowered), typed::expression::ExpressionNode::Call(call) if call.native_code_layout.is_some())
+        {
+            let result = crate::expressions::expression::native_code_layout::result_type(
+                self.program,
+                self.target_trees,
+            )?;
+            self.target()
+                .set_constructed_value_type_reference(lowered, result);
+        }
         self.target().set_source_span(lowered, source_span);
         self.target()
             .attach_authored_selection_occurrences(lowered, authored_selection_occurrences);
@@ -413,6 +422,23 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let quotient_operation = self.lower_quotient_operation_request(call)?;
                 let private_layout_operation = self.lower_private_layout_operation_request(call)?;
                 let layout_query = self.lower_data_layout_query(expression, call)?;
+                let native_code_layout = if call.target.as_str() == "code_layout"
+                    && !call.target_symbol.is_valid()
+                    && !call.receiver.is_valid()
+                {
+                    Some(
+                        crate::expressions::expression::native_code_layout::lower_request(
+                            self.program,
+                            self.target_trees,
+                            self.source.authored_expression_exposure(expression),
+                            &call.machine_arguments,
+                            call.arguments.len(),
+                            call.evidence_arguments.len(),
+                        )?,
+                    )
+                } else {
+                    None
+                };
                 let receiver = if quotient_operation.is_some() {
                     // The `Quotient` receiver is the sealed namespace marker,
                     // not a resolvable binding: retaining it as a dangling
@@ -464,6 +490,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let machine_arguments = if private_layout_operation.is_some()
                     || quotient_operation.is_some()
                     || layout_query.is_some()
+                    || native_code_layout.is_some()
                 {
                     // `Slot` is a sealed proof-static selector, not an
                     // ordinary generic parameter of the identity operation.
@@ -520,6 +547,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             quotient_operation,
                             private_layout_operation,
                             layout_query,
+                            native_code_layout,
                             arguments,
                             evidence_arguments: call
                                 .evidence_arguments

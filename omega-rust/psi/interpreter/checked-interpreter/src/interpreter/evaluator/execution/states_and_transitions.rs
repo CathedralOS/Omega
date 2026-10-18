@@ -1078,6 +1078,16 @@ impl<'program> Evaluator<'program> {
                         }
                     }
                     StatementNode::Expression(expression) => {
+                        if self
+                            .program
+                            .expression_table
+                            .call_node(*expression)
+                            .and_then(|call| call.native_code_layout.as_ref())
+                            .is_some_and(|query| query.discards_result)
+                        {
+                            continue;
+                        }
+
                         if statement_index + 1
                             == self
                                 .program

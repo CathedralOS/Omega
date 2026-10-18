@@ -1271,6 +1271,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
         }
         visited.push(value);
         match &plans.nodes.get(value).kind {
+            checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
             checked_trees::CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
                 pending.extend(arguments.iter().rev().copied());
             }

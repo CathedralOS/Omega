@@ -392,6 +392,7 @@ pub(crate) fn structural_dependencies(
     let mut scalars = Vec::new();
     for value in &values {
         match &plans.nodes.get(*value).kind {
+            checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
             Value::QuotientCall { .. } => {}
             Value::Record { fields, .. } | Value::StructuralCase { fields, .. } => {
                 for field in plans

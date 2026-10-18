@@ -273,6 +273,16 @@ pub(super) fn rewrite_selected_call_with_name(
             else {
                 return;
             };
+            if snapshot.native_code_layout.is_some() {
+                // Retarget executable demand only. A query never acquires
+                // runtime operands, selected-machine preconditions or result.
+                let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+                else {
+                    unreachable!()
+                };
+                call.native_code_layout.as_mut().unwrap().operand.symbol = target;
+                return;
+            }
             let authored_machine_application = if snapshot.authored_machine_application.is_valid() {
                 snapshot.authored_machine_application
             } else {

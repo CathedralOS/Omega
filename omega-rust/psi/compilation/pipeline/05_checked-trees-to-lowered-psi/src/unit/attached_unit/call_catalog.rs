@@ -57,19 +57,44 @@ pub(super) fn discover(
     // Discover each contract head and implementation before allocating shared
     // namespaces. An independent head retains its opaque checked plan even
     // when no call demands it; it supplies no implementation or authority.
-    for callable in program_roots.machines.iter().copied().chain(
-        super::target_families::runtime_families(checked)?
-            .into_iter()
-            .flat_map(|family| {
-                std::iter::once(family.canonical).chain(
-                    family
-                        .members
-                        .iter()
-                        .filter(|member| member.machine != family.canonical)
-                        .map(|member| member.machine),
-                )
-            }),
-    ) {
+    let native_roots = checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .iter()
+        .filter_map(|(_, node)| {
+            let owner = checked.typed.machine_by_symbol(node.machine)?;
+            if checked.typed.callable_body_has_open_parameters(owner) {
+                return None;
+            }
+            let checked_trees::CheckedStructuralValueKind::NativeCodeLayout { selected_state } =
+                node.kind
+            else {
+                return None;
+            };
+            validation::find_machine_by_entry_state(&checked.typed, selected_state)
+                .map(|(machine, _)| machine.symbol)
+        });
+    for callable in program_roots
+        .machines
+        .iter()
+        .copied()
+        .chain(native_roots)
+        .chain(
+            super::target_families::runtime_families(checked)?
+                .into_iter()
+                .flat_map(|family| {
+                    std::iter::once(family.canonical).chain(
+                        family
+                            .members
+                            .iter()
+                            .filter(|member| member.machine != family.canonical)
+                            .map(|member| member.machine),
+                    )
+                }),
+        )
+    {
         let machine =
             checked
                 .typed

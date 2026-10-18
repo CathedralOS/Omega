@@ -12,6 +12,16 @@ use super::{AbstractOperation, CanonicalBytes};
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::EstablishNativeCodeLayout {
+            psi_operation,
+            result,
+            machine,
+        } => {
+            bytes.u8(255);
+            bytes.id(*psi_operation);
+            bytes.id(*machine);
+            encode_structural_operation_result(bytes, result);
+        }
         O::EstablishByteSequenceConcatenation {
             psi_operation,
             result,

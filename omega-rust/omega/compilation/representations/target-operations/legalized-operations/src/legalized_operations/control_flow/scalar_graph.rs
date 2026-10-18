@@ -134,6 +134,7 @@ impl LegalizedScalarInstruction {
     /// reads; a value appears once per operand position that reads it.
     pub fn visit_scalar_operands(&self, mut visit: impl FnMut(ValueId)) {
         match &self.kind {
+            LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. } => {}
             LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
                 left,
                 right,
@@ -384,6 +385,11 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    EstablishNativeCodeLayout {
+        result: terminal_psi::StructuralOperationResult,
+        machine: semantic_vocabulary::MachineId,
+        shape: calling_conventions::ValueShape,
+    },
     RegisterAccess {
         service: semantic_vocabulary::ServiceId,
         event: terminal_psi::RegisterAccessEvent,
@@ -985,6 +991,7 @@ impl LegalizedScalarInstructionKind {
             Self::EstablishByteSequenceConcatenation { result, .. }
             | Self::EstablishStructuralArray { result, .. }
             | Self::EstablishScalarArray { result, .. }
+            | Self::EstablishNativeCodeLayout { result, .. }
             | Self::EstablishRecord { result, .. }
             | Self::EstablishZeroedStructural { result, .. }
             | Self::EstablishStructuralLocal { result, .. }

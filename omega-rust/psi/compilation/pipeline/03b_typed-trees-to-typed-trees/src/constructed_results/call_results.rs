@@ -21,6 +21,14 @@ pub(super) fn retain(
     let Some(call) = program.expression_table.call_node(expression) else {
         return Ok(None);
     };
+    // A core metadata query owns its declared carrier, not an invoked
+    // selection's return contract. Retain the MP3 result through rebinding.
+    if call.native_code_layout.is_some() || call.layout_query.is_some() {
+        let retained = program
+            .expression_table
+            .constructed_value_type_reference(expression);
+        return Ok(retained.is_valid().then_some(retained));
+    }
     let Some(caller) = program.machine_by_symbol(machine_symbol) else {
         return Ok(None);
     };

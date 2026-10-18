@@ -13,6 +13,7 @@ use image::{
 use super::ObjectArtifact;
 
 mod implementation_tables;
+mod native_code_layouts;
 
 pub(super) fn validate_terminal_image(
     artifact: &ObjectArtifact,
@@ -351,6 +352,7 @@ fn validate_terminal_image_with_import_count(
     .map_err(|error| Diagnostic::error(error.to_string()))?;
     for namespace in crate::private_object_composition::namespaces(artifact) {
         implementation_tables::validate_targets(&namespace, output)?;
+        native_code_layouts::validate_targets(&namespace, output)?;
         validate_byte_literal_address_targets(&namespace, output)?;
     }
     validate_callback_relocation_targets(artifact, object, relocations, output)?;

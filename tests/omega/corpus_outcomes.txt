@@ -1699,6 +1699,18 @@ fail/calls/named_transition_float_suffix_mismatch rejected 1713ms expected @c484
 	literal `1.5` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/calls/named_transition_scalar_operand_mismatch rejected 2568ms expected @c48489ea6ad6
 	argument `value` for state `entry` expects `f64`, got `bool`
+fail/calls/native_code_layout_family_head_rejected rejected 2179ms expected @b2bd1ba421fd+wt
+	`code_layout` selected an unavailable native realization; an opaque or bodyless declaration has no attributed native instruction regions
+fail/calls/native_code_layout_incomplete_selection_rejected rejected 2199ms expected @b2bd1ba421fd+wt
+	`code_layout` requires one complete exact selected machine application; static arguments remain unresolved
+fail/calls/native_code_layout_proof_only_rejected rejected 2243ms expected @b2bd1ba421fd+wt
+	`code_layout` selected a proof-only machine with no executable native realization
+fail/calls/native_code_layout_unavailable_rejected rejected 2311ms expected @b2bd1ba421fd+wt
+	`code_layout` selected an unavailable native realization; an opaque or bodyless declaration has no attributed native instruction regions
+fail/calls/native_code_layout_undeclared_lifetime_rejected rejected 1949ms expected @b2bd1ba421fd+wt
+	nested machine lifetime argument is not declared in its lexical owner
+fail/calls/native_code_layout_wrong_lifetime_arity_rejected rejected 2237ms expected @b2bd1ba421fd+wt
+	nested machine lifetime arguments do not match its complete declared telescope
 fail/calls/nested_call_argument_constraints_unproven rejected 945ms expected @a9ae30e1c334+wt
 	cannot prove call argument `20.0` satisfies bounded parameter `value` for `admit` in `initialized.entry`; expected 0..=0.5
 	cannot prove call argument `30.0` satisfies bounded parameter `value` for `admit` in `terminal.entry`; expected 0..=0.5
@@ -3802,6 +3814,24 @@ fail/facts/runtime_count_index_through_target_body_out_of_bounds rejected 5290ms
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/selected_native_code_layout_through_call_result_rejected rejected 27ms expected @b2bd1ba421fd+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_const_name_rejected rejected 24ms expected @b2bd1ba421fd+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_field_rejected rejected 26ms expected @b2bd1ba421fd+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_local_rejected rejected 25ms expected @b2bd1ba421fd+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_match_join_rejected rejected 32ms expected @b2bd1ba421fd+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_other_machine_rejected rejected 27ms expected @b2bd1ba421fd+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_other_state_rejected rejected 28ms expected @b2bd1ba421fd+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_parameter_rejected rejected 34ms expected @b2bd1ba421fd+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_target_body_rejected rejected 29ms expected @b2bd1ba421fd+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
 fail/facts/write_only_checked_adapter_opaque_call rejected 328ms expected @2ef2ab353498+wt
 	machine `opaque` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 	machine `lend` state `entry` calls `opaque` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
@@ -6499,6 +6529,23 @@ fail/termination/mixed_endpoint_stored_length_write rejected 527ms expected @0ab
 	machine call cycle: `ranged`, `unranged` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/nat_descending_lookalike_grants_no_primitive rejected 16ms expected @a9ae30e1c334+wt
 	`Nat::Descending` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `Nat::Descending` grants no primitive implementation or proof authority
+fail/termination/native_layout_family_circular rejected 2563ms expected @b2bd1ba421fd+wt
+	call `entry` has an invalid static type argument correspondence
+	`selected_family(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> selected_family(..)` on a measured machine, or iterate with an explicit stack.
+	call `entry` has an invalid static type argument correspondence
+	`selected_family(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> selected_family(..)` on a measured machine, or iterate with an explicit stack.
+	call `entry` has an invalid static type argument correspondence
+	`selected_family(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> selected_family(..)` on a measured machine, or iterate with an explicit stack.
+	call `entry` has an invalid static type argument correspondence
+	`selected_family(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> selected_family(..)` on a measured machine, or iterate with an explicit stack.
+	`selected_family$specialized$45a072a3d65a7186$0(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> selected_family$specialized$45a072a3d65a7186$0(..)` on a measured machine, or iterate with an explicit stack.
+	`selected_family$specialized$45a072a3d65a7186$0(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> selected_family$specialized$45a072a3d65a7186$0(..)` on a measured machine, or iterate with an explicit stack.
+	`selected_family$specialized$45a072a3d65a7186$0(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> selected_family$specialized$45a072a3d65a7186$0(..)` on a measured machine, or iterate with an explicit stack.
+	`selected_family$specialized$45a072a3d65a7186$0(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> selected_family$specialized$45a072a3d65a7186$0(..)` on a measured machine, or iterate with an explicit stack.
+fail/termination/native_layout_family_missing_premise rejected 2912ms expected @b2bd1ba421fd+wt
+	machine `checked_caller` derives progress premise `package:0101010101010101010101010101010101010101010101010101010101010101:product::Token::Fair` for `checked_caller::entry::right.Holder::token` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/native_layout_family_unpromised rejected 2764ms expected @b2bd1ba421fd+wt
+	cannot prove published termination for machine `checked_caller`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/nested_field_without_predicate_cannot_bound_result rejected 418ms expected @2430f497a77c+wt
 	cannot prove ensures contract for exit from Engine::observe at statement 0: result <= 8
 fail/termination/proof_joint_machine_cycle_nondecreasing rejected 865ms expected @a9ae30e1c334+wt
@@ -7593,6 +7640,13 @@ pass/calls/mutable_receiver_computation_exit checked 11134ms check-target:macos_
 pass/calls/mutable_receiver_scalar_destinations_exit checked 11254ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/mutual_cycle_tail_admitted_exit checked 12745ms check-target:macos_arm64 @5acf32321f42+wt
 pass/calls/named_target_payload_dispatch checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/native_code_layout_discarded_exit checked 7876ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_forward_machine_exit checked 8551ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_frame_exit checked 8961ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_lifetime_exit checked 8452ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_nested_type_const_exit checked 8396ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_shadowing_exit checked 7381ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_uncalled_boundary_exit checked 7539ms check-target:linux_x86_64 @b2bd1ba421fd+wt
 pass/calls/negated_edge_guard_requires_exit checked 11055ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/nested_binding_call checked 9374ms @5041ef1af684+wt
 pass/calls/nested_call_footprints_follow_occurrences checked 3188ms check-target:macos_arm64 @94a66e05d152+wt
@@ -8920,6 +8974,15 @@ pass/facts/runtime_count_index_through_other_machine_exit checked 15663ms check-
 pass/facts/runtime_count_index_through_other_state_exit checked 15231ms check-target:macos_arm64 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_parameter_exit checked 15999ms check-target:macos_arm64 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_target_body_exit checked 16520ms check-target:macos_arm64 @ce5f8c9f2f5f
+pass/facts/selected_native_code_layout_through_call_result_exit checked 8222ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_const_name_exit checked 7944ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_field_exit checked 8017ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_local_exit checked 8062ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_match_join_exit checked 8020ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_other_machine_exit checked 8202ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_other_state_exit checked 7960ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_parameter_exit checked 7910ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_target_body_exit checked 7977ms check-target:linux_x86_64 @b2bd1ba421fd+wt
 pass/facts/write_only_checked_adapter_exit checked 5187ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/filesystem/cross_linux_value_syscalls checked 16296ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit checked 19471ms check-target:macos_arm64 @7c847bad15b6+wt
@@ -10416,6 +10479,8 @@ pass/termination/measure_record_projection checked 9272ms @5041ef1af684+wt
 pass/termination/measure_variable_step checked 9559ms @5041ef1af684+wt
 pass/termination/mutable_rank_endpoint checked 9622ms @5041ef1af684+wt
 pass/termination/named_computed_rank_endpoints checked 1871ms @a9ae30e1c334+wt
+pass/termination/native_layout_family_premises checked 7972ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/termination/native_layout_ordinary_progress checked 7752ms check-target:linux_x86_64 @b2bd1ba421fd+wt
 pass/termination/natural_call_variable_step checked 1751ms @a9ae30e1c334+wt
 pass/termination/nested_leaf_rank checked 9949ms @5041ef1af684+wt
 pass/termination/nested_pair_endpoint checked 9582ms @5041ef1af684+wt

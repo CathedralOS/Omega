@@ -72,6 +72,22 @@ pub(super) fn operation(
                         }
                 ).count() == 1
         }
+        // Native metadata retains an exact structural result and application.
+        // Source/selection replay checks its ABI and descriptor stores; the
+        // metadata pool and final image validators rejoin final geometry and
+        // relocated addresses. This boundary accounts for that same query.
+        AbstractOperation::EstablishNativeCodeLayout { psi_operation, result, machine } => {
+            graph.operations().filter(|row| matches!(row,
+                TargetUnitOperation::EstablishNativeCodeLayout { psi_operation: retained, result_home, machine: selected_machine }
+                if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
+                    && selected_machine == machine)).count() == 1
+                && selected.instructions().filter(|row| {
+                    row.provenance.operations.contains(psi_operation)
+                        && matches!(row.kind, selected_instructions::SelectedInstructionKind::ImmutableImageAddress {
+                            reference: selected_instructions::SelectedImageAddressReference::NativeCodeLayout { machine: selected_machine }
+                        } if selected_machine == *machine)
+                }).count() == 1
+        }
         AbstractOperation::EstablishRecord { psi_operation, result, fields } => {
             graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::EstablishRecord { psi_operation: retained, result_home, fields: retained_fields }

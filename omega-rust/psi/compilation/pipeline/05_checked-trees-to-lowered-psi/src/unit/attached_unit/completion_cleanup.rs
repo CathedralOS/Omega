@@ -142,7 +142,11 @@ pub(crate) fn selection(
         if retained.clone().next().is_some() {
             actions.extend(retained.cloned());
         } else {
-            actions.extend(evaluation.normal_discard_regions(place, &evaluation.structural_types)?);
+            actions.extend(evaluation.normal_discard_regions(
+                place,
+                &evaluation.structural_types,
+                operations,
+            )?);
         }
     }
     Ok(())

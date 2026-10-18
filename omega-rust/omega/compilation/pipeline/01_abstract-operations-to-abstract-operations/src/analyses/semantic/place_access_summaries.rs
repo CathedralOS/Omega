@@ -856,6 +856,7 @@ fn scan_operation(
         | O::EstablishScalarArray { .. }
         | O::EstablishPrimitiveLocal { .. }
         | abstract_operations::byte_literal_establish_pair_pattern!(..)
+        | O::EstablishNativeCodeLayout { .. }
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
         | O::PortWrite { .. }

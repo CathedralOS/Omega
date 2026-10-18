@@ -160,12 +160,11 @@ pub(crate) fn scalar_storage_read_with_selectors(
     let readable_type =
         validation::field_domains::readable_type_reference(program, projection.selected_type)?;
     let primitive_type = program.primitive_type_reference(readable_type)?;
-    if (!is_integer(primitive_type)
+    if !is_integer(primitive_type)
         && !matches!(
             primitive_type,
             PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-        ))
-        || primitive_type == PrimitiveType::Addr
+        )
     {
         return None;
     }

@@ -124,6 +124,7 @@ pub(super) fn normalize_boundary_transition_calls(program: &mut TypedTrees) {
                 quotient_operation: None,
                 private_layout_operation: None,
                 layout_query: None,
+                native_code_layout: None,
                 arguments,
                 evidence_arguments,
                 operational_acknowledgement,

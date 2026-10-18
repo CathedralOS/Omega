@@ -50,6 +50,7 @@ pub(crate) fn reconstruct_declared_places(
             }
             abstract_operations::establish_or_subslice_set_pattern!(result, ..)
             | abstract_operations::establish_case_or_record_result_pattern!(result)
+            | O::EstablishNativeCodeLayout { result, .. }
             | O::EstablishZeroedStructural { result, .. }
             | O::EstablishStructuralLocal { result, .. }
             | O::EstablishReference { result, .. }

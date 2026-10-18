@@ -191,6 +191,8 @@ pub(super) fn validate(
         + super::implementation_tables::relocation_count(
             artifact.implementation_table_pool.as_ref(),
         );
+    let expected_records = expected_records
+        + super::native_code_layouts::relocation_count(artifact.native_code_layout_pool.as_ref());
     if artifact.foreign_calls != calls
         || artifact.relocations.record_count() != expected_records
         || fields.len() != import_calls.len()
@@ -208,7 +210,11 @@ pub(super) fn validate(
             + artifact
                 .implementation_table_pool
                 .as_ref()
-                .map_or(0, |pool| pool.tables.len()),
+                .map_or(0, |pool| pool.tables.len())
+            + artifact
+                .native_code_layout_pool
+                .as_ref()
+                .map_or(0, |pool| pool.layouts.len()),
     );
     let mut prior_locators = Vec::new();
     for field in fields {

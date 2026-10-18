@@ -847,6 +847,9 @@ fn validate_operation_foundation(
         OperationKind::EstablishStructuralArray { .. } => {
             value_foundations::validate_establish_structural_array(module, machine, operation)?
         }
+        OperationKind::EstablishNativeCodeLayout { .. } => {
+            value_foundations::validate_native_code_layout(module, machine, operation)?;
+        }
         OperationKind::EstablishRecord { .. } => {
             value_foundations::validate_establish_record(module, machine, operation)?
         }

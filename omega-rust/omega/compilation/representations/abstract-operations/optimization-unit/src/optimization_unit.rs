@@ -220,6 +220,9 @@ impl PsiOptimizationUnit {
         operation: &'a AbstractOperation,
     ) -> impl Iterator<Item = MachineId> + 'a {
         let (machine, table, interface) = match operation {
+            AbstractOperation::EstablishNativeCodeLayout { machine, .. } => {
+                (Some(*machine), None, None)
+            }
             AbstractOperation::Call { callee, .. } => (Some(*callee), None, None),
             AbstractOperation::CallStructural { callee, .. } => match callee {
                 abstract_operations::AbstractCallTarget::Machine(machine) => {

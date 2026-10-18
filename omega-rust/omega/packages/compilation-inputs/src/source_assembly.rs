@@ -169,6 +169,19 @@ impl ImmutableSourceParseCheckpoint {
             PackageImportPhase::ExactTarget(None),
             timings,
         )?;
+        // Core query results are ordinary source-backed data. Load their
+        // canonical declarations even for an import-free query occurrence;
+        // source discovery neither evaluates the query nor selects a machine.
+        let query_types = crate::source_imports::bundled_core_root()?.join("code_layout.omg");
+        imports.seed(query_types, source::DependencyScope::Product);
+        load_imports(
+            &mut source_storage,
+            &mut imports,
+            &self.root_path,
+            package_inputs,
+            PackageImportPhase::ExactTarget(None),
+            timings,
+        )?;
         // Every target's entry contract joins the set; the selected target
         // only decides which one realizes the program entry later.
         let seeds = crate::source_imports::entry_contract_seeds(package_inputs, &source_storage)?;

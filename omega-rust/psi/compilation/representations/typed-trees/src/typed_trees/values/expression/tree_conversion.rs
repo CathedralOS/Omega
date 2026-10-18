@@ -183,6 +183,7 @@ impl ExpressionTable {
                     quotient_operation: None,
                     private_layout_operation: None,
                     layout_query: None,
+                    native_code_layout: None,
                     arguments,
                     evidence_arguments: call.evidence_arguments.to_vec().into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,

@@ -14,6 +14,12 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
+        if call.native_code_layout.is_some() {
+            return unsupported(
+                "late native code-layout metadata is unavailable to interpreted or same-product semantic constant, type, layout, or optimization evaluation",
+            );
+        }
+
         // A transition's guard subject evaluates ONCE per transition evaluation: the
         // parser lowers `transition self.f(x) { true -> a false -> b }` into one guard
         // per arm, each holding a COPY of the subject call (distinct handles, identical

@@ -58,10 +58,15 @@ fn validate(
     // The byte-literal pool, when present, follows every byte of code.
     super::byte_literals::validate(source, artifact, code_text_len)?;
     super::implementation_tables::validate(source, artifact)?;
+    super::native_code_layouts::validate(source, artifact)?;
     let table_count = artifact
         .implementation_table_pool
         .as_ref()
         .map_or(0, |pool| pool.tables.len());
+    let native_count = artifact
+        .native_code_layout_pool
+        .as_ref()
+        .map_or(0, |pool| pool.layouts.len());
     let pool = artifact.byte_literal_pool.as_ref();
     let expected_text_len = code_text_len
         .checked_add(pool.map_or(0, |pool| pool.byte_count))
@@ -87,12 +92,13 @@ fn validate(
             != private_functions.map_or(artifact.private_functions.len(), |roster| roster.len())
         || artifact.port_effects != super::port_effects::produce(source)?
         || layout.function_symbols.len() != callback_reference_count(artifact)
-        || layout.sections.len() != 1 + usize::from(table_count != 0)
+        || layout.sections.len() != 1 + usize::from(table_count + native_count != 0)
         || layout.symbols.len()
             != text.functions.len()
                 + callback_reference_count(artifact)
                 + usize::from(pool.is_some())
                 + table_count
+                + native_count
                 + layout.normalized_imports.len()
         || artifact.functions.len() != text.functions.len()
     {

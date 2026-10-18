@@ -285,7 +285,7 @@ fn operation_effect(
         | abstract_operations::bitwise_or_xor_pair_pattern!(..)
         | O::IntegerShift { .. }
         | O::IntegerArithmetic { .. } => (EffectClass::PureScalar, No, No, No, No),
-        O::EstablishPrimitiveLocal { .. }
+        O::EstablishNativeCodeLayout { .. } | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
         | abstract_operations::scalar_read_or_membership_pattern!(..)
         | O::WriteOnlyPrimitiveStore { .. }

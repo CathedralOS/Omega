@@ -32,6 +32,7 @@ use typed_trees as typed;
 
 mod domain_membership;
 mod name_paths;
+pub(crate) mod native_code_layout;
 mod operators;
 mod table;
 pub(crate) use table::declared_receiver_method_target;

@@ -26,6 +26,9 @@ use terminal_psi::{OperationKind, Terminator};
 /// Driver task names and display diagnostics belong to the driver, not Psi.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalUnsupportedCapability {
+    NativeCodeLayout {
+        machine: semantic_vocabulary::MachineId,
+    },
     RegisterAccess {
         operation: terminal_psi::RegisterOperation,
     },
@@ -112,6 +115,11 @@ pub(crate) fn check_with_private_entry_ram(
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
             for (operation_index, operation) in block.operations.iter().enumerate() {
                 let callee = match &operation.kind {
+                    OperationKind::EstablishNativeCodeLayout { machine } => {
+                        return Err(TerminalInterpretError::UnsupportedCapability(
+                            TerminalUnsupportedCapability::NativeCodeLayout { machine: *machine },
+                        ));
+                    }
                     OperationKind::RegisterAccess { event, .. } => {
                         return Err(TerminalInterpretError::UnsupportedCapability(
                             TerminalUnsupportedCapability::RegisterAccess {

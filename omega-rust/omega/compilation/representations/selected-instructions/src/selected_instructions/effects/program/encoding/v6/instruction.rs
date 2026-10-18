@@ -388,6 +388,10 @@ fn decode_kind(
                     place: semantic_vocabulary::PlaceId::new(cursor.u64()?)
                         .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
                 },
+                2 => crate::SelectedImageAddressReference::NativeCodeLayout {
+                    machine: MachineId::new(cursor.u64()?)
+                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                },
                 1 => crate::SelectedImageAddressReference::ImplementationTable {
                     table: cursor.u32()?,
                 },

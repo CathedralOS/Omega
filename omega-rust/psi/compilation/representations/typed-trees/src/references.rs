@@ -1451,6 +1451,9 @@ fn visit_call_expression(
     if let Some(layout) = &call.private_layout_operation {
         visit_static_argument(program, retained, &layout.selected_slot);
     }
+    if let Some(query) = &call.native_code_layout {
+        visit_static_argument(program, retained, &query.operand);
+    }
     if let Some(query) = &call.layout_query {
         visit_static_argument(program, retained, &query.operand);
     }
@@ -1794,6 +1797,7 @@ mod conformance_occurrence_tests {
                     quotient_operation: None,
                     private_layout_operation: None,
                     layout_query: None,
+                    native_code_layout: None,
                     arguments: Default::default(),
                     evidence_arguments: Box::new([]),
                     operational_acknowledgement: Default::default(),

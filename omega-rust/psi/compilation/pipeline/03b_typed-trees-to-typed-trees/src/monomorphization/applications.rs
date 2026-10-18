@@ -93,12 +93,31 @@ pub(super) fn retain_authored_call(
             let Some(call) = program.expression_table.call_node(handle) else {
                 return StaticMachineApplicationHandle::invalid();
             };
-            (
-                call.authored_machine_application,
-                call.target_symbol,
-                call.target.clone(),
-                call.machine_arguments.to_vec(),
-            )
+            if let Some(query) = &call.native_code_layout {
+                (
+                    call.authored_machine_application,
+                    query.operand.symbol,
+                    query
+                        .operand
+                        .path
+                        .last()
+                        .cloned()
+                        .unwrap_or_else(|| call.target.clone()),
+                    query
+                        .operand
+                        .application
+                        .as_ref()
+                        .map(|application| application.arguments.to_vec())
+                        .unwrap_or_default(),
+                )
+            } else {
+                (
+                    call.authored_machine_application,
+                    call.target_symbol,
+                    call.target.clone(),
+                    call.machine_arguments.to_vec(),
+                )
+            }
         }
         CallSite::Statement(handle) => {
             let Some(call) = program.statement_table.statement(handle).as_call() else {

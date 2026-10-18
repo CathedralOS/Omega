@@ -58,6 +58,14 @@ pub(super) fn boundary_scalar_requires(
         for fact in program.proof_facts.span_or_empty(clause.facts) {
             let predicate = match fact {
                 ProofFact::Membership(membership) => {
+                    if let Some(valid) = super::super::types::signature_progress_requirement(
+                        program, parameters, membership,
+                    ) {
+                        if !valid {
+                            return None;
+                        }
+                        continue;
+                    }
                     let structural =
                         validation::single_segment_name_symbol(program, membership.value)
                             .and_then(|symbol| {

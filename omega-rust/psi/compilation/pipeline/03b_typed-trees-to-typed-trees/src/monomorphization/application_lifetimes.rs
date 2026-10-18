@@ -2,7 +2,7 @@
 //! runtime tuple operands. Even an unused provider lifetime consumes one
 //! authored argument; no borrow occurrence may guess away that telescope.
 
-use super::super::super::{Diagnostic, StaticMachineArgument, SymbolHandle, TypedTrees};
+use super::{Diagnostic, StaticMachineArgument, SymbolHandle, TypedTrees};
 use typed_trees::static_applications::{
     StaticMachineApplicationHandle, StaticMachineLifetimeBinding,
 };

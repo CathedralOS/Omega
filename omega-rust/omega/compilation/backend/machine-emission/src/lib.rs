@@ -102,5 +102,6 @@ pub use text_placement::{
     StagedOptimizedFixedFrameTextSection,
 };
 // `code_layout<Machine>()` descriptions projected from placed text.
+pub mod code_layout;
 
 // Target-owned x86-64 byte recipes outside the route.

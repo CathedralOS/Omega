@@ -638,6 +638,7 @@ impl<'facts> CallTransfers<'facts> {
                 self.argument_evaluation(source)
             }
             CheckedStructuralValueKind::ByteLiteralView { .. }
+            | CheckedStructuralValueKind::NativeCodeLayout { .. }
             | CheckedStructuralValueKind::ZeroedStructural { .. } => 0,
         }
     }

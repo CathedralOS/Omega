@@ -71,6 +71,16 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::EstablishNativeCodeLayout {
+                    result,
+                    machine,
+                    shape,
+                } => {
+                    bytes.push(248);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
+                    super::calling::encode_shape(bytes, *shape);
+                }
                 LegalizedScalarInstructionKind::RegisterAccess { service, event } => {
                     bytes.push(247);
                     crate::codec_bytes::push_encoded(bytes, service.get().to_le_bytes());

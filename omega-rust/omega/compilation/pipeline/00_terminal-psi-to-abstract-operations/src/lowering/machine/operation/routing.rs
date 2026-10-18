@@ -467,6 +467,7 @@ pub(super) fn lower(
         | OperationKind::EstablishStructuralArray { .. }
         | OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishStructuralCase { .. }
+        | OperationKind::EstablishNativeCodeLayout { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishByteSequenceConcatenation { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }

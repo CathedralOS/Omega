@@ -386,6 +386,10 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::EstablishTrivialAffineLocal { destination } => {
             value_operations::encode_establish_trivial_affine_local(writer, destination)?
         }
+        OperationKind::EstablishNativeCodeLayout { machine } => {
+            writer.u8(operation_tags::ESTABLISH_NATIVE_CODE_LAYOUT);
+            writer.u64(machine.get());
+        }
         OperationKind::EstablishRecord { fields } => {
             value_operations::encode_establish_record(writer, fields)?
         }
@@ -754,6 +758,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
     };
     let kind = match reader.u8()? {
+        operation_tags::ESTABLISH_NATIVE_CODE_LAYOUT => OperationKind::EstablishNativeCodeLayout {
+            machine: reader.id("native code layout machine")?,
+        },
         operation_tags::BYTE_SEQUENCE_SUBSLICE => {
             storage_operations::decode_byte_sequence_subslice(reader)?
         }

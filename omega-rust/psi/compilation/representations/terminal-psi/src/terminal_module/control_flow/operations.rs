@@ -265,6 +265,12 @@ pub struct ReferenceStorageView {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Establish the ordinary runtime descriptor of one exact executable
+    /// application. Native layout supplies relocations and instruction spans;
+    /// neither Psi evaluation nor an interpreter may fabricate this value.
+    EstablishNativeCodeLayout {
+        machine: MachineId,
+    },
     /// Interpret initialized ordinary RAM through one exact retained placement.
     /// The result's reference referee selects the catalog; neither an offset
     /// nor a caller-supplied profile can establish this interpretation.
@@ -1119,6 +1125,7 @@ impl OperationKind {
             }
         }
         match self {
+            Self::EstablishNativeCodeLayout { .. } => {}
             Self::EstablishReference { storage, .. } => {
                 if let Some(storage) = storage {
                     storage.byte_offset = map(storage.byte_offset);

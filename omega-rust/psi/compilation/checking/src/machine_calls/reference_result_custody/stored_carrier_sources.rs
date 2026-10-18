@@ -106,6 +106,29 @@ fn select(
                 source: source.clone(),
             });
         }
+        CheckedStructuralValueKind::NativeCodeLayout { .. } => {
+            // The query's one descriptor field points into immutable image
+            // storage. Its exact declared member identity owns this path;
+            // no activation-local loan or caller argument is fabricated.
+            let [CheckedUnitStructuralPathSegment::Field(selected)] = selection else {
+                return None;
+            };
+            let data = program.closed_data_definition(values.nodes.get(value).type_reference)?;
+            let mut fields = program
+                .data_members(data)
+                .iter()
+                .filter_map(|member| match member {
+                    DataMember::Field(field) => Some(field),
+                    _ => None,
+                });
+            let region = fields.nth(1)?;
+            if checked_trees::CheckedMemberIdentity::of_member(region.identity, region.name.clone())
+                != *selected
+            {
+                return None;
+            }
+            output.push(StoredCarrierSource::Image { value });
+        }
         CheckedStructuralValueKind::ByteLiteralView { .. } => {
             if !selection.is_empty() {
                 return None;

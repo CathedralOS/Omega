@@ -131,6 +131,7 @@ pub enum StructuralEffectCustody {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectAction {
+    EstablishNativeCodeLayout,
     EstablishPlacedReference,
     EstablishReference,
     ReleaseReference,
@@ -379,6 +380,7 @@ structural_effect_rows! {
     EstablishTrivialAffineLocal => (Unit, ExactEmptyAffineLocal, EstablishAffinePlace, None, AddsAffinePlace),
     EstablishStructuralArray => (Structural, ExactStructuralArray, EstablishStructuralArray, None, TransfersOwnedChildrenAndAddsOwnedPlace),
     EstablishRecord => (Structural, ExactRecord, EstablishRecord, None, TransfersOwnedChildrenAndAddsOwnedPlace),
+    EstablishNativeCodeLayout => (Structural, ExactRecord, EstablishNativeCodeLayout, None, AddsOwnedPlace),
 }
 
 pub fn exact_structural_effect_semantic_row_in(
@@ -468,6 +470,9 @@ fn validate_structural_effect_schema(
     schema: StructuralEffectLeafSchema,
 ) -> Result<(), OperationSemanticError> {
     let action_tag = match schema.action {
+        StructuralEffectAction::EstablishNativeCodeLayout => {
+            OperationSemanticTag::EstablishNativeCodeLayout
+        }
         StructuralEffectAction::EstablishPlacedReference => {
             OperationSemanticTag::EstablishPlacedReference
         }
@@ -569,6 +574,12 @@ fn validate_structural_effect_schema(
         action_tag == tag
             && schema.goal == expected_goal
             && match schema.action {
+                StructuralEffectAction::EstablishNativeCodeLayout => {
+                    schema.result == StructuralEffectResultShape::Structural
+                        && schema.custody == StructuralEffectCustody::ExactRecord
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier == StructuralEffectFrontierPolicy::AddsOwnedPlace
+                }
                 StructuralEffectAction::EstablishPlacedReference
                 | StructuralEffectAction::EstablishReference => {
                     schema.result == StructuralEffectResultShape::Structural

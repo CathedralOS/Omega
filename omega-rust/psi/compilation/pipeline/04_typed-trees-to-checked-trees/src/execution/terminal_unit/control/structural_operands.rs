@@ -288,6 +288,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
         }
         visited.push(value);
         match &plans.nodes.get(value).kind {
+            checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
             checked_trees::CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
                 pending.extend(arguments.iter().rev().copied());
             }

@@ -702,6 +702,9 @@ impl<'artifact> TerminalExecution<'artifact> {
                 self.validate_case_projections(operation)?;
                 let flow = dispatch_operations!(self, operation, operation.kind;
                                     literal {
+                                    OperationKind::EstablishNativeCodeLayout { machine } => {
+                                        return Err(TerminalInterpretError::UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability::NativeCodeLayout { machine }));
+                                    }
                                     OperationKind::EstablishPlacedReference { ref source } => {
                                         self.establish_placed_reference(operation, source)?;
                                         OperationFlow::Advance

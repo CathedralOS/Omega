@@ -91,6 +91,14 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     // statement root.
     let tail = statements.last().and_then(|statement| {
         let expression = statement.as_expression()?;
+        if program
+            .expression_table
+            .call_node(*expression)
+            .and_then(|call| call.native_code_layout.as_ref())
+            .is_some_and(|query| query.discards_result)
+        {
+            return None;
+        }
         Some((
             u32::try_from(statements.len().checked_sub(1)?).ok()?,
             *expression,

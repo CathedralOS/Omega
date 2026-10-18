@@ -187,6 +187,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                     }
                 }
                 match node.kind {
+                    checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
                     checked_trees::CheckedStructuralValueKind::QuotientCall {
                         request,
                         ref arguments,

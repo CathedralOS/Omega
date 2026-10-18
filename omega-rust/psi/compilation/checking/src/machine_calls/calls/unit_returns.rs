@@ -15,6 +15,14 @@ pub fn unit_statement_call_is_admitted(
     if !program.expression_table.expression_is_valid(expression) {
         return false;
     }
+    if program
+        .expression_table
+        .call_node(expression)
+        .and_then(|call| call.native_code_layout.as_ref())
+        .is_some_and(|query| query.discards_result)
+    {
+        return true;
+    }
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut occurrences = statements.iter().enumerate().filter_map(|(position, statement)| {
         matches!(statement, typed_trees::statement::StatementNode::Expression(root) if *root == expression)

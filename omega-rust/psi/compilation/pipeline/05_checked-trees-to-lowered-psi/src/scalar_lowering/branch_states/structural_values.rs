@@ -590,6 +590,18 @@ impl Preparation<'_> {
             });
             return Ok(literal.place);
         }
+        if let CheckedStructuralValueKind::NativeCodeLayout { selected_state } = &node.kind {
+            let place = self.reserved.place(value)?;
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::EstablishNativeCodeLayout {
+                    place,
+                    structural_type: declaration.id,
+                    selected_state: *selected_state,
+                },
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
         if let CheckedStructuralValueKind::ByteLiteralView { bytes } = &node.kind {
             let place = self.reserved.place(value)?;
             self.steps.push(Step::Establish {

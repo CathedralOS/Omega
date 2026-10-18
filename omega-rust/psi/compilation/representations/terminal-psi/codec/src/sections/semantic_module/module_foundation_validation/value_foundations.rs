@@ -634,3 +634,68 @@ pub(super) fn validate_establish_structural_array(
     }
     Ok(())
 }
+
+/// Late native metadata is a custody-free ordinary record, never a source of
+/// semantic propositions or ownership of the code it describes.
+pub(super) fn validate_native_code_layout(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::EstablishNativeCodeLayout { machine: selected } = operation.kind else {
+        unreachable!()
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("native code layout has no structural result");
+    };
+    if module.machine(selected).is_none()
+        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.claims.is_empty()
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+    {
+        return malformed(
+            "native code layout has unavailable executable entry or noncanonical custody",
+        );
+    }
+    if !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) { return malformed("native code layout result has no exact producer home"); }
+    let Some(declaration) = module.structural_type(result.structural_type) else {
+        return malformed("native code layout result type is absent");
+    };
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        return malformed("native code layout result is not a record");
+    };
+    let address = |field: &terminal_psi::StructuralFieldDeclaration| matches!(field.field_type, StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(ty)) if ty.is_address());
+    if fields.len() != 2
+        || fields.iter().any(|field| field.relevance.is_erased())
+        || !address(&fields[0])
+    {
+        return malformed("native code layout needs an entry address and region sequence");
+    }
+    let StructuralFieldType::Structural(view) = fields[1].field_type else {
+        return malformed("native code layout region sequence is absent");
+    };
+    let Some(StructuralTypeShape::ElementView { element, access }) =
+        module.structural_type(view).map(|ty| &ty.shape)
+    else {
+        return malformed("native code layout regions are not a finite element view");
+    };
+    if access.is_some_and(|access| access != terminal_psi::StructuralAccess::SharedBorrow) {
+        return malformed("native code layout regions cannot grant mutable authority");
+    }
+    let Some(StructuralTypeShape::Record {
+        fields: regions, ..
+    }) = module.structural_type(*element).map(|ty| &ty.shape)
+    else {
+        return malformed("native code layout region type is absent");
+    };
+    if regions.len() != 2
+        || regions.iter().any(|field| field.relevance.is_erased())
+        || !address(&regions[0])
+        || !matches!(regions[1].field_type, StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(ty)) if !ty.is_address() && ty.sign() == semantic_vocabulary::IntegerSign::Unsigned && ty.bits() == 64)
+    {
+        return malformed("native code layout region needs base addr and length u64");
+    }
+    Ok(())
+}

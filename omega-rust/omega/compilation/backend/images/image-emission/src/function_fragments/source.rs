@@ -63,6 +63,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::EstablishStructuralArray { .. }
                 | AbstractOperation::EstablishZeroedStructural { .. }
                 | AbstractOperation::EstablishStructuralLocal { .. }
+                | AbstractOperation::EstablishNativeCodeLayout { .. }
                 | AbstractOperation::CallStructural {
                     result: AbstractStructuralCallResult::Structural { .. },
                     ..
@@ -349,6 +350,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::EstablishStructuralArray { .. }
                 | AbstractOperation::EstablishZeroedStructural { .. }
                 | AbstractOperation::EstablishStructuralLocal { .. }
+                | AbstractOperation::EstablishNativeCodeLayout { .. }
                 | AbstractOperation::CallStructural {
                     result: AbstractStructuralCallResult::Structural { .. },
                     ..

@@ -388,6 +388,7 @@ pub(crate) fn bind_selected_operator_calls(
                 quotient_operation: None,
                 private_layout_operation: None,
                 layout_query: None,
+                    native_code_layout: None,
                 arguments,
                 evidence_arguments: Box::default(),
                 operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {

@@ -138,6 +138,41 @@ pub(super) fn report_unresolved_value_call(
     if call.layout_query.is_some() {
         return;
     }
+    if let Some(query) = &call.native_code_layout {
+        let selected = program.machines().iter().find(|machine| {
+            machine.symbol == query.operand.symbol
+                || program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == query.operand.symbol)
+        });
+        if let Some(machine) = selected {
+            if crate::proof_only_classification(program)
+                .is_proof_machine(program.typed_program(), machine)
+            {
+                diagnostics.push(Diagnostic::error("`code_layout` selected a proof-only machine with no executable native realization"));
+            } else if !machine.supplies_checked_body() {
+                diagnostics.push(Diagnostic::error("`code_layout` selected an unavailable native realization; an opaque or bodyless declaration has no attributed native instruction regions"));
+            } else if machine.has_specialization_parameters()
+                && !program
+                    .typed_program()
+                    .callable_body_has_open_parameters(current_machine)
+            {
+                diagnostics.push(Diagnostic::error("`code_layout` requires one complete exact selected machine application; static arguments remain unresolved"));
+            }
+        } else if !(query.operand.symbol.is_valid()
+            && program.symbols.get(query.operand.symbol).kind
+                == symbols::SymbolKind::MachineParameter
+            && program
+                .typed_program()
+                .callable_body_has_open_parameters(current_machine))
+        {
+            diagnostics.push(Diagnostic::error(
+                "`code_layout` requires one resolved executable machine application",
+            ));
+        }
+        return;
+    }
     let target = call.target.as_str();
     // Named operators are callable requirements too. Use the same exact-symbol
     // or unique path+arity resolution as checked-flow analysis; a leaf spelling

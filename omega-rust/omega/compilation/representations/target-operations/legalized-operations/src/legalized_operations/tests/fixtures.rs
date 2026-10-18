@@ -309,6 +309,7 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
     call.source = NativeCallOrigin::InstalledProvider {
         boundary,
         provider,
+        assumption: None,
         completion_claim_sources,
         completion_receipts,
     };

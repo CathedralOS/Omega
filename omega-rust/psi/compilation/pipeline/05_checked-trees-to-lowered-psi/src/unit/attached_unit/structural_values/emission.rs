@@ -1651,6 +1651,40 @@ impl Emission<'_, '_, '_> {
     ) -> Result<StructuralArgument, LoweringError> {
         let node = self.structural_value_node(value);
         let place = match node.kind {
+            CheckedStructuralValueKind::NativeCodeLayout { selected_state } => {
+                let (selected, _) =
+                    validation::find_machine_by_entry_state(&self.checked.typed, selected_state)
+                        .ok_or(LoweringError::Unsupported(
+                            "native layout query lost its exact selected executable entry",
+                        ))?;
+                let machine = crate::terminal_identities::lookup_machine_id(
+                    self.calls.machine_ids,
+                    selected.symbol,
+                )?;
+                let place = place_id(allocate_dense(self.next_place)?);
+                let operation = self.operations.allocate();
+                self.operations.push(terminal_psi::Operation {
+                    id: operation,
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    result:
+                        crate::emission::operation_emission::buffer::structural_result_declaration(
+                            place,
+                            self.structural_type,
+                            StructuralMultiplicity::Unrestricted,
+                        ),
+                    kind: OperationKind::EstablishNativeCodeLayout { machine },
+                });
+                self.temporary_places.push(StructuralPlaceDeclaration {
+                    id: place,
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer: operation,
+                        structural_type: self.structural_type,
+                    },
+                });
+                self.completed(identities, place, continuation)
+            }
+
             CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
                 let place = self.quotient_call(identities, value, &arguments)?;
                 self.completed(identities, place, continuation)

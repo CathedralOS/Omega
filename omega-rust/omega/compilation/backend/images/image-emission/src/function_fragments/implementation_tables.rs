@@ -240,7 +240,9 @@ pub(super) fn validate(
         .optimized()
         .plan();
     let Some(pool) = &artifact.implementation_table_pool else {
-        if !artifact.data_bytes.is_empty() || !plan.dynamic_dispatch.tables.is_empty() {
+        if (!artifact.data_bytes.is_empty() && artifact.native_code_layout_pool.is_none())
+            || !plan.dynamic_dispatch.tables.is_empty()
+        {
             return Err(Error::Mismatch(
                 "initialized data has no implementation table owner",
             ));
@@ -283,7 +285,9 @@ pub(super) fn validate(
     let mut expected = ObjectPlan::with_capacity(artifact.target, 1, pool.tables.len());
     let (rebuilt, data) = place(&pool.catalog, &pool.addresses, &mut expected)?;
     let rebuilt = rebuilt.ok_or(Error::Mismatch("implementation table pool disappeared"))?;
-    if artifact.data_bytes != data || rebuilt.tables.len() != pool.tables.len() {
+    if artifact.data_bytes.get(..data.len()) != Some(data.as_slice())
+        || rebuilt.tables.len() != pool.tables.len()
+    {
         return Err(Error::Mismatch("implementation table bytes changed"));
     }
     let data_section = artifact
@@ -296,7 +300,7 @@ pub(super) fn validate(
             "implementation table data section is absent",
         ))?
         .1;
-    if data_section.size != data.len() || data_section.alignment != 8 {
+    if data_section.size != artifact.data_bytes.len() || data_section.alignment != 8 {
         return Err(Error::Mismatch(
             "implementation table data geometry changed",
         ));
@@ -344,11 +348,14 @@ pub(crate) fn validate_image_data_relocations(
     for namespace in crate::private_object_composition::namespaces(artifact) {
         let local = namespace.artifact;
         let Some(pool) = &local.implementation_table_pool else {
-            if !local.data_bytes.is_empty() {
+            if !local.data_bytes.is_empty() && local.native_code_layout_pool.is_none() {
                 return Err(Error::Mismatch(
                     "initialized image data has no implementation table owner",
                 ));
             }
+            expected.extend(super::native_code_layouts::image_data_records(
+                &namespace, artifact, object,
+            )?);
             continue;
         };
         let replay = local.fragment_replay.as_ref().ok_or(Error::Mismatch(
@@ -384,6 +391,9 @@ pub(crate) fn validate_image_data_relocations(
                 .ok_or(Error::Overflow)?;
             expected.push(record);
         }
+        expected.extend(super::native_code_layouts::image_data_records(
+            &namespace, artifact, object,
+        )?);
     }
     validate_data_relocation_roster(&expected, relocations)
 }

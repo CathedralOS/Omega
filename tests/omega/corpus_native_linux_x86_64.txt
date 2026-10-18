@@ -590,6 +590,13 @@ pass/calls/mutable_receiver_computation_exit built 14651ms exit:70 @6c49683ce714
 pass/calls/mutable_receiver_scalar_destinations_exit built 14856ms exit:70 @6c49683ce714
 pass/calls/mutual_cycle_tail_admitted_exit built 14921ms exit:70 @6c49683ce714
 pass/calls/named_target_payload_dispatch built 15182ms exit:0 @6c49683ce714
+pass/calls/native_code_layout_discarded_exit built 8061ms exit:0 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_forward_machine_exit built 8219ms exit:0 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_frame_exit built 7956ms exit:0 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_lifetime_exit built 7916ms exit:0 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_nested_type_const_exit built 8195ms exit:0 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_shadowing_exit built 7963ms exit:0 @b2bd1ba421fd+wt
+pass/calls/native_code_layout_uncalled_boundary_exit built 7812ms exit:0 @b2bd1ba421fd+wt
 pass/calls/negated_edge_guard_requires_exit built 14601ms exit:70 @6c49683ce714
 pass/calls/nested_binding_call checked 17363ms @6c49683ce714
 pass/calls/nested_call_footprints_follow_occurrences built 17403ms exit:0 @6c49683ce714
@@ -1654,6 +1661,15 @@ pass/facts/indexed_element_mut_loan_through_other_state_exit built 10435ms exit:
 pass/facts/indexed_element_mut_loan_through_parameter_exit built 8325ms exit:0 @907be3818acc
 pass/facts/indexed_element_mut_loan_through_target_body_exit built 9465ms exit:0 @907be3818acc
 pass/facts/returned_write_destination_through_match_join_exit built 7332ms exit:0 @adb7b6ab515b+wt
+pass/facts/selected_native_code_layout_through_call_result_exit built 7797ms exit:0 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_const_name_exit built 8132ms exit:0 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_field_exit built 7848ms exit:0 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_local_exit built 8395ms exit:0 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_match_join_exit built 8381ms exit:0 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_other_machine_exit built 9451ms exit:0 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_other_state_exit built 8830ms exit:0 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_parameter_exit built 8229ms exit:0 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_target_body_exit built 8096ms exit:0 @b2bd1ba421fd+wt
 pass/filesystem/cross_linux_value_syscalls checked 16309ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit built 20631ms exit:70 @7c847bad15b6+wt
 pass/filesystem/native_canonicalize built 25277ms exit:0 stdout:match @c9eefa9130a0+wt
@@ -3070,6 +3086,8 @@ pass/termination/measure_record_projection checked 17243ms @6c49683ce714
 pass/termination/measure_variable_step checked 17619ms @6c49683ce714
 pass/termination/mutable_rank_endpoint checked 17597ms @6c49683ce714
 pass/termination/named_computed_rank_endpoints checked 3726ms @6c49683ce714
+pass/termination/native_layout_family_premises built 8287ms @b2bd1ba421fd+wt
+pass/termination/native_layout_ordinary_progress built 8395ms @b2bd1ba421fd+wt
 pass/termination/natural_call_variable_step checked 2031ms @6c49683ce714
 pass/termination/nested_leaf_rank checked 17946ms @6c49683ce714
 pass/termination/nested_pair_endpoint checked 17633ms @6c49683ce714

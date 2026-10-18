@@ -1056,7 +1056,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.context.exact_integer_casts,
                 );
             }
-            ExpressionNode::Call(call) if call.layout_query.is_some() => {
+            ExpressionNode::Call(call)
+                if (call.layout_query.is_some() || call.native_code_layout.is_some()) =>
+            {
                 // A retained query owns no callee or runtime operands. Its
                 // scalar computation carries an opaque u64 until closure;
                 // recording an invocation here would invent a missing machine.

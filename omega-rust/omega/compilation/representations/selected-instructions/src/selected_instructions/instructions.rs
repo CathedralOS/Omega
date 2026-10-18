@@ -79,6 +79,9 @@ impl SelectedCallTarget {
 /// Immutable image storage is selected by identity, independent of its owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedImageAddressReference {
+    NativeCodeLayout {
+        machine: MachineId,
+    },
     ByteLiteral {
         operation: OperationId,
         place: PlaceId,
@@ -95,6 +98,10 @@ impl SelectedImageAddressReference {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                 crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
+            }
+            Self::NativeCodeLayout { machine } => {
+                bytes.push(2);
+                crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
             }
             Self::ImplementationTable { table } => {
                 bytes.push(1);

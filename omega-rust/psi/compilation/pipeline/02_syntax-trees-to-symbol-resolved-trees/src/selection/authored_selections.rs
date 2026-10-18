@@ -335,6 +335,9 @@ fn collect_authored_statement_call_candidates(
             Statement::Call(call)
                 if call.operational_acknowledgement.origin
                     == language_semantics::CallOperationalAcknowledgementOrigin::Source
+                    && !(call.target.as_str() == "code_layout"
+                        && !call.target_symbol.is_valid()
+                        && call.receiver.is_empty())
                     && call.authored_call_selection.is_none()
                     && nonempty(call.target.source_span()) =>
             {
@@ -1018,6 +1021,9 @@ fn expression_candidates(
                 == language_semantics::CallOperationalAcknowledgementOrigin::Source
                 && !unbound_contract_call
                 && !data_layout_query
+                && !(call.target.as_str() == "code_layout"
+                    && !call.target_symbol.is_valid()
+                    && !call.receiver.is_valid())
             {
                 candidates.push(Candidate {
                     expression,

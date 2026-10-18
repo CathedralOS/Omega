@@ -364,6 +364,36 @@ pub(in crate::execution::terminal_unit) fn build(
         .copied()
     {
         let statement = &statements[index];
+        if let StatementNode::Expression(expression) = statement
+            && program
+                .expression_table
+                .call_node(*expression)
+                .and_then(|call| call.native_code_layout.as_ref())
+                .is_some_and(|query| query.discards_result)
+        {
+            let statement_index = u32::try_from(index).ok()?;
+            let root = facts.values.structural_values.root_for_expression(
+                state.symbol,
+                statement_index,
+                *expression,
+            )?;
+            let mut result =
+                checked_structural_result_type(program, shapes, root.type_reference, &binders)?;
+            result.statement_index = statement_index;
+            result.binding_ordinal = u32::try_from(structural_count).ok()?;
+            structural_count = structural_count.checked_add(1)?;
+            operations.push(CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                    result,
+                    value: root.root,
+                    calls: Vec::new(),
+                    operand_source: None,
+                    discard_result_on_return: true,
+                },
+            ));
+            continue;
+        }
+
         let statement_index = u32::try_from(index).ok()?;
         trace.phase(statement_phase(statement));
         trace.statement(Some(statement_index));

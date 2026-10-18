@@ -245,6 +245,7 @@ impl OperationKind {
         map: &mut impl FnMut(PlaceId, StructuralAccess) -> PlaceId,
     ) {
         match self {
+            Self::EstablishNativeCodeLayout { .. } => {}
             Self::EstablishPlacedReference { source }
             | Self::EstablishReference { source, .. }
             | Self::EstablishElementView { source, .. }
@@ -371,6 +372,7 @@ impl OperationKind {
     pub fn structural_projections(&self) -> Vec<OperationProjection<'_>> {
         let mut projections = Vec::new();
         match self {
+            Self::EstablishNativeCodeLayout { .. } => {}
             Self::EstablishByteSequenceConcatenation { left, right, .. }
             | Self::ByteSequenceEqual { left, right } => {
                 for operand in [left, right] {

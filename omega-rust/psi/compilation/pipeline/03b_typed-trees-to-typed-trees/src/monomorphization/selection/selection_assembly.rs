@@ -25,6 +25,39 @@ pub(crate) fn selection_for_call(
     expected_return: Option<TypeReferenceHandle>,
     caller_is_generic: bool,
 ) -> Option<CallSelection> {
+    // Query selection reuses the tuple solver, not invocation inference:
+    // ordinary runtime parameters are neither supplied nor evaluated and the
+    // descriptor carrier cannot infer an omitted selected-machine argument.
+    let query = match site {
+        CallSite::Expression(handle) => program
+            .expression_table
+            .call_node(handle)
+            .and_then(|call| call.native_code_layout.as_ref()),
+        CallSite::Statement(_) => None,
+    };
+    let (target_symbol, machine_arguments, arguments, expected_return) = if let Some(query) = query
+    {
+        let selected = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == query.operand.symbol)
+            .and_then(|machine| program.machine_states(machine).first())
+            .map(|state| state.symbol)
+            .unwrap_or(query.operand.symbol);
+        (
+            selected,
+            query
+                .operand
+                .application
+                .as_ref()
+                .map(|application| application.arguments.as_ref())
+                .unwrap_or(&[]),
+            &[][..],
+            None,
+        )
+    } else {
+        (target_symbol, machine_arguments, arguments, expected_return)
+    };
     let callee = resolve_callee(callee_states, target_symbol)?;
     let candidate = &candidates[callee.candidate_index];
     let mut machine_proposals = Vec::new();

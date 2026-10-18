@@ -341,6 +341,20 @@ pub(super) fn adapt(
                     )?;
                     step.inputs = vec![query.observation()];
                 }
+                OperationKind::EstablishNativeCodeLayout { .. }
+                    if slot_kind == DescriptorSlotKind::Views =>
+                {
+                    let result = result?;
+                    let destination = native_code_layout_regions(&module.structural_types, result)?;
+                    step.definitions.push(destination.clone());
+                    graph.originations.entry(position).or_default().push((
+                        destination,
+                        DescriptorCallOrigin::Literal {
+                            machine: machine.id,
+                            place: result.place,
+                        },
+                    ));
+                }
                 OperationKind::EstablishZeroedStructural {} => {
                     let result = result?;
                     for slot in slot_kind

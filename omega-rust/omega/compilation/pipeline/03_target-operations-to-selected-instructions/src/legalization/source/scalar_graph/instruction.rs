@@ -264,6 +264,13 @@ pub(super) fn project(
                 elements: elements.clone(),
                 shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
             },
+            AbstractOperation::EstablishNativeCodeLayout {
+                result, machine, ..
+            } => LegalizedScalarInstructionKind::EstablishNativeCodeLayout {
+                result: result.clone(),
+                machine: *machine,
+                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
+            },
             AbstractOperation::EstablishRecord { result, fields, .. } => {
                 LegalizedScalarInstructionKind::EstablishRecord {
                     result: result.clone(),

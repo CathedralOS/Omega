@@ -2,7 +2,7 @@
 //! Reuse the ordinary clone, cache identity and retained tuple. Generic expected
 //! telescopes are universal schemas, never permission to choose one instance.
 
-mod lifetime_arguments;
+use super::super::application_lifetimes as lifetime_arguments;
 
 use super::super::{
     Diagnostic, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees, candidate,

@@ -699,6 +699,19 @@ fn adapt(
                         },
                     ));
                 }
+                O::EstablishNativeCodeLayout { result, .. }
+                    if slot_kind == kernel::DescriptorSlotKind::Views =>
+                {
+                    let destination = kernel::native_code_layout_regions(types, result)?;
+                    step.definitions.push(destination.clone());
+                    graph.originations.entry(position).or_default().push((
+                        destination,
+                        kernel::DescriptorCallOrigin::Literal {
+                            machine: function.machine,
+                            place: result.place,
+                        },
+                    ));
+                }
                 O::EstablishZeroedStructural { result, .. } => {
                     for slot in slot_kind
                         .inventory(types, result.place, result.structural_type)?

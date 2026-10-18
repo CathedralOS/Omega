@@ -180,10 +180,16 @@ pub fn build_function_fragment_object_artifact(
     // Literal octets follow every byte of code, ahead of the import tail, so
     // the symbol order is program, private, literal pool, import.
     let byte_literal_pool = super::byte_literals::place(source, &mut object, &mut text_bytes)?;
-    let (implementation_table_pool, data_bytes) = super::implementation_tables::place(
+    let (implementation_table_pool, mut data_bytes) = super::implementation_tables::place(
         dynamic_dispatch,
         &source.source().text_section().unresolved_image_addresses,
         &mut object,
+    )?;
+    let native_code_layout_pool = super::native_code_layouts::place(
+        source.source(),
+        &source.source().text_section().unresolved_image_addresses,
+        &mut object,
+        &mut data_bytes,
     )?;
     // The text section is sized last: it covers program, private and pool bytes.
     object.layout.sections.insert(SectionPlan {
@@ -201,6 +207,11 @@ pub fn build_function_fragment_object_artifact(
     )?;
     super::implementation_tables::publish_relocations(
         implementation_table_pool.as_ref(),
+        &functions,
+        &mut relocations,
+    )?;
+    super::native_code_layouts::publish_relocations(
+        native_code_layout_pool.as_ref(),
         &functions,
         &mut relocations,
     )?;
@@ -227,6 +238,7 @@ pub fn build_function_fragment_object_artifact(
         foreign_calls,
         byte_literal_pool,
         implementation_table_pool,
+        native_code_layout_pool,
     };
     // The object is projected from the container this compile just placed;
     // `validate_function_fragment_object_artifact_with_private_functions`

@@ -159,7 +159,21 @@ pub(crate) fn build_checked_value_computation_plans(
                     StatementNode::LocalData(local) => {
                         Some((local.initial_value, local.type_reference))
                     }
-                    StatementNode::Expression(expression) => Some((*expression, state.return_type)),
+                    StatementNode::Expression(expression) => {
+                        let expected = if program
+                            .expression_table
+                            .call_node(*expression)
+                            .and_then(|call| call.native_code_layout.as_ref())
+                            .is_some_and(|query| query.discards_result)
+                        {
+                            program
+                                .expression_table
+                                .constructed_value_type_reference(*expression)
+                        } else {
+                            state.return_type
+                        };
+                        Some((*expression, expected))
+                    }
                     _ => None,
                 };
                 // A closed primitive array whose elements the scalar route

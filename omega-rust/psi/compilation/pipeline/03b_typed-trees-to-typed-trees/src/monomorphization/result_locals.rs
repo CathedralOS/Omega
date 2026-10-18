@@ -86,6 +86,13 @@ pub(super) fn refresh_generic_call_results(
                 let Some(local) = statement.as_local_data() else {
                     continue;
                 };
+                if program
+                    .expression_table
+                    .call_node(local.initial_value)
+                    .is_some_and(|call| call.native_code_layout.is_some())
+                {
+                    continue;
+                }
                 if !local.type_is_inferred || local.role != language_core::LocalBindingRole::Value {
                     continue;
                 }

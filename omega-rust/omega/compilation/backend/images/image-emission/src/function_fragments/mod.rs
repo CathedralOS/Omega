@@ -6,6 +6,7 @@ mod byte_literals;
 pub(crate) mod implementation_tables;
 mod imports;
 mod mixed_scalar_abi;
+pub(crate) mod native_code_layouts;
 mod port_effects;
 mod production;
 pub(crate) mod replay;
@@ -33,6 +34,7 @@ pub enum FunctionFragmentObjectArtifactError {
     ForeignCalls(crate::ObjectError),
     NativeEntryBridge(machine_emission::native_entry_bridge::NativeEntryBridgeError),
     PhysicalEntry(diagnostics::Diagnostic),
+    NativeCodeLayout(machine_emission::code_layout::NativeCodeLayoutError),
     Overflow,
 }
 
@@ -56,6 +58,9 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
             }
             Self::ForeignCalls(error) => {
                 write!(formatter, "foreign-call custody: {error}")
+            }
+            Self::NativeCodeLayout(error) => {
+                write!(formatter, "selected native instruction geometry: {error:?}")
             }
             Self::Overflow => {
                 formatter.write_str("shared object coordinate exceeds supported size")

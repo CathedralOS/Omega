@@ -627,6 +627,10 @@ fn decode_image_address(
         1 => selected_instructions::SelectedImageAddressReference::ImplementationTable {
             table: cursor.u32()?,
         },
+        2 => selected_instructions::SelectedImageAddressReference::NativeCodeLayout {
+            machine: MachineId::new(cursor.u64()?)
+                .ok_or(RelocationFreeObjectDecodeError::InvalidMachine)?,
+        },
         tag => return Err(RelocationFreeObjectDecodeError::UnknownImageAddressReference(tag)),
     };
     let operation =
@@ -1260,6 +1264,18 @@ mod tests {
         object.unresolved_image_addresses[1].reference =
             object.unresolved_image_addresses[0].reference;
         assert_ne!(object.recomputed_identity().unwrap(), original_identity);
+    }
+
+    #[test]
+    fn native_layout_image_reference_round_trips_exact_machine() {
+        let mut object = literal_plan();
+        object.unresolved_image_addresses[0].reference =
+            selected_instructions::SelectedImageAddressReference::NativeCodeLayout {
+                machine: object.semantic_entry,
+            };
+        object.identity = object.recomputed_identity().unwrap();
+        let container = encode_relocation_free_object(&object).unwrap();
+        assert_eq!(decode_relocation_free_object(&container.bytes), Ok(object));
     }
 
     #[test]

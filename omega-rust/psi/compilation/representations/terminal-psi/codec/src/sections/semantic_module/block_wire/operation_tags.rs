@@ -246,3 +246,6 @@ pub(super) const ESTABLISH_PLACED_REFERENCE: u8 = 120;
 
 /// An exact catalogued register event and its ordinary scalar operand.
 pub(super) const REGISTER_ACCESS: u8 = 121;
+
+/// Late native metadata for one exact executable realization.
+pub(super) const ESTABLISH_NATIVE_CODE_LAYOUT: u8 = 122;

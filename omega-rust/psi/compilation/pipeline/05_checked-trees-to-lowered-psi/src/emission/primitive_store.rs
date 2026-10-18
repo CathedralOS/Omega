@@ -508,7 +508,7 @@ pub(crate) fn indexed_element_scalar_type(
                 ))?
             }
             StructuralFieldType::Scalar(ScalarType::Boolean) => ScalarType::Boolean,
-            StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {
+            StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
                 ScalarType::Integer(*integer)
             }
             StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => *scalar,
@@ -541,8 +541,7 @@ pub(crate) fn indexed_element_scalar_type(
     };
     match scalar_type {
         ScalarType::Boolean | ScalarType::IeeeFloat(_) => Ok(scalar_type),
-        ScalarType::Integer(integer) if !integer.is_address() => Ok(scalar_type),
-        _ => unsupported("indexed element leaf is not a readable scalar"),
+        ScalarType::Integer(_) => Ok(scalar_type),
     }
 }
 

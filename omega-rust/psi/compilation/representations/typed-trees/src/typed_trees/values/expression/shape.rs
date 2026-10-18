@@ -31,6 +31,7 @@ impl TableCallExpression {
             && self.quotient_operation.is_none()
             && self.private_layout_operation.is_none()
             && self.layout_query.is_none()
+            && self.native_code_layout.is_none()
     }
 
     /// Whether the call supplies its callee nothing but positional

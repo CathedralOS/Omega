@@ -332,6 +332,11 @@ pub(crate) enum LoweredScalarEffect {
     EstablishScalarCase(computations::cases::Construction),
     /// Establish a literal's reserved image descriptor or fresh owned backing
     /// at its authored operand position, before later arguments evaluate.
+    EstablishNativeCodeLayout {
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        selected_state: symbols::SymbolHandle,
+    },
     EstablishByteSequenceLiteral {
         literal: crate::emission::structural_byte_sequence_store::ByteLiteral,
         memberships: Vec<language_semantics::SemanticDomainId>,

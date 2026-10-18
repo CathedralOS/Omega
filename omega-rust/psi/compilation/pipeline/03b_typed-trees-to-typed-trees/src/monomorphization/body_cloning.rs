@@ -334,6 +334,25 @@ pub(super) fn clone_single_specialized_machine(
     }
 
     let mut cloned = source_machine.clone();
+    // Published progress premises are declaration-owned identities, like
+    // ordinary requires/ensures subjects. The fresh specialization cannot
+    // retain its template's entry formals. External field symbols stay exact.
+    let remap_progress = |guarantee: &mut language_semantics::TerminationGuarantee| {
+        if let language_semantics::TerminationGuarantee::Terminates { premises } = guarantee {
+            for premise in premises {
+                premise.subject.root = remapped_symbol(premise.subject.root, &symbol_map);
+                for projection in &mut premise.subject.projections {
+                    *projection = remapped_symbol(*projection, &symbol_map);
+                }
+            }
+        }
+    };
+    if let language_semantics::TerminationInterface::Published(guarantee) =
+        &mut cloned.termination_plan.interface
+    {
+        remap_progress(guarantee);
+    }
+    remap_progress(&mut cloned.termination_plan.checked_summary);
     cloned.is_public = false;
     cloned.symbol = machine_symbol;
     cloned.name = typed_trees::name::Identifier::generated(generated_name);
@@ -929,6 +948,29 @@ pub(super) fn copy_cloned_expression_type_payloads(
     expression_start: usize,
     symbols: &[(SymbolHandle, SymbolHandle)],
 ) {
+    let query_carriers = program
+        .expression_table
+        .iter_expressions()
+        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .filter(|(_, expression)| {
+            matches!(expression, ExpressionNode::Call(call)
+            if call.native_code_layout.is_some() || call.layout_query.is_some())
+        })
+        .map(|(handle, _)| {
+            (
+                handle,
+                program
+                    .expression_table
+                    .constructed_value_type_reference(handle),
+            )
+        })
+        .collect::<Vec<_>>();
+    for (expression, carrier) in query_carriers {
+        let carrier = copy_type_reference(source, program, carrier, symbols);
+        program
+            .expression_table
+            .set_constructed_value_type_reference(expression, carrier);
+    }
     // Index authority is copied before ordinary type-parameter substitution,
     // just like cast types. The clone cannot mutate its template's contract.
     let index_payloads = program
@@ -972,6 +1014,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
             ExpressionNode::Call(call) => Some((
                 handle,
                 call.machine_arguments.clone(),
+                call.native_code_layout.clone(),
                 call.authored_machine_application,
                 call.requirement_application,
                 call.exact_coercion_target,
@@ -979,7 +1022,9 @@ pub(super) fn copy_cloned_expression_type_payloads(
             _ => None,
         })
         .collect::<Vec<_>>();
-    for (handle, mut arguments, application, requirement, coercion_target) in calls {
+    for (handle, mut arguments, mut native_query, application, requirement, coercion_target) in
+        calls
+    {
         // These are type-table payloads too: the applied trait qualifier and
         // exact-coercion destination belong to this specialized caller, not
         // the generic template whose expression tree was copied.
@@ -998,10 +1043,19 @@ pub(super) fn copy_cloned_expression_type_payloads(
             copy_application_binding_type_payloads(source, program, application, symbols);
         }
         copy_static_argument_type_payloads(source, program, &mut arguments, symbols);
+        if let Some(query) = &mut native_query {
+            copy_static_argument_type_payloads(
+                source,
+                program,
+                std::slice::from_mut(&mut query.operand),
+                symbols,
+            );
+        }
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             unreachable!();
         };
         call.machine_arguments = arguments;
+        call.native_code_layout = native_query;
         call.requirement_application = requirement;
         call.exact_coercion_target = coercion_target;
     }

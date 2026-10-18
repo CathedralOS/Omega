@@ -18,6 +18,18 @@ pub(super) fn lower(
     lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
 ) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
+        OperationKind::EstablishNativeCodeLayout { machine } => {
+            let result = operation
+                .result
+                .structural()
+                .cloned()
+                .ok_or(LoweringError::UnsupportedScalarArray(operation.id))?;
+            AbstractOperation::EstablishNativeCodeLayout {
+                psi_operation: operation.id,
+                result,
+                machine,
+            }
+        }
         OperationKind::EstablishByteSequenceConcatenation {
             left,
             right,

@@ -177,6 +177,7 @@ impl Evaluation {
         &self,
         place: semantic_vocabulary::PlaceId,
         types: &[terminal_psi::StructuralTypeDeclaration],
+        operations: &OperationBuffer,
     ) -> Result<Vec<CleanupRegion>, LoweringError> {
         let moved = self
             .selection_cleanups
@@ -186,8 +187,12 @@ impl Evaluation {
             .map(|(_, path)| path.clone())
             .collect::<std::collections::BTreeSet<_>>();
         if moved.is_empty() {
+            // ownership.md blob 7e6f9a8ad935edc4e66324dd6ced07fe0c5be7ad:
+            // "| Unrestricted | `[copy]` | Copy and discard. |"
+            // The emitted carrier owns the category: ending a copyable result
+            // retires its home, without inventing affine disposal authority.
             return Ok(vec![CleanupRegion::unconditional(
-                TerminalAffineCleanupAction::DiscardRoot(place),
+                self.descriptor_retirement(place, operations)?,
             )]);
         }
         let root_type = self

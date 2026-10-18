@@ -329,6 +329,7 @@ pub(super) fn lower(
             | AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishStructuralArray { result, .. }
             | AbstractOperation::EstablishByteSequenceConcatenation { result, .. }
+            | AbstractOperation::EstablishNativeCodeLayout { result, .. }
             | AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::EstablishCase { result, .. }

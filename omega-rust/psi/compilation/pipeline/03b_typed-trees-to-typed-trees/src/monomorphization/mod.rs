@@ -35,11 +35,13 @@ use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
+mod application_lifetimes;
 mod applications;
 mod candidate;
 mod captured_rows;
 mod contextual_calls;
 mod explicit_arguments;
+mod native_query_lifetimes;
 mod provider_tuple_closure;
 mod requirement_providers;
 mod selection;
@@ -203,6 +205,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         changed_owners.extend(result_locals::refresh(program, &unavailable)?);
         changed_owners.extend(result_locals::materialize_reference_observations(program)?);
         materialize_static_argument_types(program);
+        native_query_lifetimes::retain(program)?;
         crate::preparation::elaborate_projected_receivers(program)?;
         changed_owners.extend(contextual_calls::close(program)?);
         crate::constructed_results::retain_constructed_result_types(program);
@@ -393,6 +396,14 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             collect(program, &call.machine_arguments, &mut literals, &mut types);
+            if let Some(query) = &call.native_code_layout {
+                collect(
+                    program,
+                    std::slice::from_ref(&query.operand),
+                    &mut literals,
+                    &mut types,
+                );
+            }
         }
     }
     for machine in program.machines() {

@@ -381,6 +381,7 @@ pub fn fixture() -> Fixture {
                 receiver: namespace,
                 target: Identifier::generated("select_representation"),
                 layout_query: None,
+                native_code_layout: None,
                 machine_arguments: vec![
                     named_argument(opaque_path, opaque),
                     named_argument(conformance_path, conformance),

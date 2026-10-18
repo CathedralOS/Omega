@@ -117,5 +117,6 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         // The machine-code route carries no selected byte-literal addresses.
         byte_literal_pool: None,
         implementation_table_pool: None,
+        native_code_layout_pool: None,
     })
 }

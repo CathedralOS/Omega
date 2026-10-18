@@ -363,6 +363,7 @@ fn reaching_float_store_checks_sibling_argument_effects() {
             target: Identifier::generated("mutate"),
             static_requirement_dispatch: None,
             layout_query: None,
+            native_code_layout: None,
             machine_arguments: Box::default(),
             quotient_operation: None,
             private_layout_operation: None,

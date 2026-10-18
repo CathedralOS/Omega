@@ -484,6 +484,7 @@ pub(super) fn validate_operation(
             _,
             AbstractOperation::EstablishStructuralArray { .. }
             | AbstractOperation::EstablishScalarArray { .. }
+            | AbstractOperation::EstablishNativeCodeLayout { .. }
             | AbstractOperation::EstablishRecord { .. }
             | AbstractOperation::StructuralLeafCopy { .. }
             | AbstractOperation::EstablishCase { .. },

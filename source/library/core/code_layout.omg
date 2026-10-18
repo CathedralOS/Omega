@@ -1,0 +1,11 @@
+// Compiler-known late-native query result. These are ordinary runtime
+// carriers, not semantic constants or a grant of authority over code storage.
+pub data CodeRegion [copy] {
+    base: addr;
+    length: u64;
+}
+
+pub data CodeLayout [copy] {
+    entry: addr;
+    regions: &[CodeRegion];
+}

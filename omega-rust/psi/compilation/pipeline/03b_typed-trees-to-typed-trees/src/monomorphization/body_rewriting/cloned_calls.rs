@@ -280,6 +280,13 @@ pub(crate) fn rewrite_cloned_calls(
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             continue;
         };
+        if let Some(query) = &mut call.native_code_layout {
+            substitute_forwarded_machine_arguments(
+                std::slice::from_mut(&mut query.operand),
+                &static_argument_rewrites,
+                &argument_rewrites,
+            );
+        }
         if candidate
             .template
             .machine_parameters

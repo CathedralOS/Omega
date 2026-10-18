@@ -30,6 +30,11 @@ pub struct StructuralStorageDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperation {
+    EstablishNativeCodeLayout {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        machine: semantic_vocabulary::MachineId,
+    },
     /// Establish one exact recursive fixed array from row-major scalar leaves.
     /// Empty dimensions retain their declared type; physical storage is chosen
     /// downstream, independently of this complete semantic payload.
@@ -897,6 +902,7 @@ impl AbstractOperation {
             | Self::EstablishByteSequenceConcatenation { result, .. }
             | Self::EstablishZeroedStructural { result, .. }
             | Self::EstablishStructuralLocal { result, .. }
+            | Self::EstablishNativeCodeLayout { result, .. }
             | Self::EstablishRecord { result, .. }
             | Self::EstablishReference { result, .. }
             | Self::EstablishPlacedReference { result, .. }
@@ -1065,6 +1071,7 @@ impl AbstractOperation {
             | Self::EstablishTrivialAffineLocal { psi_operation, .. }
             | Self::EstablishZeroedStructural { psi_operation, .. }
             | Self::EstablishStructuralLocal { psi_operation, .. }
+            | Self::EstablishNativeCodeLayout { psi_operation, .. }
             | Self::EstablishRecord { psi_operation, .. }
             | Self::EstablishReference { psi_operation, .. }
             | Self::EstablishPlacedReference { psi_operation, .. }

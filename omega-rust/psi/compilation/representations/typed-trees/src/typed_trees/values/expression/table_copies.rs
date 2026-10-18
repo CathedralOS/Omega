@@ -281,6 +281,9 @@ impl ExpressionTable {
                     unreachable!();
                 };
                 call.target_symbol = remapped(call.target_symbol, symbols);
+                if let Some(query) = &mut call.native_code_layout {
+                    query.operand.remap_symbols(symbols);
+                }
                 for argument in &mut call.machine_arguments {
                     argument.remap_symbols(symbols);
                 }
@@ -394,6 +397,9 @@ impl ExpressionTable {
         let origin = source.table(self);
         let source_span = origin.source_span(expression);
         let authority = origin.index_expression_authority(expression).cloned();
+        let query_carrier = matches!(origin.expression(expression), ExpressionNode::Call(call)
+            if call.native_code_layout.is_some() || call.layout_query.is_some())
+        .then(|| origin.constructed_value_type_reference(expression));
         let occurrences = origin
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
@@ -489,6 +495,7 @@ impl ExpressionTable {
                     quotient_operation: call.quotient_operation,
                     private_layout_operation: call.private_layout_operation,
                     layout_query: call.layout_query,
+                    native_code_layout: call.native_code_layout,
                     arguments,
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -571,6 +578,9 @@ impl ExpressionTable {
             }
         };
         self.set_source_span(copied, source_span);
+        if let Some(carrier) = query_carrier {
+            self.set_constructed_value_type_reference(copied, carrier);
+        }
         self.attach_authored_selection_occurrences(copied, occurrences);
         if let Some(mut authority) = authority {
             if let Some(operation) = &mut authority.operation {

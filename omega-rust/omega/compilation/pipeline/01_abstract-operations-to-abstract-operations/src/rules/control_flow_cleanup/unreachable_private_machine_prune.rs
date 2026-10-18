@@ -120,11 +120,19 @@ pub(in crate::rules) fn rule_unreachable_private_machine_complement(
             .filter(|function| function.attachment.is_some())
             .map(|function| function.machine),
     );
-    let references = call_graph
+    let mut references = call_graph
         .callees
         .iter()
         .map(|(machine, callees)| (*machine, callees.iter().copied().collect::<BTreeSet<_>>()))
         .collect::<BTreeMap<_, _>>();
+    // Native metadata and implementation selections retain executable bodies
+    // without invocation. Do not put these edges in recursion/effect analysis.
+    for function in &unit.functions {
+        let selected = references.entry(function.machine).or_default();
+        for node in function.block_nodes() {
+            selected.extend(unit.operation_machine_references(&node.operation));
+        }
+    }
     let mut work = reachable.iter().copied().collect::<Vec<_>>();
     while let Some(machine) = work.pop() {
         for callee in references.get(&machine).into_iter().flatten().copied() {

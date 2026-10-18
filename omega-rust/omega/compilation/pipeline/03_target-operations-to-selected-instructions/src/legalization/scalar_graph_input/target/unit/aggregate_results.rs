@@ -16,6 +16,35 @@ pub(super) fn validate(
 ) -> Result<(), LegalizationError> {
     match (target, abstracted) {
         (
+            TargetUnitOperation::EstablishNativeCodeLayout {
+                psi_operation,
+                result_home,
+                machine,
+            },
+            AbstractOperation::EstablishNativeCodeLayout {
+                psi_operation: expected_operation,
+                result,
+                machine: expected_machine,
+            },
+        ) => {
+            if psi_operation != expected_operation
+                || machine != expected_machine
+                || *result_home
+                    != scalar_graph_input::aggregate_results::result_home(
+                        optimized,
+                        result.place,
+                        plan,
+                    )?
+                || !plan
+                    .functions
+                    .iter()
+                    .any(|function| function.machine == *machine)
+            {
+                return Err(LegalizationError::custody());
+            }
+        }
+
+        (
             TargetUnitOperation::EstablishStructuralArray {
                 psi_operation,
                 result_home,

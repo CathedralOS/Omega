@@ -276,14 +276,22 @@ impl<'program> Collector<'program> {
         match table.expression(expression) {
             ExpressionNode::Call(call) => {
                 self.static_arguments(&call.machine_arguments)?;
+                let native_query = call.target.as_str() == "code_layout"
+                    && !call.target_symbol.is_valid()
+                    && !call.receiver.is_valid();
+                if native_query && self.deferred_machines.is_none() {
+                    return Err("late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation".to_owned());
+                }
                 // `size_of<T>()`/`align_of<T>()` carry no callee: the
                 // compiler answers them from the selected target's layout
                 // after constant dependency ordering has already run.
-                if !language_core::data_layout_queries::is_data_layout_query_spelling(
-                    call.target.as_str(),
-                    call.target_symbol.is_valid(),
-                    call.receiver.is_valid(),
-                ) {
+                if !native_query
+                    && !language_core::data_layout_queries::is_data_layout_query_spelling(
+                        call.target.as_str(),
+                        call.target_symbol.is_valid(),
+                        call.receiver.is_valid(),
+                    )
+                {
                     self.call(call.target_symbol, call.target.source_span())?;
                 }
                 if call.receiver.is_valid() {
@@ -378,6 +386,20 @@ impl<'program> Collector<'program> {
             .ok_or("constant dependency call lost its machine body")?;
         if machines.next().is_some() {
             return Err("constant dependency machine is ambiguous".to_owned());
+        }
+        if machine.target_family_interface {
+            // A portable head selects no deployment's private body. Dependency
+            // discovery retains every exact family member; this grants no
+            // permission to interpret one member as a shared constant value.
+            self.machines.extend(
+                program
+                    .machines
+                    .iter()
+                    .filter(|member| {
+                        member.target_family == symbol && !member.target_family_interface
+                    })
+                    .map(|member| member.symbol),
+            );
         }
         self.type_parameters(machine.type_parameters)?;
         if let Some(reference) = &machine.attached_data_application {
@@ -478,7 +500,15 @@ impl<'program> Collector<'program> {
                     }
                     Statement::Call(call) => {
                         self.static_arguments(&call.machine_arguments)?;
-                        self.call(call.target_symbol, call.target.source_span())?;
+                        let native_query = call.target.as_str() == "code_layout"
+                            && !call.target_symbol.is_valid()
+                            && call.receiver.is_empty();
+                        if native_query && self.deferred_machines.is_none() {
+                            return Err("late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation".to_owned());
+                        }
+                        if !native_query {
+                            self.call(call.target_symbol, call.target.source_span())?;
+                        }
                         let arguments = expressions.expression_handles(call.arguments);
                         if arguments.len() != call.arguments.len() {
                             return Err("constant statement call has stale arguments".to_owned());

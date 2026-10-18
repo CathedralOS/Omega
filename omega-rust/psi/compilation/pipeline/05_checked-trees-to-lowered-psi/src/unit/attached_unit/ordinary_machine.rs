@@ -897,7 +897,11 @@ pub(super) fn emit(
             let edge = edge_id(allocate_dense(&mut next_edge)?);
             let mut cleanup_regions = Vec::new();
             for place in trivial_affine_discards {
-                cleanup_regions.extend(evaluation.normal_discard_regions(place, structural_types)?);
+                cleanup_regions.extend(evaluation.normal_discard_regions(
+                    place,
+                    structural_types,
+                    &operations,
+                )?);
             }
             cleanup_regions.extend(normal_regions);
             let (terminator, arrival) =

@@ -3,6 +3,10 @@ use terminal_psi::StructuralArgument;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StructuralEffectObservation {
+    NativeCodeLayoutEstablished {
+        destination: semantic_vocabulary::PlaceId,
+        machine: semantic_vocabulary::MachineId,
+    },
     ReferenceEstablished {
         source: terminal_psi::StructuralArgument,
         destination: PlaceId,
@@ -755,6 +759,18 @@ pub fn structural_effect_leaf_observation_in(
             StructuralEffectObservation::StructuralArrayEstablished {
                 destination: result.place,
                 elements: elements.clone(),
+            }
+        }
+        (
+            StructuralEffectAction::EstablishNativeCodeLayout,
+            OperationKind::EstablishNativeCodeLayout { machine },
+        ) => {
+            let result = operation.result.structural().ok_or(
+                OperationSemanticError::StructuralEffectActionShapeMismatch(tag),
+            )?;
+            StructuralEffectObservation::NativeCodeLayoutEstablished {
+                destination: result.place,
+                machine: *machine,
             }
         }
         (StructuralEffectAction::EstablishRecord, OperationKind::EstablishRecord { fields }) => {

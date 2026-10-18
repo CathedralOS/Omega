@@ -49,22 +49,10 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_has_plan
                 ) else {
                     return false;
                 };
-                if program.domain_definitions().iter().any(|domain| {
-                    domain.symbol == membership.domain_symbol
-                        && domain.classification
-                            == Some(language_semantics::DomainClassification::ProgressProfile)
-                }) {
-                    let Some(root) = place.root.as_symbol() else {
-                        return false;
-                    };
-                    let rooted_in_telescope = source_parameters
-                        .iter()
-                        .any(|parameter| parameter_is_root(parameter, root));
-                    return rooted_in_telescope
-                        && place
-                            .segments
-                            .iter()
-                            .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }));
+                if let Some(valid) =
+                    signature_progress_requirement(program, source_parameters, membership)
+                {
+                    return valid;
                 }
                 if !place.segments.is_empty() {
                     return false;
@@ -98,6 +86,40 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_has_plan
         })
 }
 
+/// Progress profiles belong to the checked termination contract, not the
+/// runtime carrier-domain/scalar predicate roster. Preserve exact parameter
+/// and field identities; arbitrary projected memberships still refuse below.
+/// Canonical termination.md 6a14afff75d92a16d3e6a0adfeee18f0fbbe8727:
+/// "Progress evidence follows exact identity-preserving lineage, explicit contract
+/// substitution, or checked qualification-preserving transitions."
+pub(in crate::execution::terminal_unit) fn signature_progress_requirement(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[typed_trees::signature::StateParameter],
+    membership: &typed_trees::domain::ProofMembershipFact,
+) -> Option<bool> {
+    if !program.domain_definitions().iter().any(|domain| {
+        domain.symbol == membership.domain_symbol
+            && domain.classification
+                == Some(language_semantics::DomainClassification::ProgressProfile)
+    }) {
+        return None;
+    }
+    Some(
+        validation::canonical_place_from_expression(program, membership.value).is_some_and(
+            |place| {
+                place.root.as_symbol().is_some_and(|root| {
+                    parameters
+                        .iter()
+                        .any(|parameter| parameter_is_root(parameter, root))
+                }) && place
+                    .segments
+                    .iter()
+                    .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+            },
+        ),
+    )
+}
+
 /// Retain one structural requirement roster for opaque machines and trait
 /// signatures. Qualified parameters and explicit membership clauses describe
 /// the same admission obligation; scalar clauses keep their separate lane.
@@ -123,6 +145,14 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
             let Some(membership) = fact.as_membership() else {
                 continue;
             };
+            if let Some(valid) =
+                signature_progress_requirement(program, source_parameters, membership)
+            {
+                if !valid {
+                    return None;
+                }
+                continue;
+            }
             if validation::scalar_membership_carrier(program, membership).is_some() {
                 continue;
             }

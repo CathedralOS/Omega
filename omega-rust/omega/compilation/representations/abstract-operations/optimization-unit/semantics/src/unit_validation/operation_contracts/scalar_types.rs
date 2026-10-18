@@ -161,6 +161,7 @@ pub(crate) fn operation_scalar_types_match(
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
         | O::ReleaseReference { .. }
+        | O::EstablishNativeCodeLayout { .. }
         | O::EstablishRecord { .. }
         // Restoration-window ops carry only structural places; their scalar
         // surface is empty, so there is nothing for this contract to check.

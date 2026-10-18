@@ -336,6 +336,16 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
         })
         .collect::<Vec<_>>();
     for handle in expression_handles {
+        let mut native_query = program
+            .expression_table
+            .call_node(handle)
+            .and_then(|call| call.native_code_layout.clone());
+        if let Some(query) = &mut native_query
+            && fold_const_arguments(program, std::slice::from_mut(&mut query.operand))
+            && let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+        {
+            call.native_code_layout = native_query;
+        }
         let (mut arguments, application) = {
             let ExpressionNode::Call(call) = program.expression_table.expression(handle) else {
                 continue;
