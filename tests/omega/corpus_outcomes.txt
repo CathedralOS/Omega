@@ -440,6 +440,22 @@ fail/data/qualified_record_pattern_unrouted rejected 707ms expected @4e9f61cedcd
 	construction value is not proven in domain `Point::Screen` in rebuild state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 fail/dependent/inactive_payload_cannot_supply_common_fact rejected 623ms expected @408e4fc23fbc
 	cannot prove requires contract for call need from inspect: item.value <= 5 (needs fact `value <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `selected`
+fail/drops/result_cleanup_disjunctive_result rejected 657ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
+fail/drops/result_cleanup_false_guarantee rejected 673ms expected @76ea4b8c7c50
+	cannot prove ensures contract for exit from make_token at statement 0: result.ready == true
+fail/drops/result_cleanup_mutated_result rejected 638ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: missing token.ready == true required by Token::drop clause `token.ready`
+fail/drops/result_cleanup_own_future_guarantee rejected 637ms expected @76ea4b8c7c50
+	cannot prove requires contract for call prepare from main: token.ready (needs fact `token.ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/drops/result_cleanup_parent_hook_write rejected 645ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing bundle.token.ready == true required by Token::drop clause `token.ready`
+fail/drops/result_cleanup_rebound_result rejected 640ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: missing token.ready == true required by Token::drop clause `token.ready`
+fail/drops/result_cleanup_replacement_old_false rejected 639ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing old.ready == true required by Token::drop clause `token.ready`
+fail/drops/result_cleanup_wrong_result rejected 637ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: missing bad.ready == true required by Token::drop clause `token.ready`
 fail/facts/checked_asm_countdown_call_result_wrong_fallthrough rejected 3591ms expected @a0c34fdba779+wt
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_countdown_const_name_wrong_fallthrough rejected 5186ms expected @a0c34fdba779+wt
@@ -3960,6 +3976,28 @@ fail/facts/reference_arrival_handoff_through_parameter_held_source rejected 2539
 	state `write` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/facts/reference_arrival_handoff_through_target_body_held_source rejected 2479ms expected @3424ad143d6e
 	state `write` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/result_cleanup_guarantee_through_call_result_rejected rejected 644ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantee_through_const_name_rejected rejected 644ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantee_through_field_rejected rejected 642ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&holder.seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantee_through_local_rejected rejected 647ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantee_through_match_join_rejected rejected 644ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&first_seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantee_through_other_machine_rejected rejected 641ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantee_through_other_state_rejected rejected 641ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from carry state onward after statement 0: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantee_through_parameter_rejected rejected 633ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from through_parameter state entry after statement 0: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantee_through_target_body_rejected rejected 633ms expected @76ea4b8c7c50
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 fail/facts/returned_write_destination_through_call_result_read rejected 2165ms expected @2ef2ab353498+wt
 	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_const_name_read rejected 2281ms expected @2ef2ab353498+wt
@@ -7369,6 +7407,11 @@ pass/core/interval_content_length_partition_exit checked 3960ms check-target:mac
 pass/core/interval_content_partition_exit checked 4124ms check-target:macos_arm64 @b794c35ad5f8+wt
 pass/data/qualified_record_pattern_exit checked 3896ms check-target:macos_arm64 @4e9f61cedcd7+wt
 pass/data/runtime_case_payload_call_result_window_exit checked 8218ms check-target:macos_arm64 @408e4fc23fbc
+pass/drops/result_cleanup_implicit_boolean_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
+pass/drops/result_cleanup_integer_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
+pass/drops/result_cleanup_named_boolean_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
+pass/drops/result_cleanup_original_exit checked 3637ms check-target:macos_arm64 @76ea4b8c7c50
+pass/drops/result_cleanup_replacement_exit checked 3635ms check-target:macos_arm64 @76ea4b8c7c50
 pass/facts/checked_asm_countdown_call_result_exit checked 14392ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_const_name_exit checked 12105ms check-target:linux_x86_64 @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_field_exit checked 9422ms check-target:linux_x86_64 @a0c34fdba779+wt
@@ -9236,6 +9279,15 @@ pass/facts/reference_arrival_handoff_through_other_machine_exit checked 7091ms c
 pass/facts/reference_arrival_handoff_through_other_state_exit checked 6889ms check-target:macos_arm64 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_parameter_exit checked 7005ms check-target:macos_arm64 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_target_body_exit checked 6910ms check-target:macos_arm64 @3424ad143d6e
+pass/facts/result_cleanup_guarantee_through_call_result_exit checked 3640ms check-target:macos_arm64 @76ea4b8c7c50
+pass/facts/result_cleanup_guarantee_through_const_name_exit checked 3641ms check-target:macos_arm64 @76ea4b8c7c50
+pass/facts/result_cleanup_guarantee_through_field_exit checked 3640ms check-target:macos_arm64 @76ea4b8c7c50
+pass/facts/result_cleanup_guarantee_through_local_exit checked 3636ms check-target:macos_arm64 @76ea4b8c7c50
+pass/facts/result_cleanup_guarantee_through_match_join_exit checked 3678ms check-target:macos_arm64 @76ea4b8c7c50
+pass/facts/result_cleanup_guarantee_through_other_machine_exit checked 3673ms check-target:macos_arm64 @76ea4b8c7c50
+pass/facts/result_cleanup_guarantee_through_other_state_exit checked 3672ms check-target:macos_arm64 @76ea4b8c7c50
+pass/facts/result_cleanup_guarantee_through_parameter_exit checked 3684ms check-target:macos_arm64 @76ea4b8c7c50
+pass/facts/result_cleanup_guarantee_through_target_body_exit checked 3690ms check-target:macos_arm64 @76ea4b8c7c50
 pass/facts/returned_write_destination_through_call_result_exit checked 6783ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_const_name_exit checked 6674ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_field_exit checked 7303ms check-target:macos_arm64 @2ef2ab353498+wt

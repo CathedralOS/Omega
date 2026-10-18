@@ -139,7 +139,9 @@ pub(super) fn transport(
                 program,
                 facts,
                 state,
-                capture.epoch.statement_index + 1,
+                super::super::prover::call_guarantees::GuaranteeUse::StatementEntry(
+                    capture.epoch.statement_index + 1,
+                ),
                 &contexts,
                 frames,
             ));

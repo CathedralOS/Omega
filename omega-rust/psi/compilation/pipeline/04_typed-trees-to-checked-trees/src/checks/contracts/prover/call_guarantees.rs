@@ -16,6 +16,8 @@
 //! expression-root dependencies alone do
 //! not establish that a computed actual still denotes its captured value.
 
+use crate::facts::boolean_predicates::{self, BoundPredicate};
+
 use validation::CallSite;
 use validation::CanonicalPlace;
 
@@ -29,7 +31,8 @@ pub(in crate::checks) mod arithmetic;
 pub(in crate::checks) mod callable;
 use callable::Callable;
 mod availability;
-pub(in crate::checks) use availability::{AvailableGuarantee, GuaranteeUse, available};
+pub(crate) use availability::GuaranteeUse;
+pub(in crate::checks) use availability::{AvailableGuarantee, available};
 
 struct Invocation<'program> {
     site: CallSite<'program>,
@@ -116,138 +119,134 @@ pub(in crate::checks) fn proves_current(
     })
 }
 
-/// Apply the shared completed-value matcher to a selected single receiver.
-/// The receiver is current storage at this use; surviving assignment provenance
-/// independently joins any nested field to the exact call result occurrence.
-/// No result initializer or callee body is replayed to recover its guarantee.
-pub(crate) fn proves_current_receiver(
-    program: &dyn ::validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
-    caller: &FlowStateFact,
-    statement: usize,
-    contexts: &[facts::FactContextHandle],
-    frames: &validation::CallFrameResolver<'_>,
-    target: SymbolHandle,
-    expression: ExpressionHandle,
-    receiver: &CanonicalPlace,
-) -> bool {
-    let Some(callable) = Callable::resolve(program, target) else {
-        return false;
-    };
-    let parameters = callable.parameters(program);
-    if parameters.len() != 1 {
-        return false;
-    }
-    proves_current(
-        program,
-        facts,
-        caller,
-        statement,
-        contexts,
-        frames,
-        callable,
-        expression,
-        &|expression| {
-            let (position, path, _) =
-                crate::values::structural_parameter_place(program, parameters, expression)?;
-            let (root, segments, _, _) = crate::values::resolve_structural_parameter_path(
-                program, parameters, position, &path,
-            )?;
-            if root != parameters[0].symbol {
-                return None;
-            }
-            let mut place = receiver.clone();
-            place.segments.extend(segments);
-            Some(place)
-        },
-    )
-}
-
-/// Read surviving normal guarantees as formulas over the caller's current
-/// storage. Availability owns declaration identity, actual capture and write
-/// preservation; this join only changes the formula's observation namespace.
-/// Cleanup can then retire those observations after each selected hook using
-/// the same mutation law as the rest of source flow.
+/// Read surviving normal guarantees in their authenticated caller namespace.
+/// Parameters observe current storage; results name completed occurrences.
+/// Availability owns declaration identity, actual capture and write preservation.
+/// Keep storage bindings intact for write retirement; completed-result joins
+/// belong to proof scratch after each consumer has selected its live contexts.
 pub(crate) fn current_predicates(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     caller: &FlowStateFact,
-    statement: usize,
+    use_point: GuaranteeUse,
     contexts: &[facts::FactContextHandle],
     frames: &validation::CallFrameResolver<'_>,
-) -> Vec<crate::facts::boolean_predicates::BoundPredicate> {
-    available(
-        program,
-        facts,
-        caller,
-        GuaranteeUse::StatementEntry(statement),
-        contexts,
-        frames,
-    )
-    .into_iter()
-    .filter_map(|guarantee| {
-        let invocation = &guarantee.invocation;
-        let parameters = invocation.callable.parameters(program);
-        let expression = crate::values::lower_callable_scalar_contract_predicate(
-            program,
-            &facts.operators,
-            invocation.callable.owner_symbol(),
-            parameters,
-            invocation.callable.result_type(),
-            guarantee.expression,
-            true,
-            &mut 4096,
-        )?;
-        let result = guarantee
-            .call_expression()
-            .map(|expression| CanonicalPlace {
-                root: PlaceRoot::Expression(expression),
-                segments: Vec::new(),
-            });
-        let mut predicate = crate::facts::boolean_predicates::bind_parameters(
-            program,
-            invocation.callable.owner_symbol(),
-            invocation.callable.target_symbol(),
-            parameters,
-            result
-                .as_ref()
-                .map(|place| (place, invocation.callable.result_type())),
-            expression,
-        )?;
-        let arguments = validation::call_site_argument_expressions(program, &invocation.site);
-        for binding in &mut predicate.bindings {
-            // The normal result is already in the caller's completed-value
-            // namespace. Only this exact invocation root bypasses substitution;
-            // a parameter or another call must still establish its own capture.
-            if result
-                .as_ref()
-                .is_some_and(|result| binding.place.root == result.root)
-            {
-                continue;
+) -> Vec<BoundPredicate> {
+    available(program, facts, caller, use_point, contexts, frames)
+        .into_iter()
+        .filter_map(|guarantee| {
+            let invocation = &guarantee.invocation;
+            let parameters = invocation.callable.parameters(program);
+            let expression = crate::values::lower_callable_scalar_contract_predicate(
+                program,
+                &facts.operators,
+                invocation.callable.owner_symbol(),
+                parameters,
+                invocation.callable.result_type(),
+                guarantee.expression,
+                true,
+                &mut 4096,
+            )?;
+            let result = guarantee
+                .call_expression()
+                .map(|expression| CanonicalPlace {
+                    root: PlaceRoot::Expression(expression),
+                    segments: Vec::new(),
+                });
+            let mut predicate = boolean_predicates::bind_parameters(
+                program,
+                invocation.callable.owner_symbol(),
+                invocation.callable.target_symbol(),
+                parameters,
+                result
+                    .as_ref()
+                    .map(|place| (place, invocation.callable.result_type())),
+                expression,
+            )?;
+            let arguments = validation::call_site_argument_expressions(program, &invocation.site);
+            for binding in &mut predicate.bindings {
+                // The normal result is already in the caller's completed-value
+                // namespace. Only this exact invocation root bypasses substitution;
+                // a parameter or another call must still establish its own capture.
+                if result
+                    .as_ref()
+                    .is_some_and(|result| binding.place.root == result.root)
+                {
+                    continue;
+                }
+                let position = parameters.iter().position(|parameter| {
+                    binding.place.root == PlaceRoot::Symbol(parameter.symbol)
+                })?;
+                let actual = *arguments.get(position)?;
+                let place = crate::semantic::facts::projected_argument_place(
+                    program,
+                    caller.state_symbol,
+                    invocation.statement,
+                    actual,
+                    parameters[position].type_reference,
+                    &binding.place.segments,
+                )?;
+                binding.place = crate::flow::rebase_exact_local_place(
+                    program,
+                    caller.state_symbol,
+                    invocation.statement,
+                    place,
+                    Some(frames),
+                )?;
             }
-            let position = parameters
-                .iter()
-                .position(|parameter| binding.place.root == PlaceRoot::Symbol(parameter.symbol))?;
-            let actual = *arguments.get(position)?;
-            let place = crate::semantic::facts::projected_argument_place(
-                program,
-                caller.state_symbol,
-                invocation.statement,
-                actual,
-                parameters[position].type_reference,
-                &binding.place.segments,
-            )?;
-            binding.place = crate::flow::rebase_exact_local_place(
-                program,
-                caller.state_symbol,
-                invocation.statement,
-                place,
-                Some(frames),
-            )?;
+            Some(predicate)
+        })
+        .collect()
+}
+
+/// Join whole checked formulas through surviving completed-value provenance.
+/// A named receiver and its producer's result are the same observation only
+/// while the current contexts retain that exact assignment. This is proof
+/// scratch: stored predicates keep their storage namespace so later writes
+/// still invalidate them. In particular a replacement's incoming result cannot
+/// become the pre-store destination, and a retired assignment is never replayed.
+pub(crate) fn proves_captured_predicates(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    contexts: &[facts::FactContextHandle],
+    predicates: &[BoundPredicate],
+    required: &BoundPredicate,
+    mut ordinary: impl FnMut(&CanonicalPlace) -> Option<facts::ScalarValue>,
+) -> bool {
+    let mut values: Vec<(CanonicalPlace, Option<facts::ScalarValue>)> = Vec::new();
+    let mut bind = |predicate: &BoundPredicate| {
+        let mut predicate = predicate.clone();
+        for binding in &mut predicate.bindings {
+            // Resolve before rebasing: cleanup's write fence names actual
+            // storage, not the historical result occurrence. Conflicting
+            // snapshots supply no ordinary value to the common algebra.
+            let value = ordinary(&binding.place);
+            if let Some(place) = captured_place(program, semantic, contexts, binding.place.clone())
+            {
+                binding.place = place;
+            }
+            if let Some(value) = value {
+                if let Some((_, known)) =
+                    values.iter_mut().find(|(place, _)| *place == binding.place)
+                {
+                    if *known != Some(value) {
+                        *known = None;
+                    }
+                } else {
+                    values.push((binding.place.clone(), Some(value)));
+                }
+            }
         }
-        Some(predicate)
+        predicate
+    };
+    let predicates = predicates.iter().map(&mut bind).collect::<Vec<_>>();
+    let required = bind(required);
+    boolean_predicates::proves(&predicates, &required, |place| {
+        values
+            .iter()
+            .find(|(known, _)| known == place)
+            .and_then(|(_, value)| value.clone())
     })
-    .collect()
 }
 
 /// Read an exact scalar conclusion after authenticating its declaration,
@@ -262,20 +261,27 @@ pub(in crate::checks) fn scalar_at_place(
     frames: &validation::CallFrameResolver<'_>,
     place: &CanonicalPlace,
 ) -> Option<facts::ScalarValue> {
-    current_predicates(program, facts, caller, statement, contexts, frames)
-        .iter()
-        .find_map(|predicate| {
-            predicate.constant_at_place(place, |operand| {
-                crate::values::scalar_value_at_place(
-                    program,
-                    &facts.semantic,
-                    contexts
-                        .iter()
-                        .map(|context| facts.semantic.contexts.get(*context)),
-                    operand,
-                )
-            })
+    current_predicates(
+        program,
+        facts,
+        caller,
+        GuaranteeUse::StatementEntry(statement),
+        contexts,
+        frames,
+    )
+    .iter()
+    .find_map(|predicate| {
+        predicate.constant_at_place(place, |operand| {
+            crate::values::scalar_value_at_place(
+                program,
+                &facts.semantic,
+                contexts
+                    .iter()
+                    .map(|context| facts.semantic.contexts.get(*context)),
+                operand,
+            )
         })
+    })
 }
 pub(super) fn proves(
     program: &dyn ::validation::CheckingInput,

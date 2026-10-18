@@ -176,7 +176,6 @@ struct SelectedRequirement {
     statement: usize,
     current: CurrentCleanupFacts,
     entry_stable: bool,
-    call_guarantee_proven: bool,
     place: CanonicalPlace,
     hook: SymbolHandle,
     clause: ExpressionHandle,
@@ -185,9 +184,6 @@ struct SelectedRequirement {
 
 impl SelectedRequirement {
     fn proven(&self, program: &dyn ::validation::CheckingInput, facts: &CheckFacts) -> bool {
-        if self.call_guarantee_proven {
-            return true;
-        }
         let mut retained = boolean_predicates::retained(
             program,
             &facts.operators,
@@ -195,31 +191,38 @@ impl SelectedRequirement {
             &self.current.contexts,
         );
         retained.extend(self.current.guarantees.iter().cloned());
-        boolean_predicates::proves(&retained, &self.predicate, |place| {
-            self.current
-                .value_at_place(program, facts, place)
-                .or_else(|| {
-                    boolean_value_at_place(
-                        program,
-                        &facts.operators,
-                        &facts.semantic,
-                        &self.current.contexts,
-                        place,
-                    )
-                    .map(facts::ScalarValue::Boolean)
+        crate::checks::contracts::proves_captured_predicates(
+            program,
+            &facts.semantic,
+            &self.current.contexts,
+            &retained,
+            &self.predicate,
+            |place| {
+                self.current
+                    .value_at_place(program, facts, place)
                     .or_else(|| {
-                        crate::values::scalar_value_at_place(
+                        boolean_value_at_place(
                             program,
+                            &facts.operators,
                             &facts.semantic,
-                            self.current
-                                .contexts
-                                .iter()
-                                .map(|context| facts.semantic.contexts.get(*context)),
+                            &self.current.contexts,
                             place,
                         )
+                        .map(facts::ScalarValue::Boolean)
+                        .or_else(|| {
+                            crate::values::scalar_value_at_place(
+                                program,
+                                &facts.semantic,
+                                self.current
+                                    .contexts
+                                    .iter()
+                                    .map(|context| facts.semantic.contexts.get(*context)),
+                                place,
+                            )
+                        })
                     })
-                })
-        })
+            },
+        )
     }
 
     fn transportable_subject(
@@ -398,7 +401,13 @@ fn selected_requirements(
                                     program,
                                     facts,
                                     state,
-                                    statement,
+                                    // State entry has evaluated no operands.
+                                    // The other selected contexts are exact
+                                    // pre-store, normal-call or outgoing edges.
+                                    match group.source {
+                                        PermissionEventSource::StateEntry => crate::checks::contracts::GuaranteeUse::StatementEntry(statement),
+                                        _ => crate::checks::contracts::GuaranteeUse::EvaluatedContext(statement),
+                                    },
                                     &group.contexts,
                                     frames,
                                 )
@@ -468,22 +477,6 @@ fn selected_requirements(
                         disposition: handle,
                         statement,
                         entry_stable: current.entry_stable(program, &predicate),
-                        // Earlier hooks have already invalidated these contexts.
-                        // The ordinary call matcher joins exact current receiver
-                        // paths to surviving captured result provenance.
-                        call_guarantee_proven: call_frames.as_ref().is_some_and(|frames| {
-                            crate::checks::contracts::call_guarantees_prove_current_receiver(
-                                program,
-                                facts,
-                                state,
-                                statement,
-                                &current.contexts,
-                                frames,
-                                hook,
-                                clause,
-                                &place,
-                            )
-                        }),
                         current: current.clone(),
                         place: place.clone(),
                         hook,

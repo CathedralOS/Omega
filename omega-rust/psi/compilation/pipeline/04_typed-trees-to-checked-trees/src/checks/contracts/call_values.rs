@@ -789,7 +789,7 @@ pub(crate) fn proves_bound_predicate<'program>(
             program,
             facts,
             state,
-            call.statement_index + 1,
+            super::prover::call_guarantees::GuaranteeUse::StatementEntry(call.statement_index + 1),
             &selected_contexts,
             frames,
         ));

@@ -320,7 +320,9 @@ impl ExitScalars<'_, '_> {
                 self.program,
                 self.facts,
                 state,
-                self.exit.statement_index,
+                super::super::prover::call_guarantees::GuaranteeUse::StatementEntry(
+                    self.exit.statement_index,
+                ),
                 self.contexts,
                 frames,
             ));

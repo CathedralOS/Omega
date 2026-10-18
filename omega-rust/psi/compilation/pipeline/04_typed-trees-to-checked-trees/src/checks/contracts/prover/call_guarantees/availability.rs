@@ -125,7 +125,7 @@ impl AvailableGuarantee<'_> {
 /// may consume same-statement guarantees, but only those present in its exact
 /// retained flow context (for example the pre-store frontier after operands).
 #[derive(Clone, Copy)]
-pub(in crate::checks) enum GuaranteeUse {
+pub(crate) enum GuaranteeUse {
     StatementEntry(usize),
     EvaluatedContext(usize),
 }
