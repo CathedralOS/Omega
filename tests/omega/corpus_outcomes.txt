@@ -708,6 +708,7 @@
 	cannot prove ensures contract for exit from split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.right), Owned.content(&result.left))
 	cannot prove ensures contract for exit from split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.right), Owned.content(&result.left)); no exact incoming reference origin for whole
 	cannot prove ensures contract for exit from split at statement 4: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+	cannot prove ensures contract for exit from sum_envelope at statement 0: result <= 100
 	cannot prove ensures contract for exit from tail at statement 1: result == 3.75
 	cannot prove ensures contract for exit from unchanged at statement 2: Owned.content(old(&view)) == Owned.content(&result)
 	cannot prove ensures contract for exit from undefined_quotient at statement 0: embed(7) / embed(divisor) == embed(7) / embed(divisor)
@@ -1799,6 +1800,8 @@
 	exact arithmetic in machine `split` state `partition` local `right` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `subtract` state `entry` cast expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `subtract` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `sum_envelope` state `add` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `sum_envelope` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `sum` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `tally` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `value` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
@@ -5056,6 +5059,15 @@ fail/facts/named_conformance_dispatch_through_other_machine_rejected rejected 12
 fail/facts/named_conformance_dispatch_through_other_state_rejected rejected 1200ms expected @ac963cec7a35+wt
 fail/facts/named_conformance_dispatch_through_parameter_rejected rejected 1200ms expected @ac963cec7a35+wt
 fail/facts/named_conformance_dispatch_through_target_body_rejected rejected 1200ms expected @ac963cec7a35+wt
+fail/facts/nested_record_value_through_call_result_rejected rejected 1200ms expected @ac963cec7a35+wt
+fail/facts/nested_record_value_through_const_name_rejected rejected 1200ms expected @ac963cec7a35+wt
+fail/facts/nested_record_value_through_field_rejected rejected 1200ms expected @ac963cec7a35+wt
+fail/facts/nested_record_value_through_local_rejected rejected 1200ms expected @ac963cec7a35+wt
+fail/facts/nested_record_value_through_match_join_rejected rejected 1200ms expected @ac963cec7a35+wt
+fail/facts/nested_record_value_through_other_machine_rejected rejected 1200ms expected @ac963cec7a35+wt
+fail/facts/nested_record_value_through_other_state_rejected rejected 1200ms expected @ac963cec7a35+wt
+fail/facts/nested_record_value_through_parameter_rejected rejected 1200ms expected @ac963cec7a35+wt
+fail/facts/nested_record_value_through_target_body_rejected rejected 1200ms expected @ac963cec7a35+wt
 fail/facts/nested_result_extent_disjoint_write_wrong_view_rejected rejected 675ms expected @cbdcc23565fb
 fail/facts/nested_result_extent_later_sibling_bound_rejected rejected 561ms expected @8a884ecc43d5+wt
 fail/facts/nested_result_extent_one_bad_match_arm_rejected rejected 590ms expected @8a884ecc43d5+wt
@@ -8717,6 +8729,15 @@ pass/facts/named_conformance_dispatch_through_other_machine_exit checked 5000ms 
 pass/facts/named_conformance_dispatch_through_other_state_exit checked 5000ms check-target:macos_arm64 @ac963cec7a35+wt
 pass/facts/named_conformance_dispatch_through_parameter_exit checked 5000ms check-target:macos_arm64 @ac963cec7a35+wt
 pass/facts/named_conformance_dispatch_through_target_body_exit checked 5000ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/nested_record_value_through_call_result_exit checked 3500ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/nested_record_value_through_const_name_exit checked 3500ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/nested_record_value_through_field_exit checked 3500ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/nested_record_value_through_local_exit checked 3500ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/nested_record_value_through_match_join_exit checked 3500ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/nested_record_value_through_other_machine_exit checked 3500ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/nested_record_value_through_other_state_exit checked 3500ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/nested_record_value_through_parameter_exit checked 3500ms check-target:macos_arm64 @ac963cec7a35+wt
+pass/facts/nested_record_value_through_target_body_exit checked 3500ms check-target:macos_arm64 @ac963cec7a35+wt
 pass/facts/nested_result_extent_after_disjoint_write_exit checked 3988ms check-target:macos_arm64 @cbdcc23565fb
 pass/facts/nested_result_extent_captured_scalar_exit checked 3416ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_call_result_exit checked 3401ms check-target:macos_arm64 @8a884ecc43d5+wt
