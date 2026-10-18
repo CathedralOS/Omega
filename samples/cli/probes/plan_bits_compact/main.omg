@@ -2,7 +2,10 @@ use omega::language::core::layout;
 // A plan-laid value whose three logical fields share ONE byte: `code` is
 // itself split across two `FieldPlan::Bits` fragments — masked RMW writes
 // preserve siblings and reads reconstruct the scalar.
-pub data PackedFlags { present: bool; mode: u8 [0..=7]; code: u8 [0..=15]; }
+pub domain u8::Mode(value) requires value <= 7;
+pub domain u8::Code(value) requires value <= 15;
+
+pub data PackedFlags { present: bool; mode: u8 in Mode; code: u8 in Code; }
 data CompactBits {}
 machine CompactBits::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];

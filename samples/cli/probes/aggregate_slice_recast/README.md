@@ -2,7 +2,7 @@
 
 First sample re-viewing a typed fixed array as an unsized
 slice of a differently named aggregate: `&source as
-&[Wide]` weakens `i16 [0..=100]` → `u16 [0..=200]` on the
+&[Wide]` weakens `signed_value in 0..=100` → `unsigned_value <= 200` on the
 read side; `&mut source as &mut [Exact]` uses the same
 bit-pattern set both ways; element stride proves through
 trailing bool padding.

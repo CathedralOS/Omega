@@ -1,8 +1,8 @@
 // Carrier-valid zero needs no grant for route- and
 // predicate-free domain aliases: an uninitialized
 // `Counter in ReadyAlias` local is established at zero.
-// Floating range endpoints are IEEE values, not integer
-// bounds — `f32[0.0..0.5]` zero-initializes too.
+// Floating range predicates are IEEE propositions, not integer
+// bounds — `ZeroRatio where value >= 0.0 && value < 0.5` zero-initializes too.
 //
 //   * `domain Counter::ReadyAlias = Ready` member alias.
 //   * `let zero_ratio: ZeroRatio;` + `ZeroRatio {}` elided.
@@ -17,7 +17,12 @@ data Counter [copy] { code: i32; }
 domain Counter::Ready;
 domain Counter::ReadyAlias = Ready;
 
-data ZeroRatio [copy] { value: f32[0.0..0.5]; }
+data ZeroRatio [copy]
+where
+    value >= 0.0 && value < 0.5,
+{
+    value: f32;
+}
 
 data Choice<T> {
     case #0 Empty;

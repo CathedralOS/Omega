@@ -55,7 +55,17 @@ ViewerClockProvider satisfies Clock {
     Clock::sleep = macos_sleep;
 }
 
-data Main {
+data Main
+where
+    current >= 0 && current <= 2,
+    src >= 0 && src <= 16384,
+    dst >= 0 && dst <= 4096,
+    col >= 0 && col <= 64,
+    b >= 0 && b <= 255,
+    g >= 0 && g <= 255,
+    r >= 0 && r <= 255,
+    pumped >= 0 && pumped <= 16,
+{
     cls: [u8; 7];
     title: [u8; 13];
     message: [u64; 6];
@@ -69,7 +79,7 @@ data Main {
     info: [i32; 11];
     fd: i32;
     n: i64;
-    received: u64 [0..=16384];
+    received: u64;
     rc: i32;
     hwnd: u64;
     hdc: u64;
@@ -83,15 +93,15 @@ data Main {
     prev_key: u64;
     next_held: u32;
     prev_held: u32;
-    current: i32 [0..=2];
-    src: i32 [0..=16384];
-    dst: i32 [0..=4096];
-    col: i32 [0..=64];
-    b: i32 [0..=255];
-    g: i32 [0..=255];
-    r: i32 [0..=255];
+    current: i32;
+    src: i32;
+    dst: i32;
+    col: i32;
+    b: i32;
+    g: i32;
+    r: i32;
     px: i32;
-    pumped: i32 [0..=16];
+    pumped: i32;
 }
 
 machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraphics + DarwinClock + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + Gui + Input + ObjectiveC {

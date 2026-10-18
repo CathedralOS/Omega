@@ -1,8 +1,8 @@
-// Declared-range binder equations: `data TinyBytes<Length, const
-// Capacity: u64> where Length == u64[0..=Capacity]` — instantiations
-// satisfy the equation exactly: omitted binder (`u64[0..=256]` and
-// `u64[0..257]`), explicit pair (`u64[0..=256], 256`), and a
-// domain-index equation `Length == u64::AtMost<Capacity>`.
+// Domain-index binder equations: `data TinyBytes<Length, const
+// Capacity: u64> where Length == u64::AtMost<Capacity>` — instantiations
+// satisfy the equation exactly: omitted binder (`TinyBytes<u64 in AtMost<256> >`
+// and `TinyBytes<u64 in AtMost<257> >`), explicit pair (`TinyBytes<u64 in AtMost<256>, 256>`),
+// and domain equation `Length == u64::AtMost<Capacity>`.
 //
 //   * Four instantiation spellings on one generic data.
 //   * `hits` records the reached arm.
@@ -14,7 +14,7 @@ domain<const Bound: u64> u64::AtMost<Bound>(value) requires value <= Bound;
 
 data TinyBytes<Length, const Capacity: u64>
 where
-    Length == u64[0..=Capacity]
+    Length == u64::AtMost<Capacity>
 {
     storage: [u8; Capacity];
     length: Length;
@@ -29,9 +29,9 @@ where
 }
 
 data Shapes {
-    inclusive: TinyBytes<u64[0..=256]>;
-    exclusive: TinyBytes<u64[0..257]>;
-    explicit: TinyBytes<u64[0..=256], 256>;
+    inclusive: TinyBytes<u64 in AtMost<256> >;
+    exclusive: TinyBytes<u64 in AtMost<257> >;
+    explicit: TinyBytes<u64 in AtMost<256>, 256>;
     domained: Domained<u64 in AtMost<256>, 256>;
 }
 

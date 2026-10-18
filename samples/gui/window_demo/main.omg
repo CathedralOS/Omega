@@ -27,7 +27,7 @@ pub boundary trait Gui {
 }
 // FULLY EXACT -- no overflow domain anywhere. The two loop counters carry
 // ranges and their increments are GUARD-PROVEN (the dominating-guard keystone:
-// `i < 4096` on the edge into fill_put proves `i + 1` lands in [0..=4096]);
+// `i < 4096` on the edge into fill_put proves `i + 1 <= 4096`);
 // the pixel wash folds through `% 256` (modulo bounds by the divisor, so the
 // whole expression is verifiably bounded and the intermediates stay plain
 // Exact i32).
@@ -40,7 +40,12 @@ DemoGuiProvider satisfies Gui {
     Gui::blit = demo_blit;
 }
 
-data Main {
+data Main
+where
+    pumped >= 0 && pumped <= 16,
+    frame >= 0 && frame <= 60,
+    i >= 0 && i <= 4096,
+{
     cls: [u8; 7];
     title: [u8; 11];
     pixels: [i32; 4096];
@@ -51,10 +56,10 @@ data Main {
     close_requested: bool;
     have: u32;
     alive: u32;
-    pumped: i32 [0..=16];
+    pumped: i32;
     copied: u32;
-    frame: i32 [0..=60];
-    i: i32 [0..=4096];
+    frame: i32;
+    i: i32;
     c: i32;
     px: i32;
 }

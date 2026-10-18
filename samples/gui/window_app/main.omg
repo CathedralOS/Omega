@@ -48,7 +48,12 @@ WindowClockProvider satisfies Clock {
     Clock::sleep = macos_sleep;
 }
 
-data Main {
+data Main
+where
+    pumped >= 0 && pumped <= 16,
+    frame >= 0 && frame <= 16384,
+    i >= 0 && i <= 4096,
+{
     cls: [u8; 7];
     title: [u8; 11];
     message: [u64; 6];
@@ -67,9 +72,9 @@ data Main {
     escape: u64;
     fw: u64;
     msg_code: u64;
-    pumped: i32 [0..=16];
-    frame: i32 [0..=16384];
-    i: i32 [0..=4096];
+    pumped: i32;
+    frame: i32;
+    i: i32;
     c: i32;
     px: i32;
 }

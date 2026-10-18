@@ -1,17 +1,19 @@
 // Explicit type arguments at call sites + declared type
-// equations: `capacity<u64[0..257]>()` instantiates
-// `where Length == u64[0..=Capacity]` — a type argument supplies
+// equations: `capacity<u64 in AtMost<257> >()` instantiates
+// `where Length == u64::AtMost<Capacity>` — a type argument supplies
 // declared structure and binds the const parameter by equation.
 //
 //   * `machine capacity<Length, const Capacity: u64>()` with
-//     `where Length == u64[0..=Capacity]`.
+//     `where Length == u64::AtMost<Capacity>`.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
+domain<const Bound: u64> u64::AtMost<Bound>(value) requires value <= Bound;
+
 machine capacity<Length, const Capacity: u64>() -> u64
-where Length == u64[0..=Capacity]
+where Length == u64::AtMost<Capacity>
 {
     Capacity
 }
@@ -22,7 +24,7 @@ data Main {
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    transition capacity<u64[0..=257]>() == 257 {
+    transition capacity<u64 in AtMost<257> >() == 257 {
         true -> pass(main)
         _ -> fail(main)
     }

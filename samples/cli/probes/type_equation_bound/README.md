@@ -2,8 +2,8 @@
 
 A where-clause type equation binds a generic type parameter to declared
 structure: `machine capacity<Length, const Capacity: u64> where
-Length == u64[0..=Capacity]` — the caller supplies the concrete range
-instantiation `capacity<u64[0..=257]>()`; no runtime value supplies layout.
+Length == u64::AtMost<Capacity>` — the caller supplies the concrete domain
+instantiation `capacity<u64 in AtMost<257> >()`; no runtime value supplies layout.
 
 ## Learnings
 

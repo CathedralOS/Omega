@@ -18,9 +18,12 @@ data Mode [copy] {
     case Busy;
 }
 
-data Table {
+data Table
+where
+    count <= 4,
+{
     modes: [Mode; 4] in Trapping;
-    count: u64 [0..=4];
+    count: u64;
 }
 
 machine Table::weigh(table: &Table, index: u64 in Trapping) -> u64

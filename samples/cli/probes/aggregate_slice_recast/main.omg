@@ -2,10 +2,10 @@
 // DIFFERENTLY NAMED aggregate when every repeated element
 // preserves layout geometry and leaf representation
 // facts: the shared view weakens the integer range
-// (`Narrow.signed_value: i16 [0..=100]` →
-// `Wide.unsigned_value: u16 [0..=200]`), and the mutable
+// (`Narrow.signed_value: i16` where `signed_value >= 0 && signed_value <= 100` →
+// `Wide.unsigned_value: u16` where `unsigned_value <= 200`), and the mutable
 // view uses the exact same bit-pattern set both ways
-// (`Exact: u16 [0..=100]`). The trailing bool leaves one
+// (`Exact: u16` where `unsigned_value <= 100`). The trailing bool leaves one
 // byte of native padding per element — success also
 // proves element stride.
 //
@@ -19,18 +19,27 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-data Narrow {
-    signed_value: i16 [0..=100];
+data Narrow
+where
+    signed_value >= 0 && signed_value <= 100,
+{
+    signed_value: i16;
     enabled: bool;
 }
 
-data Wide {
-    unsigned_value: u16 [0..=200];
+data Wide
+where
+    unsigned_value <= 200,
+{
+    unsigned_value: u16;
     active: bool;
 }
 
-data Exact {
-    unsigned_value: u16 [0..=100];
+data Exact
+where
+    unsigned_value <= 100,
+{
+    unsigned_value: u16;
     active: bool;
 }
 

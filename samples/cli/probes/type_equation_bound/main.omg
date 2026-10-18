@@ -1,10 +1,12 @@
 // A where-clause type equation binds a generic type parameter to declared
-// structure: `Length == u64[0..=Capacity]` — the caller supplies the concrete
-// range instantiation; no runtime value supplies layout.
+// structure: `Length == u64::AtMost<Capacity>` — the caller supplies the concrete
+// domain instantiation; no runtime value supplies layout.
+domain<const Bound: u64> u64::AtMost<Bound>(value) requires value <= Bound;
+
 machine capacity<Length, const Capacity: u64>() -> u64
-where Length == u64[0..=Capacity]
+where Length == u64::AtMost<Capacity>
 { Capacity }
-machine recovered() -> u64 { capacity<u64[0..=257]>() }
+machine recovered() -> u64 { capacity<u64 in AtMost<257> >() }
 data Main { hits: i32 in Wrapping; }
 machine Main::main(main: &mut Main) {
     let n: u64 = recovered();

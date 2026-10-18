@@ -10,33 +10,43 @@ machine early(value: f64) -> f64 {
         true -> bounded(value)
         _ -> 0.0
     }
-    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+    state bounded(value: f64) -> f64
+        requires value == value && !(value < 0.0) && !(value > 1.0)
+    { value }
 }
 machine late(value: f64) -> f64 {
     transition !(value < 0.0) && !(value > 1.0) && !(value != value) {
         true -> bounded(value)
         _ -> 0.0
     }
-    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+    state bounded(value: f64) -> f64
+        requires !(value < 0.0) && !(value > 1.0) && !(value != value)
+    { value }
 }
 machine mixed(value: f64) -> f64 {
     transition !(value < 0.0) && value <= 1.0 {
         true -> bounded(value)
         _ -> 0.0
     }
-    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+    state bounded(value: f64) -> f64
+        requires !(value < 0.0) && value <= 1.0
+    { value }
 }
 machine finite(value: f64 in Finite) -> f64 {
     transition !(value < 0.0) && !(value > 1.0) {
         true -> bounded(value)
         _ -> 0.0
     }
-    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+    state bounded(value: f64) -> f64
+        requires !(value < 0.0) && !(value > 1.0)
+    { value }
 }
 machine copied(value: f64) -> f64 {
     let accepted: bool = value >= 0.0 && value <= 1.0;
     transition accepted { true -> bounded(value) _ -> 0.0 }
-    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+    state bounded(value: f64) -> f64
+        requires value >= 0.0 && value <= 1.0
+    { value }
 }
 machine captured_value(value: f64) -> f64 {
     let mut current: f64 = value;
@@ -46,11 +56,15 @@ machine captured_value(value: f64) -> f64 {
         true -> bounded(captured)
         _ -> 0.0
     }
-    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+    state bounded(value: f64) -> f64
+        requires value >= 0.0 && value <= 1.0
+    { value }
 }
 machine refuted_inequality(value: f64) -> f64 {
     transition !(value != 0.5) { true -> bounded(value) _ -> 0.0 }
-    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+    state bounded(value: f64) -> f64
+        requires !(value != 0.5)
+    { value }
 }
 machine record_observation(observed: &mut bool) -> bool { observed = true; true }
 machine through_field(reading: &mut Reading) -> f64 {
@@ -59,21 +73,29 @@ machine through_field(reading: &mut Reading) -> f64 {
             && record_observation(&mut reading.observed) -> bounded(reading.value)
         _ -> 0.0
     }
-    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+    state bounded(value: f64) -> f64
+        requires value >= 0.0 && value <= 1.0
+    { value }
 }
-machine indexed(values: &[f64; 2], index: u64 [0..2]) -> f64 {
+machine indexed(values: &[f64; 2], index: u64) -> f64
+    requires index < 2
+{
     transition values[index] >= 0.0 && values[index] <= 1.0 {
         true -> bounded(values[index])
         _ -> 0.0
     }
-    state bounded(value: f64 [0.0..=1.0]) -> f64 { value }
+    state bounded(value: f64) -> f64
+        requires value >= 0.0 && value <= 1.0
+    { value }
 }
 machine narrow(value: f32) -> f32 {
     transition !(value < 0.0f32) && value <= 1.0f32 {
         true -> bounded(value)
         _ -> 0.0f32
     }
-    state bounded(value: f32 [0.0f32..=1.0f32]) -> f32 { value }
+    state bounded(value: f32) -> f32
+        requires !(value < 0.0f32) && value <= 1.0f32
+    { value }
 }
 machine verify(valid: bool) crashes Trap {
     transition valid { true -> done() _ -> failed() }
