@@ -96,17 +96,6 @@ fn validate_signature_shapes(
             ));
         }
         match shape.class {
-            ValueClass::Integer
-                if shape.byte_size > 8
-                    && policy != CallingPolicy::Aapcs64
-                    && policy != CallingPolicy::SystemVAMD64
-                    && policy != CallingPolicy::MicrosoftX64 =>
-            {
-                return Err(PlanDiagnostic(
-                    "aggregate integer classification is not normalized for this calling policy"
-                        .into(),
-                ));
-            }
             ValueClass::Float if !matches!(shape.byte_size, 4 | 8) => {
                 return Err(PlanDiagnostic(
                     "scalar floating-point call values must be f32 or f64 sized".into(),
@@ -998,32 +987,40 @@ fn evaluate_syscall(
     result_register: MachineRegister,
     ordinary_clobbers: RegisterSet,
 ) -> Result<CallPlan, PlanDiagnostic> {
-    if signature.parameters.len() > registers.len() {
-        return Err(PlanDiagnostic(format!(
-            "{policy:?} admits at most {} parameters",
-            registers.len()
-        )));
+    // Kernel registers count physical words, not semantic formals. An explicit
+    // policy may publish a multiword integer carrier (for example pointer/count)
+    // as one formal; later formals follow its final word. This does not classify
+    // bare views or authorize access: their selected policy owns that promise.
+    // Zero-sized by-value formals were erased by evaluate_call_plan and are
+    // reinserted there without consuming a physical word.
+    let mut used_words = 0;
+    let mut parameters = Vec::with_capacity(signature.parameters.len());
+    for (parameter_position, shape) in signature.parameters.iter().copied().enumerate() {
+        if shape.class != ValueClass::Integer {
+            return Err(PlanDiagnostic(format!(
+                "{policy:?} parameter {parameter_position} requires an integer/pointer carrier"
+            )));
+        }
+        let word_count = shape.byte_size.div_ceil(8) as usize;
+        if word_count > registers.len() - used_words {
+            return Err(PlanDiagnostic(format!(
+                "{policy:?} admits at most {} physical argument words; parameter {parameter_position} exceeds the remaining capacity",
+                registers.len()
+            )));
+        }
+        let locations = registers[used_words..used_words + word_count]
+            .iter()
+            .copied()
+            .zip((0..shape.byte_size).step_by(8))
+            .map(|(register, value_byte_offset)| ValueLocation::Register {
+                register,
+                value_byte_offset,
+                byte_size: (shape.byte_size - value_byte_offset).min(8),
+            })
+            .collect();
+        parameters.push(ValuePlacement { shape, locations });
+        used_words += word_count;
     }
-    if signature
-        .parameters
-        .iter()
-        .any(|shape| !matches!(shape.class, ValueClass::Integer) || shape.byte_size > 8)
-    {
-        return Err(PlanDiagnostic(
-            "the normalized Linux syscall plans currently admit only integer/pointer values up to 8 bytes"
-                .into(),
-        ));
-    }
-    let parameters = signature
-        .parameters
-        .iter()
-        .copied()
-        .zip(registers.iter().copied())
-        .map(|(shape, register)| ValuePlacement {
-            shape,
-            locations: vec![register_location(register, shape)],
-        })
-        .collect();
     let result = match signature.result {
         Some(shape) if matches!(shape.class, ValueClass::Integer) && shape.byte_size <= 8 => {
             Some(ValuePlacement {

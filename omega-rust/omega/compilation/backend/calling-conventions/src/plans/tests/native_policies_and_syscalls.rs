@@ -1,7 +1,7 @@
 use super::integer_signature;
 use crate::plans::{
-    CallingPolicy, EntryControl, MachineRegister, RegisterSet, evaluate_call_plan,
-    validate_call_plan,
+    CallSignature, CallingPolicy, EntryControl, MachineRegister, RegisterSet, ValueLocation,
+    ValueShape, evaluate_call_plan, validate_call_plan,
 };
 use target::Architecture;
 
@@ -115,6 +115,122 @@ fn syscall_matrix_rows_evaluate_and_reject_architecture_drift() {
         assert!(
             validate_call_plan(&drifted, &signature).is_err(),
             "an entry-control register from the wrong architecture must reject"
+        );
+    }
+}
+
+#[test]
+fn syscall_two_word_formals_use_physical_slot_capacity() {
+    for (policy, registers) in [
+        (
+            CallingPolicy::LinuxSyscallX86_64,
+            vec![
+                MachineRegister::X86Rdi,
+                MachineRegister::X86Rsi,
+                MachineRegister::X86Rdx,
+                MachineRegister::X86R10,
+                MachineRegister::X86R8,
+                MachineRegister::X86R9,
+            ],
+        ),
+        (
+            CallingPolicy::LinuxSyscallAarch64,
+            (0..6).map(MachineRegister::Aarch64X).collect(),
+        ),
+    ] {
+        // A descriptor remains one formal; a scalar after it uses the next
+        // physical slot, not the next formal ordinal. Empty values use no slot.
+        let mut signature = CallSignature {
+            parameters: vec![
+                ValueShape::integer(4, 4),
+                ValueShape::integer(0, 1),
+                ValueShape::integer(16, 8),
+                ValueShape::integer(8, 8),
+                ValueShape::integer(16, 8),
+            ],
+            result: Some(ValueShape::integer(8, 8)),
+        };
+        let plan = evaluate_call_plan(policy, &signature).expect("six-word syscall plan");
+        assert_eq!(plan.parameters.len(), 5);
+        assert!(plan.parameters[1].locations.is_empty());
+        let expected: Vec<_> = registers
+            .iter()
+            .copied()
+            .zip([4, 8, 8, 8, 8, 8])
+            .zip([0, 0, 8, 0, 0, 8])
+            .map(
+                |((register, byte_size), value_byte_offset)| ValueLocation::Register {
+                    register,
+                    value_byte_offset,
+                    byte_size,
+                },
+            )
+            .collect();
+        assert_eq!(
+            plan.parameters
+                .iter()
+                .flat_map(|parameter| parameter.locations.iter().cloned())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        validate_call_plan(&plan, &signature).expect("fragmented formals validate");
+
+        signature.parameters.push(ValueShape::integer(8, 8));
+        assert!(
+            evaluate_call_plan(policy, &signature).is_err(),
+            "seven physical words reject"
+        );
+        signature.parameters.pop();
+        signature.result = Some(ValueShape::integer(16, 8));
+        assert!(
+            evaluate_call_plan(policy, &signature).is_err(),
+            "result remains one word"
+        );
+        signature.result = None;
+        signature.parameters[2] = ValueShape::integer(17, 8);
+        assert!(
+            evaluate_call_plan(policy, &signature).is_err(),
+            "three-word formal makes this signature exceed six words"
+        );
+        signature.parameters[2] = ValueShape::float(8);
+        assert!(
+            evaluate_call_plan(policy, &signature).is_err(),
+            "floating formal rejects"
+        );
+
+        let three_words = CallSignature {
+            parameters: vec![ValueShape::integer(17, 8)],
+            result: None,
+        };
+        let plan = evaluate_call_plan(policy, &three_words).expect("three physical words fit");
+        assert_eq!(
+            plan.parameters[0].locations,
+            vec![
+                ValueLocation::Register {
+                    register: registers[0],
+                    value_byte_offset: 0,
+                    byte_size: 8
+                },
+                ValueLocation::Register {
+                    register: registers[1],
+                    value_byte_offset: 8,
+                    byte_size: 8
+                },
+                ValueLocation::Register {
+                    register: registers[2],
+                    value_byte_offset: 16,
+                    byte_size: 1
+                },
+            ]
+        );
+        validate_call_plan(&plan, &three_words).expect("partial final word retains exact coverage");
+        let seven_words = CallSignature {
+            parameters: vec![ValueShape::integer(49, 8)],
+            result: None,
+        };
+        assert!(
+            evaluate_call_plan(policy, &seven_words).is_err(),
+            "one formal cannot consume seven words"
         );
     }
 }
