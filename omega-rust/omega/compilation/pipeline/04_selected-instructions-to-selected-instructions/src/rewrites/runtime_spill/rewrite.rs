@@ -44,7 +44,7 @@ fn reload_for_use(
 }
 
 /// Store one runtime value after its definition and reload before each
-/// flexible use. The independently checked output is the only admitted result.
+/// flexible use. Publish its exact source-bound transformation after admission.
 /// The historical bounded policy keeps every produced interval inside
 /// unit-free spans.
 pub fn spill_selected_runtime_value(
@@ -307,6 +307,24 @@ pub fn spill_selected_runtime_value_with_span_policy(
             // end-of-block pair instead, the same idiom a value binding uses,
             // so `argument` reads the victim's edge-time value.
             for binding in &mut successor.structural_bindings {
+                if let SelectedStructuralTransport::ScalarReference { base, .. }
+                | SelectedStructuralTransport::Address { base, .. } = &mut binding.transport
+                    && *base == selected_instructions::SelectedAddressBase::Register(register)
+                {
+                    let reload = admission::reload(
+                        &admitted,
+                        admitted.assignment.end_of_block_slot(block_index),
+                        register,
+                        &mut next_instruction,
+                        &mut next_register,
+                    )?;
+                    let reloaded = reload.reload_register.id;
+                    let (registers, sequence) = reload.into_streams();
+                    function.virtual_registers.extend(registers);
+                    instructions.extend(sequence);
+                    *base = selected_instructions::SelectedAddressBase::Register(reloaded);
+                    continue;
+                }
                 let Some(byte_size) = super::stored_transport_size(binding.transport) else {
                     continue;
                 };

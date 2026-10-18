@@ -14,13 +14,11 @@
 //! allocator. ABI-pinned uses keep a private pair so the pin attaches
 //! to the load-to-use window alone, and blocks with no surviving view keep the
 //! per-use shape entirely.
-//! The contract vocabulary — lineage, storage positions, transport sizing,
-//! the span and surviving-home predicates, control projection — is shared;
-//! the legality audit itself is not: the proposal's admission and the
-//! validator's reconstruction each derive it from the source records alone,
-//! so a defect inside either one fails rather than propagating. Proposal
-//! inserts the private accesses while independent replay consumes them and
-//! restores source.
+//! Admission derives lineage, storage positions, transport sizing, dominance
+//! and last-writer constraints from the current selected source. The proposal
+//! inserts private accesses and seals its exact source/transform binding; the
+//! sealing module does not independently repeat this derivation. Later
+//! receiving stages retain their own physical and custody judgments.
 //!
 //! Instruction-result definitions must dominate every flexible use. Incoming parameters
 //! instead require a dedicated edge definition on every predecessor: the edge
@@ -542,10 +540,9 @@ pub(crate) fn require_dominated_uses(
     Ok(())
 }
 
-/// The complete runtime-spill derivation the proposal's admission and the
-/// validator's independent replay both compute: every gate and every
-/// derived position, identical step for step. The family module owns it
-/// once; each side keeps only its own record's name.
+/// The complete admission derivation for the current selected source. It owns
+/// each gate and derived position consumed by stores, reloads and slot reuse;
+/// sealing the resulting transformation is not a second admission proof.
 pub(super) struct RuntimeSpillDerivation<'source> {
     pub function: &'source SelectedFunction,
     pub use_blocks: Vec<usize>,
@@ -1017,9 +1014,11 @@ pub(super) fn derive_runtime_spill<'source>(
                     .ok_or(RuntimeSpillError::IdentityOverflow)?;
             }
             for binding in &successor.structural_bindings {
-                // An address transport's base register is carried as edge
-                // evidence this rewrite does not relocate; spilling it stays
-                // closed.
+                // An address carrier reads the same pointer bits at this edge.
+                // Spill its register, never its referent: the binding retains
+                // the exact semantic root, projection, offset and destination.
+                // The ordinary definition/dominance and last-writer checks
+                // below also cover this end-of-block read.
                 if matches!(binding.transport,
                     SelectedStructuralTransport::ScalarReference {
                         base: selected_instructions::SelectedAddressBase::Register(argument),
@@ -1030,7 +1029,12 @@ pub(super) fn derive_runtime_spill<'source>(
                         ..
                     } if argument == register)
                 {
-                    return Err(RuntimeSpillError::UnsupportedUse);
+                    flexible_uses[current_block_index] = true;
+                    use_positions[current_block_index].end_of_block = true;
+                    uses = uses
+                        .checked_add(1)
+                        .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                    continue;
                 }
                 let Some(byte_size) = stored_transport_size(binding.transport) else {
                     continue;

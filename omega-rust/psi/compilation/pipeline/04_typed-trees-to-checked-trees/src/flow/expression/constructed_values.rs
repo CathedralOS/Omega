@@ -13,7 +13,8 @@ use facts::{
 };
 use typed_trees::expression::ExpressionHandle;
 
-enum ConstructedValue {
+#[derive(Clone, PartialEq, Eq)]
+pub(super) enum ConstructedValue {
     Scalar(ScalarValue),
     Case(symbols::SymbolHandle),
 }
@@ -28,6 +29,18 @@ impl Execution<'_, '_, '_> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
+        let values = self.constructed_values(destination, type_reference, evaluated);
+        self.publish_constructed_values(parent, values, contexts, constraints);
+    }
+
+    /// Snapshot only the completed owned value's observations. Match joins
+    /// intersect these same snapshots; no arm or initializer is replayed.
+    pub(super) fn constructed_values(
+        &mut self,
+        destination: &[PlaceSegment],
+        type_reference: typed_trees::types::TypeReferenceHandle,
+        evaluated: &EvaluatedOperand,
+    ) -> Vec<(Vec<PlaceSegment>, ConstructedValue)> {
         // Only owned contents transport member values. A reference/slice
         // carrier retains live referents, not snapshots below its descriptor.
         // Nominal cleanup is a later disposition and does not change the
@@ -40,7 +53,7 @@ impl Execution<'_, '_, '_> {
                 validation::ContentsRequirement::BorrowFree,
             )
         {
-            return;
+            return Vec::new();
         }
         let captured_contexts = self
             .context
@@ -227,6 +240,16 @@ impl Execution<'_, '_, '_> {
                 }
             }
         }
+        values
+    }
+
+    pub(super) fn publish_constructed_values(
+        &mut self,
+        parent: ExpressionHandle,
+        values: Vec<(Vec<PlaceSegment>, ConstructedValue)>,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) {
         for (path, value) in values {
             let payload = match value {
                 ConstructedValue::Scalar(value) => FactPayload::AssignedScalarValue {

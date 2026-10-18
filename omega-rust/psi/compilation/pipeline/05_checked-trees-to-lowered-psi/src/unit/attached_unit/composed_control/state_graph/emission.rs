@@ -897,6 +897,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &live_states,
         &captured_loans,
         &catalogs.structural_types,
+        &mut catalogs.scalar_calls.next_call_obligation,
     )?;
     let continuation_value_uses = machine
         .blocks

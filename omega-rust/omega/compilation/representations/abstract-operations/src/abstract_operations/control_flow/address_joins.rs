@@ -140,12 +140,14 @@ pub fn loan_access_permitted<'a>(
             WriteOnlyBorrow => return false,
         };
     }
+    // Ownership may lend exclusive access until a reference crossing attenuates
+    // it. Keep this rule identical for local, parameter and joined owned homes.
     matches!(
         (ceiling, destination),
         (
-            MutableBorrow,
+            Owned | MutableBorrow,
             SharedBorrow | MutableBorrow | WriteOnlyBorrow
-        ) | (Owned | SharedBorrow, SharedBorrow)
+        ) | (SharedBorrow, SharedBorrow)
             | (WriteOnlyBorrow, WriteOnlyBorrow)
     )
 }

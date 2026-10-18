@@ -848,7 +848,11 @@ defines the complete product bar.
     type defers establishment to its stores.
     Preserve each occurrence's residual custody until its actual normal
     death; neither a selection join nor a later reread of the condition
-    decides hook timing. Keep
+    decides hook timing. Keep `pass/facts/nominal_loan_backing_cleanup_through_*_exit`
+    and their cleanup-prerequisite twins for original nominal backing through
+    successor loans; preserve `pass/drops/runtime_nominal_state_loan_cleanup_order_exit`
+    and `runtime_nominal_state_loan_crash_exit` for ordered normal death and
+    absent crash cleanup. Keep
     `pass/drops/runtime_selected_transfer_fieldwise_construction_exit` as
     the deferred-binding transfer control (a field consumed out of a
     field-wise established local, hook order byte-exact) and

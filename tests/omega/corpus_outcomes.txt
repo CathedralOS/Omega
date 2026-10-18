@@ -1226,6 +1226,9 @@ fail/borrows/state_argument_borrows_forwarded_reference rejected 2484ms expected
 	state `take_call` receives `main` as mutable more than once
 fail/borrows/state_index_bound rejected 5677ms expected @a9ae30e1c334+wt
 	cannot prove index `index` is within length 2 in update::entry
+fail/borrows/state_loan_shared_ancestor_exclusive_descendant rejected 687ms expected @753e7ce7a36e+wt
+	mutable argument `holder` for state `observe` is not writable in this state; the source cannot lend the requested exclusive access
+	mutable argument `holder` for state `observe` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/state_transfer_active_child_observation rejected 1230ms @fa10277fce92
 	state `done` receives `control` while local borrow `child` is still active
 	statement 1 mutates `control.value` while local borrow `child` is still active (borrowed at statement 0)
@@ -2948,6 +2951,8 @@ fail/drops/composed_cleanup_crash_outcome rejected 848ms expected @a9ae30e1c334+
 fail/drops/composed_cleanup_external_hook_state rejected 834ms expected @a9ae30e1c334+wt
 	reserved cleanup machine `Token::drop` is compiler-selected and cannot be selected by source; consume the value with `omega::core::drop(value)` or call an ordinary owner-published protocol operation
 	machine `main` state `entry`: value call `drop.finish(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/drops/copied_argument_cannot_delay_nominal_cleanup rejected 4258ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
 fail/drops/drop_ensures_unlocked_predicate rejected 1540ms expected @a9ae30e1c334+wt
 	cannot prove ensures contract for exit from MutexGuard::drop at statement 0: mutex_guard.mutex.unlocked()
 fail/drops/empty_array_owner_cleanup_prerequisite rejected 1705ms expected @a9ae30e1c334+wt
@@ -3018,6 +3023,10 @@ fail/drops/selected_partial_requires_disposition rejected 1171ms expected @a9ae3
 	cannot automatically dispose retained selected owner region: every live linear obligation requires an eligible disposition
 fail/drops/selected_replacement_old_cleanup_prerequisite rejected 1604ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing token.ready == true required by Token::drop clause `token.ready`
+fail/drops/state_loan_alias_invalidates_nominal_cleanup_prerequisite rejected 1555ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: room does not establish Room::drop clause `room.count == 10`
+fail/drops/state_loan_invalidates_nominal_cleanup_prerequisite rejected 4494ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
 fail/drops/successor_cleanup_unmet_prerequisite rejected 1542ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
 fail/drops/temporary_cleanup_captured_false rejected 1621ms expected @5224f3a25f86+wt
@@ -3037,6 +3046,8 @@ fail/drops/temporary_cleanup_selected_operand rejected 1168ms expected @5224f3a2
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Token does not establish Token::drop clause `token.value == 7`
 fail/drops/temporary_cleanup_unmet_prerequisite rejected 1269ms expected @5224f3a25f86+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: missing Token.ready == true required by Token::drop clause `token.ready`
+fail/drops/transitive_state_loan_cleanup_prerequisite rejected 7721ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
 fail/drops/zero_case_container_keeps_cleanup_prerequisite rejected 1530ms expected @a9ae30e1c334+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing owner.ready == true required by OptionalReceipt::drop clause `owner.ready`
 fail/effects/boundary_empty_provider_hides_reach rejected 337ms expected @c5a7c1ce1957+wt
@@ -3669,6 +3680,29 @@ fail/facts/matched_window_through_parameter_rejected rejected 651ms expected @a4
 	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
 fail/facts/matched_window_through_target_body_rejected rejected 649ms expected @a48b0ac286f5
 	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+fail/facts/nominal_loan_backing_cleanup_through_call_result_cleanup_prerequisite rejected 8874ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite rejected 7088ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_field_cleanup_prerequisite rejected 4487ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: holder.room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_local_cleanup_prerequisite rejected 4840ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_match_join_cleanup_prerequisite rejected 8234ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_other_machine_cleanup_prerequisite rejected 8904ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_other_state_cleanup_prerequisite rejected 8457ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from scope state prepare after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_parameter_cleanup_prerequisite rejected 7421ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 0: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_target_body_cleanup_prerequisite rejected 8892ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_unequal_match_cleanup_prerequisite rejected 7826ms expected @753e7ce7a36e+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
 fail/facts/remainder_width_through_call_result_rejected rejected 3201ms expected @d070d134851d+wt
 	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
 fail/facts/remainder_width_through_const_name_rejected rejected 3244ms expected @d070d134851d+wt
@@ -8438,6 +8472,7 @@ pass/drops/projected_case_subject_root_cleanup_exit checked 12228ms check-target
 pass/drops/reference_rebinding_preserves_pointee_exit checked 2294ms check-target:macos_arm64 @c1d3bd9711c2+wt
 pass/drops/runtime_abandoned_record_construction_prefix_exit checked 12772ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_affine_record_conditional_result_exit checked 6011ms check-target:macos_arm64 @166de40fb052+wt
+pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit checked 13878ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/drops/runtime_borrowed_nominal_replacement_exit checked 13039ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit checked 12207ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_borrowed_temporary_projection_cleanup_exit checked 3648ms check-target:macos_arm64 @0ec1d89748af
@@ -8469,6 +8504,10 @@ pass/drops/runtime_nested_nominal_producer_loans_exit checked 11899ms check-targ
 pass/drops/runtime_nested_temporary_capture_cleanup_exit checked 11485ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_nominal_array_replacement_exit checked 11435ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_nominal_cleanup_compound_contract_exit checked 12320ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_nominal_state_loan_alias_exit checked 15301ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/drops/runtime_nominal_state_loan_cleanup_order_exit checked 14700ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/drops/runtime_nominal_state_loan_crash_exit checked 13781ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/drops/runtime_nominal_state_loan_nonlending_branch_exit checked 14907ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/drops/runtime_nominal_successor_argument_order_exit checked 11518ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_nominal_temporary_helper_closure_exit checked 13629ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_owned_nominal_replacement_exit checked 10828ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8491,14 +8530,17 @@ pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 12660ms check-tar
 pass/drops/runtime_selected_partial_owner_cleanup_exit checked 11353ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/drops/runtime_selected_transfer_fieldwise_construction_exit checked 10087ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/drops/runtime_selected_transfer_incomplete_construction_exit checked 10100ms check-target:macos_arm64 @03d6ab4d9d4c
+pass/drops/runtime_shared_nominal_state_loan_exit checked 13553ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/drops/runtime_temporary_integer_capture_cleanup_exit checked 11211ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_temporary_nominal_integer_contract_exit checked 10850ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_temporary_nominal_prerequisite_exit checked 10740ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_three_field_projected_transition_cleanup_exit checked 11518ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_two_nominal_parameter_loans_cleanup_order_exit checked 11634ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/drops/runtime_unit_temporary_nominal_continuation_exit checked 10985ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_unobserved_owned_state_transfer_exit checked 10517ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/skipped_claim_temporary checked 9780ms @5041ef1af684+wt
 pass/drops/snapshot_drop_reassign checked 9662ms @5041ef1af684+wt
+pass/drops/state_loan_restores_nominal_cleanup_prerequisite checked 14065ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/drops/statically_skipped_claim_bearing_temporary checked 1671ms @a9ae30e1c334+wt
 pass/drops/structural_return_drop_local checked 9421ms @5041ef1af684+wt
 pass/drops/structural_return_drops_unreturned_local_exit checked 6406ms check-target:macos_arm64 @7c1edd43e7e4+wt
@@ -8803,6 +8845,15 @@ pass/facts/integer_range_delivery_through_other_machine_exit checked 23468ms che
 pass/facts/integer_range_delivery_through_other_state_exit checked 14796ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_parameter_exit checked 12770ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_target_body_exit checked 14948ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/nominal_loan_backing_cleanup_through_call_result_exit checked 12631ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/facts/nominal_loan_backing_cleanup_through_const_name_exit checked 11019ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/facts/nominal_loan_backing_cleanup_through_field_exit checked 16379ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/facts/nominal_loan_backing_cleanup_through_local_exit checked 17878ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/facts/nominal_loan_backing_cleanup_through_match_join_exit checked 13634ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit checked 14785ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/facts/nominal_loan_backing_cleanup_through_other_state_exit checked 17579ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/facts/nominal_loan_backing_cleanup_through_parameter_exit checked 11232ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/facts/nominal_loan_backing_cleanup_through_target_body_exit checked 18692ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/facts/remainder_width_through_call_result_exit checked 7565ms check-target:macos_arm64 @d070d134851d+wt
 pass/facts/remainder_width_through_const_name_exit checked 7523ms check-target:macos_arm64 @d070d134851d+wt
 pass/facts/remainder_width_through_field_exit checked 7512ms check-target:macos_arm64 @d070d134851d+wt

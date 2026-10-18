@@ -93,27 +93,58 @@ fn authenticate_home_dispositions(
     Ok(())
 }
 
-/// Inspect every selected disposition before moving any cleanup. A checked
-/// whole-root discard is occurrence authority; contextual actions cannot be
-/// replaced even if another edge also has a whole-root discard.
+/// Retain the checked ordered disposition, including contextual nominal
+/// invocations. Source checking discharges their requirements after the lending
+/// successor's normal completion. Storage lifetime grants no new disposition.
+pub(super) fn whole_home_actions(
+    machine: &TerminalMachine,
+    home: PlaceId,
+) -> Result<Option<Vec<TerminalAffineCleanupAction>>, LoweringError> {
+    let mut found: Option<Vec<TerminalAffineCleanupAction>> = None;
+    for block in &machine.blocks {
+        for (_, actions) in block.terminator.cleanup_rosters() {
+            let selected = actions
+                .iter()
+                .filter(|action| action.place() == home)
+                .cloned()
+                .collect::<Vec<_>>();
+            if selected.is_empty() {
+                continue;
+            }
+            // Obligation slots belong to occurrences, not the disposition's
+            // authority. Compare the entire ordered receiver/target roster.
+            let normalized = |actions: &[TerminalAffineCleanupAction]| {
+                actions
+                    .iter()
+                    .cloned()
+                    .map(|mut action| {
+                        if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = &mut action {
+                            cleanup.requirement_obligations.clear();
+                        }
+                        action
+                    })
+                    .collect::<Vec<_>>()
+            };
+            if found
+                .as_ref()
+                .is_some_and(|prior| normalized(prior) != normalized(&selected))
+            {
+                return Err(LoweringError::Unsupported(
+                    "retained state loan home has different selected cleanup partitions",
+                ));
+            }
+            found.get_or_insert(selected);
+        }
+    }
+    Ok(found)
+}
+
 pub(super) fn whole_home_disposition(
     machine: &TerminalMachine,
     home: PlaceId,
 ) -> Result<bool, LoweringError> {
-    let mut found = false;
-    for block in &machine.blocks {
-        for (_, actions) in block.terminator.cleanup_rosters() {
-            for action in actions.iter().filter(|action| action.place() == home) {
-                if *action != TerminalAffineCleanupAction::DiscardRoot(home) {
-                    return Err(LoweringError::Unsupported(
-                        "state loan home requires contextual cleanup that cannot be relocated",
-                    ));
-                }
-                found = true;
-            }
-        }
-    }
-    Ok(found)
+    Ok(whole_home_actions(machine, home)?
+        .is_some_and(|actions| actions == [TerminalAffineCleanupAction::DiscardRoot(home)]))
 }
 
 /// Follow the real emitted formation chain, not a source alias or a guessed

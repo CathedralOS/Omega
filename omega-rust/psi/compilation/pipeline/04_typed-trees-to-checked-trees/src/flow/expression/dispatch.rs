@@ -44,6 +44,7 @@ impl Execution<'_, '_, '_> {
         let mut boolean_coverage = [false; 2];
         let mut shared_predicates: Option<Vec<JoinedPredicate>> = None;
         let mut shared_scalar: Option<Option<facts::ScalarValue>> = None;
+        let mut shared_members: Option<Vec<_>> = None;
         let mut value_coverage = false;
         for (ordinal, arm) in self
             .program
@@ -115,6 +116,12 @@ impl Execution<'_, '_, '_> {
                 &mut selected_constraints,
             );
             alternatives.push(completed.capture);
+            let members = self.constructed_values(&[], destination, &completed);
+            if let Some(shared) = &mut shared_members {
+                shared.retain(|member| members.contains(member));
+            } else {
+                shared_members = Some(members);
+            }
             let scalar = self.scalar_value_on_value(arm.value, &selected_contexts);
             shared_scalar = Some(match shared_scalar {
                 None => scalar,
@@ -161,6 +168,9 @@ impl Execution<'_, '_, '_> {
             *constraints = joined_constraints;
         }
         if value_coverage {
+            if let Some(members) = shared_members {
+                self.publish_constructed_values(expression, members, contexts, constraints);
+            }
             if let Some(shared) = shared_predicates {
                 self.publish_joined_values(
                     expression,

@@ -185,6 +185,22 @@ fn evaluated_value_root<'a>(
     argument: typed_trees::expression::ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
 ) -> Option<&'a checked_trees::CheckedStructuralValueRoot> {
+    // Forming a loan of established storage retains that exact home. A
+    // value projection may still remember its old initializer; walking back
+    // to that producer here would establish a second owned operand instead
+    // of borrowing the live value, losing writes and duplicating cleanup.
+    if let Some(formation) = validation::reference_formation_source(program, argument)
+        && !formation.view_type.is_valid()
+        && validation::canonical_place_from_expression_in_state(
+            program,
+            state,
+            statement_index,
+            formation.source,
+        )
+        .is_some_and(|place| place.root.as_symbol().is_some())
+    {
+        return None;
+    }
     let mut root = evaluated_argument_root(
         program,
         facts,

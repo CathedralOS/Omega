@@ -8,17 +8,19 @@
 //! storage's only remaining name, so the storage must live exactly as long as
 //! the chain of states that carries the loan.
 //!
-//! The activation-entry route (`loaned_local_homes`) keeps a lent home in its
-//! original place and discards it once at every return. That cannot serve a
-//! later lender: a return reachable on a path that never visited the lender
-//! would discard a place that was never established. Instead, a chain is the
+//! Locals, completed values and owned invocation parameters retain their
+//! original homes until their loans close. A checked ordered disposition
+//! travels with each home; nominal requirement slots are fresh at each final
+//! edge, while the source checker discharges the actual normal-death premises.
+//! A return that never visited a lender cannot dispose of its unestablished
+//! home. A chain is the
 //! set of state parameters connected by whole forwarding
 //! (`next(score)` or `next(&mut score)` of a `&mut` parameter), and its
 //! storage dies where the chain ends: on every edge leaving a member state
 //! that does not carry the loan to another member, and at every return from a
 //! member state. Two backings realize that:
 //!
-//! - **Lender home.** Exactly one state's one local lends into the chain and
+//! - **Lender home.** Exactly one owned home lends into the chain and
 //!   that state is not itself a member. Every path into the chain passes the
 //!   lender's establishment, so its home stays in place, members keep their
 //!   views, and the chain's ends discard the home after any descendant carriers
@@ -33,7 +35,8 @@
 //!   only with checked selected-edge retirement and a complete captured-operand
 //!   dependency judgment; descriptor death alone grants no relocation authority.
 //!
-//! Every exclusive member's arrival must lend a local or forward a member.
+//! Every exclusive member's arrival must lend an owned home (a local or
+//! invocation-owned parameter) or forward a member.
 //! A projected local lends its selected path but retains its complete home,
 //! including a reference descriptor whose referent is caller-owned. The home
 //! is disposed at the chain's end, never the caller's referent. Such a chain
@@ -144,18 +147,31 @@ enum LoanSource {
     Other,
 }
 
+/// The checked birth coordinate of an owned lending home. Parameters are
+/// invocation-owned storage, distinct from borrowed ingress and local births.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum HomeSource {
+    Parameter(u32),
+    Local {
+        binding: u32,
+        completed: Option<(usize, usize)>,
+    },
+}
+
+struct HomeType {
+    type_identity: typed_trees::type_identity::TypeIdentityId,
+    multiplicity: Multiplicity,
+}
+
 /// How a loan reaches one candidate parameter.
 enum Arrival {
     Local {
         lender: usize,
-        binding: u32,
+        source: HomeSource,
         /// A selected subtree cannot move its containing owner. Likewise, an
         /// established descriptor must keep its original backing occurrence:
         /// moving the bytes cannot retarget an already captured address.
         requires_stable_home: bool,
-        /// Exact edge and target dense coordinate of a completed producer.
-        /// Several selected edges may reuse one scratch binding ordinal.
-        completed: Option<(usize, usize)>,
     },
     /// A whole forward of another candidate.
     Forward,
@@ -258,9 +274,11 @@ impl LoanChains {
                             if let Some(destination) = destination {
                                 arrivals[destination].push(Arrival::Local {
                                     lender: source,
-                                    binding,
+                                    source: HomeSource::Local {
+                                        binding,
+                                        completed: None,
+                                    },
                                     requires_stable_home,
-                                    completed: None,
                                 });
                             }
                             if !block_owned(source)
@@ -279,9 +297,27 @@ impl LoanChains {
                             if let Some(destination) = destination {
                                 arrivals[destination].push(Arrival::Local {
                                     lender: source,
-                                    binding,
+                                    source: HomeSource::Local {
+                                        binding,
+                                        completed: Some((edge_index, dense)),
+                                    },
                                     requires_stable_home,
-                                    completed: Some((edge_index, dense)),
+                                });
+                            }
+                        }
+                        LoanSource::Parameter(index) | LoanSource::ProjectedParameter(index)
+                            if plan.states[source]
+                                .structural_parameters
+                                .get(index as usize)
+                                .is_some_and(|parameter| {
+                                    parameter.access == CheckedStructuralAccess::Owned
+                                }) =>
+                        {
+                            if let Some(destination) = destination {
+                                arrivals[destination].push(Arrival::Local {
+                                    lender: source,
+                                    source: HomeSource::Parameter(index),
+                                    requires_stable_home: true,
                                 });
                             }
                         }
@@ -334,14 +370,8 @@ impl LoanChains {
         let mut home_members = Vec::new();
         for (destination, incoming) in arrivals.iter().enumerate() {
             for arrival in incoming {
-                if let Arrival::Local {
-                    lender,
-                    binding,
-                    completed,
-                    ..
-                } = arrival
-                {
-                    let home = (*lender, *binding, *completed);
+                if let Arrival::Local { lender, source, .. } = arrival {
+                    let home = (*lender, *source);
                     if let Some((_, first)) = home_members
                         .iter()
                         .find(|(candidate, _)| *candidate == home)
@@ -361,7 +391,22 @@ impl LoanChains {
             plan.states[position].structural_parameters[dense as usize].access
                 == CheckedStructuralAccess::MutableBorrow
         };
-        let local_result = |lender: usize, binding: u32, completed: Option<(usize, usize)>| {
+        let local_result = |lender: usize, source: HomeSource| {
+            let HomeSource::Local { binding, completed } = source else {
+                let HomeSource::Parameter(index) = source else {
+                    unreachable!()
+                };
+                let parameter = plan.states[lender]
+                    .structural_parameters
+                    .get(index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "state loan home lost its owned parameter",
+                    ))?;
+                return Ok(HomeType {
+                    type_identity: parameter.type_identity,
+                    multiplicity: parameter.multiplicity,
+                });
+            };
             let result = if let Some((edge, dense)) = completed {
                 plan.states[lender]
                     .successors()
@@ -395,26 +440,24 @@ impl LoanChains {
                     result
                 }
             };
-            result.ok_or(LoweringError::Unsupported(
-                "Unit graph state loan chain names no exact completed home",
-            ))
+            result
+                .map(|result| HomeType {
+                    type_identity: result.type_identity,
+                    multiplicity: result.multiplicity,
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph state loan chain names no exact completed home",
+                ))
         };
-        // A chain exists once an arrival lends a later state's local or an
-        // edge-completed home. Entry locals keep the activation-entry route. A
+        // One checked owned birth seeds the complete loan lifetime. A
         // shared loan seeds one only over an affine structural home, whose
         // death the chain must place; a view or unrestricted local has none.
         let mut seeded = BTreeSet::new();
         for (index, arrivals) in arrivals.iter().enumerate() {
             for arrival in arrivals {
-                if let Arrival::Local {
-                    lender,
-                    binding,
-                    completed,
-                    ..
-                } = *arrival
-                    && (block_owned(lender) || completed.is_some())
+                if let Arrival::Local { lender, source, .. } = *arrival
                     && (exclusive(index)
-                        || local_result(lender, binding, completed)
+                        || local_result(lender, source)
                             .is_ok_and(|result| result.multiplicity == Multiplicity::Affine))
                 {
                     seeded.insert(roots[index]);
@@ -452,11 +495,10 @@ impl LoanChains {
                 }
                 let parameter = &plan.states[position].structural_parameters[dense as usize];
                 for arrival in &arrivals[index] {
-                    let (lender, binding, completed) = match arrival {
+                    let (lender, source) = match arrival {
                         Arrival::Local {
                             lender,
-                            binding,
-                            completed,
+                            source,
                             requires_stable_home,
                         } => {
                             // The checked loan already retains its exact selected
@@ -467,7 +509,7 @@ impl LoanChains {
                             derived |= requires_stable_home;
                             if !requires_stable_home
                                 && !presents(
-                                    local_result(*lender, *binding, *completed)?.type_identity,
+                                    local_result(*lender, *source)?.type_identity,
                                     parameter,
                                 )
                             {
@@ -475,7 +517,7 @@ impl LoanChains {
                                     "Unit graph state loan chain changes its referent type",
                                 ));
                             }
-                            (*lender, *binding, *completed)
+                            (*lender, *source)
                         }
                         Arrival::Forward => continue,
                         Arrival::Projected => {
@@ -488,7 +530,7 @@ impl LoanChains {
                             ));
                         }
                     };
-                    let result = local_result(lender, binding, completed)?;
+                    let result = local_result(lender, source)?;
                     let home = match result.multiplicity {
                         Multiplicity::Affine => StructuralMultiplicity::Affine,
                         Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
@@ -503,7 +545,7 @@ impl LoanChains {
                             "Unit graph state loan chain mixes home multiplicities",
                         ));
                     }
-                    lenders.insert((lender, binding, completed));
+                    lenders.insert((lender, source));
                 }
                 let place = state_views
                     .get(position)
@@ -518,7 +560,7 @@ impl LoanChains {
             // else would join different live homes, or re-establish a home
             // its own chain still holds.
             let backing = match lenders.iter().next() {
-                Some((lender, _, _))
+                Some((lender, _))
                     if lenders.len() == 1
                         && !members.iter().any(|(position, _, _)| position == lender) =>
                 {
@@ -618,6 +660,7 @@ impl LoanChains {
         live: &[bool],
         captured_loans: &super::captured_loans::CapturedLoans,
         types: &[terminal_psi::StructuralTypeDeclaration],
+        next_obligation: &mut u64,
     ) -> Result<(), LoweringError> {
         if self.chains.is_empty() {
             return Ok(());
@@ -656,18 +699,20 @@ impl LoanChains {
                 .filter_map(|(position, dense, _)| captured_loans.parent_carrier(*position, *dense))
                 .map(|carrier| carrier.place)
                 .collect::<Vec<_>>();
+            let mut home_actions = Vec::new();
             if let ChainBacking::LenderHome {
                 home: Some(home),
                 lender,
             } = chain.backing
             {
-                // Membership proves lifetime, not disposal permission. Prefer
-                // the exact checked occurrence disposition. Implicit carriers
+                // Membership proves lifetime, not disposal permission. Retain
+                // the complete checked occurrence disposition. Implicit carriers
                 // need the existing claim-free, resource-free whole no-code
                 // authority used for intact structural value replacement.
                 // This is static authority only: independent custody replay
                 // still proves whole ownership and descendant closure.
-                if !super::loaned_local_homes::whole_home_disposition(machine, home)?
+                let checked_actions = super::loaned_local_homes::whole_home_actions(machine, home)?;
+                if checked_actions.is_none()
                     && !terminal_semantics::structural_store_value_admitted(
                         machine,
                         types.iter(),
@@ -679,6 +724,8 @@ impl LoanChains {
                         "state loan home has no whole-home no-code disposition authority",
                     ));
                 }
+                home_actions = checked_actions
+                    .unwrap_or_else(|| vec![TerminalAffineCleanupAction::DiscardRoot(home)]);
                 retain_lent_home(&mut machine.blocks, home, &member_headers);
                 end_on_lender_exits(
                     machine,
@@ -688,6 +735,8 @@ impl LoanChains {
                     &producers,
                     &member_headers,
                     &dependent_carriers,
+                    &home_actions,
+                    next_obligation,
                 )?;
             }
             // A lender home dies once per member state's exit; transferred
@@ -708,10 +757,15 @@ impl LoanChains {
                         ChainExit {
                             headers: &headers,
                             storage: home,
+                            cleanup: &home_actions,
                             forwarded: Forwarding::IntoMember(&member_headers),
                             dependent_carriers: &dependent_carriers,
                             position: DisposalPosition::RetainedHome {
-                                earlier_homes: self.earlier_homes(chain_index, &producers)?,
+                                earlier_homes: self.earlier_homes(
+                                    chain_index,
+                                    &producers,
+                                    &machine_parameters,
+                                )?,
                                 machine_parameters: &machine_parameters,
                             },
                         }
@@ -719,6 +773,7 @@ impl LoanChains {
                     ChainBacking::Transferred => ChainExit {
                         headers: &headers,
                         storage: parameter,
+                        cleanup: &[],
                         forwarded: Forwarding::ByArgument,
                         dependent_carriers: &dependent_carriers,
                         position: DisposalPosition::BlockParameter {
@@ -734,7 +789,7 @@ impl LoanChains {
                     .iter_mut()
                     .filter(|block| region.contains(&block.id))
                 {
-                    exit.dispose(&mut block.terminator)?;
+                    exit.dispose(&mut block.terminator, next_obligation)?;
                 }
             }
         }
@@ -748,6 +803,7 @@ impl LoanChains {
         &self,
         current: usize,
         producers: &BTreeMap<PlaceId, OperationId>,
+        parameters: &[PlaceId],
     ) -> Result<Vec<PlaceId>, LoweringError> {
         let mut pending = vec![current];
         let mut visited = vec![current];
@@ -772,16 +828,21 @@ impl LoanChains {
                     continue;
                 }
                 let precedes = if lender == other_lender {
-                    let older_birth = producers.get(&home).ok_or(LoweringError::Unsupported(
-                        "retained loan home has no producer",
-                    ))?;
-                    let younger_birth =
+                    let birth = |place| {
                         producers
-                            .get(&younger_home)
+                            .get(&place)
+                            .map(|producer| (1, producer.get()))
+                            .or_else(|| {
+                                parameters
+                                    .iter()
+                                    .position(|parameter| *parameter == place)
+                                    .map(|position| (0, position as u64))
+                            })
                             .ok_or(LoweringError::Unsupported(
-                                "retained loan home has no producer",
-                            ))?;
-                    older_birth < younger_birth
+                                "retained loan home has no ordered birth",
+                            ))
+                    };
+                    birth(home)? < birth(younger_home)?
                 } else {
                     chain.members.iter().any(|(state, _, _)| *state == lender)
                 };
@@ -868,42 +929,93 @@ fn end_on_lender_exits(
     producers: &BTreeMap<PlaceId, OperationId>,
     members: &BTreeSet<BlockId>,
     dependent_carriers: &[PlaceId],
+    cleanup: &[TerminalAffineCleanupAction],
+    next_obligation: &mut u64,
 ) -> Result<(), LoweringError> {
-    let producer = *producers.get(&home).ok_or(LoweringError::Unsupported(
-        "Unit graph state loan chain home has no producer",
-    ))?;
     let region = private_region(machine, header, headers);
-    let birth = machine
-        .blocks
-        .iter()
-        .find(|block| {
-            region.contains(&block.id)
-                && block
-                    .operations
-                    .iter()
-                    .any(|operation| operation.id == producer)
-        })
-        .map(|block| block.id)
-        .ok_or(LoweringError::Unsupported(
-            "Unit graph state loan chain home is not established by its lender",
-        ))?;
+    let (birth, position) = if let Some(producer) = producers.get(&home).copied() {
+        let birth = machine
+            .blocks
+            .iter()
+            .find(|block| {
+                region.contains(&block.id)
+                    && block
+                        .operations
+                        .iter()
+                        .any(|operation| operation.id == producer)
+            })
+            .map(|block| block.id)
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph state loan chain home is not established by its lender",
+            ))?;
+        (
+            birth,
+            DisposalPosition::OperationResult {
+                producer,
+                producers,
+            },
+        )
+    } else if let Some(parameter) = machine.signature_structural_parameter(home) {
+        let parameters = machine
+            .structural_parameters
+            .iter()
+            .map(|parameter| (parameter.place, parameter.position))
+            .collect();
+        (
+            header,
+            DisposalPosition::BlockParameter {
+                position: parameter.position,
+                header_parameters: parameters,
+                machine_parameters: &[],
+            },
+        )
+    } else {
+        // A value join establishes its home as a block parameter, not an
+        // operation result. Use that actual birth and declaration order.
+        let block = machine
+            .blocks
+            .iter()
+            .find(|block| {
+                region.contains(&block.id)
+                    && block
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.place == home)
+            })
+            .ok_or(LoweringError::Unsupported(
+                "retained state loan home has no dominating birth",
+            ))?;
+        let parameter = block
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == home)
+            .ok_or(LoweringError::Unsupported(
+                "retained state loan home lost its birth parameter",
+            ))?;
+        (
+            block.id,
+            DisposalPosition::BlockParameter {
+                position: parameter.position,
+                header_parameters: header_parameters(machine, block.id)?,
+                machine_parameters: &[],
+            },
+        )
+    };
     let established = private_region(machine, birth, headers);
     let exit = ChainExit {
         headers,
         storage: home,
+        cleanup,
         forwarded: Forwarding::ByLoan(members),
         dependent_carriers,
-        position: DisposalPosition::OperationResult {
-            producer,
-            producers,
-        },
+        position,
     };
     for block in machine
         .blocks
         .iter_mut()
         .filter(|block| established.contains(&block.id))
     {
-        exit.dispose(&mut block.terminator)?;
+        exit.dispose(&mut block.terminator, next_obligation)?;
     }
     Ok(())
 }
@@ -1117,20 +1229,30 @@ enum DisposalPosition<'a> {
 struct ChainExit<'a> {
     headers: &'a BTreeSet<BlockId>,
     storage: PlaceId,
+    cleanup: &'a [TerminalAffineCleanupAction],
     forwarded: Forwarding<'a>,
     position: DisposalPosition<'a>,
     dependent_carriers: &'a [PlaceId],
 }
 
 impl ChainExit<'_> {
-    fn dispose(&self, terminator: &mut Terminator) -> Result<(), LoweringError> {
+    fn dispose(
+        &self,
+        terminator: &mut Terminator,
+        next_obligation: &mut u64,
+    ) -> Result<(), LoweringError> {
         match terminator {
             Terminator::Jump {
                 target,
                 structural_arguments,
                 cleanup_actions,
                 ..
-            } => self.leave(*target, structural_arguments, cleanup_actions),
+            } => self.leave(
+                *target,
+                structural_arguments,
+                cleanup_actions,
+                next_obligation,
+            ),
             Terminator::Conditional {
                 when_true,
                 when_false,
@@ -1141,13 +1263,14 @@ impl ChainExit<'_> {
                         arm.target,
                         &arm.structural_arguments,
                         &mut arm.cleanup_actions,
+                        next_obligation,
                     )?;
                 }
                 Ok(())
             }
             Terminator::StructuralCase { cases, .. } => {
                 for arm in cases {
-                    self.leave(arm.target, &[], &mut arm.cleanup_actions)?;
+                    self.leave(arm.target, &[], &mut arm.cleanup_actions, next_obligation)?;
                 }
                 Ok(())
             }
@@ -1164,10 +1287,10 @@ impl ChainExit<'_> {
                         "Unit graph state loan chain storage cannot escape as an owned return",
                     ));
                 }
-                self.insert_actions(cleanup_actions)
+                self.insert_actions(cleanup_actions, next_obligation)
             }
             terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
-                self.insert_actions(cleanup_actions)
+                self.insert_actions(cleanup_actions, next_obligation)
             }
             Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => Ok(()),
         }
@@ -1181,6 +1304,7 @@ impl ChainExit<'_> {
         target: BlockId,
         arguments: &[StructuralArgument],
         discards: &mut Vec<TerminalAffineCleanupAction>,
+        next_obligation: &mut u64,
     ) -> Result<(), LoweringError> {
         if !self.headers.contains(&target) {
             return Ok(());
@@ -1213,12 +1337,13 @@ impl ChainExit<'_> {
             }
             Forwarding::IntoMember(_) => {}
         }
-        self.insert_actions(discards)
+        self.insert_actions(discards, next_obligation)
     }
 
     fn insert_actions(
         &self,
         actions: &mut Vec<TerminalAffineCleanupAction>,
+        next_obligation: &mut u64,
     ) -> Result<(), LoweringError> {
         if matches!(self.forwarded, Forwarding::ByLoan(_))
             && actions.iter().any(|action| action.place() == self.storage)
@@ -1234,7 +1359,25 @@ impl ChainExit<'_> {
             .iter()
             .position(|place| *place == self.storage)
             .expect("inserted loan storage");
-        actions.insert(at, TerminalAffineCleanupAction::DiscardRoot(self.storage));
+        if self.cleanup.is_empty() {
+            actions.insert(at, TerminalAffineCleanupAction::DiscardRoot(self.storage));
+        } else {
+            let mut selected = self.cleanup.to_vec();
+            for action in &mut selected {
+                if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+                    for obligation in &mut cleanup.requirement_obligations {
+                        *obligation = crate::terminal_identities::obligation_id(*next_obligation);
+                        *next_obligation =
+                            next_obligation
+                                .checked_add(1)
+                                .ok_or(LoweringError::Unsupported(
+                                    "retained cleanup exhausted obligation identities",
+                                ))?;
+                    }
+                }
+            }
+            actions.splice(at..at, selected);
+        }
         Ok(())
     }
 

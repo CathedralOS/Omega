@@ -6,10 +6,10 @@
 //! entry. A partial-affine body is an ordinary body: its residual complement
 //! and home retirement are actions of its checked normal exit, lowered with
 //! every other completion action, never appended to return edges afterwards.
-//! Build cleanup requirements and their obligation identities here, but leave
-//! certificates to final operation proof emission. Owned-field requirements are
-//! validity-scoped observations, not permanent assumption slots; their available
-//! premises are known only after the complete caller and cleanup edge exist.
+//! Cleanup requirement identities record the checked callable roster. The source
+//! contextual-cleanup judgment proves its prerequisites at the owned death,
+//! after any successor invocation retaining the backing has returned normally.
+//! These identities are not independent certificates or permanent assumptions.
 
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,

@@ -732,6 +732,65 @@ pub(crate) fn occurrence_contexts(
                 }
                 checked_trees::FlowClaimJoinExitKind::CallResult { .. } => return None,
             };
+            // A successor loan retains its owned backing until that
+            // invocation returns. Check its cleanup after transitive writes
+            // and checked normal guarantees, not at argument capture. Exact
+            // authored arguments distinguish sibling calls to the same state.
+            if target.is_valid()
+                && let typed_trees::statement::TransitionTargetNode::Named {
+                    path, arguments, ..
+                } = program.statement_table.transition_target(target)
+            {
+                let arguments = program.statement_table.expression_handles(*arguments);
+                let mut calls = state.calls.handles().filter(|handle| {
+                    let call = facts.flow.control.calls.get(*handle);
+                    call.statement_index == coordinate.statement_index
+                        && call.authored_site == checked_trees::FlowCallSite::NamedTransition
+                        && call.authored_target == path.symbol
+                        && facts
+                            .flow
+                            .control
+                            .call_arguments
+                            .span_or_empty(call.authored_arguments)
+                            == arguments
+                        && (facts
+                                .borrow
+                                .argument_accesses
+                                .span_or_empty(call.accesses)
+                                .iter()
+                                .any(|access| {
+                                    access.root == disposition.root
+                                        && access.end_before_access.is_none()
+                                })
+                                // A stored carrier can name another symbol.
+                                // Its captured invocation resource retains the
+                                // original backing, including reference leaves
+                                // inside completed aggregate operands. Never
+                                // recover that identity from initializer text.
+                                || facts.borrow.call_loan_resources.iter().any(|(_, resource)| {
+                                    resource.call == *handle
+                                        && resource.machine_symbol == state.machine_symbol
+                                        && resource.state_symbol == state.state_symbol
+                                        && resource.parent_lifetime.root == disposition.root
+                                        && call.argument_operands().handles().any(|operand| {
+                                            operand == resource.owner_operand
+                                        })
+                                }))
+                });
+                if let Some(call) = calls.next() {
+                    if calls.next().is_some() {
+                        return None;
+                    }
+                    let call = facts.flow.control.calls.get(call);
+                    return Some(vec![(
+                        coordinate.statement_index,
+                        facts
+                            .flow
+                            .semantic_constraint_contexts(call.exit_constraints)
+                            .collect(),
+                    )]);
+                }
+            }
             facts
                 .flow
                 .control

@@ -634,6 +634,29 @@ impl StateGraphEmission<'_, '_> {
                 // moved storage; neither retains an entry home.
                 let chain_arrival = self.loan_chains.arrival(target, target_index as u32);
                 if chain_arrival.is_some() {
+                    let parameter = match &transfer.source {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                            index,
+                        } => Some(*index),
+                        _ => super::super::result_custody::loan_subject(
+                            &transfer.source,
+                            &checked.facts.values.structural_values,
+                        )
+                        .and_then(|(subject, _)| match subject.source {
+                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                parameter_index,
+                            } => Some(parameter_index),
+                            _ => None,
+                        }),
+                    };
+                    if parameter
+                        .and_then(|index| state.structural_parameters.get(index as usize))
+                        .is_some_and(|parameter| {
+                            parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                        })
+                    {
+                        self.loan_chains.lend(target, target_index as u32, place)?;
+                    }
                     let lender = if let Some(home) = loan_backing_home.as_ref() {
                         Some(std::borrow::Cow::Borrowed(home))
                     } else {
