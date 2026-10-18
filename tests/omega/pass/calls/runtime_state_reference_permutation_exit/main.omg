@@ -1,0 +1,39 @@
+// Expected exit: 0. Coexisting state descriptors retain their selected sources.
+data Node { value: u64; }
+data Values { first: Node; second: Node; third: Node; }
+machine rotate<'storage>(values: &'storage Values, once: bool, twice: bool) -> &'storage Node {
+    transition { _ -> repeat(&values.first, &values.second, &values.third, once, twice) }
+    state repeat(first: &'storage Node, second: &'storage Node, third: &'storage Node, once: bool, twice: bool) -> &'storage Node {
+        transition once {
+            true -> repeat(second, third, first, twice, false)
+            false -> first
+        }
+    }
+}
+machine rotate_mutable<'storage>(values: &'storage mut Values, once: bool, twice: bool) -> &'storage mut Node {
+    transition { _ -> repeat(&mut values.first, &mut values.second, &mut values.third, once, twice) }
+    state repeat(first: &'storage mut Node, second: &'storage mut Node, third: &'storage mut Node, once: bool, twice: bool) -> &'storage mut Node {
+        transition once {
+            true -> repeat(second, third, first, twice, false)
+            false -> first
+        }
+    }
+}
+machine main() crashes Trap {
+    let mut values: Values = Values { first: Node { value: 11 }, second: Node { value: 23 }, third: Node { value: 37 } };
+    let first: &Node = rotate(&values, false, false);
+    let first_value: u64 = first.value;
+    let second: &Node = rotate(&values, true, false);
+    let second_value: u64 = second.value;
+    let third: &Node = rotate(&values, true, true);
+    let third_value: u64 = third.value;
+    let changed: &mut Node = rotate_mutable(&mut values, true, true);
+    changed.value = 41;
+    transition first_value == 11 && second_value == 23 && third_value == 37
+        && values.first.value == 11 && values.second.value == 23 && values.third.value == 41 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

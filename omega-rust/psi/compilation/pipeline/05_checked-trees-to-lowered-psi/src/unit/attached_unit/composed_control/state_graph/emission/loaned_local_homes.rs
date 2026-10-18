@@ -11,8 +11,8 @@ use crate::LoweringError;
 use semantic_vocabulary::PlaceId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, Terminator,
+    OperationKind, StructuralAccess, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    TerminalMachine, Terminator,
 };
 
 pub(super) fn finish(
@@ -146,24 +146,12 @@ fn retained_reference_parents(
         } else {
             continue;
         };
-        let mut crosses_parent = false;
-        for (boundary, segment) in source.path.iter().enumerate() {
-            if *segment != StructuralPathSegment::Referent {
-                continue;
-            }
-            let endpoint = terminal_semantics::runtime_structural_path_tip(
-                types.iter(),
-                root,
-                &source.path[..boundary],
-            )
-            .ok_or(LoweringError::Unsupported(
-                "retained reference lost its formation carrier type",
-            ))?;
-            crosses_parent |= matches!(endpoint.shape, StructuralTypeShape::Reference { .. });
-        }
-        if !crosses_parent {
-            continue;
-        }
+        // Retaining a descriptor retains its immediate owned backing, whether
+        // the formation crossed another descriptor or borrowed plain storage.
+        // Both are real homes with independently checked disposal authority.
+        terminal_semantics::runtime_structural_path_tip(types.iter(), root, &source.path).ok_or(
+            LoweringError::Unsupported("retained reference lost its formation carrier type"),
+        )?;
         if !parents.contains(&(home, source.place)) {
             parents.push((home, source.place));
         }

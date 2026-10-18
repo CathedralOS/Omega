@@ -348,7 +348,14 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     )?;
     let mut pending = Vec::new();
     let mut retired = Vec::new();
-    for operation in operations.iter().rev() {
+    // Receiving carriers retire before their retained supplying descriptors.
+    // Call inputs have the same statement boundaries as standalone producers;
+    // leaving them to exit cleanup can outlive their borrowed local backing.
+    for operation in operations
+        .iter()
+        .rev()
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+    {
         let complements = super::reference_retirement::selections::closed_complements(
             &super::reference_retirement::Retirement {
                 program,
@@ -705,9 +712,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     }
     for binding in retired {
         let (_, discard_on_return) = operations.iter_mut().find_map(|operation| {
-            operation
-                .discardable_structural_result_mut()
-                .filter(|(result, _)| result.binding_ordinal == binding)
+            operation.discardable_structural_result_by_ordinal_mut(binding)
         })?;
         *discard_on_return = false;
     }
@@ -916,9 +921,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             ..
         } = release
             && let Some((_, discard)) = operations.iter_mut().find_map(|operation| {
-                operation
-                    .discardable_structural_result_mut()
-                    .filter(|(result, _)| result.binding_ordinal == *binding_ordinal)
+                operation.discardable_structural_result_by_ordinal_mut(*binding_ordinal)
             })
         {
             // Calls also carry an automatic discard flag. EstablishReference
@@ -991,9 +994,7 @@ pub(in crate::execution::terminal_unit) fn retain_selected_sources(
             return None;
         };
         let mut producers = operations.iter_mut().filter_map(|operation| {
-            operation
-                .discardable_structural_result_mut()
-                .filter(|(result, _)| result.binding_ordinal == binding_ordinal)
+            operation.discardable_structural_result_by_ordinal_mut(binding_ordinal)
         });
         let (result, discard) = producers.next()?;
         if producers.next().is_some()
@@ -1047,9 +1048,9 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
     value: checked_trees::CheckedStructuralValueHandle,
 ) -> Option<()> {
     for call in calls {
-        // A whole call publishes its preparation into this sequence. Adopt
-        // those exact anonymous producer roots with the operations, so their
-        // consuming continuation can select the existing cleanup dispositions.
+        // A whole call publishes its preparation and result into this sequence.
+        // Adopt those exact anonymous producer roots with the operations, so
+        // receiving descriptors can retire their actual supplying occurrence.
         // Aggregate child calls keep their private evaluator namespace.
         if call.value == value
             && matches!(
@@ -1057,7 +1058,11 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                 checked_trees::CheckedStructuralValueKind::Call { .. }
             )
         {
-            for operand in call.operands().iter() {
+            for operand in call
+                .operands()
+                .iter()
+                .chain(std::iter::once(call.operation()))
+            {
                 let Some(result) = operand.structural_result_binding() else {
                     continue;
                 };

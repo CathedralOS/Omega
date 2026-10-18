@@ -68,28 +68,6 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
     {
         return None;
     }
-    // A call borrows an existing home through its checked argument path. An
-    // ordinary loan expression does not need a second owned descriptor merely
-    // because value planning also retained its formation. Materializing that
-    // wrapper creates an anonymous parent of a returned loan and leaves its
-    // custody outside the expression continuation. The common argument binder
-    // already preserves access, captured selectors and original storage.
-    // Computed backing and source-selected storage views still need their real
-    // producer; a canonical address alone cannot erase an interpretation.
-    if validation::reference_shell(program, parameter.type_reference).is_some()
-        && let Some(formation) = validation::reference_formation_source(program, argument)
-        && !formation.view_type.is_valid()
-        && formation.interpretation == validation::ReferenceFormationInterpretation::Declared
-        && validation::canonical_place_from_expression_in_state(
-            program,
-            state,
-            statement_index,
-            formation.source,
-        )
-        .is_some_and(|place| place.root.as_symbol().is_some())
-    {
-        return None;
-    }
     let (argument, expected) = match program
         .type_reference_table
         .type_reference(parameter.type_reference)

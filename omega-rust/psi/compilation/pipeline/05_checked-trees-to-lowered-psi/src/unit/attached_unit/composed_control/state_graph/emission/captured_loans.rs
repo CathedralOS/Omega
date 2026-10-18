@@ -126,7 +126,17 @@ impl CapturedLoans {
                             &links,
                             nodes[target][transfer.target_parameter_index as usize],
                         );
-                        links[right] = left;
+                        // Forwarding relates the selected source and destination,
+                        // but a permutation must not identify two descriptors
+                        // that are simultaneously resident in one state.
+                        let coexist = nodes.iter().enumerate().any(|(state, members)| {
+                            live[state]
+                                && members.iter().any(|member| root(&links, *member) == left)
+                                && members.iter().any(|member| root(&links, *member) == right)
+                        });
+                        if !coexist {
+                            links[right] = left;
+                        }
                     }
                 }
             }
@@ -503,23 +513,32 @@ impl CapturedLoans {
                 let place = if let Some((_, place)) = captures.first() {
                     *place
                 } else {
-                    let forwarded_here = edge.transfers.iter().any(|transfer| {
-                        self.nodes[target][transfer.target_parameter_index as usize] == owner.group
-                            && forwarded(&transfer.source).is_some_and(|parameter| {
-                                self.nodes[source][parameter as usize] == owner.group
+                    let mut forwarded_groups = edge.transfers.iter().filter_map(|transfer| {
+                        (self.nodes[target][transfer.target_parameter_index as usize]
+                            == owner.group)
+                            .then(|| {
+                                forwarded(&transfer.source)
+                                    .map(|parameter| self.nodes[source][parameter as usize])
                             })
+                            .flatten()
                     });
+                    let forwarded_group = forwarded_groups.next();
+                    if forwarded_groups.any(|group| Some(group) != forwarded_group) {
+                        return Err(LoweringError::Unsupported(
+                            "captured loan arrival has ambiguous source occurrences",
+                        ));
+                    }
                     let retained_parent = self.ancestry.iter().any(|(child, ancestors)| {
                         self.nodes[target].contains(child) && ancestors.contains(&owner.group)
                     });
-                    if !forwarded_here && !retained_parent {
+                    if forwarded_group.is_none() && !retained_parent {
                         return Err(LoweringError::Unsupported(
                             "captured loan arrival does not forward its source resource",
                         ));
                     }
                     self.owners[source]
                         .iter()
-                        .find(|previous| previous.group == owner.group)
+                        .find(|previous| previous.group == forwarded_group.unwrap_or(owner.group))
                         .ok_or(LoweringError::Unsupported(
                             "captured loan arrival has no matching owner",
                         ))?

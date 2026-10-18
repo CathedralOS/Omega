@@ -1,0 +1,12 @@
+data Node { value: u64; }
+machine reject(first: &mut Node, second: &mut Node) {
+    transition { _ -> repeat(first, second, true) }
+    state repeat(first: &mut Node, second: &mut Node, again: bool) {
+        transition again {
+            true -> repeat(first, first, false)
+            false -> done()
+        }
+    }
+    state done() {}
+}
+machine main() {}

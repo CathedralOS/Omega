@@ -862,6 +862,48 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
+    /// Find the existing result disposition by its sequence-wide binding
+    /// identity, including producers retained inside structural value calls.
+    /// Mutation changes that producer's disposition, never its call topology.
+    pub fn discardable_structural_result_by_ordinal_mut(
+        &mut self,
+        binding_ordinal: u32,
+    ) -> Option<(&mut CheckedUnitStructuralResultBindingPlan, &mut bool)> {
+        if self
+            .discardable_structural_result()
+            .is_some_and(|(result, _)| result.binding_ordinal == binding_ordinal)
+        {
+            return self.discardable_structural_result_mut();
+        }
+        let Self::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue { calls, .. }) = self
+        else {
+            return None;
+        };
+        for call in calls {
+            for operand in call
+                .operands
+                .operations
+                .span_mut_or_empty(call.operands.order)
+            {
+                if let Some(result) = operand
+                    .0
+                    .as_mut()
+                    .expect("published operand span contains operations")
+                    .discardable_structural_result_by_ordinal_mut(binding_ordinal)
+                {
+                    return Some(result);
+                }
+            }
+            if let Some(result) = call
+                .operation
+                .discardable_structural_result_by_ordinal_mut(binding_ordinal)
+            {
+                return Some(result);
+            }
+        }
+        None
+    }
+
     /// Enumerate retained operation dependencies for signature/catalog readers.
     /// This is not execution order: structural expressions evaluate their call
     /// operands in their own authored field and selected-arm order.
