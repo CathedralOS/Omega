@@ -313,10 +313,9 @@ pub(crate) fn emit<'source>(
     // or consume their parent at a later use. Only non-copy children join here.
     // A statement that carries an
     // owned-selection receipt keeps the selection route, because that receipt
-    // schedules its sources' residual cleanup on the edge and an alias has no
-    // edge to carry it. And only a `Place` source aliases: a projection of a
-    // call result names a temporary whose own residual complement nothing else
-    // consumes, so that shape keeps the route it already had.
+    // retains its sources through the selected edge and an alias has no
+    // edge to carry it. Only a `Place` source aliases: a call result establishes
+    // a temporary whose checked completion still owns its residual cleanup.
     // A whole-value view that establishes no new membership leaves its
     // operand's storage geometry unchanged. Keep projected storage visible
     // through these views; a value establishing facts still needs its normal
@@ -336,7 +335,7 @@ pub(crate) fn emit<'source>(
         && let CheckedStructuralValueKind::Projection {
             source,
             path,
-            type_identity,
+            type_identity: _,
             copies_selected_value: false,
         } = structural_values(checked)
             .nodes
@@ -349,7 +348,7 @@ pub(crate) fn emit<'source>(
             CheckedStructuralValueKind::Place(_)
         )
     {
-        let projected = emission.projection_source(identities, source, path, type_identity)?;
+        let projected = emission.projection_source(identities, source, path)?;
         let alias_path =
             projected.lowered_path(identities, emission.type_ids, emission.structural_types)?;
         // The leaf's claim is published where its root was established: the
@@ -544,7 +543,6 @@ pub(crate) fn emit<'source>(
                     )
             }) {
             let place = emission.copied_leaf_place(
-                identities,
                 &StructuralArgument {
                     access: StructuralAccess::SharedBorrow,
                     ..source
@@ -1069,8 +1067,8 @@ pub(super) struct ValueContinuation {
 }
 
 /// The completed source and exact projection, before its consumer chooses
-/// copying or transfer. Root and leaf identities stay distinct; only an owned
-/// transfer asks the continuation to dispose a residual complement.
+/// copying or transfer. Only the selected path crosses the continuation; the
+/// original contextual owner retains its siblings until normal death.
 pub(super) struct ProjectionSource {
     pub(super) root: PlaceId,
     /// The already lowered walk from `root`'s storage to the checked source
@@ -1078,7 +1076,6 @@ pub(super) struct ProjectionSource {
     /// projected owned alias, which holds no storage of its own.
     pub(super) root_path: Vec<terminal_psi::StructuralPathSegment>,
     pub(super) path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-    pub(super) leaf_type_identity: typed_trees::type_identity::TypeIdentityId,
     pub(super) root_type_identity: typed_trees::type_identity::TypeIdentityId,
     pub(super) root_source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
 }
@@ -1514,12 +1511,12 @@ impl Emission<'_, '_, '_> {
         let node = self.structural_value_node(value);
         // A projection of existing storage moves its child in place; the
         // owner keeps its residual. An anonymous call result has no owner to
-        // keep it, so it completes as an ordinary value whose continuation
-        // discards that residual.
+        // keep it, so its ordinary contextual completion owns the temporary
+        // residual at the consuming boundary.
         if let CheckedStructuralValueKind::Projection {
             source,
             path,
-            type_identity,
+            type_identity: _,
             copies_selected_value: false,
         } = node.kind
             && !path.is_empty()
@@ -1528,7 +1525,7 @@ impl Emission<'_, '_, '_> {
                 CheckedStructuralValueKind::Place(_)
             )
         {
-            let projected = self.projection_source(identities, source, path, type_identity)?;
+            let projected = self.projection_source(identities, source, path)?;
             let lowered =
                 projected.lowered_path(identities, self.type_ids, self.structural_types)?;
             return self.capture_operand(
@@ -1571,7 +1568,7 @@ impl Emission<'_, '_, '_> {
                 Ok(argument)
             })
             .and_then(|argument| {
-                self.retain_checked_memberships(identities, argument, node.qualification_decisions)
+                self.retain_checked_memberships(argument, node.qualification_decisions)
             });
         self.type_reference = parent_reference;
         self.sources = sources;
@@ -1666,12 +1663,12 @@ impl Emission<'_, '_, '_> {
                             structural_type: self.structural_type,
                         },
                     });
-                self.completed(identities, place, continuation)
+                self.completed(place, continuation)
             }
 
             CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
                 let place = self.quotient_call(identities, value, &arguments)?;
-                self.completed(identities, place, continuation)
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                 let child = self.structural_value_node(source);
@@ -1709,7 +1706,7 @@ impl Emission<'_, '_, '_> {
                     self.operations,
                 );
                 self.environment.private_places.push(declaration);
-                self.completed(identities, place, continuation)
+                self.completed(place, continuation)
             }
             // A borrowed `&[T]` view lowers to `EstablishElementView` and a
             // `&mut [T]` view to `EstablishMutableElementView`: the collection
@@ -1760,17 +1757,12 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::Record { .. } => {
                 let place = self.record(identities, value)?;
 
-                self.complete_construction(
-                    identities,
-                    place,
-                    node.qualification_decisions,
-                    continuation,
-                )
+                self.complete_construction(place, node.qualification_decisions, continuation)
             }
             CheckedStructuralValueKind::FixedArray { elements } => {
                 let place = self.fixed_array(identities, &elements, self.type_reference)?;
 
-                self.completed(identities, place, continuation)
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::Call { .. } => {
                 let mut matching = self.operand_calls.iter().filter(|call| call.value == value);
@@ -1781,7 +1773,7 @@ impl Emission<'_, '_, '_> {
                     return unsupported("structural operand call is duplicated");
                 }
                 let declaration = self.emit_operand_call(identities, call)?;
-                self.completed(identities, declaration.id, continuation)
+                self.completed(declaration.id, continuation)
             }
             CheckedStructuralValueKind::Projection {
                 source,
@@ -1802,17 +1794,14 @@ impl Emission<'_, '_, '_> {
                     // jump with the unqualified source, stranding the checked
                     // membership copy after that edge.
                     let argument = self.value(identities, source, None)?;
-                    let mut argument = self.retain_checked_memberships(
-                        identities,
-                        argument,
-                        node.qualification_decisions,
-                    )?;
+                    let mut argument =
+                        self.retain_checked_memberships(argument, node.qualification_decisions)?;
                     // The operand publishes storage; the checked projected
                     // value retains its own access at the continuation.
                     // Owning descriptor storage does not own its backing.
                     argument.access = self.result_access;
                     if let Some(continuation) = continuation {
-                        self.complete_value(identities, argument.clone(), None, continuation)?;
+                        self.complete_value(argument.clone(), continuation)?;
                     }
                     return Ok(argument);
                 }
@@ -1820,8 +1809,7 @@ impl Emission<'_, '_, '_> {
                 // of its parent's multiplicity. Shared descriptors copy their
                 // carrier while preserving the same backing obligations.
                 if copies_selected_value {
-                    let projected =
-                        self.projection_source(identities, source, path, type_identity)?;
+                    let projected = self.projection_source(identities, source, path)?;
                     let source_plan = checked_trees::CheckedUnitStructuralArgumentPlan {
                         source: projected.root_source.clone(),
                         type_identity,
@@ -1854,17 +1842,13 @@ impl Emission<'_, '_, '_> {
                         path,
                         access: StructuralAccess::SharedBorrow,
                     };
-                    let place = self.copied_leaf_place(
-                        identities,
-                        &argument,
-                        node.qualification_decisions,
-                        None,
-                    )?;
+                    let place =
+                        self.copied_leaf_place(&argument, node.qualification_decisions, None)?;
                     self.complete_observation(identities, node.expression)?;
                     let result_place = continuation
                         .as_ref()
                         .map_or(place, |continuation| continuation.place);
-                    self.completed(identities, place, continuation)?;
+                    self.completed(place, continuation)?;
                     return Ok(StructuralArgument {
                         place: result_place,
                         path: Vec::new(),
@@ -1872,7 +1856,8 @@ impl Emission<'_, '_, '_> {
                     });
                 }
                 // A projection always needs an ownership edge for its kept
-                // subtree and residual complement. At a value root there is
+                // subtree. The original complement stays at its checked normal
+                // death. At a value root there is
                 // no enclosing dispatch to supply that edge; create the same
                 // result continuation rather than turn the projection into
                 // an alias over temporary storage.
@@ -1884,7 +1869,7 @@ impl Emission<'_, '_, '_> {
                     owned_continuation = self.root_value_continuation(self.values.clone())?;
                     &mut owned_continuation
                 };
-                let projected = self.projection_source(identities, source, path, type_identity)?;
+                let projected = self.projection_source(identities, source, path)?;
                 if matches!(
                     structural_values(self.checked).nodes.get(source).kind,
                     CheckedStructuralValueKind::Place(_)
@@ -1903,7 +1888,7 @@ impl Emission<'_, '_, '_> {
                     )?,
                     access: StructuralAccess::Owned,
                 };
-                self.complete_value(identities, selected, Some(&projected), continuation)?;
+                self.complete_value(selected, continuation)?;
                 if is_root {
                     self.record_root_continuation(continuation)?;
                 }
@@ -1911,12 +1896,7 @@ impl Emission<'_, '_, '_> {
             }
             CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
                 let argument = self.copied_place_argument(identities, node.expression, &source)?;
-                self.copied_leaf_place(
-                    identities,
-                    &argument,
-                    node.qualification_decisions,
-                    continuation,
-                )
+                self.copied_leaf_place(&argument, node.qualification_decisions, continuation)
             }
             CheckedStructuralValueKind::ZeroedScalarArray {
                 element,
@@ -1976,12 +1956,7 @@ impl Emission<'_, '_, '_> {
                         operation,
                         self.structural_type,
                     ));
-                self.complete_construction(
-                    identities,
-                    place,
-                    node.qualification_decisions,
-                    continuation,
-                )
+                self.complete_construction(place, node.qualification_decisions, continuation)
             }
             CheckedStructuralValueKind::Scalar { value } => {
                 let initialized = self.scalar(
@@ -2006,7 +1981,7 @@ impl Emission<'_, '_, '_> {
                     obligation,
                 )?;
                 self.environment.private_places.push(declaration);
-                self.completed(identities, place, continuation)
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::ScalarArray { elements } => {
                 // Every leaf replays its own retained source computation in
@@ -2048,12 +2023,7 @@ impl Emission<'_, '_, '_> {
                         operation,
                         self.structural_type,
                     ));
-                self.complete_construction(
-                    identities,
-                    place,
-                    node.qualification_decisions,
-                    continuation,
-                )
+                self.complete_construction(place, node.qualification_decisions, continuation)
             }
             CheckedStructuralValueKind::ByteLiteralView { bytes } => {
                 // The literal carries the memberships checking established
@@ -2074,7 +2044,7 @@ impl Emission<'_, '_, '_> {
                         &mut self.calls.next_obligation_identity,
                         self.operations,
                     )?;
-                self.completed(identities, declaration.id, continuation)
+                self.completed(declaration.id, continuation)
             }
             CheckedStructuralValueKind::ZeroedStructural {
                 projected_qualifications,
@@ -2100,12 +2070,7 @@ impl Emission<'_, '_, '_> {
                     ))?;
                 result.projected_qualifications = projected;
 
-                self.complete_construction(
-                    identities,
-                    place,
-                    node.qualification_decisions,
-                    continuation,
-                )
+                self.complete_construction(place, node.qualification_decisions, continuation)
             }
             CheckedStructuralValueKind::Place(argument) => {
                 if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } = &argument.source {
@@ -2120,12 +2085,11 @@ impl Emission<'_, '_, '_> {
                     let (declaration, _) = crate::emission::structural_byte_sequence_store::emit_owned_literal(identities, bytes, self.structural_type, qualifications, self.structural_types, self.environment.private_places, self.environment.next_place, self.next_value, &mut self.calls.next_obligation_identity, self.operations)?;
                     let place = declaration.id;
                     self.environment.private_places.push(declaration);
-                    self.completed(identities, place, continuation)?;
+                    self.completed(place, continuation)?;
                     return Ok(StructuralArgument { place, path: Vec::new(), access: StructuralAccess::Owned });
                 }
                 if let Some(source) = self.copied_parameter(&argument)? {
                     let place = self.copied_leaf_place(
-                        identities,
                         &source,
                         node.qualification_decisions,
                         continuation,
@@ -2195,7 +2159,7 @@ impl Emission<'_, '_, '_> {
                 let continuation = continuation.ok_or(LoweringError::Unsupported(
                     "direct owned place requires a structural continuation",
                 ))?;
-                self.complete_value(identities, selected, None, continuation)?;
+                self.complete_value(selected, continuation)?;
                 Ok(continuation.place)
             }
             CheckedStructuralValueKind::Case(construction) => {
@@ -2253,12 +2217,12 @@ impl Emission<'_, '_, '_> {
                 ))?;
                 self.environment.private_places.push(declaration);
                 self.values.truncate(field_start);
-                self.completed(identities, place, continuation)
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::StructuralCase { .. } => {
                 let place = self.structural_case(identities, value)?;
 
-                self.completed(identities, place, continuation)
+                self.completed(place, continuation)
             }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
                 self.dispatch(identities, node.expression, subject, arms, continuation)
@@ -2341,7 +2305,7 @@ impl Emission<'_, '_, '_> {
             remaining_owners,
             has_incoming_memberships: false,
         };
-        self.complete_value(identities, source.clone(), None, &mut continuation)?;
+        self.complete_value(source.clone(), &mut continuation)?;
         self.arrival_claims.push((place, source_claims));
         self.start(block);
         if self.multiplicity != StructuralMultiplicity::Unrestricted {
@@ -2413,7 +2377,6 @@ impl Emission<'_, '_, '_> {
     /// case fan-out, no residual bookkeeping.
     fn copied_leaf_place(
         &mut self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         argument: &StructuralArgument,
         qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
         continuation: Option<&mut ValueContinuation>,
@@ -2488,7 +2451,7 @@ impl Emission<'_, '_, '_> {
             // consumes nothing, so there is no custody edge to join.
             return Ok(place);
         };
-        self.completed(identities, place, Some(continuation))?;
+        self.completed(place, Some(continuation))?;
         Ok(continuation.place)
     }
 

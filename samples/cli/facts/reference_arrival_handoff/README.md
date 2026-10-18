@@ -67,6 +67,19 @@ position: `ABMC` then `BMCA`, with the same 41/other-zero writeback. Its
 [prerequisite twin](match_join/cleanup_receiver/order/rebound_source/controls/prerequisite/main.omg)
 changes only the captured Keeper code to 40.
 
+The [projected sibling variation](match_join/cleanup_receiver/order/projected_sibling/main.omg)
+selects `Pair.first` into the same Keeper while each Pair retains its Marker
+sibling. The selected Carrier dies after the observation; remaining Pair
+children die at their original declaration positions when the helper returns.
+The two choices print `AYBMX` and `BYMXA`, then the caller observes the same
+41/other-zero writeback. Its [code40 twin](match_join/cleanup_receiver/order/projected_sibling/controls/prerequisite/main.omg)
+still rejects Keeper's unchanged prerequisite; its
+[held-residual twin](match_join/cleanup_receiver/order/projected_sibling/controls/held_residual/main.omg)
+keeps the original and alternate loan custody live until their normal deaths.
+The compiler uses checked contextual subtree actions for those deaths, rather
+than disposing sibling geometry at the selection join or treating a partial
+Pair as an intact nominal receiver.
+
 The [owned-parameter replacement control](../../../../tests/omega/pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit/main.omg)
 keeps the same 41 writeback and `ABMCBMCA` order when another parameter supplies
 the replacement. Its [code40 twin](../../../../tests/omega/fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite/main.omg)

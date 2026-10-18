@@ -359,12 +359,54 @@ pub(super) fn disposition_actions(
             hooks.push(cleanup);
         }
     }
+    // A receipt may conditionally move only a child. Keep its exact typed
+    // boundary in the normal-death partition; it is neither an unconditional
+    // exclusion nor permission to dispose the siblings at the value join.
+    let mut partition_paths = Vec::new();
+    if disposition.selection.is_valid() {
+        let ownership = &facts.flow.ownership;
+        let receipt = ownership.owned_selections.get(disposition.selection);
+        for transfer in ownership
+            .selection_transfers
+            .span_or_empty(receipt.transfers)
+        {
+            if !transfer.source.is_valid() {
+                continue;
+            }
+            let candidate = ownership.selection_sources.get(transfer.source);
+            if Some(candidate.symbol) != disposition.root.as_symbol() {
+                continue;
+            }
+            let transferred = ownership.segments.span_or_empty(transfer.path);
+            let Some(relative) = transferred.strip_prefix(place.segments.as_slice()) else {
+                continue;
+            };
+            if relative.is_empty() {
+                continue;
+            }
+            let (_, selected_path) =
+                crate::execution::terminal_unit::calls::projected_argument_path(
+                    program,
+                    disposition.state,
+                    statement_index,
+                    &validation::CanonicalPlace {
+                        root: facts::PlaceRoot::TypeReference(reference),
+                        segments: relative.to_vec(),
+                    },
+                    None,
+                    None,
+                )?;
+            if !partition_paths.contains(&selected_path) {
+                partition_paths.push(selected_path);
+            }
+        }
+    }
     // Geometry chooses the live complement, not whether it is cleanup-free.
     // Hook receivers are intact disposition boundaries. A parent's hook is
     // followed by structural children, not substituted for them. Refine only
     // the paths that reach hooks, preserving maximal ordinary residual
     // subtrees and the same reverse declaration/index order for every kind.
-    let residuals = if moved.is_empty() && hooks.is_empty() {
+    let residuals = if moved.is_empty() && hooks.is_empty() && partition_paths.is_empty() {
         vec![validation::CaseSelectedCleanupRegion {
             disposition: CheckedUnitPartialAffineDiscardPlan {
                 source: source.clone(),
@@ -394,6 +436,7 @@ pub(super) fn disposition_actions(
             type_identity,
             &moved,
             &boundaries,
+            &partition_paths,
             usize::MAX,
             &|prefix, _, case| {
                 let mut segments = place.segments.clone();

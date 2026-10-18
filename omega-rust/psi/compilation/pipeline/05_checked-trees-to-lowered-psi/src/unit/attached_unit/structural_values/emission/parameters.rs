@@ -117,13 +117,12 @@ impl Emission<'_, '_, '_> {
     /// keeps its emitted place; an evaluated product completes through the
     /// ordinary value evaluator, including constructor and selected values.
     /// Returns the root place, the root's checked type identity and argument
-    /// source identity for either observation or a moved residual complement.
+    /// source identity for an observation or exact owned child transfer.
     pub(super) fn projection_source(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         source: CheckedStructuralValueHandle,
         path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-        leaf_type_identity: typed_trees::type_identity::TypeIdentityId,
     ) -> Result<ProjectionSource, LoweringError> {
         let node = self.structural_value_node(source);
         let mut root_alias_path = Vec::new();
@@ -262,7 +261,6 @@ impl Emission<'_, '_, '_> {
             root,
             root_path: root_alias_path,
             path,
-            leaf_type_identity,
             root_type_identity,
             root_source,
         })

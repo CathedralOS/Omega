@@ -18,10 +18,20 @@ use terminal_psi::{
 /// An empty jump into one source-authorized candidate death's complete graph.
 /// `bypass` accepts the same captured scalar/proof frame as the jump's target.
 /// Skipping the group also skips its case observations and nominal prerequisites.
+/// A live value authorizes its intact cleanup graph. Home retirement instead
+/// ends the already disposed resident storage; a partial frontier is not a
+/// whole value and may enter only that separate, checked RetireHome action.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CleanupRequirement {
+    WholeValue,
+    ResidentHome,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct SelectedCleanupGroup {
     pub(crate) edge: EdgeId,
     pub(crate) region: StructuralArgument,
+    pub(crate) requirement: CleanupRequirement,
     pub(crate) bypass: BlockId,
 }
 
@@ -67,6 +77,9 @@ pub(crate) fn prepare(
         }
         if !regions.contains(&group.region) {
             regions.push(group.region.clone());
+        }
+        if group.requirement == CleanupRequirement::ResidentHome && !group.region.path.is_empty() {
+            return unsupported("selected home retirement has a projected value receiver");
         }
         validate_group(blocks, group)?;
     }
@@ -196,6 +209,8 @@ pub(crate) fn prepare(
                 match outgoing[selected] {
                     RegionState::Live => {}
                     RegionState::Absent => target = group.bypass,
+                    RegionState::Partial(_)
+                        if group.requirement == CleanupRequirement::ResidentHome => {}
                     RegionState::Partial(_) => {
                         return unsupported(
                             "selected whole-owner cleanup has a partially transferred occurrence",

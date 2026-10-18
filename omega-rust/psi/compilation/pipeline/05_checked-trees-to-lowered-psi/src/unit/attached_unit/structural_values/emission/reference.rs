@@ -282,6 +282,6 @@ impl Emission<'_, '_, '_> {
         )?;
         let place = carrier.id;
         self.environment.private_places.push(carrier);
-        self.completed(identities, place, continuation)
+        self.completed(place, continuation)
     }
 }

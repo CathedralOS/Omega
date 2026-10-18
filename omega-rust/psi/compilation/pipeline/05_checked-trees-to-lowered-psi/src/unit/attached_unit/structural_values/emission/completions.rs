@@ -3,10 +3,9 @@
 //! unselected candidate occurrences retain their original homes and death order.
 
 use super::super::super::super::StructuralArgument;
-use super::super::super::{LoweringError, PlaceId, lookup_type_id, unsupported};
-use super::{Emission, ProjectionSource, ValueContinuation};
+use super::super::super::{LoweringError, PlaceId, unsupported};
+use super::{Emission, ValueContinuation};
 use crate::expression_preparation::bindings::LoanAccess;
-use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 
 impl Emission<'_, '_, '_> {
     /// End the exact checked owners after the observation completes, before
@@ -63,19 +62,16 @@ impl Emission<'_, '_, '_> {
     /// the place back — the tail every already-built structural value shares.
     pub(super) fn completed(
         &mut self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         place: PlaceId,
         continuation: Option<&mut ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         if let Some(continuation) = continuation {
             self.complete_value(
-                identities,
                 StructuralArgument {
                     place,
                     path: Vec::new(),
                     access: self.result_access,
                 },
-                None,
                 continuation,
             )?;
         }
@@ -84,64 +80,17 @@ impl Emission<'_, '_, '_> {
 
     pub(super) fn complete_value(
         &mut self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         selected: StructuralArgument,
-        projection: Option<&ProjectionSource>,
         continuation: &mut ValueContinuation,
     ) -> Result<(), LoweringError> {
-        // Candidate roots remain resident. Their source-authorized cleanup
-        // groups follow the actual owned transfer through private continuations,
-        // so neither an early discard nor a positional survivor slot is needed.
-        // A projected move keeps the root's untouched structural complement
-        // owned on this same edge. Reconstruction against the checked root
-        // type yields the exact residual schedule in positional order; the
-        // terminal verifier replays it independently.
-        let residual_affine_discards = match projection {
-            Some(projected) => {
-                // The residual complement is derived against the checked
-                // root type, so the selected place must be that whole root.
-                // An aliased root holds no storage of its own and has no
-                // residual schedule to derive here.
-                if projected.root != selected.place
-                    || projected.path.is_empty()
-                    || !projected.root_path.is_empty()
-                {
-                    return unsupported(
-                        "projected selection root disagrees with its moved argument",
-                    );
-                }
-                let moved = [(projected.path.as_slice(), projected.leaf_type_identity)];
-                super::residual_complement::complement(
-                    &self
-                        .checked
-                        .facts
-                        .flow
-                        .terminal_unit_effects
-                        .structural_types,
-                    &projected.root_source,
-                    projected.root_type_identity,
-                    &moved,
-                )?
-                .iter()
-                .map(|residual| {
-                    Ok(terminal_psi::StructuralAffineDiscard {
-                        place: selected.place,
-                        path: lower_static_argument_path(
-                            identities,
-                            &residual.path,
-                            lookup_type_id(self.type_ids, &projected.root_type_identity)?,
-                            self.structural_types,
-                        )?,
-                        structural_type: lookup_type_id(self.type_ids, &residual.type_identity)?,
-                    })
-                })
-                .collect::<Result<Vec<_>, LoweringError>>()?
-            }
-            None => Vec::new(),
-        };
+        // Only the selected subtree crosses the join. Its original owner's
+        // complement stays resident until the checked contextual death; shape
+        // geometry cannot substitute an early discard for nominal hooks.
         let structural_arguments = vec![selected];
         if structural_arguments.len() != continuation.structural_parameters.len() {
-            return unsupported("structural value has unequal residual ownership at its join");
+            return unsupported(
+                "structural value has unequal source and receiving slots at its join",
+            );
         }
         self.join_memberships(&structural_arguments, continuation)?;
         let edge = self.edge(
@@ -149,20 +98,13 @@ impl Emission<'_, '_, '_> {
             self.values.iter().map(|value| value.id).collect(),
             structural_arguments,
         )?;
-        self.finish_jump(
-            edge,
-            residual_affine_discards
-                .into_iter()
-                .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual)
-                .collect(),
-        );
+        self.finish_jump(edge, Vec::new());
         Ok(())
     }
 
     /// A borrowed branch joins one referent place at the result parameter
-    /// under its loan. Unlike `complete_value` there is no owner roster, no
-    /// displaced candidate and no residual schedule: the referent's owner
-    /// stays live, and the single structural parameter must be the result
+    /// under its loan. The referent's owner stays live; only the reference
+    /// carrier is selected. The single structural parameter must be the result
     /// slot of the loan's access this edge's argument fills. A shared slot is
     /// also `Unrestricted`; an exclusive slot keeps the multiplicity the
     /// binding declares.

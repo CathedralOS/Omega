@@ -56,6 +56,9 @@ struct ResidualTraversal<'selection> {
         TypeIdentityId,
         &checked_trees::CheckedMemberIdentity,
     ) -> Option<CleanupCaseReachability>,
+    /// Exact conditional-transfer cuts refine otherwise maximal cleanup-free
+    /// regions. They supply no hook/disposition authority and dispose nothing.
+    partition_paths: &'selection [Vec<CheckedUnitStructuralPathSegment>],
     conditions: Vec<CleanupCaseCondition>,
     regions: Vec<CaseSelectedCleanupRegion>,
     active_types: Vec<TypeIdentityId>,
@@ -235,7 +238,13 @@ fn visit_region(
     traversal: &mut ResidualTraversal<'_>,
     emit: bool,
 ) -> Option<usize> {
-    if moved_paths.is_empty() && boundaries.is_empty() {
+    if moved_paths.is_empty()
+        && boundaries.is_empty()
+        && !traversal
+            .partition_paths
+            .iter()
+            .any(|path| path.starts_with(prefix) && path.len() > prefix.len())
+    {
         // Only the complement is discarded here, so only the complement must
         // be a finite record/array tree of cleanup-free leaves. A moved
         // subtree leaves whole with its own custody and is never inspected.
@@ -308,6 +317,16 @@ fn visit_region(
                     return None;
                 }
                 touched.push(*index);
+            }
+            for partition in traversal.partition_paths {
+                if let Some([CheckedUnitStructuralPathSegment::FixedIndex(index), ..]) =
+                    partition.strip_prefix(prefix.as_slice())
+                {
+                    if !length.admits_fixed_index(*index) {
+                        return None;
+                    }
+                    touched.push(*index);
+                }
             }
             touched.sort_unstable();
             touched.dedup();
@@ -595,6 +614,7 @@ pub fn reconstruct(
         root_type,
         moved_paths,
         boundaries,
+        &[],
         max_residuals,
         &select_case,
     )?
@@ -608,12 +628,16 @@ pub fn reconstruct(
 /// Alternatives are independent branches, never a product of unrelated cases;
 /// recursive payload conditions retain their enclosing selection. Count before
 /// enumeration still bounds arrays and the complete published region roster.
+/// Conditional-transfer paths only split cleanup-free subtrees so their later
+/// checked actions can be selected independently. Nominal boundaries still own
+/// intact receivers and precede all their structural descendants.
 pub fn reconstruct_case_selected_regions(
     types: &BTreeMap<TypeIdentityId, &CheckedUnitStructuralTypePlan>,
     source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: TypeIdentityId,
     moved_paths: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
     boundaries: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
+    partition_paths: &[Vec<CheckedUnitStructuralPathSegment>],
     max_residuals: usize,
     select_case: &dyn Fn(
         &[CheckedUnitStructuralPathSegment],
@@ -641,6 +665,7 @@ pub fn reconstruct_case_selected_regions(
     }
     let mut traversal = ResidualTraversal {
         select_case,
+        partition_paths,
         conditions: Vec::new(),
         regions: Vec::new(),
         active_types: Vec::new(),

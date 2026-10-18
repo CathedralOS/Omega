@@ -425,14 +425,20 @@ impl CleanupEmission<'_> {
     ) -> Result<(), LoweringError> {
         let mut remaining = regions;
         while let Some(first) = remaining.first() {
+            let retirement = matches!(first.action, TerminalAffineCleanupAction::RetireHome(_));
             let count = remaining
                 .iter()
-                .take_while(|region| region.selected_region == first.selected_region)
+                .take_while(|region| {
+                    region.selected_region == first.selected_region
+                        && matches!(region.action, TerminalAffineCleanupAction::RetireHome(_))
+                            == retirement
+                })
                 .count();
             let group = &remaining[..count];
             if let Some(region) = &first.selected_region {
                 let (bypass, bypass_parameters) = self.select_storage(
-                    identities, region, values, next_value, next_block, next_edge, operations,
+                    identities, region, retirement, values, next_value, next_block, next_edge,
+                    operations,
                 )?;
                 self.cleanup_scope(
                     identities, group, 0, values, next_value, next_block, next_edge, operations,
@@ -465,6 +471,7 @@ impl CleanupEmission<'_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         region: &terminal_psi::StructuralArgument,
+        retirement: bool,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -493,6 +500,11 @@ impl CleanupEmission<'_> {
             crate::emission::selected_continuations::SelectedCleanupGroup {
                 edge,
                 region: region.clone(),
+                requirement: if retirement {
+                    crate::emission::selected_continuations::CleanupRequirement::ResidentHome
+                } else {
+                    crate::emission::selected_continuations::CleanupRequirement::WholeValue
+                },
                 bypass,
             },
         );

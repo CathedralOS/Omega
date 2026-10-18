@@ -196,6 +196,10 @@ pub(crate) fn prepare_checked_cleanup_regions<'action>(
         LoweringError,
     >,
 ) -> Result<Vec<PreparedNormalCleanupAction>, LoweringError> {
+    let mut nominal_scope: Option<(
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    )> = None;
     actions
         .into_iter()
         .map(|action| {
@@ -206,14 +210,38 @@ pub(crate) fn prepare_checked_cleanup_regions<'action>(
                     region.source == *action.source() && action.path().starts_with(&region.path)
                 })
                 .max_by_key(|region| region.path.len());
-            let selected_region = if let Some(region) = selected {
-                let (place, path) = storage(identities, &region.source, &region.path)?;
+            // Selected custody authorizes this source, not whole-value use
+            // of a partially moved ancestor. Gate each maximal checked action
+            // subtree. A nominal hook and all descendants share its intact
+            // receiver scope, including prerequisites and case observations.
+            if nominal_scope.as_ref().is_some_and(|(source, prefix)| {
+                source != action.source() || !action.path().starts_with(prefix)
+            }) || matches!(
+                action,
+                checked_trees::CheckedNormalCleanupAction::RetireHome { .. }
+            ) {
+                nominal_scope = None;
+            }
+            let selected_region = if selected.is_some() {
+                if nominal_scope.is_none()
+                    && matches!(
+                        action,
+                        checked_trees::CheckedNormalCleanupAction::InvokeNominal(_)
+                    )
+                {
+                    nominal_scope = Some((action.source().clone(), action.path().to_vec()));
+                }
+                let scope = nominal_scope
+                    .as_ref()
+                    .map_or(action.path(), |(_, path)| path);
+                let (place, path) = storage(identities, action.source(), scope)?;
                 Some(terminal_psi::StructuralArgument {
                     place,
                     path,
                     access: terminal_psi::StructuralAccess::Owned,
                 })
             } else {
+                nominal_scope = None;
                 None
             };
             let conditions = lower_cleanup_conditions(

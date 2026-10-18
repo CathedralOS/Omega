@@ -3805,6 +3805,11 @@ fail/borrows/same_initializer_reference_live_source_move rejected 1588ms expecte
 fail/borrows/scalar_call_stored_carrier_holds_backing rejected 439ms expected @dd6871ed0476
 fail/borrows/scalar_operand_consumes_reference_carrier_once rejected 249ms expected @dd6871ed0476
 fail/borrows/selected_primitive_reference_live_backing_write rejected 1770ms expected @a9ae30e1c334+wt
+fail/borrows/selected_projected_sibling_keeps_residual_loan rejected 1654ms expected @527339c11257
+	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8 and it is released at state exit)
+	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8 and it is released at state exit)
+	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8 and it is released at state exit)
+	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8 and it is released at state exit)
 fail/borrows/selected_reference_alias_local_escape rejected 1890ms expected @a9ae30e1c334+wt
 fail/borrows/selected_reference_child_live_source_write rejected 1990ms expected @a9ae30e1c334+wt
 fail/borrows/selected_reference_field_wrong_arm_carrier rejected 891ms expected @a9ae30e1c334+wt
@@ -4678,6 +4683,8 @@ fail/drops/selected_nominal_owner_keeps_cleanup_prerequisite rejected 1607ms exp
 fail/drops/selected_partial_cleanup_prerequisite rejected 1526ms expected @a9ae30e1c334+wt
 fail/drops/selected_partial_replacement_old_cleanup_prerequisite rejected 1570ms expected @a9ae30e1c334+wt
 fail/drops/selected_partial_requires_disposition rejected 1171ms expected @a9ae30e1c334+wt
+fail/drops/selected_projected_sibling_cleanup_prerequisite rejected 1654ms expected @527339c11257
+	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 4: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/drops/selected_replacement_old_cleanup_prerequisite rejected 1604ms expected @a9ae30e1c334+wt
 fail/drops/state_loan_alias_invalidates_nominal_cleanup_prerequisite rejected 1555ms expected @753e7ce7a36e+wt
 fail/drops/state_loan_invalidates_nominal_cleanup_prerequisite rejected 4494ms expected @753e7ce7a36e+wt
@@ -8312,6 +8319,7 @@ pass/drops/runtime_scalar_temporary_nominal_continuation_exit checked 12259ms ch
 pass/drops/runtime_scalar_temporary_residual_partition_exit checked 11261ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 12660ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_selected_partial_owner_cleanup_exit checked 11353ms check-target:macos_arm64 @03d6ab4d9d4c
+pass/drops/runtime_selected_projected_sibling_cleanup_exit checked 3570ms check-target:macos_arm64 @527339c11257
 pass/drops/runtime_selected_transfer_fieldwise_construction_exit checked 10087ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/drops/runtime_selected_transfer_incomplete_construction_exit checked 10100ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/drops/runtime_selected_transfer_nested_construction_exit checked 3451ms check-target:macos_arm64 @4030174fbc4e
