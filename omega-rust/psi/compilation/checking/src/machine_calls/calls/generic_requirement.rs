@@ -287,8 +287,26 @@ pub(super) fn validate_named_conformance_arguments(
     // simultaneous independent frames. Derive the latter from this exact call,
     // never from another cached application of the same requirement.
     let mut applied = requirement.clone();
+    if !applied.application.substitutions.is_empty()
+        || !applied
+            .application
+            .declaration
+            .lifetime_parameters
+            .is_empty()
+        || !applied.signature.type_parameters.is_empty()
+    {
+        let Some(signature) =
+            program.applied_callable_signature(&applied.application, applied.signature.symbol)
+        else {
+            diagnostics.push(Diagnostic::error(
+                "requirement call lost its exact applied logical contract",
+            ));
+            return;
+        };
+        applied.signature = signature;
+    }
     if program
-        .state_signature_type_parameters(requirement.signature)
+        .state_signature_type_parameters(applied.signature)
         .iter()
         .any(|parameter| matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type))
     {
@@ -297,7 +315,7 @@ pub(super) fn validate_named_conformance_arguments(
                 program,
                 machine,
                 state,
-                requirement.signature,
+                applied.signature,
                 machine_arguments,
                 arguments,
             )
