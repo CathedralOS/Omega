@@ -21,6 +21,11 @@ the `i64` upper bound to 4 (or changes its constant to 4), retaining the same
 four-element array and indexing operation. Rejection must identify that access,
 rather than an unrelated formation, contract-admission, or lowering error.
 
+Each place carries the same twin beside it at `controls/widened_i64/`: the
+same program with only the `i64` bound admitted up to 4, equal to the array
+length, so the access cannot prove `index < 4`. Every twin rejects with a
+pinned `cannot prove index` diagnostic naming the widened i64 place.
+
 The existing language rules govern these witnesses:
 
 - [Counts, indices, and addresses](../../../../wiki/spec/language/counts_and_addresses.md#bounds-and-lowering):

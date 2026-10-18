@@ -1,0 +1,40 @@
+// Every integer width with a proved bound 0 <= index <= 3 indexes a four-element array and XORs the selected u64 values.
+// Rejected: the widened i64 bound admits 4, which is not within length 4.
+machine read_all(
+    values: [u64; 4],
+    index_u8: u8,
+    index_u16: u16,
+    index_u32: u32,
+    index_u64: u64,
+    index_i8: i8,
+    index_i16: i16,
+    index_i32: i32,
+    index_i64: i64,
+    flag: bool
+) -> u64
+requires 0 <= index_u8 && index_u8 <= 3
+    && 0 <= index_u16 && index_u16 <= 3
+    && 0 <= index_u32 && index_u32 <= 3
+    && 0 <= index_u64 && index_u64 <= 3
+    && 0 <= index_i8 && index_i8 <= 3
+    && 0 <= index_i16 && index_i16 <= 3
+    && 0 <= index_i32 && index_i32 <= 3
+    && 0 <= index_i64 && index_i64 <= 4
+{
+    let joined_u8: u8 = match flag { true -> index_u8, false -> 3 };
+    let joined_u16: u16 = match flag { true -> index_u16, false -> 3 };
+    let joined_u32: u32 = match flag { true -> index_u32, false -> 3 };
+    let joined_u64: u64 = match flag { true -> index_u64, false -> 3 };
+    let joined_i8: i8 = match flag { true -> index_i8, false -> 3 };
+    let joined_i16: i16 = match flag { true -> index_i16, false -> 3 };
+    let joined_i32: i32 = match flag { true -> index_i32, false -> 3 };
+    let joined_i64: i64 = match flag { true -> index_i64, false -> 3 };
+    values[joined_u8] ^ values[joined_u16] ^ values[joined_u32] ^ values[joined_u64]
+        ^ values[joined_i8] ^ values[joined_i16] ^ values[joined_i32] ^ values[joined_i64]
+}
+machine main() crashes Trap {
+    let values: [u64; 4] = [1, 2, 4, 8];
+    transition read_all(values, 0, 1, 2, 3, 0, 1, 2, 2, false) == 0 && read_all(values, 0, 1, 2, 3, 0, 1, 2, 2, true) == 12 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

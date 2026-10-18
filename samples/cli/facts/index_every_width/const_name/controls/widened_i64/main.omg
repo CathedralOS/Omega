@@ -1,0 +1,21 @@
+// Every integer width with a proved bound 0 <= index <= 3 indexes a four-element array and XORs the selected u64 values.
+// Rejected: the widened i64 bound admits 4, which is not within length 4.
+const INDEX_U8: u8 = 0;
+const INDEX_U16: u16 = 1;
+const INDEX_U32: u32 = 2;
+const INDEX_U64: u64 = 3;
+const INDEX_I8: i8 = 0;
+const INDEX_I16: i16 = 1;
+const INDEX_I32: i32 = 2;
+const INDEX_I64: i64 = 4;
+machine read_all(values: [u64; 4]) -> u64
+{
+    values[INDEX_U8] ^ values[INDEX_U16] ^ values[INDEX_U32] ^ values[INDEX_U64]
+        ^ values[INDEX_I8] ^ values[INDEX_I16] ^ values[INDEX_I32] ^ values[INDEX_I64]
+}
+machine main() crashes Trap {
+    let values: [u64; 4] = [1, 2, 4, 8];
+    transition read_all(values) == 12 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
