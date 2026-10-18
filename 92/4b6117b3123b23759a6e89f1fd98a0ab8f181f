@@ -1,0 +1,4 @@
+owner: Antigravity / model=gemini-3.8-flash, reasoning_effort=medium / stack_frame_slot_isolation
+provenance: model=gemini-3.8-flash reasoning_effort=medium reviewer=gemini-4-argon-medium
+ticket: f16404efb1644661b2673a1951747a49
+published_utc: 2026-10-18T21:10:15.487945+00:00
