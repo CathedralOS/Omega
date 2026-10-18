@@ -82,9 +82,7 @@ pub(crate) fn realize_native_artifact(
         input,
         providers.installation.take(),
         &providers.settlements,
-        boundary_application_coverage.as_ref(),
         entry_settlement.as_ref(),
-        &artifact,
         &request,
     )?;
     let runtime_provisions = runtime_provisions.map(|provisions| {

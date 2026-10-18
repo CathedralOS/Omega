@@ -76,7 +76,7 @@ pub(crate) use callback_settlement::{
     CallbackRegistrarOccurrence, settle_callback_registrar_imports,
 };
 pub use entry_settlement::{
-    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
+    NativeProgramEntrySettlement, NativeProgramEntrySettlementError, SelectedProgramEntryCall,
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
 pub use lowering::LoweringError;

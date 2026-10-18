@@ -4827,9 +4827,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   firmware arguments and returns its authored status on an image-backed private
   stack sized from the emitted call closure and target reserve. The exact saved
   continuation and stack residences remain retained, not semantic roots.
-  Connect source-owned LoadedImage discovery, initial
-  storage/stack custody and scoped providers to the selected semantic
-  continuation through ordinary calling and installed-root contracts.
+  Extend the selected semantic-entry bridge to provisioned contexts while
+  preserving the existing two-root free-entry transport, source-owned
+  LoadedImage discovery and retained private-stack partition.
   Implement provider-owned reference outputs under the existing
   [admitted safe boundary contract](wiki/spec/build/foreign_storage.md#provider-owned-views-and-completion),
   retaining exact invocation/backing provenance rather than inventing table
@@ -4837,13 +4837,14 @@ wait for Cathedral's instruction coverage. The interpreter is
   retained views' loans, and reject mutation/invalidation of live referents.
   Preserve the distinction pinned by `pass/build/uefi_selected_physical_entry`:
   a returning rejection path works without fabricating semantic arguments.
-  Free and context-bearing semantic success paths must both establish their
-  complete roots before entering the continuation.
+  Context-bearing semantic success must establish its complete roots and
+  activation-local context before entering the continuation; never forward
+  storage still backing that context or the active stack.
   Cathedral's `source/kernel/boot/uefi` is the source customer;
   `tools/boot-harness/run.py` there builds a fresh image and checks the greeting
-  followed by the owned-memory report under QEMU/OVMF. Its ordinary boot
-  machine now reaches the greeting and post-exit ownership report under OVMF;
-  the two-root semantic continuation is not yet connected. Repair
+  followed by the owned-memory report and `Kernel entered` under QEMU/OVMF.
+  Preserve this free-entry oracle while completing context-bearing and returning
+  lifecycles. Repair
   general capabilities in their owners; no firmware-protocol intrinsics.
 
   Acceptance: authored integrity/projections/calls lead from physical arrival

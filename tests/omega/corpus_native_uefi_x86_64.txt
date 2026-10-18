@@ -12,3 +12,5 @@ pass/build/uefi_entry_schema_same_leaf rejected 5343ms expected native-rejection
 	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
 pass/build/uefi_private_entry_stack built 5354ms @7f2341031b3c+wt
 pass/build/uefi_selected_physical_entry built 2401ms @7f2341031b3c+wt
+pass/build/uefi_selected_storage_entry built 7751ms @d0390620f6e2+wt
+pass/build/uefi_selected_storage_target_entry built 7751ms @d0390620f6e2+wt

@@ -51,7 +51,9 @@ pub(crate) fn validate(
                 } => (*psi_operation, *target, origin, scalar_arguments, arguments),
                 _ => continue,
             };
-            if let NativeCallOrigin::TargetFamily { boundary, .. } = origin {
+            if let NativeCallOrigin::TargetFamily { boundary, .. }
+            | NativeCallOrigin::ProgramEntry { boundary, .. } = origin
+            {
                 let key = (function.machine, psi_operation, *boundary);
                 let invalid = || LoweringError::SelectedBoundaryCallEvidenceMismatch {
                     machine: key.0,

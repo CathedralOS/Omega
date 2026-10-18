@@ -145,6 +145,42 @@ pub(crate) fn row_execution_identity(
             SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
         ));
     };
+    // The canonical owner supplies the complete qualified signature. A local
+    // same-named leaf, even with an ABI-compatible pair of records, cannot
+    // obtain Build-entry dispatch. Native admission separately joins this
+    // catalog identity to the exact selected entry of this artifact.
+    if selected_target == Some("uefi_x86_64")
+        && plan.target == "uefi_x86_64"
+        && [trait_symbol, requirement_symbol, realization_symbol]
+            .into_iter()
+            .all(|symbol| {
+                checked.symbols.symbol_source_origin(symbol)
+                    == Some(source::SourceOrigin::Toolchain)
+                    && exact_bundled_standalone_source(
+                        checked,
+                        symbol,
+                        "extent.omg",
+                        BUNDLED_EXTENT,
+                    )
+            })
+        && boundary_row_shape(
+            checked,
+            plan,
+            row,
+            trait_symbol,
+            requirement_symbol,
+            realization_symbol,
+            "ProgramStorageEntry",
+            true,
+            "enter",
+            "ProgramStorageEntryNativeProvider::enter",
+            BoundaryIntrinsicShape::ProgramStorageToUnit,
+        )?
+    {
+        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+            CompilerIntrinsicExecutionIdentity::ProgramStorageEntry,
+        )));
+    }
     // Only the byte-exact toolchain declaration closes this image observation.
     // Its scalar result is not a storage grant and identifies no firmware object.
     if selected_target == Some("uefi_x86_64")
@@ -309,6 +345,7 @@ enum BoundaryIntrinsicShape {
     I32ToUnit,
     UnitToByteRead,
     UnitToAddress,
+    ProgramStorageToUnit,
 }
 
 /// One hosted row the compiler realizes itself: the service requirement and
@@ -414,6 +451,11 @@ impl HostedIntrinsicRow {
 const BUNDLED_PROGRAM_IMAGE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../../source/library/core/program_image.omg"
+));
+
+const BUNDLED_EXTENT: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../source/library/core/extent.omg"
 ));
 
 const BUNDLED_CONSOLE: &[u8] = include_bytes!(concat!(
@@ -775,6 +817,20 @@ fn exact_boundary_signature(
         return false;
     }
     match shape {
+        BoundaryIntrinsicShape::ProgramStorageToUnit => {
+            !signature.blocks
+                && canonical_storage_parameters(
+                    typed,
+                    typed.state_signature_parameters(signature),
+                    typed.state_signature_contracts(signature),
+                )
+                && matches!(
+                    typed
+                        .type_reference_table
+                        .type_reference(signature.return_type),
+                    TypeReferenceNode::Unit
+                )
+        }
         BoundaryIntrinsicShape::UnitToAddress => {
             !signature.blocks
                 && typed.state_signature_contracts(signature).is_empty()
@@ -839,6 +895,16 @@ fn exact_boundary_state(
     shape: BoundaryIntrinsicShape,
 ) -> bool {
     match shape {
+        BoundaryIntrinsicShape::ProgramStorageToUnit => {
+            canonical_storage_parameters(
+                typed,
+                typed.state_parameters(state),
+                typed.state_contracts(state),
+            ) && matches!(
+                typed.type_reference_table.type_reference(state.return_type),
+                TypeReferenceNode::Unit
+            )
+        }
         BoundaryIntrinsicShape::UnitToAddress => {
             typed.state_parameters(state).is_empty() && exact_address_type(typed, state.return_type)
         }
@@ -854,6 +920,68 @@ fn exact_boundary_state(
                 && exact_byte_read_type(typed, state.return_type, trait_symbol)
         }
     }
+}
+
+/// Only used after the exact bundled owner and declaration roles have joined.
+/// Their source bytes fix both `Extent in Granted` types; ordinary checked
+/// conformance fixes the realization's same requirement application.
+/// Each qualification lowers to a parameter-rooted membership precondition,
+/// on the trait signature or realization entry state respectively. Match that
+/// exact roster rather than treating qualified parameters as contract-free.
+fn canonical_storage_parameters(
+    typed: &typed_trees::TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
+    contracts: &[typed_trees::signature::SignatureContract],
+) -> bool {
+    if parameters.len() != 2 || contracts.len() != parameters.len() {
+        return false;
+    }
+    parameters
+        .iter()
+        .zip(contracts)
+        .all(|(parameter, contract)| {
+            if parameter.is_const
+                || parameter.is_mutable
+                || !matches!(
+                    contract.kind,
+                    typed_trees::signature::SignatureContractKind::Requires
+                )
+                || contract.binding.is_some()
+            {
+                return false;
+            }
+            let TypeReferenceNode::Constrained { constraints, .. } = typed
+                .type_reference_table
+                .type_reference(parameter.type_reference)
+            else {
+                return false;
+            };
+            let [typed_trees::types::TypeConstraintNode::Domain(domain)] =
+                typed.type_reference_table.constraints(*constraints)
+            else {
+                return false;
+            };
+            let [typed_trees::domain::ProofFact::Membership(membership)] =
+                typed.proof_facts.span_or_empty(contract.facts)
+            else {
+                return false;
+            };
+            membership.domain_symbol == domain.symbol
+                && membership.semantic_domain == domain.semantic_id
+                && domain.arguments.is_empty()
+                && membership.domain_arguments.is_empty()
+                && typed
+                    .expression_table
+                    .name_path_node(membership.value)
+                    .is_some_and(|path| {
+                        path.head_symbol == parameter.symbol
+                            && path.symbol == parameter.symbol
+                            && typed
+                                .expression_table
+                                .name_path_member_symbols(path.member_symbols)
+                                == [parameter.symbol]
+                    })
+        })
 }
 
 fn exact_address_type(

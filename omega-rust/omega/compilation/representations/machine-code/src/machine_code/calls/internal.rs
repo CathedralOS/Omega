@@ -140,6 +140,13 @@ pub struct InstalledProviderUnitScalarCallRecord {
 /// provider admission authority. Publication replays them against the source.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InternalUnitCallSource {
+    ProgramEntry {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        entry: semantic_vocabulary::MachineId,
+        source_signature: [u8; 32],
+        completion_claim_sources: Vec<target_operations::CompletionClaimSource>,
+        completion_receipts: Vec<terminal_psi::CompletionReceipt>,
+    },
     Authored,
     TargetFamily {
         boundary: BoundaryMachineId,

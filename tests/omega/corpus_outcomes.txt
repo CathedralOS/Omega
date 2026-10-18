@@ -385,6 +385,18 @@ fail/asm/scratch_destination_shared_borrow rejected 9473ms expected @351c5ba8113
 	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
 fail/asm/scratch_destination_structured_load rejected 8460ms expected @351c5ba81137+wt
 	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
+fail/build/uefi_storage_entry_counterfeit rejected 5822ms expected @d0390620f6e2+wt
+	cannot prove requires contract for call forward_roots from FirmwareBootstrap::enter: image in Extent::Granted in state `enter`
+	cannot prove requires contract for call forward_roots from FirmwareBootstrap::enter: storage in Extent::Granted in state `enter`
+fail/build/uefi_storage_entry_reused_root rejected 4607ms expected @d0390620f6e2+wt
+	cannot use `image` in machine `FirmwareBootstrap::enter` state `enter` (statement 3) after `image` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `image` first
+	cannot use `storage` in machine `FirmwareBootstrap::enter` state `enter` (statement 3) after `storage` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `storage` first
+fail/build/uefi_storage_entry_unadmitted_provider rejected 5388ms expected @d0390620f6e2+wt
+	selected compiler intrinsic `<selected target>::UnadmittedEntryProvider::satisfies::ProgramStorageEntry` for Terminal boundary `named-callable(path(ProgramStorageEntry::enter),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Extent\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(toolchain::Extent::Granted\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Extent\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(toolchain::Extent::Granted\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
+fail/build/uefi_storage_entry_undeclared_port rejected 2320ms expected @d0390620f6e2+wt
+	machine `selected_continuation` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+	machine `selected_continuation` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+	machine `selected_continuation` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/facts/checked_asm_countdown_call_result_wrong_fallthrough rejected 3591ms expected @a0c34fdba779+wt
 	cannot prove requires contract for call done from main$assembly$portable$5$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_countdown_const_name_wrong_fallthrough rejected 5186ms expected @a0c34fdba779+wt

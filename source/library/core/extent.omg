@@ -61,6 +61,15 @@ pub boundary trait ProgramStorageEntry {
     );
 }
 
+// Explicitly selected transport to this artifact's Build-bound continuation.
+// This call forwards two existing grants; it cannot introduce either root or
+// choose a continuation by spelling. The native bridge retains Build custody.
+pub data ProgramStorageEntryNativeProvider {}
+pub uefi_x86_64 boundary machine ProgramStorageEntryNativeProvider::enter(
+    image: Extent in Granted,
+    initial_storage: Extent in Granted
+) satisfies ProgramStorageEntry::enter;
+
 // `Granted` owns one canonical half-open address interval. Runtime address
 // arithmetic must not define the one-past end: fixed-width values first embed
 // into proof Int, and their derived nonnegativity permits exact conversion to

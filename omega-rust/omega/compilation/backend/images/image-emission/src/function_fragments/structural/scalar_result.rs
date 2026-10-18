@@ -25,6 +25,7 @@ pub(super) fn result(
     // candidate only when lowering to target operations.
     let installed_boundary = match &contract.call.source {
         legalized_operations::NativeCallOrigin::InstalledProvider { boundary, .. }
+        | legalized_operations::NativeCallOrigin::ProgramEntry { boundary, .. }
         | legalized_operations::NativeCallOrigin::TargetFamily { boundary, .. } => Some(*boundary),
         legalized_operations::NativeCallOrigin::Authored => None,
     };

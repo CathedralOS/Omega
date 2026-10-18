@@ -135,6 +135,18 @@ impl<'a> AuthorityGraph<'a> {
                         }
                     }
                     AuthorityEdge::Boundary(boundary) => {
+                        if let Some(entry) = self
+                            .input
+                            .selected_program_entry_call()
+                            .filter(|entry| entry.boundary() == boundary)
+                        {
+                            // Keep the selected bridge's mechanism admission,
+                            // and include the actual continuation's own demands.
+                            // Code retention alone does not close authority.
+                            boundaries.insert(boundary);
+                            pending.push(entry.entry());
+                            continue;
+                        }
                         if let Some(terminal_psi::TargetMachineCallable::Machine(member)) =
                             self.input.target_family_member(boundary)?
                         {

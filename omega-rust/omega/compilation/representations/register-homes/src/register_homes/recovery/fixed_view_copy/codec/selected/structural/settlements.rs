@@ -194,6 +194,26 @@ pub(super) fn encode_call_source(
 ) {
     match source {
         NativeCallOrigin::Authored => bytes.push(1),
+        NativeCallOrigin::ProgramEntry {
+            boundary,
+            entry,
+            source_signature,
+            completion_claim_sources,
+            completion_receipts,
+        } => {
+            bytes.push(5);
+            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            bytes.extend_from_slice(&entry.get().to_le_bytes());
+            bytes.extend_from_slice(source_signature);
+            length(bytes, completion_claim_sources.len());
+            for source in completion_claim_sources {
+                encode_completion_claim_source(bytes, source);
+            }
+            length(bytes, completion_receipts.len());
+            for receipt in completion_receipts {
+                encode_completion_receipt(bytes, receipt);
+            }
+        }
         NativeCallOrigin::TargetFamily {
             boundary,
             member,
@@ -256,6 +276,23 @@ pub(super) fn decode_call_source(
 ) -> Result<NativeCallOrigin, FixedViewCopyDecodeError> {
     match cursor.byte()? {
         1 => Ok(NativeCallOrigin::Authored),
+        5 => {
+            let boundary = decode_id(cursor, BoundaryMachineId::new)?;
+            let entry = decode_id(cursor, MachineId::new)?;
+            let mut source_signature = [0; 32];
+            for byte in &mut source_signature {
+                *byte = cursor.byte()?;
+            }
+            let completion_claim_sources = decode_list(cursor, decode_completion_claim_source)?;
+            let completion_receipts = decode_list(cursor, decode_completion_receipt)?;
+            Ok(NativeCallOrigin::ProgramEntry {
+                boundary,
+                entry,
+                source_signature,
+                completion_claim_sources,
+                completion_receipts,
+            })
+        }
         3 => {
             let boundary = decode_id(cursor, BoundaryMachineId::new)?;
             let member = decode_id(cursor, MachineId::new)?;

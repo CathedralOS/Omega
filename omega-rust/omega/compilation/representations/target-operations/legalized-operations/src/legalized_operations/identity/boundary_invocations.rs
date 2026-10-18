@@ -10,6 +10,9 @@ pub fn encode_boundary_execution_identity(
 ) {
     match execution {
         BoundaryExecutionBinding::CompilerBuiltin(
+            CompilerBuiltinExecution::ProgramStorageEntry,
+        ) => bytes.push(7),
+        BoundaryExecutionBinding::CompilerBuiltin(
             CompilerBuiltinExecution::ProgramImageRetainedSuffixStart,
         ) => bytes.push(6),
         BoundaryExecutionBinding::CompilerBuiltin(

@@ -24,6 +24,9 @@ pub enum CompilerIntrinsicExecutionIdentity {
     /// Numeric address observation of this image's retained entry-storage suffix.
     /// This grants no memory access, root custody or firmware correspondence.
     ProgramImageRetainedSuffixStart,
+    /// Transfer existing semantic roots to the exact Build-selected entry.
+    /// This mechanism selects no backing and introduces no new root claim.
+    ProgramStorageEntry,
     /// Parameter-rooted scalar access to an exact sealed placed declaration.
     /// This describes the execution child; actual RAM custody is separately
     /// required at each occurrence and every activation boundary.
@@ -140,6 +143,7 @@ pub fn compiler_intrinsic_execution_identity_bytes(
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => bytes[0] = 5,
         CompilerIntrinsicExecutionIdentity::HostedReadByte => bytes[0] = 6,
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => bytes[0] = 9,
+        CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => bytes[0] = 10,
         CompilerIntrinsicExecutionIdentity::PlacedScalarAccess {
             contract,
             placement_commitment,

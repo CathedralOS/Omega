@@ -119,6 +119,13 @@ impl TerminalNativeRealizationProposal {
         let roots = entry
             .receiving_provider_roots(artifact)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let semantic_call = crate::SelectedProgramEntryCall::bind(
+            artifact,
+            self.program_entry(),
+            &self.providers().compiler_builtins,
+            self.providers().selection.plans(),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let input = crate::VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
             artifact,
             self.target_profile(),
@@ -130,6 +137,7 @@ impl TerminalNativeRealizationProposal {
                 "native execution input: {error:?}"
             ))]
         })?
+        .bind_program_entry_call(semantic_call)
         .select_target_execution(
             artifact,
             self.target_profile(),

@@ -145,10 +145,9 @@ impl NativeArtifact {
         // Fragment calls already belong to the object and its emitted image.
         // Check the independent projection instead of appending calls after
         // image emission, which would omit their admitted stack demand.
-        let custody = parts
-            .physical_evidence_scope
-            .normalized_foreign_call_custody();
-        if !custody.is_empty() && parts.image.foreign_calls() != custody {
+        // This live object/image join is independent of optional PCC evidence.
+        // Compare empty rosters too: an image cannot append an unowned call.
+        if parts.image.foreign_calls() != parts.object.foreign_calls() {
             return Err("native artifact image differs from fragment foreign call custody");
         }
         Ok(Self::seal(
@@ -549,15 +548,6 @@ pub enum NativePhysicalEvidenceScope {
 }
 
 impl NativePhysicalEvidenceScope {
-    /// Foreign-call custody the fragment publication projected for the
-    /// emitted image; empty for scopes that did not admit one.
-    fn normalized_foreign_call_custody(&self) -> &[image_emission::ObjectForeignCall] {
-        match self {
-            Self::Unavailable | Self::UnoptimizedCompleteBoundaryEvidence => &[],
-            Self::ValidatedOptimizedProjection(scope) => scope.foreign_call_custody(),
-        }
-    }
-
     /// Admit the shared fragment/object route after replaying its exact current
     /// program and object evidence. Empty and nonempty selections use the same
     /// join; no selected-lowering completion is invented for another phase.

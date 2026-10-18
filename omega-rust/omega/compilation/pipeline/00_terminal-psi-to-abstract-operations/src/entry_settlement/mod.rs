@@ -4,9 +4,11 @@
 mod calling_plans;
 mod model;
 mod physical_adapter;
+mod semantic_call;
 mod service_establishment;
 
 pub use physical_adapter::PhysicalProgramEntry;
+pub use semantic_call::SelectedProgramEntryCall;
 
 pub use model::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,

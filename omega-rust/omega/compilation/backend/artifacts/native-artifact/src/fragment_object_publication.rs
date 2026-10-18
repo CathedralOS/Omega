@@ -1,4 +1,4 @@
-//! Publish machine fragments as an object with entry custody and physical evidence.
+//! Publish machine fragments as an object with admitted entry custody.
 
 use diagnostics::Diagnostic;
 
@@ -7,18 +7,11 @@ use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
 /// Entry custody and companion functions for one emitted object.
 pub struct FragmentObjectPublicationRequest<'request> {
-    /// The canonical Terminal artifact the emitted object seals. The semantic
-    /// wrapper route re-stages the fragment container under this exact
-    /// artifact so its custody replay binds the same canonical bytes the
-    /// realized product carries.
-    pub terminal: &'request terminal_codec::CanonicalTerminalArtifact,
     /// The validated admission custody the binder must satisfy exactly. This
     /// is the replayed settlement, not the caller-supplied declaration: its
     /// source signature, storage contract, and Fused establishment roster were
     /// already joined against the canonical artifact before reaching emission.
     pub program_entry: Option<&'request ValidatedNativeProgramEntrySettlement>,
-    pub boundary_application_coverage:
-        Option<&'request boundary_applications::TerminalBoundaryApplicationCoverage>,
     /// The materialized compiler-private callback functions, in placement
     /// order. Each record carries real emitted bytes produced by the shared
     /// physical pipeline inside this same realization.
@@ -82,20 +75,7 @@ pub fn publish_fragment_object(
     projection: FragmentObjectProjection,
     request: FragmentObjectPublicationRequest<'_>,
 ) -> Result<PublishedFragmentObject, Vec<Diagnostic>> {
-    // Physical construction already retains the admitted abstract program.
-    // Share that allocation before consuming emission; do not clone the plan
-    // or accept independently supplied publication identities. The publication
-    // validator still replays the emitted object and checks this exact join.
-    let FragmentObjectProjection { source, object } = projection;
-    let optimized = source
-        .source()
-        .source()
-        .source()
-        .source()
-        .optimized_target()
-        .optimized();
-    let plan = optimized.shared_program();
-    let validation = optimized.validation();
+    let FragmentObjectProjection { object, .. } = projection;
     let mut object =
         image_emission::compose_private_function_objects(object, request.private_functions)
             .map_err(|error| crate::native_artifact_error("private object composition", error))?;
@@ -208,25 +188,14 @@ pub fn publish_fragment_object(
             .map_err(|diagnostic| vec![diagnostic])?;
         }
     }
-    let physical_evidence_scope = match request.boundary_application_coverage {
-        Some(coverage) => NativePhysicalEvidenceScope::from_validated_fragment_publication(
-            &plan,
-            validation.psi(),
-            validation.identity(),
-            validation.final_unit(),
-            coverage,
-            &source,
-            &object,
-        )
-        .map_err(|error| {
-            crate::native_artifact_error("fragment physical-evidence projection", error)
-        })?,
-        None => NativePhysicalEvidenceScope::Unavailable,
-    };
     validate_emitted_receiver_binding(&object, request.program_entry)?;
     Ok(PublishedFragmentObject {
         object,
-        physical_evidence_scope,
+        // A normal compile publishes its object, not an independently replayed
+        // PCC proof bundle. Retained-artifact verification has separate entry
+        // points; adding a native call kind must not extend the retired D41
+        // child catalog just to execute it (pipeline.md, verification placement).
+        physical_evidence_scope: NativePhysicalEvidenceScope::Unavailable,
     })
 }
 

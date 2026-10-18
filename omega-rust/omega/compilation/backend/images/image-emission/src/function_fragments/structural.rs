@@ -529,6 +529,19 @@ pub(super) fn populate(
         }
         let call_source = match &call.source {
             NativeCallOrigin::Authored => InternalUnitCallSource::Authored,
+            NativeCallOrigin::ProgramEntry {
+                boundary,
+                entry,
+                source_signature,
+                completion_claim_sources,
+                completion_receipts,
+            } => InternalUnitCallSource::ProgramEntry {
+                boundary: *boundary,
+                entry: *entry,
+                source_signature: *source_signature,
+                completion_claim_sources: completion_claim_sources.clone(),
+                completion_receipts: completion_receipts.clone(),
+            },
             NativeCallOrigin::TargetFamily {
                 boundary,
                 member,

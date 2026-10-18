@@ -137,6 +137,26 @@ pub(in crate::function_fragments) fn validate_function(
         match (&actual.source, &expected.source) {
             (InternalUnitCallSource::Authored, NativeCallOrigin::Authored) => {}
             (
+                InternalUnitCallSource::ProgramEntry {
+                    boundary,
+                    entry,
+                    source_signature,
+                    completion_claim_sources,
+                    completion_receipts,
+                },
+                NativeCallOrigin::ProgramEntry {
+                    boundary: wanted_boundary,
+                    entry: wanted_entry,
+                    source_signature: wanted_signature,
+                    completion_claim_sources: wanted_sources,
+                    completion_receipts: wanted_receipts,
+                },
+            ) if boundary == wanted_boundary
+                && entry == wanted_entry
+                && source_signature == wanted_signature
+                && completion_claim_sources == wanted_sources
+                && completion_receipts == wanted_receipts => {}
+            (
                 InternalUnitCallSource::TargetFamily {
                     boundary,
                     member,

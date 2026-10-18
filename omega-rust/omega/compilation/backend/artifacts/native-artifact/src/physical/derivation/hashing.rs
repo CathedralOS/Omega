@@ -222,6 +222,7 @@ const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> 
     match execution {
         CompilerBuiltinExecution::PlacedScalarAccess { .. } => 250,
         CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => 251,
+        CompilerBuiltinExecution::ProgramStorageEntry => 252,
         CompilerBuiltinExecution::HostedExitProcessI32 => 1,
         CompilerBuiltinExecution::HostedReadByte => 2,
         CompilerBuiltinExecution::HostedWriteByteI32 => 3,

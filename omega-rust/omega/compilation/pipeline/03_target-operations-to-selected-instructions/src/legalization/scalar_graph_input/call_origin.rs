@@ -21,6 +21,29 @@ pub(in crate::legalization) fn validate_boundary_origins(
         for operation in function.graph.operations() {
             if let TargetUnitOperation::Call {
                 origin:
+                    NativeCallOrigin::ProgramEntry {
+                        boundary,
+                        entry,
+                        source_signature,
+                        ..
+                    },
+                target,
+                ..
+            } = operation
+            {
+                let binding = input
+                    .and_then(|input| input.selected_program_entry_call())
+                    .ok_or_else(LegalizationError::custody)?;
+                if binding.boundary() != *boundary
+                    || binding.entry() != *entry
+                    || binding.source_signature() != *source_signature
+                    || *target != target_operations::NativeCallTarget::Machine(*entry)
+                {
+                    return Err(LegalizationError::custody());
+                }
+            }
+            if let TargetUnitOperation::Call {
+                origin:
                     NativeCallOrigin::InstalledProvider {
                         assumption: Some(assumption),
                         ..
@@ -170,7 +193,24 @@ pub(in crate::legalization) fn selected_boundary_operation(
         return Err(LegalizationError::custody());
     }
     let family = matches!(origin, NativeCallOrigin::TargetFamily { .. });
+    let entry = matches!(origin, NativeCallOrigin::ProgramEntry { .. });
     let provider = match origin {
+        NativeCallOrigin::ProgramEntry {
+            boundary: selected_boundary,
+            entry,
+            completion_claim_sources: retained_sources,
+            completion_receipts: retained_receipts,
+            ..
+        } => {
+            if selected_boundary != boundary
+                || *entry != callee
+                || retained_sources != completion_claim_sources
+                || retained_receipts != completion_receipts
+            {
+                return Err(LegalizationError::custody());
+            }
+            None
+        }
         NativeCallOrigin::TargetFamily {
             boundary: selected_boundary,
             member,
@@ -247,10 +287,14 @@ pub(in crate::legalization) fn selected_boundary_operation(
                 || provider.refinement.realized_service_ceiling
                     != candidate.published_service_ceiling
         })
-        || candidate
-            .published_service_ceiling
-            .iter()
-            .any(|service| !declaration.published_service_ceiling.contains(service))
+        // This authenticated arrival bridge follows the selected entry's
+        // checked closure, already included in authority admission. It is not
+        // a provider implementation refining the transport trait's ceiling.
+        || (!entry
+            && candidate
+                .published_service_ceiling
+                .iter()
+                .any(|service| !declaration.published_service_ceiling.contains(service)))
         || provider.is_some_and(|provider| {
             provider.refinement.positional_parameters.len() != structural_arguments.len()
                 || provider

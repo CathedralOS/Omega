@@ -15,6 +15,11 @@ pub(super) fn classify_compiler_intrinsic(
     mechanism: CompilerIntrinsicExecutionIdentity,
 ) -> TerminalAuthorityDisposition {
     match mechanism {
+        CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => {
+            // Dispatch forwards existing roots. The selected continuation's
+            // own transitive demands remain in the executable closure.
+            empty_disposition()
+        }
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
             disposition([TerminalAuthorityClass::ProcessTermination])
         }

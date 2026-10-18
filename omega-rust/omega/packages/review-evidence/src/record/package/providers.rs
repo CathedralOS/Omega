@@ -8,6 +8,7 @@ pub enum PackageReviewCompilerIntrinsicExecution {
     HostedWriteByteI32,
     HostedReadByte,
     ProgramImageRetainedSuffixStart,
+    ProgramStorageEntry,
     PlacedScalarAccess {
         contract: [u8; 32],
         placement_commitment: [u8; 32],

@@ -9,6 +9,29 @@ pub(super) fn validate(
     ownership: &[OwnershipEvent],
 ) -> Result<(), LegalizedCallSourceError> {
     match &call.source {
+        NativeCallOrigin::ProgramEntry {
+            entry,
+            source_signature,
+            completion_claim_sources,
+            completion_receipts,
+            ..
+        } => {
+            if call.target.machine() != Some(*entry) || *source_signature == [0; 32] {
+                return Err(LegalizedCallSourceError::ProviderIdentityMismatch);
+            }
+            let structural_count = call
+                .arguments
+                .iter()
+                .filter(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
+                .count();
+            validate_completion(
+                call,
+                ownership,
+                completion_claim_sources,
+                completion_receipts,
+                structural_count,
+            )
+        }
         NativeCallOrigin::Authored => {
             let claims = call
                 .claim_transfers

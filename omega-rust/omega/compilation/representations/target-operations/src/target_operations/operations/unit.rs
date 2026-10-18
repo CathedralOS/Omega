@@ -24,6 +24,15 @@ use terminal_psi::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeCallOrigin {
     Authored,
+    /// Exact Build selection, distinct from provider conformance and target
+    /// families. The signature digest joins the retained entry settlement.
+    ProgramEntry {
+        boundary: BoundaryMachineId,
+        entry: MachineId,
+        source_signature: [u8; 32],
+        completion_claim_sources: Vec<CompletionClaimSource>,
+        completion_receipts: Vec<CompletionReceipt>,
+    },
     /// Exact internal deployment selection, not a provider installation.
     /// The receiving owner rejoins this record with the immutable Terminal
     /// catalog and the invocation's sealed target selection.

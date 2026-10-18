@@ -49,6 +49,9 @@ const fn project_execution_identity(
     identity: CompilerIntrinsicExecutionIdentity,
 ) -> PackageReviewCompilerIntrinsicExecution {
     match identity {
+        CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => {
+            PackageReviewCompilerIntrinsicExecution::ProgramStorageEntry
+        }
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
             PackageReviewCompilerIntrinsicExecution::ProgramImageRetainedSuffixStart
         }
@@ -102,6 +105,9 @@ const fn project_execution_identity(
 
 fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> String {
     match identity {
+        CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => {
+            "Forward existing image and storage roots to the exact Build-selected entry".to_owned()
+        }
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
             "Numeric address of this program image's retained entry-storage suffix".to_owned()
         }

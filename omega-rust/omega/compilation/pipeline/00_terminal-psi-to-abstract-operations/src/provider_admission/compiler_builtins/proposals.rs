@@ -268,6 +268,9 @@ fn compiler_builtin_execution(
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
             return Some(CompilerBuiltinExecution::ProgramImageRetainedSuffixStart);
         }
+        CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => {
+            return Some(CompilerBuiltinExecution::ProgramStorageEntry);
+        }
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
             return Some(CompilerBuiltinExecution::HostedExitProcessI32);
         }

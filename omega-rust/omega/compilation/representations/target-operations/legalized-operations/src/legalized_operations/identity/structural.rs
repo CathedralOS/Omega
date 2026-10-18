@@ -73,6 +73,28 @@ pub fn encode_provider_execution(
 pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin) {
     match source {
         NativeCallOrigin::Authored => bytes.push(1),
+        NativeCallOrigin::ProgramEntry {
+            boundary,
+            entry,
+            source_signature,
+            completion_claim_sources,
+            completion_receipts,
+        } => {
+            bytes.push(5);
+            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            bytes.extend_from_slice(&entry.get().to_le_bytes());
+            bytes.extend_from_slice(source_signature);
+            encode_len(bytes, completion_claim_sources.len());
+            for source in completion_claim_sources {
+                encode_completion_claim_source(bytes, source);
+            }
+            encode_len(bytes, completion_receipts.len());
+            for receipt in completion_receipts {
+                bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
+                bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
+                encode_structural_path(bytes, &receipt.path);
+            }
+        }
         NativeCallOrigin::TargetFamily {
             boundary,
             member,

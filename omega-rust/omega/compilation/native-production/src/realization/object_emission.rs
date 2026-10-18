@@ -8,7 +8,6 @@ use abstract_operations_to_target_operations::{
     AdmittedBoundarySettlement, OptimizedTargetLoweringRequest,
     lower_optimized_to_target_operations,
 };
-use boundary_applications::TerminalBoundaryApplicationCoverage;
 use diagnostics::Diagnostic;
 use native_artifact::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,
@@ -26,11 +25,9 @@ pub(crate) fn emit_realization_object(
     input: VerifiedNativeArtifactInput,
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
-    boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
     program_entry: Option<
         &terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement,
     >,
-    terminal: &terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
     let native_callbacks = input
@@ -70,8 +67,6 @@ pub(crate) fn emit_realization_object(
     let object = publish_fragment_object(
         projection,
         FragmentObjectPublicationRequest {
-            terminal,
-            boundary_application_coverage,
             program_entry,
             private_functions: &private_functions,
         },

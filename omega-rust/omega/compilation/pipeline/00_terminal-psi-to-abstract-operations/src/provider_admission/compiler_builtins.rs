@@ -117,6 +117,27 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]
             })?;
         let realization = match execution {
+            CompilerBuiltinExecution::ProgramStorageEntry => {
+                let binding = input.optimization_input().selected_program_entry_call()
+                    .filter(|binding| binding.boundary() == boundary.id
+                        && binding.provider_plan() == proposal.provider_plan.identity_digest())
+                    .ok_or_else(|| vec![Diagnostic::error(
+                        "semantic-entry transport has no exact Build-selected continuation binding",
+                    )])?;
+                if input.plan().function(binding.entry()).is_none() {
+                    return Err(vec![Diagnostic::error(
+                        "semantic-entry continuation left its executable closure",
+                    )]);
+                }
+                // The binding realizes an internal call, not a second external
+                // settlement of the same boundary occurrence. Keep mechanism
+                // classification for closure review without a competing leaf.
+                mechanisms.push(AdmittedTerminalMechanism {
+                    boundary: boundary.id,
+                    mechanism: mechanism.into(),
+                });
+                continue;
+            }
             CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => {
                 let scalar = semantic_vocabulary::IntegerType::address(64)
                     .map(semantic_vocabulary::ScalarType::Integer)
@@ -272,6 +293,7 @@ fn compiler_builtin_completion(
         CompilerBuiltinExecution::HostedWriteByteI32
         | CompilerBuiltinExecution::HostedReadByte
         | CompilerBuiltinExecution::ProgramImageRetainedSuffixStart
+        | CompilerBuiltinExecution::ProgramStorageEntry
         | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. }
         | CompilerBuiltinExecution::PlacedScalarAccess { .. } => {
             semantic_vocabulary::BoundaryCompletion::NormalReturn
@@ -336,6 +358,9 @@ fn compiler_intrinsic_execution_identity(
     execution: CompilerBuiltinExecution,
 ) -> CompilerIntrinsicExecutionIdentity {
     match execution {
+        CompilerBuiltinExecution::ProgramStorageEntry => {
+            CompilerIntrinsicExecutionIdentity::ProgramStorageEntry
+        }
         CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => {
             CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart
         }

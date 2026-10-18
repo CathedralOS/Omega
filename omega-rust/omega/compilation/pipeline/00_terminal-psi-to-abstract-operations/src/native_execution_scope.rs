@@ -193,6 +193,15 @@ impl NativeExecutionScope {
             return Err(NativeExecutionScopeError::MissingBoundary(boundary));
         }
         self.boundaries.push(boundary);
+        if let Some(entry) = input
+            .selected_program_entry_call()
+            .filter(|entry| entry.boundary() == boundary)
+        {
+            // The selected continuation's complete ordinary call/provider and
+            // cleanup closure participates before native demand and stack work.
+            pending.push(entry.entry());
+            return Ok(());
+        }
         if let Some((_, supplied)) = assumptions
             .iter()
             .find(|(required, _)| *required == boundary)

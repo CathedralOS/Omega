@@ -20,6 +20,13 @@ pub struct VerifiedNativeArtifactInput {
 }
 
 impl VerifiedNativeArtifactInput {
+    pub(crate) fn bind_program_entry_call(
+        mut self,
+        binding: Option<crate::SelectedProgramEntryCall>,
+    ) -> Self {
+        self.optimization_input.selected_program_entry_call = binding;
+        self
+    }
     /// Resolve the portable entry for this exact deployment, lower its
     /// executable projection, and bind supplied direct-entry placed-view loans.
     /// Canonical semantics remain unchanged and no executable plan exists with
@@ -386,6 +393,7 @@ pub(super) fn lower_decoded_native_module(
     let context = retain_optimization_context(module);
     Ok(AdmittedNativeArtifact {
         optimization_input: VerifiedPsiOptimizationInput {
+            selected_program_entry_call: None,
             plan,
             context,
             admitted_native_callbacks: Vec::new(),
