@@ -1,5 +1,5 @@
 // Case Point(lo, hi) where lo == hi makes hi - lo exact in u64, without a guard or Wrapping.
-// Compile-checked only; no runtime oracle.
+// Expected exit: 0
 // The named constant selects a static binder; its generic body needs the case fact.
 data Interval [copy] {
     case Empty;
@@ -7,11 +7,10 @@ data Interval [copy] {
 }
 data Main { interval: Interval; width: u64; flag: bool; }
 
-
 machine Main::main<const INTERVAL: Interval>(main: &mut Main) {
     transition INTERVAL {
         Interval::Point { lo, hi } -> take(lo, hi, main)
-        Interval::Empty -> done()
+        _ -> done()
     }
     state take(lo: u64, hi: u64, main: &mut Main) {
         main.width = hi - lo;
@@ -20,4 +19,13 @@ machine Main::main<const INTERVAL: Interval>(main: &mut Main) {
 }
 
 const NAMED_INTERVAL: Interval = Interval::Point { lo: 4, hi: 4 };
-machine Main::selected(main: &mut Main) { Main::main<NAMED_INTERVAL>(main); }
+machine Main::selected(main: &mut Main) crashes Trap {
+    main.width = 99;
+    Main::main<NAMED_INTERVAL>(main);
+    transition main.width == 0 {
+        true -> pass()
+        _ -> fail()
+    }
+    state pass() { }
+    state fail() { crash Trap; }
+}

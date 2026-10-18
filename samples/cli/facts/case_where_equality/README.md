@@ -6,28 +6,31 @@ unchanged. The nine source-check places include a named constant selected throug
 a static binder, whose generic body needs the case predicate. Each qualifying
 twin removes only that predicate and reaches subtraction rejection.
 
-This is source-check acceptance only. The original `main.omg` and its build
-entry bindings are preserved. The nine place projects bind no `ProgramEntry`
-and have no runtime oracle; no native execution is claimed.
+The root project and all nine place projects bind `ProgramEntry` for host
+targets, initialize `main.width = 99` and an interval payload where `lo == hi`
+(such as `17, 17` or `4, 4`), and declare `Expected exit: 0`. The exact
+`hi - lo = 0` subtraction result writes `main.width = 0`, and the transition on
+`main.width == 0` verifies execution reaches `pass()` (exit 0) rather than
+`fail() { crash Trap; }`. Both native and Terminal execution are verified.
 
 ```sh
-omega --check samples/cli/facts/case_where_equality/main.omg
-omega --check samples/cli/facts/case_where_equality/<place>/main.omg
+omega run --both samples/cli/facts/case_where_equality/main.omg
+omega run --both samples/cli/facts/case_where_equality/<place>/main.omg
 omega --check samples/cli/facts/case_where_equality/<place>/invalid/main.omg
-python3 tools/sample_gate.py --cli <omega> --filter cli/facts/case_where_equality --jobs 2
+python tools/sample_native_gate.py --facts --filter case_where_equality
 ```
 
 | Place | Equality-bearing subject | Positive | Reject twin |
 | --- | --- | --- | --- |
-| `local` | copied local interval | checks | missing equality: exact `u64` overflow |
-| `field` | borrowed context field | checks | missing equality: exact `u64` overflow |
-| `parameter` | explicit interval parameter | checks | missing equality: exact `u64` overflow |
-| `call_result` | identity machine result | checks | missing equality: exact `u64` overflow |
-| `match_join` | two distinct interval fields joined by a match | checks | missing equality: exact `u64` overflow |
-| `const_name` | named `Point { lo: 4, hi: 4 }` constant through static `const INTERVAL: Interval` binder | checks | missing equality: exact `u64` overflow in the generic body |
-| `other_state` | interval forwarded to another state | checks | missing equality: exact `u64` overflow |
-| `other_machine` | interval forwarded to another machine | checks | missing equality: exact `u64` overflow |
-| `target_body` | four hosted target bodies | checks | four exact `u64` overflow diagnostics |
+| `local` | copied local interval | runs (exit 0) | missing equality: exact `u64` overflow |
+| `field` | borrowed context field | runs (exit 0) | missing equality: exact `u64` overflow |
+| `parameter` | explicit interval parameter | runs (exit 0) | missing equality: exact `u64` overflow |
+| `call_result` | identity machine result | runs (exit 0) | missing equality: exact `u64` overflow |
+| `match_join` | two distinct interval fields joined by a match | runs (exit 0) | missing equality: exact `u64` overflow |
+| `const_name` | named `Point { lo: 4, hi: 4 }` constant through static `const INTERVAL: Interval` binder | runs (exit 0) | missing equality: exact `u64` overflow in the generic body |
+| `other_state` | interval forwarded to another state | runs (exit 0) | missing equality: exact `u64` overflow |
+| `other_machine` | interval forwarded to another machine | runs (exit 0) | missing equality: exact `u64` overflow |
+| `target_body` | four hosted target bodies | runs (exit 0) | four exact `u64` overflow diagnostics |
 
 All nine twins remove only `where lo == hi`, retaining the same `u64` carriers,
 transition, state parameters, and exact `hi - lo` assignment. In the const twin,
@@ -124,6 +127,6 @@ selection and a runtime-capable value binder pin the same operation's compositio
 
 An unused, uninstantiated binder-only scratch probe still reports its pre-existing
 unresolved authored member selection. It does not supply the assigned named
-constant/application journey and is not claimed repaired. The nine assigned
-routes, all their predicate-erasure twins, and the four materialized controls
-remain source checks only; no native execution is claimed.
+constant/application journey and is not claimed repaired. The root program and
+nine assigned routes execute natively and under Terminal Psi with `Expected exit: 0`;
+all predicate-erasure twins and materialized controls reject with their authored diagnostics.
