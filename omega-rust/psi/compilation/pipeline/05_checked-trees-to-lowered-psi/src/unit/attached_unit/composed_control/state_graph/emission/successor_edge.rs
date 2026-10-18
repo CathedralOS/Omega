@@ -995,7 +995,7 @@ impl StateGraphEmission<'_, '_> {
                         argument_ordinal: argument.argument_ordinal,
                     },
                 )?;
-                crate::proofs::crash_routes::lowered_direct_scalar_term(
+                crate::proofs::crash_routes::lowered_erased_scalar_term(
                     &expression,
                     &edge_values,
                     &self.state_erased[position],

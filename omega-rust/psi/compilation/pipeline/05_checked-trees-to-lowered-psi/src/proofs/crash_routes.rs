@@ -21,7 +21,7 @@ pub(crate) use argument_prefix::{
 pub(crate) use crash_predicates::checked_boolean_proposition;
 pub(crate) use scalar_terms::{
     checked_boolean_scalar_term, checked_scalar_term, checked_scalar_term_with_views,
-    lowered_direct_scalar_term,
+    lowered_direct_scalar_term, lowered_erased_scalar_term,
 };
 pub(crate) use structural_members::{
     lower_byte_predicate_term, lower_sequence_extent_term, lower_structural_case_membership,

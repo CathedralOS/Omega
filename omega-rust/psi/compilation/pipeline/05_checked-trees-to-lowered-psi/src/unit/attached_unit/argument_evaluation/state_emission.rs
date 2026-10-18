@@ -307,7 +307,7 @@ pub(super) fn emit_state(
             *scalar_actuals = qualify_erased_arguments
                 .iter()
                 .map(|argument| {
-                    crate::proofs::crash_routes::lowered_direct_scalar_term(
+                    crate::proofs::crash_routes::lowered_erased_scalar_term(
                         argument,
                         &values,
                         &erased_formals,
@@ -369,7 +369,7 @@ pub(super) fn emit_state(
             let erased_arguments = erased_arguments
                 .iter()
                 .map(|argument| {
-                    crate::proofs::crash_routes::lowered_direct_scalar_term(
+                    crate::proofs::crash_routes::lowered_erased_scalar_term(
                         argument,
                         &values,
                         &erased_formals,
@@ -445,7 +445,7 @@ pub(super) fn emit_state(
                 expressions
                     .iter()
                     .map(|argument| {
-                        crate::proofs::crash_routes::lowered_direct_scalar_term(
+                        crate::proofs::crash_routes::lowered_erased_scalar_term(
                             argument,
                             &values,
                             &erased_formals,
@@ -620,7 +620,7 @@ pub(super) fn emit_state(
             let when_true_erased_arguments = when_true_erased_arguments
                 .iter()
                 .map(|argument| {
-                    crate::proofs::crash_routes::lowered_direct_scalar_term(
+                    crate::proofs::crash_routes::lowered_erased_scalar_term(
                         argument,
                         &dispatch_namespace,
                         &erased_formals,
@@ -643,7 +643,7 @@ pub(super) fn emit_state(
                     when_false_erased_arguments
                         .iter()
                         .map(|argument| {
-                            crate::proofs::crash_routes::lowered_direct_scalar_term(
+                            crate::proofs::crash_routes::lowered_erased_scalar_term(
                                 argument,
                                 &values,
                                 &erased_formals,
@@ -759,7 +759,7 @@ pub(super) fn emit_state(
                         .erased_arguments
                         .iter()
                         .map(|argument| {
-                            crate::proofs::crash_routes::lowered_direct_scalar_term(
+                            crate::proofs::crash_routes::lowered_erased_scalar_term(
                                 argument,
                                 &dispatch_namespace,
                                 &erased_formals,
@@ -812,7 +812,7 @@ pub(super) fn emit_state(
                         let erased_arguments = fallback_erased_arguments
                             .iter()
                             .map(|argument| {
-                                crate::proofs::crash_routes::lowered_direct_scalar_term(
+                                crate::proofs::crash_routes::lowered_erased_scalar_term(
                                     argument,
                                     &values,
                                     &erased_formals,

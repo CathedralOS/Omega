@@ -148,6 +148,34 @@ pub(crate) fn checked_scalar_term_with_views(
     lowered_direct_scalar_term(&expression, values, erased)
 }
 
+/// An erased actual may name a checked current field without executing its
+/// read. The exact root/path/type remain a symbolic observation, supplying no
+/// value premise. Runtime/crash expressions keep their separate read authority.
+pub(crate) fn lowered_erased_scalar_term(
+    expression: &LoweredDirectExpression,
+    values: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
+) -> Result<ScalarTerm, LoweringError> {
+    if let LoweredDirectExpression::StructuralField {
+        source,
+        path,
+        field,
+        scalar_type,
+    } = expression
+    {
+        let (root, mut path) = source.field_origin(path);
+        path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+            *field,
+        ));
+        return Ok(match scalar_type {
+            ScalarType::Boolean => ScalarTerm::boolean_field_path(root, path),
+            ScalarType::Integer(integer) => ScalarTerm::integer_field_path(root, path, *integer),
+            ScalarType::IeeeFloat(format) => ScalarTerm::ieee_float_field_path(root, path, *format),
+        });
+    }
+    lowered_direct_scalar_term(expression, values, erased)
+}
+
 pub(crate) fn lowered_direct_scalar_term(
     expression: &LoweredDirectExpression,
     values: &[ValueDeclaration],

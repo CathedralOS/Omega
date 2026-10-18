@@ -1,0 +1,8 @@
+data Holder { value: i32; }
+machine keep(witness [erased]: &i32) requires witness == 7 {}
+machine main() {
+    let mut holder: Holder = Holder { value: 7 };
+    keep(&holder.value);
+    holder.value = 8;
+    keep(&holder.value);
+}

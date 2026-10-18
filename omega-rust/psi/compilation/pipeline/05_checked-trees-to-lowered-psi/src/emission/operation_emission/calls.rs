@@ -5,7 +5,7 @@ use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::direct_calls::DirectCallResult;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use crate::proofs::crash_routes::lowered_direct_scalar_term;
+use crate::proofs::crash_routes::lowered_erased_scalar_term;
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{MachineId, ObligationId, QualifiedScalarType, ValueId};
@@ -214,7 +214,7 @@ fn emit_direct_call_operation(
         .erased_arguments
         .iter()
         .map(|argument| {
-            lowered_direct_scalar_term(argument, source_values_before_call, caller_erased_formals)
+            lowered_erased_scalar_term(argument, source_values_before_call, caller_erased_formals)
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     crate::unit::attached_unit::ordinary_calls::prepare_computed_module_call(

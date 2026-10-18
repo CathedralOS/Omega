@@ -1,0 +1,13 @@
+machine keep(runtime: i32, witness [erased]: &i32) -> i32
+requires witness == 7 { runtime }
+data Main { value: i32; }
+machine Main::checked(flag: bool, proof [erased]: i32, main: &mut Main) -> i32
+requires main.value == 7 { keep(match flag { true -> 41, false -> 42 }, &main.value) }
+machine boot() crashes Trap {
+    let mut value: Main = Main { value: 7 };
+    let first: i32 = Main::checked(true, 9, &mut value);
+    let second: i32 = Main::checked(false, 9, &mut value);
+    transition first == 41 && second == 42 { true -> good() false -> bad() }
+    state good() {}
+    state bad() { crash Trap; }
+}
