@@ -1,6 +1,8 @@
 use omega_language_std::math;
 
-machine bottom() -> i32 [-2147483648..=-2147483648] {
+machine bottom() -> i32
+    ensures result >= -2147483648 && result <= -2147483648
+{
     -2147483648i32
 }
 

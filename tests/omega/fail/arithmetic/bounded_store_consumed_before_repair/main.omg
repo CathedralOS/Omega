@@ -1,4 +1,4 @@
-data Counter { value: u32 [0..=10]; }
+data Counter where value <= 10 { value: u32; }
 machine consume(counter: &Counter) -> u32 { counter.value }
 machine Counter::replace(counter: &mut Counter) {
     counter.value = 11;

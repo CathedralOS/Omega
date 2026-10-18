@@ -1,1 +1,1 @@
-cannot prove assignment value
+assignment stores a value not provably within its data's `where` facts

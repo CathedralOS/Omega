@@ -1,1 +1,1 @@
-satisfies bounded target
+assignment stores a value not provably within its data's `where` facts

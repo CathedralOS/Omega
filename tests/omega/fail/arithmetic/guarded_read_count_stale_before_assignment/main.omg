@@ -1,4 +1,4 @@
-data Reader { received: u64 [0..=16384]; count: i64; }
+data Reader where received <= 16384 { received: u64; count: i64; }
 machine Reader::advance(reader: &mut Reader) {
     transition reader.count > 0 { true -> room(reader) _ -> done() }
     state room(reader: &mut Reader) {

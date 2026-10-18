@@ -1,1 +1,1 @@
-returns a value not provably within its declared range
+cannot prove ensures contract
