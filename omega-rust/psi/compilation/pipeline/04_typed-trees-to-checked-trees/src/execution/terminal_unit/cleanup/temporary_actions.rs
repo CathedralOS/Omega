@@ -117,18 +117,23 @@ pub(in crate::execution::terminal_unit) fn operations(
                     if producers.next().is_some() {
                         return None;
                     }
-                    super::normal_edges::producer_root(facts, state, producer)?
+                    // A statement call's anonymous result has no expression
+                    // home. Its selected result disposition remains complete;
+                    // only a contextual owner seed requires a source root.
+                    super::normal_edges::producer_root(facts, state, producer)
                 }
                 CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                    facts::PlaceRoot::Expression(expression)
+                    Some(facts::PlaceRoot::Expression(expression))
                 }
                 _ => return None,
             };
-            let contextual = facts.contextual_cleanup.dispositions.iter().any(|(_, row)| {
-                row.machine == machine && row.state == state && row.root == root
-                    && matches!(row.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
-                        if statement_index == coordinate.statement_index as usize
-                            && call_ordinal == coordinate.call_ordinal as usize)
+            let contextual = root.is_some_and(|root| {
+                facts.contextual_cleanup.dispositions.iter().any(|(_, row)| {
+                    row.machine == machine && row.state == state && row.root == root
+                        && matches!(row.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
+                            if statement_index == coordinate.statement_index as usize
+                                && call_ordinal == coordinate.call_ordinal as usize)
+                })
             });
             if !contextual {
                 // Independent result/descriptor disposal retains its existing
@@ -156,7 +161,7 @@ pub(in crate::execution::terminal_unit) fn operations(
                 machine,
                 state,
                 *coordinate,
-                root,
+                root?,
                 source.clone(),
             )?);
         }

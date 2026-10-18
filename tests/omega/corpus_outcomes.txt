@@ -7707,6 +7707,7 @@ pass/drops/result_cleanup_integer_exit checked 3768ms check-target:macos_arm64 @
 pass/drops/result_cleanup_named_boolean_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
 pass/drops/result_cleanup_original_exit checked 3637ms check-target:macos_arm64 @76ea4b8c7c50
 pass/drops/result_cleanup_replacement_exit checked 3635ms check-target:macos_arm64 @76ea4b8c7c50
+pass/drops/statement_result_cleanup_without_expression_home_exit checked 6424ms check-target:macos_arm64 @1a31c8fa5439
 pass/facts/address_count_partition_through_call_result_exit checked 4004ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_const_name_exit checked 3993ms check-target:macos_arm64 @70da601bb299+wt
 pass/facts/address_count_partition_through_field_exit checked 4018ms check-target:macos_arm64 @70da601bb299+wt
