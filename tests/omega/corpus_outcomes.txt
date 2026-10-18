@@ -8,7 +8,7 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
-	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+	cannot prove requires contract for call bounded from Main::main: main.items[selector] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 fail/arithmetic/affine_difference_negative_edges rejected 681ms expected @70da601bb299+wt
 fail/arithmetic/affine_difference_unpaired_term rejected 677ms expected @70da601bb299+wt
@@ -1917,6 +1917,15 @@ fail/facts/range_fact_delivery_through_other_machine_rejected rejected 1011ms ex
 fail/facts/range_fact_delivery_through_other_state_rejected rejected 1122ms expected @ec38c6dfcf45
 fail/facts/range_fact_delivery_through_parameter_rejected rejected 1105ms expected @ec38c6dfcf45
 fail/facts/range_fact_delivery_through_target_body_rejected rejected 992ms expected @ec38c6dfcf45
+fail/facts/record_layout_geometry_unproved_call_result rejected 3557ms expected @623a499c00d9
+fail/facts/record_layout_geometry_unproved_const_name rejected 3332ms expected @623a499c00d9
+fail/facts/record_layout_geometry_unproved_field rejected 3423ms expected @623a499c00d9
+fail/facts/record_layout_geometry_unproved_local rejected 3793ms expected @623a499c00d9
+fail/facts/record_layout_geometry_unproved_match_join rejected 3693ms expected @623a499c00d9
+fail/facts/record_layout_geometry_unproved_other_machine rejected 3638ms expected @623a499c00d9
+fail/facts/record_layout_geometry_unproved_other_state rejected 3639ms expected @623a499c00d9
+fail/facts/record_layout_geometry_unproved_parameter rejected 3263ms expected @623a499c00d9
+fail/facts/record_layout_geometry_unproved_target_body rejected 3630ms expected @623a499c00d9
 fail/facts/reference_arrival_handoff_cleanup_receiver_order_held_residual rejected 1660ms expected @4030174fbc4e
 fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejected 1845ms expected @4030174fbc4e
 fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite rejected 1684ms expected @4030174fbc4e
@@ -5681,6 +5690,15 @@ pass/facts/range_fact_delivery_through_other_machine_exit checked 6765ms check-t
 pass/facts/range_fact_delivery_through_other_state_exit checked 7380ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/range_fact_delivery_through_parameter_exit checked 6810ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/range_fact_delivery_through_target_body_exit checked 7265ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/record_layout_geometry_through_call_result_exit checked 7177ms check-target:macos_arm64 @623a499c00d9
+pass/facts/record_layout_geometry_through_const_name_exit checked 6917ms check-target:macos_arm64 @623a499c00d9
+pass/facts/record_layout_geometry_through_field_exit checked 7038ms check-target:macos_arm64 @623a499c00d9
+pass/facts/record_layout_geometry_through_local_exit checked 7125ms check-target:macos_arm64 @623a499c00d9
+pass/facts/record_layout_geometry_through_match_join_exit checked 7138ms check-target:macos_arm64 @623a499c00d9
+pass/facts/record_layout_geometry_through_other_machine_exit checked 7110ms check-target:macos_arm64 @623a499c00d9
+pass/facts/record_layout_geometry_through_other_state_exit checked 7016ms check-target:macos_arm64 @623a499c00d9
+pass/facts/record_layout_geometry_through_parameter_exit checked 6880ms check-target:macos_arm64 @623a499c00d9
+pass/facts/record_layout_geometry_through_target_body_exit checked 7502ms check-target:macos_arm64 @623a499c00d9
 pass/facts/reference_arrival_handoff_cleanup_receiver_exit checked 3371ms check-target:macos_arm64 @4030174fbc4e
 pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit checked 3628ms check-target:macos_arm64 @4030174fbc4e
 pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit checked 3624ms check-target:macos_arm64 @4030174fbc4e
