@@ -2122,6 +2122,15 @@ pass/expressions/runtime_widened_comparison_exit built 5414ms exit:70 @6c49683ce
 pass/expressions/scalar_match_boundary_composition_exit built 26000ms exit:70 @91bbf3e29aa9
 pass/expressions/seq_consuming_combinators checked 12793ms @91bbf3e29aa9
 pass/expressions/unit_case_return_call_product built 12621ms exit:70 @91bbf3e29aa9
+pass/facts/bounded_products_through_call_result_exit built 7582ms exit:0 @77c924b0deb6
+pass/facts/bounded_products_through_const_name_exit built 7395ms exit:0 @77c924b0deb6
+pass/facts/bounded_products_through_field_exit built 7496ms exit:0 @77c924b0deb6
+pass/facts/bounded_products_through_local_exit built 7603ms exit:0 @77c924b0deb6
+pass/facts/bounded_products_through_match_join_exit built 7626ms exit:0 @77c924b0deb6
+pass/facts/bounded_products_through_other_machine_exit built 7643ms exit:0 @77c924b0deb6
+pass/facts/bounded_products_through_other_state_exit built 7196ms exit:0 @77c924b0deb6
+pass/facts/bounded_products_through_parameter_exit built 7620ms exit:0 @77c924b0deb6
+pass/facts/bounded_products_through_target_body_exit built 7514ms exit:0 @77c924b0deb6
 pass/facts/guarded_line_loan_through_call_result_exit built 5107ms exit:0 @866a955e52f8
 pass/facts/guarded_line_loan_through_const_name_exit built 5168ms exit:0 @866a955e52f8
 pass/facts/guarded_line_loan_through_field_exit built 5092ms exit:0 @866a955e52f8

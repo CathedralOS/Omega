@@ -1,0 +1,22 @@
+// Bounded u64 operands `a [0..=50]` and `b [0..=50]` make the exact product
+// `a * b` fit `u64 [0..=2500]`; no Wrapping domain and no `as`.
+// Invalid: one operand bound is removed, so the exact product may overflow u64.
+// Expected exit: 0
+const CEILING: u64 = 100;
+
+machine mul(a: u64 [0..=CEILING], b: u64 [0..=CEILING]) -> u64 [0..=2500] {
+    a * b
+}
+
+machine probe(a: u64 [0..=CEILING], b: u64 [0..=CEILING]) -> u64 [0..=2500] {
+    mul(a, b)
+}
+
+machine main() crashes Trap {
+    transition probe(30, 40) == 1200 && probe(50, 50) == 2500 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,23 @@
+// Bounded u64 operands `a [0..=50]` and `b [0..=50]` make the exact product
+// `a * b` fit `u64 [0..=2500]`; no Wrapping domain and no `as`.
+// Place: field. Bounded record fields carry both operands into the product.
+// Expected exit: 0
+data Factors {
+    left: u64 [0..=50];
+    right: u64 [0..=50];
+}
+
+machine mul(factors: Factors) -> u64 [0..=2500] {
+    factors.left * factors.right
+}
+
+machine main() crashes Trap {
+    let upper: Factors = Factors { left: 50, right: 50 };
+    let sample: Factors = Factors { left: 30, right: 40 };
+    transition mul(sample) == 1200 && mul(upper) == 2500 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
