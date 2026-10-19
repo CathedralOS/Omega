@@ -1,0 +1,53 @@
+// Fact: passing nine bounded integer arguments (`a1` through `a9` with `a9 <= 92u64`) across register and stack ABI slots on all four hosted targets (including AArch64 stack overflow past `X0–X7`) preserves the 9th argument's static bound (`a9 <= 92u64`), discharging exact subtraction `92u64 - a9` across all nine places.
+// Place: another state. Successor state receives arguments and evaluates the call.
+// Expected exit: 0
+
+machine calling_plan_nine(
+    a1: u64,
+    a2: u64,
+    a3: u64,
+    a4: u64,
+    a5: u64,
+    a6: u64,
+    a7: u64,
+    a8: u64,
+    a9: u64
+) -> u64
+requires
+    a1 == 10u64 && a2 == 20u64 && a3 == 30u64 && a4 == 40u64 && a5 == 50u64 &&
+    a6 == 60u64 && a7 == 70u64 && a8 == 80u64 && a9 <= 92u64
+ensures
+    result <= 92u64 && result == a9
+{
+    let prefix: u64 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8;
+    (prefix - 360) + a9
+}
+
+machine probe() -> u64
+ensures
+    result == 0u64
+{
+    transition {
+        _ -> step(10, 20, 30, 40, 50, 60, 70, 80, 92)
+    }
+    state step(
+        s1: u64, s2: u64, s3: u64, s4: u64, s5: u64,
+        s6: u64, s7: u64, s8: u64, s9: u64
+    ) -> u64
+    requires
+        s1 == 10u64 && s2 == 20u64 && s3 == 30u64 && s4 == 40u64 && s5 == 50u64 &&
+        s6 == 60u64 && s7 == 70u64 && s8 == 80u64 && s9 == 92u64
+    {
+        let val: u64 = calling_plan_nine(s1, s2, s3, s4, s5, s6, s7, s8, s9);
+        92u64 - val
+    }
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
