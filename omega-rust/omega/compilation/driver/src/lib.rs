@@ -21,7 +21,7 @@ mod inspection;
 #[cfg(test)]
 mod product_boundary;
 
-pub use identity::compiler_identity;
+pub use identity::{compiler_build_profile, compiler_identity, compiler_optimization_level};
 
 pub mod checked;
 mod native;

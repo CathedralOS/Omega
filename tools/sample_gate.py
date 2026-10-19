@@ -47,6 +47,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from sample_projects import discover, project_at, rejection_verdict
+from compiler_profile import CompilerProfileError, optimized_environment, require_optimized
 
 ROOT = Path(__file__).resolve().parent.parent
 SAMPLES = ROOT / "samples"
@@ -114,7 +115,7 @@ def build_cli() -> Path:
     from corpus_gate import windows_safe_target_dir
     tool = "mbx" if shutil.which("mbx") else "cargo"
     args = [tool, "build", "--message-format=json", "-p", "omega"]
-    env = dict(os.environ)
+    env = optimized_environment()
     configured = Path(env.get("CARGO_TARGET_DIR") or (ROOT / "target"))
     safe_target = windows_safe_target_dir(configured)
     if safe_target != configured:
@@ -264,6 +265,11 @@ def main() -> int:
         print("sample_gate: no samples selected")
         return 0
     cli = options.cli or build_cli()
+    try:
+        require_optimized(cli)
+    except CompilerProfileError as error:
+        print(f"sample_gate: {error}", file=sys.stderr)
+        return 2
     if not os.access(cli, os.X_OK):
         raise SystemExit(f"sample_gate: missing CLI {cli}")
 

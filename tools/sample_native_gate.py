@@ -90,6 +90,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from corpus_gate import host_target, windows_safe_target_dir
 from sample_projects import ROOT, discover as discover_projects, project_at, rejection_verdict, work_kind
+from compiler_profile import CompilerProfileError, optimized_environment, require_optimized
 
 # Freestanding targets have no host oracle: a UEFI image cannot run on the
 # development host, so scoring it against `Expected exit` would report a
@@ -687,6 +688,11 @@ def main():
         # compiler path would no longer resolve.
         arguments.cli = os.path.abspath(arguments.cli)
         arguments.measured_cli = arguments.cli
+    try:
+        arguments.compiler_profile = require_optimized(arguments.cli)
+    except CompilerProfileError as error:
+        print(f"sample_native_gate: {error}", file=sys.stderr)
+        return 2
     staleness = cli_staleness(arguments.measured_cli)
     if staleness:
         print(f"sample_native_gate: warning: {staleness}", file=sys.stderr)
@@ -877,8 +883,8 @@ def build_gate_cli():
     process. The caller owns the build semantics; the snapshot owns isolation.
     """
     tool = "mbx" if shutil.which("mbx") else "cargo"
-    environment = dict(os.environ, CARGO_PROFILE_DEV_OPT_LEVEL="1",
-                       CARGO_TARGET_DIR=str(GATE_CLI_DIR))
+    environment = optimized_environment()
+    environment["CARGO_TARGET_DIR"] = str(GATE_CLI_DIR)
     print(f"sample_native_gate: building the opt-level 1 CLI into {GATE_CLI_DIR} with {tool}",
           file=sys.stderr)
     # Hold the lock across the build so a rebuild's replacement of
@@ -982,6 +988,7 @@ def record_run(arguments, started, results, buckets, passed, scored, timing=None
         "target": arguments.target,
         "cli": dict(cli_identity(getattr(arguments, "measured_cli", arguments.cli)),
                     stale=staleness),
+        "compiler_profile": getattr(arguments, "compiler_profile", None),
         "jobs": getattr(arguments, "jobs", None),
         "timeout": getattr(arguments, "timeout", None),
         "filter": arguments.filter or ("cli/facts" if getattr(arguments, "facts", False) else ""),

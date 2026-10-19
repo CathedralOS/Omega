@@ -69,6 +69,7 @@ fn dispatch(invocation: Invocation) {
         Invocation::AuditSource(request) => packages::source::run(request),
         Invocation::AuditPackages(request) => packages::audit::run(request),
         Invocation::Help(usage) => println!("{usage}"),
+        Invocation::BuildProfile => println!("{}", compiler::compiler_build_profile()),
         Invocation::Version => println!(
             "omega {} ({}; {})",
             env!("OMEGA_VERSION"),
@@ -85,5 +86,8 @@ fn dispatch(invocation: Invocation) {
 /// `run_on_compile_thread` worker inside the compile path stays the boundary
 /// for compiler-stage recursion regardless.
 fn needs_command_worker(invocation: &Invocation) -> bool {
-    !matches!(invocation, Invocation::Help(_) | Invocation::Version)
+    !matches!(
+        invocation,
+        Invocation::Help(_) | Invocation::Version | Invocation::BuildProfile
+    )
 }

@@ -99,6 +99,11 @@ class OptionalHistoryProvenance(unittest.TestCase):
 
 
 class RunnerInputSelection(unittest.TestCase):
+    def setUp(self):
+        profile = patch.object(corpus_gate, "require_optimized", return_value={"profile": {"opt_level": "1"}})
+        profile.start()
+        self.addCleanup(profile.stop)
+
     def runner_environment(self, environment, root=corpus_gate.ROOT):
         rows = corpus_records.render([record("pass/library/selection")])
         with patch.dict(os.environ, environment, clear=True), \
@@ -569,6 +574,12 @@ class PinnedRegressionQuery(unittest.TestCase):
 
 class MainVerdicts(unittest.TestCase):
     def setUp(self):
+        profile = patch.object(corpus_gate, "require_optimized", return_value={"profile": {"opt_level": "1"}})
+        profile.start()
+        self.addCleanup(profile.stop)
+        receipt = patch.object(corpus_gate, "record_cargo_build")
+        receipt.start()
+        self.addCleanup(receipt.stop)
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)

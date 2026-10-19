@@ -290,6 +290,14 @@ The implementation owner resolves findings and finishes authorized landing.
 
 The Rust toolchain is pinned in `rust-toolchain.toml`; `rustup` selects it.
 
+Compiler execution requires optimization. Ordinary dev/test builds default to
+`opt-level = 1`; the compiler build rejects effective `opt-level = 0`, including
+Rust flag overrides. Sample/corpus gates verify the supplied binary's build
+profile before execution, including `--cli`/`--runner`. Pinned compiler-backed
+qualification declares `producer.executables` and captures their verified
+profiles bound to the actual binary digests. See
+[optimized validation compilers](tools/testing.md#optimized-validation-compilers).
+
 - Use `mbx` in place of Cargo for compile and test commands: `cargo check`
   becomes `mbx check`, `cargo test` becomes `mbx nextest run` (needs
   cargo-nextest 0.9.140 or newer). If `mbx` is unavailable, use Cargo without
@@ -412,13 +420,13 @@ The rules that touch every edit:
   `codex-swarm`, `cursor-swarm`.
 
 Deliberate configuration — do not "fix" it: `clippy.toml` thresholds are
-raised and dev/test profiles use `debug = 0`. Tests use `opt-level = 1`;
-ordinary dev builds are unoptimized except `proof-admission` and the `sha2`
-dependency, which use `opt-level = 3`. Check `Cargo.toml` and session overrides before interpreting
-compiler timings. Use `CARGO_PROFILE_DEV_OPT_LEVEL=1` for an optimized dev
-compiler comparison without changing repository defaults. Debug information
-can be restored with `CARGO_PROFILE_DEV_DEBUG=2` or `CARGO_PROFILE_TEST_DEBUG=2`;
-`CARGO_PROFILE_TEST_OPT_LEVEL=0` disables test optimization for a session.
+raised and dev/test profiles use `debug = 0` and `opt-level = 1`;
+`proof-admission` and `sha2` use `opt-level = 3`. Check `Cargo.toml` and session
+overrides before interpreting compiler timings. Debug information can be
+restored with `CARGO_PROFILE_DEV_DEBUG=2` or `CARGO_PROFILE_TEST_DEBUG=2`
+while retaining optimization. An unoptimized compiler is a build error, not a
+supported validation producer. Runtime environment settings do not change the
+profile embedded in an existing binary.
 `.gitattributes` forces LF because canonical source and evidence identities
 are byte-sensitive.
 

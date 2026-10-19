@@ -37,6 +37,7 @@ pub(crate) enum Invocation {
     AuditPackages(PackageInspectionOptions),
     Help(&'static str),
     Version,
+    BuildProfile,
 }
 
 pub(crate) fn parse(mut arguments: impl Iterator<Item = OsString>) -> Result<Invocation, String> {
@@ -60,6 +61,12 @@ pub(crate) fn parse(mut arguments: impl Iterator<Item = OsString>) -> Result<Inv
         // it on a parse failure; without this arm the conventional spelling
         // answers "unrecognized option `--help`" instead of showing it.
         Some("--help" | "-h" | "help") => Ok(Invocation::Help(compile::usage())),
+        Some("--build-profile") => {
+            if arguments.next().is_some() {
+                return Err("omega --build-profile takes no arguments".to_owned());
+            }
+            Ok(Invocation::BuildProfile)
+        }
         Some("--version" | "-V") => {
             if arguments.next().is_some() {
                 return Err("omega --version takes no arguments".to_owned());

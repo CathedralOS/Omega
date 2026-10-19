@@ -30,6 +30,9 @@ class ProjectGateTests(unittest.TestCase):
         replacement = patch.object(check_gate, "SAMPLES", self.root / "samples")
         replacement.start()
         self.addCleanup(replacement.stop)
+        profile = patch.object(native_gate, "require_optimized", return_value={"profile": {"opt_level": "1"}})
+        profile.start()
+        self.addCleanup(profile.stop)
 
     def project(self, path, build="Build::application(builder, \"study\"); Build::bind(builder, Target::ProgramEntry, Main::main);", source="// Expected exit: 0\n"):
         directory = self.root / "samples" / path

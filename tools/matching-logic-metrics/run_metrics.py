@@ -59,6 +59,9 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from compiler_profile import require_optimized
+
 
 SCHEMA = "omega-matching-logic-comparison/1"
 CASES_SCHEMA = "omega-matching-logic-pinned-cases/1"
@@ -628,6 +631,7 @@ def measure(args):
             raise SystemExit(
                 "no omega binary; build `cargo build -p omega` or pass --omega")
         record["omega"] = str(omega)
+        record["compiler_profile"] = require_optimized(omega)
         mismatches = 0
         for pair in cases_doc["pairs"]:
             rows = [(pair["positive"], "accept")]

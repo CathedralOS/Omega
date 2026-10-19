@@ -6,6 +6,8 @@
 //! This is an invalidation key, not compiler attestation. The separately loaded
 //! Omega library is identified by its loader at acceptance/compilation time.
 
+mod build_profile;
+
 use optimization_core::digest_encoder;
 use std::error::Error;
 use std::fs;
@@ -14,6 +16,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // This is a build requirement, not a convention callers must remember.
+    // Cargo passes explicit rustflags after its profile's codegen options.
+    let optimization = build_profile::optimization_level()?;
+    println!("cargo:rustc-env=OMEGA_COMPILER_OPT_LEVEL={optimization}");
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").ok_or_else(|| {
         io::Error::other("Cargo did not provide the compiler manifest directory")
     })?);

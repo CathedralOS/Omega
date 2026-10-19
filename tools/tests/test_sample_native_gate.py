@@ -65,6 +65,11 @@ class ChildDecodingTests(unittest.TestCase):
     gate's own reporting cannot raise on the decoded text.
     """
 
+    def setUp(self):
+        profile = patch.object(gate, "require_optimized", return_value={"profile": {"opt_level": "1"}})
+        profile.start()
+        self.addCleanup(profile.stop)
+
     def child_output(self, writes):
         script = "import sys\n" + "\n".join(writes)
         return gate.run([sys.executable, "-c", script], timeout=30)
@@ -530,6 +535,11 @@ class GateCliTests(unittest.TestCase):
     """By default the gate measures a fresh opt-level 1 build; an explicit
     CLI older than the checkout's compiler is flagged."""
 
+    def setUp(self):
+        profile = patch.object(gate, "require_optimized", return_value={"profile": {"opt_level": "1"}})
+        profile.start()
+        self.addCleanup(profile.stop)
+
     def test_default_build_is_optimized_and_isolated(self):
         built = subprocess.CompletedProcess([], 0, "", "")
         with patch.object(gate.shutil, "which", return_value=None), \
@@ -680,6 +690,11 @@ class GateCliTests(unittest.TestCase):
 
 
 class FactsSelectionTests(unittest.TestCase):
+    def setUp(self):
+        profile = patch.object(gate, "require_optimized", return_value={"profile": {"opt_level": "1"}})
+        profile.start()
+        self.addCleanup(profile.stop)
+
     def test_facts_flag_discovers_the_facts_tree_and_marks_the_record(self):
         captured = {}
 
@@ -759,6 +774,11 @@ class FactsSelectionTests(unittest.TestCase):
 
 
 class RunHistoryTests(unittest.TestCase):
+    def setUp(self):
+        profile = patch.object(gate, "require_optimized", return_value={"profile": {"opt_level": "1"}})
+        profile.start()
+        self.addCleanup(profile.stop)
+
     def test_program_discovery_is_explicit_and_full_gate_still_includes_controls(self):
         samples = ["samples/cli/app", "samples/cli/probes/gap",
                    "samples/cli/app/controls/invalid_case"]

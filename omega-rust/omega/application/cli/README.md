@@ -170,6 +170,12 @@ beside the executable; ordinary Cargo development builds retain a checkout
 fallback. See [release packaging](../../../../tools/release/README.md#build-a-relocatable-bundle)
 for installation layout, explicit library selection, and relocation tests.
 
+`omega --build-profile` prints the loaded compiler's build-time optimization
+profile as JSON without loading a project or its library. Validation tools use
+this observation with the binary digest; runtime Cargo environment variables
+cannot change it. Normal dev/test builds use opt-level 1, and the compiler build
+refuses opt-level 0. Debug information can be enabled while retaining optimization.
+
 `omega inspect-terminal --artifact <file>` reads an existing portable Terminal
 artifact envelope (up to 64 MiB), applies canonical decoding and semantic
 validation, and prints its module and placed-input roster. It accepts no source,

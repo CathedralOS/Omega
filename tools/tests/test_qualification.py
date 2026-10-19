@@ -33,15 +33,60 @@ class QualificationTests(unittest.TestCase):
         self.base = self.git("rev-parse", "HEAD")
         self.library = self.root / "producer.rlib"
         self.library.write_bytes(b"pinned compiler dependency")
+        import compiler_profile
+        compiler_profile.record_cargo_build(self.library, "\n".join(json.dumps(dict(
+            reason="compiler-artifact", target=dict(name=name), profile=dict(opt_level="1"),
+            executable=str(self.library) if name == "fixture_compiler" else None))
+            for name in ["compiler", "fixture_compiler"]))
         self.state = self.root / "evidence.json"
         self.config = dict(context=dict(host="local-fixture", target="fixture", toolchain="python"), checks=[
             dict(id="values", kind="tests", command=[sys.executable, "check.py"],
-                 inputs=["src", "check.py"], artifacts=[str(self.library)], closure_reason="complete tiny fixture",
+                 inputs=["src", "check.py"], artifacts=[str(self.library), str(self.library) + ".compiler-profile.json"], closure_reason="complete tiny fixture",
                  final=False, expected_exit=0, timeout_seconds=10)])
         qualification.start(self.repository, self.state, self.base, self.config)
 
     def git(self, *arguments):
         return kit.git(self, self.repository, *arguments)
+
+    def test_producer_profile_is_required_before_command_or_capture_starts(self):
+        marker = self.root / "command-ran"
+        config = copy.deepcopy(self.config)
+        check = config["checks"][0]
+        check["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
+        check["command"] = [sys.executable, "-c",
+                            "from pathlib import Path; Path(" + repr(str(marker)) + ").write_text('ran')"]
+        missing = copy.deepcopy(config)
+        missing["checks"][0]["producer"].pop("executables")
+        qualification.amend(self.state, 0, missing, "historical compiler-backed definition")
+        before = self.state.read_bytes()
+        with self.assertRaisesRegex(qualification.RecoveryError, "producer.executables"):
+            self.run_check()
+        self.assertEqual(self.state.read_bytes(), before)
+        self.assertFalse(marker.exists())
+        qualification.amend(self.state, 1, config, "compiler-backed check")
+        receipt = Path(str(self.library) + ".compiler-profile.json")
+        optimized = receipt.read_bytes()
+        for replacement in [optimized.replace(b'"opt_level": "1"', b'"opt_level": "0"'), None]:
+            if replacement is None:
+                receipt.unlink()
+            else:
+                receipt.write_bytes(replacement)
+            before = self.state.read_bytes()
+            with self.assertRaisesRegex(qualification.RecoveryError, "optimized compiler required"):
+                self.run_check()
+            self.assertEqual(self.state.read_bytes(), before)
+            self.assertFalse(marker.exists())
+            self.assertIsNone(qualification.load(self.state)["running"])
+        receipt.write_bytes(optimized)
+        result, accepted = self.run_check()
+        self.assertTrue(accepted)
+        self.assertTrue(marker.exists())
+        run = result["runs"][-1]
+        self.assertEqual(run["compiler_profiles"][0]["sha256"], run["artifacts"][str(self.library)])
+        legacy = copy.deepcopy(run)
+        legacy.pop("compiler_profiles")
+        self.assertIn("compiler_build_profile_missing_or_unbound", qualification.reasons(
+            self.repository, result, result["config"]["checks"][0], legacy, self.base))
 
     def run_check(self, name="values"):
         record = qualification.load(self.state)
@@ -430,6 +475,11 @@ class QualificationTests(unittest.TestCase):
         row = self.assess(incoming)["assessments"][-1]["checks"][0]
         self.assertIn("compiler_or_artifact_changed", row["reasons"])
         self.library.write_bytes(b"pinned compiler dependency")
+        import compiler_profile
+        compiler_profile.record_cargo_build(self.library, "\n".join(json.dumps(dict(
+            reason="compiler-artifact", target=dict(name=name), profile=dict(opt_level="1"),
+            executable=str(self.library) if name == "fixture_compiler" else None))
+            for name in ["compiler", "fixture_compiler"]))
         with mock.patch.dict(os.environ, {"CARGO_PROFILE_DEV_OPT_LEVEL": "changed"}):
             row = self.assess(incoming)["assessments"][-1]["checks"][0]
         self.assertIn("environment_changed", row["reasons"])
@@ -491,7 +541,7 @@ class QualificationTests(unittest.TestCase):
 
     def test_reuse_attestation_does_not_relax_new_capture_producer_source_equality(self):
         config = copy.deepcopy(self.config)
-        config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"])
+        config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
         qualification.amend(self.state, 0, config, "pin producer inputs")
         self.run_check()
         incoming = self.commit("src/program", "unexercised branch")
@@ -622,7 +672,7 @@ class QualificationTests(unittest.TestCase):
         path = self.root / "producer.json"
         config = copy.deepcopy(self.config)
         config["checks"][0]["kind"] = "native"
-        config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"])
+        config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
         qualification.amend(self.state, 0, config, "compiler provenance added")
         candidate = self.commit("src/program", "new compiler semantics")
         qualification.assess(self.repository, self.state, 1, candidate)
@@ -632,7 +682,7 @@ class QualificationTests(unittest.TestCase):
     def test_rebuilt_producer_amendment_invalidates_and_retains_prior_evidence(self):
         self.run_check()
         config = copy.deepcopy(self.config)
-        config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"])
+        config["checks"][0]["producer"] = dict(revision=self.base, inputs=["src"], executables=[str(self.library)])
         record = qualification.amend(self.state, 2, config, "reviewed exact rebuilt producer")
         self.assertEqual(len(record["runs"]), 1)
         self.assertEqual(len(record["definitions"]), 1)

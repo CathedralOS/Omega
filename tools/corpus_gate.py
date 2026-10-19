@@ -166,6 +166,7 @@ import sys
 import threading
 
 import corpus_records
+from compiler_profile import CompilerProfileError, optimized_environment, record_cargo_build, require_optimized
 
 try:
     import typesafe_key
@@ -486,7 +487,7 @@ def build_runner(root: Path = ROOT) -> Path:
     tool = "mbx" if shutil_which("mbx") else "cargo"
     args = [tool, "test", "--no-run", "--message-format=json",
             "-p", "compiler", "--test", "corpus_runner"]
-    env = dict(os.environ)
+    env = optimized_environment()
     if root != ROOT:
         # A compared checkout never shares this tree's target directory:
         # timestamp freshness could link the measured tree's artifacts.
@@ -516,6 +517,10 @@ def build_runner(root: Path = ROOT) -> Path:
     if executable is None:
         raise InfrastructureFailure(
             "corpus_gate: build produced no corpus_runner binary")
+    try:
+        record_cargo_build(executable, proc.stdout)
+    except CompilerProfileError as error:
+        raise InfrastructureFailure(f"corpus_gate: {error}") from error
     return Path(executable)
 
 
@@ -577,6 +582,10 @@ def windows_runner_job(process):
 
 
 def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[dict]:
+    try:
+        require_optimized(binary)
+    except CompilerProfileError as error:
+        raise InfrastructureFailure(f"corpus_gate: {error}") from error
     env = dict(os.environ)
     env.pop("NEXTEST", None)
     # A frozen runner may have been built in another checkout. Its fixture

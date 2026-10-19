@@ -48,6 +48,9 @@ import tempfile
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from compiler_profile import require_optimized
+
 HERE = Path(__file__).resolve().parent
 PINNED_CASES = HERE / "pinned_cases.json"
 CLASSICALITY = Path(
@@ -764,6 +767,8 @@ def main() -> int:
             "`.psi.proof` (semantic) and `.proof` (native) sidecars",
         }
 
+    if not options.skip_run:
+        require_optimized(options.omega)
     cases = [] if options.skip_run else run_pinned_cases(
         options.omega, root, options.timeout, options.include_heavy
     )

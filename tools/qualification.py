@@ -26,10 +26,12 @@ import time
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "swarm"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from recovery_state import RecoveryError, atomic_json, exclusive, read_json
+from compiler_profile import CompilerProfileError, is_optimized_profile, require_optimized
 
 SCHEMA = "omega-qualification-v1"
-PROFILE_KEYS = ("CARGO_TARGET_DIR", "CARGO_BUILD_JOBS", "RUSTFLAGS",
+PROFILE_KEYS = ("CARGO_TARGET_DIR", "CARGO_BUILD_JOBS", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS",
                 "CARGO_PROFILE_DEV_OPT_LEVEL", "CARGO_PROFILE_DEV_DEBUG",
                 "CARGO_PROFILE_TEST_OPT_LEVEL", "CARGO_PROFILE_TEST_DEBUG")
 
@@ -273,6 +275,13 @@ def definition(config):
         if check["kind"] in {"native", "terminal"} or producer:
             require(isinstance(producer, dict) and producer.get("inputs") and producer.get("revision")
                     and check.get("artifacts"), "compiler-backed check needs producer revision/inputs and artifacts")
+            # Retain readable historical definitions. New captures require the
+            # executables below and cannot reuse a pre-enforcement observation.
+            if "executables" in producer:
+                require(isinstance(producer["executables"], list) and producer["executables"]
+                        and all(isinstance(value, str) and Path(value).is_absolute()
+                                and value in check["artifacts"] for value in producer["executables"]),
+                        "producer executables must be absolute files included in artifacts")
         for path in input_paths(check):
             require(isinstance(path, str) and path and not path.startswith(("/", ":"))
                     and ".." not in Path(path).parts and "\\" not in path,
@@ -662,6 +671,14 @@ def reasons(repository, record, check, run, candidate):
         result.append("environment_changed")
     if run.get("producer") != check.get("producer"):
         result.append("producer_identity_mismatch")
+    if check.get("producer"):
+        profiles = run.get("compiler_profiles", [])
+        if (not isinstance(profiles, list) or not profiles
+                or any(not isinstance(row, dict) or not is_optimized_profile(row.get("profile")) for row in profiles)
+                or {row.get("binary") for row in profiles}
+                != set(check["producer"].get("executables", []))
+                or any(run.get("artifacts", {}).get(row.get("binary")) != row.get("sha256") for row in profiles)):
+            result.append("compiler_build_profile_missing_or_unbound")
     for key in ("stdout", "stderr"):
         value = run.get(key, {})
         path = Path(value.get("path", ""))
@@ -825,8 +842,22 @@ def run_check(repository, path, expected, name):
         require(source_inputs(repository, producer["revision"], producer["inputs"])
                 == source_inputs(repository, head, producer["inputs"]),
                 "producer source/dependencies do not match the qualification revision")
+        require(producer.get("executables"),
+                "compiler-backed capture needs producer.executables bound in artifacts; amend the definition")
+        try:
+            compiler_profiles = [require_optimized(binary) for binary in producer["executables"]]
+        except CompilerProfileError as error:
+            raise RecoveryError(str(error)) from error
+    else:
+        compiler_profiles = []
     identities = dict(source_inputs=source_inputs(repository, head, input_paths(check)), producer=producer,
-                      artifacts=artifacts(repository, check), environment=environment(record["config"]["context"]))
+                      artifacts=artifacts(repository, check), compiler_profiles=compiler_profiles,
+                      environment=environment(record["config"]["context"]))
+    require(all(identities["artifacts"].get(profile["binary"]) == profile["sha256"]
+                for profile in compiler_profiles), "compiler profile is not bound to captured producer bytes")
+    require(all(identities["artifacts"].get(profile["build_receipt"]["path"]) == profile["build_receipt"]["sha256"]
+                for profile in compiler_profiles if profile.get("build_receipt")),
+            "historical compiler build receipt must be included in artifacts")
     identities["source_ref"] = retain_source(repository, path, head)
     require(all(identities["source_inputs"].values()), "declared source dependency absent; review the closure")
     identities["artifact_stamps"] = artifact_stamps(identities["artifacts"])

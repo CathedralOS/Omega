@@ -43,6 +43,35 @@ scoped change: retain the command, revision, and evidence, and report them witho
 repairing them in the same task. New or unexplained failures in affected behavior
 must be resolved before landing. Do not repeat broad suites to attribute one test.
 
+### Optimized validation compilers
+
+All normal compiler builds use at least opt-level 1. Dev and test profiles
+default to 1, and the compiler build rejects an effective level of 0, including
+`RUSTFLAGS`/`CARGO_ENCODED_RUSTFLAGS` overrides. Debug information can be enabled
+with `CARGO_PROFILE_DEV_DEBUG=2` without disabling optimization. This requirement
+also covers direct `mbx run` and manually built CLI/corpus binaries.
+
+Sample and corpus gates check the actual executable before starting work,
+including supplied `--cli` and `--runner`. `omega --build-profile` and
+`corpus_runner --build-profile` report build-time metadata. An unknown or
+unoptimized producer is an infrastructure refusal, never a source rejection or
+a passing validation. Setting a runtime Cargo variable cannot bless an already
+built binary. The preflight checks its digest before and after querying it.
+
+Historical corpus comparisons remain possible: the automatic builder forces
+optimized dev/test profiles and records Cargo's compiler-library/executable
+profiles against the exact binary digest. An old runner without the query
+protocol is never launched just to probe an unknown flag, which historical
+runners could ignore and start the whole corpus. It requires that fresh build
+receipt; a missing, stale or unoptimized receipt refuses before execution.
+
+Compiler-backed [qualification](qualification.md) requires absolute
+`producer.executables` included in `artifacts`. It preflights each executable
+before reserving/running the check and records verified profiles alongside the
+binary hashes. Existing evidence remains immutable and readable; observations
+without verified producer profiles must be requalified rather than retroactively
+stamped. Keep the actual build receipt in the evidence closure as well.
+
 ### Execution evidence and replay inputs
 
 Record what a command actually did: source checking, target publication, native

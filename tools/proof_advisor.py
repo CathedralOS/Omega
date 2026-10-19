@@ -214,6 +214,9 @@ def main():
         self_test()
         return 0
     omega = arguments.omega or Path(os.environ.get("OMEGA", "omega"))
+    from compiler_profile import require_optimized
+    from shutil import which
+    require_optimized(which(str(omega)) or omega)
     completed = subprocess.run(
         [str(omega), "--check", str(arguments.root)],
         capture_output=True, text=True)

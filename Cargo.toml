@@ -135,6 +135,10 @@ version = "0.1.0"
 # `CARGO_PROFILE_DEV_DEBUG=2`.
 [profile.dev]
 debug = 0
+# The compiler is executed during ordinary development and validation. Make
+# optimization the default so a forgotten session override cannot slow every
+# sample replay. Debug assertions and overflow checks remain enabled.
+opt-level = 1
 
 # Native publication repeatedly replays mathematical certificates. Optimizing
 # just their checker materially shortens that path without optimizing every

@@ -39,6 +39,9 @@ import sys
 import tempfile
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from compiler_profile import require_optimized
+
 
 SCHEMA = "omega-benchmark-record/2"
 # /1 records predate the compiler-build binding fields; they remain readable
@@ -649,6 +652,7 @@ def measure(args):
     omega = Path(args.omega).resolve()
     if not omega.is_file():
         raise SystemExit(f"omega binary not found: {omega}")
+    require_optimized(omega)
 
     selection = {
         "enabled": sorted(set(authored_selection(root)) | set(args.enable)),
@@ -1213,6 +1217,7 @@ def main():
         omega = Path(args.omega).resolve()
         if not omega.is_file():
             raise SystemExit(f"omega binary not found: {omega}")
+        require_optimized(omega)
         project_dir = Path(args.root).resolve().parent
         lock = settle_package_review(omega, project_dir, args.target)
         print(f"settled {lock}")

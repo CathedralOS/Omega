@@ -56,11 +56,17 @@ Example for this repository's Python workflow checks:
 
 Kinds are `build`, `tests`, `native`, `terminal`, `negative`, and `review`.
 Native/Terminal checks additionally require
-`"producer":{"revision":"FULL_SHA","inputs":["COMPLETE_COMPILER_INPUT_PATHS"]}`
+`"producer":{"revision":"FULL_SHA","inputs":["COMPLETE_COMPILER_INPUT_PATHS"],"executables":["/ABSOLUTE/COMPILER_BINARY"]}`
 and nonempty `artifacts`. The producer's declared source inputs must agree with
 the qualification revision before execution. This records an independently
 verified producer relationship; an asserted SHA does not establish how a binary
 was built. Include its exact build receipt among artifacts and review provenance.
+Include every producer executable in `artifacts`. Before capturing a command,
+the runner verifies the loaded binaries' build-time optimization profiles and
+binds them to their captured digests. Unknown/unoptimized producers refuse before
+the command starts; a runtime `CARGO_PROFILE_*` value cannot establish how an
+existing binary was compiled. Historical observations remain readable, but ones
+without this verified profile cannot be reused as qualified compiler evidence.
 
 The command is an argv list, never shell text. Use a validator that checks every
 numerical/output/diagnostic/count oracle, not a compiler exit alone. Negative

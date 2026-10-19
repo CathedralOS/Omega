@@ -281,6 +281,13 @@ close stdin (`< /dev/null` in sh, or `$null | ...` in PowerShell) on every direc
 `omega` command you run in the background (the gates already do): `omega run`
 forwards stdin to stdin-reading programs and otherwise waits for EOF at zero CPU.
 A step that still takes minutes is a finding to measure and remove, not a wait.
+Optimization is enforced by the compiler build and by gate preflight, including
+supplied `--cli`/`--runner` binaries. For manual validation, `omega --build-profile`
+reports the loaded producer's actual profile; an environment override around an
+old executable proves nothing. Compiler-backed pinned qualification declares
+`producer.executables` within `artifacts` and binds verified profiles to their
+binary digests. Preserve historical observations; do not relabel an older
+unoptimized run as optimized or reuse it as a newly qualified producer.
 
 Read the existing module entrance and decision-site explanations before tracing
 the shared implementation and callers, preserving the Psi/Omega firewall
