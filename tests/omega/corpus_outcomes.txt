@@ -1315,7 +1315,8 @@ fail/core/vacant_partition_missing_input rejected 3956ms expected @61fab13095e7+
 	construction of `VacantExtentParts` field `taken` is not proven in domain `Extent::Vacant` in invalid state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Extent::Vacant` in invalid state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `VacantExtentParts` field `rest` is not proven in domain `Extent::Vacant` in invalid state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
-fail/data/bare_payload_case_equality_suggests_in rejected 43ms expected @a9ae30e1c334+wt
+fail/data/bare_payload_case_equality_suggests_in rejected 743ms expected @39840d33bf1c
+	`Command::Move` carries a payload, so the bare case name is not a value -- use `in` to test the case (`value in Command::Move`), or compare against a constructed value
 fail/data/boundary_data_construction_rejected rejected 871ms expected @a9ae30e1c334+wt
 fail/data/boundary_data_relaxed_carry_unadmitted rejected 831ms expected @a9ae30e1c334+wt
 fail/data/case_payload_equality_interim rejected 47ms expected @a9ae30e1c334+wt
@@ -2025,15 +2026,27 @@ fail/facts/callee_saved_across_nested_calls_unproved_target_body rejected 4603ms
 fail/facts/captured_scalar_is_not_current_storage rejected 557ms expected @8a884ecc43d5+wt
 fail/facts/case_const_unequal_literals_subtraction_rejected rejected 445ms expected @e0ddeec45d6b+wt
 fail/facts/case_const_unequal_predicate_rejected rejected 27ms expected @af17919d299f
-fail/facts/case_equality_through_call_result_compile rejected 661ms expected @2ef2ab353498+wt
-fail/facts/case_equality_through_const_name_compile rejected 343ms expected @af17919d299f
-fail/facts/case_equality_through_field_compile rejected 570ms expected @2ef2ab353498+wt
-fail/facts/case_equality_through_local_compile rejected 910ms expected @2ef2ab353498+wt
-fail/facts/case_equality_through_match_join_compile rejected 724ms expected @2ef2ab353498+wt
-fail/facts/case_equality_through_other_machine_compile rejected 742ms expected @2ef2ab353498+wt
-fail/facts/case_equality_through_other_state_compile rejected 456ms expected @2ef2ab353498+wt
-fail/facts/case_equality_through_parameter_compile rejected 440ms expected @2ef2ab353498+wt
-fail/facts/case_equality_through_target_body_compile rejected 671ms expected @2ef2ab353498+wt
+fail/facts/case_equality_through_call_result_compile rejected 3310ms expected @39840d33bf1c
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_const_name_compile rejected 4024ms expected @39840d33bf1c
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_field_compile rejected 3294ms expected @39840d33bf1c
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_local_compile rejected 3263ms expected @39840d33bf1c
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_match_join_compile rejected 3121ms expected @39840d33bf1c
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_other_machine_compile rejected 3332ms expected @39840d33bf1c
+	exact arithmetic in machine `inspect` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_other_state_compile rejected 3416ms expected @39840d33bf1c
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_parameter_compile rejected 3101ms expected @39840d33bf1c
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/case_equality_through_target_body_compile rejected 2951ms expected @39840d33bf1c
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_payload_transport_through_call_result_rejected rejected 3562ms expected @45cbafd80d9c
 	cannot prove ensures contract for exit from eval at statement 3: result <= 60
 fail/facts/case_payload_transport_through_const_name_rejected rejected 3518ms expected @45cbafd80d9c
@@ -7048,7 +7061,7 @@ pass/data/case_membership_union_guard_exit checked 12174ms check-target:macos_ar
 pass/data/match_exhaustive_by_case_union_domain checked 11952ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/data/mixed_record_common_field_and_payload_dispatch_exit checked 11549ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/data/opaque_copy_selected checked 11297ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/data/payload_less_case_equality checked 1584ms @a9ae30e1c334+wt
+pass/data/payload_less_case_equality checked 17960ms @39840d33bf1c
 pass/data/property_carry_declared checked 1566ms @a9ae30e1c334+wt
 pass/data/qualified_record_pattern_exit checked 3896ms check-target:macos_arm64 @4e9f61cedcd7+wt
 pass/data/record_pattern_let_exit checked 11664ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -7593,15 +7606,15 @@ pass/facts/call_result_bound_discharge_through_target_body_exit checked 7690ms c
 pass/facts/case_const_equal_literals_with_predicate checked 1243ms @af17919d299f
 pass/facts/case_const_equal_literals_without_predicate checked 1506ms @e0ddeec45d6b+wt
 pass/facts/case_const_forwarded_binder_compile checked 1313ms @af17919d299f
-pass/facts/case_equality_through_call_result_compile checked 3294ms @2ef2ab353498+wt
-pass/facts/case_equality_through_const_name_compile checked 1269ms @af17919d299f
-pass/facts/case_equality_through_field_compile checked 2122ms @2ef2ab353498+wt
-pass/facts/case_equality_through_local_compile checked 2290ms @2ef2ab353498+wt
-pass/facts/case_equality_through_match_join_compile checked 3847ms @2ef2ab353498+wt
-pass/facts/case_equality_through_other_machine_compile checked 2139ms @2ef2ab353498+wt
-pass/facts/case_equality_through_other_state_compile checked 2349ms @2ef2ab353498+wt
-pass/facts/case_equality_through_parameter_compile checked 3429ms @2ef2ab353498+wt
-pass/facts/case_equality_through_target_body_compile checked 2116ms @2ef2ab353498+wt
+pass/facts/case_equality_through_call_result_compile checked 18155ms @39840d33bf1c
+pass/facts/case_equality_through_const_name_compile checked 18915ms @39840d33bf1c
+pass/facts/case_equality_through_field_compile checked 20064ms @39840d33bf1c
+pass/facts/case_equality_through_local_compile checked 20321ms @39840d33bf1c
+pass/facts/case_equality_through_match_join_compile checked 20077ms @39840d33bf1c
+pass/facts/case_equality_through_other_machine_compile checked 22067ms @39840d33bf1c
+pass/facts/case_equality_through_other_state_compile checked 20944ms @39840d33bf1c
+pass/facts/case_equality_through_parameter_compile checked 20918ms @39840d33bf1c
+pass/facts/case_equality_through_target_body_compile checked 16930ms @39840d33bf1c
 pass/facts/case_payload_transport_through_call_result_exit checked 8032ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/case_payload_transport_through_const_name_exit checked 8027ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/case_payload_transport_through_field_exit checked 8026ms check-target:macos_arm64 @45cbafd80d9c
