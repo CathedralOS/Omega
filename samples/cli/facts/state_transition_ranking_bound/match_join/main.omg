@@ -1,0 +1,48 @@
+// Fact: exiting a ranked state-transition loop under a terminal guard (remaining <= 60u64) preserves the loop-exit bound across all nine places, discharging exact subtraction 60u64 - remaining with exit code 0.
+// Place: match_join. Reconverging match branches join on the loop-exit bound before subtraction.
+// Expected exit: 0
+
+machine ranked_loop(current: u64) -> u64
+requires current <= 100 && current >= 20
+terminates by current;
+ensures result <= 60
+{
+    transition current <= 60 {
+        true -> done(current)
+        false -> step(current)
+    }
+
+    state step(c: u64) -> u64
+    requires c <= 100 && c > 60
+    {
+        let next: u64 = c - 10;
+        transition next <= 60 {
+            true -> done(next)
+            false -> step(next)
+        }
+    }
+
+    state done(rem: u64) -> u64
+    requires rem <= 60
+    {
+        rem
+    }
+}
+
+machine probe(flag: bool) -> i32 {
+    let remaining: u64 = match flag {
+        true -> ranked_loop(100u64),
+        false -> ranked_loop(100u64),
+    };
+    let diff: u64 = 60u64 - remaining;
+    diff as i32
+}
+
+machine main() crashes Trap {
+    transition probe(true) == 0 && probe(false) == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
