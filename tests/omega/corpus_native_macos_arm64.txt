@@ -1559,6 +1559,15 @@ pass/facts/reference_arrival_handoff_through_other_machine_exit built 6277ms exi
 pass/facts/reference_arrival_handoff_through_other_state_exit built 6315ms exit:0 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_parameter_exit built 6349ms exit:0 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_target_body_exit built 6344ms exit:0 @3424ad143d6e
+pass/facts/register_stack_arg_calling_plan_through_call_result_exit built 75974ms exit:0 @4d66d6851894
+pass/facts/register_stack_arg_calling_plan_through_const_name_exit built 76822ms exit:0 @4d66d6851894
+pass/facts/register_stack_arg_calling_plan_through_field_exit built 80747ms exit:0 @4d66d6851894
+pass/facts/register_stack_arg_calling_plan_through_local_exit built 77266ms exit:0 @4d66d6851894
+pass/facts/register_stack_arg_calling_plan_through_match_join_exit built 77513ms exit:0 @4d66d6851894
+pass/facts/register_stack_arg_calling_plan_through_other_machine_exit built 81556ms exit:0 @4d66d6851894
+pass/facts/register_stack_arg_calling_plan_through_other_state_exit built 80800ms exit:0 @4d66d6851894
+pass/facts/register_stack_arg_calling_plan_through_parameter_exit built 80750ms exit:0 @4d66d6851894
+pass/facts/register_stack_arg_calling_plan_through_target_body_exit built 90953ms exit:0 @4d66d6851894
 pass/facts/result_cleanup_guarantee_through_call_result_exit built 3769ms exit:0 @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_const_name_exit built 3788ms exit:0 @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_field_exit built 3786ms exit:0 @76ea4b8c7c50
