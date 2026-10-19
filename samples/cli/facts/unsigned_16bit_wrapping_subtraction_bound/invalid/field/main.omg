@@ -1,0 +1,40 @@
+// Fact: 16-bit unsigned wrapping subtraction lhs -% rhs with bounded interval 200u16 <= diff <= 450u16 establishes 200u16 <= diff <= 450u16 across all nine places so exact subtractions 450u16 - diff and diff - 200u16 are safe.
+// Place: field. The wrapping difference result is stored and loaded through a record field.
+// Expected exit: 0
+machine verify_diff(value: u16) -> u16
+    requires value >= 200 && value <= 450
+{
+    let head: u16 = 450 - value;
+    let tail: u16 = value - 200;
+    head + tail
+}
+
+data Carrier {
+    diff: u16;
+}
+
+machine compute_field(lhs: u16, rhs: u16) -> u16
+    requires lhs >= 300 && lhs <= 520 && rhs >= 50 && rhs <= 100
+{
+    let a: u16 in Wrapping = lhs as u16 in Wrapping;
+    let b: u16 in Wrapping = rhs as u16 in Wrapping;
+    let wrapped: u16 in Wrapping = a - b;
+    let diff: u16 = wrapped as u16;
+    let c: Carrier = Carrier { diff: diff };
+    let transported: u16 = c.diff;
+    verify_diff(transported)
+}
+
+machine evaluate() -> u16 {
+    compute_field(400, 80)
+}
+
+machine main() crashes Trap {
+    let res: u16 = evaluate();
+    transition res == 250 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
