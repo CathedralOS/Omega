@@ -49,10 +49,11 @@ In each positive place, the mutating call sets `cell.value = 100u64`.
 Restoring the cell allows owner access to `val = cell.value`.
 The transition guard `val >= 100u64 && val <= 100u64` statically proves that `v - 100u64` has no underflow or overflow,
 transitioning to `done(val)` with exit code 0.
-If any value is corrupted or the borrow write fails, the guard evaluates to false, transitioning to `bad() { crash Trap; }`,
-producing native signal 5 and interpreter crash Trap (exit 255).
+If any value is corrupted or the borrow write fails, the guard evaluates to false, transitioning to `bad() { crash Trap; }`.
+Measured 1-token perturbation on `local/main.omg` (`cell.value = 100u64;` -> `cell.value = 99u64;`) traps both engines:
+`native exit -1073741795` (`STATUS_ILLEGAL_INSTRUCTION` on `windows_x86_64`, `native signal 5` on `macos_arm64`) and `interp crash: Trap (host presentation agrees)`.
 
-### Invalid controls and reject twins
+### Invalid controls, reject twins, and obligation class
 
 Each place has an `invalid/` reject twin that creates a competing local borrow (`let held: &mut Cell = &mut cell;`)
 held live across the write call (`held.value = 99u64` used after the call).
@@ -69,13 +70,14 @@ error: state `write_cell` receives `cell` while local borrow `held` is still act
 ```
 
 Removing the competing borrow restores clean compilation and zero exit.
+The negative obligation is a static loan-exclusivity and borrow-window gate: overlapping mutable loans are decided and refused at compile time before any runtime realization, so no runtime trap is reachable for the loan-exclusivity violation itself, while the positive side's restored write is verified at runtime by both the Terminal Psi interpreter and native execution. Each place is pinned twice in the corpus goldens—on the check/outcome side (`tests/omega/corpus_outcomes.txt`) and on the native execution side (`tests/omega/corpus_native_windows_x86_64.txt` as `built ... exit:0`).
 
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`)
 - **Pinned fixtures:**
   - Positive passes: `tests/omega/pass/facts/borrowed_restoration_window_through_<place>_exit/`
-  - Negative controls: `tests/omega/fail/facts/borrowed_restoration_window_unproved_<place>/`
+  - Negative controls: `tests/omega/fail/facts/borrowed_restoration_window_through_<place>_rejected/`
 
 ### Specification and Lowering Layers
 
