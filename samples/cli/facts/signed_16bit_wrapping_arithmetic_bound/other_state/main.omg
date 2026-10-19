@@ -1,0 +1,37 @@
+// Fact: 16-bit signed wrapping addition lhs +% rhs with bounded interval 350i16 <= sum <= 600i16 establishes 350i16 <= sum <= 600i16 across all nine places so exact subtractions 600i16 - sum and sum - 350i16 are safe.
+// Place: other_state. A state transition forwards the wrapping sum result to a successor state.
+// Expected exit: 0
+machine verify_sum(value: i16) -> i16
+    requires value >= 350 && value <= 600
+{
+    let head: i16 = 600 - value;
+    let tail: i16 = value - 350;
+    head + tail
+}
+
+machine compute_other_state(lhs: i16, rhs: i16) -> i16
+    requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 100
+{
+    let a: i16 in Wrapping = lhs as i16 in Wrapping;
+    let b: i16 in Wrapping = rhs as i16 in Wrapping;
+    let wrapped: i16 in Wrapping = a + b;
+    let sum: i16 = wrapped as i16;
+    transition { _ -> step(sum) }
+    state step(s: i16) -> i16 {
+        verify_sum(s)
+    }
+}
+
+machine evaluate() -> i16 {
+    compute_other_state(400, 80)
+}
+
+machine main() crashes Trap {
+    let res: i16 = evaluate();
+    transition res == 250 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,41 @@
+// Fact: 16-bit signed wrapping addition lhs +% rhs with bounded interval 350i16 <= sum <= 600i16 establishes 350i16 <= sum <= 600i16 across all nine places so exact subtractions 600i16 - sum and sum - 350i16 are safe.
+// Place: call_result. The wrapping sum result is returned from a callee invocation.
+// Expected exit: 0
+machine verify_sum(value: i16) -> i16
+    requires value >= 350 && value <= 600
+{
+    let head: i16 = 600 - value;
+    let tail: i16 = value - 350;
+    head + tail
+}
+
+machine get_sum(lhs: i16, rhs: i16) -> i16
+    requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
+    ensures result >= 350 && result <= 601
+{
+    let a: i16 in Wrapping = lhs as i16 in Wrapping;
+    let b: i16 in Wrapping = rhs as i16 in Wrapping;
+    let wrapped: i16 in Wrapping = a + b;
+    wrapped as i16
+}
+
+machine compute_call_result(lhs: i16, rhs: i16) -> i16
+    requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
+{
+    let transported: i16 = get_sum(lhs, rhs);
+    verify_sum(transported)
+}
+
+machine evaluate() -> i16 {
+    compute_call_result(400, 80)
+}
+
+machine main() crashes Trap {
+    let res: i16 = evaluate();
+    transition res == 250 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
