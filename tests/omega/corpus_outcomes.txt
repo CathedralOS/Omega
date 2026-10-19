@@ -8574,6 +8574,7 @@ run/domains/zero_field_call_formation_exit checked 3531ms check-target:macos_arm
 run/dyn_finite_family_correlated checked 49536ms check-target:linux_x86_64 @4730b1ac8a84
 run/dyn_finite_family_owned_carrier checked 34492ms check-target:linux_x86_64 @4730b1ac8a84
 run/dyn_finite_family_runtime_dispatch checked 12276ms check-target:macos_arm64 @55ccf9be57c4
+run/facts/signed_division_quotient_truncation_not_floor_traps checked 7721ms check-target:macos_arm64 @4bb0b016c1fe
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/generics/runtime_value_index_operands checked 7083ms check-target:macos_arm64 @16802f0d1e96
 run/layouts/placed_ram_capture_return checked 60512ms check-target:macos_arm64 @c48489ea6ad6
