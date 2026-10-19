@@ -35,12 +35,21 @@ PY
 }
 
 git fetch origin -q 2>/dev/null
+# Sync ONCE, before the loop. Syncing per fact would `git checkout origin/main --`
+# the goldens at the start of every iteration, silently discarding the recording the
+# previous iteration just made: a lane recording nine facts would land only the LAST
+# one. A backfill lane hit exactly this (its case_equality rows went back to 0/10 in
+# the working tree while recording guarded_line_loan; the commit was safe, the tree
+# was not).
+echo "== re-sync goldens from origin/main (once) =="
+git checkout origin/main -- tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt 2>/dev/null
+git checkout origin/main -- tests/omega/corpus_native_macos_arm64.txt 2>/dev/null
+
 for fact in "$@"; do
-  echo "== $fact: re-sync goldens from origin/main =="
-  git checkout origin/main -- tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt 2>/dev/null
+  echo "== $fact =="
   before=$(lost)
   [ "$before" = "0" ] || { echo "   ABORT: pre-record LOST=$before (rebase first)"; continue; }
-  echo "   pre-record LOST=0"
+  echo "   pre-record LOST=0 (rows from earlier facts in this run are preserved)"
   # Refuse to record while the host is too loaded. A --record with compiles in
   # flight silently writes `timeout` rows instead of real outcomes, and those rows
   # look like recorded evidence. Two lanes lost a full record cycle to this.
@@ -55,19 +64,26 @@ for fact in "$@"; do
   # A record is only trustworthy if no compile was still in flight when it ended.
   if echo "$out" | grep -qE '[1-9][0-9]* compile\(s\) in flight'; then
     echo "   ABORT: compiles were still in flight; that record wrote timeout rows."
-    git checkout origin/main -- tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt
+    echo "   (earlier facts recorded in this run stay committed; only this one is skipped)"
     continue
   fi
   after=$(lost)
   # grep -c exits 1 when it matches nothing, so `|| echo 0` appended a SECOND
   # value and made this "0\n0", which then failed the string comparison below and
   # reverted a perfectly good record. Count with awk instead, which exits 0.
+  # grep -c exits 1 on zero matches, so `|| echo 0` appended a SECOND zero and made
+  # this "0\n0", which failed the comparison below and reverted good recordings. awk
+  # exits 0 and is used here; the lane's suggested grep+${x:-0} form is equivalent.
   timeouts=$(awk '/timeout/{n++} END{print n+0}' tests/omega/corpus_outcomes.txt)
   echo "   post-record LOST=$after timeouts=$timeouts"
   if [ "$after" != "0" ] || [ "$timeouts" != "0" ]; then
-    echo "   REVERTING: record lost rows or wrote timeout rows"
-    git checkout origin/main -- tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt
+    # Restore only THIS fact's rows from HEAD, so a bad record cannot carry a loss
+    # forward while earlier facts in the same run keep their diagnostics.
+    echo "   REVERTING this fact (LOST=$after timeouts=$timeouts); earlier facts preserved"
+    git checkout HEAD -- tests/omega/corpus_outcomes.txt 2>/dev/null
   else
     echo "   OK: no rows lost, no timeouts"
+    echo "   COMMIT THIS FACT NOW so the next iteration cannot affect it:"
+    echo "     git add -A && git commit -m 'tests: record $fact reject diagnostics'"
   fi
 done
