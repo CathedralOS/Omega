@@ -83,3 +83,36 @@ Restoring the true pre-call sum (`100u64`) restores clean compilation and zero e
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Scalar types (`u64`, `i32`) resolve their standard widths and 8-byte alignments. ABI calling conventions classify caller-saved vs. callee-saved registers: `clobber_call` requires argument passing in standard calling plan registers (`rcx` on Windows x86_64, `rdi` on Linux x86_64, `x0` on ARM64) and clobbers volatile scratch registers, forcing live-across-call values into callee-saved registers or dedicated activation frame spill slots.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering maps the eight live values to register homes or activation stack-frame spill slots. Spilled registers are allocated disjoint 8-byte stack slots within the frame extent, accounted for in worst-case stack usage (WCSU). The backend emits machine entry prologues allocating stack space and epilogues restoring callee-saved registers, with memory stores before the call and reloads after the call.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve to concrete addressing modes (`[rsp + disp]` on x86_64, `[sp, #imm]` on arm64). Function basic blocks and call/return sequences relax with offset reflow. Transitive machine-state footprint evidence validates stack and register allocations, and direct PE/ELF/Mach-O emission produces native binaries that agree with Terminal Psi (`omega run --both` exit 0) on `windows_x86_64` and `macos_arm64`.
+
+## Measured evidence
+
+Producer: the reference `omega` CLI at the landing candidate, `macos_arm64` host,
+`OMEGA_LIBRARY_ROOT=<checkout>/source/library`.
+
+| Measurement | Result |
+| --- | --- |
+| `omega run --both` root and nine places | native exit 0, interpreter exit 0, agreeing (10/10) |
+| `sample_native_gate --facts --filter live_across_call_spill` | 10/10 meet their oracle; 18/18 intended-invalid controls match their authored rejection; exit 0 |
+| `corpus_gate --native --filter facts/live_across_call_spill` | clean; 9 fixtures `built`, executed 9, exit codes `{'0': 9}`; exit 0 |
+| `tests/omega/corpus_native_macos_arm64.txt` | nine `built ... exit:0` rows, splice added 9 and removed 0 |
+
+Each reject twin refuses with exit 1 and the diagnostic
+`exact arithmetic ... may overflow \`u64\`` (decision 17, exact arithmetic is a
+proof obligation). The nine `invalid/<place>/` twins and the nine
+`<place>/invalid/` mirrors both carry `expected.txt` and `sample.json` with
+`rejection_contains`, so no twin reports `rejection-failed`.
+
+### Oracle discrimination
+
+The oracle reads the post-call observation, so it moves when a value that must
+survive the call is corrupted. Measured on this host:
+
+| Program | Native | Interpreter |
+| --- | --- | --- |
+| live binding `v8 = 15u64` carried across `clobber_call` (baseline) | exit 0 | exit 0 |
+| same, `v8 = 14u64` at the call site | signal 5 | crash Trap |
+| callee result changed from `0u64` to `1u64` | signal 5 | crash Trap |
+
+Both engines detect the corruption and agree, and restoring the value restores
+exit 0. A compiler that clobbered or spilled a live value incorrectly would
+change the post-call observation rather than pass.
