@@ -101,9 +101,13 @@ fn retain_borrow_result_type(
     let derived = (|| {
         let machine = program.machine_by_symbol(machine_symbol)?;
         let state = program.state_by_symbol(state_symbol)?;
-        let borrow = program.expression_table.borrow_expression(expression)?;
-        let target =
-            validation::expression_result_type_reference(program, machine, state, borrow.target)?;
+        let formation = validation::reference_formation_source(program, expression)?;
+        let target = validation::expression_result_type_reference(
+            program,
+            machine,
+            state,
+            formation.source,
+        )?;
         let carrier = program
             .type_reference_table
             .unconstrained_type_reference(target);
@@ -114,8 +118,12 @@ fn retain_borrow_result_type(
             _ => (target, None),
         };
         Some(TypeReferenceNode::Reference {
-            referee,
-            access: borrow.access,
+            referee: if formation.view_type.is_valid() {
+                formation.view_type
+            } else {
+                referee
+            },
+            access: formation.access,
             lifetime,
         })
     })();
@@ -150,7 +158,7 @@ pub(crate) fn retain_constructed_result_types(
                 | ExpressionNode::StructLiteral(_)
                 | ExpressionNode::Borrow(_)
                 | ExpressionNode::Call(_)
-        )
+        ) || matches!(node, ExpressionNode::Cast(cast) if cast.form.is_recast())
     }) {
         let reference = if program.expression_table.call_node(expression).is_some() {
             match call_results::retain(program, machine_symbol, state_symbol, expression) {
@@ -163,11 +171,7 @@ pub(crate) fn retain_constructed_result_types(
                     None
                 }
             }
-        } else if program
-            .expression_table
-            .borrow_expression(expression)
-            .is_some()
-        {
+        } else if validation::reference_formation_source(program, expression).is_some() {
             retain_borrow_result_type(program, machine_symbol, state_symbol, expression)
         } else if program
             .expression_table

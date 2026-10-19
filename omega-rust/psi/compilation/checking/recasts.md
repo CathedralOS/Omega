@@ -4,6 +4,26 @@ The [recast contract](../../../../wiki/spec/layouts/recasts.md) defines the
 representation judgment. `src/value_custody/recasts.rs` and its child modules implement the
 supported source subset; their restrictions are not new language semantics.
 
+An explicit reference qualification change keeps its descriptor, exact backing
+loan and live routed evidence. Same-carrier domain implication permits forgetting
+non-owning qualifications, not minting provenance. Mutable views and shared
+views with atomic mutation require implication in both directions. Indexed
+domains retain their exact semantic arguments; the occurrence checker still
+demands current membership after intervening writes.
+
+Qualification-only changes retain the original storage declaration instead of
+creating a byte interpretation. This preserves atomic field protocols and
+returned-view origins. Ordinary/atomic shared representation crossings reject
+even when their integer carriers have identical bits. Standalone atomic-reference
+execution remains a separate limitation, pinned under
+`tests/omega/pending/atomics/standalone_reference_access`; atomic record views
+with unchanged physical declarations execute through ordinary atomic events.
+
+Domain-owned `read by` and `written by` clauses are not implemented by this
+qualification repair. Their restrictions must survive erasure when that policy
+is admitted; predicate/issuer vacuity is not evidence of unrestricted access.
+The current frontend rejects those clauses before a reference view can form.
+
 Shared scalar, bounded byte-region, and recursively nested record/array views
 are supported. Mutable typed aliases require equal geometry and equivalent
 leaf representation sets. Integer range leaves normalize to exact

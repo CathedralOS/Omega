@@ -167,14 +167,6 @@ fn validate_domain_delivery(
     if !value.is_valid() || !target_type.is_valid() {
         return;
     }
-    if matches!(
-        program.expression_table.expression(value),
-        ExpressionNode::Cast(cast) if cast.form.is_recast()
-    ) {
-        // Reference recasts have their own representation/fact weakening law.
-        return;
-    }
-
     let source = expression_atoms(program, machine, state, value);
     if source.is_empty() {
         return;

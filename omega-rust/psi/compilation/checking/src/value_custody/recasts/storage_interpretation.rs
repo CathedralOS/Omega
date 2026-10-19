@@ -8,8 +8,24 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 pub fn reference_view_storage(
     program: &dyn crate::CheckingInput,
+    source: TypeReferenceHandle,
     referent: TypeReferenceHandle,
 ) -> Option<CheckedReferenceStorage> {
+    // A qualification-only change lends the existing declaration. Routing it
+    // through a byte interpretation would discard declaration-owned protocols
+    // such as atomic fields even though no representation changed. Use the
+    // canonical storage identity, which retains scalar receiving restrictions.
+    if crate::structural_type_identity(program, source, &[], &[])
+        == crate::structural_type_identity(program, referent, &[], &[])
+    {
+        return Some(CheckedReferenceStorage::Declared);
+    }
+    // Qualification affects evidence and access, not the physical schema of
+    // this already-checked view. Keep it on the reference's type; geometry
+    // reads the underlying carrier without pretending its bytes prove a route.
+    let referent = program
+        .type_reference_table
+        .unconstrained_type_reference(referent);
     let stored_scalar = if let Some(primitive) = program.primitive_type_reference(referent) {
         let geometry = super::recast_scalar_path_projection(program, referent, &[])?;
         Some(match geometry.stored_integer {

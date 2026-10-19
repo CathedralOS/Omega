@@ -499,27 +499,3 @@ pub(super) fn retained_reference_lineage(
         checked_trees::BorrowLoanLineage::UnretainedDerived
     }
 }
-
-/// The recast reference's `referee`/`access` and the machine `machine_symbol`
-/// names — the shared prologue both indexed-recast borrow places peel before
-/// validating their source.
-pub(super) fn indexed_recast_loan_parts<'a>(
-    program: &'a dyn ::validation::CheckingInput,
-    machine_symbol: SymbolHandle,
-    local_data: &checked_trees::statement::TableLocalData,
-) -> Option<(
-    &'a typed_trees::machine::Machine,
-    typed_trees::types::TypeReferenceHandle,
-    language_semantics::ReferenceAccess,
-)> {
-    let typed_trees::types::TypeReferenceNode::Reference {
-        referee, access, ..
-    } = program
-        .type_reference_table
-        .type_reference(local_data.type_reference)
-    else {
-        return None;
-    };
-    let machine = program.machine(machine_symbol)?;
-    Some((machine, *referee, *access))
-}

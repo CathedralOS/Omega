@@ -2,6 +2,24 @@
 
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+/// Observation permission belongs to the resolved storage atom, not its bits.
+/// Constraints do not turn an ordinary integer into an atomic cell.
+pub(super) fn scalar_is_atomic(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<bool> {
+    let reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    exact_scalar_representation_type(program, reference)?;
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    Some(program.symbols.builtin_type_atom(*symbol)?.is_atomic())
+}
+
 pub(crate) fn exact_primitive_type(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,

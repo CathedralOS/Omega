@@ -306,7 +306,7 @@ pub(crate) fn capture(
     let storage = if is_placed {
         CheckedReferenceStorage::Placed
     } else if is_view {
-        validation::reference_view_storage(program, referent)?
+        validation::reference_view_storage(program, endpoint, referent)?
     } else {
         CheckedReferenceStorage::Declared
     };

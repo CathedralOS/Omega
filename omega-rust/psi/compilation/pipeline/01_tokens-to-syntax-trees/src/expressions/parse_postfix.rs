@@ -285,11 +285,6 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             let mut semantic_domain = arena::HandleSpan::empty();
             let mut semantic_domain_arguments = arena::HandleSpan::empty();
             if input.at_contextual("in") {
-                if form.is_recast() {
-                    return Err(input.error_here(
-                        "a recast re-views a place's bytes and takes no arithmetic domain; domains retag VALUE casts (`x as u8 in Wrapping`)",
-                    ));
-                }
                 let after_in = input.take_contextual("in")?;
                 // The same static path a type's domain constraint takes:
                 // `in Km`, `in u64::Km`, or a module-qualified
@@ -297,6 +292,11 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                 let (domain_name, rest) =
                     crate::type_syntax::parse_type::parse_static_name(after_in)?;
                 match numerics::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
+                    Some(_) if form.is_recast() => {
+                        return Err(input.error_here(
+                            "a recast re-views a place's bytes and takes no arithmetic domain; domains retag VALUE casts (`x as u8 in Wrapping`)",
+                        ));
+                    }
                     Some(parsed) => domain = parsed,
                     // A non-policy name is the semantic-domain qualification
                     // spelling (decision 19) -- carried whole; validation

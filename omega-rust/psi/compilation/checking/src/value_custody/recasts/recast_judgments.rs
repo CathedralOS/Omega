@@ -152,6 +152,43 @@ fn judge_scalar_recast_alternative(
         return;
     }
 
+    let shared_mutation = type_representation(
+        program,
+        program
+            .type_reference_table
+            .unconstrained_type_reference(cast.target_type),
+    )
+    .is_some_and(|representation| representation.permits_shared_mutation());
+    let qualification_compatible = source_type.and_then(|source| {
+        super::qualification_views::qualification_view_compatible(
+            program,
+            source,
+            let_referee,
+            mutable_recast || shared_mutation,
+        )
+    });
+    if qualification_compatible == Some(false) {
+        diagnostics.push(Diagnostic::error(format!(
+                "{context}: a qualification reference view must retain existing source qualifications{}; `as` cannot mint routed provenance",
+                if mutable_recast { " in BOTH directions for mutable storage" } else { "" },
+            )).with_source_span(source_span));
+        return;
+    }
+    // Membership and representation are independent obligations. Even an
+    // identical carrier must continue through place-specific field bounds,
+    // access and geometry checks; a qualified view is not an early success.
+    let representation_carrier = |reference| {
+        if qualification_compatible == Some(true)
+            && program.primitive_type_reference(reference).is_none()
+        {
+            program
+                .type_reference_table
+                .unconstrained_type_reference(reference)
+        } else {
+            reference
+        }
+    };
+
     // Target: a fixed-width scalar or recursively fixed aggregate, restated
     // exactly by the let. Structural targets are semantic type references;
     // their cached display spelling never participates in the judgment.
@@ -186,7 +223,8 @@ fn judge_scalar_recast_alternative(
         // Compare encoded physical bit sets, not the wider logical carriers.
         // Writes through a stored-width view still prove fit; a compatible
         // canonical view writes those same bytes without a new encoding.
-        let target_representation = type_representation(program, cast.target_type);
+        let target_representation =
+            type_representation(program, representation_carrier(cast.target_type));
         if let Some(target_representation) = target_representation {
             if program.normalized_type_identity(let_referee)
                 != program.normalized_type_identity(cast.target_type)
@@ -240,7 +278,8 @@ fn judge_scalar_recast_alternative(
                 return;
             }
             if let Some(source_type) = source_type
-                && let Some(source_representation) = type_representation(program, source_type)
+                && let Some(source_representation) =
+                    type_representation(program, representation_carrier(source_type))
             {
                 let compatible = if mutable_recast {
                     mutable_record_representations_equivalent(
@@ -326,6 +365,7 @@ fn judge_scalar_recast_alternative(
         }
         let target_facts = mutable_scalar_representation_facts(program, let_referee);
         let raw_facts = MutableScalarRepresentationFacts {
+            atomic: false,
             domains: Vec::new(),
             values: ScalarRepresentationSet::ExactBitPatterns(full_scalar_bit_patterns(target)),
         };
@@ -413,7 +453,25 @@ fn judge_scalar_recast_alternative(
             && target_facts.values
                 == ScalarRepresentationSet::ExactBitPatterns(full_scalar_bit_patterns(target))
     });
-    let compatible = if !mutable_recast && target_is_fact_free {
+    let source_atomic = source_type
+        .and_then(|reference| super::representation_types::scalar_is_atomic(program, reference));
+    let target_atomic = super::representation_types::scalar_is_atomic(program, let_referee);
+    if !mutable_recast
+        && source_atomic
+            .zip(target_atomic)
+            .is_some_and(|(source, target)| source != target)
+    {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "{context}: a shared recast must preserve atomic observation and mutation authority"
+            ))
+            .with_source_span(source_span),
+        );
+        return;
+    }
+    let shared_observation_compatible =
+        source_atomic == Some(false) && target_atomic == Some(false);
+    let compatible = if !mutable_recast && target_is_fact_free && shared_observation_compatible {
         // A shared view may always forget source facts. This remains safe even
         // when the source uses a fact family (such as a float interval) whose
         // precise representation set is not yet modeled.

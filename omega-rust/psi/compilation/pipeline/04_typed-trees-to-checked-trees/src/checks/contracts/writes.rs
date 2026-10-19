@@ -958,7 +958,6 @@ fn judge_value_qualification_cast(
     let requires_provenance =
         validation::field_domains::domain_requires_provenance(program, domain_symbol);
     if cast.semantic_domain.is_empty()
-        || cast.form.is_recast()
         || (!requires_provenance
             && program
                 .primitive_type_reference(domain.target_type)

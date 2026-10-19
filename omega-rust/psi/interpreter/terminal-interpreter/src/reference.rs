@@ -1473,6 +1473,16 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 let reference_type = value.structural_type;
+                // Qualification transport can change the live descriptor's
+                // roster after its backing was captured. Dereferencing uses
+                // that exact roster, not the formation-time clone. This
+                // changes the view only; the backing and its custody remain
+                // the captured occurrence rather than a newly qualified owner.
+                let qualifications = terminal_psi::StructuralPathQualification::select(
+                    &value.qualifications,
+                    &value.projected_qualifications,
+                    &[StructuralPathSegment::Referent],
+                );
                 let captured = self
                     .reference_referents
                     .get(&StructuralRuntimePlace::from(&value))
@@ -1518,6 +1528,7 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     value = ram.presentation.clone();
+                    (value.qualifications, value.projected_qualifications) = qualifications;
                     remaining = &remaining[boundary + 1..];
                     continue;
                 }
@@ -1545,6 +1556,7 @@ impl TerminalExecution<'_> {
                     // backing and its scalar payload retain their declaration.
                     value.structural_type = referent_type;
                 }
+                (value.qualifications, value.projected_qualifications) = qualifications;
                 remaining = &remaining[boundary + 1..];
             } else {
                 if primitive_storage.is_none()

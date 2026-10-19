@@ -62,6 +62,7 @@ pub(super) fn byte_region_allows_arbitrary_writes(
         return false;
     };
     let raw = super::scalar_representation::MutableScalarRepresentationFacts {
+        atomic: false,
         domains: Vec::new(),
         values: super::scalar_representation::ScalarRepresentationSet::ExactBitPatterns(
             super::scalar_representation::full_scalar_bit_patterns(PrimitiveType::U8),

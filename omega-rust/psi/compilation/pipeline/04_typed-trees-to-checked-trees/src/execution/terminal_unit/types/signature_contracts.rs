@@ -499,7 +499,15 @@ pub(in crate::execution::terminal_unit) fn body_structural_qualifications(
                     )
                 }),
         )
-        .filter(|(owner, ..)| *owner == machine);
+        .filter(|(owner, ..)| *owner == machine)
+        // Body commitments originate at casts (qualification_facts), not
+        // every later use of the same domain. A copied descriptor or existing
+        // place may discharge a call's requirement without producing another
+        // structural value. That use must not make the original cast's
+        // already-owned membership appear to lack a producer.
+        .filter(|(_, _, _, expression, _)| {
+            program.expression_table.cast_node(*expression).is_some()
+        });
     let (owned, unowned): (Vec<_>, Vec<_>) =
         decided.partition(|(_, state, statement, expression, _)| {
             facts

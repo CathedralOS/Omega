@@ -1551,7 +1551,8 @@ fail/domains/routed_qualification_cast_wrong_family_instance rejected 1317ms exp
 fail/domains/routed_qualification_cast_wrong_occurrence rejected 1341ms expected @e74967d11875
 fail/domains/routed_qualification_invalidated_field rejected 1345ms expected @e74967d11875
 fail/domains/routed_qualification_predicate_cannot_authorize rejected 1300ms expected @e74967d11875
-fail/domains/routed_qualification_reference_recast rejected 12ms expected @e74967d11875
+fail/domains/routed_qualification_reference_recast rejected 695ms expected @8137d4f697de+wt
+	machine `forge` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 fail/domains/routed_record_capture_after_sibling_mutation rejected 698ms expected @2ef2ab353498+wt
 fail/domains/scalar_alias_zero_requires_all_predicates rejected 5313ms expected @a9ae30e1c334+wt
 fail/domains/scalar_domain_mixed_return_bad_predicate rejected 2089ms expected @83f47d8fae73
@@ -3404,6 +3405,27 @@ fail/facts/selected_scalar_initializer_through_parameter_rejected rejected 1205m
 	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/facts/selected_scalar_initializer_through_target_body_rejected rejected 1232ms expected @a0ebcac9edda+wt
 	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/shared_qualification_erasure_call_result rejected 4782ms expected @8137d4f697de+wt
+	machine `main` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+fail/facts/shared_qualification_erasure_const_name rejected 200ms expected @8137d4f697de+wt
+	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+fail/facts/shared_qualification_erasure_field rejected 4612ms expected @8137d4f697de+wt
+	machine `main` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+fail/facts/shared_qualification_erasure_local rejected 4794ms expected @8137d4f697de+wt
+	machine `main` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+fail/facts/shared_qualification_erasure_match_join rejected 4705ms expected @8137d4f697de+wt
+	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+fail/facts/shared_qualification_erasure_other_machine rejected 4676ms expected @8137d4f697de+wt
+	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+fail/facts/shared_qualification_erasure_other_state rejected 4665ms expected @8137d4f697de+wt
+	machine `inspect` state `carried`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+fail/facts/shared_qualification_erasure_parameter rejected 4788ms expected @8137d4f697de+wt
+	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+fail/facts/shared_qualification_erasure_target_body rejected 4666ms expected @8137d4f697de+wt
+	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 fail/facts/signed_division_quotient_unproved_call_result rejected 2405ms expected @45cbafd80d9c
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/signed_division_quotient_unproved_const_name rejected 2403ms expected @45cbafd80d9c
@@ -4655,10 +4677,18 @@ fail/recast/field_precondition_call_invalidated_before_capture rejected 944ms ex
 fail/recast/field_precondition_invalidated_before_capture rejected 896ms expected @a9ae30e1c334+wt
 fail/recast/incoming_offset_call_invalidated_before_capture rejected 909ms expected @a9ae30e1c334+wt
 fail/recast/incoming_offset_invalidated_before_capture rejected 917ms expected @a9ae30e1c334+wt
+fail/recast/indexed_qualification_reference_wrong_index rejected 4645ms expected @8137d4f697de+wt
+	machine `forge` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 fail/recast/interior_recast_footprint_rejected rejected 2935ms expected @a9ae30e1c334+wt
 fail/recast/interior_slice_exclusive_backing_read rejected 2074ms expected @a9ae30e1c334+wt
 fail/recast/interior_slice_runtime_offset_non_tiling rejected 880ms expected @a9ae30e1c334+wt
 fail/recast/local_stored_byte_region_escape rejected 661ms expected @8fd8af53161a+wt
+fail/recast/mutable_routed_qualification_erasure rejected 675ms expected @8137d4f697de+wt
+	machine `weaken` state `entry`: a qualification reference view must retain existing source qualifications in BOTH directions for mutable storage; `as` cannot mint routed provenance
+fail/recast/qualified_reference_local_escape rejected 6044ms expected @8137d4f697de+wt
+	machine `escape` returns a view borrowing the local `ticket`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/recast/qualified_reference_stale_membership rejected 5024ms expected @8137d4f697de+wt
+	`as ... in Ticket::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/recast/recast_borrow_polarity_escalation rejected 1014ms expected @a9ae30e1c334+wt
 fail/recast/recast_conflicting_backing_loan rejected 292ms expected @2430f497a77c+wt
 fail/recast/recast_mut_bool_as_unconstrained_byte rejected 830ms expected @a9ae30e1c334+wt
@@ -4667,9 +4697,12 @@ fail/recast/recast_mut_record_fact_fenced rejected 823ms expected @a9ae30e1c334+
 fail/recast/recast_mut_record_where_bounds_differ rejected 910ms expected @a9ae30e1c334+wt
 fail/recast/recast_mut_record_where_write_out_of_range rejected 852ms expected @a9ae30e1c334+wt
 fail/recast/recast_mut_where_bounded_field_widened rejected 903ms expected @a9ae30e1c334+wt
+fail/recast/recast_mut_where_bounded_same_carrier rejected 668ms expected @8137d4f697de+wt
+	machine `Main::main` state `main`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
 fail/recast/recast_position_fenced rejected 808ms expected @a9ae30e1c334+wt
 fail/recast/recast_record_relational_where_fenced rejected 895ms expected @a9ae30e1c334+wt
-fail/recast/recast_shared_domain_strengthening_rejected rejected 831ms expected @a9ae30e1c334+wt
+fail/recast/recast_shared_domain_strengthening_rejected rejected 689ms expected @8137d4f697de+wt
+	machine `Main::main` state `main`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 fail/recast/recast_shared_record_where_strengthening_rejected rejected 5647ms expected @a9ae30e1c334+wt
 fail/recast/recast_size_mismatch_rejected rejected 2821ms expected @a9ae30e1c334+wt
 fail/recast/recast_slice_where_invalid_indexed_store rejected 223ms expected @e382c49e4adb+wt
@@ -4679,7 +4712,15 @@ fail/recast/restricted_field_mutable_call_cannot_erase_invariant rejected 1011ms
 fail/recast/returned_recast_requires_declared_access rejected 164ms expected @82749ba0e736
 fail/recast/returned_shared_view_cannot_lend_mutable rejected 163ms expected @22286cb27fcc
 fail/recast/scalar_parameter_view_footprint_rejected rejected 836ms expected @a9ae30e1c334+wt
+fail/recast/shared_atomic_record_to_ordinary rejected 654ms expected @8137d4f697de+wt
+	machine `view` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Ordinary` are not representation-compatible
+fail/recast/shared_atomic_to_ordinary rejected 3607ms expected @8137d4f697de+wt
+	machine `view` state `entry`: a shared recast must preserve atomic observation and mutation authority
+fail/recast/shared_ordinary_to_atomic rejected 3615ms expected @8137d4f697de+wt
+	machine `view` state `entry`: a shared recast must preserve atomic observation and mutation authority
 fail/recast/shared_parameter_view_mutable_call_rejected rejected 870ms expected @a9ae30e1c334+wt
+fail/recast/shared_record_to_atomic rejected 667ms expected @8137d4f697de+wt
+	machine `view` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Atomic` are not representation-compatible
 fail/recast/shared_reference_recast_cannot_lend_mutable rejected 1674ms expected @c48489ea6ad6
 fail/recast/slice_view_non_tiling_rejected rejected 2884ms expected @a9ae30e1c334+wt
 fail/recast/unbounded_offset_names_the_bound rejected 2846ms expected @a9ae30e1c334+wt
@@ -7758,6 +7799,15 @@ pass/facts/selected_scalar_initializer_through_other_machine_exit checked 7877ms
 pass/facts/selected_scalar_initializer_through_other_state_exit checked 7880ms check-target:macos_arm64 @a0ebcac9edda+wt
 pass/facts/selected_scalar_initializer_through_parameter_exit checked 7923ms check-target:macos_arm64 @a0ebcac9edda+wt
 pass/facts/selected_scalar_initializer_through_target_body_exit checked 8126ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/facts/shared_qualification_erasure_call_result checked 14370ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/shared_qualification_erasure_const_name checked 26932ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/shared_qualification_erasure_field checked 14387ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/shared_qualification_erasure_local checked 14423ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/shared_qualification_erasure_match_join checked 14418ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/shared_qualification_erasure_other_machine checked 14377ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/shared_qualification_erasure_other_state checked 14359ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/shared_qualification_erasure_parameter checked 14427ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/shared_qualification_erasure_target_body checked 14468ms check-target:macos_arm64 @8137d4f697de+wt
 pass/facts/signed_division_quotient_through_call_result_exit checked 7575ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_const_name_exit checked 7742ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_field_exit checked 7695ms check-target:macos_arm64 @45cbafd80d9c
@@ -8883,6 +8933,7 @@ pass/ranges/subject_guard_compound_index_successor checked 1818ms @a9ae30e1c334+
 pass/ranges/subject_unsigned_computed_index_lower_bound checked 1562ms @a9ae30e1c334+wt
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 11383ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/recast/address_model_preserves_state_bounds checked 6839ms check-target:macos_arm64 @f908755ec590
+pass/recast/atomic_qualification_view_exit checked 14373ms check-target:macos_arm64 @8137d4f697de+wt
 pass/recast/bool_byte_view_compile checked 1567ms @a9ae30e1c334+wt
 pass/recast/borrowed_byte_scalar_views_exit checked 6868ms check-target:macos_arm64 @e76af65b0403
 pass/recast/boundary_postcondition_backing_scalar_exit checked 3377ms check-target:macos_arm64 @2430f497a77c+wt
@@ -8901,6 +8952,7 @@ pass/recast/i16_unsigned_bits_view_compile checked 1684ms @a9ae30e1c334+wt
 pass/recast/i16_unsigned_view_compile checked 1706ms @a9ae30e1c334+wt
 pass/recast/i32_float_bits_view_compile checked 1544ms @a9ae30e1c334+wt
 pass/recast/i32_float_view_compile checked 1562ms @a9ae30e1c334+wt
+pass/recast/indexed_qualification_reference_exit checked 14317ms check-target:macos_arm64 @8137d4f697de+wt
 pass/recast/int_float32_bits_view_compile checked 1606ms @a9ae30e1c334+wt
 pass/recast/int_float_bits_view_compile checked 1556ms @a9ae30e1c334+wt
 pass/recast/invariant_member_view_compile checked 1639ms @a9ae30e1c334+wt
@@ -8925,6 +8977,8 @@ pass/recast/recast_view_forward_compile checked 1559ms @a9ae30e1c334+wt
 pass/recast/reference_view_helper_backing_write_exit checked 3343ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/reference_view_shared_call_backing_exit checked 3329ms check-target:macos_arm64 @2430f497a77c+wt
 pass/recast/reference_view_shared_primitive_neighbor_exit checked 3328ms check-target:macos_arm64 @2430f497a77c+wt
+pass/recast/returned_qualification_preserves_representation_exit checked 14335ms check-target:macos_arm64 @8137d4f697de+wt
+pass/recast/returned_qualified_reference_exit checked 13041ms check-target:macos_arm64 @8137d4f697de+wt
 pass/recast/returned_same_type_view_capture_exit checked 4794ms check-target:macos_arm64 @82749ba0e736
 pass/recast/returned_view_state_and_record_composition_exit checked 9057ms check-target:macos_arm64 @dd658fb23eef
 pass/recast/runtime_aggregate_slice_representation_recast_exit checked 12079ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -59,6 +59,7 @@
 
 mod literal_indexed_footprints;
 mod offset_bounds;
+mod qualification_views;
 mod raw_byte_region;
 mod recast_judgments;
 mod record_eligibility;

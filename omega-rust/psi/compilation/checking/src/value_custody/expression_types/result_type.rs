@@ -173,7 +173,17 @@ fn result_type(
     }
     active.push(expression);
     let result = match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => result_type(program, owner, atomic.value, active),
+        ExpressionNode::Atomic(atomic) => {
+            let operand = result_type(program, owner, atomic.value, active);
+            if crate::atomic_load_carrier(program, expression).is_some() {
+                // An atomic load observes the cell's resident. The receiver
+                // may be a reference, but the event never returns that
+                // descriptor or permits an ordinary read in its place.
+                operand.and_then(|cell| crate::atomic_resident_type_reference(program, cell))
+            } else {
+                operand
+            }
+        }
         ExpressionNode::Match(dispatch) => {
             let arms = program.expression_table.match_arms(dispatch.arms);
             let references = arms
@@ -322,6 +332,14 @@ fn result_type(
                 .is_valid()
                 .then_some(reference)
                 .or_else(|| crate::declared_constant_array_type(program, expression))
+        }
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            // The target and qualification judgment describe the referent;
+            // the expression itself produces the prepared loan descriptor.
+            let reference = program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            reference.is_valid().then_some(reference)
         }
         ExpressionNode::Cast(cast) => cast_result_type_reference(program, cast),
         ExpressionNode::Indexed(indexed)

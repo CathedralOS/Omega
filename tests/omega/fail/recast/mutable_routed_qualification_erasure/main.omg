@@ -1,0 +1,6 @@
+data Ticket [copy] { number: u64; }
+domain Ticket::Issued established by issue;
+machine issue() -> Ticket in Ticket::Issued { Ticket { number: 17 } }
+machine weaken(ticket: &mut Ticket in Ticket::Issued) {
+    let view: &mut Ticket = ticket as &mut Ticket;
+}

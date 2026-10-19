@@ -1,0 +1,3 @@
+machine view(value: &AtomicU64) { let ordinary: &u64 = value as &u64; }
+data Main { value: AtomicU64; }
+machine Main::main(main: &mut Main) { view(&main.value); }

@@ -37,6 +37,7 @@ pub(crate) fn declaration_scalar_view_is_total(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct MutableScalarRepresentationFacts {
+    pub(super) atomic: bool,
     pub(super) domains: Vec<SymbolHandle>,
     pub(super) values: ScalarRepresentationSet,
 }
@@ -174,7 +175,7 @@ pub(super) fn mutable_scalar_representation_facts(
                 }
                 type_reference = *base_type;
             }
-            TypeReferenceNode::Named { name, .. }
+            TypeReferenceNode::Named { symbol, name }
                 if PrimitiveType::from_name(name.as_str()).is_some() =>
             {
                 let primitive = PrimitiveType::from_name(name.as_str())?;
@@ -199,7 +200,15 @@ pub(super) fn mutable_scalar_representation_facts(
                         full_scalar_bit_patterns(primitive),
                     ),
                 };
-                return Some(MutableScalarRepresentationFacts { domains, values });
+                let atomic = program
+                    .symbols
+                    .builtin_type_atom(*symbol)
+                    .is_some_and(|atom| atom.is_atomic());
+                return Some(MutableScalarRepresentationFacts {
+                    atomic,
+                    domains,
+                    values,
+                });
             }
             _ => return None,
         }
@@ -518,6 +527,15 @@ pub(super) fn scalar_representation_facts_imply(
     source: &MutableScalarRepresentationFacts,
     target: &MutableScalarRepresentationFacts,
 ) -> bool {
+    // Shared views preserve the observation protocol. Atomic targets can
+    // also write, so their validity obligation is two-way despite `&`.
+    // Exclusive views use the independent equivalence judgment above.
+    if source.atomic != target.atomic {
+        return false;
+    }
+    if target.atomic {
+        return mutable_scalar_representation_facts_equivalent(program, source, target);
+    }
     let domains_imply = target.domains.iter().all(|target| {
         source
             .domains

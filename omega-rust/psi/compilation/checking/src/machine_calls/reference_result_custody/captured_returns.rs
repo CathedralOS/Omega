@@ -874,8 +874,8 @@ impl Captures<'_> {
             if formations.next().is_some()
                 || self.program.normalized_type_identity(backing_type)
                     != self.program.normalized_type_identity(selected)
-                || !matches!(storage, checked_trees::CheckedReferenceStorage::View { .. })
-                || storage != crate::reference_view_storage(self.program, recast.target_type)?
+                || storage
+                    != crate::reference_view_storage(self.program, selected, recast.target_type)?
                 || self.program.normalized_type_identity(
                     crate::reference_shell(self.program, formation.type_reference)?.referee,
                 ) != self.program.normalized_type_identity(recast.target_type)
@@ -885,12 +885,22 @@ impl Captures<'_> {
             // The arena occurrence remains in its original body after a call
             // substitution. Its source identity is not the rebased caller root.
             self.program.state_by_symbol(formation.state)?;
-            path.push(CheckedReferenceOriginProjection::Exact(
-                CheckedUnitStructuralPathSegment::RepresentationView {
-                    type_identity: self.program.normalized_type_identity(recast.target_type),
-                    storage,
-                },
-            ));
+            if matches!(storage, checked_trees::CheckedReferenceStorage::View { .. }) {
+                path.push(CheckedReferenceOriginProjection::Exact(
+                    CheckedUnitStructuralPathSegment::RepresentationView {
+                        // The path names the registered physical declaration.
+                        // Qualification stays on the checked result contract;
+                        // it is not another storage shape in the Terminal roster.
+                        type_identity: crate::structural_type_identity(
+                            self.program,
+                            recast.target_type,
+                            &[],
+                            &[],
+                        ),
+                        storage,
+                    },
+                ));
+            }
             selected = recast.target_type;
         }
         let (presentation, selectors) = origin.representation.as_ref()?;

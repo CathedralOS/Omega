@@ -123,7 +123,8 @@ impl Builder<'_, '_> {
                 value: parameter(0, observation.primitive_type),
                 value_source: ExpressionHandle::invalid(),
                 domain: observation.domain,
-                computation: self.expression(expression, observation.primitive_type)?,
+                computation: self
+                    .primitive_reference_observation(expression, observation.primitive_type)?,
             });
         }
         if let Some(carrier) = validation::atomic_load_carrier(self.program, expression) {

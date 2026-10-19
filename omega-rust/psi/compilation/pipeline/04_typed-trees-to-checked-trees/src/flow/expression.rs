@@ -1486,7 +1486,15 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 }
             }
             ExpressionNode::Cast(cast) => {
-                let evaluated = self.evaluated_operand(cast.value, contexts, constraints);
+                // A representation view lends storage; it does not copy the
+                // operand and inherit only that copy's interior lifetimes.
+                // Capture the backing just as ordinary address formation does.
+                // View geometry still comes from the checked recast resolver.
+                let evaluated = if cast.form.is_recast() {
+                    self.evaluated_place(cast.value, contexts, constraints)
+                } else {
+                    self.evaluated_operand(cast.value, contexts, constraints)
+                };
                 *retention = Some(evaluated.capture.retention);
             }
             ExpressionNode::Borrow(borrow) => {

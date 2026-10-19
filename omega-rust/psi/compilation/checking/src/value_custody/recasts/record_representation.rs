@@ -40,6 +40,12 @@ pub(super) struct MutableRecordRepresentation {
     leaves: Vec<MutableRecordLeaf>,
 }
 
+impl MutableRecordRepresentation {
+    pub(super) fn permits_shared_mutation(&self) -> bool {
+        self.leaves.iter().any(|leaf| leaf.facts.atomic)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct MutableRecordLeaf {
     offset: usize,
@@ -203,6 +209,11 @@ pub fn recast_scalar_layout(
     program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
 ) -> Option<RecastScalarLayout> {
+    // This projection table describes the physical schema only. Recast
+    // admission separately proves qualifications and source validity.
+    let root = program
+        .type_reference_table
+        .unconstrained_type_reference(root);
     let representation = type_representation(program, root)?;
     let mut leaves = Vec::new();
     leaves.try_reserve_exact(representation.leaves.len()).ok()?;

@@ -214,6 +214,12 @@ pub(crate) fn normalize_qualification_casts_from(
         cast.semantic_domain_symbol = domain;
         cast.semantic_domain_id = semantic_id;
         cast.result_type = result_type;
+        if cast.form.is_recast() && result_type.is_valid() {
+            // Recast targets describe the referent, not a value conversion.
+            // Every borrow/representation consumer must see its complete
+            // normalized qualification, not merely the bare carrier spelling.
+            cast.target_type = result_type;
+        }
     }
     Ok(())
 }
