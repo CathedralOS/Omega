@@ -75,10 +75,35 @@ in **both** engines, and the two engines agree on the presentation:
 
 The aliasing control is the sharpest one: it asserts the tag is a one-byte
 discriminator and that ordinal 256 collapses onto ordinal 0. Both engines trap,
-establishing that the 4-byte tag preserves the full discriminant range. A
-matching probe that constructs case ordinal 255, 256, and 299 and matches the
-last case exits 0 in both engines, so discriminants above 255 are carried
-without loss.
+establishing that the 4-byte tag preserves the full discriminant range.
+
+### The 1-byte / 2-byte threshold, swept
+
+AGENTS.md names "widening a discriminant tag" as the kind of physical encoding
+boundary that makes a new row meaningful, so the sweep below crosses the
+1-byte/2-byte discriminant threshold explicitly. Each probe asserts
+`size_of<S>() == 4u64` **and** constructs the highest-ordinal case and matches
+it back to itself, so a truncated or aliasing tag fails the probe rather than
+silently passing a stale size:
+
+| cases | `size_of` | last ordinal self-matches | native | interp |
+| --- | --- | --- | --- | --- |
+| 2 | 4 | yes | exit 0 | exit 0 |
+| 255 (fits 1 byte) | 4 | yes | exit 0 | exit 0 |
+| 256 (needs 2 bytes) | 4 | yes | exit 0 | exit 0 |
+| 257 | 4 | yes | exit 0 | exit 0 |
+| 1000 | 4 | yes | exit 0 | exit 0 |
+
+The disjunction marks the boundary: ordinal 255 fits the 1-byte threshold and
+ordinal 256 crosses it, yet the measured tag geometry is unchanged in both,
+and both ordinals survive construction-and-match. Under this representation
+the tag deliberately does **not** widen at 256; it is a fixed-width 4-byte
+discriminant that already spans the thresholds, and the falsification control
+that asserts otherwise (`300-case sum claims size_of == 8`) traps in both
+engines. The row therefore establishes where the transition is: the record
+shows the tag fixed at 4 bytes and proves the discriminant carrier holds every
+ordinal across the 1-byte and 2-byte boundaries rather than assuming a widening
+that does not occur.
 
 ## Execution
 
