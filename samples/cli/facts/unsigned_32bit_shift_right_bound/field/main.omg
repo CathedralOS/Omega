@@ -1,0 +1,29 @@
+// Fact: a 32-bit unsigned u32 logical right shift of a bounded input (val >= 240u32 && val <= 240u32) by 2u32 bits establishes shifted >= 60u32 && shifted <= 60u32 so exact 32-bit subtraction shifted - 60u32 is proved underflow-free across all nine places.
+// Place: field. The 32-bit operand and shift count are stored in record fields before right shift and subtraction.
+// Expected exit: 0
+
+data ShiftPacket {
+    val: u32;
+    shift: u32;
+}
+
+machine shift_field(packet: ShiftPacket) -> u32
+requires packet.val >= 240 && packet.val <= 240 && packet.shift == 2
+{
+    let shifted: u32 = packet.val >> packet.shift;
+    shifted - 60u32
+}
+
+machine probe() -> u32 {
+    let packet: ShiftPacket = ShiftPacket { val: 240u32, shift: 2 };
+    shift_field(packet)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
