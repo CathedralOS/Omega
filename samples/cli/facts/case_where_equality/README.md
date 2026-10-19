@@ -2,42 +2,73 @@
 
 Case `Point(lo, hi) where lo == hi` makes `hi - lo` exact in `u64`, without
 a guard or Wrapping. The fact-place requirement keeps this fact and operation
-unchanged. The nine source-check places include a named constant selected through
-a static binder, whose generic body needs the case predicate. Each qualifying
-twin removes only that predicate and reaches subtraction rejection.
+unchanged across all nine places. The nine source-check places include a named
+constant selected through a static binder, whose generic body needs the case predicate.
+Each qualifying twin removes only that predicate and reaches subtraction rejection.
 
 The root project and all nine place projects bind `ProgramEntry` for host
-targets, initialize `main.width = 99` and an interval payload where `lo == hi`
-(such as `17, 17` or `4, 4`), and declare `Expected exit: 0`. The exact
-`hi - lo = 0` subtraction result writes `main.width = 0`, and the transition on
-`main.width == 0` verifies execution reaches `pass()` (exit 0) rather than
-`fail() { crash Trap; }`. Both native and Terminal execution are verified.
+targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), initialize
+`main.width = 99` and an interval payload where `lo == hi` (such as `17, 17` or `4, 4`),
+and declare `Expected exit: 0`. The exact `hi - lo = 0` subtraction result writes
+`main.width = 0`, and the transition on `main.width == 0` verifies execution reaches
+`pass()` (exit 0) rather than `fail() { crash Trap; }`. Both native and Terminal Psi
+execution are verified (`omega run --both`).
+
+| Place | Positive Project | Reject Twin | Transport Mechanism |
+| --- | --- | --- | --- |
+| root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness with `Interval::Point(17, 17)` |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | copied local interval |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | borrowed context field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | explicit interval parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | identity machine call result |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | two distinct interval fields joined by a match |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named `Point { lo: 4, hi: 4 }` constant through static `const INTERVAL: Interval` binder |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | interval forwarded to another state |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | interval forwarded to another machine |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | four hosted target bodies |
+
+## Execution
+
+Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement (`interp exit: 0` and `native exit 0`):
 
 ```sh
 omega run --both samples/cli/facts/case_where_equality/main.omg
-omega run --both samples/cli/facts/case_where_equality/<place>/main.omg
-omega --check samples/cli/facts/case_where_equality/<place>/invalid/main.omg
+omega run --both samples/cli/facts/case_where_equality/local/main.omg
+omega run --both samples/cli/facts/case_where_equality/field/main.omg
+omega run --both samples/cli/facts/case_where_equality/parameter/main.omg
+omega run --both samples/cli/facts/case_where_equality/call_result/main.omg
+omega run --both samples/cli/facts/case_where_equality/match_join/main.omg
+omega run --both samples/cli/facts/case_where_equality/const_name/main.omg
+omega run --both samples/cli/facts/case_where_equality/other_state/main.omg
+omega run --both samples/cli/facts/case_where_equality/other_machine/main.omg
+omega run --both samples/cli/facts/case_where_equality/target_body/main.omg
 python tools/sample_native_gate.py --facts --filter case_where_equality
 ```
 
-| Place | Equality-bearing subject | Positive | Reject twin |
-| --- | --- | --- | --- |
-| `local` | copied local interval | runs (exit 0) | missing equality: exact `u64` overflow |
-| `field` | borrowed context field | runs (exit 0) | missing equality: exact `u64` overflow |
-| `parameter` | explicit interval parameter | runs (exit 0) | missing equality: exact `u64` overflow |
-| `call_result` | identity machine result | runs (exit 0) | missing equality: exact `u64` overflow |
-| `match_join` | two distinct interval fields joined by a match | runs (exit 0) | missing equality: exact `u64` overflow |
-| `const_name` | named `Point { lo: 4, hi: 4 }` constant through static `const INTERVAL: Interval` binder | runs (exit 0) | missing equality: exact `u64` overflow in the generic body |
-| `other_state` | interval forwarded to another state | runs (exit 0) | missing equality: exact `u64` overflow |
-| `other_machine` | interval forwarded to another machine | runs (exit 0) | missing equality: exact `u64` overflow |
-| `target_body` | four hosted target bodies | runs (exit 0) | four exact `u64` overflow diagnostics |
+### The oracle discriminates
 
-All nine twins remove only `where lo == hi`, retaining the same `u64` carriers,
-transition, state parameters, and exact `hi - lo` assignment. In the const twin,
-the named `4`/`4` constructor remains valid, but it cannot strengthen the generic
-body's declared contract. Expected diagnostic fragments are authored beside each
-twin. Pass/fail mirrors live at
-`tests/omega/{pass,fail}/facts/case_equality_through_<place>_compile`.
+The exit code `0` is strictly discriminative. Exact subtraction `hi - lo = 0` sets `main.width = 0`. The machine transitions on `main.width == 0` to `pass()` (exit 0); any unexpected width branches to `fail()` which executes `crash Trap;`. Both native and Terminal Psi engines abort non-zero on failure.
+
+## Reject Twins
+
+Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "intended-invalid"` and `"rejection_contains": ["exact arithmetic", "may overflow `u64`"]`) and `expected.txt`. All nine twins remove only `where lo == hi`, retaining the same `u64` carriers, transition, state parameters, and exact `hi - lo` assignment. In the const twin, the named `4`/`4` constructor remains valid, but it cannot strengthen the generic body's declared contract. Proof checking fails closed during compile-time verification:
+
+| Place | Twin | Pinned Diagnostic Fragment |
+| --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
+
+## Pinned Fixtures
+
+- Positive passes: `tests/omega/pass/facts/case_equality_through_<place>_compile` and `tests/omega/pass/facts/case_where_equality_through_<place>_exit` (all 9 places pinned, each recording native exit 0).
+- Negative controls: `tests/omega/fail/facts/case_equality_through_<place>_compile` and `tests/omega/fail/facts/case_where_equality_through_<place>_rejected` (all 9 places pinned, rejecting with exact arithmetic overflow).
 
 `Interval [copy]` explicitly permits the ordinary copies used by the place
 programs. Unannotated owned data is affine even when all its fields are scalar;
@@ -130,3 +161,18 @@ unresolved authored member selection. It does not supply the assigned named
 constant/application journey and is not claimed repaired. The root program and
 nine assigned routes execute natively and under Terminal Psi with `Expected exit: 0`;
 all predicate-erasure twins and materialized controls reject with their authored diagnostics.
+
+## Requirements and Evidence
+
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`).
+
+### Specification and Lowering Layers
+
+1. **Establishment:** The case payload refinement `Point(lo: u64, hi: u64) where lo == hi` in enum/data type `Interval` establishes static equality between the payload fields `lo` and `hi` upon construction and matching. When projected into an exact arithmetic subtraction expression `hi - lo`, the compile-time proof engine proves non-negative representability in unsigned `u64` (`hi >= lo` identically discharged from `lo == hi`), evaluating to 0 without requiring runtime guards, wrapping, or post-hoc caller equality checks (`transition x == 100`).
+2. **Identity and lifetime:** The established equality `lo == hi` attaches strictly to the unpacked case payload bindings of the specific `Point` variant instance. Moving or copying the interval value (`Interval [copy]`) preserves the standing equality invariant across value transfers, while invalid construction (e.g. attempting to construct `Point(4, 3)` with an unsatisfied `lo == hi` predicate) or mismatched variant extraction fails closed at compile time before invalid storage can be observed.
+3. **Composition:** The case equality invariant composes across all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) to prove exact `hi - lo = 0` subtraction in `main.width = hi - lo`. Each place's positive `<place>/main.omg` vs. its reject twin `<place>/invalid/main.omg` differs only in the case predicate clause (`where lo == hi` present vs removed), cleanly isolating the transport and consumption of the exact equality fact across all places.
+4. **Soundness boundaries:** All 9 reject twins fail closed during source proof checking when `where lo == hi` is omitted. Without the equality premise, exact subtraction `hi - lo` on unconstrained `u64` operands is not provably in range, rejecting with compile-time diagnostic `error: exact arithmetic in machine ... state ... assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)`. This ensures that unverified arithmetic cannot compile, bypass proof gates, or reach code generation.
+5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Source constructs—including tagged variant layout, pattern match dispatch, case payload projection, exact integer subtraction, and state transitions—lower without information loss into canonical target-neutral Terminal Psi (`PSITERM\0`). Mathematical proof obligations and erased predicate annotations are checked and erased, while preserving explicit affine cleanup and state transition semantics. The Terminal Psi interpreter executes every positive place in complete agreement with native execution (`omega run --both`).
+6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`, `ProviderPlan`, `CompilerBuiltinExecution`, `BoundaryExecutionBinding`) across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Tagged case variant layout plans (`size_of`, `align_of`, discriminant tags, and payload offsets for `Point` and `Empty`) are evaluated and validated. `CallPlan` and `StatePlan` assign machine state parameters, calling arguments, and return homes to register and stack lanes according to target platform ABIs.
+7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend instruction selection emits target ISA instructions (`x86_64` and `arm64`) for variant tag comparison, payload field extraction, and integer subtraction (`sub`). Register allocator selects register homes and disjoint activation frame spill slots, composing worst-case stack usage (WCSU) bounds and emitting platform-standard prologues and epilogues conforming to `StatePlan` ceilings.
+8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Final encoding resolves symbolic branch displacements and stack frame offsets, relaxes function-relative jumps, validates transitive machine-state footprints, and emits direct PE/ELF/Mach-O executable placements. Native binaries execute natively with exit code 0 and match Terminal Psi interpretation across all hosted platforms.
