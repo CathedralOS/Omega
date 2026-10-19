@@ -73,8 +73,15 @@ for fact in "$@"; do
   # ("integer expression expected") and evaluated FALSE, so this guard always took
   # the else branch and never fired -- inert exactly when it was needed. awk's int()
   # returns an integer-formatted number, and a belt-and-braces truncation follows.
-  free_mb=$(vm_stat 2>/dev/null | awk '/Pages free/{gsub(/\./,"",$3); print int(int($3)*4096/1048576)}')
+  # Read the page size the kernel REPORTS rather than assuming 4096: this host's
+  # vm_stat header says "page size of 16384 bytes", so a hardcoded 4096 reported
+  # 17 MB when 75 MB was free -- a 4x under-report that refused records which were
+  # actually safe. awk's int() keeps the value integral, and a shell truncation
+  # follows so `[ -lt ]` cannot receive a fractional operand (an earlier version
+  # printed "85.3828" and the comparison silently evaluated FALSE).
+  free_mb=$(vm_stat 2>/dev/null | awk '/page size of/{ps=$8} /Pages free/{gsub(/\./,"",$3); printf "%d", int(int($3)*ps/1048576)}')
   free_mb=${free_mb%%.*}
+  ps_bytes=$(vm_stat 2>/dev/null | awk '/page size of/{print $8}')
   if [ "${free_mb:-999}" -lt 512 ]; then
     echo "   ABORT: only ${free_mb} MB free; a record here risks an OOM kill. Retry later."
     continue
@@ -119,6 +126,34 @@ for fact in "$@"; do
   timeouts=$(awk '/timeout/{n++} END{print n+0}' tests/omega/corpus_outcomes.txt)
   echo "   post-record LOST=$after timeouts=$timeouts"
   rm -f "$acquired"; trap - EXIT
+  # LOST and timeout counts CANNOT detect a source tree that does not compile: no row
+  # is lost and no timeout is written, yet the rows recorded are parse errors rather
+  # than the fact's obligation. Observed with a contaminated tree:
+  #   rejected 6ms unexpected
+  #     source/library/core/code_layout.omg:3:1: expected one of ..., found `public`
+  # where the real row is `rejected ~1700ms expected` naming the fact's obligation.
+  # Three independent signatures, any one of which catches it.
+  bad=0
+  if grep -qE "^fail/facts/${fact}[^ ]* rejected [0-9]+ms unexpected" tests/omega/corpus_outcomes.txt 2>/dev/null; then
+    echo "   ABORT: a row for $fact is marked 'unexpected' (not the authored rejection)."
+    bad=1
+  fi
+  if grep -A1 -E "^fail/facts/${fact}[^ ]* rejected" tests/omega/corpus_outcomes.txt 2>/dev/null \
+       | grep -qE "expected one of|found identifier|source/library/.*\.omg:[0-9]+"; then
+    echo "   ABORT: a recorded diagnostic is a PARSE error, not the fact's obligation."
+    bad=1
+  fi
+  fast=$(awk -v f="$fact" '$1 ~ "^fail/facts/"f && $3 == "rejected" { }
+       $1 ~ "^fail/facts/"f && /rejected/ { if (match($0, /rejected ([0-9]+)ms/, m)) if (m[1] < 200) n++ } END { print n+0 }' tests/omega/corpus_outcomes.txt 2>/dev/null)
+  if [ "${fast:-0}" != "0" ]; then
+    echo "   ABORT: ${fast} row(s) rejected in under 200ms; real check diagnostics take far longer."
+    bad=1
+  fi
+  if [ "$bad" != "0" ]; then
+    echo "   REVERTING this fact (record is not the fact's obligation); earlier facts preserved"
+    git checkout HEAD -- tests/omega/corpus_outcomes.txt 2>/dev/null
+    continue
+  fi
   if [ "$after" != "0" ] || [ "$timeouts" != "0" ]; then
     # Restore only THIS fact's rows from HEAD, so a bad record cannot carry a loss
     # forward while earlier facts in the same run keep their diagnostics.
