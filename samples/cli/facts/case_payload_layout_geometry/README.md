@@ -24,10 +24,56 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Measured geometry
+
+The mechanism is a tag at offset 0 followed by the payload at the first offset
+that satisfies the payload's own alignment. For a two-variant type whose payloads
+are `Empty` and `Payload(T)`, that composes to
+`size_of == 2 * max(4, size_of<T>)` and `align_of == max(4, align_of<T>)`.
+
+| Payload `T` | `size_of` | `align_of` | `size - align * 2` |
+| --- | --- | --- | --- |
+| `u8` | 8 | 4 | 0 |
+| `u16` | 8 | 4 | 0 |
+| `u32` | 8 | 4 | 0 |
+| `u64` | 16 | 8 | 0 |
+| `[u64; 1]` | 16 | 8 | 0 |
+| `[u64; 2]` | 24 | 8 | 8 |
+| `[u64; 3]` | 32 | 8 | 16 |
+
+The composing maximum is the discriminant slot's own width: a variant count small
+enough for a 4-byte tag leaves the tag at 4 bytes. **A payload narrower than 4
+bytes does not narrow the tag.** `u8` and `u16` payloads both report `size 8,
+align 4` — the slot is widened to 4, not measured from the payload's width — so a
+reject twin must not be authored on the belief that the tag tracks the payload.
+The alignment row is what makes this a payload-packing fact rather than a tag
+fact: `[u64; 2]` moves `size_of` because the payload is wider than the tag, while
+`u32` leaves it at `max(4, 4) * 2`.
+
+`size_of` responds to a real change in payload representation, and the oracle is
+not constant-folded to its own expectation. Both engines agree on every row, and
+corrupting the oracle falsifies the claim: asserting `size == 24` or `align == 4`
+for the `u64` payload traps natively (signal 5) and in Terminal Psi (`Trap`),
+while the measured values exit 0 in both. The `[u64; 2]` program traps on
+`diff == 0` and exits 0 on `diff == 8`, so the computed difference — not the
+comparison constant — selects the state.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `LAYOUT-PLANS` / `COUNT-ADDRESS-GEOMETRY` / `TERMINAL-LAYOUT-WIRE-EVALUATION` ([TASKS.md](../../../../TASKS.md)).
 - **Requirement established:** Tagged `case` discriminant plus payload layout geometry proof and realization (`Psi 05–07` / `Omega 00–09`), verifying that querying compile-time layout geometry (`size_of<Packet>() == 16u64`, `align_of<Packet>() == 8u64`) on a multi-variant sum type (`case Packet { Empty, Payload(u64) }`) establishes exact layout geometry and proves non-negativity for exact subtraction `size - (align * 2u64) == 0u64` across all nine standard places.
+
+Pinned fixtures: the nine positives are
+[`tests/omega/pass/facts/case_payload_layout_geometry_through_<place>_exit`](../../../../tests/omega/pass/facts)
+and the nine reject twins are
+[`tests/omega/fail/facts/case_payload_layout_geometry_unproved_<place>`](../../../../tests/omega/fail/facts),
+for `<place>` in `local`, `field`, `parameter`, `call_result`, `match_join`,
+`const_name`, `other_state`, `other_machine`, `target_body`. Each positive
+carries its own `expected_native_exit.txt` (`0`); each twin authors both
+`expected.txt` and `invalid`-style `sample.json` `rejection_contains`.
+`<place>/main.omg` and `<place>/invalid/main.omg` differ only in the payload
+variant — `Payload(value: u64)` against payloadless `Other` — never in a caller
+guard.
 
 Full 8-layer specification and lowering evidence:
 
@@ -44,7 +90,7 @@ Full 8-layer specification and lowering evidence:
   - `other_machine`: layout query computation is delegated through intermediate machine `runner()`.
   - `target_body`: layout query computation is executed across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in replacing the payload variant `Payload(value: u64)` with payloadless `Other`, changing the layout geometry (`size == 4u64`, `align == 4u64`) so that `size - (align * 2u64)` results in negative bounds `[-4, -4]` and fails compile-time check.
-- **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `exact arithmetic may overflow` (`bounds [-4, -4] lie outside [0, 18446744073709551615]`), proving that the layout and arithmetic proof systems soundly reject any invalid payload geometry variation.
+- **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `exact arithmetic may overflow` (`bounds [-4, -4] lie outside [0, 18446744073709551615]`), proving that the layout and arithmetic proof systems soundly reject any invalid payload geometry variation. The refusal is **static**: it is decided at construction, before lowering, so no runtime trap is reachable on the positive path and none is authored. The trap route is exercised separately as a falsification control — asserting a false geometry (`size == 24`, `align == 4`) does execute and traps in both engines.
 - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Multi-variant `data` declarations lower into canonical `PSITERM\0` type definitions and layout plans. Layout queries resolve to target-neutral compile-time constants before Terminal Psi production. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Sum-type discriminant tags and variant payload offsets are resolved according to target layout geometry, validating that the 8-byte aligned `u64` payload requires an 8-byte discriminant slot and 16-byte total allocation across all hosted targets.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for 64-bit integer arithmetic and comparisons. Register homes and disjoint activation frames are allocated with entry prologues and restoration epilogues honoring the `StatePlan` frame ceiling.
