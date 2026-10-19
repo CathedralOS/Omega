@@ -1,0 +1,23 @@
+// Fact: zero-extending narrow unsigned 100u8 through u16 and u32 to u64 preserves the exact interval 100u64, discharging exact subtraction widened - 100u64 with exit code 0.
+// Place: another state (invalid twin). Initial narrow value is 99u8, so zero-extension yields 99u64 which underflows exact subtraction extended - 100u64.
+// Expected diagnostic: exact subtraction underflow
+
+machine evaluate() -> i32 {
+    let narrow: u8 = 99u8;
+    let val: u64 = ((narrow as u16) as u32) as u64;
+    transition { _ -> compute(val) }
+    state compute(extended: u64) -> i32 {
+        let sub: u64 = extended - 100u64;
+        sub as i32
+    }
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate();
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
