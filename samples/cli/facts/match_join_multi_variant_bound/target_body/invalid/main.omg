@@ -1,0 +1,55 @@
+// Exhaustively matching a three-variant case value where every arm establishes joined >= 20u64 && joined <= 60u64 preserves the joined interval bound across all nine places, discharging exact subtraction 60u64 - joined and joined - 20u64.
+// Invalid: High variant allows val <= 61, widening the joined bound to [20, 61] and failing 60u64 - joined.
+
+data Mode [copy] {
+    case Low(val: u64) where val >= 20 && val <= 60;
+    case Mid(val: u64) where val >= 20 && val <= 60;
+    case High(val: u64) where val >= 20 && val <= 61;
+}
+
+machine evaluate(mode: Mode) -> u64 {
+    transition mode {
+        Mode::Low { val } -> val
+        Mode::Mid { val } -> val
+        Mode::High { val } -> val
+    }
+}
+
+linux_x86_64 machine exercise(m: Mode) -> u64 {
+    let joined: u64 = evaluate(m);
+    let diff1: u64 = 60u64 - joined;
+    let diff2: u64 = joined - 20u64;
+    diff1 + diff2
+}
+
+windows_x86_64 machine exercise(m: Mode) -> u64 {
+    let joined: u64 = evaluate(m);
+    let diff1: u64 = 60u64 - joined;
+    let diff2: u64 = joined - 20u64;
+    diff1 + diff2
+}
+
+linux_arm64 machine exercise(m: Mode) -> u64 {
+    let joined: u64 = evaluate(m);
+    let diff1: u64 = 60u64 - joined;
+    let diff2: u64 = joined - 20u64;
+    diff1 + diff2
+}
+
+macos_arm64 machine exercise(m: Mode) -> u64 {
+    let joined: u64 = evaluate(m);
+    let diff1: u64 = 60u64 - joined;
+    let diff2: u64 = joined - 20u64;
+    diff1 + diff2
+}
+
+machine main() crashes Trap {
+    let m: Mode = Mode::Mid { val: 40 };
+    let sum: u64 = exercise(m);
+    transition sum == 40 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
