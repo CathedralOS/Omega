@@ -1,0 +1,34 @@
+// Fact: 8-bit signed bitwise XOR raw ^ 15i8 with bounded interval 40i8 <= xored <= 63i8 establishes 40i8 <= xored <= 63i8 across all nine places so exact subtractions 63i8 - xored and xored - 40i8 are safe.
+// Place: local. Both the bounded signed i8 operand and its bitwise XOR result are transported through local bindings.
+// Expected exit: 0
+machine verify_xored(res: i8) -> i32
+    requires res >= 40 && res <= 63
+{
+    let head: i8 = 63 - res;
+    let tail: i8 = res - 40;
+    let sum: i32 = (head as i32) + (tail as i32);
+    sum - 23
+}
+
+machine compute_local(raw: i8) -> i32
+    requires raw >= 59 && raw <= 59
+{
+    let xored: i8 = raw ^ 15;
+    let v: i8 = xored;
+    let transported: i8 = v;
+    verify_xored(transported)
+}
+
+machine evaluate() -> i32 {
+    compute_local(59)
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate();
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
