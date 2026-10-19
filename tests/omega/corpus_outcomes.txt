@@ -2783,6 +2783,24 @@ fail/facts/matched_window_through_other_machine_rejected rejected 655ms expected
 fail/facts/matched_window_through_other_state_rejected rejected 651ms expected @a48b0ac286f5
 fail/facts/matched_window_through_parameter_rejected rejected 651ms expected @a48b0ac286f5
 fail/facts/matched_window_through_target_body_rejected rejected 649ms expected @a48b0ac286f5
+fail/facts/mixed_width_record_padding_geometry_unproved_call_result rejected 35090ms expected @e29d1dd099de
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/mixed_width_record_padding_geometry_unproved_const_name rejected 38250ms expected @e29d1dd099de
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/mixed_width_record_padding_geometry_unproved_field rejected 28894ms expected @e29d1dd099de
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/mixed_width_record_padding_geometry_unproved_local rejected 29236ms expected @e29d1dd099de
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/mixed_width_record_padding_geometry_unproved_match_join rejected 28665ms expected @e29d1dd099de
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/mixed_width_record_padding_geometry_unproved_other_machine rejected 28814ms expected @e29d1dd099de
+	machine `query_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/mixed_width_record_padding_geometry_unproved_other_state rejected 28179ms expected @e29d1dd099de
+	machine `main` state `compute` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/mixed_width_record_padding_geometry_unproved_parameter rejected 28770ms expected @e29d1dd099de
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/mixed_width_record_padding_geometry_unproved_target_body rejected 28308ms expected @e29d1dd099de
+	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/multi_exit_callee_saved_restoration_unproved_call_result rejected 3165ms expected @69725a85bb43
 	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/multi_exit_callee_saved_restoration_unproved_const_name rejected 3122ms expected @69725a85bb43
@@ -7367,6 +7385,15 @@ pass/facts/matched_window_through_other_machine_exit checked 5396ms check-target
 pass/facts/matched_window_through_other_state_exit checked 5647ms check-target:macos_arm64 @b2d507c5ddab+wt
 pass/facts/matched_window_through_parameter_exit checked 5559ms check-target:macos_arm64 @b2d507c5ddab+wt
 pass/facts/matched_window_through_target_body_exit checked 5406ms check-target:macos_arm64 @b2d507c5ddab+wt
+pass/facts/mixed_width_record_padding_geometry_through_call_result_exit checked 75864ms check-target:macos_arm64 @e29d1dd099de
+pass/facts/mixed_width_record_padding_geometry_through_const_name_exit checked 76959ms check-target:macos_arm64 @e29d1dd099de
+pass/facts/mixed_width_record_padding_geometry_through_field_exit checked 74773ms check-target:macos_arm64 @e29d1dd099de
+pass/facts/mixed_width_record_padding_geometry_through_local_exit checked 74123ms check-target:macos_arm64 @e29d1dd099de
+pass/facts/mixed_width_record_padding_geometry_through_match_join_exit checked 74570ms check-target:macos_arm64 @e29d1dd099de
+pass/facts/mixed_width_record_padding_geometry_through_other_machine_exit checked 74514ms check-target:macos_arm64 @e29d1dd099de
+pass/facts/mixed_width_record_padding_geometry_through_other_state_exit checked 74091ms check-target:macos_arm64 @e29d1dd099de
+pass/facts/mixed_width_record_padding_geometry_through_parameter_exit checked 74309ms check-target:macos_arm64 @e29d1dd099de
+pass/facts/mixed_width_record_padding_geometry_through_target_body_exit checked 75606ms check-target:macos_arm64 @e29d1dd099de
 pass/facts/multi_exit_callee_saved_restoration_through_call_result_exit checked 10560ms check-target:macos_arm64 @69725a85bb43
 pass/facts/multi_exit_callee_saved_restoration_through_const_name_exit checked 10806ms check-target:macos_arm64 @69725a85bb43
 pass/facts/multi_exit_callee_saved_restoration_through_field_exit checked 10021ms check-target:macos_arm64 @69725a85bb43
