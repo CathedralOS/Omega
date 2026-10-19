@@ -11,15 +11,18 @@ Under `wiki/spec/resources/storage.md#compiler-owned-stack-accesses`, every comp
 
 This fact row exercises three co-resident local `SlotPair` records (`slot_a`, `slot_b`, `slot_c`) allocated within the same activation frame. Mutating `slot_b` exclusively via `&mut slot_b` must preserve `slot_a` and `slot_c` uncorrupted. The combined sum of fields `slot_a.left + slot_a.right + slot_b.left + slot_b.right + slot_c.left + slot_c.right` equals 100u64 and is transported through each of the nine canonical places:
 
-1. `local`: [local/main.omg](local/main.omg)
-2. `field`: [field/main.omg](field/main.omg)
-3. `parameter`: [parameter/main.omg](parameter/main.omg)
-4. `call_result`: [call_result/main.omg](call_result/main.omg)
-5. `match_join`: [match_join/main.omg](match_join/main.omg)
-6. `const_name`: [const_name/main.omg](const_name/main.omg)
-7. `other_state`: [other_state/main.omg](other_state/main.omg)
-8. `other_machine`: [other_machine/main.omg](other_machine/main.omg)
-9. `target_body`: [target_body/main.omg](target_body/main.omg)
+| Place | Positive | Reject twin | Transport |
+| --- | --- | --- | --- |
+| root (anchor) | [source](main.omg) | - | Root reference row exercising slot isolation across three co-resident records. |
+| local | [source](local/main.omg) | [source](local/invalid/main.omg) | The isolated slot sum is bound to a local before exact subtraction. |
+| field | [source](field/main.omg) | [source](field/invalid/main.omg) | A record field carries the isolated slot sum before exact subtraction. |
+| parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) | The reader receives the isolated slot sum as a parameter. |
+| call_result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | The isolated slot sum is returned from a helper call with an ensures contract. |
+| match_join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | Both match arms produce the isolated slot sum. |
+| const_name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | Named constants preserve the isolated slot sum computation. |
+| other_state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | A transition forwards the isolated slot sum to a successor state. |
+| other_machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | A separate machine verifies and performs the exact subtraction. |
+| target_body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | Each hosted target body executes the exact subtraction. |
 
 Each place establishes that `isolated - 100u64` performs exact subtraction without underflow and yields 0.
 
@@ -75,38 +78,14 @@ while the others stayed live could not have changed the observed result.
 
 ## Requirements and Evidence
 
-- **Establishment.** `write_slot` carries
-  `ensures target.left == next_left && target.right == next_right`, so the
-  post-state of the borrowed referent is established by the call rather than
-  re-derived by a caller equality guard. Each place's `evaluate` proves
-  `requires isolated == 100` from the transported sum and establishes
-  `ensures result == 0` on `isolated - 100u64`; the consuming operation is the
-  subtraction itself.
-- **Identity and lifetime.** The fact names three distinct storage versions
-  (`slot_a`, `slot_b`, `slot_c`) that are live across the same call. The write
-  through `&mut slot_b` changes only `slot_b`'s version; the `slot_a` and
-  `slot_c` facts survive it, and the discrimination proof above observes each
-  version independently while all three are live.
-- **Composition.** The exact actuals are substituted into `evaluate`, each join
-  retains only facts justified on the incoming path, and each
-  `<place>/main.omg` differs from its `<place>/invalid/main.omg` only in the
-  construct's own domain (`evaluate`'s `requires` bound and the mutated write
-  value, producing a 99u64 sum) — never in a caller guard.
-- **Soundness boundaries.** Ownership and access authority are preserved: the
-  exclusive borrow of `slot_b` is the only mutable access, `slot_a` and `slot_c`
-  are read through copies, and the twins reject rather than silently changing
-  the arithmetic domain.
-- **Terminal Psi and carrier lowering.** Each place lowers the borrowed
-  argument and the record homes without loss into Terminal Psi; `local`,
-  `field`, `parameter`, `call_result`, `match_join`, `const_name`,
-  `other_state`, `other_machine` and `target_body` exercise the construct in a
-  different neutral position, and every one executes identically in Terminal
-  Psi and natively.
-- **Native realization, frame/layout encoding and image emission.** The three
-  co-resident homes are assigned disjoint frame slots and the exclusive-borrow
-  write is realized to the correct address; the native leg of `omega run --both`
-  and the recorded `built ... exit:0` rows show the emitted Mach-O image
-  executing the authored result.
+- **Establishment:** `write_slot` carries `ensures target.left == next_left && target.right == next_right`, so the post-state of the borrowed referent is established by the call rather than re-derived by a caller equality guard. Initializing disjoint local stack-backed bindings (`slot_a`, `slot_b`, `slot_c`) establishes independent value and range facts on each slot directly without any post-hoc caller equality guard; each place's `evaluate` proves `requires isolated == 100` from the transported sum and establishes `ensures result == 0` on `isolated - 100u64`.
+- **Identity and lifetime:** The fact names three distinct storage versions (`slot_a`, `slot_b`, `slot_c`) that are live across the same call; mutating `slot_b` exclusively through `&mut slot_b` preserves the static facts and values of provably disjoint sibling locals throughout their lifetimes, as confirmed by discrimination observations.
+- **Composition:** Isolated stack-frame slot facts compose through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming exact subtraction operation (`isolated - 100u64`); `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the target slot's bound or mutation (producing a 99u64 sum), never in a caller guard.
+- **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed at compile time (`exact arithmetic in machine ... may overflow \`u64\``), strictly preventing unproved subtraction when a write to the consumed slot weakens its bound or causes an underflow.
+- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Distinct local storage roots, exclusive borrows (`&mut`), and mutations lower into canonical target-neutral `PSITERM\0` while erasing proof-only obligations, executing with identical semantics in the Terminal Psi interpreter (`omega run --both`).
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build bindings (`ProgramEntry`) settle across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), local carrier layout geometry (`SlotPair` size 16, align 8) evaluates and validates, and `CallPlan`/`StatePlan` lower carriers across target registers and stack slots.
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering assigns non-overlapping byte intervals (`[offset, offset + size)`) in the activation frame for disjoint locals, composes worst-case stack usage (WCSU), and inserts entry prologues and multi-return epilogues honoring the `StatePlan`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Distinct symbolic stack-frame displacements resolve into non-aliasing `[rsp + disp]` / `[sp, #imm]` memory operands, basic blocks and branches relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
 
 Open scope: this row establishes disjoint homes for three co-resident records in
 one activation frame on the exercised places. Wider frame geometries (nested
