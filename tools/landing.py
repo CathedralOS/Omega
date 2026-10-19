@@ -320,7 +320,10 @@ def landed_worktree_cleanup(repository, candidate):
             return {"removed": False, "reason": f"HEAD is {branch}, the main line"}
 
         head = git("rev-parse", "HEAD")
-        if head.returncode or head.stdout.strip() != candidate:
+        # `candidate=None` is the prune path: it retires a lane that was never
+        # built and holds no work, so any HEAD is acceptable as long as the
+        # checks below still prove nothing is being lost.
+        if candidate is not None and (head.returncode or head.stdout.strip() != candidate):
             return {"removed": False,
                     "reason": "worktree HEAD is not the published candidate"}
 
@@ -330,7 +333,9 @@ def landed_worktree_cleanup(repository, candidate):
                     "reason": "worktree has uncommitted or untracked changes"}
 
         # Anything main lacks would be unpublished work, whatever the indices say.
-        ahead = git("rev-list", "--count", f"{candidate}..HEAD")
+        # The prune path compares against main instead of a candidate.
+        reference = candidate if candidate is not None else "main"
+        ahead = git("rev-list", "--count", f"{reference}..HEAD")
         if ahead.returncode or ahead.stdout.strip() != "0":
             return {"removed": False, "reason": "worktree holds commits beyond the candidate"}
 
@@ -403,6 +408,98 @@ def landed_worktree_cleanup(repository, candidate):
         return result
     except (OSError, subprocess.SubprocessError) as error:
         return {"removed": False, "reason": f"cleanup inspection failed: {type(error).__name__}"}
+
+def prune_worktrees(repository, idle_hours=0.0, dry_run=False):
+    """Retire worktrees that waste a build slot without holding warm work.
+
+    Keeping lanes is the reuse path: a worktree owns a managed target that a
+    cold rebuild pays minutes to recreate, while reusing it is seconds. So a
+    lane that has ever been built is worth keeping even after it lands. What
+    is not worth keeping is a lane that can never pay that back:
+
+    - an unregistered or missing directory, which is nothing but stale
+      bookkeeping in `git worktree list`;
+    - a registered lane whose managed target is empty and which has been idle
+      past `idle_hours`, since it has never been built and holds no work.
+
+    A lane holding uncommitted changes, or commits main lacks, is never a
+    candidate: that is unpublished work, not a spare slot. Removal reuses the
+    staged checks in `landed_worktree_cleanup`, so the same refusals apply.
+    Returns one record per worktree inspected; `--dry-run` reports without
+    removing.
+    """
+    listing = subprocess.run(["git", "worktree", "list", "--porcelain"],
+                             cwd=repository, capture_output=True, text=True, timeout=30)
+    if listing.returncode:
+        raise LandingError(f"cannot list worktrees: {listing.stderr.strip()}")
+    common = subprocess.run(["git", "rev-parse", "--path-format=absolute",
+                             "--git-common-dir"], cwd=repository,
+                            capture_output=True, text=True, timeout=30)
+    main_checkout = Path(common.stdout.strip()).parent.resolve() if not common.returncode else None
+
+    entries, current = [], {}
+    for line in listing.stdout.splitlines() + [""]:
+        if line.startswith("worktree "):
+            if current:
+                entries.append(current)
+            current = {"path": line.split(" ", 1)[1].strip()}
+        elif line.startswith("branch ") and current:
+            current["branch"] = line.split(" ", 1)[1].strip().removeprefix("refs/heads/")
+        elif line.startswith("detached") and current:
+            current["detached"] = True
+    if current:
+        entries.append(current)
+
+    results = []
+    for entry in entries:
+        path = Path(entry["path"]).resolve()
+        if main_checkout is not None and path == main_checkout:
+            continue
+        record = {"worktree": str(path), "removed": False}
+        if not path.exists():
+            record["reason"] = "missing directory; prune the registration"
+            if not dry_run:
+                subprocess.run(["git", "worktree", "prune"], cwd=repository,
+                               capture_output=True, text=True, timeout=30)
+                record["removed"] = True
+            results.append(record)
+            continue
+        status = subprocess.run(["git", "status", "--porcelain"], cwd=path,
+                                capture_output=True, text=True, timeout=30)
+        if status.returncode or status.stdout.strip():
+            record["reason"] = "holds uncommitted or untracked changes"
+            results.append(record); continue
+        if entry.get("branch"):
+            ahead = subprocess.run(["git", "rev-list", "--count",
+                                    f"main..{entry['branch']}"], cwd=repository,
+                                   capture_output=True, text=True, timeout=30)
+            if ahead.stdout.strip() not in ("", "0"):
+                record["reason"] = "holds commits main lacks"
+                results.append(record); continue
+        # A managed target is where a warm build lives; report its presence so
+        # the operator can see which lanes are expensive to recreate.
+        warm = None
+        for candidate in ("target", "build/gate-cli"):
+            directory = path / candidate
+            if directory.is_dir() and any(directory.iterdir()):
+                warm = candidate; break
+        record["warm_target"] = warm
+        if warm:
+            record["reason"] = "warm target retained for reuse"
+            results.append(record); continue
+        if idle_hours > 0:
+            touched = max((p.stat().st_mtime for p in path.iterdir()), default=0)
+            idle = (time.time() - touched) / 3600 if touched else 0.0
+            record["idle_hours"] = round(idle, 2)
+            if idle < idle_hours:
+                record["reason"] = f"idle {idle:.2f}h, below the {idle_hours}h threshold"
+                results.append(record); continue
+        record["reason"] = "never built and not needed"
+        if not dry_run:
+            outcome = landed_worktree_cleanup(str(path), None)
+            record.update(outcome)
+        results.append(record)
+    return results
 
 def receipt_path(repository, candidate):
     return (Path(repository) / "build" / "landing_receipts"
@@ -1158,22 +1255,16 @@ class Landing:
                     result["provenance"] = self.record_provenance(options.candidate, [
                         f"owner: {owner}", *([f"provenance: {provenance}"] if provenance.strip() else []),
                         f"ticket: {options.claim}", f"published_utc: {now()}"])
-                    # Main holds the candidate now, so the lane is dead
-                    # bookkeeping. Advisory: a cleanup that refuses must never
-                    # read as a failed publication. The checkout to clean is
-                    # the one being published, which `options` names; tests
-                    # build a Landing without __init__, so do not read it off
-                    # self.
-                    if getattr(options, "keep_worktree", False):
-                        result["cleanup"] = {"removed": False, "reason": "--keep-worktree"}
-                    elif not getattr(options, "repository", None):
-                        # A caller that names no checkout has no lane to retire;
-                        # cleanup is advisory, so report rather than raise.
-                        result["cleanup"] = {"removed": False,
-                                             "reason": "no publishing checkout named"}
-                    else:
-                        result["cleanup"] = landed_worktree_cleanup(
-                            options.repository, options.candidate)
+                    # Main holds the candidate now. The lane is NOT removed:
+                    # a warm worktree owns a managed target that costs a cold
+                    # rebuild to recreate, and reusing that lane is far cheaper
+                    # than provisioning a new one. Retire a lane deliberately
+                    # with `prune`, which removes only worktrees that are
+                    # unregistered or have never been built. A shared build
+                    # cache makes the sources cheap to restore but not the
+                    # target directory, so keeping lanes is the reuse path.
+                    result["cleanup"] = {"removed": False,
+                                         "reason": "lane retained for reuse; use prune to retire it"}
                 if options.command == "claim":
                     self.emit_reservation(result)
                 else:
@@ -1191,7 +1282,7 @@ class Parser(argparse.ArgumentParser):
 def main(arguments=None):
     parser = Parser(description=__doc__)
     parser.add_argument("command", nargs="?", default="status",
-                        choices=("status", "enqueue", "cancel", "claim", "publish", "release", "recover", "verify"))
+                        choices=("status", "enqueue", "cancel", "claim", "publish", "release", "recover", "verify", "prune"))
     parser.add_argument("--repository", default=".")
     parser.add_argument("--remote", default="origin")
     for name in ("owner", "ticket", "claim", "base", "candidate", "reason", "provenance"):
@@ -1204,6 +1295,10 @@ def main(arguments=None):
     parser.add_argument("--keep-worktree", action="store_true",
                         help="keep the publishing worktree and its candidate branch after "
                              "a successful publish (default: remove them, per AGENTS.md)")
+    parser.add_argument("--idle-hours", type=float, default=0.0,
+                        help="prune: also retire a never-built lane idle at least this long")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="prune: report what would be retired without removing it")
     parser.add_argument("--qualification", help="verify a pinned qualification assessment before/after the mandatory build")
     options = None
     try:
@@ -1231,6 +1326,14 @@ def main(arguments=None):
                 raise LandingError("verify requires --base <full-sha> — the integration base the claim reserved.")
             object_id(options.base, "Base")
             return verify(options.repository, options.base, options.qualification)
+        if options.command == "prune":
+            records = prune_worktrees(options.repository, options.idle_hours,
+                                      options.dry_run)
+            removed = [r for r in records if r.get("removed")]
+            emit({"state": "pruned", "dry_run": options.dry_run,
+                  "inspected": len(records), "removed": len(removed),
+                  "worktrees": records})
+            return 0
         operation_deadline = time.monotonic() + LEASE_SECONDS + options.wait_seconds
         return Landing(options.repository, options.remote, operation_deadline).coordinate(options)
     except (LandingError, OSError) as error:

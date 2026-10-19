@@ -202,37 +202,42 @@ Every publisher must use this command. Direct main pushes can still bypass this
 cooperative protocol. If main advances outside the reservation, publication stops;
 release and reconcile before performing final validation again.
 
-### The lane is removed by the publish
+### The lane is retained by the publish
 
-On success `publish` removes the publishing worktree and deletes its candidate
-branch, because AGENTS.md makes that a hard rule on the publishing session and
-a landed lane is dead bookkeeping. It runs after main is confirmed to hold the
-candidate and after the provenance note is recorded, so it can never influence
-whether a publication is reported as landed. The outcome appears as `cleanup`
-in the JSON result, and a refusal is a reported reason, not a failure. Pass
-`--keep-worktree` to retain the lane deliberately.
+A successful `publish` keeps the publishing worktree and its branch. A warm
+lane owns a managed target that a cold rebuild pays minutes to recreate, while
+reusing the lane costs a rebase; deleting it to save bookkeeping trades
+seconds of tidiness for minutes of every later agent's time. Main is confirmed
+to hold the candidate and the provenance note is recorded before this decision
+is reported, so it can never influence whether a publication is landed. The
+outcome appears as `cleanup` in the JSON result.
 
-It refuses whenever anything could still be lost, so the reported reason names
-the real condition:
+Provisioning churn is still waste, so retire lanes deliberately with `prune`,
+which removes only what cannot pay for its slot:
 
-- the publish ran from the main checkout rather than a linked lane;
-- the worktree has uncommitted or untracked changes;
-- HEAD is not the published candidate, or holds commits beyond it;
-- HEAD is detached, or sits on the main line.
+```sh
+python3 tools/landing.py prune --dry-run          # report, change nothing
+python3 tools/landing.py prune --idle-hours 24    # also retire stale cold lanes
+```
 
-The main checkout is never removable, and a refusal never deletes the worktree.
+`prune` removes a worktree whose directory is missing (stale registration) or
+which has never been built and has been idle past the threshold. It refuses,
+naming the condition, whenever anything could still be lost:
 
-Removal retries with `--force` when the plain removal is refused, then deletes
-any directory left behind. That retry is safe only because every condition above
-was already rejected: the tree is clean, HEAD is exactly the published
-candidate, and the branch holds nothing main lacks, so `--force` can discard
-only ignored build output. Without it cleanup was useless on macOS, where a lane
-that has ever built holds ignored files — a stray `.DS_Store` suffices — and
-`git worktree remove` refuses with "Directory not empty". `git status
---porcelain` reports only tracked and untracked files, so that state passes the
-safety checks and only the removal notices it. A result carrying `forced: true`
-recorded that retry; a `reason` naming leftover files means the lane is retired
-but some ignored junk resisted deletion.
+- the worktree is the main checkout, or sits on the main line;
+- it has uncommitted or untracked changes;
+- it holds commits main lacks;
+- it has a warm target, which is the reason to keep it.
+
+The same refusals guard `landed_worktree_cleanup`, which `prune` reuses with no
+candidate: there, "beyond the candidate" becomes "beyond main". Removal retries
+with `--force` once those checks pass, then deletes any directory left behind.
+That retry is safe only because every condition above was already rejected, so
+`--force` can discard only ignored build output. Without it, removal is useless
+on macOS, where a lane that has ever built holds ignored files — a stray
+`.DS_Store` suffices — and `git worktree remove` refuses with "Directory not
+empty". `git status --porcelain` reports only tracked and untracked files, so
+that state passes the safety checks and only the removal notices it.
 
 ### Provenance notes
 
