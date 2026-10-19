@@ -1,0 +1,84 @@
+// Fact: a 13-argument calling plan across register and stack slots preserves the 13th stack argument bound 40u64 <= a13 <= 80u64 to justify 80u64 - res and res - 40u64.
+// Place: parameter. Arguments are passed through machine parameters before the 13-argument call.
+// Expected exit: 0
+
+machine pick13(
+    a1: u64,
+    a2: u64,
+    a3: u64,
+    a4: u64,
+    a5: u64,
+    a6: u64,
+    a7: u64,
+    a8: u64,
+    a9: u64,
+    a10: u64,
+    a11: u64,
+    a12: u64,
+    a13: u64
+) -> u64
+requires
+    a1 == 1u64 && a2 == 2u64 && a3 == 3u64 && a4 == 4u64 &&
+    a5 == 5u64 && a6 == 6u64 && a7 == 7u64 && a8 == 8u64 &&
+    a9 == 9u64 && a10 == 10u64 && a11 == 11u64 && a12 == 12u64 &&
+    a13 >= 40u64 && a13 <= 80u64
+ensures
+    result >= 40u64 && result <= 80u64 && result == a13
+{
+    let prefix: u64 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12;
+    (prefix - 78u64) + a13
+}
+
+machine check_call(
+    p1: u64,
+    p2: u64,
+    p3: u64,
+    p4: u64,
+    p5: u64,
+    p6: u64,
+    p7: u64,
+    p8: u64,
+    p9: u64,
+    p10: u64,
+    p11: u64,
+    p12: u64,
+    p13: u64
+) -> i32 crashes Trap
+requires
+    p1 == 1u64 && p2 == 2u64 && p3 == 3u64 && p4 == 4u64 &&
+    p5 == 5u64 && p6 == 6u64 && p7 == 7u64 && p8 == 8u64 &&
+    p9 == 9u64 && p10 == 10u64 && p11 == 11u64 && p12 == 12u64 &&
+    p13 == 60u64
+ensures
+    result == 0i32
+{
+    let res: u64 = pick13(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13);
+    let headroom: u64 = 80u64 - res;
+    let margin: u64 = res - 40u64;
+    let diff: u64 = (headroom + margin) - 40u64;
+    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
+        true -> ok()
+        _ -> bad()
+    }
+    state ok() {
+        0i32
+    }
+    state bad() {
+        crash Trap;
+    }
+}
+
+machine probe() -> i32 crashes Trap
+ensures result == 0i32
+{
+    check_call(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 60)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0i32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
