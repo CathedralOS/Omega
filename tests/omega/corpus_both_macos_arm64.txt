@@ -542,6 +542,15 @@ pass/facts/as_slice_views_through_other_machine_exit built 4106ms exit:0 interpr
 pass/facts/as_slice_views_through_other_state_exit built 4016ms exit:0 interpreter-exit:0 interpreter:agrees @8bcf9d86d52e
 pass/facts/as_slice_views_through_parameter_exit built 4012ms exit:0 interpreter-exit:0 interpreter:agrees @8bcf9d86d52e
 pass/facts/as_slice_views_through_target_body_exit built 3965ms exit:0 interpreter-exit:0 interpreter:agrees @8bcf9d86d52e
+pass/facts/assumed_binding_result_bound_through_call_result_exit built 11614ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_const_name_exit built 11620ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_field_exit built 11723ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_local_exit built 12054ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_match_join_exit built 12063ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_other_machine_exit built 11700ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_other_state_exit built 11494ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_parameter_exit built 11916ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_target_body_exit built 11633ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
 pass/facts/borrowed_projection_cleanup_through_call_result_exit built 3792ms exit:0 interpreter-exit:0 interpreter:agrees @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_const_name_exit built 3787ms exit:0 interpreter-exit:0 interpreter:agrees @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_field_exit built 3794ms exit:0 interpreter-exit:0 interpreter:agrees @dec223be05fb

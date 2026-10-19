@@ -669,7 +669,8 @@ fail/build/program_entry_binding_outside_build rejected 1683ms expected @a9ae30e
 fail/build/program_entry_receiver_not_zii rejected 5617ms expected @a9ae30e1c334+wt
 fail/build/program_entry_returns_value rejected 7190ms expected @a9ae30e1c334+wt
 fail/build/representation_selection_fabricated_activation rejected 3460ms expected @a9ae30e1c334+wt
-fail/build/retired_assumed_binding_receiver rejected 0ms expected @a9ae30e1c334+wt
+fail/build/retired_assumed_binding_receiver rejected 2ms expected @6f94b4f3cae8+wt
+	tests/omega/fail/build/retired_assumed_binding_receiver/main.omg:2:36: receiver-style assumed binding is retired; use Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)
 fail/build/retired_boundary_acceptance_receiver rejected 2ms expected @a9ae30e1c334+wt
 fail/build/retired_provider_selection_receiver rejected 1ms expected @a9ae30e1c334+wt
 fail/build/retired_representation_receiver rejected 3ms expected @a9ae30e1c334+wt
@@ -1559,23 +1560,23 @@ fail/facts/as_slice_views_through_other_machine_short_extent rejected 5280ms exp
 fail/facts/as_slice_views_through_other_state_short_extent rejected 5537ms expected @d68dc74a14e0
 fail/facts/as_slice_views_through_parameter_short_extent rejected 4743ms expected @d68dc74a14e0
 fail/facts/as_slice_views_through_target_body_short_extent rejected 4504ms expected @d68dc74a14e0
-fail/facts/assumed_binding_result_bound_through_call_result_rejected rejected 2839ms expected @32331bc0ac25+wt
+fail/facts/assumed_binding_result_bound_through_call_result_rejected rejected 1421ms expected @6f94b4f3cae8+wt
 	cannot prove index `acquire()` is within length 2 in main::entry
-fail/facts/assumed_binding_result_bound_through_const_name_rejected rejected 2795ms expected @32331bc0ac25+wt
+fail/facts/assumed_binding_result_bound_through_const_name_rejected rejected 1386ms expected @6f94b4f3cae8+wt
 	cannot prove index `Required.get()` is within length 2 in main::entry
-fail/facts/assumed_binding_result_bound_through_field_rejected rejected 2856ms expected @32331bc0ac25+wt
+fail/facts/assumed_binding_result_bound_through_field_rejected rejected 1329ms expected @6f94b4f3cae8+wt
 	cannot prove index `index.value` is within length 2 in read::entry
-fail/facts/assumed_binding_result_bound_through_local_rejected rejected 3175ms expected @32331bc0ac25+wt
+fail/facts/assumed_binding_result_bound_through_local_rejected rejected 1342ms expected @6f94b4f3cae8+wt
 	cannot prove index `index` is within length 2 in main::entry
-fail/facts/assumed_binding_result_bound_through_match_join_rejected rejected 3139ms expected @32331bc0ac25+wt
+fail/facts/assumed_binding_result_bound_through_match_join_rejected rejected 1310ms expected @6f94b4f3cae8+wt
 	cannot prove index `index` is within length 2 in read::entry
-fail/facts/assumed_binding_result_bound_through_other_machine_rejected rejected 3137ms expected @32331bc0ac25+wt
+fail/facts/assumed_binding_result_bound_through_other_machine_rejected rejected 1527ms expected @6f94b4f3cae8+wt
 	cannot prove index `index` is within length 2 in exercise::entry
-fail/facts/assumed_binding_result_bound_through_other_state_rejected rejected 3309ms expected @32331bc0ac25+wt
+fail/facts/assumed_binding_result_bound_through_other_state_rejected rejected 1150ms expected @6f94b4f3cae8+wt
 	cannot prove index `index` is within length 2 in main::read
-fail/facts/assumed_binding_result_bound_through_parameter_rejected rejected 3354ms expected @32331bc0ac25+wt
+fail/facts/assumed_binding_result_bound_through_parameter_rejected rejected 1111ms expected @6f94b4f3cae8+wt
 	cannot prove index `index` is within length 2 in read::entry
-fail/facts/assumed_binding_result_bound_through_target_body_rejected rejected 3320ms expected @32331bc0ac25+wt
+fail/facts/assumed_binding_result_bound_through_target_body_rejected rejected 1240ms expected @6f94b4f3cae8+wt
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
@@ -3262,27 +3263,52 @@ fail/providers/applied_requirement_call_property_bound rejected 294ms expected @
 fail/providers/applied_requirement_call_shared_argument_for_mutable rejected 373ms expected @308fbdc54ba0
 fail/providers/applied_requirement_mutable_result_shared_source rejected 919ms expected @a9ae30e1c334+wt
 fail/providers/applied_requirement_unselected_ancestor_application rejected 6555ms expected @308fbdc54ba0
-fail/providers/assumed_result_bound_bad_supplier_body_rejected rejected 2521ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_blocking_rejected rejected 3517ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_build_time_call_rejected rejected 416ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_call_result_rejected rejected 3220ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_carrier_mismatch_rejected rejected 3545ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_competing_link_rejected rejected 3484ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_const_name_rejected rejected 3280ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_cyclic_supply_rejected rejected 3583ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_direct_supplier_rejected rejected 3278ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_equal_count_lifetime_mapping_rejected rejected 3451ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_field_rejected rejected 3371ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_lifetime_mapping_rejected rejected 3591ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_local_rejected rejected 3308ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_match_join_rejected rejected 3311ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_missing_supply_rejected rejected 3563ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_other_machine_rejected rejected 3327ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_other_state_rejected rejected 3288ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_parameter_order_rejected rejected 3528ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_parameter_rejected rejected 3258ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_passing_mode_rejected rejected 3508ms expected @200c35a0fc75+wt
-fail/providers/assumed_result_bound_target_body_rejected rejected 3204ms expected @200c35a0fc75+wt
+fail/providers/assumed_result_bound_bad_supplier_body_rejected rejected 3117ms expected @6f94b4f3cae8+wt
+	machine `Actual::get` realizes `Supplied::get` but does not guarantee its `ensures result == 0`; callers of the requirement assume it
+fail/providers/assumed_result_bound_blocking_rejected rejected 4557ms expected @6f94b4f3cae8+wt
+	assumed binding has incompatible or unsupported operational/lifetime correspondence
+fail/providers/assumed_result_bound_build_time_call_rejected rejected 534ms expected @6f94b4f3cae8+wt
+	machine `build` state `entry`: value call `Required.get(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+	machine `build` state `entry` uses `Required`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/providers/assumed_result_bound_call_result_rejected rejected 3921ms expected @6f94b4f3cae8+wt
+	cannot prove index `acquire()` is within length 2 in main::entry
+fail/providers/assumed_result_bound_carrier_mismatch_rejected rejected 4683ms expected @6f94b4f3cae8+wt
+	assumed binding has incompatible runtime carriers, parameter order or passing modes
+fail/providers/assumed_result_bound_competing_link_rejected rejected 4512ms expected @6f94b4f3cae8+wt
+	assumed binding has competing explicit supply
+fail/providers/assumed_result_bound_const_name_rejected rejected 4008ms expected @6f94b4f3cae8+wt
+	cannot prove index `Required.get()` is within length 2 in main::entry
+fail/providers/assumed_result_bound_cyclic_supply_rejected rejected 4554ms expected @6f94b4f3cae8+wt
+	cyclic assumed binding supply
+fail/providers/assumed_result_bound_direct_supplier_rejected rejected 3873ms expected @6f94b4f3cae8+wt
+	cannot prove index `Supplied.get()` is within length 2 in main::entry
+fail/providers/assumed_result_bound_equal_count_lifetime_mapping_rejected rejected 4577ms expected @6f94b4f3cae8+wt
+	assumed binding has incompatible lifetime subject mapping
+fail/providers/assumed_result_bound_field_rejected rejected 3896ms expected @6f94b4f3cae8+wt
+	cannot prove index `index.value` is within length 2 in read::entry
+fail/providers/assumed_result_bound_lifetime_mapping_rejected rejected 4574ms expected @6f94b4f3cae8+wt
+	assumed binding has incompatible or unsupported operational/lifetime correspondence
+fail/providers/assumed_result_bound_local_rejected rejected 3848ms expected @6f94b4f3cae8+wt
+	cannot prove index `index` is within length 2 in main::entry
+fail/providers/assumed_result_bound_match_join_rejected rejected 3766ms expected @6f94b4f3cae8+wt
+	cannot prove index `index` is within length 2 in read::entry
+fail/providers/assumed_result_bound_missing_supply_rejected rejected 4037ms expected @6f94b4f3cae8+wt
+	assumed binding has no selected complete supplied provider
+fail/providers/assumed_result_bound_other_machine_rejected rejected 3681ms expected @6f94b4f3cae8+wt
+	cannot prove index `index` is within length 2 in exercise::entry
+fail/providers/assumed_result_bound_other_state_rejected rejected 3679ms expected @6f94b4f3cae8+wt
+	cannot prove index `index` is within length 2 in main::read
+fail/providers/assumed_result_bound_parameter_order_rejected rejected 3882ms expected @6f94b4f3cae8+wt
+	assumed binding has incompatible runtime carriers, parameter order or passing modes
+fail/providers/assumed_result_bound_parameter_rejected rejected 3573ms expected @6f94b4f3cae8+wt
+	cannot prove index `index` is within length 2 in read::entry
+fail/providers/assumed_result_bound_passing_mode_rejected rejected 3787ms expected @6f94b4f3cae8+wt
+	assumed binding has incompatible runtime carriers, parameter order or passing modes
+fail/providers/assumed_result_bound_target_body_rejected rejected 3369ms expected @6f94b4f3cae8+wt
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
+	cannot prove index `Required.get()` is within length 2 in exercise::entry
 fail/providers/authored_same_stack_checked_body rejected 6ms @fa0a8b1267bb+wt
 fail/providers/authored_same_stack_duplicate rejected 4ms @fa0a8b1267bb+wt
 fail/providers/authored_same_stack_without_via rejected 1ms @fa0a8b1267bb+wt
@@ -4458,7 +4484,7 @@ pass/build/same_leaf_runner_entry_right_exit checked 7635ms check-target:macos_a
 pass/build/selected_const_array_length_exit checked 19740ms check-target:macos_arm64 @9c4d1c444502
 pass/build/sibling_module_service_exclusion_exit checked 9736ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/build/sibling_module_slot_family_rows_exit checked 11717ms check-target:macos_arm64 @b1d84da832b5+wt
-pass/build/static_assumed_binding_spelling_exit checked 10190ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/build/static_assumed_binding_spelling_exit checked 8790ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/build/uefi_context_cleanup_entry checked 6263ms check-target:uefi_x86_64 @e7a4cfaa3c51+wt
 pass/build/uefi_entry_schema_same_leaf rejected 7896ms check-target:uefi_x86_64 regressed-from:checked+check-target:uefi_x86_64 @a5c430559a50
 pass/build/uefi_image_residence_observation checked 8217ms check-target:uefi_x86_64 @8fd8af53161a+wt
@@ -5699,15 +5725,15 @@ pass/facts/as_slice_views_through_other_machine_exit checked 13911ms check-targe
 pass/facts/as_slice_views_through_other_state_exit checked 16196ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_parameter_exit checked 17697ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_target_body_exit checked 14573ms check-target:macos_arm64 @d68dc74a14e0
-pass/facts/assumed_binding_result_bound_through_call_result_exit checked 18301ms check-target:macos_arm64 @32331bc0ac25+wt
-pass/facts/assumed_binding_result_bound_through_const_name_exit checked 18335ms check-target:macos_arm64 @32331bc0ac25+wt
-pass/facts/assumed_binding_result_bound_through_field_exit checked 18359ms check-target:macos_arm64 @32331bc0ac25+wt
-pass/facts/assumed_binding_result_bound_through_local_exit checked 18314ms check-target:macos_arm64 @32331bc0ac25+wt
-pass/facts/assumed_binding_result_bound_through_match_join_exit checked 18298ms check-target:macos_arm64 @32331bc0ac25+wt
-pass/facts/assumed_binding_result_bound_through_other_machine_exit checked 18297ms check-target:macos_arm64 @32331bc0ac25+wt
-pass/facts/assumed_binding_result_bound_through_other_state_exit checked 18345ms check-target:macos_arm64 @32331bc0ac25+wt
-pass/facts/assumed_binding_result_bound_through_parameter_exit checked 18310ms check-target:macos_arm64 @32331bc0ac25+wt
-pass/facts/assumed_binding_result_bound_through_target_body_exit checked 18313ms check-target:macos_arm64 @32331bc0ac25+wt
+pass/facts/assumed_binding_result_bound_through_call_result_exit checked 8799ms check-target:macos_arm64 @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_const_name_exit checked 8748ms check-target:macos_arm64 @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_field_exit checked 8710ms check-target:macos_arm64 @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_local_exit checked 8718ms check-target:macos_arm64 @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_match_join_exit checked 8708ms check-target:macos_arm64 @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_other_machine_exit checked 8702ms check-target:macos_arm64 @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_other_state_exit checked 8821ms check-target:macos_arm64 @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_parameter_exit checked 9152ms check-target:macos_arm64 @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_target_body_exit checked 8740ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 7801ms check-target:macos_arm64 @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 6361ms check-target:macos_arm64 @dec223be05fb
 pass/facts/borrowed_projection_cleanup_through_field_exit checked 6543ms check-target:macos_arm64 @dec223be05fb
@@ -7158,15 +7184,15 @@ pass/providers/applied_binding_field_telescopes_exit checked 6307ms check-target
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
 pass/providers/applied_header_dependent_const_carrier_exit checked 12536ms check-target:macos_arm64 @37afc401493b+wt
 pass/providers/applied_requirement_calls_exit checked 6806ms check-target:macos_arm64 @308fbdc54ba0
-pass/providers/assumed_result_bound_call_result_exit checked 7479ms check-target:linux_x86_64 @200c35a0fc75+wt
-pass/providers/assumed_result_bound_const_name_exit checked 7552ms check-target:linux_x86_64 @200c35a0fc75+wt
-pass/providers/assumed_result_bound_field_exit checked 7262ms check-target:linux_x86_64 @200c35a0fc75+wt
-pass/providers/assumed_result_bound_local_exit checked 7183ms check-target:linux_x86_64 @200c35a0fc75+wt
-pass/providers/assumed_result_bound_match_join_exit checked 7315ms check-target:linux_x86_64 @200c35a0fc75+wt
-pass/providers/assumed_result_bound_other_machine_exit checked 7331ms check-target:linux_x86_64 @200c35a0fc75+wt
-pass/providers/assumed_result_bound_other_state_exit checked 7035ms check-target:linux_x86_64 @200c35a0fc75+wt
-pass/providers/assumed_result_bound_parameter_exit checked 6869ms check-target:linux_x86_64 @200c35a0fc75+wt
-pass/providers/assumed_result_bound_target_body_exit checked 6962ms check-target:linux_x86_64 @200c35a0fc75+wt
+pass/providers/assumed_result_bound_call_result_exit checked 8553ms check-target:linux_x86_64 @6f94b4f3cae8+wt
+pass/providers/assumed_result_bound_const_name_exit checked 8656ms check-target:linux_x86_64 @6f94b4f3cae8+wt
+pass/providers/assumed_result_bound_field_exit checked 9094ms check-target:linux_x86_64 @6f94b4f3cae8+wt
+pass/providers/assumed_result_bound_local_exit checked 8704ms check-target:linux_x86_64 @6f94b4f3cae8+wt
+pass/providers/assumed_result_bound_match_join_exit checked 8607ms check-target:linux_x86_64 @6f94b4f3cae8+wt
+pass/providers/assumed_result_bound_other_machine_exit checked 8944ms check-target:linux_x86_64 @6f94b4f3cae8+wt
+pass/providers/assumed_result_bound_other_state_exit checked 8766ms check-target:linux_x86_64 @6f94b4f3cae8+wt
+pass/providers/assumed_result_bound_parameter_exit checked 8681ms check-target:linux_x86_64 @6f94b4f3cae8+wt
+pass/providers/assumed_result_bound_target_body_exit checked 8634ms check-target:linux_x86_64 @6f94b4f3cae8+wt
 pass/providers/authored_same_stack_demand checked 1130ms @fa0a8b1267bb+wt
 pass/providers/authored_same_stack_import checked 6207ms check-target:linux_x86_64 @fa0a8b1267bb+wt
 pass/providers/bare_byte_array_boundary_argument checked 8204ms check-target:macos_arm64 @03d6ab4d9d4c
@@ -7256,7 +7282,7 @@ pass/providers/runtime_boundary_owned_array_cycle_exit checked 11933ms check-tar
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 11479ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_boundary_qualified_state_exit checked 3879ms check-target:macos_arm64 @d75fe4ba5012+wt
 pass/providers/runtime_checked_completion_forwarding_exit checked 7390ms check-target:macos_arm64 @ad4def8456dc+wt
-pass/providers/runtime_closed_provider_and_assumed_chain_exit checked 3774ms check-target:macos_arm64 @8bcf9d86d52e
+pass/providers/runtime_closed_provider_and_assumed_chain_exit checked 9543ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 9447ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit checked 16098ms check-target:macos_arm64 @7e6c0ae564d2+wt
 pass/providers/runtime_generic_boundary_relay_exit checked 7246ms check-target:linux_x86_64 @ff34e63b5705+wt
