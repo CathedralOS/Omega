@@ -154,12 +154,12 @@ pub(super) fn check_domain_field_writes(
         if let Some(local) = statement.as_local_data()
             && local.initial_value.is_valid()
         {
-            for (domain_symbol, semantic_domain) in
-                validation::field_domains::domain_constraint_identities(
-                    program,
-                    local.type_reference,
-                )
-            {
+            for constraint in validation::field_domains::declared_domain_constraint_records(
+                program,
+                local.type_reference,
+            ) {
+                let domain_symbol = constraint.symbol;
+                let semantic_domain = constraint.semantic_id;
                 let requires_provenance =
                     validation::field_domains::domain_requires_provenance(program, domain_symbol);
                 // A `requires` predicate is equally an obligation on the
@@ -193,7 +193,7 @@ pub(super) fn check_domain_field_writes(
                     domain_symbol,
                     semantic_domain,
                 ) && !(!requires_provenance
-                    && initializer_satisfies_predicate_domain(
+                    && (initializer_satisfies_predicate_domain(
                         program,
                         facts,
                         state_flow,
@@ -202,7 +202,14 @@ pub(super) fn check_domain_field_writes(
                         domain_symbol,
                         &mut Vec::new(),
                         frames,
-                    ))
+                    ) || member_domains::initializer_satisfies_indexed_domain(
+                        program,
+                        facts,
+                        state_flow,
+                        statement_index,
+                        local.initial_value,
+                        constraint,
+                    )))
                 {
                     diagnostics.push(Diagnostic::error(format!(
                         "cannot prove initializer of `{}` in {} is in domain `{}`; an annotation cannot establish routed qualification",

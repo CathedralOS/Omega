@@ -151,6 +151,120 @@ pub(in crate::checks::contracts) fn value_satisfies_domain_predicates_in_context
     satisfied
 }
 
+/// Membership of a completed initializer in an INDEXED (const-generic) domain
+/// family, decided by substituting the constraint's exact closed index roster.
+///
+/// [`value_satisfies_domain_predicates_in_contexts`] deliberately refuses an
+/// indexed theory (`has_symbol_only_proof`): rendering a family predicate
+/// without its retained index arguments would judge the declaration's binder
+/// as if it were a free name. That fence is correct, so the indexed case is
+/// discharged here instead by the same typed, declaration-scoped arithmetic
+/// judgment the qualification cast already uses
+/// (`validation::integer_domain_membership`), which joins the closed index
+/// roster and substitutes it into every predicate.
+///
+/// The initializer supplies the value; the declared constraint supplies the
+/// instance. Neither may be inferred from the other, and a non-integer carrier
+/// keeps its existing owner rather than being routed through arithmetic.
+pub(super) fn initializer_satisfies_indexed_domain(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+    constraint: &typed_trees::types::DomainConstraint,
+) -> bool {
+    if constraint.arguments.is_empty()
+        || constraint.symbol.is_valid() == false
+        || !constraint.semantic_id.is_valid()
+    {
+        return false;
+    }
+    let Some(domain) = program.domain_definition(constraint.symbol) else {
+        return false;
+    };
+    // A routed theory still owes its authorized provenance; a numerical
+    // predicate proof never mints a route.
+    if !domain.establishment_routes.is_empty() {
+        return false;
+    }
+    if !program
+        .primitive_type_reference(domain.target_type)
+        .is_some_and(|primitive| primitive.is_fixed_integer())
+    {
+        return false;
+    }
+    let Some(scalar) = completed_integer_initializer_value(
+        program,
+        facts,
+        state,
+        statement_index,
+        value,
+    ) else {
+        return false;
+    };
+    matches!(
+        validation::integer_domain_membership(
+            program,
+            constraint.symbol,
+            constraint.arguments.as_slice(),
+            constraint.semantic_id,
+            &scalar,
+        ),
+        validation::StrictArithmeticImplicationJudgment::Proven
+    )
+}
+
+/// The exact integer denotation of a completed initializer expression.
+///
+/// A literal keeps full-width precision; a place read supplies its captured
+/// scalar observation, taken from the statement's own completed operand so a
+/// later sibling write cannot retroactively justify an earlier initializer.
+/// Anything else -- a call, an operator, a byte view -- has its own semantic
+/// owner and supplies nothing here.
+fn completed_integer_initializer_value(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+) -> Option<validation::ScopedArithmeticValue> {
+    use validation::ScopedArithmeticValue;
+    if let Some(literal) = program.expression_table.integer_node(value)
+        && let Some(integer) = numerics::bignum::BigInt::from_decimal_str(literal.text())
+    {
+        return Some(ScopedArithmeticValue::Integer(integer));
+    }
+    let place = validation::canonical_place_from_expression_in_state(
+        program,
+        state.state_symbol,
+        statement_index,
+        value,
+    )?;
+    let contexts = facts
+        .flow
+        .state_statement(state, statement_index)
+        .map(|statement| statement.entry_constraints)
+        .unwrap_or(state.entry_constraints);
+    let contexts = facts
+        .flow
+        .semantic_constraint_contexts(contexts)
+        .collect::<Vec<_>>();
+    match crate::values::scalar_value_at_place(
+        program,
+        &facts.semantic,
+        contexts
+            .iter()
+            .map(|context| facts.semantic.contexts.get(*context)),
+        &place,
+    )? {
+        checked_trees::facts::scalar_predicates::ScalarValue::Integer(integer) => {
+            Some(ScopedArithmeticValue::Integer(integer))
+        }
+        _ => None,
+    }
+}
+
 /// Substitute the completed value into the domain's selected proof expression.
 /// Float observation and byte-class evidence keep their own semantic owners;
 /// scalar and case predicates use the same ordered-value judgment as contracts.

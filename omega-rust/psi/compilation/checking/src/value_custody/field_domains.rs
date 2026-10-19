@@ -727,6 +727,22 @@ pub fn domain_constraint_identities(
         .collect()
 }
 
+/// The exact declared domain constraints of a type-reference conjunction,
+/// including each application's closed index roster.
+///
+/// [`domain_constraint_identities`] keeps only the declaration symbol and the
+/// interned instance identity, which is enough for an atomic domain but not for
+/// an indexed (const-generic) family: its predicates mention index binders, so
+/// a membership reader must substitute the exact arguments that the constraint
+/// already carries. Callers that discharge an indexed family's predicates
+/// (rather than merely naming its declaration) need this richer form.
+pub fn declared_domain_constraint_records(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Vec<&typed_trees::types::DomainConstraint> {
+    declared_domain_constraints(program, type_reference)
+}
+
 fn declared_domain_constraints(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
