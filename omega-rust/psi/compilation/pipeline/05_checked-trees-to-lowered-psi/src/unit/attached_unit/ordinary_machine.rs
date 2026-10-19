@@ -139,6 +139,8 @@ pub(super) struct StepInputs {
 
 /// The lowered machine and the occurrence rows the closure accumulates.
 pub(super) struct EmittedMachine {
+    pub(super) source_returns:
+        Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
     pub(super) scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
     /// Qualification coercions the machine's call-argument expansions minted,
     /// merged into the module's shared qualification catalog at publication.
@@ -671,6 +673,13 @@ pub(super) fn emit(
             scalar_type: source.scalar_type,
         };
         next_value = next_value_identity;
+        let return_edge = edge_id(allocate_dense(&mut next_edge)?);
+        operations.source_returns.push(
+            crate::expression_preparation::qualifications::SourceScalarReturn {
+                edge: return_edge,
+                exits: cleanups.iter().map(|row| row.exit).collect(),
+            },
+        );
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: evaluation.parameters,
@@ -679,7 +688,7 @@ pub(super) fn emit(
             structural_parameters: evaluation.block_structural_parameters,
             operations: operations[evaluation.operation_start..].to_vec(),
             terminator: Terminator::Return {
-                edge: edge_id(allocate_dense(&mut next_edge)?),
+                edge: return_edge,
                 value: source.id,
                 cleanup_actions: Vec::new(),
             },
@@ -1005,6 +1014,12 @@ pub(super) fn emit(
                         .collect()
                 };
                 let terminator = if let Some((source, _)) = &scalar_return {
+                    operations.source_returns.push(
+                        crate::expression_preparation::qualifications::SourceScalarReturn {
+                            edge,
+                            exits: vec![normal_exit.exit],
+                        },
+                    );
                     Terminator::Return {
                         edge,
                         value: *source,
@@ -1072,6 +1087,7 @@ pub(super) fn emit(
         })
         .collect::<Vec<_>>();
     let OperationBuffer {
+        mut source_returns,
         mut claim_introductions,
         selected_cleanup_groups,
         mut scalar_block_invariants,
@@ -1211,6 +1227,7 @@ pub(super) fn emit(
         &selected_cleanup_groups,
         structural_types,
         crate::emission::continuation_specialization::CompanionRows {
+            source_returns: &mut source_returns,
             continuation_value_uses: &[],
             claim_introductions: &mut claim_introductions,
             source_calls: &mut source_calls,
@@ -1249,6 +1266,7 @@ pub(super) fn emit(
     *edge_counter = next_edge;
     *call_obligation_counter = next_call_obligation;
     Ok(EmittedMachine {
+        source_returns,
         scalar_block_invariants,
         qualification_coercions: evaluation.qualification_coercions,
         machine,

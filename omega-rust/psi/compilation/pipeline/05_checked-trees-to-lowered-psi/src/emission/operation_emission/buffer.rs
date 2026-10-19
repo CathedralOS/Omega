@@ -220,6 +220,8 @@ pub(crate) struct ComputedValueBinding {
 }
 
 pub(crate) struct OperationBuffer {
+    pub(crate) source_returns:
+        Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
     pub(crate) computed_values: Vec<(
         checked_trees::CheckedStructuralValueHandle,
         ComputedValueBinding,
@@ -391,6 +393,7 @@ impl OperationBuffer {
         dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     ) -> Self {
         Self {
+            source_returns: Vec::new(),
             external_completion: None,
             dynamic_dispatch,
             structural_values: Vec::new(),

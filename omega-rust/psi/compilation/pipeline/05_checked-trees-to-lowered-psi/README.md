@@ -147,6 +147,18 @@ the producer's block expansion. [Qualifications](src/expression_preparation/qual
 prepare the selected closure's declaration namespace. No preparation module
 imports a machine producer; producers consume the shared operations directly.
 
+[Scalar return qualification](src/expression_preparation/qualifications/returns.rs)
+consumes the checker's exact exit judgments, keeping predicate truth separate
+from issuer authorization. [Normal-result completion](src/scalar_lowering/computations/returns.rs)
+uses the ordinary operand scheduler and binds qualification only on the fresh
+completion parameter. Emission retains that exact edge/source/destination;
+continuation specialization remaps the edge before catalog publication.
+Final return rows preserve the original forwarding and issuance alternatives,
+not a provenance guess from a generated phi's annotation. Empty tag formation
+has its own vacuous origin; neither it nor an ordinary cast authorizes routed
+membership. These are checked-source decisions, not portable proof certificates
+or a second predicate checker in lowering.
+
 Working plans live with these operations, not in the pipeline root's namespace.
 Content result records remain with [content lowering](src/proofs/content_conservation.rs).
 Their existing public re-exports are unchanged. Proof completion runs only after

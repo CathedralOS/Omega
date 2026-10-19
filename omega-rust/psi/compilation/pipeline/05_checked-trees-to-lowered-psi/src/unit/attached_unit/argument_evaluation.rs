@@ -1428,7 +1428,7 @@ impl Evaluation {
                 &targets,
                 &parameters,
                 self.machine,
-                &self.shared_qualifications.catalog().sets,
+                self.shared_qualifications.catalog(),
                 &mut self.qualification_coercions,
                 next_value,
                 next_block,

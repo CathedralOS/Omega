@@ -133,6 +133,7 @@ pub fn structural_state_contract_scalar_predicates(
                     crate::scalar_predicate_domains(program, reference)
                         .into_iter()
                         .chain(crate::scalar_type_tags(program, reference))
+                        .chain(crate::scalar_type_routed_domains(program, reference))
                         .map(|(_, domain)| (parameter.symbol, domain.0)),
                 );
             }

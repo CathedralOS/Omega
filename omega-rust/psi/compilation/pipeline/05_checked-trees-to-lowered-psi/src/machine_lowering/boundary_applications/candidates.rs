@@ -39,6 +39,14 @@ pub(super) fn retain(
             .map(|(template, commitment)| {
                 Ok::<_, &'static str>(CheckedMachineSpecialization {
                     template: nominal(identities, template)?,
+                    template_callable: identities.intern(
+                        &checked
+                            .machine(template)
+                            .and_then(|machine| {
+                                checked.typed.machine_callable_identity_text(machine)
+                            })
+                            .ok_or("boundary specialization lost its exact template callable")?,
+                    ),
                     commitment,
                 })
             })

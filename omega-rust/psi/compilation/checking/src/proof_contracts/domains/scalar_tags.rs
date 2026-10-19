@@ -62,6 +62,28 @@ pub fn scalar_type_tags(
     constrained_scalar_domains(program, reference, scalar_tag_constraint)
 }
 
+/// Routed atoms whose complete predicate component can be retained separately.
+/// Unlike tags these always need provenance at introduction; classification
+/// says only that the Terminal signature has a lossless representation.
+pub fn scalar_type_routed_domains(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
+    constrained_scalar_domains(program, reference, |program, domain, primitive| {
+        domain.subject == DomainConstraintSubject::Declared
+            && !domain.establishment_routes.is_empty()
+            && super::scalar_domain_value_predicate(
+                program,
+                domain,
+                checked_trees::CheckedScalarExpression::Parameter {
+                    position: 0,
+                    primitive_type: primitive,
+                },
+            )
+            .is_some()
+    })
+}
+
 /// Classify the exact application once for signature and stored-field readers.
 /// This is a vacuous storage predicate, not evidence that two indexed tags are
 /// compatible or that an establishment route has been executed.

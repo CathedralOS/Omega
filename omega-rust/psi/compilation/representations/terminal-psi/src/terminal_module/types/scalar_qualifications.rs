@@ -1,11 +1,15 @@
 //! Source-free scalar membership vocabulary and exact edge coercions.
 //!
-//! This closed catalog carries predicate-free scalar tags, the issuer routes
-//! their authored declarations retain, and the retained authored floating and
-//! integer entry ranges. An explicit edge coercion adds or removes strict
+//! This closed catalog carries obligation-free tags and routed scalar theories.
+//! A routed theory retains its predicate and permitted issuers independently;
+//! exact normal-return rows retain checked establishment or forwarding, not
+//! permission inferred from the result annotation. Numeric result contracts
+//! publish those same predicates over the actual returned value.
+//! Explicit edge coercions introduce only obligation-free tags, or erase strict
 //! same-carrier membership. Removal visibly erases non-owning meaning; neither
 //! direction changes payload bits, executes an operation, or proves a
-//! predicate. An entry range is not a tag: it is a closed membership
+//! predicate. The catalog also retains authored numeric entry ranges. An entry
+//! range is not a tag: it is a closed membership
 //! requirement on the values a call may deliver to one direct scalar
 //! parameter.
 
@@ -17,6 +21,9 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ScalarQualificationCatalog {
+    /// Source-checked result membership bound to exact normal return edges.
+    /// These are independent of both the domain's predicate and its routes.
+    pub returns: Vec<ScalarReturnQualification>,
     pub domains: Vec<ScalarDomainDeclaration>,
     pub sets: Vec<ScalarQualificationSet>,
     pub coercions: Vec<ScalarQualificationCoercion>,
@@ -34,6 +41,9 @@ pub struct ScalarQualificationCatalog {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarDomainDeclaration {
+    /// Complete predicate component, in a domain-local scalar namespace.
+    /// It states an obligation, never an assumption establishing membership.
+    pub predicate: Option<ScalarDomainPredicate>,
     pub id: ScalarDomainId,
     pub semantic_domain: DomainSemanticId,
     pub identity: TerminalIdentityIndex,
@@ -44,6 +54,45 @@ pub struct ScalarDomainDeclaration {
     /// verifier replays those referents rather than trusting the rows.
     /// Routes grant no consumer call authority on their own.
     pub establishment_routes: Vec<ScalarDomainEstablishmentRoute>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScalarDomainPredicate {
+    pub subject: ValueId,
+    pub proposition: semantic_vocabulary::Proposition,
+}
+
+/// All possible checked origins of one completed result. Joining control flow
+/// retains alternatives; it does not promote a forwarding wrapper to issuer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ScalarReturnOrigin {
+    Forwarded,
+    Established {
+        route: u32,
+    },
+    /// A fresh result-completion binding adds an obligation-free tag.
+    /// This does not authorize a predicate or routed domain.
+    Vacuous,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScalarReturnQualification {
+    pub site: ScalarReturnSite,
+    pub machine: MachineId,
+    pub edge: EdgeId,
+    pub source: ValueId,
+    pub result: ValueId,
+    pub domain: ScalarDomainId,
+    pub origins: Vec<ScalarReturnOrigin>,
+}
+
+/// The exported return and the earlier fresh completion binding are distinct
+/// occurrences. A completion row names where checked membership first enters
+/// a join, not permission for arbitrary ordinary successor coercions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScalarReturnSite {
+    NormalExit,
+    Completion { argument_ordinal: u32 },
 }
 
 /// One authorized issuer route a scalar domain declaration retains.

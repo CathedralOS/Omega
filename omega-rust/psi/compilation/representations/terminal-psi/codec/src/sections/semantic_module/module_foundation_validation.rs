@@ -17,6 +17,7 @@ mod declaration_foundations;
 mod machine_foundations;
 mod reference_outputs;
 mod scalar_observations;
+mod scalar_qualifications;
 mod storage_foundations;
 mod structural_type_foundations;
 mod target_layouts;
@@ -60,6 +61,7 @@ pub(super) fn declared_scalar_type(
 /// carrier relationships, signatures, and operation/result shape; it does not
 /// prove qualifications, reach closure, or claim dataflow.
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
+    scalar_qualifications::validate(module)?;
     terminal_semantics::quotients::validate_quotient_catalog(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::closed_conformances::validate_closed_conformances(module)

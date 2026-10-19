@@ -27,6 +27,8 @@ mod dependencies;
 use dependencies::Definitions;
 
 pub(crate) struct CompanionRows<'a> {
+    pub(crate) source_returns:
+        &'a mut Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
     pub(crate) continuation_value_uses: &'a [(BlockId, semantic_vocabulary::ValueId)],
     pub(crate) source_calls: &'a mut Vec<LoweredSourceCallOccurrence>,
     pub(crate) scalar_block_invariants: &'a mut Vec<ScalarBlockInvariant>,

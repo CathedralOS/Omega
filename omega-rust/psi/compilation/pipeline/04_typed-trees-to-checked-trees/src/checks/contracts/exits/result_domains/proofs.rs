@@ -155,6 +155,24 @@ pub(super) fn establishes_scalar_predicates(
                 return false;
             };
             let returned = exit_return_expression(program, exit);
+            // Truth about a completed value is independent of its transport:
+            // a local, field, joined arm or public call result uses the same
+            // observation owner. It proves every reachable observation and
+            // imports only portable guarantees shared by all target members.
+            // Issuer authority remains the caller's separate judgment above;
+            // observing a predicate never creates routed provenance.
+            if validation::completed_value_proves_domain_predicate(
+                program,
+                machine,
+                state,
+                exit.statement_index,
+                returned,
+                domain.symbol,
+                *expression,
+                &[],
+            ) {
+                return true;
+            }
             if super::super::super::float_predicate_domains::expression_establishes_domain_predicate(
                 program,
                 facts,

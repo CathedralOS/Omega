@@ -39,6 +39,7 @@ pub(crate) mod literals;
 pub(crate) mod observations;
 pub(crate) mod operand_types;
 pub(crate) mod produced_values;
+mod returns;
 mod selection;
 mod structural_arguments;
 pub(crate) mod subslices;
@@ -357,6 +358,33 @@ impl<'a> Expansion<'a> {
         result_type: QualifiedScalarType,
         target: usize,
     ) -> Result<usize, LoweringError> {
+        let argument = self.retained_root_argument(identities, root, bindings)?;
+        let site = Site {
+            state: root.state,
+            statement: root.statement_ordinal,
+            bindings,
+        };
+        if self.argument_type(identities, &argument, &site, source_types)? != result_type {
+            return unsupported("scalar computation result disagrees with its destination");
+        }
+        // Unlike a state transfer, the following statements retain every prior
+        // completed value, including immutable snapshots of overwritten storage.
+        self.argument(
+            identities,
+            &argument,
+            source_types,
+            target,
+            &site,
+            &mut Vec::new(),
+        )
+    }
+
+    fn retained_root_argument(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        root: &checked_trees::CheckedScalarComputationRoot,
+        bindings: &storage::ScalarBindings,
+    ) -> Result<Argument, LoweringError> {
         if root.machine != self.machine || !root.root.is_valid() {
             return unsupported("scalar computation root custody is duplicated or mismatched");
         }
@@ -390,20 +418,7 @@ impl<'a> Expansion<'a> {
                 root.root,
             )?;
         }
-        let argument = Argument::Computation(root.root);
-        if self.argument_type(identities, &argument, &site, source_types)? != result_type {
-            return unsupported("scalar computation result disagrees with its destination");
-        }
-        // Unlike a state transfer, the following statements retain every prior
-        // completed value, including immutable snapshots of overwritten storage.
-        self.argument(
-            identities,
-            &argument,
-            source_types,
-            target,
-            &site,
-            &mut Vec::new(),
-        )
+        Ok(Argument::Computation(root.root))
     }
 
     /// One no-code edge that forwards `input_types` unchanged and hands its

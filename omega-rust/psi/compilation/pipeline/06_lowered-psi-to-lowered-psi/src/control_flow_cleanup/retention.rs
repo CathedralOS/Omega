@@ -88,6 +88,10 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
         evidence.values.insert(coercion.source);
         evidence.values.insert(coercion.destination);
     }
+    for returned in &module.scalar_qualifications.returns {
+        evidence.edges.insert(returned.edge);
+        evidence.values.extend([returned.source, returned.result]);
+    }
     for range in &module.scalar_qualifications.float_entry_ranges {
         evidence.values.insert(range.parameter);
     }
@@ -307,6 +311,13 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     for coercion in &module.scalar_qualifications.coercions {
         roots.insert(coercion.machine);
     }
+    roots.extend(
+        module
+            .scalar_qualifications
+            .returns
+            .iter()
+            .map(|row| row.machine),
+    );
     for range in &module.scalar_qualifications.float_entry_ranges {
         roots.insert(range.machine);
     }

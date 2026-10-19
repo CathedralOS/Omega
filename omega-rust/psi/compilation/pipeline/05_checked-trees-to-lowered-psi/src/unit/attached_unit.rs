@@ -473,6 +473,7 @@ pub(crate) fn lower_unit_closure(
                 .quotient_adaptations
                 .extend(composed.quotient_adaptations);
             occurrences.quotient_calls.extend(composed.quotient_calls);
+            occurrences.source_returns.extend(composed.source_returns);
             machines.push(machine);
             occurrences.retain(
                 composed.source_calls,
@@ -513,6 +514,7 @@ pub(crate) fn lower_unit_closure(
             .extend(emitted.quotient_adaptations);
         occurrences.quotient_calls.extend(emitted.quotient_calls);
         machines.push(emitted.machine);
+        occurrences.source_returns.extend(emitted.source_returns);
         occurrences.retain(
             emitted.source_calls,
             emitted.selected_ieee_float_comparisons,
@@ -553,6 +555,14 @@ pub(crate) fn lower_unit_closure(
         &target_machine_families,
     )?;
     let mut scalar_qualifications = qualifications.catalog().clone();
+    crate::expression_preparation::qualifications::retain_returns(
+        identities,
+        checked,
+        &machine_ids,
+        &machines,
+        &occurrences.source_returns,
+        &mut scalar_qualifications,
+    )?;
     scalar_qualifications
         .coercions
         .append(&mut scalar_qualification_coercions);
@@ -660,6 +670,7 @@ pub(crate) fn lower_unit_closure(
 /// them.
 #[derive(Default)]
 struct ClosureOccurrences {
+    source_returns: Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
     quotient_adaptations:
         Vec<crate::emission::operation_emission::buffer::SourceQuotientAdaptation>,
     quotient_calls: Vec<crate::emission::operation_emission::buffer::SourceQuotientCall>,

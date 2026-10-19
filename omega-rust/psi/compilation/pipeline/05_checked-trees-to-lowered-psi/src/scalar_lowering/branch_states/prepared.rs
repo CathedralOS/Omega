@@ -20,6 +20,12 @@ use terminal_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarBranchTerminator {
+    /// Introduce the source-checked normal result on its fresh completion
+    /// parameter after the ordinary operand has fully completed.
+    CompleteReturn {
+        target: usize,
+        exit: checked_trees::FlowClaimJoinExit,
+    },
     /// A representation-identical transfer establishing the final argument's
     /// explicit qualification on a fresh successor parameter, not its source.
     Qualify {
@@ -244,6 +250,7 @@ pub(crate) fn scalar_state_emission_order(
             };
             match &states[position].terminator {
                 LoweredScalarBranchTerminator::Capture { target, .. }
+                | LoweredScalarBranchTerminator::CompleteReturn { target, .. }
                 | LoweredScalarBranchTerminator::Jump { target, .. }
                 | LoweredScalarBranchTerminator::Qualify { target, .. } => push_target(*target)?,
                 LoweredScalarBranchTerminator::Conditional {

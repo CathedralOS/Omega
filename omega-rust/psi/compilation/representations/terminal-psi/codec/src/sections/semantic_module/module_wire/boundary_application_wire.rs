@@ -79,6 +79,7 @@ mod tests {
             None,
             Some(terminal_psi::CheckedMachineSpecialization {
                 template: nominal("owner::template"),
+                template_callable: TerminalIdentityIndex(8),
                 commitment: [4; 32],
             }),
         ] {

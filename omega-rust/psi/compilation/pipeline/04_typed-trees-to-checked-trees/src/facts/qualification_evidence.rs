@@ -61,15 +61,14 @@ pub(crate) fn call_contract_evidence(
             if contract.qualification_authorization.is_some() {
                 return None;
             }
-            let origin = if let Some(origin) =
-                machine_domain_establishment_origin(program, machine, domain_symbol)
-            {
-                origin
-            } else if domain.predicate_body.is_present() {
-                QualificationEvidenceOrigin::Prover
-            } else {
-                QualificationEvidenceOrigin::CheckedTransformation
-            };
+            let origin =
+                if machine_domain_establishment_route(program, machine, domain_symbol).is_some() {
+                    QualificationEvidenceOrigin::AuthorizedRouteEstablishment
+                } else if domain.predicate_body.is_present() {
+                    QualificationEvidenceOrigin::Prover
+                } else {
+                    QualificationEvidenceOrigin::CheckedTransformation
+                };
             return Some(QualificationEvidence::from_origin(origin, target_symbol));
         }
 
@@ -103,14 +102,14 @@ pub(crate) fn machine_has_checked_domain_establishment(
     machine: &Machine,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    machine_domain_establishment_origin(program, machine, domain_symbol).is_some()
+    machine_domain_establishment_route(program, machine, domain_symbol).is_some()
 }
 
-fn machine_domain_establishment_origin(
+pub(crate) fn machine_domain_establishment_route(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
     domain_symbol: SymbolHandle,
-) -> Option<QualificationEvidenceOrigin> {
+) -> Option<DomainEstablishmentRoute> {
     if !matches!(
         machine.supply_mode,
         MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
@@ -148,12 +147,13 @@ fn machine_domain_establishment_origin(
                                 .unwrap_or(machine_name)
                                 == requirement.name.as_str()
                     })
-                    .then_some(QualificationEvidenceOrigin::AuthorizedRouteEstablishment)
+                    .then_some(route.clone())
             }
             DomainEstablishmentRoute::ExactMachine {
                 machine: authorized,
-            } => machine_invokes_declaration(program, machine, *authorized)
-                .then_some(QualificationEvidenceOrigin::AuthorizedRouteEstablishment),
+            } => {
+                machine_invokes_declaration(program, machine, *authorized).then_some(route.clone())
+            }
             DomainEstablishmentRoute::BoundaryRequirement { .. } => None,
         })
 }

@@ -93,6 +93,7 @@ pub(crate) use exits::{
 use writes::check_domain_field_writes;
 
 pub(super) struct ContractDecisions {
+    pub(super) scalar_returns: Vec<checked_trees::CheckedScalarReturnQualification>,
     pub(super) constant_obligations: Vec<checked_trees::ConstantPredicateObligation>,
     pub(super) call_requires: Vec<checked_trees::DecidedCallRequires>,
     pub(super) value_qualifications: arena::Arena<checked_trees::CheckedValueQualification>,
@@ -109,6 +110,7 @@ pub(super) fn check_flow_call_contracts(
     let mut diagnostics =
         crate::facts::contextual_cleanup::check_cleanup_requirements(program, facts);
     let mut decided = Vec::new();
+    let mut scalar_returns = Vec::new();
     let mut constant_obligations = Vec::new();
     let mut value_qualifications = arena::Arena::default();
     let constructor_memberships = writes::ConstructorMemberships::new(facts);
@@ -183,7 +185,13 @@ pub(super) fn check_flow_call_contracts(
         }
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
             boundary_refutations.check(program, facts, exit_flow, call_frames, &mut diagnostics);
-            exits::check_scalar_result_domains(program, facts, exit_flow, &mut diagnostics);
+            exits::check_scalar_result_domains(
+                program,
+                facts,
+                exit_flow,
+                &mut scalar_returns,
+                &mut diagnostics,
+            );
             check_exit_ensures(
                 program,
                 facts,
@@ -244,6 +252,7 @@ pub(super) fn check_flow_call_contracts(
     }
     if diagnostics.is_empty() {
         Ok(ContractDecisions {
+            scalar_returns,
             constant_obligations,
             call_requires: decided,
             value_qualifications,

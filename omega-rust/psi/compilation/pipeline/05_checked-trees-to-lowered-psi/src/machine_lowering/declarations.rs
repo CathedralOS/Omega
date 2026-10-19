@@ -64,7 +64,6 @@ pub(crate) fn identity(
             .typed
             .package_qualified_type_identity_text(entry.return_type),
     );
-    let mut nominal = |symbol| nominal(identities, checked, sources, symbol);
     let contract = checked
         .facts
         .contract_plans
@@ -82,14 +81,20 @@ pub(crate) fn identity(
                 .for_instance(machine)
                 .ok_or("checked executable application has no retained identity")?;
             Ok::<_, &'static str>(CheckedMachineSpecialization {
-                template: nominal(template)?,
+                template: nominal(identities, checked, sources, template)?,
+                template_callable: identities.intern(
+                    &checked
+                        .machine(template)
+                        .and_then(|machine| checked.typed.machine_callable_identity_text(machine))
+                        .ok_or("checked specialization lost its exact template callable")?,
+                ),
                 commitment: identity.commitment.as_bytes(),
             })
         })
         .transpose()?;
     Ok(CheckedMachineDeclaration {
-        machine: nominal(machine)?,
-        state: nominal(entry.symbol)?,
+        machine: nominal(identities, checked, sources, machine)?,
+        state: nominal(identities, checked, sources, entry.symbol)?,
         semantic_declaration,
         parameter_types,
         callable,

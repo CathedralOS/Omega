@@ -37,7 +37,7 @@ pub(super) fn emit_state(
     targets: &[BlockId],
     state_parameters: &[Vec<ValueDeclaration>],
     machine: Option<semantic_vocabulary::MachineId>,
-    qualification_sets: &[terminal_psi::ScalarQualificationSet],
+    qualifications: &terminal_psi::ScalarQualificationCatalog,
     coercions: &mut Vec<terminal_psi::ScalarQualificationCoercion>,
     next_value: &mut u64,
     next_block: &mut u64,
@@ -273,6 +273,36 @@ pub(super) fn emit_state(
                 .collect()
         };
     let terminator = match &state.terminator {
+        LoweredScalarBranchTerminator::CompleteReturn { target, exit } => {
+            let edge = edge_id(allocate_dense(next_edge)?);
+            operations.source_returns.push(
+                crate::expression_preparation::qualifications::SourceScalarReturn {
+                    edge,
+                    exits: vec![*exit],
+                },
+            );
+            Terminator::Jump {
+                edge,
+                target: *targets.get(*target).ok_or(LoweringError::Unsupported(
+                    "scalar return completion target is absent",
+                ))?,
+                arguments: values.iter().map(|value| value.id).collect(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: (0..block_erased_proof_formals.len())
+                    .map(|position| {
+                        Ok(semantic_vocabulary::ProofTerm::Formal {
+                            position: u32::try_from(position).map_err(|_| {
+                                LoweringError::Unsupported(
+                                    "scalar completion proof position exceeds u32",
+                                )
+                            })?,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?,
+                structural_arguments: Vec::new(),
+                cleanup_actions: Vec::new(),
+            }
+        }
         LoweredScalarBranchTerminator::Qualify {
             target,
             arguments: qualify_arguments,
@@ -296,7 +326,7 @@ pub(super) fn emit_state(
                     .ok_or(LoweringError::Unsupported(
                         "scalar qualification has no successor declarations",
                     ))?,
-                qualification_sets,
+                qualifications,
                 coercions,
             )?;
             let Terminator::Jump {

@@ -14,12 +14,13 @@ pub use integer_membership::integer_domain_membership;
 
 mod runtime_predicates;
 pub use runtime_predicates::{
-    scalar_domain_predicate, scalar_field_domain_predicate, scalar_field_restriction,
-    scalar_membership_carrier, scalar_membership_predicates,
+    scalar_domain_predicate, scalar_domain_value_predicate, scalar_field_domain_predicate,
+    scalar_field_restriction, scalar_membership_carrier, scalar_membership_predicates,
 };
 mod scalar_tags;
 pub use scalar_tags::{
-    scalar_predicate_domains, scalar_state_contracts_are_qualifications, scalar_type_tags,
+    scalar_predicate_domains, scalar_state_contracts_are_qualifications,
+    scalar_type_routed_domains, scalar_type_tags,
 };
 
 use crate::declarations::symbols::TopLevelSymbols;

@@ -18,9 +18,9 @@ pub fn scalar_type_refinement_predicates(
 
 /// A scalar result can use the ordinary value-return route when every
 /// refinement has a complete predicate meaning and every semantic atom is a
-/// scalar tag, which the qualified Terminal result carries (see
-/// [`crate::scalar_type_tags`]); any other atom needs separate result
-/// custody.
+/// scalar tag or a routed theory with separate retained provenance. The
+/// qualified Terminal result carries the atom; numeric result contracts
+/// carry its predicates. Classification is not an establishment judgment.
 /// This describes the contract; returning paths still owe every predicate.
 /// In particular, finite floats and scalar ranges share the same decoder that
 /// normal-return guarantee emission consumes.
@@ -40,11 +40,12 @@ pub fn scalar_result_contract_is_represented(
         },
     )
     .is_some_and(|refinements| {
-        let tags = crate::scalar_type_tags(program, reference);
+        let mut represented = crate::scalar_type_tags(program, reference);
+        represented.extend(crate::scalar_type_routed_domains(program, reference));
         refinements
             .semantic_atoms
             .iter()
-            .all(|atom| tags.contains(atom))
+            .all(|atom| represented.contains(atom))
     })
 }
 
@@ -100,6 +101,18 @@ fn scalar_type_refinements(
                         continue;
                     }
                     DomainConstraintSubject::Declared => {
+                        if !domain.establishment_routes.is_empty() {
+                            // Numeric truth and nominal provenance are independent.
+                            // Both survive the result contract; this projection
+                            // grants neither membership nor an issuer occurrence.
+                            predicates.push(crate::scalar_domain_value_predicate(
+                                program,
+                                domain,
+                                subject.clone(),
+                            )?);
+                            semantic_atoms.push((domain.symbol, domain.semantic_id));
+                            continue;
+                        }
                         if let Some(bounds) = crate::exact_declared_domain_carrier_interval(
                             program, primitive, domain,
                         ) {

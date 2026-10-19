@@ -439,6 +439,7 @@ pub(crate) fn build_qualification_facts(
         }
     }
     checked_trees::QualificationFacts {
+        scalar_returns: Vec::new(),
         value_formations: Default::default(),
         machines,
         vacuous_uses,

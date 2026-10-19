@@ -93,6 +93,7 @@ pub(crate) fn scalar_returns(
             )?;
             selection(source.operations, evaluation, operations, &mut actions)?;
             Ok(ScalarReturnCleanup {
+                exit,
                 destination,
                 actions,
             })

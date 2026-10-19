@@ -63,6 +63,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     exit: &FlowExitFact,
+    decisions: &mut Vec<checked_trees::CheckedScalarReturnQualification>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(machine) = program.machine(exit.machine_symbol) else {
@@ -132,22 +133,43 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
         // theory or routed provenance. A signature does not synthesize zero.
         let supplied_by_return = exit_return_call(program, facts, exit)
             .is_some_and(|call| call_result_has_domain(program, call.target_symbol, constraint));
-        let satisfied = supplied_by_return || (returned.is_valid() && (transported
-            || program.domain_definition(domain_symbol)
-            .is_some_and(|domain| {
-                // A route identifying the declaration does not by itself
-                // identify any of its indexed applications.
-                (typed_trees::domain::index_parameters(program, domain).is_empty()
-                    || domain.establishment_routes.is_empty())
-                    && (domain.establishment_routes.is_empty()
-                        || crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
-                            program,
-                            machine,
-                            domain_symbol,
-                        ))
-                    && establishes_scalar_predicates(program, facts, exit, &contexts, domain, constraint)
-            })));
-        if !satisfied {
+        let origin = if supplied_by_return || (returned.is_valid() && transported) {
+            Some(checked_trees::CheckedScalarReturnOrigin::Forwarded)
+        } else {
+            program.domain_definition(domain_symbol).and_then(|domain| {
+                // Authorization cannot choose a domain's indexed application.
+                if !returned.is_valid()
+                    || (!typed_trees::domain::index_parameters(program, domain).is_empty()
+                        && !domain.establishment_routes.is_empty())
+                {
+                    return None;
+                }
+                let origin =
+                    if domain.establishment_routes.is_empty() {
+                        checked_trees::CheckedScalarReturnOrigin::Predicate
+                    } else {
+                        checked_trees::CheckedScalarReturnOrigin::Established(
+                        crate::facts::qualification_evidence::machine_domain_establishment_route(
+                            program, machine, domain_symbol,
+                        )?,
+                    )
+                    };
+                establishes_scalar_predicates(program, facts, exit, &contexts, domain, constraint)
+                    .then_some(origin)
+            })
+        };
+        if let Some(origin) = origin {
+            decisions.push(checked_trees::CheckedScalarReturnQualification {
+                machine: exit.machine_symbol,
+                state: exit.state_symbol,
+                statement_index: exit.statement_index,
+                transition_target: exit.transition_target,
+                expression: returned,
+                semantic_domain,
+                domain: domain_symbol,
+                origin,
+            });
+        } else {
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove scalar result domain for return from {} at statement {}: {}",
                 crate::labels::machine_name(program, exit.machine_symbol),

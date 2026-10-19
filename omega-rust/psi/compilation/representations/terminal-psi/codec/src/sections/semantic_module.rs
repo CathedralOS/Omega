@@ -37,6 +37,8 @@ pub(crate) mod structural_type_wire;
 pub(crate) mod wire;
 
 #[cfg(test)]
+mod routed_scalar_tests;
+#[cfg(test)]
 mod target_family_tests;
 
 pub(crate) use crate::codec_error::CodecError;
@@ -96,7 +98,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // distinct dense argument namespace; older bytes have no projection tag.
 // Completed content transformations retain exact input/output claims; structural
 // declarations retain their own linear obligation beneath whole parent claims.
-pub(crate) const FORMAT_MARKER: u16 = 168;
+// Scalar result memberships retain independent predicate and return provenance.
+pub(crate) const FORMAT_MARKER: u16 = 170;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

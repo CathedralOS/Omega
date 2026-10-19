@@ -298,6 +298,14 @@ impl StateGraphEmission<'_, '_> {
                 statement_ordinal as usize,
                 false,
             )?;
+            if let Terminator::Return { edge, .. } = terminator {
+                operations.source_returns.push(
+                    crate::expression_preparation::qualifications::SourceScalarReturn {
+                        edge,
+                        exits: vec![exit],
+                    },
+                );
+            }
             let mut regions = super::super::cleanup::for_exit_regions(
                 identities,
                 self.claims.published(),

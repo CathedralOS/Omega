@@ -87,6 +87,10 @@ impl CheckedMachineDeclaration {
             (None, None) => true,
             (Some(specialization), Some(other_specialization)) => {
                 specialization.commitment == other_specialization.commitment
+                    && identities
+                        .text(specialization.template_callable)
+                        .zip(other_identities.text(other_specialization.template_callable))
+                        .is_some_and(|(left, right)| !left.is_empty() && left == right)
                     && specialization.template.same_identity_as(
                         identities,
                         &other_specialization.template,
@@ -101,6 +105,10 @@ impl CheckedMachineDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CheckedMachineSpecialization {
     pub template: NominalDeclarationIdentity,
+    /// Exact authored overload, distinct from the instantiated callable and
+    /// from the template's nominal declaration path. Issuer routes name this
+    /// declaration, not a same-spelled specialization or sibling overload.
+    pub template_callable: TerminalIdentityIndex,
     pub commitment: [u8; 32],
 }
 

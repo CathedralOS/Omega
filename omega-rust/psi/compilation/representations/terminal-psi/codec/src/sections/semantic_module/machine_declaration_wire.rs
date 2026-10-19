@@ -24,6 +24,7 @@ pub(super) fn encode(
     writer.boolean(body.specialization.is_some());
     if let Some(specialization) = &body.specialization {
         writer.u32(specialization.template.identity().0);
+        writer.u32(specialization.template_callable.0);
         writer.bytes(&specialization.commitment);
     }
     Ok(())
@@ -43,6 +44,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<CheckedMachineDeclaratio
     let specialization = if reader.boolean()? {
         Some(CheckedMachineSpecialization {
             template: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
+            template_callable: TerminalIdentityIndex(reader.u32()?),
             commitment: reader.array()?,
         })
     } else {
@@ -67,7 +69,7 @@ fn validate(body: &CheckedMachineDeclaration) -> Result<(), CodecError> {
         || body
             .specialization
             .as_ref()
-            .is_some_and(|row| row.commitment == [0; 32])
+            .is_some_and(|row| row.commitment == [0; 32] || row.template_callable.is_absent())
     {
         return Err(CodecError::MalformedStructuralFoundation(
             "empty checked machine commitment",

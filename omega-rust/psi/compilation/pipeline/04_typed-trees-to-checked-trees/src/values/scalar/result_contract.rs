@@ -1422,7 +1422,7 @@ pub(crate) fn lower_state_domain_predicate(
         .iter()
         .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
         .count();
-    validation::scalar_domain_predicate(
+    validation::scalar_domain_value_predicate(
         program,
         constraint,
         CheckedScalarExpression::Parameter {

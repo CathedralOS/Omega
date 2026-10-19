@@ -26,6 +26,8 @@ pub(crate) use state_graph::live;
 /// state's operation buffer and the closure's published roster.
 #[derive(Default)]
 pub(in crate::unit::attached_unit) struct ComposedOccurrences {
+    pub(in crate::unit::attached_unit) source_returns:
+        Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
     pub(in crate::unit::attached_unit) claim_introductions:
         Vec<crate::emission::claim_bindings::ClaimIntroduction>,
     pub(in crate::unit::attached_unit) selected_cleanup_groups:
@@ -48,6 +50,7 @@ pub(in crate::unit::attached_unit) struct ComposedOccurrences {
 impl ComposedOccurrences {
     /// Retain every occurrence row one state's completed buffer recorded.
     fn retain(&mut self, operations: crate::emission::operation_emission::buffer::OperationBuffer) {
+        self.source_returns.extend(operations.source_returns);
         self.selected_cleanup_groups
             .extend(operations.selected_cleanup_groups);
         self.claim_introductions

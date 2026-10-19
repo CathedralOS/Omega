@@ -15,6 +15,7 @@ pub(super) fn instantiate(
     counters: &mut Counters<'_>,
 ) -> Result<(), LoweringError> {
     let calls = std::mem::take(rows.source_calls);
+    let returns = std::mem::take(rows.source_returns);
     let comparisons = std::mem::take(rows.selected_integer_comparisons);
     let float_comparisons = std::mem::take(rows.selected_ieee_float_comparisons);
     let completions = std::mem::take(&mut machine.loan_completions);
@@ -23,6 +24,17 @@ pub(super) fn instantiate(
     let source_checked = std::mem::take(rows.source_checked_obligations);
     for instance in instances.iter_mut() {
         let namespace = &mut instance.namespace;
+        for original in &returns {
+            if let Some((_, edge)) = namespace
+                .edges
+                .iter()
+                .find(|(source, _)| *source == original.edge)
+            {
+                let mut returned = original.clone();
+                returned.edge = *edge;
+                rows.source_returns.push(returned);
+            }
+        }
         for original in &calls {
             let owned = match original.terminal_site {
                 LoweredSourceCallSite::Operation(operation) => namespace

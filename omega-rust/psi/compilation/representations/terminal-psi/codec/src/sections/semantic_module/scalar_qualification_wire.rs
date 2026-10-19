@@ -9,8 +9,9 @@ use super::{
 };
 use semantic_vocabulary::ScalarQualificationSetId;
 use terminal_psi::{
-    ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarFloatRange, ScalarIntegerRange,
-    ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
+    ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarDomainPredicate,
+    ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCatalog, ScalarQualificationCoercion,
+    ScalarQualificationSet, ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite,
     TerminalIdentityIndex,
 };
 
@@ -28,6 +29,11 @@ pub(crate) fn encode(
         writer.id(domain.semantic_domain);
         writer.u32(domain.identity.0);
         encode_scalar_type(writer, domain.carrier);
+        writer.boolean(domain.predicate.is_some());
+        if let Some(predicate) = &domain.predicate {
+            writer.id(predicate.subject);
+            super::encode_proposition(writer, &predicate.proposition, 0)?;
+        }
         writer.len(
             "scalar domain establishment routes",
             domain.establishment_routes.len(),
@@ -49,6 +55,32 @@ pub(crate) fn encode(
                 ScalarDomainEstablishmentRoute::ExactMachine { machine_identity } => {
                     writer.u8(ROUTE_EXACT_MACHINE);
                     writer.u32(machine_identity.0);
+                }
+            }
+        }
+    }
+    writer.len("scalar return qualifications", catalog.returns.len())?;
+    for returned in &catalog.returns {
+        writer.id(returned.machine);
+        writer.id(returned.edge);
+        writer.id(returned.source);
+        writer.id(returned.result);
+        match returned.site {
+            ScalarReturnSite::NormalExit => writer.u8(0),
+            ScalarReturnSite::Completion { argument_ordinal } => {
+                writer.u8(1);
+                writer.u32(argument_ordinal);
+            }
+        }
+        writer.id(returned.domain);
+        writer.len("scalar return origins", returned.origins.len())?;
+        for origin in &returned.origins {
+            match origin {
+                ScalarReturnOrigin::Forwarded => writer.u8(0),
+                ScalarReturnOrigin::Vacuous => writer.u8(2),
+                ScalarReturnOrigin::Established { route } => {
+                    writer.u8(1);
+                    writer.u32(*route);
                 }
             }
         }
@@ -102,6 +134,14 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
                 semantic_domain: reader.id("DomainSemanticId")?,
                 identity: TerminalIdentityIndex(reader.u32()?),
                 carrier: decode_scalar_type(reader)?,
+                predicate: if reader.boolean()? {
+                    Some(ScalarDomainPredicate {
+                        subject: reader.id("ValueId")?,
+                        proposition: super::decode_proposition(reader, 0)?,
+                    })
+                } else {
+                    None
+                },
                 establishment_routes: decode_counted(reader, |reader| match reader.u8()? {
                     ROUTE_CHECKED_REQUIREMENT => {
                         Ok(ScalarDomainEstablishmentRoute::CheckedRequirement {
@@ -120,6 +160,30 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
                         "ScalarDomainEstablishmentRoute",
                         tag,
                     )),
+                })?,
+            })
+        })?,
+        returns: decode_counted(reader, |reader| {
+            Ok(ScalarReturnQualification {
+                machine: reader.id("MachineId")?,
+                edge: reader.id("EdgeId")?,
+                source: reader.id("ValueId")?,
+                result: reader.id("ValueId")?,
+                site: match reader.u8()? {
+                    0 => ScalarReturnSite::NormalExit,
+                    1 => ScalarReturnSite::Completion {
+                        argument_ordinal: reader.u32()?,
+                    },
+                    tag => return Err(CodecError::InvalidTag("ScalarReturnSite", tag)),
+                },
+                domain: reader.id("ScalarDomainId")?,
+                origins: decode_counted(reader, |reader| match reader.u8()? {
+                    0 => Ok(ScalarReturnOrigin::Forwarded),
+                    2 => Ok(ScalarReturnOrigin::Vacuous),
+                    1 => Ok(ScalarReturnOrigin::Established {
+                        route: reader.u32()?,
+                    }),
+                    tag => Err(CodecError::InvalidTag("ScalarReturnOrigin", tag)),
                 })?,
             })
         })?,
@@ -160,6 +224,20 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
 }
 
 pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), CodecError> {
+    if catalog.returns.windows(2).any(|pair| {
+        let key = |row: &ScalarReturnQualification| (row.machine, row.edge, row.domain);
+        key(&pair[0]) >= key(&pair[1])
+    }) {
+        return Err(CodecError::NonCanonicalOrder(
+            "scalar return qualifications",
+        ));
+    }
+    for returned in &catalog.returns {
+        if returned.origins.is_empty() || returned.origins.windows(2).any(|pair| pair[0] >= pair[1])
+        {
+            return Err(CodecError::NonCanonicalOrder("scalar return origins"));
+        }
+    }
     if catalog
         .domains
         .windows(2)

@@ -19,27 +19,29 @@ use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator
 /// Obligation identities belong to this exit, so all routes to that authored
 /// return share one completion edge rather than cloning its action identities.
 pub(crate) struct ScalarReturnCleanup {
+    pub(crate) exit: checked_trees::FlowClaimJoinExit,
     pub(crate) destination: CheckedScalarBranchDestination,
     pub(crate) actions: Vec<crate::unit::unit_cleanup::CleanupRegion>,
 }
 
 fn completion_target(
     destination: &CheckedScalarBranchDestination,
-    completions: &[(CheckedScalarBranchDestination, usize)],
-) -> Result<usize, LoweringError> {
-    if completions.is_empty() {
-        return Ok(0);
-    }
+    completions: &[(
+        CheckedScalarBranchDestination,
+        usize,
+        checked_trees::FlowClaimJoinExit,
+    )],
+) -> Result<(usize, checked_trees::FlowClaimJoinExit), LoweringError> {
     let mut selected = completions
         .iter()
-        .filter(|(source, _)| source == destination);
-    let (_, target) = selected.next().ok_or(LoweringError::Unsupported(
+        .filter(|(source, _, _)| source == destination);
+    let (_, target, exit) = selected.next().ok_or(LoweringError::Unsupported(
         "scalar return has no selected cleanup completion",
     ))?;
     if selected.next().is_some() {
         return unsupported("scalar return repeats its cleanup completion");
     }
-    Ok(*target)
+    Ok((*target, *exit))
 }
 
 /// Case selection is independent of the selected arm's expression. The edge
@@ -58,13 +60,17 @@ struct ScalarCaseDispatchArm {
 fn push_arm_target(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
-    checked: &CheckedTrees,
+    _checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     bindings: &crate::expression_preparation::bindings::ScalarBindings,
     source_types: &[QualifiedScalarType],
     result_type: QualifiedScalarType,
     destination: &CheckedScalarBranchDestination,
-    completions: &[(CheckedScalarBranchDestination, usize)],
+    completions: &[(
+        CheckedScalarBranchDestination,
+        usize,
+        checked_trees::FlowClaimJoinExit,
+    )],
 ) -> Result<usize, LoweringError> {
     let CheckedScalarBranchDestination::Return {
         statement_ordinal,
@@ -78,41 +84,19 @@ fn push_arm_target(
     } else {
         CheckedScalarExpressionRole::Return
     };
-    let target = completion_target(destination, completions)?;
-    // Presence selects computation replay; ambiguity must be rejected
-    // there, never interpreted as permission to use a pure fallback.
-    if checked
-        .facts
-        .values
-        .scalar_computations
-        .roots
-        .iter()
-        .any(|(_, root)| {
-            root.state == state && root.statement_ordinal == *statement_ordinal && root.role == role
-        })
-    {
-        expansion.retained_value(
-            identities,
-            state,
-            *statement_ordinal,
-            role,
-            bindings,
-            source_types,
-            result_type,
-            target,
-        )
-    } else {
-        expansion.retained_pure_value(
-            identities,
-            state,
-            *statement_ordinal,
-            role,
-            bindings,
-            source_types,
-            result_type,
-            target,
-        )
+    let (target, exit) = completion_target(destination, completions)?;
+    if exit.state_symbol != state || exit.statement_index != *statement_ordinal as usize {
+        return unsupported("scalar return completion changed its source coordinate");
     }
+    expansion.normal_return(
+        identities,
+        &exit,
+        role,
+        bindings,
+        source_types,
+        result_type,
+        target,
+    )
 }
 
 /// A selected case enters its ordinary scalar continuation; all other cases
@@ -217,7 +201,11 @@ impl Evaluation {
         result_type: QualifiedScalarType,
         dispatches: Vec<ScalarCaseDispatchArm>,
         fallback: Option<&CheckedScalarBranchDestination>,
-        completions: &[(CheckedScalarBranchDestination, usize)],
+        completions: &[(
+            CheckedScalarBranchDestination,
+            usize,
+            checked_trees::FlowClaimJoinExit,
+        )],
     ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
         let source = dispatches[0].source;
         let cases = dispatches[0].cases.clone();
@@ -368,7 +356,7 @@ impl Evaluation {
                         erased_proof_arguments: self.proof_formal_forwarding(),
                     },
                 });
-                (cleanup.destination.clone(), target)
+                (cleanup.destination.clone(), target, cleanup.exit)
             })
             .collect::<Vec<_>>();
         let terminator = match &control.terminator {

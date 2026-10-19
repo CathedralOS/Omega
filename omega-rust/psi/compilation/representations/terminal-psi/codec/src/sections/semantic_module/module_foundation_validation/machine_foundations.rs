@@ -23,6 +23,19 @@ pub(super) fn validate_machine(
     machine: &TerminalMachine,
 ) -> Result<(), CodecError> {
     if machine
+        .declaration
+        .as_ref()
+        .and_then(|declaration| declaration.specialization.as_ref())
+        .is_some_and(|specialization| {
+            module
+                .identities
+                .text(specialization.template_callable)
+                .is_none_or(str::is_empty)
+        })
+    {
+        return malformed("machine specialization lost its exact template callable");
+    }
+    if machine
         .attachment
         .is_some_and(|attachment| !has_structural_type(module, attachment))
     {

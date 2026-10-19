@@ -1482,6 +1482,16 @@ fail/domains/routed_qualification_predicate_cannot_authorize rejected 1300ms exp
 fail/domains/routed_qualification_reference_recast rejected 12ms expected @e74967d11875
 fail/domains/routed_record_capture_after_sibling_mutation rejected 698ms expected @2ef2ab353498+wt
 fail/domains/scalar_alias_zero_requires_all_predicates rejected 5313ms expected @a9ae30e1c334+wt
+fail/domains/scalar_domain_mixed_return_bad_predicate rejected 2089ms expected @83f47d8fae73
+	cannot prove scalar result domain for return from choose at statement 1: i64::Nonnegative
+fail/domains/scalar_domain_stale_call_result rejected 2021ms expected @83f47d8fae73
+	cannot prove scalar result domain for return from issue at statement 2: i64::Issued
+fail/domains/scalar_domain_unauthorized_completed_result rejected 2054ms expected @83f47d8fae73
+	cannot prove scalar result domain for return from unauthorized at statement 1: i64::Issued
+fail/domains/scalar_domain_unexecuted_call_guarantee rejected 2098ms expected @83f47d8fae73
+	cannot prove scalar result domain for return from issue at statement 1: i64::Issued
+fail/domains/scalar_domain_unrelated_call_result rejected 1893ms expected @83f47d8fae73
+	cannot prove scalar result domain for return from issue at statement 2: i64::Issued
 fail/domains/semantic_cast_fact_false rejected 2613ms expected @a9ae30e1c334+wt
 fail/domains/semantic_predicate_cast_false rejected 286ms expected @896172b5d9d8+wt
 fail/domains/semantic_predicate_domain_call_false rejected 1154ms expected @896172b5d9d8+wt
@@ -2652,6 +2662,25 @@ fail/facts/runtime_index_application_through_target_body_payload_outside_limit r
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/scalar_domain_call_guarantee/call_result rejected 4423ms expected @83f47d8fae73
+	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
+fail/facts/scalar_domain_call_guarantee/const_name rejected 4167ms expected @83f47d8fae73
+	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
+fail/facts/scalar_domain_call_guarantee/field rejected 3980ms expected @83f47d8fae73
+	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
+fail/facts/scalar_domain_call_guarantee/local rejected 3987ms expected @83f47d8fae73
+	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
+fail/facts/scalar_domain_call_guarantee/match_join rejected 3911ms expected @83f47d8fae73
+	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
+fail/facts/scalar_domain_call_guarantee/other_machine rejected 3893ms expected @83f47d8fae73
+	cannot prove requires contract for call forwarded from issue: captured >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove scalar result domain for return from issue at statement 2: i64::Nonnegative
+fail/facts/scalar_domain_call_guarantee/other_state rejected 3883ms expected @83f47d8fae73
+	cannot prove requires contract for call finish from issue: value >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/scalar_domain_call_guarantee/parameter rejected 3883ms expected @83f47d8fae73
+	cannot prove requires contract for call issue from transport: value >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/scalar_domain_call_guarantee/target_body rejected 3866ms expected @83f47d8fae73
+	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
 fail/facts/scalar_sign_zero_extension_unproved_call_result rejected 2364ms expected @45cbafd80d9c
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/scalar_sign_zero_extension_unproved_const_name rejected 2248ms expected @45cbafd80d9c
@@ -6015,6 +6044,11 @@ pass/domains/runtime_qualified_ieee_field_read_exit checked 11525ms check-target
 pass/domains/runtime_qualified_view_field_parameter_store_exit checked 4811ms check-target:macos_arm64 @9dd545defbc0
 pass/domains/runtime_result_domain_machine_overload_exit checked 12750ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_scalar_alias_zero_and_qualification_exit checked 12996ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/runtime_scalar_domain_generic_issuer_exit checked 30492ms check-target:macos_arm64 @83f47d8fae73
+pass/domains/runtime_scalar_domain_mixed_return_origins_exit checked 30540ms check-target:macos_arm64 @83f47d8fae73
+pass/domains/runtime_scalar_domain_return_cleanup_exit checked 33617ms check-target:macos_arm64 @83f47d8fae73
+pass/domains/runtime_scalar_domain_saved_call_result_exit checked 33042ms check-target:macos_arm64 @83f47d8fae73
+pass/domains/runtime_scalar_tag_mixed_return_completion_exit checked 25732ms check-target:macos_arm64 @83f47d8fae73
 pass/domains/runtime_selected_nested_field_domain_exit checked 2724ms check-target:macos_arm64 @1e469c9b15bb
 pass/domains/runtime_structural_contract_erasure_exit checked 5362ms check-target:macos_arm64 @35062b135924+wt
 pass/domains/runtime_terminal_result_context_exit checked 14710ms check-target:macos_arm64 @8d3a0acb500a+wt
@@ -6866,6 +6900,15 @@ pass/facts/runtime_index_application_through_other_machine_exit checked 13003ms 
 pass/facts/runtime_index_application_through_other_state_exit checked 19741ms check-target:macos_arm64 @336cafc17e1a+wt
 pass/facts/runtime_index_application_through_parameter_exit checked 18736ms check-target:macos_arm64 @336cafc17e1a+wt
 pass/facts/runtime_index_application_through_target_body_exit checked 13976ms check-target:macos_arm64 @336cafc17e1a+wt
+pass/facts/scalar_domain_call_guarantee/call_result checked 25444ms check-target:macos_arm64 @83f47d8fae73
+pass/facts/scalar_domain_call_guarantee/const_name checked 17006ms check-target:macos_arm64 @83f47d8fae73
+pass/facts/scalar_domain_call_guarantee/field checked 16903ms check-target:macos_arm64 @83f47d8fae73
+pass/facts/scalar_domain_call_guarantee/local checked 11487ms check-target:macos_arm64 @83f47d8fae73
+pass/facts/scalar_domain_call_guarantee/match_join checked 11299ms check-target:macos_arm64 @83f47d8fae73
+pass/facts/scalar_domain_call_guarantee/other_machine checked 11332ms check-target:macos_arm64 @83f47d8fae73
+pass/facts/scalar_domain_call_guarantee/other_state checked 11295ms check-target:macos_arm64 @83f47d8fae73
+pass/facts/scalar_domain_call_guarantee/parameter checked 11310ms check-target:macos_arm64 @83f47d8fae73
+pass/facts/scalar_domain_call_guarantee/target_body checked 11330ms check-target:macos_arm64 @83f47d8fae73
 pass/facts/scalar_sign_zero_extension_through_call_result_exit checked 7632ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_sign_zero_extension_through_const_name_exit checked 7578ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_sign_zero_extension_through_field_exit checked 7709ms check-target:macos_arm64 @45cbafd80d9c

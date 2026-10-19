@@ -16,6 +16,9 @@ use typed_trees::expression::ExpressionHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct QualificationFacts {
+    /// Successful normal-result judgments, before any lowering. These retain
+    /// every source exit, including forwarding versus fresh routed issuance.
+    pub scalar_returns: Vec<CheckedScalarReturnQualification>,
     /// Membership proved at one value's evaluation point. A later write or
     /// another occurrence of the same place cannot supply this decision.
     /// These source-checking decisions are not portable proof certificates
@@ -32,6 +35,28 @@ pub struct QualificationFacts {
     /// supplementary to whole-claim identity and never inferred from
     /// multiplicity or names of resource operations.
     pub content: crate::ContentProjectionFacts,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedScalarReturnQualification {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement_index: usize,
+    pub transition_target: typed_trees::statement::TransitionTargetHandle,
+    pub expression: ExpressionHandle,
+    pub semantic_domain: SemanticDomainId,
+    pub domain: SymbolHandle,
+    pub origin: CheckedScalarReturnOrigin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedScalarReturnOrigin {
+    /// Existing membership on this exact completed returned value.
+    Forwarded,
+    /// Independently proved predicate-only theory.
+    Predicate,
+    /// Independently proved predicates and this authorized checked route.
+    Established(language_semantics::DomainEstablishmentRoute),
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

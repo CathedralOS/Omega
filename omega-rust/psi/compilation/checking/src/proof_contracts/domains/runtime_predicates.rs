@@ -18,6 +18,9 @@ pub fn scalar_membership_carrier(
     program: &dyn crate::CheckingInput,
     membership: &ProofMembershipFact,
 ) -> Option<PrimitiveType> {
+    if crate::field_domains::domain_requires_provenance(program, membership.domain_symbol) {
+        return None;
+    }
     let arguments = program
         .type_reference_table
         .type_reference_handles(membership.domain_arguments);
@@ -59,7 +62,6 @@ fn scalar_application<'program>(
         || !domain.symbol.is_valid()
         || program.symbols.get(domain.symbol).kind != symbols::SymbolKind::Domain
         || domain.alias.is_some()
-        || crate::field_domains::domain_requires_provenance(program, domain.symbol)
         || !super::scalar_tags::exact_instance(program, domain, arguments, semantic_domain)
     {
         return None;
@@ -87,6 +89,7 @@ pub fn scalar_membership_predicates(
     membership: &ProofMembershipFact,
     subject: &Scalar,
 ) -> Option<Vec<Boolean>> {
+    scalar_membership_carrier(program, membership)?;
     let arguments = program
         .type_reference_table
         .type_reference_handles(membership.domain_arguments);
@@ -129,6 +132,9 @@ fn project(
         match fact {
             ProofFact::Expression(expression) => predicates.push(spelling.boolean(*expression, 0)?),
             ProofFact::Membership(nested) => {
+                // Nested routed membership needs its own provenance theory;
+                // flattening only its predicates would lose that obligation.
+                scalar_membership_carrier(program, nested)?;
                 if crate::exact_domain_subject_type(program, domain, nested.value).is_none() {
                     return None;
                 }
@@ -496,6 +502,21 @@ pub fn scalar_domain_predicate(
     constraint: &typed_trees::types::DomainConstraint,
     subject: Scalar,
 ) -> Option<Boolean> {
+    if !constraint.establishment_routes.is_empty() {
+        return None;
+    }
+    scalar_domain_value_predicate(program, constraint, subject)
+}
+
+/// The complete predicate component of a declared scalar theory, independently
+/// of its issuer routes. Result contracts and the Terminal domain catalog use
+/// this projection together with separate checked provenance, never as a
+/// membership judgment. Predicate-only callers use `scalar_domain_predicate`.
+pub fn scalar_domain_value_predicate(
+    program: &dyn crate::CheckingInput,
+    constraint: &typed_trees::types::DomainConstraint,
+    subject: Scalar,
+) -> Option<Boolean> {
     let primitive = subject.primitive_type()?;
     if let typed_trees::types::DomainConstraintSubject::Value(domain) = constraint.subject {
         return crate::scalar_value_domain_predicate(domain, subject);
@@ -534,9 +555,7 @@ pub fn scalar_domain_predicate(
     if super::scalar_tags::scalar_tag_constraint(program, constraint, primitive) {
         return Some(Boolean::Constant(true));
     }
-    if constraint.subject != typed_trees::types::DomainConstraintSubject::Declared
-        || !constraint.establishment_routes.is_empty()
-    {
+    if constraint.subject != typed_trees::types::DomainConstraintSubject::Declared {
         return None;
     }
     let predicates = project(

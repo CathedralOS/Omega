@@ -167,7 +167,7 @@ fn target_family_wire_rejects_duplicate_tags_and_missing_callables() {
 }
 
 /// One resultless checked machine whose single block returns at once.
-fn unit_machine(machine: MachineId) -> TerminalMachine {
+pub(super) fn unit_machine(machine: MachineId) -> TerminalMachine {
     let block = BlockId::new(1).unwrap();
     TerminalMachine {
         assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
@@ -217,7 +217,7 @@ fn unit_machine(machine: MachineId) -> TerminalMachine {
 
 /// A table whose first `count` real entries are distinct texts, so every
 /// fixed identity index this file names below `count` resolves.
-fn identity_table(count: u32) -> terminal_psi::TerminalIdentityTable {
+pub(super) fn identity_table(count: u32) -> terminal_psi::TerminalIdentityTable {
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     for position in 1..=count {
         identities.intern(&format!("test::identity{position}"));

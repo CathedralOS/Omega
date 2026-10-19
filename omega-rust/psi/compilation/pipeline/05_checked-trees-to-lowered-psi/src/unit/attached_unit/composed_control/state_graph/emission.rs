@@ -928,6 +928,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &occurrences.selected_cleanup_groups,
         &catalogs.structural_types,
         crate::emission::continuation_specialization::CompanionRows {
+            source_returns: &mut occurrences.source_returns,
             continuation_value_uses: &continuation_value_uses,
             claim_introductions: &mut occurrences.claim_introductions,
             source_calls: &mut occurrences.source_calls,

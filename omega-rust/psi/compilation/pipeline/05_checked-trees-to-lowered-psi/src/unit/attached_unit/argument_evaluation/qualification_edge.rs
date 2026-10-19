@@ -18,7 +18,7 @@ pub(crate) fn emit(
     structural_arguments: &[StructuralArgument],
     sources: &[ValueDeclaration],
     destinations: &[ValueDeclaration],
-    sets: &[terminal_psi::ScalarQualificationSet],
+    catalog: &terminal_psi::ScalarQualificationCatalog,
     coercions: &mut Vec<terminal_psi::ScalarQualificationCoercion>,
 ) -> Result<Terminator, LoweringError> {
     if !structural_arguments.is_empty()
@@ -50,7 +50,9 @@ pub(crate) fn emit(
             let source_domains = if source.qualifications.is_empty() {
                 &[][..]
             } else {
-                sets.iter()
+                catalog
+                    .sets
+                    .iter()
                     .find(|set| set.id == source.qualifications)
                     .map(|set| set.domains.as_slice())
                     .ok_or(LoweringError::Unsupported(
@@ -60,7 +62,9 @@ pub(crate) fn emit(
             let destination_domains = if destination.qualifications.is_empty() {
                 &[][..]
             } else {
-                sets.iter()
+                catalog
+                    .sets
+                    .iter()
                     .find(|set| set.id == destination.qualifications)
                     .map(|set| set.domains.as_slice())
                     .ok_or(LoweringError::Unsupported(
@@ -79,6 +83,27 @@ pub(crate) fn emit(
                 return unsupported(
                     "scalar qualification must add or erase membership on a fresh value",
                 );
+            }
+            if introduction {
+                for domain in destination_domains
+                    .iter()
+                    .filter(|domain| !source_domains.contains(domain))
+                {
+                    let declaration = catalog
+                        .domains
+                        .iter()
+                        .find(|declaration| declaration.id == *domain)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar coercion lost its domain declaration",
+                        ))?;
+                    if declaration.predicate.is_some()
+                        || !declaration.establishment_routes.is_empty()
+                    {
+                        return unsupported(
+                            "scalar coercion cannot replace checked predicate or issuer evidence",
+                        );
+                    }
+                }
             }
             coercions.push(terminal_psi::ScalarQualificationCoercion {
                 machine,

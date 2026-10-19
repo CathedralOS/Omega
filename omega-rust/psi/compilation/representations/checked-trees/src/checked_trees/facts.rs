@@ -130,7 +130,8 @@ pub use provider_closed_requirements::{
     CheckedProviderClosedRequirement, CheckedProviderClosedRequirements,
 };
 pub use qualifications::{
-    CheckedValueQualification, MachineQualifications, QualificationFacts, VacuousQualificationUse,
+    CheckedScalarReturnOrigin, CheckedScalarReturnQualification, CheckedValueQualification,
+    MachineQualifications, QualificationFacts, VacuousQualificationUse,
 };
 pub use reference_custody::{ReferenceCustodyFacts, ReferenceCustodyRow};
 pub use requirement_call_specializations::{

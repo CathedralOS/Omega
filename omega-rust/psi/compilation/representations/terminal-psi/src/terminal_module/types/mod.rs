@@ -9,8 +9,9 @@ pub use qualifications::{
     StructuralDomainPredicate, StructuralEstablishmentRoute, StructuralPathQualification,
 };
 pub use scalar_qualifications::{
-    ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarFloatRange, ScalarIntegerRange,
-    ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
+    ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarDomainPredicate,
+    ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCatalog, ScalarQualificationCoercion,
+    ScalarQualificationSet, ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite,
 };
 pub use structural::{
     ByteSequenceCarrier, StructuralCaseDeclaration, StructuralFieldDeclaration,

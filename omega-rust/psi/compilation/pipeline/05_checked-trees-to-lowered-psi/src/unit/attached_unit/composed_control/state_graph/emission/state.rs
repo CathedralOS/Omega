@@ -678,6 +678,7 @@ impl StateGraphEmission<'_, '_> {
         // A scalar-result state evaluates the value its selected exit returns
         // through the same exit evaluator an ordinary scalar body uses; its
         // private arm and join blocks stay inside this state.
+        let mut scalar_return_exits = Vec::new();
         let mut scalar_return = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
                 completion: checked_trees::CheckedScalarReturnPlan::Exits(exits),
@@ -696,6 +697,7 @@ impl StateGraphEmission<'_, '_> {
                     &evaluation,
                     &operations,
                 )?;
+                scalar_return_exits.extend(cleanups.iter().map(|row| row.exit));
                 let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
                 let mut calls = scalar_calls.emission_context();
                 let value = {
@@ -1088,6 +1090,7 @@ impl StateGraphEmission<'_, '_> {
                 else {
                     return unsupported("ordinary return has no unique source cleanup coordinate");
                 };
+                scalar_return_exits.push(cleanup.exit);
                 let mut regions = super::super::cleanup::for_exit_regions(
                     identities,
                     self.claims.published(),
@@ -1582,6 +1585,14 @@ impl StateGraphEmission<'_, '_> {
                 }
             }
         };
+        if let Terminator::Return { edge, .. } = terminator {
+            operations.source_returns.push(
+                crate::expression_preparation::qualifications::SourceScalarReturn {
+                    edge,
+                    exits: scalar_return_exits,
+                },
+            );
+        }
         sequence.finish_state(checked, state)?;
         let dispatches = condition.is_some() || branch_guard.is_some() || prepared_cases.is_some();
         self.seal_state(

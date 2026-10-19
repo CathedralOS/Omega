@@ -20,6 +20,7 @@ pub use checked_trees::{CheckedCleanupCaseCondition, CheckedCleanupControlPlans}
 pub use checked_trees::{CheckedStructuralCaseRoot, CheckedStructuralCaseSubject};
 
 pub use checked_trees::CheckedValueQualification;
+pub use checked_trees::facts::{CheckedScalarReturnOrigin, CheckedScalarReturnQualification};
 
 pub use checked_trees::{
     CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
