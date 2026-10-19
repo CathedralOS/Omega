@@ -1,0 +1,31 @@
+// Fact: an unsigned u64 quotient from 400u64 divided by 4u64 equals 100u64 when subtracting 100u64.
+// Place: other_state. A successor state receives the quotient and performs the subtraction check.
+// Expected exit: 0
+
+machine verify_state(q: u64) -> i32
+requires q >= 100 && q <= 100
+{
+    transition {
+        _ -> step(q)
+    }
+    state step(quotient: u64) -> i32
+    requires quotient >= 100 && quotient <= 100
+    {
+        let diff: u64 = quotient - 100u64;
+        diff as i32
+    }
+}
+
+machine probe() -> i32 {
+    let q: u64 = 400u64 / 4u64;
+    verify_state(q)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
