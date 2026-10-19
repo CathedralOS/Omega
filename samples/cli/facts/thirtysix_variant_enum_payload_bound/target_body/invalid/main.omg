@@ -1,0 +1,124 @@
+// Fact: matching a 36-variant tagged enum payload ThirtySixChoice { V1(u64), V2(u64), V3(u64), V4(u64), V5(u64), V6(u64), V7(u64), V8(u64), V9(u64), V10(u64), V11(u64), V12(u64), V13(u64), V14(u64), V15(u64), V16(u64), V17(u64), V18(u64), V19(u64), V20(u64), V21(u64), V22(u64), V23(u64), V24(u64), V25(u64), V26(u64), V27(u64), V28(u64), V29(u64), V30(u64), V31(u64), V32(u64), V33(u64), V34(u64), V35(u64), V36(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
+
+data ThirtySixChoice [copy] {
+    case V1(v: u64) where v >= 40u64 && v <= 80u64;
+    case V2(v: u64) where v >= 40u64 && v <= 80u64;
+    case V3(v: u64) where v >= 40u64 && v <= 80u64;
+    case V4(v: u64) where v >= 40u64 && v <= 80u64;
+    case V5(v: u64) where v >= 40u64 && v <= 80u64;
+    case V6(v: u64) where v >= 40u64 && v <= 80u64;
+    case V7(v: u64) where v >= 40u64 && v <= 80u64;
+    case V8(v: u64) where v >= 40u64 && v <= 80u64;
+    case V9(v: u64) where v >= 40u64 && v <= 80u64;
+    case V10(v: u64) where v >= 40u64 && v <= 80u64;
+    case V11(v: u64) where v >= 40u64 && v <= 80u64;
+    case V12(v: u64) where v >= 40u64 && v <= 80u64;
+    case V13(v: u64) where v >= 40u64 && v <= 80u64;
+    case V14(v: u64) where v >= 40u64 && v <= 80u64;
+    case V15(v: u64) where v >= 40u64 && v <= 80u64;
+    case V16(v: u64) where v >= 40u64 && v <= 80u64;
+    case V17(v: u64) where v >= 40u64 && v <= 80u64;
+    case V18(v: u64) where v >= 40u64 && v <= 80u64;
+    case V19(v: u64) where v >= 40u64 && v <= 80u64;
+    case V20(v: u64) where v >= 40u64 && v <= 80u64;
+    case V21(v: u64) where v >= 40u64 && v <= 80u64;
+    case V22(v: u64) where v >= 40u64 && v <= 80u64;
+    case V23(v: u64) where v >= 40u64 && v <= 80u64;
+    case V24(v: u64) where v >= 40u64 && v <= 80u64;
+    case V25(v: u64) where v >= 40u64 && v <= 80u64;
+    case V26(v: u64) where v >= 40u64 && v <= 80u64;
+    case V27(v: u64) where v >= 40u64 && v <= 80u64;
+    case V28(v: u64) where v >= 40u64 && v <= 80u64;
+    case V29(v: u64) where v >= 40u64 && v <= 80u64;
+    case V30(v: u64) where v >= 40u64 && v <= 80u64;
+    case V31(v: u64) where v >= 40u64 && v <= 80u64;
+    case V32(v: u64) where v >= 40u64 && v <= 80u64;
+    case V33(v: u64) where v >= 40u64 && v <= 80u64;
+    case V34(v: u64) where v >= 40u64 && v <= 80u64;
+    case V35(v: u64) where v >= 40u64 && v <= 80u64;
+    case V36(v: u64) where v >= 39u64 && v <= 80u64;
+}
+
+machine verify_payload(value: u64) -> u64
+    requires value >= 40u64 && value <= 80u64
+{
+    let headroom: u64 = 80u64 - value;
+    let margin: u64 = value - 40u64;
+    headroom + margin
+}
+
+machine extract(choice: ThirtySixChoice) -> u64 {
+    transition choice {
+        ThirtySixChoice::V1 { v } -> v
+        ThirtySixChoice::V2 { v } -> v
+        ThirtySixChoice::V3 { v } -> v
+        ThirtySixChoice::V4 { v } -> v
+        ThirtySixChoice::V5 { v } -> v
+        ThirtySixChoice::V6 { v } -> v
+        ThirtySixChoice::V7 { v } -> v
+        ThirtySixChoice::V8 { v } -> v
+        ThirtySixChoice::V9 { v } -> v
+        ThirtySixChoice::V10 { v } -> v
+        ThirtySixChoice::V11 { v } -> v
+        ThirtySixChoice::V12 { v } -> v
+        ThirtySixChoice::V13 { v } -> v
+        ThirtySixChoice::V14 { v } -> v
+        ThirtySixChoice::V15 { v } -> v
+        ThirtySixChoice::V16 { v } -> v
+        ThirtySixChoice::V17 { v } -> v
+        ThirtySixChoice::V18 { v } -> v
+        ThirtySixChoice::V19 { v } -> v
+        ThirtySixChoice::V20 { v } -> v
+        ThirtySixChoice::V21 { v } -> v
+        ThirtySixChoice::V22 { v } -> v
+        ThirtySixChoice::V23 { v } -> v
+        ThirtySixChoice::V24 { v } -> v
+        ThirtySixChoice::V25 { v } -> v
+        ThirtySixChoice::V26 { v } -> v
+        ThirtySixChoice::V27 { v } -> v
+        ThirtySixChoice::V28 { v } -> v
+        ThirtySixChoice::V29 { v } -> v
+        ThirtySixChoice::V30 { v } -> v
+        ThirtySixChoice::V31 { v } -> v
+        ThirtySixChoice::V32 { v } -> v
+        ThirtySixChoice::V33 { v } -> v
+        ThirtySixChoice::V34 { v } -> v
+        ThirtySixChoice::V35 { v } -> v
+        ThirtySixChoice::V36 { v } -> v
+    }
+}
+
+linux_x86_64 machine target_probe(choice: ThirtySixChoice) -> u64 {
+    let res: u64 = extract(choice);
+    verify_payload(res)
+}
+
+linux_arm64 machine target_probe(choice: ThirtySixChoice) -> u64 {
+    let res: u64 = extract(choice);
+    verify_payload(res)
+}
+
+macos_arm64 machine target_probe(choice: ThirtySixChoice) -> u64 {
+    let res: u64 = extract(choice);
+    verify_payload(res)
+}
+
+windows_x86_64 machine target_probe(choice: ThirtySixChoice) -> u64 {
+    let res: u64 = extract(choice);
+    verify_payload(res)
+}
+
+machine probe(choice: ThirtySixChoice) -> u64 {
+    target_probe(choice)
+}
+
+machine main() crashes Trap {
+    let p: ThirtySixChoice = ThirtySixChoice::V36 { v: 60u64 };
+    let combined: u64 = probe(p);
+    transition combined == 40u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
