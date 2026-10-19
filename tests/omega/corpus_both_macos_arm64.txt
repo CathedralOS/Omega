@@ -1159,6 +1159,7 @@ run/domains/qualified_fixed_byte_array_runtime_store_exit built 4841ms exit:0 in
 run/domains/qualified_fixed_byte_array_utf8_mutation_exit built 4726ms exit:0 interpreter-exit:0 interpreter:agrees @75cbf5dc1d21
 run/domains/qualified_fixed_byte_array_utf8_optimized_exit built 4453ms exit:0 interpreter-exit:0 interpreter:agrees @75cbf5dc1d21
 run/domains/zero_field_call_formation_exit built 3655ms exit:0 interpreter-exit:0 interpreter:agrees @4eedaeefe771+wt
+run/facts/signed_division_quotient_truncation_not_floor_traps built 3882ms exit:signal signal:5 interpreter:trapped @fca093f90f6d
 run/nested_mut_alias_assignment_return built 2526ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @cba4ef8c9ab1
 pass/ownership/runtime_replacement_call_child_snapshot_exit built 3512ms exit:0 interpreter-exit:0 interpreter:agrees @3c27bc9c6110
 pass/borrow/runtime_write_only_call_result_observation_exit built 3502ms exit:0 interpreter-exit:0 interpreter:agrees @820be24a59a0+wt
