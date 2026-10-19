@@ -1329,6 +1329,15 @@ pass/facts/bounded_scalar_sums_through_other_machine_exit built 20696ms exit:0 @
 pass/facts/bounded_scalar_sums_through_other_state_exit built 19959ms exit:0 @91ca9a02874b
 pass/facts/bounded_scalar_sums_through_parameter_exit built 20205ms exit:0 @91ca9a02874b
 pass/facts/bounded_scalar_sums_through_target_body_exit built 20285ms exit:0 @91ca9a02874b
+pass/facts/case_payload_transport_through_call_result_exit built 13978ms exit:0 @dc793bc94474
+pass/facts/case_payload_transport_through_const_name_exit built 14111ms exit:0 @dc793bc94474
+pass/facts/case_payload_transport_through_field_exit built 14196ms exit:0 @dc793bc94474
+pass/facts/case_payload_transport_through_local_exit built 14144ms exit:0 @dc793bc94474
+pass/facts/case_payload_transport_through_match_join_exit built 14129ms exit:0 @dc793bc94474
+pass/facts/case_payload_transport_through_other_machine_exit built 14104ms exit:0 @dc793bc94474
+pass/facts/case_payload_transport_through_other_state_exit built 14153ms exit:0 @dc793bc94474
+pass/facts/case_payload_transport_through_parameter_exit built 14251ms exit:0 @dc793bc94474
+pass/facts/case_payload_transport_through_target_body_exit built 14020ms exit:0 @dc793bc94474
 pass/facts/computed_record_window_original_exit built 8582ms exit:0 @408e4fc23fbc
 pass/facts/dependent_subtract_through_call_result_exit built 29726ms exit:0 @5de48c6e72e8+wt
 pass/facts/dependent_subtract_through_const_name_exit built 29176ms exit:0 @5de48c6e72e8+wt

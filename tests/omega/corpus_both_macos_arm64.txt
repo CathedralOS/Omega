@@ -569,6 +569,15 @@ pass/facts/bound_through_other_machine_exit built 3834ms exit:0 interpreter-exit
 pass/facts/bound_through_other_state_exit built 3824ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/bound_through_parameter_exit built 3868ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/facts/bound_through_target_body_exit built 3875ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
+pass/facts/case_payload_transport_through_call_result_exit built 15239ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474
+pass/facts/case_payload_transport_through_const_name_exit built 15374ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474
+pass/facts/case_payload_transport_through_field_exit built 15505ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474
+pass/facts/case_payload_transport_through_local_exit built 15241ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474
+pass/facts/case_payload_transport_through_match_join_exit built 15235ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474
+pass/facts/case_payload_transport_through_other_machine_exit built 15589ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474
+pass/facts/case_payload_transport_through_other_state_exit built 15045ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474
+pass/facts/case_payload_transport_through_parameter_exit built 15041ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474
+pass/facts/case_payload_transport_through_target_body_exit built 15354ms exit:0 interpreter-exit:0 interpreter:agrees @dc793bc94474
 pass/facts/computed_record_window_original_exit built 8596ms exit:0 interpreter-exit:0 interpreter:agrees @408e4fc23fbc
 pass/facts/dependent_subtract_through_call_result_exit built 27966ms exit:0 interpreter-exit:0 interpreter:agrees @5de48c6e72e8+wt
 pass/facts/dependent_subtract_through_const_name_exit built 28213ms exit:0 interpreter-exit:0 interpreter:agrees @5de48c6e72e8+wt
