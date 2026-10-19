@@ -1825,15 +1825,27 @@ fail/facts/assumed_binding_result_bound_through_target_body_rejected rejected 12
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
-fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite rejected 1724ms expected @dec223be05fb
-fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite rejected 1746ms expected @dec223be05fb
-fail/facts/borrowed_projection_cleanup_through_field_prerequisite rejected 1744ms expected @dec223be05fb
-fail/facts/borrowed_projection_cleanup_through_local_prerequisite rejected 1720ms expected @dec223be05fb
-fail/facts/borrowed_projection_cleanup_through_match_join_prerequisite rejected 1720ms expected @dec223be05fb
-fail/facts/borrowed_projection_cleanup_through_other_machine_prerequisite rejected 1762ms expected @dec223be05fb
-fail/facts/borrowed_projection_cleanup_through_other_state_prerequisite rejected 1775ms expected @dec223be05fb
-fail/facts/borrowed_projection_cleanup_through_parameter_prerequisite rejected 1747ms expected @dec223be05fb
-fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite rejected 1720ms expected @dec223be05fb
+fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite rejected 31057ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite rejected 27079ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_field_prerequisite rejected 19887ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_local_prerequisite rejected 17179ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_match_join_prerequisite rejected 16658ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_other_machine_prerequisite rejected 17007ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_other_state_prerequisite rejected 16964ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from main state next after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_parameter_prerequisite rejected 16591ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite rejected 16297ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
 fail/facts/bound_through_call_result_rejected rejected 1051ms expected @3b422f31da30+wt
 fail/facts/bound_through_const_name_rejected rejected 1061ms expected @3b422f31da30+wt
 fail/facts/bound_through_field_rejected rejected 1095ms expected @3b422f31da30+wt
@@ -6919,15 +6931,15 @@ pass/facts/assumed_binding_result_bound_through_other_machine_exit checked 8702m
 pass/facts/assumed_binding_result_bound_through_other_state_exit checked 8821ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_parameter_exit checked 9152ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_target_body_exit checked 8740ms check-target:macos_arm64 @6f94b4f3cae8+wt
-pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 7801ms check-target:macos_arm64 @dec223be05fb
-pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 6361ms check-target:macos_arm64 @dec223be05fb
-pass/facts/borrowed_projection_cleanup_through_field_exit checked 6543ms check-target:macos_arm64 @dec223be05fb
-pass/facts/borrowed_projection_cleanup_through_local_exit checked 7729ms check-target:macos_arm64 @dec223be05fb
-pass/facts/borrowed_projection_cleanup_through_match_join_exit checked 7555ms check-target:macos_arm64 @dec223be05fb
-pass/facts/borrowed_projection_cleanup_through_other_machine_exit checked 4253ms check-target:macos_arm64 @dec223be05fb
-pass/facts/borrowed_projection_cleanup_through_other_state_exit checked 4159ms check-target:macos_arm64 @dec223be05fb
-pass/facts/borrowed_projection_cleanup_through_parameter_exit checked 3641ms check-target:macos_arm64 @dec223be05fb
-pass/facts/borrowed_projection_cleanup_through_target_body_exit checked 3641ms check-target:macos_arm64 @dec223be05fb
+pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 68778ms check-target:macos_arm64 @fa145e0af975
+pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 69562ms check-target:macos_arm64 @fa145e0af975
+pass/facts/borrowed_projection_cleanup_through_field_exit checked 68926ms check-target:macos_arm64 @fa145e0af975
+pass/facts/borrowed_projection_cleanup_through_local_exit checked 68907ms check-target:macos_arm64 @fa145e0af975
+pass/facts/borrowed_projection_cleanup_through_match_join_exit checked 69433ms check-target:macos_arm64 @fa145e0af975
+pass/facts/borrowed_projection_cleanup_through_other_machine_exit checked 69116ms check-target:macos_arm64 @fa145e0af975
+pass/facts/borrowed_projection_cleanup_through_other_state_exit checked 69997ms check-target:macos_arm64 @fa145e0af975
+pass/facts/borrowed_projection_cleanup_through_parameter_exit checked 70106ms check-target:macos_arm64 @fa145e0af975
+pass/facts/borrowed_projection_cleanup_through_target_body_exit checked 69127ms check-target:macos_arm64 @fa145e0af975
 pass/facts/bound_through_call_result_exit checked 6280ms check-target:macos_arm64 @3b422f31da30+wt
 pass/facts/bound_through_const_name_exit checked 6261ms check-target:macos_arm64 @3b422f31da30+wt
 pass/facts/bound_through_field_exit checked 6295ms check-target:macos_arm64 @3b422f31da30+wt
