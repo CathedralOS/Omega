@@ -64,4 +64,57 @@ This row establishes that a bounded scalar value held live across sequential int
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Relocation fixups resolve symbolic stack-frame displacements and function addresses, basic blocks and branch offsets reflow across prologue/epilogue insertion, transitive machine-state footprint evidence is validated (`actual_transitive_footprint ⊆ permitted_transitive_use`), and direct PE/ELF/Mach-O images are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across all hosted targets including `windows_x86_64` and `macos_arm64`.
 
 The row is verified by `samples/cli/facts/callee_saved_across_nested_calls` where every positive records native exit 0 and Terminal Psi execution agreement (`omega run --both`), and every invalid twin rejects with `may overflow `u64``.
+
+## Measured evidence
+
+Producer: `omega` opt-level 1, `--build-profile` `{"schema":"omega-compiler-build-profile-v1","opt_level":"1"}`.
+Host: macOS arm64 (`darwin`/`arm64`). Base revision: `964b471b6cbf3f10b718089af3f74f121153b1c7`.
+
+| Command | Result |
+| --- | --- |
+| `omega run --both` on root and all nine places (10 projects) | 10/10 `native exit 0` with `interp exit: 0` |
+| `omega --check <place>/invalid/main.omg` (9 twins) | 9/9 reject with `may overflow `u64`` |
+| `sample_native_gate --programs-only --facts --filter callee_saved_across_nested_calls` | 10/10 meet the documented oracle, 0 unscored |
+| `sample_native_gate --facts --filter <nine>/invalid` | 9/9 intended-invalid controls match their authored rejection |
+| `corpus_gate --native --filter facts/callee_saved_across_nested_calls` | clean: 9 fixtures `{'built': 9}`, executed 9 `{'0': 9}` |
+
+Pinned fixtures: nine positives under
+`tests/omega/pass/facts/callee_saved_across_nested_calls_through_<place>_exit`
+(each with `main.omg`, `build.omg` binding all four hosted targets, and
+`expected_native_exit.txt` `0`), and nine reject twins under
+`tests/omega/fail/facts/callee_saved_across_nested_calls_unproved_<place>`
+(each with `expected.txt` `may overflow `u64``). Golden rows: the nine
+`built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt` and the
+nine `rejected ... expected` rows in `tests/omega/corpus_outcomes.txt`.
+
+### Discrimination
+
+Each positive place and its reject twin differ only in the construct's own
+value or domain (`saved = 40u64` with bound `<= 70u64` vs. `71u64`); the call
+structure, the two sequential nested calls, and both subtraction operations are
+identical. Verified by `diff` between `<place>/main.omg` and
+`<place>/invalid/main.omg`.
+
+Static versus runtime corruption was measured rather than assumed:
+
+- Corrupting `saved` to `71u64` (or `41u64`) as a source literal is refused
+  **statically** by the checker before native production
+  (`exact arithmetic ... may overflow `u64``); it never reaches an engine.
+- Corrupting `step_one`'s interior `clobber` return is likewise refused
+  statically, by that machine's own `ensures result == 0u64` contract.
+- To reach a **runtime** trap the value is seeded through a `boundary trait`
+  whose contract admits a range (`ensures result <= 70u64`) the prover cannot
+  constant-fold. The admitted run is `native exit 0` / `interp exit: 0`;
+  corrupting the supplied value then traps in both engines
+  (`native signal 5`, `interp crash: Trap`), and the two engines agree.
+
+The nested-depth obligation itself is carried by the emitted frame, not by the
+arithmetic observation: on `macos_arm64` the positive root's `run` saves `x19`
+and `x20` in its prologue, keeps `saved` in `x19` live across two sequential
+callee frames (`step_one` and `step_two`, each of which itself calls `clobber`),
+and restores `x19`/`x20` in its epilogue before reading `70u64 - saved`. A
+corruption of a value that only had to survive one call still traps, so the
+arithmetic oracle alone does not isolate nesting; the frame liveness above is
+the nesting evidence.
+
 What remains open: Dynamic stack realignment across multi-nested exception boundaries and vectorized callee-saved SIMD register preservation profiles.
