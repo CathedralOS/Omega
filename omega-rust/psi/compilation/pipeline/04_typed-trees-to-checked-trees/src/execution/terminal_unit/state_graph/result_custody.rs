@@ -35,9 +35,12 @@ use checked_trees::{
     CheckedUnitStructuralParameterPlan,
 };
 
-pub(super) fn account(
+pub(super) fn account<'calls>(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    call_schedules: &dyn Fn(
+        checked_trees::CheckedStructuralValueHandle,
+    ) -> Option<&'calls [checked_trees::CheckedStructuralValueCall]>,
     shapes: &super::ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -592,6 +595,7 @@ pub(super) fn account(
                 matches!(arm, CheckedConditionalReturnArm::Crash { .. })
                     || arm.definite_call_transfers(
                         &facts.values,
+                        call_schedules,
                         state.symbol,
                         operation,
                         terminal_local,
@@ -644,6 +648,7 @@ pub(super) fn account(
                         )?
                         .definite_call_transfers(
                             &facts.values,
+                            call_schedules,
                             operation,
                             terminal_local,
                         );
@@ -656,7 +661,12 @@ pub(super) fn account(
                         return None;
                     };
                     let transfers = prefix_transfers
-                        + value.definite_call_transfers(&facts.values, operation, terminal_local)
+                        + value.definite_call_transfers(
+                            &facts.values,
+                            call_schedules,
+                            operation,
+                            terminal_local,
+                        )
                         + uses
                             .iter()
                             .filter(|(_, argument)| {
@@ -680,6 +690,7 @@ pub(super) fn account(
                 // the minimum transfer count cannot describe mixed arms.
                 let exits = completion.selected_exit_call_transfers(
                     &facts.values,
+                    call_schedules,
                     &facts.flow.guarded_exits,
                     state.symbol,
                     operation,
@@ -821,12 +832,22 @@ pub(super) fn account(
             consumers[..occurrence_end.map_or(consumers.len(), |position| position + 1)]
                 .iter()
                 .map(|consumer| {
-                    consumer.definite_call_transfers(&facts.values, operation, result_local)
+                    consumer.definite_call_transfers(
+                        &facts.values,
+                        call_schedules,
+                        operation,
+                        result_local,
+                    )
                 })
                 .sum::<usize>()
                 + if occurrence_end.is_none() {
                     let guard_transfers = entry_guard.as_ref().map_or(0, |guard| {
-                        guard.definite_call_transfers(&facts.values, operation, terminal_local)
+                        guard.definite_call_transfers(
+                            &facts.values,
+                            call_schedules,
+                            operation,
+                            terminal_local,
+                        )
                     });
                     // Scalar exit computations are accounted per selected
                     // path above, together with that path's cleanup receipt.

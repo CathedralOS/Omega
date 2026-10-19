@@ -7,7 +7,7 @@ after ordinary package preparation.
 
 An authorized generic machine issues a ticket indexed by a placement type.
 The exact qualification follows the returned ticket through another generic
-machine, a record field, and an ordinary postcondition. Free issuers and
+machine (including a nested consuming call), a record field, and an ordinary postcondition. Free issuers and
 issuers attached to generic data share the same declaration-authority rule.
 The program checks three independently supplied values after state transfer.
 

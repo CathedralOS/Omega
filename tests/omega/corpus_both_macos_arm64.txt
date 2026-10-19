@@ -437,6 +437,7 @@ pass/domains/record_literal_view_member_store_exit built 1699ms exit:70 stdout:m
 pass/domains/record_predicate_domain_member_exit built 1214ms exit:70 interpreter-exit:70 interpreter:agrees @2efb222df04d
 pass/domains/runtime_computed_qualification_exit built 4482ms exit:0 interpreter-exit:0 interpreter:agrees @27dfa182e550
 pass/domains/runtime_constructor_ensured_membership_exit built 1736ms exit:0 interpreter-exit:0 interpreter:agrees @1fb1b73fcfb5
+pass/domains/runtime_generic_exact_issuer_exit built 8770ms exit:0 interpreter-exit:0 interpreter:agrees @d761e1cfc099+wt
 pass/domains/runtime_nested_record_membership_transport_exit built 1646ms exit:0 interpreter-exit:0 interpreter:agrees @7b3ac815c2b7
 pass/domains/runtime_qualified_borrowed_gated_input_exit built 1513ms exit:0 interpreter-exit:0 interpreter:agrees @f20b8ea3bb8d
 pass/domains/runtime_qualified_view_field_parameter_store_exit built 2494ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @f76d8aa42d2a
@@ -870,7 +871,11 @@ pass/ownership/runtime_known_case_scalar_call_exit built 1647ms exit:0 interpret
 pass/ownership/runtime_linear_case_payload_forward_exit built 1724ms exit:0 interpreter-exit:0 interpreter:agrees @332ced10410b+wt
 pass/ownership/runtime_local_subslice_element_window_exit built 5001ms exit:0 interpreter-exit:0 interpreter:agrees @8d1d3601885d
 pass/ownership/runtime_mutable_selector_window_exit built 7746ms exit:0 interpreter-exit:0 interpreter:agrees @8d1d3601885d
+pass/ownership/runtime_nested_owned_value_call_exit built 8580ms exit:0 interpreter-exit:0 interpreter:agrees @d761e1cfc099+wt
+pass/ownership/runtime_nested_owner_observation_exit built 8218ms exit:0 interpreter-exit:0 interpreter:agrees @cb86df103672+wt
 pass/ownership/runtime_nested_projected_claim_return_exit built 1641ms exit:0 interpreter-exit:0 interpreter:agrees @cd27c16e2c35
+pass/ownership/runtime_nested_selected_cleanup_exit built 8589ms exit:0 interpreter-exit:0 interpreter:agrees @d761e1cfc099+wt
+pass/ownership/runtime_nested_selected_owner_call_exit built 8589ms exit:0 interpreter-exit:0 interpreter:agrees @d761e1cfc099+wt
 pass/ownership/runtime_nested_view_affine_window_exit built 3149ms exit:0 interpreter-exit:0 interpreter:agrees @f48a7c9556ec+wt
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit built 1361ms exit:42 interpreter-exit:42 interpreter:agrees @84da89581e65
 pass/ownership/runtime_partial_linear_record_case_cleanup_exit built 5449ms exit:0 interpreter-exit:0 interpreter:agrees @fc4fea5e1228+wt

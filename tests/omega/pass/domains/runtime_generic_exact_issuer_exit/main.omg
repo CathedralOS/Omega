@@ -27,8 +27,7 @@ machine main() crashes Trap {
     let envelope: Envelope = Envelope { ticket: first };
     let second: Ticket = Ticket::issue_ensured<Second>(19);
     let observed: u64 = read<First>(envelope.ticket);
-    let forwarded: Ticket in Issued<Second> = forward<Second>(second);
-    let other: u64 = read<Second>(forwarded);
+    let other: u64 = read<Second>(forward<Second>(second));
     let factory: Factory<First> = Factory { tag: First {} };
     let attached: Ticket in Issued<First> = Factory::issue(&factory, 31);
     let third: u64 = read<First>(attached);

@@ -191,7 +191,10 @@ pub(super) fn build_traced(
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &control::LocalConstructionTrace,
-) -> Option<CheckedComposedUnitControlMachinePlan> {
+) -> Option<(
+    CheckedComposedUnitControlMachinePlan,
+    Vec<super::structural_value_calls::PreparedValueCalls>,
+)> {
     let fused_states = fused_states(program, machine);
     let fused = &fused_states;
     trace.phase("state graph: shape");
@@ -383,6 +386,7 @@ pub(super) fn build_traced(
         signatures.push((structural, scalar));
     }
     let mut planned = Vec::new();
+    let mut prepared_calls = Vec::new();
     for (state_index, &(owner, state)) in fused.iter().enumerate() {
         trace.state(Some(state.symbol));
         let (structural, scalar) = &signatures[state_index];
@@ -502,9 +506,42 @@ pub(super) fn build_traced(
         {
             return None;
         }
+        // Nested value calls own transfers even when their enclosing result is
+        // scalar. Prepare their exact DAG schedules from this completed prefix
+        // before accounting; waiting for body publication creates a cycle.
+        // Keep the schedules transactional until the complete graph succeeds.
+        let state_calls = super::structural_value_calls::prepare_state(
+            program,
+            facts,
+            shapes,
+            machine.symbol,
+            owner.symbol,
+            state.symbol,
+            &super::structural_value_calls::StateCallInputs {
+                parameters: structural,
+                entry_claims: &state_entry_claims[state_index],
+                operations: &operations,
+                trivial_locals: &[],
+            },
+        );
+        trace.phase("state graph: value call source custody");
+        super::structural_value_calls::consume_caller_results(
+            program,
+            owner.symbol,
+            state.symbol,
+            &mut operations,
+            state_calls.iter().map(|row| row.calls.as_slice()),
+        )?;
+        let call_schedules = |value| {
+            state_calls
+                .iter()
+                .find(|row| row.value == value)
+                .map(|row| row.calls.as_slice())
+        };
         result_custody::account(
             program,
             facts,
+            &call_schedules,
             shapes,
             owner,
             state,
@@ -514,6 +551,7 @@ pub(super) fn build_traced(
             &terminator,
             trace,
         )?;
+        prepared_calls.extend(state_calls);
         planned.push(CheckedComposedUnitControlStatePlan {
             normal_exit_cleanups: Default::default(),
             state: state.symbol,
@@ -735,7 +773,7 @@ pub(super) fn build_traced(
             )?;
     }
     plan.result = result;
-    Some(plan)
+    Some((plan, prepared_calls))
 }
 
 type Signature = (

@@ -6,102 +6,107 @@
 //! authored occurrence. Internal displacement slots still reserve ordinals and
 //! stay in the preamble without pretending to bind an authored source. An
 //! unrelated preceding producer must not erase a later value's call schedule.
+//!
+//! Prepare schedules beside each candidate's operation prefix, before result
+//! custody and dependency closure need them. The same batch supplies ownership
+//! queries, callable dependencies and temporary types. Failed candidates take
+//! their schedules with them; final retention only publishes surviving batches.
+//! Preparing calls after body publication would make nested transfers invisible
+//! while deciding whether that body can be published in the first place.
 
 use super::control::{LocalConstructionTrace, structural_operands};
 use super::types::ShapeCollector;
 use super::{CheckFacts, ScalarCalleeClosure};
 use checked_trees::{CheckedStructuralValueRoot, CheckedUnitEffectOperationPlan};
 
-pub(crate) fn retain(
+/// Construction scratch, committed only with the body that supplied its exact
+/// predecessor namespace. Custody queries borrow it before body publication.
+pub(crate) struct PreparedValueCalls {
+    pub owner: symbols::SymbolHandle,
+    pub state: symbols::SymbolHandle,
+    pub value: checked_trees::CheckedStructuralValueHandle,
+    pub preceding_bindings: u32,
+    pub calls: Vec<checked_trees::CheckedStructuralValueCall>,
+}
+
+impl PreparedValueCalls {
+    pub(super) fn operation_dependencies(
+        &self,
+    ) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
+        self.calls.iter().flat_map(|call| {
+            call.operands()
+                .iter()
+                .chain(std::iter::once(call.operation()))
+                .chain(call.completions().iter())
+        })
+    }
+}
+
+pub(super) struct StateCallInputs<'state> {
+    pub parameters: &'state [checked_trees::CheckedUnitStructuralParameterPlan],
+    pub entry_claims: &'state [checked_trees::CheckedUnitEntryClaimPlan],
+    pub operations: &'state [CheckedUnitEffectOperationPlan],
+    pub trivial_locals: &'state [checked_trees::CheckedTrivialAffineStructuralLocalPlan],
+}
+
+pub(super) fn prepare_state(
     program: &dyn ::validation::CheckingInput,
-    facts: &mut CheckFacts,
-) -> Result<(), typed_trees::type_identity::TypeIdentityId> {
-    let mut shapes = ShapeCollector::new(program);
-    let mut schedules = Vec::new();
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    owner: symbols::SymbolHandle,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    inputs: &StateCallInputs<'_>,
+) -> Vec<PreparedValueCalls> {
+    let mut prepared = Vec::new();
     for (_, root) in facts.values.structural_values.roots.iter() {
-        if schedules
-            .iter()
-            .any(|(_, _, value, _, _)| *value == root.root)
+        if root.machine != machine
+            || root.state != state
+            || prepared
+                .iter()
+                .any(|row: &PreparedValueCalls| row.value == root.root)
         {
             continue;
         }
-        if let Some((preceding_bindings, calls)) = schedule(program, facts, &mut shapes, root) {
-            schedules.push((
-                root.machine,
-                root.state,
-                root.root,
+        if let Some((preceding_bindings, calls)) = schedule(program, facts, shapes, root, inputs) {
+            prepared.push(PreparedValueCalls {
+                owner,
+                state,
+                value: root.root,
                 preceding_bindings,
                 calls,
-            ));
+            });
         }
     }
-    let mut completed = Vec::new();
-    for (machine, state, _, _, _) in &schedules {
-        if completed.contains(&(*machine, *state)) {
+    prepared
+}
+
+pub(crate) fn retain(
+    facts: &mut CheckFacts,
+    prepared: Vec<PreparedValueCalls>,
+) -> Result<(), String> {
+    // Only surviving candidates reach here. Fused dispatch owners can share
+    // an authored root, but they must agree on its exact call namespace.
+    for row in prepared {
+        if let Some((preceding, calls)) = facts.values.structural_values.call_schedule(row.value) {
+            if preceding != row.preceding_bindings || calls != row.calls {
+                return Err("surviving bodies disagree on a structural value call schedule".into());
+            }
             continue;
         }
-        completed.push((*machine, *state));
-        let Some(operations) = caller_operations(facts, *machine, *state) else {
-            continue;
-        };
-        let mut updated = operations.clone();
-        let state_schedules = schedules
-            .iter()
-            .filter(|(owner, source, _, _, _)| owner == machine && source == state);
-        if consume_caller_results(
-            program,
-            *machine,
-            *state,
-            &mut updated,
-            state_schedules.map(|(_, _, _, _, calls)| calls.as_slice()),
-        )
-        .is_none()
-        {
-            // A schedule without coherent source custody is not executable.
-            // Do not publish partial transfers or the calls that would use them.
-            continue;
-        }
-        *operations = updated;
-        for (_, _, value, preceding_bindings, calls) in schedules
-            .iter()
-            .filter(|(owner, source, _, _, _)| owner == machine && source == state)
-        {
-            facts.values.structural_values.retain_calls_for_root(
-                *value,
-                *preceding_bindings,
-                calls.clone(),
-            );
-        }
-    }
-    // A temporary's result type need not occur in its caller's signature.
-    // Retain the ordinary call builder's type declarations under the same
-    // namespace as all other structural operation results.
-    facts
-        .flow
-        .terminal_unit_effects
-        .adopt_structural_types(shapes.types.into_values())?;
-    for domain in shapes.domains {
-        if !facts
-            .flow
-            .terminal_unit_effects
-            .structural_domains
-            .iter()
-            .any(|existing| existing.domain == domain.domain)
-        {
-            facts
-                .flow
-                .terminal_unit_effects
-                .structural_domains
-                .push(domain);
-        }
+        facts.values.structural_values.retain_calls_for_root(
+            row.value,
+            row.preceding_bindings,
+            row.calls,
+        );
     }
     Ok(())
 }
 
 /// Catalog calls execute in scalar/value continuations, while the preceding
 /// producer's disposal debt belongs to its enclosing checked operation body.
-/// Rejoin that shared namespace at publication using ordinary transfer rules.
-fn consume_caller_results<'a>(
+/// Rejoin that shared namespace inside the candidate using ordinary transfer rules.
+pub(super) fn consume_caller_results<'a>(
     program: &dyn ::validation::CheckingInput,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
@@ -170,16 +175,25 @@ fn consume_caller_results<'a>(
                     }
                     continue;
                 }
+                // Named homes have exact selected normal-exit cleanup rows.
+                // Their initializer's provisional discard is not an ownership
+                // bit, and a conditional move does not erase sibling cleanup.
+                // Anonymous results still rely on their producer's disposal
+                // flag, so clearing that flag requires an unconditional move.
                 let retires_caller = arguments.iter().any(|argument| {
                     argument.access == checked_trees::CheckedStructuralAccess::Owned
                         && argument.path.is_empty()
                         && earlier.iter().any(|operation| {
-                            operation.structural_result_binding().is_some_and(|result| {
-                                Some(result.binding_ordinal)
-                                    == argument.source_structural_result_binding_ordinal()
-                                    && result.multiplicity
-                                        == language_semantics::Multiplicity::Affine
-                            })
+                            operation.discardable_structural_result().is_some_and(
+                                |(result, discard)| {
+                                    Some(result.binding_ordinal)
+                                        == argument.source_structural_result_binding_ordinal()
+                                        && discard
+                                        && !result.local.is_named()
+                                        && result.multiplicity
+                                            == language_semantics::Multiplicity::Affine
+                                },
+                            )
                         })
                 });
                 if retires_caller {
@@ -215,73 +229,23 @@ fn consume_caller_results<'a>(
     Some(())
 }
 
-fn caller_operations(
-    facts: &mut CheckFacts,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-) -> Option<&mut Vec<CheckedUnitEffectOperationPlan>> {
-    let plans = &mut facts.flow.terminal_unit_effects;
-    if let Some(index) = plans
-        .machines
-        .iter()
-        .position(|plan| plan.machine == machine && plan.state == state)
-    {
-        return Some(&mut plans.machines[index].operations);
-    }
-    if let Some((owner, index)) = plans
-        .composed_machines
-        .iter()
-        .enumerate()
-        .filter(|(_, plan)| plan.machine == machine)
-        .find_map(|(owner, plan)| plan.state_position(state).map(|index| (owner, index)))
-    {
-        return Some(&mut plans.composed_machines[owner].states[index].operations);
-    }
-    None
-}
-
 fn schedule(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     root: &CheckedStructuralValueRoot,
+    inputs: &StateCallInputs<'_>,
 ) -> Option<(u32, Vec<checked_trees::CheckedStructuralValueCall>)> {
     let (machine, state) = validation::find_state(program, root.state)?;
     if machine.symbol != root.machine {
         return None;
     }
-    let plans = &facts.flow.terminal_unit_effects;
-    let ordinary = plans
-        .machines
-        .iter()
-        .find(|plan| plan.machine == machine.symbol && plan.state == state.symbol);
-    let composed = plans
-        .composed_machines
-        .iter()
-        .filter(|plan| plan.machine == machine.symbol)
-        .flat_map(|plan| &plan.states)
-        .find(|plan| plan.state == state.symbol);
-    let (parameters, entry_claims, operations) = if let Some(plan) = ordinary {
-        (
-            &plan.structural_parameters,
-            plan.entry_claims.as_slice(),
-            &plan.operations,
-        )
-    } else if let Some(plan) = composed {
-        (
-            &plan.structural_parameters,
-            plan.entry_claims.as_slice(),
-            &plan.operations,
-        )
-    } else {
-        return None;
-    };
     let mut preceding = Vec::new();
     let mut results = Vec::new();
     let mut count = 0;
     let source_flow = super::types::state_flow(facts, machine.symbol, state.symbol)?;
     let source_calls = facts.flow.control.calls.span(source_flow.calls)?;
-    for operation in operations {
+    for operation in inputs.operations {
         let Some(result) = operation.structural_result_binding() else {
             let statement = operation
                 .call()
@@ -335,9 +299,9 @@ fn schedule(
         }
         preceding.push(operation.clone());
     }
-    let trivial_locals = ordinary
-        .into_iter()
-        .flat_map(|plan| &plan.trivial_affine_locals)
+    let trivial_locals = inputs
+        .trivial_locals
+        .iter()
         .filter_map(|local| {
             match program
                 .statement_table
@@ -359,9 +323,9 @@ fn schedule(
         shapes,
         machine,
         state,
-        parameters,
+        inputs.parameters,
         &trivial_locals,
-        entry_claims,
+        inputs.entry_claims,
         &results,
         &preceding,
         &mut count,

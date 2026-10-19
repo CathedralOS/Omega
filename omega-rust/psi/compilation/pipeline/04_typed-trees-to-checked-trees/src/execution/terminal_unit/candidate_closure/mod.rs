@@ -223,6 +223,7 @@ pub(super) fn retain_available(
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed_machines: &mut Vec<CheckedComposedUnitControlMachinePlan>,
     partial_affine_machines: &mut Vec<CheckedPartialAffineUnitCleanupMachinePlan>,
+    prepared_value_calls: &[super::structural_value_calls::PreparedValueCalls],
 ) -> Vec<CheckedUnitPlanGap> {
     // Candidate ordinals: ordinary bodies, then composed bodies, then the
     // partial-affine bodies, which are ordinary bodies with a residual
@@ -266,6 +267,14 @@ pub(super) fn retain_available(
         for operation in plan
             .operations
             .iter()
+            .chain(
+                prepared_value_calls
+                    .iter()
+                    .filter(|row| row.owner == plan.machine && row.state == plan.state)
+                    .flat_map(
+                        super::structural_value_calls::PreparedValueCalls::operation_dependencies,
+                    ),
+            )
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
         {
             match operation {
@@ -375,6 +384,9 @@ pub(super) fn retain_available(
             }
             for operation in state
                 .operation_dependencies()
+                .chain(prepared_value_calls.iter()
+                    .filter(|row| row.owner == plan.machine && row.state == state.state)
+                    .flat_map(super::structural_value_calls::PreparedValueCalls::operation_dependencies))
                 .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
             {
                 let call_site =

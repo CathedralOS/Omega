@@ -3341,6 +3341,10 @@ fail/ownership/live_registration_cannot_release rejected 461ms expected @e74967d
 fail/ownership/local_subslice_window_wrong_repair rejected 1219ms expected @a9ae30e1c334+wt
 fail/ownership/match_selected_parameter_use_after_maybe_move rejected 1476ms expected @7fe95c3b37b3+wt
 fail/ownership/nested_borrowed_operand_later_read rejected 1177ms expected @a9ae30e1c334+wt
+fail/ownership/nested_call_reuses_transferred_owner rejected 689ms expected @d761e1cfc099+wt
+	cannot use `ticket.value` in machine `invalid` state `entry` (statement 2) after `ticket` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
+fail/ownership/nested_selected_call_reuses_owner rejected 688ms expected @d761e1cfc099+wt
+	cannot use `ticket.value` in machine `invalid` state `entry` (statement 1) after `ticket` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
 fail/ownership/owned_content_projection_after_call_result rejected 13568ms expected @e74967d11875
 fail/ownership/owned_content_projection_in_nested_field rejected 13463ms expected @e74967d11875
 fail/ownership/owned_content_projection_in_parameter rejected 11822ms expected @e74967d11875

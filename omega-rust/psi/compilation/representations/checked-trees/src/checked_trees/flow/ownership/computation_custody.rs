@@ -85,13 +85,16 @@ impl CheckedUnitEffectOperationPlan {
     /// only from `statement_structural_result_binding`, never from the enclosing
     /// statement of an intermediate call operand. Projections leave residual
     /// custody and are deliberately not whole-owner transfers.
-    pub fn definite_call_transfers(
+    pub fn definite_call_transfers<'calls>(
         &self,
         values: &CheckedValueFacts,
+        call_schedules: &dyn Fn(
+            CheckedStructuralValueHandle,
+        ) -> Option<&'calls [CheckedStructuralValueCall]>,
         producer: &CheckedUnitEffectOperationPlan,
         local: SymbolHandle,
     ) -> usize {
-        CallTransfers::for_producer(values, producer, local)
+        CallTransfers::for_producer(values, call_schedules, producer, local)
             .map_or(0, |transfers| transfers.operation(self))
     }
 }
@@ -100,19 +103,25 @@ impl CheckedCallScalarArgument {
     /// Whole transfers completed while evaluating this value. A guard owns
     /// the same ordered computation as a local initializer; short-circuit
     /// alternatives must not be flattened into unconditional call operands.
-    pub fn definite_call_transfers(
+    pub fn definite_call_transfers<'calls>(
         &self,
         values: &CheckedValueFacts,
+        call_schedules: &dyn Fn(
+            CheckedStructuralValueHandle,
+        ) -> Option<&'calls [CheckedStructuralValueCall]>,
         producer: &CheckedUnitEffectOperationPlan,
         local: SymbolHandle,
     ) -> usize {
-        CallTransfers::for_producer(values, producer, local)
+        CallTransfers::for_producer(values, call_schedules, producer, local)
             .map_or(0, |transfers| transfers.scalar(self))
     }
 }
 
-struct CallTransfers<'facts> {
+struct CallTransfers<'facts, 'calls> {
     values: &'facts CheckedValueFacts,
+    call_schedules: &'facts dyn Fn(
+        CheckedStructuralValueHandle,
+    ) -> Option<&'calls [CheckedStructuralValueCall]>,
     result: &'facts CheckedUnitStructuralResultBindingPlan,
     local: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
@@ -122,9 +131,12 @@ impl CheckedScalarReturnPlan {
     /// Construction scratch describing each selected normal path's whole
     /// transfers. A caller may join its exact cleanup coordinate to these
     /// counts; a minimum alone loses mixed transfer/disposal partitions.
-    pub fn selected_exit_call_transfers(
+    pub fn selected_exit_call_transfers<'calls>(
         &self,
         values: &CheckedValueFacts,
+        call_schedules: &dyn Fn(
+            CheckedStructuralValueHandle,
+        ) -> Option<&'calls [CheckedStructuralValueCall]>,
         exits: &CheckedGuardedExitPlans,
         state: SymbolHandle,
         producer: &CheckedUnitEffectOperationPlan,
@@ -133,7 +145,7 @@ impl CheckedScalarReturnPlan {
         let Self::Exits(completion) = self else {
             return None;
         };
-        CallTransfers::for_producer(values, producer, local)?.scalar_exit_paths(
+        CallTransfers::for_producer(values, call_schedules, producer, local)?.scalar_exit_paths(
             state,
             exits,
             &completion.terminator,
@@ -144,9 +156,12 @@ impl CheckedScalarReturnPlan {
     /// Those computations can consume structural owners even though the
     /// completed result is scalar. A returned binding was evaluated earlier
     /// by the ordinary operation sequence and contributes no second transfer.
-    pub fn definite_call_transfers(
+    pub fn definite_call_transfers<'calls>(
         &self,
         values: &CheckedValueFacts,
+        call_schedules: &dyn Fn(
+            CheckedStructuralValueHandle,
+        ) -> Option<&'calls [CheckedStructuralValueCall]>,
         exits: &CheckedGuardedExitPlans,
         state: SymbolHandle,
         producer: &CheckedUnitEffectOperationPlan,
@@ -155,7 +170,8 @@ impl CheckedScalarReturnPlan {
         let Self::Exits(completion) = self else {
             return 0;
         };
-        let Some(transfers) = CallTransfers::for_producer(values, producer, local) else {
+        let Some(transfers) = CallTransfers::for_producer(values, call_schedules, producer, local)
+        else {
             return 0;
         };
         transfers.scalar_exits(state, exits, &completion.terminator)
@@ -166,14 +182,18 @@ impl CheckedConditionalReturnArm {
     /// The arm's computations and invocation share the same transfer query as
     /// ordinary statements. Dependency enumeration alone omits scalar roots
     /// and flattens selective computations into apparently unconditional calls.
-    pub fn definite_call_transfers(
+    pub fn definite_call_transfers<'calls>(
         &self,
         values: &CheckedValueFacts,
+        call_schedules: &dyn Fn(
+            CheckedStructuralValueHandle,
+        ) -> Option<&'calls [CheckedStructuralValueCall]>,
         state: SymbolHandle,
         producer: &CheckedUnitEffectOperationPlan,
         local: SymbolHandle,
     ) -> usize {
-        let Some(transfers) = CallTransfers::for_producer(values, producer, local) else {
+        let Some(transfers) = CallTransfers::for_producer(values, call_schedules, producer, local)
+        else {
             return 0;
         };
         match self {
@@ -200,7 +220,7 @@ impl CheckedConditionalReturnArm {
     }
 }
 
-impl<'facts> CallTransfers<'facts> {
+impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
     fn scalar_at(
         &self,
         state: SymbolHandle,
@@ -307,6 +327,9 @@ impl<'facts> CallTransfers<'facts> {
 
     fn for_producer(
         values: &'facts CheckedValueFacts,
+        call_schedules: &'facts dyn Fn(
+            CheckedStructuralValueHandle,
+        ) -> Option<&'calls [CheckedStructuralValueCall]>,
         producer: &'facts CheckedUnitEffectOperationPlan,
         local: SymbolHandle,
     ) -> Option<Self> {
@@ -323,6 +346,7 @@ impl<'facts> CallTransfers<'facts> {
         };
         Some(Self {
             values,
+            call_schedules,
             result,
             local,
             expression,
@@ -369,10 +393,7 @@ impl<'facts> CallTransfers<'facts> {
         };
         self.constructed(
             root.root,
-            plans
-                .call_schedule(root.root)
-                .map(|(_, calls)| calls)
-                .unwrap_or(&[]),
+            (self.call_schedules)(root.root).unwrap_or(&[]),
             argument.access == CheckedStructuralAccess::Owned && argument.path.is_empty(),
         )
     }
@@ -564,11 +585,7 @@ impl<'facts> CallTransfers<'facts> {
                     + if receiver_value.is_valid() {
                         self.structural(
                             *receiver_value,
-                            self.values
-                                .structural_values
-                                .call_schedule(*receiver_value)
-                                .map(|(_, calls)| calls)
-                                .unwrap_or(&[]),
+                            (self.call_schedules)(*receiver_value).unwrap_or(&[]),
                         )
                     } else {
                         0
@@ -583,11 +600,7 @@ impl<'facts> CallTransfers<'facts> {
                     + if receiver_value.is_valid() {
                         self.structural(
                             *receiver_value,
-                            self.values
-                                .structural_values
-                                .call_schedule(*receiver_value)
-                                .map(|(_, calls)| calls)
-                                .unwrap_or(&[]),
+                            (self.call_schedules)(*receiver_value).unwrap_or(&[]),
                         )
                     } else {
                         0

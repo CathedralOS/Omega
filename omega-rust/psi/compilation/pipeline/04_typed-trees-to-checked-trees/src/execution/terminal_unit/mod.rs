@@ -187,7 +187,11 @@ pub(crate) fn build_checked_unit_effect_plans(
     boundary_signature_reaches: &[(symbols::SymbolHandle, language_semantics::ServiceReachRowId)],
     scalar_callees: ScalarCalleeClosure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> (CheckedUnitEffectPlans, CheckedPartialAffineUnitCleanupPlans) {
+) -> (
+    CheckedUnitEffectPlans,
+    CheckedPartialAffineUnitCleanupPlans,
+    Vec<structural_value_calls::PreparedValueCalls>,
+) {
     let mut shapes = ShapeCollector::new(program);
     let mut boundary_gaps = Vec::new();
     let mut boundary_machines = program
@@ -220,6 +224,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     // callee like any ordinary body; only its return edge differs.
     let mut candidates = Vec::new();
     let mut composed_machines = Vec::new();
+    let mut prepared_value_calls = Vec::new();
     let mut partial_affine_machines = Vec::new();
     let mut construction_gaps = BTreeMap::new();
     for machine in program
@@ -241,8 +246,31 @@ pub(crate) fn build_checked_unit_effect_plans(
                 call_frames,
                 &trace,
             )
-            .map(
-                |(plan, residual_affine_discards, has_projected_parameter_moves)| {
+            .and_then(
+                |(mut plan, residual_affine_discards, has_projected_parameter_moves)| {
+                    let calls = structural_value_calls::prepare_state(
+                        program,
+                        facts,
+                        &mut shapes,
+                        plan.machine,
+                        plan.machine,
+                        plan.state,
+                        &structural_value_calls::StateCallInputs {
+                            parameters: &plan.structural_parameters,
+                            entry_claims: &plan.entry_claims,
+                            operations: &plan.operations,
+                            trivial_locals: &plan.trivial_affine_locals,
+                        },
+                    );
+                    trace.phase("single-state body: value call source custody");
+                    structural_value_calls::consume_caller_results(
+                        program,
+                        plan.machine,
+                        plan.state,
+                        &mut plan.operations,
+                        calls.iter().map(|row| row.calls.as_slice()),
+                    )?;
+                    prepared_value_calls.extend(calls);
                     if has_projected_parameter_moves {
                         partial_affine_machines.push(CheckedPartialAffineUnitCleanupMachinePlan {
                             machine: plan,
@@ -251,6 +279,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                     } else {
                         candidates.push(plan);
                     }
+                    Some(())
                 },
             ),
             BodyRoute::Graph => state_graph::build_traced(
@@ -262,7 +291,10 @@ pub(crate) fn build_checked_unit_effect_plans(
                 call_frames,
                 &trace,
             )
-            .map(|plan| composed_machines.push(plan)),
+            .map(|(plan, calls)| {
+                composed_machines.push(plan);
+                prepared_value_calls.extend(calls);
+            }),
         };
         if planned.is_none() {
             let mut gap = trace.gap(program, machine.symbol);
@@ -458,8 +490,21 @@ pub(crate) fn build_checked_unit_effect_plans(
         &mut candidates,
         &mut composed_machines,
         &mut partial_affine_machines,
+        &prepared_value_calls,
     );
     gaps.extend(closure_gaps);
+    // Failed cleanup or dependency closure discards the candidate's schedules
+    // too. They cannot supply ownership evidence to another surviving body.
+    prepared_value_calls.retain(|row| {
+        candidates
+            .iter()
+            .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
+            .any(|plan| plan.machine == row.owner && plan.state == row.state)
+            || composed_machines.iter().any(|plan| {
+                plan.machine == row.owner
+                    && plan.states.iter().any(|state| state.state == row.state)
+            })
+    });
     gaps.sort_by_key(|gap| symbol_key(gap.machine));
     // Closure admission is final: do not delete a callee because it also has
     // a specialized return plan. Ordinary and composed callers consume the
@@ -713,6 +758,11 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .iter()
                 .flat_map(|state| state.operation_dependencies())
         }))
+        .chain(
+            prepared_value_calls
+                .iter()
+                .flat_map(structural_value_calls::PreparedValueCalls::operation_dependencies),
+        )
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
         // Every structural argument carrier — a copied `&T` leaf, a `&[T]`
@@ -1035,6 +1085,7 @@ pub(crate) fn build_checked_unit_effect_plans(
             gaps,
         },
         partial_affine_plans,
+        prepared_value_calls,
     )
 }
 

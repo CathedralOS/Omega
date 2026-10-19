@@ -44,7 +44,7 @@ pub(crate) fn finalize_execution(
             )
         })
         .collect::<Vec<_>>();
-    let (mut terminal_unit_effects, partial_cleanups) =
+    let (mut terminal_unit_effects, partial_cleanups, prepared_value_calls) =
         crate::execution::terminal_unit::build_checked_unit_effect_plans(
             program,
             &facts,
@@ -115,14 +115,15 @@ pub(crate) fn finalize_execution(
         return Err(cleanup_diagnostics);
     }
     facts.flow.terminal_unit_effects = terminal_unit_effects;
-    crate::execution::terminal_unit::retain_structural_value_calls(program, &mut facts).map_err(
-        |identity| {
-            vec![Diagnostic::error(format!(
-                "structural value calls register structural type `{}` with a shape the ordinary Unit roster does not carry",
-                program.type_identity_text(identity).unwrap_or_default()
-            ))]
-        },
-    )?;
+    crate::execution::terminal_unit::retain_structural_value_calls(
+        &mut facts,
+        prepared_value_calls,
+    )
+    .map_err(|reason| {
+        vec![Diagnostic::error(format!(
+            "cannot retain structural value calls: {reason}"
+        ))]
+    })?;
 
     // Publish all value-call schedules before selecting their normal-return
     // cleanup. A later schedule must not retain provisional disposal seeds.
