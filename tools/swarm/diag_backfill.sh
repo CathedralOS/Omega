@@ -34,6 +34,8 @@ print(len(m - n))
 PY
 }
 
+LOCKDIR=build/swarm/record-slots
+mkdir -p "$(dirname "$LOCKDIR")"
 git fetch origin -q 2>/dev/null
 # Sync ONCE, before the loop. Syncing per fact would `git checkout origin/main --`
 # the goldens at the start of every iteration, silently discarding the recording the
@@ -58,6 +60,40 @@ for fact in "$@"; do
     echo "   ABORT: load ${load} is too high to record (timeout rows). Re-run when load < 60."
     continue
   fi
+  # A corpus record compiles fixtures in PARALLEL, and `build_slot.py` gates only
+  # `mbx build` -- it does not govern this. With sixteen lanes recording at once the
+  # host ran 11 corpus_runner processes and 23 rustc on 10 cores, dropped to 27 MB of
+  # free RAM, and the kernel logged 4264 kills in 30 minutes. One lane's record was
+  # OOM-killed mid-run.
+  #
+  # Gate on FREE MEMORY as well as load, and take a global record slot so records
+  # serialize across lanes. Held only for the duration of this fact's record.
+  free_mb=$(vm_stat 2>/dev/null | awk '/Pages free/{gsub(/\./,"",$3); print int($3)*4096/1048576}')
+  if [ "${free_mb:-999}" -lt 512 ]; then
+    echo "   ABORT: only ${free_mb} MB free; a record here risks an OOM kill. Retry later."
+    continue
+  fi
+  # Serialize records host-wide: at most RECORD_SLOTS concurrent.
+  RECORD_SLOTS=${RECORD_SLOTS:-3}
+  acquired=""
+  for attempt in $(seq 1 120); do
+    for s in $(seq 0 $((RECORD_SLOTS-1))); do
+      if ( set -o noclobber; printf '%s' "$$" > "$LOCKDIR.record$s" ) 2>/dev/null; then
+        acquired="$LOCKDIR.record$s"; break
+      fi
+      # reclaim a slot whose owner is gone
+      owner=$(cat "$LOCKDIR.record$s" 2>/dev/null)
+      [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null && rm -f "$LOCKDIR.record$s"
+    done
+    [ -n "$acquired" ] && break
+    echo "   waiting for a record slot (${attempt}/120)..."
+    sleep 5
+  done
+  if [ -z "$acquired" ]; then
+    echo "   ABORT: no record slot available; retry later."
+    continue
+  fi
+  trap 'rm -f "$acquired"' EXIT
   echo "   load ${load}; recording with jobs=3"
   out=$(OMEGA_CORPUS_JOBS=3 OMEGA_CORPUS_FIXTURE_SECS=600 \
     python3 tools/corpus_gate.py --filter "$fact" --record 2>&1)
@@ -76,6 +112,7 @@ for fact in "$@"; do
   # exits 0 and is used here; the lane's suggested grep+${x:-0} form is equivalent.
   timeouts=$(awk '/timeout/{n++} END{print n+0}' tests/omega/corpus_outcomes.txt)
   echo "   post-record LOST=$after timeouts=$timeouts"
+  rm -f "$acquired"; trap - EXIT
   if [ "$after" != "0" ] || [ "$timeouts" != "0" ]; then
     # Restore only THIS fact's rows from HEAD, so a bad record cannot carry a loss
     # forward while earlier facts in the same run keep their diagnostics.
