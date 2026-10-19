@@ -1,0 +1,6 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "the instantiated fact is structurally false (`9 <= 5`)"
+  ]
+}
