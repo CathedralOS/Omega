@@ -163,6 +163,31 @@ claim because a peer needs the same files. Follow
 [recovery](../dot-swarm/references/recovery.md) for interruptions and inspect
 helper actions before executing them.
 
+### Token and coordination efficiency
+
+- **No parametric $N+1$ slot-filling:** Never invent $N+1$ count progressions
+  (extra argument counts, record nesting depths, enum variant counts, or call
+  spill counts) to keep worker slots busy when an equivalent boundary is already
+  covered. Every assignment must name a distinct uncovered specification
+  construct, boundary, or demonstrated baseline defect.
+- **Concise delta refills on warm workers:** Once a persistent worker has
+  completed its first assignment in a worktree, do not re-send the full
+  multi-paragraph specification template on subsequent `send_message` refills.
+  Send only the assignment delta: parent task/requirement, target folder, exact
+  `// Fact:` sentence, any construct-specific lowering notes, and the reminder
+  to keep branch history intact and report `git rev-parse HEAD`.
+- **Rotate worker conversations before context bloat:** Reusing a warm worktree
+  avoids cold-start discovery, but keeping a single worker conversation open for
+  thousands of steps pays a steep cumulative prefix-token tax on every tool
+  call. Compact or rotate a worker conversation after roughly 8–10 completed
+  slices while reusing the same clean worktree on disk.
+- **Verify commit SHAs via git and rely on reactive wakeup:** Workers must
+  report `git rev-parse HEAD` rather than typing out a 40-character hash from a
+  short `git commit` summary, and the coordinator can resolve short hashes or
+  worktree `HEAD` directly (`git -C <worktree> rev-parse HEAD`). Do not poll
+  background tasks in a `manage_task` status loop; end the turn after launching
+  background work so reactive wakeup resumes execution on completion.
+
 ## Finish
 
 At the stopping condition stop refilling, request safe checkpoints and drain
