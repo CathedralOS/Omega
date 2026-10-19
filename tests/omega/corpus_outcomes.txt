@@ -2585,15 +2585,33 @@ fail/facts/generic_content_transfer_target_body rejected 3775ms expected @4c6fa0
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/guarded_line_loan_through_call_result_held rejected 2713ms expected @866a955e52f8
-fail/facts/guarded_line_loan_through_const_name_held rejected 2738ms expected @866a955e52f8
-fail/facts/guarded_line_loan_through_field_held rejected 2710ms expected @866a955e52f8
-fail/facts/guarded_line_loan_through_local_held rejected 2705ms expected @866a955e52f8
-fail/facts/guarded_line_loan_through_match_join_held rejected 2682ms expected @866a955e52f8
-fail/facts/guarded_line_loan_through_other_machine_held rejected 2607ms expected @866a955e52f8
-fail/facts/guarded_line_loan_through_other_state_held rejected 2434ms expected @866a955e52f8
-fail/facts/guarded_line_loan_through_parameter_held rejected 2453ms expected @866a955e52f8
-fail/facts/guarded_line_loan_through_target_body_held rejected 2461ms expected @866a955e52f8
+fail/facts/guarded_line_loan_through_call_result_held rejected 25611ms expected @0b53add5c5af
+	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/guarded_line_loan_through_const_name_held rejected 25825ms expected @0b53add5c5af
+	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/guarded_line_loan_through_field_held rejected 25292ms expected @0b53add5c5af
+	state `receive` receives `holder.line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `holder.line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/guarded_line_loan_through_local_held rejected 23960ms expected @0b53add5c5af
+	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/guarded_line_loan_through_match_join_held rejected 23496ms expected @0b53add5c5af
+	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/guarded_line_loan_through_other_machine_held rejected 24083ms expected @0b53add5c5af
+	state `forward` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/guarded_line_loan_through_other_state_held rejected 30776ms expected @0b53add5c5af
+	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/guarded_line_loan_through_parameter_held rejected 31235ms expected @0b53add5c5af
+	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/guarded_line_loan_through_target_body_held rejected 29494ms expected @0b53add5c5af
+	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 mutates `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/guarded_record_line_loan_through_call_result_shared_record rejected 2068ms expected @e7cf0c8c7f70+wt
 fail/facts/guarded_record_line_loan_through_const_name_shared_record rejected 2058ms expected @e7cf0c8c7f70+wt
 fail/facts/guarded_record_line_loan_through_field_shared_record rejected 2208ms expected @e7cf0c8c7f70+wt
@@ -7864,15 +7882,15 @@ pass/facts/generic_content_transfer_other_machine checked 8692ms check-target:ma
 pass/facts/generic_content_transfer_other_state checked 8692ms check-target:macos_arm64 @4c6fa0c02bf5+wt
 pass/facts/generic_content_transfer_parameter checked 8924ms check-target:macos_arm64 @4c6fa0c02bf5+wt
 pass/facts/generic_content_transfer_target_body checked 8743ms check-target:macos_arm64 @4c6fa0c02bf5+wt
-pass/facts/guarded_line_loan_through_call_result_exit checked 5835ms check-target:macos_arm64 @866a955e52f8
-pass/facts/guarded_line_loan_through_const_name_exit checked 5825ms check-target:macos_arm64 @866a955e52f8
-pass/facts/guarded_line_loan_through_field_exit checked 5857ms check-target:macos_arm64 @866a955e52f8
-pass/facts/guarded_line_loan_through_local_exit checked 5830ms check-target:macos_arm64 @866a955e52f8
-pass/facts/guarded_line_loan_through_match_join_exit checked 5790ms check-target:macos_arm64 @866a955e52f8
-pass/facts/guarded_line_loan_through_other_machine_exit checked 5832ms check-target:macos_arm64 @866a955e52f8
-pass/facts/guarded_line_loan_through_other_state_exit checked 5736ms check-target:macos_arm64 @866a955e52f8
-pass/facts/guarded_line_loan_through_parameter_exit checked 5737ms check-target:macos_arm64 @866a955e52f8
-pass/facts/guarded_line_loan_through_target_body_exit checked 5788ms check-target:macos_arm64 @866a955e52f8
+pass/facts/guarded_line_loan_through_call_result_exit checked 86656ms check-target:macos_arm64 @0b53add5c5af
+pass/facts/guarded_line_loan_through_const_name_exit checked 85562ms check-target:macos_arm64 @0b53add5c5af
+pass/facts/guarded_line_loan_through_field_exit checked 88224ms check-target:macos_arm64 @0b53add5c5af
+pass/facts/guarded_line_loan_through_local_exit checked 71703ms check-target:macos_arm64 @0b53add5c5af
+pass/facts/guarded_line_loan_through_match_join_exit checked 71227ms check-target:macos_arm64 @0b53add5c5af
+pass/facts/guarded_line_loan_through_other_machine_exit checked 72515ms check-target:macos_arm64 @0b53add5c5af
+pass/facts/guarded_line_loan_through_other_state_exit checked 63819ms check-target:macos_arm64 @0b53add5c5af
+pass/facts/guarded_line_loan_through_parameter_exit checked 64153ms check-target:macos_arm64 @0b53add5c5af
+pass/facts/guarded_line_loan_through_target_body_exit checked 63518ms check-target:macos_arm64 @0b53add5c5af
 pass/facts/guarded_record_line_loan_through_call_result_exit checked 6958ms check-target:macos_arm64 @e7cf0c8c7f70+wt
 pass/facts/guarded_record_line_loan_through_const_name_exit checked 7285ms check-target:macos_arm64 @e7cf0c8c7f70+wt
 pass/facts/guarded_record_line_loan_through_field_exit checked 7094ms check-target:macos_arm64 @e7cf0c8c7f70+wt
