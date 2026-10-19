@@ -110,19 +110,7 @@ pub(crate) fn is_sealed_toolchain_float_operator(
     program: &dyn crate::CheckingInput,
     operator: &OperatorDefinition,
 ) -> bool {
-    let [namespace, name] = program.operator_path_members(operator.name) else {
-        return false;
-    };
-    program
-        .normalized_hermetic_symbol_identity(operator.symbol)
-        .is_ok_and(|identity| {
-            identity == format!("toolchain::{}::{}", namespace.as_str(), name.as_str())
-        })
-        && symbol_is_declared_in_sealed_source(
-            program,
-            operator.symbol,
-            FLOAT_PROJECTION_CORE_SOURCE,
-        )
+    typed_trees::operator::is_sealed_toolchain_float_operator(program, operator)
 }
 
 fn has_exact_toolchain_float_semantics_owner(

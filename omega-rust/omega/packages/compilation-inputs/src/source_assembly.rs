@@ -172,8 +172,19 @@ impl ImmutableSourceParseCheckpoint {
         // Core query results are ordinary source-backed data. Load their
         // canonical declarations even for an import-free query occurrence;
         // source discovery neither evaluates the query nor selects a machine.
-        let query_types = crate::source_imports::bundled_core_root()?.join("code_layout.omg");
+        let core_root = crate::source_imports::bundled_core_root()?;
+        let query_types = core_root.join("code_layout.omg");
         imports.seed(query_types, source::DependencyScope::Product);
+        // Primitive float spellings select ordinary source declarations and
+        // their exact target satisfiers (numeric_values.md, Primitive surface).
+        // Make that canonical declaration forest available without requiring
+        // an authored import. Loading supplies no selection or provider
+        // authority: normal operand applicability, ambiguity, checked boundary
+        // applications and selected ProviderPlans still own those judgments.
+        imports.seed(
+            core_root.join("float_operations.omg"),
+            source::DependencyScope::Product,
+        );
         load_imports(
             &mut source_storage,
             &mut imports,

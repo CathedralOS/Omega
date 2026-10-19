@@ -1839,6 +1839,24 @@ fail/facts/disjoint_windows_through_other_state_overlap rejected 1484ms expected
 fail/facts/disjoint_windows_through_parameter_overlap rejected 2301ms expected @89bb9e0009e9
 fail/facts/disjoint_windows_through_target_body_overlap rejected 2362ms expected @89bb9e0009e9
 fail/facts/domain_geometry_conserved_result_wrong_partition rejected 762ms expected @ab16f19fe1b1+wt
+fail/facts/dynamic_float_refinement_through_call_result_outside_interval rejected 8865ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
+fail/facts/dynamic_float_refinement_through_const_name_outside_interval rejected 12941ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
+fail/facts/dynamic_float_refinement_through_field_outside_interval rejected 8481ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
+fail/facts/dynamic_float_refinement_through_local_outside_interval rejected 7757ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
+fail/facts/dynamic_float_refinement_through_match_join_outside_interval rejected 8407ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
+fail/facts/dynamic_float_refinement_through_other_machine_outside_interval rejected 8407ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
+fail/facts/dynamic_float_refinement_through_other_state_outside_interval rejected 8987ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
+fail/facts/dynamic_float_refinement_through_parameter_outside_interval rejected 9231ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
+fail/facts/dynamic_float_refinement_through_target_body_outside_interval rejected 10758ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
 fail/facts/dynamic_trait_dispatch_unproved_call_result rejected 4425ms expected @69725a85bb43
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_dispatch_unproved_const_name rejected 4067ms expected @69725a85bb43
@@ -2709,6 +2727,10 @@ fail/float/normal_call_guarantee_inactive_match_arm rejected 1573ms expected @9c
 fail/float/normal_call_guarantee_skipped_short_circuit rejected 1585ms expected @9c4d1c444502
 fail/float/parameter_guarantee_does_not_bound_result rejected 440ms expected @9c4d1c444502
 fail/float/policy_cast_requires_unchanged_denotation rejected 510ms expected @9c4d1c444502
+fail/float/primitive_comparison_forged_home rejected 5101ms expected @963915e78283+wt
+	selected provider schema `named-callable(path(Float::equal),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(f64\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(f64\\)\\)\\)),result-dispatch())` resolves to 2 exact top-level boundary requirements
+fail/float/primitive_comparison_no_named_helper_exposure rejected 1825ms expected @963915e78283
+	validated named operator application has no checked selected use
 fail/float/private_float_projection_selection rejected 4313ms expected @9c4d1c444502
 fail/float/public_boolean_result_contract_false rejected 1685ms expected @9c4d1c444502
 fail/float/public_boolean_result_contract_lookalike rejected 1752ms expected @9c4d1c444502
@@ -4016,6 +4038,14 @@ fail/traits/conformance_reference_wrong_applied_result rejected 734ms expected @
 fail/traits/conformance_unused_lifetime_foreign_scope rejected 188ms expected @a9ae30e1c334+wt
 fail/traits/conformance_unused_lifetime_header_undeclared rejected 175ms expected @a9ae30e1c334+wt
 fail/traits/conformance_unused_lifetime_undeclared rejected 170ms expected @a9ae30e1c334+wt
+fail/traits/const_selector_declared_application rejected 2567ms expected @963915e78283
+	constant implementation selector differs from its declared trait application
+fail/traits/const_selector_not_implementation rejected 2120ms expected @963915e78283
+	`Value as dyn Fraction` converts a value to `dyn Fraction`; a selector is constructed from a named implementation (`Implementation as dyn Fraction<...>`) and the data is passed to each call
+fail/traits/const_selector_public_identity rejected 224ms expected @963915e78283
+	public const `SELECTED` has no canonical declaration identity: const index types require finite structural values with decidable equality and one canonical form
+fail/traits/const_selector_wrong_implementation rejected 2232ms expected @963915e78283
+	`OtherQuarter` implements `Other<>`, not `dyn Fraction<>`; a selector names exactly the trait application its implementation satisfies
 fail/traits/contextual_static_machine_nominal_authority rejected 480ms expected @4730b1ac8a84
 fail/traits/contract_call_distinct_static_arguments rejected 913ms expected @f3014db3f225+wt
 fail/traits/contract_proposition_distinct_declarations rejected 479ms expected @f3014db3f225+wt
@@ -4028,6 +4058,8 @@ fail/traits/dyn_finite_family_non_member rejected 263ms expected @e6088bf995e6
 fail/traits/dyn_finite_family_unproved_membership rejected 820ms expected @b7aaf37278ea+wt
 fail/traits/dyn_finite_family_wrong_tuple rejected 671ms expected @b7aaf37278ea+wt
 fail/traits/dyn_selector_from_data_place rejected 1279ms expected @a9ae30e1c334+wt
+fail/traits/dyn_selector_prefix_write_invalidates rejected 4083ms expected @963915e78283
+	cannot prove requires contract for call admit from probe: current >= 0.0 && current <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/dyn_selector_receiver_call rejected 872ms expected @a9ae30e1c334+wt
 fail/traits/dyn_selector_reentry_unranked rejected 1557ms expected @a9ae30e1c334+wt
 fail/traits/dyn_selector_requirement_precondition_unproven rejected 1586ms expected @f3014db3f225+wt
@@ -4070,6 +4102,18 @@ fail/traits/finite_family_machine_facts_do_not_bind_state rejected 91ms expected
 fail/traits/finite_family_mutable_state_subject rejected 89ms expected @7e763bd2f4f6+wt
 fail/traits/finite_family_owned_result_second_transfer rejected 210ms expected @7e763bd2f4f6+wt
 fail/traits/finite_family_sibling_state_facts rejected 90ms expected @7e763bd2f4f6+wt
+fail/traits/float_contract_refinement_negated_order rejected 2288ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result >= 0.0`; callers of the requirement assume it
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
+fail/traits/float_contract_refinement_not_equal rejected 2618ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result >= 0.0`; callers of the requirement assume it
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
+fail/traits/float_contract_refinement_public_only rejected 4759ms expected @963915e78283
+	cannot prove requires contract for call exact from main: Fraction.dyn Fraction::get(selected) >= 0.25 && Fraction.dyn Fraction::get(selected) <= 0.25 (needs fact `value >= 0.25 && value <= 0.25` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/float_contract_refinement_strict_endpoint rejected 2906ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result < 0.5`; callers of the requirement assume it
+fail/traits/float_contract_refinement_wrong_subject rejected 2319ms expected @963915e78283
+	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result >= 0.0`; callers of the requirement assume it
 fail/traits/generic_map_captured_constant_unproved_bound rejected 10124ms expected @c48489ea6ad6
 fail/traits/generic_reference_forwarding_carrier_mismatch rejected 875ms expected @a9ae30e1c334+wt
 fail/traits/implementation_argument_runtime_type rejected 820ms expected @a9ae30e1c334+wt
@@ -6123,6 +6167,15 @@ pass/facts/disjoint_windows_through_parameter_exit checked 9568ms check-target:m
 pass/facts/disjoint_windows_through_target_body_exit checked 11855ms check-target:macos_arm64 @89bb9e0009e9
 pass/facts/domain_geometry_conserved_result_exit checked 3884ms check-target:macos_arm64 @ab16f19fe1b1+wt
 pass/facts/domain_geometry_projected_conserved_result_exit checked 3905ms check-target:macos_arm64 @ab16f19fe1b1+wt
+pass/facts/dynamic_float_refinement_through_call_result_exit checked 41078ms check-target:macos_arm64 @963915e78283
+pass/facts/dynamic_float_refinement_through_const_name_exit checked 30748ms check-target:macos_arm64 @963915e78283
+pass/facts/dynamic_float_refinement_through_field_exit checked 32470ms check-target:macos_arm64 @963915e78283
+pass/facts/dynamic_float_refinement_through_local_exit checked 51726ms check-target:macos_arm64 @963915e78283
+pass/facts/dynamic_float_refinement_through_match_join_exit checked 34331ms check-target:macos_arm64 @963915e78283
+pass/facts/dynamic_float_refinement_through_other_machine_exit checked 35462ms check-target:macos_arm64 @963915e78283
+pass/facts/dynamic_float_refinement_through_other_state_exit checked 53022ms check-target:macos_arm64 @963915e78283
+pass/facts/dynamic_float_refinement_through_parameter_exit checked 30432ms check-target:macos_arm64 @963915e78283
+pass/facts/dynamic_float_refinement_through_target_body_exit checked 46628ms check-target:macos_arm64 @963915e78283
 pass/facts/dynamic_trait_dispatch_through_call_result_exit checked 7082ms check-target:macos_arm64 @69725a85bb43
 pass/facts/dynamic_trait_dispatch_through_const_name_exit checked 6974ms check-target:macos_arm64 @69725a85bb43
 pass/facts/dynamic_trait_dispatch_through_field_exit checked 6980ms check-target:macos_arm64 @69725a85bb43
@@ -6680,6 +6733,7 @@ pass/float/nearest_even_binary_arithmetic_exit checked 25648ms check-target:maco
 pass/float/nested_float_operator_applications_exit checked 17131ms check-target:macos_arm64 @1f63ee648905+wt
 pass/float/ordinary_numeric_helper_edges_exit checked 15670ms check-target:macos_arm64 @1f63ee648905+wt
 pass/float/owned_local_computed_float_store_exit checked 17257ms check-target:linux_x86_64 @1b12798e27f4
+pass/float/primitive_comparison_sealed_scope_exit checked 27659ms check-target:macos_arm64 @963915e78283
 pass/float/public_boolean_result_contract_import_exit checked 24929ms check-target:macos_arm64 @9c4d1c444502
 pass/float/public_boolean_result_contract_match_import_exit checked 24773ms check-target:macos_arm64 @9c4d1c444502
 pass/float/public_boolean_result_contract_short_circuit_import_exit checked 25074ms check-target:macos_arm64 @9c4d1c444502
@@ -8292,6 +8346,7 @@ pass/traits/equatable_record_equality_exit checked 12150ms check-target:macos_ar
 pass/traits/equatable_string_field_equality_exit checked 11427ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/equatable_synthesis checked 9465ms @5041ef1af684+wt
 pass/traits/exact_edge_application_and_invocation_parameters checked 11943ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/float_contract_refinement_boundaries_exit checked 27759ms check-target:macos_arm64 @963915e78283
 pass/traits/generic_map_applied_contract_exit checked 17273ms check-target:macos_arm64 @f3014db3f225+wt
 pass/traits/generic_map_captured_constant_local checked 8171ms @c48489ea6ad6
 pass/traits/generic_reference_forwarding_exit checked 11636ms check-target:macos_arm64 @a9ae30e1c334+wt

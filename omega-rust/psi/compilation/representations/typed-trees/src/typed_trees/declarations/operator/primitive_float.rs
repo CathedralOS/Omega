@@ -77,3 +77,43 @@ pub fn primitive_float_binary_semantics(
     }
     Some((operation, format))
 }
+
+/// Exact declaration custody shared by primitive selection and semantic proof.
+/// A matching Float name/signature in a user source supplies no sealed law.
+pub fn is_sealed_toolchain_float_operator(
+    typed: &TypedTrees,
+    operator: &super::OperatorDefinition,
+) -> bool {
+    let [namespace, name] = typed.operator_path_members(operator.name) else {
+        return false;
+    };
+    typed
+        .normalized_hermetic_symbol_identity(operator.symbol)
+        .is_ok_and(|identity| {
+            identity == format!("toolchain::{}::{}", namespace.as_str(), name.as_str())
+        })
+        && typed
+            .symbol_toolchain_relative_path(operator.symbol)
+            .is_some_and(|relative| {
+                relative
+                    == std::path::Path::new(
+                        numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE,
+                    )
+            })
+}
+
+/// Primitive token requirements are the language's default numeric surface.
+/// Only this sealed root cohort is available without an authored import;
+/// ordinary helpers and domain-owned meanings retain source exposure rules.
+/// Selection still uses the same complete operand tuple and ambiguity checks,
+/// and grants no target-provider realization authority.
+pub(super) fn is_default_primitive_operator(
+    typed: &TypedTrees,
+    operator: &super::OperatorDefinition,
+) -> bool {
+    operator.is_boundary
+        && operator.is_public
+        && !operator.home_domain.is_valid()
+        && is_sealed_toolchain_float_operator(typed, operator)
+        && primitive_float_binary_semantics(typed, operator).is_some()
+}

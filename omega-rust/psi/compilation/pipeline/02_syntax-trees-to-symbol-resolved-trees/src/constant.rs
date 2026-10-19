@@ -95,6 +95,33 @@ use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::ConstDefinition;
 
+/// A direct implementation selection is a symbolic literal, not an evaluated
+/// table address. Ordinary resolution and dynamic selection checking retain
+/// and authenticate its implementation and complete target application, even
+/// when the declaration has no use. Public canonical identity remains separate.
+pub(crate) fn direct_selector_literal(
+    syntax: &SyntaxTrees,
+    expression: syntax_trees::expression::ExpressionHandle,
+) -> bool {
+    let syntax_trees::expression::ExpressionNode::Cast(cast) =
+        syntax.expressions.expression(expression)
+    else {
+        return false;
+    };
+    !cast.form.is_recast()
+        && cast.domain == numerics::arithmetic::ArithmeticDomain::Exact
+        && cast.semantic_domain.is_empty()
+        && cast.semantic_domain_arguments.is_empty()
+        && matches!(
+            syntax.type_references.type_reference(cast.target_type),
+            syntax_trees::types::TypeReferenceNode::DynamicTrait { .. }
+        )
+        && matches!(
+            syntax.expressions.expression(cast.value),
+            syntax_trees::expression::ExpressionNode::Name(_)
+        )
+}
+
 /// Find unfinished values without claiming a carrier or constructor selection.
 /// Preparation separately admits exact scalar leaves in their declared owners.
 pub fn requires_const_initializer_evaluation(
@@ -104,6 +131,9 @@ pub fn requires_const_initializer_evaluation(
     use syntax_trees::expression::ExpressionNode;
     let mut pending = vec![definition.value];
     while let Some(expression) = pending.pop() {
+        if direct_selector_literal(syntax, expression) {
+            continue;
+        }
         match syntax.expressions.expression(expression) {
             ExpressionNode::Integer(_)
             | ExpressionNode::Boolean(_)

@@ -182,7 +182,18 @@ pub(crate) fn float_source_bounds(
         .map(|path| environment.float_fact(&path))
         .unwrap_or((FloatInterval::UNBOUNDED, false));
     let converted = numeric_conversion_bounds(program, environment, value, result_type);
-    let range = if let Some(value) = float_literal_value(program, value) {
+    // A still-anonymous literal receives its format from the authenticated
+    // observation type. Round its decimal directly, especially for f32;
+    // already-landed literals keep the ordinary closed-value query.
+    let literal = match program.expression_table.peeled_expression(value) {
+        ExpressionNode::Float(literal) if literal.landing().is_none() => Some(match primitive {
+            PrimitiveType::F32 => f64::from(literal.value_f32()),
+            PrimitiveType::F64 => literal.value_f64(),
+            _ => return None,
+        }),
+        _ => float_literal_value(program, value),
+    };
+    let range = if let Some(value) = literal {
         if value.is_nan() {
             return None;
         }

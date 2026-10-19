@@ -139,6 +139,12 @@ fn eligible_type(
 ) -> bool {
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Unit => true,
+        // A selector contains code selection only: copying it neither captures
+        // user state nor creates cleanup, shared ownership or interior mutation.
+        // Construction separately authenticates the exact implementation map.
+        TypeReferenceNode::DynamicTrait { symbol, .. } => {
+            program.trait_definition_by_symbol(*symbol).is_some()
+        }
         TypeReferenceNode::Constrained { base_type, .. } => eligible(program, *base_type, active),
         TypeReferenceNode::FixedArray { element_type, .. } => {
             eligible(program, *element_type, active)
@@ -195,7 +201,6 @@ fn eligible_type(
         }
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::ConstExpression(_) => false,
     }

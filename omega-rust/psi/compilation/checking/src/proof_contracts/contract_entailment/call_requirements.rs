@@ -570,10 +570,21 @@ fn runtime_fact_for_parameters(
     {
         return false;
     }
-    matches!(
-        term,
-        Some(StructuralTerm::ScalarBinary { .. } | StructuralTerm::Constructor { .. }),
-    )
+    match term {
+        Some(StructuralTerm::ScalarBinary { .. } | StructuralTerm::Constructor { .. }) => true,
+        // Selected IEEE predicates remain applications, never structural
+        // equalities. Their exact sealed declaration supplies the public
+        // semantic equation; the common judge retains format, completed
+        // operands and NaN classification when normalizing it.
+        Some(StructuralTerm::Application { target, .. }) => {
+            typed_trees::operator::declaration_by_symbol(program, target).is_some_and(|operator| {
+                typed_trees::operator::is_sealed_toolchain_float_operator(program, operator)
+                    && typed_trees::operator::primitive_float_binary_semantics(program, operator)
+                        .is_some_and(|(operation, _)| operation.is_comparison())
+            })
+        }
+        _ => false,
+    }
 }
 
 fn contains_case_premise(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {

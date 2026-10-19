@@ -387,6 +387,9 @@ fn validate_literal_initializer(
     value: syntax_trees::expression::ExpressionHandle,
 ) -> Result<(), Diagnostic> {
     use syntax_trees::expression::ExpressionNode;
+    if crate::constant::direct_selector_literal(syntax_trees, value) {
+        return Ok(());
+    }
     match syntax_trees.expressions.expression(value) {
         ExpressionNode::Boolean(_)
         | ExpressionNode::Integer(_)

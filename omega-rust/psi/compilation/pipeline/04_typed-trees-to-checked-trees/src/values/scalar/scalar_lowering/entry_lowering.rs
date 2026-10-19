@@ -296,6 +296,22 @@ pub(crate) fn land_anonymous_scalar_expression(
     expression: ExpressionHandle,
     destination: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
+    // Anonymous float leaves land once at the selected destination format,
+    // including explicit call formals. A suffixed leaf keeps its own format
+    // and follows the ordinary exact-carrier check below.
+    if let ExpressionNode::Float(literal) = program.expression_table.expression(expression)
+        && literal.landing().is_none()
+        && matches!(destination, PrimitiveType::F32 | PrimitiveType::F64)
+    {
+        let format = match destination {
+            PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
+            PrimitiveType::F64 => numerics::literals::FloatFormat::F64,
+            _ => return None,
+        };
+        return Some(CheckedScalarExpression::IeeeFloatLiteral {
+            value: typed_trees::expression::ieee_float_value(literal, format),
+        });
+    }
     validation::land_anonymous_integer_expression(
         program,
         expression,

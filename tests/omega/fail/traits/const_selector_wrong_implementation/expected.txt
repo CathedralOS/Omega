@@ -1,0 +1,1 @@
+a selector names exactly the trait application its implementation satisfies

@@ -39,6 +39,8 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 pub struct DynamicImplementationSelection {
     /// The conversion expression itself.
     pub occurrence: ExpressionHandle,
+    /// Detached constant declarations have no executable machine/state owner.
+    /// Their resolved selection is still checked, but never a runtime occurrence.
     pub machine: symbols::SymbolHandle,
     pub state: symbols::SymbolHandle,
     /// The selected named implementation (a `Conformance` symbol).
@@ -64,8 +66,8 @@ pub fn collect_dynamic_implementation_selections(
                 for (_, root) in program.tables.expression_roots(statement) {
                     collect_selections_in(
                         program,
-                        machine,
-                        state,
+                        machine.symbol,
+                        state.symbol,
                         root,
                         &mut visited,
                         &mut selections,
@@ -73,6 +75,35 @@ pub fn collect_dynamic_implementation_selections(
                     );
                 }
             }
+        }
+    }
+    // Constant substitution retains detached declaration roots independently
+    // of runtime uses. Authenticate them too: an unused selector must not hide
+    // a wrong implementation or a different declared trait application.
+    for declaration in program.const_declarations() {
+        let root = declaration.materialized_initializer;
+        collect_selections_in(
+            program,
+            symbols::SymbolHandle::invalid(),
+            symbols::SymbolHandle::invalid(),
+            root,
+            &mut Vec::new(),
+            &mut selections,
+            &mut diagnostics,
+        );
+        if let Some(cast) = program.expression_table.cast_node(root)
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(cast.target_type),
+                TypeReferenceNode::DynamicTrait { .. }
+            )
+            && program.normalized_type_identity(cast.target_type)
+                != program.normalized_type_identity(declaration.declared_type)
+        {
+            diagnostics.push(Diagnostic::error(
+                "constant implementation selector differs from its declared trait application",
+            ));
         }
     }
     if diagnostics.is_empty() {
@@ -84,8 +115,8 @@ pub fn collect_dynamic_implementation_selections(
 
 fn collect_selections_in(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
     expression: ExpressionHandle,
     visited: &mut Vec<ExpressionHandle>,
     selections: &mut Vec<DynamicImplementationSelection>,
@@ -180,8 +211,8 @@ fn collect_selections_in(
     }
     selections.push(DynamicImplementationSelection {
         occurrence: expression,
-        machine: machine.symbol,
-        state: state.symbol,
+        machine,
+        state,
         implementation,
         selector_type: cast.target_type,
         target_trait: *target_trait,

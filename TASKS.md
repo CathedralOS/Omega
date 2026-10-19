@@ -359,9 +359,14 @@ helper that passes does not close an item.
     customers use the shared native and Terminal execution routes. Keep their
     result/output agreement while extending the remaining slot contracts;
     no selector-specific execution adapter is needed.
+  - The `dynamic_float_refinement` fact row carries literal IEEE-bound
+    implication and copyable selector constants through all nine places, with
+    native/Terminal agreement and upper-bound reject twins. Positive ordered
+    predicates retain selected format, subject identity and endpoint strictness;
+    negated order and `!=` do not donate non-NaN bounds.
   - Remaining requirement-contract work: implication beyond exact fact
-    correspondence, transparent proposition aliases and supported integer
-    arithmetic. Preserve the requirement's public contract at
+    correspondence, transparent proposition aliases, supported integer
+    arithmetic and literal IEEE-bound weakening. Preserve the requirement's public contract at
     selector calls independently of stronger implementation guarantees.
   - Next: suspending requirements decline at planning.
     Preserve owned result shapes,

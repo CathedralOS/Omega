@@ -11,8 +11,11 @@
 //!
 //! Applied signatures own trait substitution. Canonical declaration projection
 //! owns exact fact identity, with formal symbols bound by position. The existing
-//! scoped integer prover supplies implication beyond exact correspondence;
+//! scoped integer prover and selected IEEE predicate judgment supply implication
+//! beyond exact correspondence;
 //! unknown implication refuses, rather than comparing diagnostic spellings.
+
+mod float_implication;
 
 use super::law_conformance::{indexed_law_binder_arguments, term_mentions_variable};
 use super::structural_terms::structural_term;
@@ -25,6 +28,7 @@ use crate::proof_contracts::contract_structure::{
     CorrespondenceFact, callable_binders, correspondence_fact, generic_binders,
 };
 use diagnostics::Diagnostic;
+use float_implication::FloatObservation;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -178,6 +182,7 @@ struct Conjunct {
     fact: ProofFact,
     identity: Option<CorrespondenceFact>,
     law_checked: bool,
+    float: Option<FloatObservation>,
 }
 
 impl ContractFacts {
@@ -235,6 +240,9 @@ impl ContractFacts {
                     };
                     target.push(Conjunct {
                         identity: correspondence_fact(program, &fact, &binders),
+                        float: FloatObservation::collect(
+                            program, owner, parameters, &binders, &fact,
+                        ),
                         fact,
                         law_checked,
                     });
@@ -344,6 +352,13 @@ fn entailed(
         && premises
             .iter()
             .any(|premise| premise.identity.as_ref() == Some(identity))
+    {
+        return true;
+    }
+    if goal
+        .float
+        .as_ref()
+        .is_some_and(|goal| goal.entailed_by(premises))
     {
         return true;
     }

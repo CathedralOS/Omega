@@ -100,6 +100,8 @@ pub(crate) fn pending_const_initializer_leaves(
             return collect(syntax, selection, expression, origin, substitution, leaves);
         }
         match syntax.type_references.type_reference(type_reference) {
+            TypeReferenceNode::DynamicTrait { .. }
+                if crate::constant::direct_selector_literal(syntax, expression) => Ok(()),
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,

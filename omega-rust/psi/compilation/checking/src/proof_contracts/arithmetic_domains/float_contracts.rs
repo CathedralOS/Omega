@@ -325,8 +325,20 @@ pub fn float_return_postcondition(
     let result_type = |expression| {
         crate::expression_result_type_reference(program, machine, state, actual(expression))
     };
-    let source_bounds =
-        |expression| float_source_bounds(program, &environment, actual(expression), &result_type);
+    let source_bounds = |expression, reference| {
+        // Anonymous literals land at this selected comparison's operand
+        // carrier. This supplies a format, never a bound from the goal. Typed
+        // values retain their own format and cannot use this fallback.
+        let landed_type = |value| {
+            result_type(value).or_else(|| {
+                matches!(program.expression_table.peeled_expression(value),
+                    typed_trees::expression::ExpressionNode::Float(literal)
+                        if literal.landing().is_none())
+                .then_some(reference)
+            })
+        };
+        float_source_bounds(program, &environment, actual(expression), &landed_type)
+    };
     predicate(
         program,
         machine.symbol,
@@ -364,7 +376,7 @@ fn predicate(
     owner: symbols::SymbolHandle,
     expression: ExpressionHandle,
     actual: &dyn Fn(ExpressionHandle) -> ExpressionHandle,
-    source_bounds: &dyn Fn(ExpressionHandle) -> Option<FloatSourceBounds>,
+    source_bounds: &dyn Fn(ExpressionHandle, TypeReferenceHandle) -> Option<FloatSourceBounds>,
     result_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> Option<bool> {
     let binary = program.expression_table.binary_node(expression)?;
@@ -410,8 +422,8 @@ fn predicate(
     {
         return None;
     }
-    let left = source_bounds(binary.left)?;
-    let right = source_bounds(binary.right)?;
+    let left = source_bounds(binary.left, reference)?;
+    let right = source_bounds(binary.right, reference)?;
     if left.primitive != right.primitive {
         return None;
     }

@@ -597,6 +597,31 @@ impl<'program> StructuralJudge<'program> {
             }
             demand => demand,
         };
+        // An implementation selector constructs code identity, not a value
+        // obtained by evaluating the implementation name. The declaration
+        // owner separately validates its exact conformance/application. Keep
+        // only a fresh opaque value here: no implementation-body facts escape.
+        if self.runtime_body_values
+            && let ExpressionNode::Cast(cast) = node
+            && !cast.form.is_recast()
+            && cast.domain == numerics::arithmetic::ArithmeticDomain::Exact
+            && cast.semantic_domain.is_empty()
+            && cast.semantic_domain_arguments.is_empty()
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(cast.target_type),
+                typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
+            )
+            && let ExpressionNode::Name(name) = program.expression_table.expression(cast.value)
+            && name.symbol.is_valid()
+            && program.symbols.get(name.symbol).kind == symbols::SymbolKind::Conformance
+        {
+            let value = self.capture_unknown_value(expression, scope)?;
+            return Some(vec![
+                NormalReturnPath { judge: self, value }.at_expression(expression),
+            ]);
+        }
         if let ExpressionNode::Binary(binary) = node
             && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
             && crate::has_builtin_binary_expression_meaning(
