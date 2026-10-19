@@ -1,0 +1,18 @@
+// A call result that returns a runtime window length still names the last byte.
+// Expected exit: 0
+machine measure(window: &[u8]) -> u64
+ensures result == window.len
+{ window.len }
+machine last_byte(items: &[u8], count: u64) -> u8
+requires count > 0 && count <= items.len
+{
+    let window: &[u8] = &items[0..count];
+    let length: u64 = measure(window);
+    window[length - 1]
+}
+machine main() crashes Trap {
+    let items: [u8; 4] = [4, 7, 8, 9];
+    transition last_byte(&items[..], 3) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
