@@ -1,0 +1,4 @@
+owner: swarm slot-13 / integer_width_truncation_mask_bound
+provenance: agent=deepseek model=deepseek-v4.1-flash effort=medium
+ticket: 43852e794f8d4e10b12186981fe359d9
+published_utc: 2026-10-19T21:13:59.055198+00:00
