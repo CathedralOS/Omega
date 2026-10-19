@@ -16,6 +16,20 @@ Every place performs the same operation: invoke a seven-argument scalar function
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate machine forwards all seven arguments |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies execute on each hosted platform |
 
+Pinned fixture twins, one pair per place:
+
+| Place | Pinned Positive | Pinned Reject Twin |
+| --- | --- | --- |
+| local | [`..._through_local_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_local_exit/main.omg) | [`..._through_local_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_local_rejected/main.omg) |
+| field | [`..._through_field_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_field_exit/main.omg) | [`..._through_field_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_field_rejected/main.omg) |
+| parameter | [`..._through_parameter_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_parameter_exit/main.omg) | [`..._through_parameter_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_parameter_rejected/main.omg) |
+| call result | [`..._through_call_result_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_call_result_exit/main.omg) | [`..._through_call_result_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_call_result_rejected/main.omg) |
+| match join | [`..._through_match_join_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_match_join_exit/main.omg) | [`..._through_match_join_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_match_join_rejected/main.omg) |
+| const name | [`..._through_const_name_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_const_name_exit/main.omg) | [`..._through_const_name_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_const_name_rejected/main.omg) |
+| another state | [`..._through_other_state_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_other_state_exit/main.omg) | [`..._through_other_state_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_other_state_rejected/main.omg) |
+| another machine | [`..._through_other_machine_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_other_machine_exit/main.omg) | [`..._through_other_machine_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_other_machine_rejected/main.omg) |
+| another target body | [`..._through_target_body_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_target_body_exit/main.omg) | [`..._through_target_body_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_target_body_rejected/main.omg) |
+
 ## Execution
 
 Each positive place is an application that exits 0, and every positive place (and the root `main.omg`) carries an authored `expected_native_exit.txt` declaring `0`. `omega run --both` verifies agreement between Terminal Psi interpreter and native compilation:
@@ -76,8 +90,76 @@ omega --check samples/cli/facts/register_stack_arg_calling_plan/<place>/invalid/
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend code generation allocates correct register homes and frame displacement offsets for caller argument pushes and callee stack parameter loads. Callee prologues and epilogues allocate sufficient frame storage conforming to worst-case stack usage (WCSU).
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Callee frame displacements, stack argument loads, subtraction, and comparison instructions encode into valid PE/ELF/Mach-O binaries that natively execute and agree with Terminal Psi (`omega run --both` exit 0) across all hosted targets.
 
+### Physical Boundary in Emitted Code
+
+The row exists to cross a real ABI boundary, not a larger count of the same
+mechanism. Disassembling `local/main.omg` built for `linux_x86_64` shows the
+caller place the first six arguments in registers and the seventh on the stack,
+and the callee read it back from a stack slot:
+
+```text
+; caller, before the call
+movabsq $0xa, %rdi      ; a1
+movabsq $0x14, %rsi     ; a2
+movabsq $0x1e, %rdx     ; a3
+movabsq $0x28, %rcx     ; a4
+movabsq $0x32, %r8      ; a5
+movabsq $0x3c, %r9      ; a6
+movabsq $0x55, %rax     ; a7 = 85
+leaq (%rsp), %rbx
+movq %rax, (%rbx)       ; a7 crosses into a stack slot
+callq ...
+; callee
+leaq 0x10(%rsp), %rax
+movq (%rax), %rax       ; a7 read from the stack slot
+; six register sums, subtract 210, then add the stack-loaded a7
+; caller return: negq %rax; addq $0x55  ->  85 - a7
+```
+
+Arguments 1–6 reach the callee in `rdi, rsi, rdx, rcx, r8, r9`; argument 7
+travels through memory. On `macos_arm64` all seven occupy `x0..x6`, so this
+row's boundary evidence is strongest on the x86_64 catalogued targets.
+
+### Pinned Fixtures
+
+Nine positive places are pinned as
+`tests/omega/pass/facts/register_stack_arg_calling_plan_through_<place>_exit`,
+each carrying an authored `expected_native_exit.txt` of `0`. Nine reject twins
+are pinned as `tests/omega/fail/facts/register_stack_arg_calling_plan_through_<place>_rejected`,
+each carrying `expected.txt` with the fragment ``may overflow `u64` ``.
+
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/register_stack_arg_calling_plan`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow `u64``).
-- Discrimination: modifying `probe()` expectation from 0 to 1 causes runtime traps with `native signal 5` and `interp crash: Trap` (exit 255), proving the exit 0 oracle actively discriminates computation outcomes.
-- What remains open: floating-point multi-argument register/stack partitions, aggregate struct parameter splitting across the register-to-stack boundary, and indirect return homes (`sret`).
+- `python3 tools/corpus_gate.py --native --filter facts/register_stack_arg_calling_plan`
+  reports `clean — 9 fixtures ({'built': 9})`, `executed 9 (exit codes {'0': 9})`,
+  with 0 fail fixtures that did not reject. This is the golden row that measures
+  the fact: nine real `built ... exit:0` rows in
+  `tests/omega/corpus_native_macos_arm64.txt`.
+- `python3 tools/sample_native_gate.py --filter cli/facts/register_stack_arg_calling_plan`:
+  10/10 samples meet their documented oracle on `macos_arm64` (root + 9 places
+  run with exit 0 under both engines); 9/9 intended-invalid controls match their
+  authored rejection; 0 reported `rejection-failed`.
+- `omega run --both` on each of the root and nine places reports `native exit 0`
+  and `interp exit: 0`.
+- **Discrimination.** The oracle is not an unconstrained default. Changing the
+  caller expectation in `local` from `transition probe() == 0` to
+  `transition probe() == 1` leaves the seven-argument call, the register/stack
+  placement and the arithmetic untouched, and the observed result changes:
+  `native signal 5` and `interp crash: Trap (host presentation agrees)`. Both
+  engines trap, so the recorded `exit 0` distinguishes correct execution from
+  faulty execution.
+- **Static enforcement of the stack argument's bound.** Every attempt to change
+  the value that crosses in the seventh argument — passing `84` instead of `85`,
+  pairing the threshold, nudging the callee result by one, or doing it in
+  `Wrapping` — is refused before native execution by the exact-arithmetic prover
+  or the `ensures` check. The stack lane's static bound is therefore enforced at
+  compile time, and the runtime oracle is what detects a wrong value reaching
+  the guard.
+- **Splice safety.** Recording compared fixture keys against the base golden and
+  lost zero rows: 45 native keys and 18 outcome keys added, none changed. The
+  two `lost success` notices the recorder prints are pre-existing pinned
+  regressions on main (1798 non-success rows before and after), not movement
+  from this record.
+- What remains open: floating-point multi-argument register/stack partitions,
+  aggregate struct parameter splitting across the register-to-stack boundary,
+  and indirect return homes (`sret`).
