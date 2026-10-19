@@ -92,6 +92,35 @@ pub(super) fn live_contexts_prove_boolean_expression(
         expression,
         typed_trees::types::PrimitiveType::Bool,
     ) == Some(ScalarValue::Boolean(true))
+        || facts
+            .flow
+            .control
+            .states
+            .iter()
+            .find_map(|(_, flow)| {
+                (flow.state_symbol == state.symbol)
+                    .then(|| {
+                        validation::machine_state_by_symbols(
+                            program,
+                            flow.machine_symbol,
+                            state.symbol,
+                        )
+                    })
+                    .flatten()
+            })
+            .and_then(|(machine, _)| {
+                let values = crate::checks::current_scalar_values::CurrentScalarValues::at(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    typed_trees::statement::TransitionTargetHandle::invalid(),
+                    None,
+                )?;
+                let goal = values.current(expression)?;
+                Some(values.proves(program, machine, &goal))
+            })
+            == Some(true)
 }
 
 fn live_scalar_value(

@@ -24,13 +24,22 @@ impl OperationFrame<'_, '_> {
         // builtin service reach. Keep that exact symbol rather than resolving
         // a service spelling again during emission.
         let rows = &self.checked.facts.service_reaches.rows;
-        let [service] = rows.services(service_reach.direct) else {
-            return unsupported("register access lost its exact checked builtin service reach");
+        let service = if operation.requires_service_authority() {
+            let [service] = rows.services(service_reach.direct) else {
+                return unsupported("register access lost its exact checked builtin service reach");
+            };
+            if !rows.services(service_reach.transitive).contains(service) {
+                return unsupported("register access lost its transitive builtin service reach");
+            }
+            Some(lookup_service_id(self.service_ids, *service)?)
+        } else {
+            if !rows.services(service_reach.direct).is_empty()
+                || !rows.services(service_reach.transitive).is_empty()
+            {
+                return unsupported("authority-free register observation acquired service reach");
+            }
+            None
         };
-        if !rows.services(service_reach.transitive).contains(service) {
-            return unsupported("register access lost its transitive builtin service reach");
-        }
-        let service = lookup_service_id(self.service_ids, *service)?;
         let mut inputs = Vec::with_capacity(arguments.len());
         for (ordinal, argument) in arguments.iter().enumerate() {
             let argument_ordinal = u32::try_from(ordinal).map_err(|_| {

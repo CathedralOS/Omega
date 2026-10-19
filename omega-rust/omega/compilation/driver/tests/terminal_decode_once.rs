@@ -152,6 +152,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // Possessing this same artifact, its selected provider and established
     // root Binding does not delegate containing-domain death to an embedding.
     let denied = compiler::runtime::execute(compiler::runtime::TerminalRuntimeRequest {
+        x86_flags: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
@@ -172,6 +173,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         "embedding without host delegation must refuse before execution"
     );
     let observation = compiler::runtime::execute(compiler::runtime::TerminalRuntimeRequest {
+        x86_flags: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,

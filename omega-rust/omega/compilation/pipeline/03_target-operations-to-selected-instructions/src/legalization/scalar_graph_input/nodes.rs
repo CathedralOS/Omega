@@ -44,12 +44,14 @@ pub(in crate::legalization) fn admit(
 ) -> Result<(OperationId, Option<ValueId>), NodeRejection> {
     if let AbstractOperation::RegisterAccess {
         psi_operation,
+        service,
         event,
         result,
         ..
     } = &node.operation
     {
         if !event.operation().is_admitted()
+            || service.is_some() != event.operation().requires_service_authority()
             || event.operation().produces_value() != result.is_some()
         {
             return Err(NodeRejection::Malformed);

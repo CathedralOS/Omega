@@ -129,7 +129,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         } => {
             bytes.u8(242);
             bytes.id(*psi_operation);
-            bytes.id(*service);
+            bytes.u64(service.map_or(0, |service| service.get()));
             bytes.u16(event.operation().catalog_tag());
             encode_ids(bytes, &event.inputs().copied().collect::<Vec<_>>());
             bytes.u8(u8::from(result.is_some()));

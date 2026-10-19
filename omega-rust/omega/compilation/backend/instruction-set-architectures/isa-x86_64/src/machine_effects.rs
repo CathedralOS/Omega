@@ -265,7 +265,7 @@ fn selected_keys(
     };
     Ok(SelectedConstraintKeys {
         port_write: Some(crate::X86_64_PORT_WRITE),
-        system_register_read: None,
+        system_register_read: Some(crate::X86_64_FLAGS_SNAPSHOT),
         system_register_write: None,
         port_register_read: Some(crate::X86_64_PORT_REGISTER_READ),
         port_register_write: Some(crate::X86_64_PORT_REGISTER_WRITE),
@@ -641,13 +641,14 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::PortRegisterWrite
         | MachineSemanticKind::ModelSpecificRead
         | MachineSemanticKind::ModelSpecificWrite
-        | MachineSemanticKind::ProcessorHalt => {
+        | MachineSemanticKind::ProcessorHalt
+        | MachineSemanticKind::SystemRegisterRead => {
             return crate::selected_form_encoding::register_access::effects(
                 crate::selected_form_encoding::register_access::operation(semantic)
                     .expect("x86 register semantic"),
             );
         }
-        MachineSemanticKind::SystemRegisterRead | MachineSemanticKind::SystemRegisterWrite => {
+        MachineSemanticKind::SystemRegisterWrite => {
             unreachable!("AArch64 system-register semantics have no x86 constraint")
         }
         MachineSemanticKind::PlacedScalarAccess(form) => {
@@ -972,11 +973,12 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::PortRegisterRead
         | MachineSemanticKind::PortRegisterWrite
         | MachineSemanticKind::ModelSpecificRead
-        | MachineSemanticKind::ModelSpecificWrite => MachineSizeKnowledge::EncoderResolved {
+        | MachineSemanticKind::ModelSpecificWrite
+        | MachineSemanticKind::SystemRegisterRead => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 1,
             maximum_bytes: Some(40),
         },
-        MachineSemanticKind::SystemRegisterRead | MachineSemanticKind::SystemRegisterWrite => {
+        MachineSemanticKind::SystemRegisterWrite => {
             unreachable!("AArch64 system-register semantics have no x86 constraint")
         }
         MachineSemanticKind::PlacedScalarAccess(_) => MachineSizeKnowledge::EncoderResolved {

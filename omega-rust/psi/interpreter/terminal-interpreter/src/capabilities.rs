@@ -139,6 +139,13 @@ pub(crate) fn check_with_private_entry_ram(
                             TerminalUnsupportedCapability::NativeCodeLayout { machine: *machine },
                         ));
                     }
+                    OperationKind::RegisterAccess {
+                        event:
+                            terminal_psi::RegisterAccessEvent::Read {
+                                register: terminal_psi::SystemRegister::Rflags,
+                            },
+                        ..
+                    } if installation.is_some_and(|supplies| supplies.x86_flags.is_some()) => None,
                     OperationKind::RegisterAccess { event, .. } => {
                         return Err(TerminalInterpretError::UnsupportedCapability(
                             TerminalUnsupportedCapability::RegisterAccess {
@@ -816,6 +823,7 @@ mod tests {
             machine(0, vec![boundary_call(provider_import)]),
         );
         let installation = TerminalRuntimeSupplies {
+            x86_flags: None,
             terminal_psi: program.identity,
             entry: None,
             supplies: BTreeMap::from([(
@@ -1050,6 +1058,7 @@ mod tests {
         assert_eq!(requirements.missing_providers, vec![boundary]);
         set_machine(&mut program, target, machine(2, Vec::new()));
         let mut installation = TerminalRuntimeSupplies {
+            x86_flags: None,
             terminal_psi: program.identity,
             entry: None,
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),

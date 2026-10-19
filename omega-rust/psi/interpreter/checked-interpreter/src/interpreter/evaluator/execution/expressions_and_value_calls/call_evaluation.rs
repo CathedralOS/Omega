@@ -278,9 +278,9 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             }
             return Ok(value);
         }
-        // The tree walker has no architectural flags register. Preserve the
-        // value-flow shape with the architecturally fixed RFLAGS bit 1 set;
-        // the matching restore statement is a no-op above.
+        // The tree walker has no supplied architectural flags environment.
+        // Only Terminal execution with an admitted target environment can
+        // observe flags; a fixed integer would fabricate instruction semantics.
         let builtin = self
             .program
             .symbols
@@ -288,7 +288,9 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         // Authored numeric names retain ordinary machine dispatch below;
         // only the selected intrinsic owns builtin evaluation and bounds.
         if builtin == Some(BuiltinFunction::AsmSnapshotFlags) && !call.receiver.is_valid() {
-            return Ok(Value::Int(2));
+            return unsupported(
+                "pushfq requires an explicitly supplied target flags environment in Terminal execution",
+            );
         }
         // Only admitted float requirements select these unnameable operations.
         if let Some(builtin @ (BuiltinFunction::FloatMaximum | BuiltinFunction::FloatMinimum)) =

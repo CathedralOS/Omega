@@ -80,12 +80,16 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut blocks = Vec::new();
     let mut primitives = Vec::new();
+    let body_requires = contract.requires.clone();
+    let mut subtractions = Vec::new();
     let mut block = ParsedAssemblyBlock {
         label: Identifier::generated("asm#entry"),
         requires: contract.requires,
         ..Default::default()
     };
     let mut observes_hardware_flags = false;
+    let mut restores_hardware_flags = false;
+    let mut flag_snapshots = Vec::new();
     let mut realized_clobbers = std::collections::BTreeSet::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
@@ -163,6 +167,33 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         {
             realized_clobbers.insert(scratch::CLOBBERS[register_index]);
         }
+        restores_hardware_flags |= instruction.contract.shape == AsmInstructionShape::FlagsRestore;
+        if instruction.contract.shape == AsmInstructionShape::FlagsSnapshot {
+            flag_snapshots.push(instruction.statement);
+        }
+        if instruction.contract.shape == AsmInstructionShape::Subtract {
+            let StatementNode::Assignment(assignment) =
+                syntax_trees.statements.statement(instruction.statement)
+            else {
+                unreachable!()
+            };
+            let destination = assignment.target;
+            let ExpressionNode::Cast(result) =
+                syntax_trees.expressions.expression(assignment.value)
+            else {
+                unreachable!()
+            };
+            let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(result.value)
+            else {
+                unreachable!()
+            };
+            let ExpressionNode::Cast(source) = syntax_trees.expressions.expression(binary.right)
+            else {
+                unreachable!()
+            };
+            let source = source.value;
+            subtractions.push((instruction.statement, destination, source));
+        }
         block.has_no_local_post_state |= matches!(
             instruction.contract.shape,
             AsmInstructionShape::Halt | AsmInstructionShape::DerivedExit
@@ -173,7 +204,16 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         ) {
             block.exit = syntax_trees::statement::AssemblyExit::EnclosingTransition;
         }
-        block.instructions.push(instruction.statement);
+        // The catalog's target-independent NOP has no inputs, effects or
+        // fault. Its executable semantics are the empty statement sequence;
+        // retaining an uncallable builtin would invent a runtime obligation.
+        if instruction.contract.shape
+            != AsmInstructionShape::SchedulingHint(
+                language_core::inline_assembly::AsmSchedulingHintKind::Nop,
+            )
+        {
+            block.instructions.push(instruction.statement);
+        }
         if instruction.contract.shape == AsmInstructionShape::Subtract {
             let StatementNode::Assignment(assignment) =
                 syntax_trees.statements.statement(instruction.statement)
@@ -254,8 +294,10 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     let uses_scratch = syntax_trees.expressions.iter_expressions().skip(expression_start).any(|(_, node)| {
         matches!(node, ExpressionNode::Name(path) if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if scratch::NAMES.iter().any(|register| !register.is_empty() && *register == name.as_str())))
     });
-    if uses_scratch && observes_hardware_flags {
-        return Err(input.error_here("scratch-register CFG flags cannot yet be combined with hardware pushfq/popfq snapshots or restoration"));
+    if uses_scratch && restores_hardware_flags {
+        return Err(input.error_here(
+            "scratch-register CFG flags cannot yet be combined with hardware popfq restoration",
+        ));
     }
     let last = blocks.last_mut().expect("assembly has a nonempty block");
     if !contract.ensures.is_empty()
@@ -271,6 +313,78 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     last.ensures.extend(contract.ensures);
     if let Some(declared_clobbers) = contract.clobbers {
         validate_asm_clobber_contract(&declared_clobbers, &realized_clobbers, input)?;
+    }
+    // A full snapshot retains its environment image separately from the six
+    // arithmetic bits. Realizing scalar expressions may change native flags,
+    // so only these explicit body-local values reach the authored observation.
+    // Restoration retains its separate unsupported execution contract.
+    if observes_hardware_flags && !restores_hardware_flags {
+        // Build full arithmetic state only when this body observes it. The
+        // ordinary SUB/ZF cohort retains its original statements and storage.
+        for (statement, destination, source) in subtractions {
+            let generated_start = syntax_trees.expressions.expression_count();
+            let saved = scratch::preserve_sub_operands(syntax_trees, destination, source);
+            let flags = scratch::arithmetic_flags(syntax_trees, destination);
+            let mask = scratch::replace_arithmetic_flags(syntax_trees);
+            collect_generated_primitives(syntax_trees, generated_start, &mut primitives);
+            for block in &mut blocks {
+                if let Some(index) = block
+                    .instructions
+                    .iter()
+                    .position(|item| *item == statement)
+                {
+                    let count = saved.len();
+                    block.instructions.splice(index..index, saved);
+                    // The existing SUB and ZF assignments stay together.
+                    block
+                        .instructions
+                        .splice(index + count + 2..index + count + 2, [flags, mask]);
+                    break;
+                }
+            }
+        }
+        let prefix = scratch::initialize_flags(syntax_trees);
+        // Only private, pure bookkeeping belongs to the once-only body entry.
+        // Architectural observations remain on their authored paths.
+        blocks[0].requires.drain(..body_requires.len());
+        blocks.insert(
+            0,
+            ParsedAssemblyBlock {
+                label: Identifier::generated("asm#flags_entry"),
+                requires: body_requires,
+                instructions: prefix,
+                ..Default::default()
+            },
+        );
+        for snapshot in flag_snapshots {
+            let StatementNode::Assignment(mut assignment) =
+                syntax_trees.statements.statement(snapshot).clone()
+            else {
+                unreachable!()
+            };
+            let generated_start = syntax_trees.expressions.expression_count();
+            let raw = scratch::observe_environment(syntax_trees, assignment.value);
+            let mut observation = vec![raw];
+            observation.extend(scratch::snapshot(syntax_trees));
+            assignment.value = scratch::name(syntax_trees, "asm#flags_snapshot");
+            syntax_trees
+                .statements
+                .replace_statement(snapshot, StatementNode::Assignment(assignment));
+            let flag = scratch::observed_zero_flag(syntax_trees);
+            collect_generated_primitives(syntax_trees, generated_start, &mut primitives);
+            for block in &mut blocks {
+                if let Some(index) = block
+                    .instructions
+                    .iter()
+                    .position(|candidate| *candidate == snapshot)
+                {
+                    observation.push(flag);
+                    block.instructions.splice(index..index, observation);
+
+                    break;
+                }
+            }
+        }
     }
     let (scratch, bindings) = scratch::bind(syntax_trees, expression_start);
     let blocks: Vec<_> = blocks
@@ -907,4 +1021,22 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             unreachable!("deriver-only instructions refuse before source lowering")
         }
     }
+}
+
+/// Compiler-defined ISA arithmetic must keep its catalog meanings even when
+/// the surrounding source selects user-defined operators.
+fn collect_generated_primitives(
+    trees: &SyntaxTrees,
+    first: usize,
+    primitives: &mut Vec<ExpressionHandle>,
+) {
+    primitives.extend(
+        trees
+            .expressions
+            .iter_expressions()
+            .skip(first)
+            .filter_map(|(handle, node)| {
+                matches!(node, ExpressionNode::Binary(_)).then_some(handle)
+            }),
+    );
 }

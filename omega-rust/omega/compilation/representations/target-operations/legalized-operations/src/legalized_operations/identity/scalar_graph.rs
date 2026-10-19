@@ -87,7 +87,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 }
                 LegalizedScalarInstructionKind::RegisterAccess { service, event } => {
                     bytes.push(247);
-                    crate::codec_bytes::push_encoded(bytes, service.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(
+                        bytes,
+                        service.map_or(0, |service| service.get()).to_le_bytes(),
+                    );
                     crate::codec_bytes::push_encoded(
                         bytes,
                         event.operation().catalog_tag().to_le_bytes(),

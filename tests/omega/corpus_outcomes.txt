@@ -30,6 +30,20 @@ fail/arithmetic/bounded_assignment_unproven rejected 2731ms expected @a9ae30e1c3
 fail/arithmetic/bounded_call_unproven rejected 1571ms expected @a9ae30e1c334+wt
 fail/arithmetic/bounded_store_consumed_before_repair rejected 913ms expected @a9ae30e1c334+wt
 fail/arithmetic/chained_const_binder_without_ceiling rejected 313ms expected @5a08952f5dbd+wt
+fail/arithmetic/checked_flag_proof_invalid_shift_count rejected 6746ms expected @737f6be3b09b
+	shift count in machine `observe` state `entry` local `snapshot` is provably out of range and can never execute for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `observe` state `entry` local `snapshot` is provably out of range and can never execute for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+fail/arithmetic/checked_flag_proof_saturating_cast_overflow rejected 7420ms expected @737f6be3b09b
+	anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended
+	anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended
+fail/arithmetic/checked_flag_proof_shift_result_overflow rejected 6508ms expected @737f6be3b09b
+	exact arithmetic in machine `observe` state `entry` local `snapshot` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `observe` state `entry` local `snapshot` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/checked_flag_proof_stale_mask rejected 8505ms expected @737f6be3b09b
+	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 4): snapshot & 64 == 64
+fail/arithmetic/checked_flag_proof_wrapping_cast_overflow rejected 5729ms expected @737f6be3b09b
+	anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` cast expression; type an operand before division if integer division was intended
+	anonymous value `256` cannot land exactly in cast target `u8` in machine `main` state `entry` local `value`; type an operand before division if integer division was intended
 fail/arithmetic/collection_result_changed_predecessor rejected 550ms expected @d840c6ae9019+wt
 fail/arithmetic/collection_result_conditional_bound rejected 181ms expected @d840c6ae9019+wt
 fail/arithmetic/collection_result_distinct_windows rejected 558ms expected @d840c6ae9019+wt
@@ -201,7 +215,6 @@ fail/asm/scratch_destination_mutable_borrow rejected 8196ms expected @351c5ba811
 fail/asm/scratch_destination_nested_member_index rejected 9168ms expected @351c5ba81137+wt
 fail/asm/scratch_destination_shared_borrow rejected 9473ms expected @351c5ba81137+wt
 fail/asm/scratch_destination_structured_load rejected 8460ms expected @351c5ba81137+wt
-fail/asm/scratch_hardware_flag_mix rejected 1ms expected @7875d3411f26+wt
 fail/asm/scratch_incompatible_authored_target rejected 1923ms expected @7875d3411f26+wt
 fail/asm/scratch_invalid_backedge rejected 3421ms expected @7875d3411f26+wt
 fail/asm/scratch_invented_clobber rejected 1ms expected @7875d3411f26+wt
@@ -2103,6 +2116,24 @@ fail/facts/checked_asm_countdown_parameter_wrong_fallthrough rejected 3837ms exp
 fail/facts/checked_asm_countdown_target_body_wrong_fallthrough rejected 3858ms expected @fb19bb8df981
 	cannot prove requires contract for call done from countdown$assembly$linux_x86_64$4$entry: asm#scratch#7#eax$version$1 == 1 (needs fact `asm#scratch#7#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove requires contract for call done from countdown$assembly$windows_x86_64$4$entry: asm#scratch#46#eax$version$1 == 1 (needs fact `asm#scratch#46#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
+fail/facts/checked_asm_flag_snapshot_false_invariant rejected 8795ms expected @737f6be3b09b
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 28): snapshot & 64 == 0
+fail/facts/checked_asm_flag_snapshot_field_alias_write rejected 8220ms expected @737f6be3b09b
+	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 30): object.value & 64 == 64
+fail/facts/checked_asm_flag_snapshot_field_false_bit rejected 7732ms expected @737f6be3b09b
+	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 27): object.value & 64 == 0
+fail/facts/checked_asm_flag_snapshot_field_opaque_observation rejected 7555ms expected @737f6be3b09b
+	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 17): object.value & 64 == 64
+fail/facts/checked_asm_flag_snapshot_field_overwrite rejected 8743ms expected @737f6be3b09b
+	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 28): object.value & 64 == 64
+fail/facts/checked_asm_flag_snapshot_missing_clobber rejected 2ms expected @737f6be3b09b
+	tests/omega/fail/facts/checked_asm_flag_snapshot_missing_clobber/main.omg:14:2: asm where `clobbers` must exactly match the realized instruction contract: missing `rflags`
+fail/facts/checked_asm_flag_snapshot_missing_r10 rejected 4ms expected @737f6be3b09b
+	tests/omega/fail/facts/checked_asm_flag_snapshot_missing_r10/main.omg:14:2: asm where `clobbers` must exactly match the realized instruction contract: missing `r10`
+fail/facts/checked_asm_flag_snapshot_parameter_false rejected 8676ms expected @737f6be3b09b
+	cannot prove requires contract for call consume from main: snapshot ^ 64 & 64 == 64 (needs fact `snapshot & 64 == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_flag_snapshot_record_reborrow rejected 8482ms expected @737f6be3b09b
+	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 30): object.value & 64 == 64
 fail/facts/checked_asm_register_contract_bound_through_call_result_rejected rejected 5258ms expected @8f970335dca4+wt
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `forward(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/checked_asm_register_contract_bound_through_const_name_rejected rejected 5293ms expected @8f970335dca4+wt
@@ -5358,6 +5389,11 @@ pass/arithmetic/bounded_assignment checked 1562ms @a9ae30e1c334+wt
 pass/arithmetic/call_surviving_return_exit checked 13025ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/carrier_endpoint_exclusion_exit checked 15185ms check-target:linux_x86_64 @7875d3411f26+wt
 pass/arithmetic/chained_const_binder_scale_exit checked 5864ms check-target:macos_arm64 @5a08952f5dbd+wt
+pass/arithmetic/checked_flag_proof_reflexive_xor checked 19407ms check-target:macos_arm64 @737f6be3b09b
+pass/arithmetic/checked_flag_proof_saturating_cast_fits checked 19052ms check-target:macos_arm64 @737f6be3b09b
+pass/arithmetic/checked_flag_proof_signed_high_bit checked 18928ms check-target:macos_arm64 @737f6be3b09b
+pass/arithmetic/checked_flag_proof_signed_mask checked 19799ms check-target:macos_arm64 @737f6be3b09b
+pass/arithmetic/checked_flag_proof_wrapping_cast_fits checked 19685ms check-target:macos_arm64 @737f6be3b09b
 pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit checked 6759ms check-target:macos_arm64 @97705f5a651d
 pass/arithmetic/collection_result_bound_exit checked 5786ms check-target:macos_arm64 @d840c6ae9019+wt
 pass/arithmetic/compound_assign checked 10321ms @5041ef1af684+wt
@@ -5487,6 +5523,7 @@ pass/asm/port_write_effect_contract checked 8833ms @eac8a2f4b8cc+wt
 pass/asm/proposition_label_contracts_exit checked 7299ms check-target:linux_x86_64 @6d0b8da07bdd+wt
 pass/asm/scratch_destination_ordinary_stores_exit checked 25933ms check-target:linux_x86_64 @351c5ba81137+wt
 pass/asm/scratch_exact_register_flag_clobbers_exit checked 10849ms check-target:linux_x86_64 @7875d3411f26+wt
+pass/asm/scratch_hardware_flag_mix checked 21688ms check-target:linux_x86_64 @737f6be3b09b
 pass/asm/scratch_latest_zero_flag_exit checked 9520ms check-target:linux_x86_64 @7875d3411f26+wt
 pass/asm/scratch_subtract_modular_underflow_exit checked 8672ms check-target:linux_x86_64 @7875d3411f26+wt
 pass/asm/scratch_target_sibling_capture_identity_exit checked 7405ms check-target:linux_x86_64 @7875d3411f26+wt
@@ -7326,6 +7363,16 @@ pass/facts/checked_asm_countdown_other_machine_exit checked 8331ms check-target:
 pass/facts/checked_asm_countdown_other_state_exit checked 8165ms check-target:linux_x86_64 @fb19bb8df981
 pass/facts/checked_asm_countdown_parameter_exit checked 8233ms check-target:linux_x86_64 @fb19bb8df981
 pass/facts/checked_asm_countdown_target_body_exit checked 8244ms check-target:linux_x86_64 @fb19bb8df981
+pass/facts/checked_asm_flag_snapshot checked 20090ms check-target:linux_x86_64 @737f6be3b09b
+pass/facts/checked_asm_flag_snapshot_alias_exit checked 19974ms check-target:linux_x86_64 @737f6be3b09b
+pass/facts/checked_asm_flag_snapshot_backedge_exit checked 19608ms check-target:linux_x86_64 @737f6be3b09b
+pass/facts/checked_asm_flag_snapshot_dynamic_input_exit checked 22964ms check-target:linux_x86_64 @737f6be3b09b
+pass/facts/checked_asm_flag_snapshot_field_exit checked 19512ms check-target:linux_x86_64 @737f6be3b09b
+pass/facts/checked_asm_flag_snapshot_hardware_calls_exit checked 32982ms check-target:linux_x86_64 @737f6be3b09b
+pass/facts/checked_asm_flag_snapshot_parameter_exit checked 19630ms check-target:linux_x86_64 @737f6be3b09b
+pass/facts/checked_asm_flag_snapshot_pre_sub_exit checked 20605ms check-target:linux_x86_64 @737f6be3b09b
+pass/facts/checked_asm_flag_snapshot_retained_exit checked 20882ms check-target:linux_x86_64 @737f6be3b09b
+pass/facts/checked_asm_flag_snapshot_unreachable_exit checked 19324ms check-target:linux_x86_64 @737f6be3b09b
 pass/facts/checked_asm_register_contract_bound_through_call_result_exit rejected 21859ms check-target:macos_arm64 @8f970335dca4+wt
 	native artifact provider supply failed: reachable machine MachineId(3) has incompatible assembly catalog target requirement for `macos_arm64`
 pass/facts/checked_asm_register_contract_bound_through_const_name_exit rejected 21082ms check-target:macos_arm64 @8f970335dca4+wt

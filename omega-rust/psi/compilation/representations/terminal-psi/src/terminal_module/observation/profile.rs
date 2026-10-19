@@ -153,8 +153,8 @@ pub enum TerminalTraceOrdinaryEventKind {
         service_identity: TerminalIdentityIndex,
     },
     RegisterAccess {
-        service: ServiceId,
-        service_identity: TerminalIdentityIndex,
+        service: Option<ServiceId>,
+        service_identity: Option<TerminalIdentityIndex>,
         operation: language_core::inline_assembly::AsmRegisterOperation,
     },
 }

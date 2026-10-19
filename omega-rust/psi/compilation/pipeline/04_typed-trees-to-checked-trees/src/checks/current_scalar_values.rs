@@ -43,6 +43,8 @@ use validation::{
 };
 
 mod collections;
+mod scalar_fields;
+use scalar_fields::{ScalarField, scalar_field_occurrence};
 
 #[derive(Clone)]
 struct Binding {
@@ -87,6 +89,7 @@ pub(crate) struct CurrentScalarValues<'program> {
     initial: Vec<Binding>,
     current: Vec<Binding>,
     lengths: Vec<Length>,
+    fields: Vec<ScalarField>,
     hypotheses: Vec<ScopedArithmeticHypothesis>,
     scalar_observations: Vec<validation::CapturedScalarObservation>,
 }
@@ -152,6 +155,7 @@ impl<'program> CurrentScalarValues<'program> {
             current: initial.clone(),
             initial,
             lengths,
+            fields: Vec::new(),
             hypotheses: Vec::new(),
             scalar_observations: validation::captured_scalar_observations(
                 program,
@@ -229,6 +233,8 @@ impl<'program> CurrentScalarValues<'program> {
                         local.initial_value,
                         ordinal,
                     );
+                    let scalar_fields = values.captured_scalar_fields(local.initial_value, 0);
+                    values.replace_scalar_fields(local.symbol, &[], scalar_fields);
                     values.capture_record_fields(
                         local.symbol,
                         &[],
@@ -252,6 +258,12 @@ impl<'program> CurrentScalarValues<'program> {
                 StatementNode::Assignment(assignment) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
                     let value = values.capture(program, machine, state, assignment.value);
+                    let mut scalar_fields = values.captured_scalar_fields(assignment.value, 0);
+                    if let Some(field) =
+                        values.captured_scalar_store(assignment.target, value.clone(), ordinal)
+                    {
+                        scalar_fields.push(field);
+                    }
                     let mut fields = values.captured_field_lengths(assignment.value, 0);
                     if let Some(value) = values.collection_length(assignment.value, 0)
                         && let Some(type_reference) = validation::expression_result_type_reference(
@@ -310,6 +322,7 @@ impl<'program> CurrentScalarValues<'program> {
                         );
                     }
                     if let Some((owner, path)) = field_storage_path(program, assignment.target) {
+                        values.replace_scalar_fields(owner, &path, scalar_fields);
                         values.replace_record_fields(
                             owner,
                             &path,
@@ -389,6 +402,15 @@ impl<'program> CurrentScalarValues<'program> {
                     .any(|path| validation::frame_paths_overlap(path, &binding.name))
             }) {
                 binding.value = None;
+            }
+        }
+        for field in &mut self.fields {
+            if paths.as_ref().is_none_or(|paths| {
+                paths
+                    .iter()
+                    .any(|path| validation::frame_paths_overlap(path, &field.name))
+            }) {
+                field.value = None;
             }
         }
         for length in &mut self.lengths {
@@ -493,6 +515,7 @@ impl<'program> CurrentScalarValues<'program> {
             expression,
             &self.current,
             &self.lengths,
+            &self.fields,
             0,
         ) {
             if let Some(proposition) = scoped(
@@ -502,6 +525,7 @@ impl<'program> CurrentScalarValues<'program> {
                 expression,
                 &self.current,
                 &self.lengths,
+                &self.fields,
                 &self.hypotheses,
                 program,
             ) {
@@ -562,6 +586,11 @@ impl<'program> CurrentScalarValues<'program> {
             {
                 return Some(value);
             }
+            if let Some(value) =
+                scalar_field_occurrence(program, machine, state, expression, &self.fields)
+            {
+                return Some(value);
+            }
             if let Some(value) = field_occurrence(program, machine, state, expression) {
                 return Some(value);
             }
@@ -618,6 +647,7 @@ impl<'program> CurrentScalarValues<'program> {
             expression,
             &self.current,
             &self.lengths,
+            &self.fields,
             0,
         )
         .then(|| {
@@ -628,6 +658,7 @@ impl<'program> CurrentScalarValues<'program> {
                 expression,
                 &self.current,
                 &self.lengths,
+                &self.fields,
                 &self.hypotheses,
                 program,
             )
@@ -668,6 +699,7 @@ impl<'program> CurrentScalarValues<'program> {
             expression,
             &self.initial,
             &self.lengths,
+            &[],
             0,
         )
         .then(|| {
@@ -678,6 +710,7 @@ impl<'program> CurrentScalarValues<'program> {
                 expression,
                 &self.initial,
                 &self.lengths,
+                &[],
                 &self.hypotheses,
                 self.program,
             )
@@ -696,6 +729,7 @@ impl<'program> CurrentScalarValues<'program> {
             expression,
             &self.current,
             &self.lengths,
+            &self.fields,
             0,
         )
         .then(|| {
@@ -706,6 +740,7 @@ impl<'program> CurrentScalarValues<'program> {
                 expression,
                 &self.current,
                 &self.lengths,
+                &self.fields,
                 &self.hypotheses,
                 self.program,
             )
@@ -728,6 +763,7 @@ impl<'program> CurrentScalarValues<'program> {
         }
         let mut formals = Vec::with_capacity(parameters.len());
         let mut lengths = Vec::new();
+        let mut fields = Vec::new();
         for (parameter, argument) in parameters.iter().zip(arguments) {
             let Some(primitive) = integer_carrier(self.program, parameter.type_reference) else {
                 if let Some(value) = self.collection_length(*argument, 0)
@@ -753,6 +789,13 @@ impl<'program> CurrentScalarValues<'program> {
                         type_reference: parameter.type_reference,
                         value: Some(value),
                     });
+                }
+                for field in self.captured_scalar_fields(*argument, 0) {
+                    fields.push(ScalarField::for_owner(
+                        self.program,
+                        parameter.symbol,
+                        field,
+                    ));
                 }
                 for field in self.captured_field_lengths(*argument, 0) {
                     lengths.push(Length {
@@ -785,6 +828,7 @@ impl<'program> CurrentScalarValues<'program> {
             expression,
             &formals,
             &lengths,
+            &fields,
             0,
         ) {
             return None;
@@ -796,6 +840,7 @@ impl<'program> CurrentScalarValues<'program> {
             expression,
             &formals,
             &lengths,
+            &fields,
             &self.hypotheses,
             self.program,
         )?;
@@ -805,6 +850,8 @@ impl<'program> CurrentScalarValues<'program> {
             // merely because the declaration and formal symbol are equal.
             if let ScopedArithmeticBinder::Occurrence(occurrence) = binding.binder
                 && length_occurrence(self.program, occurrence, &lengths).is_none()
+                && scalar_field_occurrence(self.program, callee, state, occurrence, &fields)
+                    .is_none()
                 && literal_window_length(self.program, occurrence).is_none()
             {
                 return None;
@@ -1189,20 +1236,31 @@ fn integer_cast_operand(
     let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
         return None;
     };
-    if cast.form.is_recast()
-        || !cast.semantic_domain.is_empty()
-        || !matches!(
-            cast.domain,
-            ArithmeticDomain::Exact | ArithmeticDomain::Trapping
+    if cast.form.is_recast() || !cast.semantic_domain.is_empty() {
+        return None;
+    }
+    let target_type = program.primitive_type_reference(cast.target_type)?;
+    // Anonymous integer literals have no fixed source carrier. The conversion
+    // keeps their denotation only when the exact literal fits the target; the
+    // preserving owner below checks that value, never an inferred endpoint.
+    if target_type.is_fixed_integer()
+        && matches!(
+            program.expression_table.expression(cast.value),
+            ExpressionNode::Integer(_)
         )
     {
-        return None;
+        return Some(cast.value);
     }
     let operand_type =
         validation::expression_result_type_reference(program, machine, state, cast.value)
             .and_then(|reference| program.primitive_type_reference(reference))?;
-    let target_type = program.primitive_type_reference(cast.target_type)?;
-    (operand_type.is_fixed_integer() && target_type.is_fixed_integer()).then_some(cast.value)
+    (operand_type.is_fixed_integer()
+        && target_type.is_fixed_integer()
+        && (matches!(
+            cast.domain,
+            ArithmeticDomain::Exact | ArithmeticDomain::Trapping
+        ) || operand_type == target_type))
+        .then_some(cast.value)
 }
 
 /// Operand of an exact or trapping integer cast that denotes that operand.
@@ -1216,12 +1274,20 @@ fn preserving_integer_cast_operand(
     expression: ExpressionHandle,
     bindings: &[Binding],
     lengths: &[Length],
+    fields: &[ScalarField],
     hypotheses: &[ScopedArithmeticHypothesis],
 ) -> Option<ExpressionHandle> {
     let operand = integer_cast_operand(program, machine, state, expression)?;
-    let (source_minimum, source_maximum) = integer_carrier_span(program, machine, state, operand)?;
     let (target_minimum, target_maximum) =
         integer_carrier_span(program, machine, state, expression)?;
+    if let Some(value) = program
+        .expression_table
+        .integer_node(operand)
+        .and_then(|literal| literal.value_bignum())
+    {
+        return (value >= target_minimum && value <= target_maximum).then_some(operand);
+    }
+    let (source_minimum, source_maximum) = integer_carrier_span(program, machine, state, operand)?;
     if source_minimum >= target_minimum && source_maximum <= target_maximum {
         return Some(operand);
     }
@@ -1232,6 +1298,7 @@ fn preserving_integer_cast_operand(
         operand,
         bindings,
         lengths,
+        fields,
         hypotheses,
         program,
     )?);
@@ -1279,6 +1346,7 @@ fn admitted(
     expression: ExpressionHandle,
     bindings: &[Binding],
     lengths: &[Length],
+    fields: &[ScalarField],
     depth: usize,
 ) -> bool {
     if depth >= 64 || !program.expression_table.expression_is_valid(expression) {
@@ -1296,6 +1364,7 @@ fn admitted(
                     operand,
                     bindings,
                     lengths,
+                    fields,
                     depth + 1,
                 )
             }),
@@ -1309,11 +1378,13 @@ fn admitted(
                     argument,
                     bindings,
                     lengths,
+                    fields,
                     depth + 1,
                 )
             }),
         ExpressionNode::Member(_) => {
             length_occurrence(program, expression, lengths).is_some()
+                || scalar_field_occurrence(program, machine, state, expression, fields).is_some()
                 || field_occurrence(program, machine, state, expression).is_some()
                 || literal_window_length(program, expression).is_some()
         }
@@ -1333,6 +1404,11 @@ fn admitted(
                     | BinaryOperator::Multiply
                     | BinaryOperator::Divide
                     | BinaryOperator::Modulo
+                    | BinaryOperator::BitwiseAnd
+                    | BinaryOperator::BitwiseOr
+                    | BinaryOperator::BitwiseXor
+                    | BinaryOperator::ShiftLeft
+                    | BinaryOperator::ShiftRight
                     | BinaryOperator::Equal
                     | BinaryOperator::NotEqual
                     | BinaryOperator::Less
@@ -1354,6 +1430,7 @@ fn admitted(
                 binary.left,
                 bindings,
                 lengths,
+                fields,
                 depth + 1,
             ) && admitted(
                 program,
@@ -1363,6 +1440,7 @@ fn admitted(
                 binary.right,
                 bindings,
                 lengths,
+                fields,
                 depth + 1,
             )
         }
@@ -1377,6 +1455,7 @@ fn scoped(
     expression: ExpressionHandle,
     bindings: &[Binding],
     lengths: &[Length],
+    fields: &[ScalarField],
     hypotheses: &[ScopedArithmeticHypothesis],
     program: &dyn ::validation::CheckingInput,
 ) -> Option<ScopedArithmeticExpression> {
@@ -1407,6 +1486,7 @@ fn scoped(
                     expression,
                     bindings,
                     lengths,
+                    fields,
                     hypotheses,
                 )?;
                 let value = scoped(
@@ -1416,6 +1496,7 @@ fn scoped(
                     operand,
                     bindings,
                     lengths,
+                    fields,
                     hypotheses,
                     program,
                 )?;
@@ -1431,6 +1512,9 @@ fn scoped(
             ExpressionNode::Member(_) => {
                 let value = length_occurrence(program, expression, lengths)
                     .and_then(|length| length.value.clone())
+                    .or_else(|| {
+                        scalar_field_occurrence(program, machine, state, expression, fields)
+                    })
                     .or_else(|| field_occurrence(program, machine, state, expression))
                     .or_else(|| literal_window_length(program, expression))?;
                 projections.push(ScopedArithmeticBinding {

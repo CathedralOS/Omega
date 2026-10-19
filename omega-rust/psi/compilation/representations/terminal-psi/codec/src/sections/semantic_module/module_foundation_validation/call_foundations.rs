@@ -759,8 +759,11 @@ pub(super) fn validate_register_access(
     let OperationKind::RegisterAccess { service, event } = &operation.kind else {
         return malformed("register validator received another operation");
     };
-    if !has_service(module, *service) || !event.operation().is_admitted() {
-        return malformed("register access has no declared service or admitted register");
+    if !event.operation().is_admitted()
+        || service.is_some() != event.operation().requires_service_authority()
+        || service.is_some_and(|service| !has_service(module, service))
+    {
+        return malformed("register access disagrees with its catalog service authority");
     }
     let matches_carrier = |scalar, carrier: terminal_psi::RegisterCarrier| {
         matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer)

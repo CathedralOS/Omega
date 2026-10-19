@@ -231,12 +231,13 @@ pub(super) enum OpaqueTerm {
         count: Polynomial,
         count_bits: u32,
     },
-    /// An integer bitwise-AND keeps both inputs and the shared carrier's
-    /// shape (`bits` wide, two's complement when `signed`). The operation
+    /// An integer bitwise operation keeps its operator, both inputs and the
+    /// shared carrier's shape (`bits` wide, two's complement when `signed`). The operation
     /// is total -- every operand pairing lands inside that carrier -- so
     /// the term carries no divisor/count-style side condition, only the
     /// shape its interval reads sign corners from.
-    BitwiseAnd {
+    Bitwise {
+        operator: BinaryOperator,
         left: Polynomial,
         right: Polynomial,
         bits: u32,
@@ -394,12 +395,13 @@ impl<'program> Engine<'program> {
                     count,
                     count_bits,
                 } => self.shift_right_interval(&value, &count, count_bits),
-                OpaqueTerm::BitwiseAnd {
+                OpaqueTerm::Bitwise {
+                    operator,
                     left,
                     right,
                     bits,
                     signed,
-                } => self.bitwise_and_interval(&left, &right, bits, signed),
+                } => self.bitwise_interval(operator, &left, &right, bits, signed),
             };
             self.arithmetic_intervals.insert(atom.clone(), interval);
             if let Some((operator, left, right)) = operation {
@@ -516,7 +518,8 @@ impl<'program> Engine<'program> {
                         self.shift_right_interval(&value, &count, count_bits),
                     )
                 }
-                OpaqueTerm::BitwiseAnd {
+                OpaqueTerm::Bitwise {
+                    operator,
                     left,
                     right,
                     bits,
@@ -532,10 +535,10 @@ impl<'program> Engine<'program> {
                     else {
                         continue;
                     };
-                    (
-                        format!("\0integer-bitwise-and:{left:?}&{right:?}"),
-                        self.bitwise_and_interval(&left, &right, bits, signed),
-                    )
+                    if let Some(value) = self.integer_bitwise(operator, left, right, bits, signed) {
+                        argument_map.insert(atom, value);
+                    }
+                    continue;
                 }
             };
             // An unchanged operand re-mints the same atom and keeps its
@@ -1277,12 +1280,20 @@ impl<'program> Engine<'program> {
                         | BinaryOperator::BitwiseXor
                 ) =>
             {
-                self.selected_closed_bitwise_value(expression, &binary)
+                self.selected_bitwise_value(expression, &binary)
             }
             ExpressionNode::Binary(binary)
                 if !self.selected_binary_meaning(expression, &binary) =>
             {
                 None
+            }
+            ExpressionNode::Binary(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                ) =>
+            {
+                self.selected_exact_shift_value(expression, &binary)
             }
             ExpressionNode::Binary(binary)
                 if !proof_integer_expression(self.program, expression)

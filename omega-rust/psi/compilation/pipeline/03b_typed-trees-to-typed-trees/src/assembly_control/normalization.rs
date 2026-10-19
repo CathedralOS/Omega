@@ -709,7 +709,23 @@ fn normalize_graph(
         body_status: owner.body_status,
         ..Default::default()
     };
-    let state_names: Vec<_> = blocks.iter().map(|block| block.label.clone()).collect();
+    // The helper's ordinary entry state is independent of every assembly
+    // label. Only an authored `entry` collides with that ordinary entry state:
+    // give it an unspellable ordinal name and use the same map for declarations
+    // and edge targets. Preserve every other label so proof diagnostics retain
+    // the authored names. Block handles, contracts and statement windows stay
+    // unchanged, including backward edges to an authored `entry`.
+    let state_names: Vec<_> = blocks
+        .iter()
+        .enumerate()
+        .map(|(index, block)| {
+            if block.label.as_str() == "entry" {
+                Identifier::generated(format!("asm#label#{index}#entry"))
+            } else {
+                block.label.clone()
+            }
+        })
+        .collect();
     let state_symbols = program.symbols.insert_generated_children(
         helper_symbol,
         std::iter::once((SymbolKind::State, "entry")).chain(

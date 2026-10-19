@@ -323,6 +323,8 @@ impl AsmControlRegister {
 /// which AsmInstructionContract does not model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AsmSystemRegister {
+    /// The catalog observation is the PUSHFQ image (RF and VM cleared).
+    Rflags,
     SctlrEl1,
     TcrEl1,
     Ttbr0El1,
@@ -335,6 +337,13 @@ pub enum AsmSystemRegister {
 }
 
 impl AsmSystemRegister {
+    pub const fn target_applicability(self) -> AsmTargetApplicability {
+        match self {
+            Self::Rflags => AsmTargetApplicability::X86_64,
+            _ => AsmTargetApplicability::Aarch64,
+        }
+    }
+
     /// Stable catalog identity, independent of architectural instruction bits.
     pub const fn catalog_id(self) -> u8 {
         match self {
@@ -347,6 +356,7 @@ impl AsmSystemRegister {
             Self::TpidrEl1 => 6,
             Self::EsrEl1 => 7,
             Self::FarEl1 => 8,
+            Self::Rflags => 9,
         }
     }
 
@@ -361,11 +371,13 @@ impl AsmSystemRegister {
             6 => Some(Self::TpidrEl1),
             7 => Some(Self::EsrEl1),
             8 => Some(Self::FarEl1),
+            9 => Some(Self::Rflags),
             _ => None,
         }
     }
 
-    const ALL: [Self; 9] = [
+    const ALL: [Self; 10] = [
+        Self::Rflags,
         Self::SctlrEl1,
         Self::TcrEl1,
         Self::Ttbr0El1,
@@ -400,6 +412,7 @@ impl AsmSystemRegister {
             Self::TpidrEl1 => "tpidr_el1",
             Self::EsrEl1 => "esr_el1",
             Self::FarEl1 => "far_el1",
+            Self::Rflags => "rflags",
         }
     }
 
@@ -414,6 +427,7 @@ impl AsmSystemRegister {
             Self::TpidrEl1 => "read_tpidr_el1",
             Self::EsrEl1 => "read_esr_el1",
             Self::FarEl1 => "read_far_el1",
+            Self::Rflags => "pushfq",
         }
     }
 
@@ -426,7 +440,7 @@ impl AsmSystemRegister {
             Self::MairEl1 => Some("write_mair_el1"),
             Self::VbarEl1 => Some("write_vbar_el1"),
             Self::TpidrEl1 => Some("write_tpidr_el1"),
-            Self::EsrEl1 | Self::FarEl1 => None,
+            Self::EsrEl1 | Self::FarEl1 | Self::Rflags => None,
         }
     }
 
@@ -441,6 +455,7 @@ impl AsmSystemRegister {
             Self::TpidrEl1 => "asm#read_tpidr_el1",
             Self::EsrEl1 => "asm#read_esr_el1",
             Self::FarEl1 => "asm#read_far_el1",
+            Self::Rflags => "asm#pushfq",
         }
     }
 
@@ -453,7 +468,7 @@ impl AsmSystemRegister {
             Self::MairEl1 => Some("asm#write_mair_el1"),
             Self::VbarEl1 => Some("asm#write_vbar_el1"),
             Self::TpidrEl1 => Some("asm#write_tpidr_el1"),
-            Self::EsrEl1 | Self::FarEl1 => None,
+            Self::EsrEl1 | Self::FarEl1 | Self::Rflags => None,
         }
     }
 
@@ -1035,6 +1050,20 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         )));
     }
     if let Some(register) = AsmSystemRegister::from_read_mnemonic(mnemonic) {
+        if register == AsmSystemRegister::Rflags {
+            return Some(Contract(AsmInstructionContract {
+                availability: UserChecked,
+                shape: FlagsSnapshot,
+                target: X86_64,
+                required_authority: NoAuthority,
+                operands: FLAGS_SNAPSHOT_OPERANDS,
+                memory_ordering: NoOrdering,
+                interrupt_flag_effect: NoInterruptChange,
+                flags_data_flow: SnapshotFlags,
+                clobbers: FLAGS_OPERAND_CLOBBERS,
+            }));
+        }
+
         let operands = match register {
             AsmSystemRegister::SctlrEl1 => SCTLR_EL1_READ_OPERANDS,
             AsmSystemRegister::TcrEl1 => TCR_EL1_READ_OPERANDS,
@@ -1045,6 +1074,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             AsmSystemRegister::TpidrEl1 => TPIDR_EL1_READ_OPERANDS,
             AsmSystemRegister::EsrEl1 => ESR_EL1_READ_OPERANDS,
             AsmSystemRegister::FarEl1 => FAR_EL1_READ_OPERANDS,
+            AsmSystemRegister::Rflags => unreachable!("snapshot contract returned above"),
         };
         return Some(Contract(AsmInstructionContract::machine_authority(
             AsmInstructionShape::SystemRegisterRead(register),
@@ -1062,7 +1092,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             AsmSystemRegister::MairEl1 => MAIR_EL1_WRITE_OPERANDS,
             AsmSystemRegister::VbarEl1 => VBAR_EL1_WRITE_OPERANDS,
             AsmSystemRegister::TpidrEl1 => TPIDR_EL1_WRITE_OPERANDS,
-            AsmSystemRegister::EsrEl1 | AsmSystemRegister::FarEl1 => {
+            AsmSystemRegister::EsrEl1 | AsmSystemRegister::FarEl1 | AsmSystemRegister::Rflags => {
                 unreachable!("syndrome registers have no source write form")
             }
         };
@@ -1170,17 +1200,6 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             interrupt_flag_effect: EnableAfterNextInstruction,
             flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
-        }),
-        "pushfq" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: FlagsSnapshot,
-            target: X86_64,
-            required_authority: NoAuthority,
-            operands: FLAGS_SNAPSHOT_OPERANDS,
-            memory_ordering: NoOrdering,
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: SnapshotFlags,
-            clobbers: FLAGS_OPERAND_CLOBBERS,
         }),
         "popfq" => Contract(AsmInstructionContract {
             availability: UserChecked,

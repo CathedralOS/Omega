@@ -10,6 +10,7 @@
 
 mod borrowed_storage;
 mod descriptor_io;
+mod processor_flags;
 mod runtime_abi;
 mod scalar_reference;
 
@@ -20,5 +21,6 @@ pub use borrowed_storage::{
 pub use descriptor_io::{
     DescriptorAbi, DescriptorOperation, descriptor_import, descriptor_system_call,
 };
+pub use processor_flags::capture_host_x86_flags;
 pub use runtime_abi::build_runtime_abi_plan;
 pub use scalar_reference::ScalarStorageCodec;

@@ -401,7 +401,7 @@ pub enum LegalizedScalarInstructionKind {
         indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     RegisterAccess {
-        service: semantic_vocabulary::ServiceId,
+        service: Option<semantic_vocabulary::ServiceId>,
         event: terminal_psi::RegisterAccessEvent,
     },
     PortWrite {

@@ -81,6 +81,11 @@ impl CurrentScalarValues<'_> {
                 }
             }
         }
+        let fields = if entry.symbol == self.state.symbol {
+            self.fields.as_slice()
+        } else {
+            &[]
+        };
         if !admitted(
             self.program,
             self.machine,
@@ -89,6 +94,7 @@ impl CurrentScalarValues<'_> {
             expression,
             &bindings,
             &lengths,
+            fields,
             0,
         ) {
             return None;
@@ -100,6 +106,7 @@ impl CurrentScalarValues<'_> {
             expression,
             &bindings,
             &lengths,
+            fields,
             &self.hypotheses,
             self.program,
         )?;

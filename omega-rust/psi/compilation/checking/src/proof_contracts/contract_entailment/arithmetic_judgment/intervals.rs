@@ -4,9 +4,9 @@
 //! operator-aware judgments on top of it.
 
 use super::super::BigInt;
-use super::{Engine, OpaqueTerm, Polynomial};
+use super::{BinaryOperator, Engine, OpaqueTerm, Polynomial};
 use crate::proof_contracts::arithmetic_domains::{
-    BigIntInterval as Interval, bitwise_and_constants, bitwise_carrier_bounds, floor_shift_right,
+    BigIntInterval as Interval, bitwise_carrier_bounds, floor_shift_right,
 };
 
 impl<'program> Engine<'program> {
@@ -398,28 +398,46 @@ impl<'program> Engine<'program> {
         )
     }
 
-    /// Normalize an independently admitted integer bitwise-AND. The caller
-    /// owns selected meaning, the shared primitive's agreement, and each
-    /// operand's landing; `a & b` is total inside the `bits`-wide carrier
-    /// (two's complement when `signed`), so the term's mathematical value
-    /// needs no side condition. Retain both operands: a runtime mask is an
-    /// independently transported value too.
-    pub(super) fn integer_bitwise_and(
+    /// Exact known bits compose only through admitted fixed-carrier bitwise
+    /// terms. This proves masked observations without assigning values to
+    /// unknown bits, enumerating intervals' endpoints, or discarding operand
+    /// formation. Carrier identity participates in every opaque term key.
+    pub(super) fn integer_bitwise(
         &mut self,
+        operator: BinaryOperator,
         left: Polynomial,
         right: Polynomial,
         bits: u32,
         signed: bool,
     ) -> Option<Polynomial> {
-        if let (Some(left), Some(right)) = (left.constant_value(), right.constant_value()) {
-            return bitwise_and_constants(&left, &right, bits, signed).map(Polynomial::constant);
+        let mask = Self::carrier_mask(bits)?;
+        let left = self.substituted(&left);
+        let right = self.substituted(&right);
+        if left == right {
+            return match operator {
+                BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr => Some(left),
+                BinaryOperator::BitwiseXor => Some(Polynomial::constant(BigInt::zero())),
+                _ => None,
+            };
         }
-        let interval = self.bitwise_and_interval(&left, &right, bits, signed);
-        // Match quotient identity: normalized operands, not source spelling.
-        let atom = format!("\0integer-bitwise-and:{left:?}&{right:?}");
+        let (lz, lo) = self.known_integer_bits(&left, bits, signed, 0);
+        let (rz, ro) = self.known_integer_bits(&right, bits, signed, 0);
+        let (zero, one) = Self::combine_known_bits(operator, (lz, lo), (rz, ro))?;
+        if zero | one == mask {
+            let value = BigInt::from_u64(one);
+            let value = if signed && one & (1 << (bits - 1)) != 0 {
+                value.sub(&BigInt::from_u64(mask).add(&BigInt::from_i64(1)))
+            } else {
+                value
+            };
+            return Some(Polynomial::constant(value));
+        }
+        let interval = self.bitwise_interval(operator, &left, &right, bits, signed);
+        let atom = format!("\0integer-bitwise:{operator:?}:{bits}:{signed}:{left:?}:{right:?}");
         self.register_opaque_term(
             atom.clone(),
-            OpaqueTerm::BitwiseAnd {
+            OpaqueTerm::Bitwise {
+                operator,
                 left,
                 right,
                 bits,
@@ -428,6 +446,105 @@ impl<'program> Engine<'program> {
         );
         self.arithmetic_intervals.insert(atom.clone(), interval);
         Some(Polynomial::atom(atom))
+    }
+
+    fn carrier_mask(bits: u32) -> Option<u64> {
+        match bits {
+            1..=63 => Some((1u64 << bits) - 1),
+            64 => Some(u64::MAX),
+            _ => None,
+        }
+    }
+
+    fn combine_known_bits(
+        operator: BinaryOperator,
+        (az, ao): (u64, u64),
+        (bz, bo): (u64, u64),
+    ) -> Option<(u64, u64)> {
+        Some(match operator {
+            BinaryOperator::BitwiseAnd => (az | bz, ao & bo),
+            BinaryOperator::BitwiseOr => (az & bz, ao | bo),
+            BinaryOperator::BitwiseXor => ((az & bz) | (ao & bo), (az & bo) | (ao & bz)),
+            _ => return None,
+        })
+    }
+
+    fn known_integer_bits(
+        &self,
+        value: &Polynomial,
+        bits: u32,
+        signed: bool,
+        depth: usize,
+    ) -> (u64, u64) {
+        let Some(mask) = Self::carrier_mask(bits) else {
+            return (0, 0);
+        };
+        if depth >= 64 {
+            return (0, 0);
+        }
+        let value = self.substituted(value);
+        if let Some(value) = value.constant_value() {
+            let (minimum, maximum) = bitwise_carrier_bounds(bits, signed);
+            if value < minimum || value > maximum {
+                return (0, 0);
+            }
+            let value = if value < BigInt::zero() {
+                value.add(&BigInt::from_u64(mask).add(&BigInt::from_i64(1)))
+            } else {
+                value
+            };
+            return value
+                .to_u64()
+                .map(|value| ((!value) & mask, value & mask))
+                .unwrap_or((0, 0));
+        }
+        let Some((atom, 1, constant)) = value.as_single_atom() else {
+            return (0, 0);
+        };
+        if !constant.is_zero() {
+            return (0, 0);
+        }
+        let Some((
+            _,
+            OpaqueTerm::Bitwise {
+                operator,
+                left,
+                right,
+                bits: term_bits,
+                signed: term_signed,
+            },
+        )) = self.opaque_terms.iter().find(|(name, _)| *name == atom)
+        else {
+            return (0, 0);
+        };
+        if *term_bits != bits || *term_signed != signed {
+            return (0, 0);
+        }
+        Self::combine_known_bits(
+            *operator,
+            self.known_integer_bits(left, bits, signed, depth + 1),
+            self.known_integer_bits(right, bits, signed, depth + 1),
+        )
+        .unwrap_or((0, 0))
+    }
+
+    pub(super) fn bitwise_interval(
+        &self,
+        operator: BinaryOperator,
+        left: &Polynomial,
+        right: &Polynomial,
+        bits: u32,
+        signed: bool,
+    ) -> Interval {
+        if operator == BinaryOperator::BitwiseAnd {
+            self.bitwise_and_interval(left, right, bits, signed)
+        } else {
+            let (minimum, maximum) = bitwise_carrier_bounds(bits, signed);
+            Interval {
+                low: Some(minimum),
+                high: Some(maximum),
+            }
+        }
     }
 
     /// The interval an integer bitwise-AND atom takes from its operands'

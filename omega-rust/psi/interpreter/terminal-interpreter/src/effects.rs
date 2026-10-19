@@ -18,6 +18,7 @@ pub(crate) mod storage_loans;
 use crate::effects::byte_buffers::TerminalBoundaryByteBuffer;
 use crate::effects::results::TerminalEffectResult;
 use crate::effects::storage_loans::TerminalBoundaryStorageBuffer;
+use crate::errors::TerminalInterpretError;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId};
 use std::collections::BTreeMap;
@@ -136,6 +137,7 @@ pub use terminal_installation::{
 /// adapters or external-completion authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalRuntimeSupplies {
+    pub(crate) x86_flags: Option<TerminalX86FlagsEnvironment>,
     pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
     pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
@@ -157,6 +159,8 @@ pub(crate) enum AdmittedBoundarySupply {
 /// choose imports on its behalf. Actual adapters remain instance-bound.
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalRuntimeSupplyRequest<'installation> {
+    /// Explicit modeled processor state. Absence supplies no PUSHFQ capability.
+    pub x86_flags: Option<TerminalX86FlagsEnvironment>,
     /// Requested retained callable; absence selects the artifact's default.
     /// This supplies no parameter backing or host/provider authority.
     pub entry: Option<terminal_psi::TargetMachineCallable>,
@@ -171,6 +175,7 @@ pub struct TerminalRuntimeSupplyRequest<'installation> {
 impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntimeSupplies {
     fn from(selected: &terminal_installation::AdmittedProviderSelections) -> Self {
         Self {
+            x86_flags: None,
             terminal_psi: selected.terminal_psi(),
             entry: None,
             supplies: selected
@@ -224,5 +229,28 @@ pub struct AcceptTerminalEffects;
 impl TerminalEffectHandler for AcceptTerminalEffects {
     fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         Ok(())
+    }
+}
+
+/// Receiving-host selected x86 processor flags, independent of host authority.
+/// The model supplies an architectural state, never an instruction callback.
+/// No flag-changing operation is supported by this read-only environment yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalX86FlagsEnvironment {
+    rflags: u64,
+}
+impl TerminalX86FlagsEnvironment {
+    pub fn new(rflags: u64) -> Result<Self, TerminalInterpretError> {
+        // Reserved bits are fixed: bit 1 is set; bits 3, 5, 15 and 22..63
+        // are clear. RF/VM may exist in the state but PUSHFQ clears their image.
+        if rflags & 2 == 0 || rflags & !0x3f7fd7 != 0 {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "invalid x86 flags environment: reserved RFLAGS bits",
+            ));
+        }
+        Ok(Self { rflags })
+    }
+    pub(crate) fn snapshot(self) -> u64 {
+        self.rflags & !((1 << 16) | (1 << 17))
     }
 }

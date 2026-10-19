@@ -17,7 +17,7 @@ pub(super) enum AuthorityEdge {
         operation: semantic_vocabulary::OperationId,
     },
     CheckedRegister {
-        service: semantic_vocabulary::ServiceId,
+        service: Option<semantic_vocabulary::ServiceId>,
         register_operation: terminal_psi::RegisterOperation,
         operation: semantic_vocabulary::OperationId,
     },

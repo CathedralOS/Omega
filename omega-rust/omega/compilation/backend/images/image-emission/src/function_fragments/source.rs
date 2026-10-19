@@ -1022,17 +1022,45 @@ pub(super) fn temporary_stack_bytes(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     machine: MachineId,
 ) -> Result<u32, Error> {
-    if source.source().text_section().target.architecture != target::Architecture::X86_64 {
-        return Ok(0);
-    }
     let fragment = fragments(source).function(machine).ok_or(Error::Mismatch(
         "missing current fragment for temporary stack replay",
     ))?;
-    Ok(if fragment.instructions().any(|instruction| {
-        matches!(instruction.alternative.family, selected_instructions::MachineAlternativeFamily::NearestIeeeFloatArithmetic(form)
-            if form.operation.rounding_direction().is_some())
-    }) { 16 } else { 0 })
+    let current = source.source().source().source().source();
+    let encoding = current.encoding();
+    let instructions = fragment
+        .instructions()
+        .map(|instruction| instruction.instruction)
+        .collect::<std::collections::BTreeSet<_>>();
+    // These exact current footprints have already passed selected-form and
+    // whole-function admission. Consume their typed temporary peak rather
+    // than guessing a byte count from an instruction family. Sequential and
+    // mutually exclusive temporary envelopes compose by maximum; none is live
+    // across another instruction or a call.
+    Ok(temporary_stack_peak(
+        encoding
+            .rows()
+            .iter()
+            .filter(|row| instructions.contains(&row.instruction))
+            .filter_map(|row| encoding.encoded().footprint(row.footprint))
+            .map(|footprint| &footprint.encoded),
+    ))
 }
+
+fn temporary_stack_peak<'effects>(
+    effects: impl Iterator<Item = &'effects selected_instructions::MachineEncodedEffects>,
+) -> u32 {
+    effects
+        .filter_map(|effects| match effects.stack {
+            selected_instructions::MachineEncodedStackEffect::TemporaryBytesV1 {
+                byte_count,
+                ..
+            } => Some(u32::from(byte_count)),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0)
+}
+
 pub(super) fn call_target_matches(
     expected: abstract_operations::AbstractCallTarget,
     actual: target_operations::NativeCallTarget,

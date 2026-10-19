@@ -716,7 +716,9 @@ pub(crate) fn derive_component_inventory(
                         port_writes.insert((*service, *port, *value));
                     }
                     OperationKind::RegisterAccess { service, event } => {
-                        register_accesses.insert((*service, event.operation()));
+                        if let Some(service) = service {
+                            register_accesses.insert((*service, event.operation()));
+                        }
                     }
                     OperationKind::Call { .. }
                     | OperationKind::CallUnit { .. }

@@ -477,7 +477,7 @@ pub enum AbstractOperation {
     },
     RegisterAccess {
         psi_operation: OperationId,
-        service: ServiceId,
+        service: Option<ServiceId>,
         event: terminal_psi::RegisterAccessEvent,
         result: Option<AbstractResult>,
     },

@@ -514,7 +514,9 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 113 | ByteSequenceSubslice | source place id + structural access + structural path + start value id + end value id + length value id + obligation id |
 | 114 | ElementViewSubslice | source place id + structural access + structural path + start value id + end value id + length value id + obligation id |
 | 115 | ByteSequenceLength | source place id + structural access + structural path |
+| 121 | RegisterAccess | service id + `u16` catalog identity + declared scalar input IDs |
 | 125 | TransformContent | counted structural arguments containing exactly one raw payload + counted parent structural arguments + counted content transformation derivations |
+| 126 | RegisterObservation | `u16` catalog identity + declared scalar input IDs; no service authority |
 
 A byte-sequence operand is `u8` 2 + whole source structural argument + length value id,
 or `u8` 1 + source place id + structural access + structural path + field id
@@ -1752,3 +1754,14 @@ cost or runtime charging. Structural call placement must preserve the
 [borrow identity contract](structural_access.md);
 it cannot stage every borrowed parameter as an owned copy merely because the
 installation record can describe one.
+
+### Register event service authority
+
+Register events with service authority retain operation tag 121, followed by
+the nonzero `ServiceId`, the `u16` catalog operation identity and its declared
+scalar input IDs. Tag 126 encodes a register observation without service
+authority, followed by the catalog identity and declared input IDs. The current
+no-authority observation is exactly `SystemRead(Rflags)`, whose semantics are
+the x86 PUSHFQ image. Both decoding and structural admission reject a tag whose
+service presence differs from the catalog. Target and environment admission
+remain required; an absent service supplies neither a target nor environment.

@@ -82,7 +82,8 @@ pub use effects::{
     AcceptTerminalEffects, AdmittedAssumedBinding, AdmittedTargetLayouts,
     AdmittedTargetMachineSelections, AssumedBindingSelection, ProviderInstallationSelection,
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalRuntimeSupplies,
-    TerminalRuntimeSupplyRequest, admit_target_layouts, admit_target_machine_selections,
+    TerminalRuntimeSupplyRequest, TerminalX86FlagsEnvironment, admit_target_layouts,
+    admit_target_machine_selections,
 };
 pub use errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,

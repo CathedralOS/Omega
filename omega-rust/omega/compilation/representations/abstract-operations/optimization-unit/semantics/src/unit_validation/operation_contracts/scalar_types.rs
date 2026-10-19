@@ -55,12 +55,13 @@ pub(crate) fn operation_scalar_types_match(
     match operation {
         O::StorageAddress { result, .. } => matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
             && scalar(result.value) == Some(result.scalar_type),
-        O::RegisterAccess { event, result, .. } => {
+        O::RegisterAccess { service, event, result, .. } => {
             let matches_carrier = |scalar, bits| matches!(scalar, ScalarType::Integer(integer)
                 if fixed(integer) && integer.bits() == bits
                     && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
             let signature = event.operation();
             signature.is_admitted()
+                && service.is_some() == signature.requires_service_authority()
                 && match (signature.result_carrier(), result) {
                     (None, None) => true,
                     (Some(carrier), Some(result)) => matches_carrier(result.scalar_type, carrier.bits())

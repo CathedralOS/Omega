@@ -192,8 +192,13 @@ helper that passes does not close an item.
   mov/sub/jnz cohort now transports immutable register/ZF versions through
   conditional and backward edges, retaining exact target demands and ordinary
   custody; `samples/cli/facts/checked_asm_countdown` covers nine places and false
-  fallthrough twins with Linux native/Terminal agreement. Other ISA/register
-  views, indexed memory/address composition, hardware flag observations,
+  fallthrough twins with Linux native/Terminal agreement. Catalog-admitted u32
+  SUB and structured PUSHFQ now carry all six arithmetic flags through ordinary
+  label obligations, retained values, field stores and parameter contracts;
+  `samples/cli/facts/checked_asm_flag_snapshot` covers native/Terminal x86
+  observations and false-invariant/clobber/write-invalidation controls. Other
+  ISA/register views, unmodeled flag production, indexed memory/address
+  composition, hardware flag restoration,
   ranking-witness transport for promised termination, and checked hardware-effect
   retirement of the exact linear obligation remain unfinished.
   Extend that control model rather than adding an opaque asm parser or verifier.

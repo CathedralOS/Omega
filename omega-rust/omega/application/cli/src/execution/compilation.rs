@@ -95,6 +95,7 @@ pub(super) fn interpret_product(
             "native report lost its produced Terminal artifact before comparison",
         ))?;
     compiler::runtime::execute(TerminalRuntimeRequest {
+        x86_flags: compiler::runtime::capture_host_x86_flags(target)?,
         provider_proposal: None,
         artifact,
         target: Some(target),

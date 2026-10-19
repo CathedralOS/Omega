@@ -543,16 +543,22 @@ pub(super) fn decode_port_write(reader: &mut Reader<'_>) -> Result<OperationKind
 
 pub(super) fn encode_register_access(
     writer: &mut Writer,
-    service: ServiceId,
+    service: Option<ServiceId>,
     event: terminal_psi::RegisterAccessEvent,
 ) -> Result<(), CodecError> {
-    if !event.operation().is_admitted() {
+    if !event.operation().is_admitted()
+        || service.is_some() != event.operation().requires_service_authority()
+    {
         return Err(CodecError::MalformedStructuralFoundation(
-            "register access has no admitted catalog operation",
+            "register access disagrees with its catalog service authority",
         ));
     }
-    writer.u8(operation_tags::REGISTER_ACCESS);
-    writer.id(service);
+    if let Some(service) = service {
+        writer.u8(operation_tags::REGISTER_ACCESS);
+        writer.id(service);
+    } else {
+        writer.u8(operation_tags::REGISTER_OBSERVATION);
+    }
     writer.u16(event.operation().catalog_tag());
     for value in event.inputs() {
         writer.id(*value);
@@ -560,12 +566,24 @@ pub(super) fn encode_register_access(
     Ok(())
 }
 
-pub(super) fn decode_register_access(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
-    let service = reader.id("ServiceId")?;
+pub(super) fn decode_register_access(
+    reader: &mut Reader<'_>,
+    requires_service: bool,
+) -> Result<OperationKind, CodecError> {
+    let service = if requires_service {
+        Some(reader.id("ServiceId")?)
+    } else {
+        None
+    };
     let tag = reader.u16()?;
     let operation = terminal_psi::RegisterOperation::from_catalog_tag(tag).ok_or(
         CodecError::MalformedStructuralFoundation("unknown register access catalog identity"),
     )?;
+    if service.is_some() != operation.requires_service_authority() {
+        return Err(CodecError::MalformedStructuralFoundation(
+            "register access wire tag disagrees with catalog service authority",
+        ));
+    }
     let event = match operation {
         terminal_psi::RegisterOperation::ProcessorHalt => {
             terminal_psi::RegisterAccessEvent::ProcessorHalt

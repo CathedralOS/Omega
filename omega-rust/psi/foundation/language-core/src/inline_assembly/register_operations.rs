@@ -97,6 +97,12 @@ impl AsmRegisterOperation {
             .or_else(|| AsmSystemRegister::from_write_intrinsic_name(name).map(Self::SystemWrite))
     }
 
+    /// Only the catalogued PUSHFQ observation has no service authority.
+    /// Environment supply and target compatibility remain separate obligations.
+    pub const fn requires_service_authority(self) -> bool {
+        !matches!(self, Self::SystemRead(AsmSystemRegister::Rflags))
+    }
+
     pub const fn produces_value(self) -> bool {
         self.result_carrier().is_some()
     }
@@ -125,7 +131,9 @@ impl AsmRegisterOperation {
 
     pub const fn target_applicability(self) -> AsmTargetApplicability {
         match self {
-            Self::SystemRead(_) | Self::SystemWrite(_) => AsmTargetApplicability::Aarch64,
+            Self::SystemRead(register) | Self::SystemWrite(register) => {
+                register.target_applicability()
+            }
             _ => AsmTargetApplicability::X86_64,
         }
     }

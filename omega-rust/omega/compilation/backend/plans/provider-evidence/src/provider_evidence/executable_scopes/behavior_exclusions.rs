@@ -640,7 +640,10 @@ fn inspect_machine<'module>(
                     }
                 }
                 OperationKind::PortWrite { service, .. }
-                | OperationKind::RegisterAccess { service, .. } => {
+                | OperationKind::RegisterAccess {
+                    service: Some(service),
+                    ..
+                } => {
                     if exclusions.excludes_service(*service) {
                         report.prohibited.push(ProhibitedBehavior {
                             exclusion: BehaviorExclusion::Service(*service),

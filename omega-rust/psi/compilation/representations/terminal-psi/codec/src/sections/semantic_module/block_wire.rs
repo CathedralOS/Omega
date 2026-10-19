@@ -1050,7 +1050,10 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         operation_tags::CALL_DYNAMIC => call_operations::decode_call_dynamic(reader)?,
         operation_tags::BOUNDARY_CALL => call_operations::decode_boundary_call(reader)?,
         operation_tags::PORT_WRITE => call_operations::decode_port_write(reader)?,
-        operation_tags::REGISTER_ACCESS => call_operations::decode_register_access(reader)?,
+        operation_tags::REGISTER_ACCESS => call_operations::decode_register_access(reader, true)?,
+        operation_tags::REGISTER_OBSERVATION => {
+            call_operations::decode_register_access(reader, false)?
+        }
         operation_tags::ESTABLISH_ZEROED_STRUCTURAL => {
             value_operations::decode_establish_zeroed_structural(reader)?
         }

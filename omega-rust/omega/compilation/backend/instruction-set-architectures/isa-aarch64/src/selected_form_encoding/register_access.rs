@@ -101,6 +101,9 @@ pub(crate) fn encode(
         SystemRegister::TpidrEl1 => 0xc684,
         SystemRegister::EsrEl1 => 0xc290,
         SystemRegister::FarEl1 => 0xc300,
+        SystemRegister::Rflags => {
+            return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
+        }
     };
     let word = base | (u32::from(selector) << 5) | u32::from(*operand);
     Ok(word.to_le_bytes().to_vec())

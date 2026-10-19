@@ -84,6 +84,7 @@ fn qualify() -> Result<(), Box<dyn std::error::Error>> {
         }
         let started = Instant::now();
         let terminal = compiler::runtime::execute(TerminalRuntimeRequest {
+            x86_flags: None,
             provider_proposal: None,
             artifact,
             target: Some(target.target_name()),

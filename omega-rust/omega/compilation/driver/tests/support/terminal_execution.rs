@@ -141,7 +141,16 @@ pub(super) fn target_installations(
             matched = false;
             continue;
         }
+        let x86_flags = match compiler::runtime::capture_host_x86_flags(&target) {
+            Ok(flags) => flags,
+            Err(error) => {
+                observation.diagnostics.push(error.to_string());
+                matched = false;
+                continue;
+            }
+        };
         let result = compiler::runtime::execute(TerminalRuntimeRequest {
+            x86_flags,
             artifact,
             target: Some(&target),
             provisions,
@@ -256,7 +265,15 @@ pub(super) fn interpret(
         Ok(clock) => clock,
         Err(error) => return Observation::failure(error),
     };
+    let x86_flags = match target
+        .map(compiler::runtime::capture_host_x86_flags)
+        .transpose()
+    {
+        Ok(flags) => flags.flatten(),
+        Err(error) => return Observation::failure(error),
+    };
     let result = match compiler::runtime::execute(TerminalRuntimeRequest {
+        x86_flags,
         provider_proposal: None,
         artifact,
         target,

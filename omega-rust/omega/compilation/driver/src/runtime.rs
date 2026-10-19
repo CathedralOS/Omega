@@ -52,6 +52,7 @@ use terminal_interpreter::{
 };
 
 pub struct TerminalRuntimeRequest<'program> {
+    pub x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
     pub artifact: &'program terminal_codec::CanonicalTerminalArtifact,
     /// Exact deployment tag admitted by this invocation. Absence permits only
     /// execution scopes that do not demand a portable target-family head.
@@ -220,6 +221,7 @@ pub fn execute(
     }
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            x86_flags: request.x86_flags,
             entry: request
                 .provisions
                 .map(|provisions| terminal_psi::TargetMachineCallable::Machine(provisions.entry())),
@@ -314,4 +316,20 @@ pub fn execute(
         stdout,
         stderr,
     })
+}
+
+/// Observe this host's flags image for an explicitly selected x86 environment.
+/// Cross-architecture sponsors must supply their own modeled processor state.
+pub fn capture_host_x86_flags(
+    target: &str,
+) -> Result<Option<terminal_interpreter::TerminalX86FlagsEnvironment>, TerminalRuntimeError> {
+    if !terminal_psi::RegisterTargetApplicability::X86_64.accepts_target_name(target) {
+        return Ok(None);
+    }
+    let Some(image) = runtime_abi::capture_host_x86_flags() else {
+        return Ok(None);
+    };
+    terminal_interpreter::TerminalX86FlagsEnvironment::new(image)
+        .map(Some)
+        .map_err(TerminalRuntimeError::Requirements)
 }

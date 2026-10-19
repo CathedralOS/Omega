@@ -197,7 +197,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => {
             Some(SelectedConstraintKeys {
                 port_write: Some(isa_x86_64::X86_64_PORT_WRITE),
-                system_register_read: None,
+                system_register_read: Some(isa_x86_64::X86_64_FLAGS_SNAPSHOT),
                 system_register_write: None,
                 port_register_read: Some(isa_x86_64::X86_64_PORT_REGISTER_READ),
                 port_register_write: Some(isa_x86_64::X86_64_PORT_REGISTER_WRITE),
@@ -310,7 +310,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         }
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
             port_write: Some(isa_x86_64::X86_64_PORT_WRITE),
-            system_register_read: None,
+            system_register_read: Some(isa_x86_64::X86_64_FLAGS_SNAPSHOT),
             system_register_write: None,
             // These ISA declarations do not grant execution authority. Omitting
             // them here disagrees with the effect catalog even for ordinary calls.

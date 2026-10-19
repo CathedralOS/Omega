@@ -392,6 +392,8 @@ pub(super) fn install_nonpolynomial_terms(
                     | BinaryOperator::ShiftLeft
                     | BinaryOperator::ShiftRight
                     | BinaryOperator::BitwiseAnd
+                    | BinaryOperator::BitwiseOr
+                    | BinaryOperator::BitwiseXor
             ) {
                 if let Some(carrier) = admitted_carrier(program, machine, state, expression, 0)? {
                     let primitive = super::exact_integer_parameter(program, carrier)?;
@@ -409,10 +411,12 @@ pub(super) fn install_nonpolynomial_terms(
                                     primitive,
                                 )? as u32,
                             )?,
-                        // `&` is total inside the shared carrier, so the
+                        // Bitwise operations are total inside the shared carrier, so the
                         // term keeps the carrier's shape -- width and
                         // signedness -- rather than a defined-range bound.
-                        BinaryOperator::BitwiseAnd => engine.bind_strict_integer_bitwise_and(
+                        BinaryOperator::BitwiseAnd
+                        | BinaryOperator::BitwiseOr
+                        | BinaryOperator::BitwiseXor => engine.bind_strict_integer_bitwise(
                             expression,
                             crate::proof_contracts::arithmetic_domains::integer_bit_width(
                                 primitive,

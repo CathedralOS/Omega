@@ -28,6 +28,9 @@ pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
         Operation::ModelSpecificRead => Semantic::ModelSpecificRead,
         Operation::ModelSpecificWrite => Semantic::ModelSpecificWrite,
         Operation::ProcessorHalt => Semantic::ProcessorHalt,
+        Operation::SystemRead(selected_instructions::SystemRegister::Rflags) => {
+            Semantic::SystemRegisterRead
+        }
         _ => return None,
     })
 }
@@ -39,6 +42,9 @@ pub(crate) fn operation(semantic: Semantic) -> Option<Operation> {
         Semantic::ModelSpecificRead => Operation::ModelSpecificRead,
         Semantic::ModelSpecificWrite => Operation::ModelSpecificWrite,
         Semantic::ProcessorHalt => Operation::ProcessorHalt,
+        Semantic::SystemRegisterRead => {
+            Operation::SystemRead(selected_instructions::SystemRegister::Rflags)
+        }
         _ => return None,
     })
 }
@@ -52,6 +58,7 @@ pub(crate) fn family(operation: Operation) -> Result<Family, Error> {
 fn scratch(operation: Operation) -> &'static [&'static str] {
     match operation {
         Operation::PortRead => &["rax", "rdx", "r10"],
+        Operation::SystemRead(selected_instructions::SystemRegister::Rflags) => &["r10", "r15"],
         Operation::PortWrite => &["rax", "rdx", "r10", "r11"],
         Operation::ModelSpecificRead | Operation::ModelSpecificWrite => {
             &["rax", "rcx", "rdx", "r10", "r11"]
@@ -75,7 +82,7 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
         .collect::<Vec<_>>();
     clobbers.sort_unstable();
     clobbers.dedup();
-    MachineEncodedEffects {
+    let mut encoded = MachineEncodedEffects {
         implicit_unit_clobbers: clobbers,
         trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ..MachineEncodedEffects::fallthrough_v1(
@@ -86,7 +93,32 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
                 vec![]
             },
         )
+    };
+    if operation == Operation::SystemRead(selected_instructions::SystemRegister::Rflags) {
+        let stack_pointer = physical
+            .view_named("rsp")
+            .expect("canonical stack pointer")
+            .id;
+        encoded.implicit_unit_uses =
+            register_model::sorted_units(["rflags", "rsp"].into_iter().flat_map(|name| {
+                physical
+                    .view_named(name)
+                    .expect("canonical snapshot register")
+                    .units
+                    .iter()
+                    .copied()
+            }));
+        encoded.memory =
+            selected_instructions::MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+                stack_pointer,
+                byte_count: 8,
+            };
+        encoded.stack = selected_instructions::MachineEncodedStackEffect::TemporaryBytesV1 {
+            stack_pointer,
+            byte_count: 8,
+        };
     }
+    encoded
 }
 
 pub(crate) fn declaration(
@@ -96,7 +128,11 @@ pub(crate) fn declaration(
     MachineEffectDeclaration {
         semantic: semantic(operation).expect("x86 register operation"),
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
+        memory: if matches!(operation, Operation::SystemRead(_)) {
+            MachineMemoryEffect::TemporaryStackStorageV1
+        } else {
+            MachineMemoryEffect::NoneV1
+        },
         trap: MachineTrapBehavior::MayArchitecturalFaultV1,
         barrier: MachineBarrier::ExternalEffect,
         call: MachineCallEffect::NoneV1,
@@ -144,6 +180,18 @@ pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, 
         } else {
             Err(Error::OperandCountMismatch)
         };
+    }
+    if operation == Operation::SystemRead(selected_instructions::SystemRegister::Rflags) {
+        let [destination] = registers else {
+            return Err(Error::OperandCountMismatch);
+        };
+        if *destination > 15 || *destination == 4 {
+            return Err(Error::EncodedFormMismatch);
+        }
+        let mut bytes = vec![0x9c, 0x41, 0x5a]; // PUSHFQ; POP R10: net RSP zero, peak eight bytes.
+        move_register(&mut bytes, 10, 15, true);
+        move_register(&mut bytes, 15, *destination, true);
+        return Ok(bytes);
     }
     let [first, second] = registers else {
         return Err(Error::OperandCountMismatch);
@@ -213,6 +261,10 @@ pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, 
 
 #[derive(Clone, Copy)]
 enum Decoded {
+    PushFlags,
+    Pop {
+        destination: u8,
+    },
     Move {
         source: u8,
         destination: u8,
@@ -232,7 +284,26 @@ fn decode(bytes: &[u8]) -> Option<Vec<Decoded>> {
     let mut cursor = 0;
     let mut decoded = Vec::new();
     while cursor < bytes.len() {
+        if bytes[cursor] == 0x41 && matches!(bytes.get(cursor + 1), Some(0x58..=0x5f)) {
+            decoded.push(Decoded::Pop {
+                destination: 8 | (bytes[cursor + 1] & 7),
+            });
+            cursor += 2;
+            continue;
+        }
         match bytes[cursor] {
+            0x9c => {
+                decoded.push(Decoded::PushFlags);
+                cursor += 1;
+                continue;
+            }
+            0x58..=0x5f => {
+                decoded.push(Decoded::Pop {
+                    destination: bytes[cursor] & 7,
+                });
+                cursor += 1;
+                continue;
+            }
             0xf4 => {
                 decoded.push(Decoded::Physical(Operation::ProcessorHalt));
                 cursor += 1;
@@ -318,6 +389,23 @@ fn validate_bits(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option
             ))
         .then_some(());
     }
+    if operation == Operation::SystemRead(selected_instructions::SystemRegister::Rflags) {
+        let [destination] = registers else {
+            return None;
+        };
+        if *destination > 15 || *destination == 4 {
+            return None;
+        }
+        // Decode independently: one flags observation, one balanced pop into
+        // catalog scratch, and two full-width moves. No other stack access,
+        // flag write, hidden branch or non-catalog register change is admitted.
+        return matches!(decode(bytes)?.as_slice(), [
+            Decoded::PushFlags, Decoded::Pop { destination: 10 },
+            Decoded::Move { source: 10, destination: 15, bits: 64 },
+            Decoded::Move { source: 15, destination: actual, bits: 64 },
+        ] if actual == destination)
+        .then_some(());
+    }
     const ZERO: u16 = u16::MAX;
     const RESULT: u16 = 1024;
     let mut words = std::array::from_fn::<_, 16, _>(|register| {
@@ -359,6 +447,7 @@ fn validate_bits(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option
                 result[32..].copy_from_slice(&words[2][32..]);
                 words[destination as usize] = result;
             }
+            Decoded::PushFlags | Decoded::Pop { .. } => return None,
             Decoded::Physical(actual) => {
                 if actual != operation {
                     return None;
@@ -441,13 +530,15 @@ pub(crate) fn footprint(
     operands: &[RegisterViewId],
 ) -> X86_64SelectedFormFootprint {
     X86_64SelectedFormFootprint {
-        register_reads: if operation.produces_value() {
+        register_reads: if operation.input_carriers().is_empty() {
+            vec![]
+        } else if operation.produces_value() {
             vec![operands[0]]
         } else {
             operands.to_vec()
         },
         register_writes: if operation.produces_value() {
-            vec![operands[1]]
+            vec![operands[operation.input_carriers().len()]]
         } else {
             vec![]
         },
@@ -476,6 +567,51 @@ pub(crate) fn validate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flags_snapshot_has_one_balanced_full_width_observation() {
+        let operation = Operation::SystemRead(selected_instructions::SystemRegister::Rflags);
+        for destination in 0..16 {
+            if destination == 4 {
+                assert!(encode(operation, &[destination]).is_err());
+                continue;
+            }
+            let bytes = encode(operation, &[destination]).unwrap();
+            assert_eq!(bytes.len(), 9);
+            assert!(validate_bits(operation, &[destination], &bytes).is_some());
+            for end in 0..bytes.len() {
+                assert!(validate_bits(operation, &[destination], &bytes[..end]).is_none());
+            }
+            for index in 0..bytes.len() {
+                for bit in 0..8 {
+                    let mut changed = bytes.clone();
+                    changed[index] ^= 1 << bit;
+                    assert!(
+                        validate_bits(operation, &[destination], &changed).is_none(),
+                        "destination {destination}, byte {index}, bit {bit}"
+                    );
+                }
+            }
+            let mut doubled = bytes.clone();
+            doubled.extend(&bytes);
+            assert!(validate_bits(operation, &[destination], &doubled).is_none());
+        }
+        let encoded = effects(operation);
+        assert!(matches!(
+            encoded.memory,
+            selected_instructions::MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+                byte_count: 8,
+                ..
+            }
+        ));
+        assert!(matches!(
+            encoded.stack,
+            selected_instructions::MachineEncodedStackEffect::TemporaryBytesV1 {
+                byte_count: 8,
+                ..
+            }
+        ));
+    }
 
     #[test]
     fn processor_halt_is_one_operand_free_hardware_event() {

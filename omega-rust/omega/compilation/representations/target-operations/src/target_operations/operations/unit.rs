@@ -596,7 +596,7 @@ pub enum TargetUnitOperation {
     },
     RegisterAccess {
         psi_operation: OperationId,
-        service: ServiceId,
+        service: Option<ServiceId>,
         event: terminal_psi::RegisterAccessEvent<TargetUnitScalarArgumentSource>,
         /// Reads define this home; writes produce no scalar.
         result_home: Option<TargetUnitScalarHomeRequirement>,

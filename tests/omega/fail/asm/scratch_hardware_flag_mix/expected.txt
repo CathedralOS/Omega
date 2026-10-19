@@ -1,1 +1,0 @@
-scratch-register CFG flags cannot yet be combined

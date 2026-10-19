@@ -2,11 +2,30 @@
 //! A 32-bit write also changes its 64-bit containing register. Other aliases
 //! are not independent variables: they stay refused until shared-bit transfer
 //! is modeled. SP/BP views are excluded from this ordinary value-only cohort.
-pub const ASM_SCRATCH_SLOT_COUNT: usize = 15;
+pub const ASM_SCRATCH_SLOT_COUNT: usize = 21;
 pub const ASM_ZERO_FLAG_SLOT: usize = 14;
 pub const ASM_SCRATCH_NAMES: [&str; ASM_SCRATCH_SLOT_COUNT] = [
-    "eax", "ebx", "ecx", "edx", "esi", "edi", "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d",
-    "r15d", "zf",
+    "eax",
+    "ebx",
+    "ecx",
+    "edx",
+    "esi",
+    "edi",
+    "r8d",
+    "r9d",
+    "r10d",
+    "r11d",
+    "r12d",
+    "r13d",
+    "r14d",
+    "r15d",
+    "zf",
+    "asm#flags",
+    "asm#flags_environment",
+    "asm#sub_left",
+    "asm#sub_right",
+    "asm#flags_mask",
+    "asm#flags_snapshot",
 ];
 pub const ASM_SCRATCH_CLOBBERS: [&str; ASM_ZERO_FLAG_SLOT] = [
     "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",

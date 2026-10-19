@@ -213,7 +213,23 @@ pub fn x86_64_register_constraint_catalog(
         );
         row
     });
+    let mut flags_snapshot = instruction_row(
+        RegisterConstraintId(0),
+        crate::X86_64_FLAGS_SNAPSHOT,
+        vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+    );
+    flags_snapshot.implicit_uses = sorted_units(
+        ["rflags", "rsp"]
+            .into_iter()
+            .flat_map(|name| view(name).units.iter().copied()),
+    );
+    flags_snapshot.clobbers = sorted_units(
+        ["r10", "r15"]
+            .into_iter()
+            .flat_map(|name| view(name).units.iter().copied()),
+    );
     let mut constraints = vec![
+        flags_snapshot,
         port_write,
         instruction_row(
             RegisterConstraintId(0),

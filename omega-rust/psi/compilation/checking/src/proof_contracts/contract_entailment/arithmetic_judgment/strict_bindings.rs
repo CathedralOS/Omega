@@ -612,10 +612,10 @@ impl<'program> Engine<'program> {
     /// The rank-range owner has checked the selected builtin integer
     /// meaning and supplies the shared carrier's shape; the bound
     /// mathematical term does not excuse the endpoint's own operand
-    /// agreement and landing proofs. `a & b` is total inside its carrier,
+    /// agreement and landing proofs. Bitwise operations are total inside their carrier,
     /// so unlike division or a shift it attaches no operand obligation of
     /// its own.
-    pub(in crate::proof_contracts::contract_entailment) fn bind_strict_integer_bitwise_and(
+    pub(in crate::proof_contracts::contract_entailment) fn bind_strict_integer_bitwise(
         &mut self,
         expression: ExpressionHandle,
         bits: u32,
@@ -627,7 +627,9 @@ impl<'program> Engine<'program> {
         let left = self.normalize(binary.left)?;
         let right = self.normalize(binary.right)?;
         let value = match binary.operator {
-            BinaryOperator::BitwiseAnd => self.integer_bitwise_and(left, right, bits, signed)?,
+            BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
+                self.integer_bitwise(binary.operator, left, right, bits, signed)?
+            }
             _ => return None,
         };
         self.bind_strict_occurrence(expression, value).then_some(())

@@ -75,6 +75,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) program: std::sync::Arc<crate::program::AdmittedTerminalProgram<'artifact>>,
     /// One immutable selected route per boundary. Catalog alternatives are
     /// never a substitute for a checked installation or explicit host choice.
+    pub(crate) x86_flags: Option<crate::effects::TerminalX86FlagsEnvironment>,
     pub(crate) boundary_supplies:
         BTreeMap<BoundaryMachineId, crate::effects::AdmittedBoundarySupply>,
     /// Exact family catalog selection, never provider or boundary issuance.
@@ -403,6 +404,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             &structural_values,
         )?;
         let mut execution = Self {
+            x86_flags: installation.and_then(|supplies| supplies.x86_flags),
             program: std::sync::Arc::clone(&program),
             boundary_supplies: installation
                 .map(|installation| installation.supplies.clone())
@@ -748,6 +750,12 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     }
                                     OperationKind::PortWrite { .. } => {
                                         self.execute_port_write(operation, handler)?
+                                    }
+                                    OperationKind::RegisterAccess { event: terminal_psi::RegisterAccessEvent::Read { register: terminal_psi::SystemRegister::Rflags }, .. } => {
+                                        let image = self.x86_flags.ok_or(TerminalInterpretError::UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability::RegisterAccess { operation: terminal_psi::RegisterOperation::SystemRead(terminal_psi::SystemRegister::Rflags) }))?.snapshot();
+                                        let scalar_type = crate::scalar_operations::integer_scalar_type(operation)?;
+                                        if scalar_type != IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).map_err(|_| malformed())? { return Err(malformed()); }
+                                        self.store_scalar(operation, TerminalScalarValue::Integer { scalar_type, value: IntegerValue::Unsigned(image.into()) })?
                                     }
                                     OperationKind::RegisterAccess { event, .. } => {
                                         return Err(TerminalInterpretError::UnsupportedCapability(

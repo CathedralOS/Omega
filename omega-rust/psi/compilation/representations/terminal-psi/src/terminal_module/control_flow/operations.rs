@@ -882,10 +882,11 @@ pub enum OperationKind {
     },
     /// An observable machine-register event with evaluated scalar inputs.
     /// Reads produce the operation's scalar result; writes produce Unit.
-    /// Exact service authority and target applicability remain independent
-    /// admission requirements of the selected realization.
+    /// Service authority is present exactly when the catalog requires it;
+    /// the PUSHFQ observation has none. Target applicability and environment
+    /// supply remain independent admission requirements of the realization.
     RegisterAccess {
-        service: ServiceId,
+        service: Option<ServiceId>,
         event: super::RegisterAccessEvent,
     },
     IntegerConstant {

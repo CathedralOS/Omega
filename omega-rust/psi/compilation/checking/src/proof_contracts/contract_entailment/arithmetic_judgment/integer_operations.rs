@@ -144,31 +144,63 @@ impl Engine<'_> {
     /// Bitwise denotation belongs to the selected fixed carrier, independently
     /// of overflow policy. Substitute both operands before evaluation, but keep
     /// their declaration's operator selection and reject unlanded magnitudes.
-    /// Non-singleton ranges remain unknown; endpoint evaluation is unsound.
-    pub(super) fn selected_closed_bitwise_value(
+    /// Mask composition retains justified known bits; all other bits remain
+    /// unknown. Evaluating range endpoints is not a bitwise proof.
+    pub(super) fn selected_bitwise_value(
         &mut self,
         expression: typed_trees::expression::ExpressionHandle,
         binary: &typed_trees::expression::TableBinaryExpression,
     ) -> Option<Polynomial> {
-        use crate::proof_contracts::arithmetic_domains::{
-            admitted_integer, integer_magnitude, integer_type,
-        };
-        // AND/OR/XOR have no overloadable OperatorSpelling. The declaration's
-        // result query establishes compatible integer operands and contextual
-        // literals; a substituted number cannot supply that carrier itself.
+        // Bitwise operators have no overloadable spelling. The selected
+        // result query still establishes the common carrier; neither a mask
+        // nor substituted actuals can invent an operand's width or policy.
         let reference = self.source_result_type(expression)?;
-        let carrier = integer_type(self.program.primitive_type_reference(reference)?)?;
+        let primitive = self.program.primitive_type_reference(reference)?;
+        let bits = crate::proof_contracts::arithmetic_domains::integer_bit_width(primitive)? as u32;
         let left = self.normalize(binary.left)?;
         let right = self.normalize(binary.right)?;
-        let left = admitted_integer(carrier, &self.substituted(&left).constant_value()?)?;
-        let right = admitted_integer(carrier, &self.substituted(&right).constant_value()?)?;
-        let value = match binary.operator {
-            BinaryOperator::BitwiseAnd => carrier.bitwise_and(left, right),
-            BinaryOperator::BitwiseOr => carrier.bitwise_or(left, right),
-            BinaryOperator::BitwiseXor => carrier.bitwise_xor(left, right),
+        self.integer_bitwise(
+            binary.operator,
+            left,
+            right,
+            bits,
+            primitive.is_signed_integer(),
+        )
+    }
+
+    /// Normalize a selected Exact shift in a captured scalar expression.
+    /// Width belongs to the shifted carrier. Formation still separately owes
+    /// its count and result bounds. A shifted value or result with another
+    /// arithmetic policy cannot acquire this Exact denotation in a proof goal.
+    pub(super) fn selected_exact_shift_value(
+        &mut self,
+        expression: typed_trees::expression::ExpressionHandle,
+        binary: &typed_trees::expression::TableBinaryExpression,
+    ) -> Option<Polynomial> {
+        let value_type = self.source_result_type(binary.left)?;
+        let result_type = self.source_result_type(expression)?;
+        let primitive = self.program.primitive_type_reference(value_type)?;
+        if !primitive.is_fixed_integer()
+            || self.program.primitive_type_reference(result_type) != Some(primitive)
+            || self
+                .program
+                .arithmetic_domain_for_type_reference(value_type)
+                != ArithmeticDomain::Exact
+            || self
+                .program
+                .arithmetic_domain_for_type_reference(result_type)
+                != ArithmeticDomain::Exact
+        {
+            return None;
+        }
+        let bits = crate::proof_contracts::arithmetic_domains::integer_bit_width(primitive)? as u32;
+        let value = self.normalize(binary.left)?;
+        let count = self.normalize(binary.right)?;
+        match binary.operator {
+            BinaryOperator::ShiftLeft => self.integer_shift_left(value, count, bits),
+            BinaryOperator::ShiftRight => self.integer_shift_right(value, count, bits),
             _ => None,
-        }?;
-        Some(Polynomial::constant(integer_magnitude(value)))
+        }
     }
 
     /// Shifts take width and overflow policy from the value, not the count.
@@ -187,7 +219,9 @@ impl Engine<'_> {
             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
                 left_policy == ArithmeticDomain::Exact
             }
-            BinaryOperator::BitwiseAnd => true,
+            BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
+                true
+            }
             BinaryOperator::Add
             | BinaryOperator::Subtract
             | BinaryOperator::Multiply
@@ -211,13 +245,23 @@ impl Engine<'_> {
         }
         let primitive = meaning[0].0;
         match operator {
-            BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight | BinaryOperator::BitwiseAnd => {
+            BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor => {
                 let bits = crate::proof_contracts::arithmetic_domains::integer_bit_width(primitive)?
                     as u32;
                 match operator {
                     BinaryOperator::ShiftLeft => self.integer_shift_left(left, right, bits),
                     BinaryOperator::ShiftRight => self.integer_shift_right(left, right, bits),
-                    _ => self.integer_bitwise_and(left, right, bits, primitive.is_signed_integer()),
+                    _ => self.integer_bitwise(
+                        operator,
+                        left,
+                        right,
+                        bits,
+                        primitive.is_signed_integer(),
+                    ),
                 }
             }
             _ => self.integer_binary_value(operator, left, right),

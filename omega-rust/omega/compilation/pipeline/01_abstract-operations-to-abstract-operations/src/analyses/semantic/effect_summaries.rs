@@ -194,7 +194,11 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                         summary.suspension = EffectKnowledge::May;
                     }
                 }
-                O::PortWrite { service, .. } | O::RegisterAccess { service, .. } => {
+                O::PortWrite { service, .. }
+                | O::RegisterAccess {
+                    service: Some(service),
+                    ..
+                } => {
                     summary.services.insert(*service);
                     join_operation_effect(&mut summary, &node.operation, join);
                 }

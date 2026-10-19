@@ -257,3 +257,6 @@ pub(super) const MOVE_STRUCTURAL_VALUE: u8 = 124;
 
 /// Checked content transformation with explicit owned parent operands.
 pub(super) const TRANSFORM_CONTENT: u8 = 125;
+
+/// Catalogued register observation requiring no abstract service authority.
+pub(super) const REGISTER_OBSERVATION: u8 = 126;

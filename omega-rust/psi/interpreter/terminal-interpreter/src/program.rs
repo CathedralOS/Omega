@@ -382,6 +382,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             .installation
             .map(TerminalRuntimeSupplies::from)
             .unwrap_or_else(|| TerminalRuntimeSupplies {
+                x86_flags: None,
                 terminal_psi: self.program.identity,
                 entry: None,
                 supplies: BTreeMap::new(),
@@ -389,6 +390,17 @@ impl<'artifact> TerminalProgram<'artifact> {
                 target_machines: None,
                 target_layouts: None,
             });
+        if request.x86_flags.is_some()
+            && request.target_machines.is_none_or(|selected| {
+                !terminal_psi::RegisterTargetApplicability::X86_64
+                    .accepts_target_name(selected.target())
+            })
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "x86 flags environment requires an admitted x86 target",
+            ));
+        }
+        installation.x86_flags = request.x86_flags;
         installation.target_machines = request.target_machines.cloned();
         installation.entry = request.entry;
         installation.target_layouts = request.target_layouts.cloned().map(std::sync::Arc::new);
@@ -699,6 +711,7 @@ mod private_entry_target_tests {
                     .unwrap();
             let installation = program
                 .admit_runtime_supplies(crate::effects::TerminalRuntimeSupplyRequest {
+                    x86_flags: None,
                     entry: Some(artifact.semantic_module().entry),
                     installation: None,
                     host_imports: &[],

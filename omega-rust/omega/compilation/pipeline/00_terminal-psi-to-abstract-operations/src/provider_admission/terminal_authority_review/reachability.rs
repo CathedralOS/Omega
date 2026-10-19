@@ -220,6 +220,16 @@ impl<'a> AuthorityGraph<'a> {
                         }
                         let intrinsic = effects::CompilerIntrinsicExecutionIdentity::checked_register(register_operation)
                             .ok_or_else(|| format!("register access {operation:?} has no admitted compiler catalog identity"))?;
+                        if service.is_some() != register_operation.requires_service_authority() {
+                            return Err(format!(
+                                "register access {operation:?} disagrees with catalog service authority"
+                            ));
+                        }
+                        let Some(service) = service else {
+                            // Exact no-authority catalog observation: target and identity
+                            // were checked above; no service-authority leaf is invented.
+                            continue;
+                        };
                         let origin = TerminalAuthorityClosureLeafOrigin::CheckedIntrinsic {
                             machine,
                             operation,

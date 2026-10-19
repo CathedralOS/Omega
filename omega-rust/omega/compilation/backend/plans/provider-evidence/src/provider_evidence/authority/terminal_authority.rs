@@ -92,6 +92,7 @@ impl CompilerIntrinsicExecutionIdentity {
                 R::TpidrEl1 => B::AsmReadTpidrEl1,
                 R::EsrEl1 => B::AsmReadEsrEl1,
                 R::FarEl1 => B::AsmReadFarEl1,
+                R::Rflags => B::AsmSnapshotFlags,
             },
             O::SystemWrite(register) => match register {
                 R::SctlrEl1 => B::AsmWriteSctlrEl1,
@@ -101,7 +102,7 @@ impl CompilerIntrinsicExecutionIdentity {
                 R::MairEl1 => B::AsmWriteMairEl1,
                 R::VbarEl1 => B::AsmWriteVbarEl1,
                 R::TpidrEl1 => B::AsmWriteTpidrEl1,
-                R::EsrEl1 | R::FarEl1 => return None,
+                R::EsrEl1 | R::FarEl1 | R::Rflags => return None,
             },
         };
         Some(Self::BuiltinFunction(function))

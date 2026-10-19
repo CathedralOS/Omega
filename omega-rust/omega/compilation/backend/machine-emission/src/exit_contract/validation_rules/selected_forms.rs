@@ -227,6 +227,53 @@ pub(in crate::exit_contract) fn transformed_implicit_writes_any(
         })
 }
 
+/// A temporary stack envelope has no net stack change, but its exact peak and
+/// backing use remain observable physical facts. The selected catalog kind
+/// determines the peak; arbitrary balanced-looking effects are not admitted.
+fn balanced_temporary_stack(
+    architecture: Architecture,
+    kind: SelectedInstructionKind,
+    effects: &MachineEncodedEffects,
+) -> bool {
+    if architecture != Architecture::X86_64 {
+        return false;
+    }
+    let (bytes, operands_match) = match kind {
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { form }
+            if form.operation.rounding_direction().is_some() =>
+        {
+            (16, true)
+        }
+        SelectedInstructionKind::RegisterAccess {
+            operation:
+                selected_instructions::RegisterOperation::SystemRead(
+                    selected_instructions::SystemRegister::Rflags,
+                ),
+        } => (
+            8,
+            effects.external_operand_reads.is_empty() && effects.external_operand_writes == [0],
+        ),
+        _ => return false,
+    };
+    let stack_pointer = isa_x86_64::validated_x86_64_physical_register_model()
+        .model()
+        .view_named("rsp")
+        .expect("canonical x86 stack pointer")
+        .id;
+    operands_match
+        && effects.memory
+            == MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
+                stack_pointer,
+                byte_count: bytes,
+            }
+        && effects.stack
+            == MachineEncodedStackEffect::TemporaryBytesV1 {
+                stack_pointer,
+                byte_count: bytes,
+            }
+        && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+}
+
 pub(in crate::exit_contract) fn validate_non_return(
     architecture: target::Architecture,
     instruction: SelectedInstructionId,
@@ -323,13 +370,7 @@ pub(in crate::exit_contract) fn validate_non_return(
                 ))?
         }
     };
-    let temporary_stack = matches!(
-        (kind, effects.memory, effects.stack),
-        (SelectedInstructionKind::NearestIeeeFloatArithmetic { form },
-            MachineEncodedMemoryEffect::TemporaryStackStorageV1 { stack_pointer: memory_pointer, byte_count: 16 },
-            MachineEncodedStackEffect::TemporaryBytesV1 { stack_pointer, byte_count: 16 })
-            if memory_pointer == stack_pointer && form.operation.rounding_direction().is_some()
-    );
+    let temporary_stack = balanced_temporary_stack(architecture, kind, effects);
     if effects.stack != MachineEncodedStackEffect::UnchangedV1 && !temporary_stack {
         return Err(WholeFunctionExitContractError::NonReturnStackEffect(
             instruction,
@@ -339,11 +380,7 @@ pub(in crate::exit_contract) fn validate_non_return(
         (SelectedInstructionKind::AtomicFence, MachineEncodedMemoryEffect::AtomicFenceV1, None) => {
             effects == &selected_instructions::MachineEncodedEffects::atomic_fence_v1()
         }
-        (
-            SelectedInstructionKind::NearestIeeeFloatArithmetic { .. },
-            MachineEncodedMemoryEffect::TemporaryStackStorageV1 { .. },
-            None,
-        ) => temporary_stack && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        (_, MachineEncodedMemoryEffect::TemporaryStackStorageV1 { .. }, None) => temporary_stack,
         (
             SelectedInstructionKind::FloatResultPolicy { form },
             MachineEncodedMemoryEffect::NoneV1,
