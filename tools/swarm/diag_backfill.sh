@@ -17,29 +17,7 @@ set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 
 if [ "${1:-}" = "--list" ]; then
-  python3 - <<'PY'
-import subprocess
-t = subprocess.run(['git','show','origin/main:tests/omega/corpus_outcomes.txt'],
-                   capture_output=True, text=True).stdout.splitlines()
-missing = {}
-i = 0
-while i < len(t):
-    l = t[i]
-    if l.startswith('fail/facts/') and 'rejected' in l:
-        fact = l.split()[0].split('fail/facts/')[1].split('_through_')[0].split('_unproved')[0]
-        j = i + 1; has = False
-        while j < len(t) and (t[j].startswith('\t') or t[j].startswith('    ')) and t[j].strip():
-            has = True; j += 1
-        if not has:
-            missing.setdefault(fact, 0)
-            missing[fact] += 1
-        i = j
-    else:
-        i += 1
-print(f"{len(missing)} facts, {sum(missing.values())} rows missing diagnostics")
-for f, c in sorted(missing.items()):
-    print(f"  {c:3}  {f}")
-PY
+  python3 "$(dirname "$0")/diag_list.py"
   exit 0
 fi
 
