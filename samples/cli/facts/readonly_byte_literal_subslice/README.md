@@ -35,7 +35,7 @@ omega --check samples/cli/facts/readonly_byte_literal_subslice/<place>/invalid/m
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
-- **Ticket:** `607450e1cd264d4f836091eeaf41f295`.
+- **Ticket:** `8961b6329e97401788feb69609d576d4`.
 - **Requirement established:** End-to-end nine-place fact row preservation for immutable byte-view literal subslice window bounds, length folding, and exact arithmetic subtraction.
 
 ### Full 8-Layer Specification and Lowering Evidence
@@ -51,7 +51,39 @@ omega --check samples/cli/facts/readonly_byte_literal_subslice/<place>/invalid/m
 
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/readonly_byte_literal_subslice`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
-- The oracle discriminates: mutating the expectation in `main()` causes `probe() == 0` to fail, taking the `_ -> bad()` branch and trapping with `crash Trap`, verifying that exit 0 discriminates computation errors.
-- Remaining open: dynamic runtime-indexed byte subslice mutable projections, non-literal slice views under content mutation, and inter-package dynamic slice provider composition under `CONSERVATION-CONTRACT`.
+Measured on `macos_arm64` at `75bef93981f9` with the optimized producer
+(`omega --build-profile` reports `opt_level: 1`).
+
+- **Both engines run every place.** `omega run --both` on root and all nine
+  places: ten of ten report `native exit 0` with `interp exit: 0`, so Terminal
+  Psi and native execution agree on the authored result.
+- **Reject twins.** All nine `<place>/invalid/main.omg` fail source checking
+  with `may overflow \`u64\`` (the unsigned exact subtraction underflow that the
+  9-byte window forces), pinned by
+  [`tests/omega/fail/facts`](../../../../tests/omega/fail/facts).
+- **Oracle discrimination.** The oracle reads the read-only literal's own
+  backing, not a recomputed constant. Corrupting the literal byte the window
+  first observes (`"01X3456789ABCD"`, index 2: `'2'` to `'X'`) leaves the window
+  extent at 10 so `probe()` is still `0u64`, and an added content transition
+  `peek() == 50u8` then fails: both engines trap (`native signal 5`,
+  `interp crash: Trap`, host presentation agrees). Restoring the literal
+  returns both engines to exit 0. Shrinking the literal below the window end
+  (`12` bytes) is still legal (`end == length`), and reducing the scale factor
+  to `9u64` is refused at checking with the same `may overflow \`u64\``
+  diagnostic — so the row's exit 0 is a proof-checked, execution-witnessed
+  result rather than an inert exit code.
+- **Pinned fixtures.** Nine pass fixtures
+  `tests/omega/pass/facts/readonly_byte_literal_subslice_through_<place>_exit`
+  carry `expected_native_exit.txt` (`0`) and nine fail twins
+  `tests/omega/fail/facts/readonly_byte_literal_subslice_unproved_<place>`
+  carry `expected.txt` (`may overflow \`u64\``).
+- **Native golden rows.** `corpus_gate.py --native --filter
+  facts/readonly_byte_literal_subslice` records nine `built ... exit:0` rows in
+  `tests/omega/corpus_native_macos_arm64.txt`. The record added exactly nine
+  lines and deleted none, so no sibling lane's row moved.
+- **Open.** `windows_x86_64`, `linux_x86_64`, and `linux_arm64` natively
+  *build* under `--both` but have no golden row on this host; the remaining
+  open scope is dynamic runtime-indexed byte subslice mutable projections,
+  non-literal slice views under content mutation, and inter-package dynamic
+  slice provider composition under `CONSERVATION-CONTRACT`.
 
