@@ -3,7 +3,7 @@
 use omega_language_std::filesystem;
 use omega_language_std::console;
 
-data Main { filesystem: Filesystem; file: File; original: Metadata; }
+data Main { filesystem: Filesystem; file: File; original: Metadata; posix: PosixMetadata; }
 machine Main::main(main: &mut Main) reaches Console {
     let mut zero: TimestampResult;
     transition zero { TimestampResult::Error { kind } -> zero_error(main, kind) _ -> bad(10) }
@@ -30,9 +30,16 @@ machine Main::main(main: &mut Main) reaches Console {
     state inspect(main: &mut Main, metadata: Metadata) {
         main.original = metadata;
         // Inline file data may legitimately use zero separately allocated blocks.
-        transition metadata.len == 8 && metadata.nlink == 2 && metadata.blksize > 0 {
-            true -> creation(main) _ -> bad(16)
+        transition metadata.len == 8 && metadata.nlink == 2 {
+            true -> posix(main, metadata.posix) _ -> bad(16)
         }
+    }
+    state posix(main: &mut Main, result: PosixMetadataResult) {
+        transition result { PosixMetadataResult::Ok { details } -> allocation(main, details) _ -> bad(16) }
+    }
+    state allocation(main: &mut Main, details: PosixMetadata) {
+        main.posix = details;
+        transition details.blksize > 0 { true -> creation(main) false -> bad(16) }
     }
     state creation(main: &mut Main) {
         let result: TimestampResult = Metadata::created(&main.original);
@@ -44,9 +51,12 @@ machine Main::main(main: &mut Main) reaches Console {
         transition result { MetadataResult::Ok { meta } -> same(main, meta) _ -> bad(19) }
     }
     state same(main: &mut Main, metadata: Metadata) {
-        transition metadata.ino == main.original.ino && metadata.dev == main.original.dev
-            && metadata.uid == main.original.uid && metadata.gid == main.original.gid
-            && metadata.blocks == main.original.blocks && metadata.blksize == main.original.blksize {
+        transition metadata.posix { PosixMetadataResult::Ok { details } -> same_posix(main, details) _ -> bad(20) }
+    }
+    state same_posix(main: &mut Main, details: PosixMetadata) {
+        transition details.ino == main.posix.ino && details.dev == main.posix.dev
+            && details.uid == main.posix.uid && details.gid == main.posix.gid
+            && details.blocks == main.posix.blocks && details.blksize == main.posix.blksize {
             true -> times(main) _ -> bad(20)
         }
     }

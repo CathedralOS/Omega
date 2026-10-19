@@ -19,7 +19,7 @@ machine Main::main(main: &mut Main) reaches Console {
     let result: UnitResult = Filesystem::write_all(&mut main.filesystem, "omega_copy_source.txt", "abcdef");
     transition result { UnitResult::Ok -> permissions(main) _ -> bad(10) }
     state permissions(main: &mut Main) {
-        let result: UnitResult = Filesystem::set_permissions(&mut main.filesystem, "omega_copy_source.txt", Permissions { mode: 384 });
+        let result: UnitResult = Filesystem::set_permissions(&mut main.filesystem, "omega_copy_source.txt", Permissions::Posix { mode: 384 });
         transition result { UnitResult::Ok -> copy(main) _ -> bad(27) }
     }
     state copy(main: &mut Main) {
@@ -36,7 +36,10 @@ machine Main::main(main: &mut Main) reaches Console {
         transition result { MetadataResult::Ok { meta } -> check_permissions(main, meta) _ -> bad(28) }
     }
     state check_permissions(main: &mut Main, metadata: Metadata) {
-        transition (metadata.mode & 511) == 384 { true -> read(main) false -> bad(29) }
+        transition metadata.posix { PosixMetadataResult::Ok { details } -> check_mode(main, details) _ -> bad(29) }
+    }
+    state check_mode(main: &mut Main, details: PosixMetadata) {
+        transition (details.mode & 511) == 384 { true -> read(main) false -> bad(29) }
     }
     state read(main: &mut Main) {
         let result: IoResult = Filesystem::read_all(&mut main.filesystem, "omega_copy_destination.txt", &mut main.readback, 8);

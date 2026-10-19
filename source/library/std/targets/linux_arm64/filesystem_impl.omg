@@ -57,12 +57,8 @@ linux_arm64 machine PosixFilesystem::decode_metadata(filesystem: &mut PosixFiles
     requires blocks >= 0 && blksize >= 0;
     {
         let mode: u32 = stat.value.mode;
-        let metadata: Metadata = Metadata {
-            len: stat.value.size,
-            is_dir: (mode & 61440) == 16384,
-            is_symlink: (mode & 61440) == 40960,
+        let details: PosixMetadata = PosixMetadata {
             mode: mode,
-            nlink: stat.value.nlink as u64,
             ino: stat.value.ino,
             dev: stat.value.dev,
             uid: stat.value.uid,
@@ -70,6 +66,13 @@ linux_arm64 machine PosixFilesystem::decode_metadata(filesystem: &mut PosixFiles
             rdev: stat.value.rdev,
             blocks: narrow_i64_to_u64_exact(blocks),
             blksize: narrow_i64_to_u64_exact(blksize),
+        };
+        let metadata: Metadata = Metadata {
+            len: stat.value.size,
+            kind: posix_metadata_kind(mode),
+            permissions: Permissions::Posix { mode: mode & 4095 },
+            nlink: stat.value.nlink as u64,
+            posix: PosixMetadataResult::Ok { details: details },
             modified_secs: stat.value.mtime,
             accessed_secs: stat.value.atime,
             creation_time: TimestampResult::Error { kind: ErrorKind::Unsupported },
@@ -77,6 +80,11 @@ linux_arm64 machine PosixFilesystem::decode_metadata(filesystem: &mut PosixFiles
         };
         MetadataResult::Ok { meta: metadata }
     }
+}
+
+linux_arm64 machine PosixFilesystem::permission_bits(filesystem: &PosixFilesystem) -> u32 {
+    let stat: &LinuxArm64StatView = &filesystem.stat_buf[0] as &LinuxArm64StatView;
+    stat.value.mode & 4095
 }
 
 linux_arm64 machine PosixFilesystem::encode_open_options(filesystem: &mut PosixFilesystem) {

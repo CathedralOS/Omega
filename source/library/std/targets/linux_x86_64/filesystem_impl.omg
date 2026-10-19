@@ -83,14 +83,18 @@ linux_x86_64 machine PosixFilesystem::decode_metadata(filesystem: &mut PosixFile
         let blocks: u64 = narrow_i64_to_u64_exact(block_count);
         let blksize: u64 = narrow_i64_to_u64_exact(block_size);
         let len: i64 = stat.value.size;
-        let is_dir: bool = (mode & 61440) == 16384;
-        let is_symlink: bool = (mode & 61440) == 40960;
         let mtime: i64 = stat.value.mtime;
         let atime: i64 = stat.value.atime;
         // Linux stat has reserved words here, not a birth timestamp.
-        let metadata: Metadata = Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, creation_time: TimestampResult::Error { kind: ErrorKind::Unsupported }, changed_secs: ctime };
+        let details: PosixMetadata = PosixMetadata { mode: mode, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize };
+        let metadata: Metadata = Metadata { len: len, kind: posix_metadata_kind(mode), permissions: Permissions::Posix { mode: mode & 4095 }, nlink: nlink, posix: PosixMetadataResult::Ok { details: details }, modified_secs: mtime, accessed_secs: atime, creation_time: TimestampResult::Error { kind: ErrorKind::Unsupported }, changed_secs: ctime };
         MetadataResult::Ok { meta: metadata }
     }
+}
+
+linux_x86_64 machine PosixFilesystem::permission_bits(filesystem: &PosixFilesystem) -> u32 {
+    let stat: &StatView = &filesystem.stat_buf[0] as &StatView;
+    stat.value.mode & 4095
 }
 
 // Resolve an absent directory hint from the native mode without decoding

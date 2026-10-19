@@ -14,6 +14,21 @@ use targets::macos_arm64::filesystem_impl;
 
 data FilesystemProviderDefaults { }
 
+// Native mode bits are decoded only inside the POSIX family. The portable
+// metadata kind is not an alias for a POSIX permission or file-type bitfield.
+machine posix_metadata_kind(mode: u32) -> FileKind {
+    transition mode & 61440 {
+        32768 -> FileKind::File
+        16384 -> FileKind::Directory
+        40960 -> FileKind::Symlink
+        8192 -> FileKind::CharacterDevice
+        24576 -> FileKind::BlockDevice
+        4096 -> FileKind::Fifo
+        49152 -> FileKind::Socket
+        _ -> FileKind::Other
+    }
+}
+
 FilesystemPosixProvider satisfies FilesystemService {
     machine create(path: &[u8] in Path) -> OpenResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
@@ -175,7 +190,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     }
 
     machine set_permissions(path: &[u8] in Path, perms: Permissions) -> UnitResult
-    reaches FilesystemMetadataMutation
+    reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     invokes PosixFilesystemHost;
     {
         let mut context: PosixFilesystem;
@@ -199,7 +214,7 @@ FilesystemPosixProvider satisfies FilesystemService {
     }
 
     machine set_file_permissions(file: File, perms: Permissions) -> UnitResult
-    reaches FilesystemMetadataMutation
+    reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     invokes PosixFilesystemHost;
     {
         let mut context: PosixFilesystem;
@@ -414,7 +429,6 @@ where open_writable >= 0 && open_writable <= 1,
 
     file_fd: i32;
 
-    perm_mode: u32;
     stat_buf: [u8; 144];
 
     times_buf: [u8; 32];
@@ -738,7 +752,12 @@ invokes PosixFilesystemHost;
         IoResult::Error { kind: kind }
     }
     state read_contents(filesystem: &mut PosixFilesystem, source: i32, to: &[u8] in Path, buffer: &mut [u8], cap: u64, metadata: Metadata) -> IoResult {
-        let mode: u32 = metadata.mode & 511;
+        transition metadata.posix {
+            PosixMetadataResult::Ok { details } -> read_permissioned(filesystem, source, to, buffer, cap, details.mode & 511)
+            PosixMetadataResult::Error { kind } -> invalid_metadata(source, kind)
+        }
+    }
+    state read_permissioned(filesystem: &mut PosixFilesystem, source: i32, to: &[u8] in Path, buffer: &mut [u8], cap: u64, mode: u32) -> IoResult {
         let count: i64 = PosixFilesystemHost::read(source, buffer, cap);
         let closed: i32 = PosixFilesystemHost::close(source);
         transition count >= 0 { true -> read_result(filesystem, to, buffer, count, mode, closed) false -> read_failed(filesystem, count) }
@@ -1045,14 +1064,32 @@ invokes
 }
 
 machine PosixFilesystem::set_permissions(filesystem: &mut PosixFilesystem, path: &[u8] in Path, perms: Permissions) -> UnitResult
-reaches FilesystemMetadataMutation
+reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 
 invokes
     PosixFilesystemHost;
 {
-    filesystem.perm_mode = perms.mode;
-    let rc: i32 = PosixFilesystemHost::set_permissions(path, filesystem.perm_mode);
-    transition rc == 0 { true -> ok() _ -> err(filesystem, rc) }
+    transition perms {
+        Permissions::Default -> apply(filesystem, path, 438)
+        Permissions::Posix { mode } -> apply(filesystem, path, mode)
+        Permissions::Readonly { value } -> inspect(filesystem, path, value)
+    }
+    // A portable read-only request changes only write bits of the live mode;
+    // an exact POSIX request needs no preliminary query. The path-based query
+    // and update are not atomic against concurrent replacement or mode changes.
+    state inspect(filesystem: &mut PosixFilesystem, path: &[u8] in Path, readonly: bool) -> UnitResult {
+        let result: i32 = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf);
+        transition result == 0 { true -> derive(filesystem, path, readonly) false -> err(filesystem, result) }
+    }
+    state derive(filesystem: &mut PosixFilesystem, path: &[u8] in Path, readonly: bool) -> UnitResult {
+        let existing: u32 = PosixFilesystem::permission_bits(filesystem);
+        let requested: u32 = posix_mode_with_readonly(existing, readonly);
+        transition { _ -> apply(filesystem, path, requested) }
+    }
+    state apply(filesystem: &mut PosixFilesystem, path: &[u8] in Path, mode: u32) -> UnitResult {
+        let result: i32 = PosixFilesystemHost::set_permissions(path, mode);
+        transition result == 0 { true -> ok() false -> err(filesystem, result) }
+    }
     state ok() -> UnitResult { UnitResult::Ok }
     state err(filesystem: &mut PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = PosixFilesystem::last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
 }
@@ -1085,15 +1122,30 @@ invokes
 }
 
 machine PosixFilesystem::set_file_permissions(filesystem: &mut PosixFilesystem, file: File, perms: Permissions) -> UnitResult
-reaches FilesystemMetadataMutation
+reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 
 invokes
     PosixFilesystemHost;
 {
     filesystem.file_fd = PosixFilesystem::descriptor(file);
-    filesystem.perm_mode = perms.mode;
-    let rc: i32 = PosixFilesystemHost::set_file_permissions(filesystem.file_fd, filesystem.perm_mode);
-    transition rc == 0 { true -> ok(filesystem) _ -> err(filesystem, rc) }
+    transition perms {
+        Permissions::Default -> apply(filesystem, 438)
+        Permissions::Posix { mode } -> apply(filesystem, mode)
+        Permissions::Readonly { value } -> inspect(filesystem, value)
+    }
+    state inspect(filesystem: &mut PosixFilesystem, readonly: bool) -> UnitResult {
+        let result: i32 = PosixFilesystemHost::read_file_metadata(filesystem.file_fd, &mut filesystem.stat_buf);
+        transition result == 0 { true -> derive(filesystem, readonly) false -> err(filesystem, result) }
+    }
+    state derive(filesystem: &mut PosixFilesystem, readonly: bool) -> UnitResult {
+        let existing: u32 = PosixFilesystem::permission_bits(filesystem);
+        let requested: u32 = posix_mode_with_readonly(existing, readonly);
+        transition { _ -> apply(filesystem, requested) }
+    }
+    state apply(filesystem: &mut PosixFilesystem, mode: u32) -> UnitResult {
+        let result: i32 = PosixFilesystemHost::set_file_permissions(filesystem.file_fd, mode);
+        transition result == 0 { true -> ok(filesystem) false -> err(filesystem, result) }
+    }
     state ok(filesystem: &mut PosixFilesystem) -> UnitResult { UnitResult::Ok }
     state err(filesystem: &mut PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = PosixFilesystem::last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
 }

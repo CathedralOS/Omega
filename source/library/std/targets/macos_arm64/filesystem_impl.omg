@@ -69,14 +69,18 @@ macos_arm64 machine PosixFilesystem::decode_metadata(filesystem: &mut PosixFiles
         let blocks: u64 = narrow_i64_to_u64_exact(block_count);
         let blksize: u64 = narrow_i64_to_u64_exact(block_size);
         let len: i64 = stat.value.size;
-        let is_dir: bool = (mode & 61440) == 16384;
-        let is_symlink: bool = (mode & 61440) == 40960;
         let mtime: i64 = stat.value.mtime;
         let atime: i64 = stat.value.atime;
         let btime: i64 = stat.value.btime;
-        let metadata: Metadata = Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, creation_time: TimestampResult::Ok { seconds: btime }, changed_secs: ctime };
+        let details: PosixMetadata = PosixMetadata { mode: mode, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize };
+        let metadata: Metadata = Metadata { len: len, kind: posix_metadata_kind(mode), permissions: Permissions::Posix { mode: mode & 4095 }, nlink: nlink, posix: PosixMetadataResult::Ok { details: details }, modified_secs: mtime, accessed_secs: atime, creation_time: TimestampResult::Ok { seconds: btime }, changed_secs: ctime };
         MetadataResult::Ok { meta: metadata }
     }
+}
+
+macos_arm64 machine PosixFilesystem::permission_bits(filesystem: &PosixFilesystem) -> u32 {
+    let stat: &DarwinStatView = &filesystem.stat_buf[0] as &DarwinStatView;
+    (stat.value.mode as u32) & 4095
 }
 
 macos_arm64 machine PosixFilesystem::encode_open_options(filesystem: &mut PosixFilesystem) {
