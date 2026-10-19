@@ -1827,6 +1827,7 @@ pass/layouts/runtime_captured_encoded_reference_replacement_exit built 1815ms ex
 pass/layouts/runtime_encoded_physical_view_exit built 5106ms exit:0 @9dd545defbc0
 pass/layouts/runtime_foreign_encoded_reference_exit built 5220ms exit:0 @9dd545defbc0
 pass/layouts/runtime_multi_origin_encoded_reference_exit built 1621ms exit:0 @89699170f158+wt
+pass/layouts/runtime_placed_accessor_writeback_exit built 23392ms exit:0 @287adceca130+wt
 pass/layouts/runtime_plan_laid_compact_bits_exit built 705ms exit:70
 pass/layouts/runtime_plan_laid_erased_field_exit built 21150ms exit:70 @3d664be0c918+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 1010ms exit:72 @2517a050d7b4+wt

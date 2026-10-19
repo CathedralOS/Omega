@@ -42,7 +42,6 @@ pub(super) fn project(
         boundary,
         realization,
         location,
-        interpretation,
         operand,
         ..
     } = targeted
@@ -73,7 +72,6 @@ pub(super) fn project(
             boundary: *boundary,
             realization: *realization,
             location: location.clone(),
-            interpretation: interpretation.clone(),
             indices,
             operand: operand.map(|source| source.source_value()),
         }

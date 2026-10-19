@@ -134,7 +134,6 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     boundary,
                     realization,
                     location,
-                    interpretation,
                     operand,
                     indices,
                 } => {
@@ -147,7 +146,6 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                         realization.demand,
                     );
                     super::structural_types::encode_structural_argument(bytes, location);
-                    super::placed_bindings::encode_interpretation(bytes, interpretation);
                     bytes.push(u8::from(operand.is_some()));
                     if let Some(value) = operand {
                         bytes.extend_from_slice(&value.get().to_le_bytes());

@@ -7,10 +7,9 @@ use semantic_vocabulary::{BoundaryMachineId, ScalarType};
 use std::collections::BTreeMap;
 use target_operations::{
     BoundaryRealization, BoundarySettlementBinding, BoundarySettlementRealization,
-    TargetPlacedInterpretation, TargetUnitOperation, TargetUnitScalarHomeRequirement,
-    TerminalPsiProvenance,
+    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
-use terminal_psi::{StructuralArgument, StructuralPathSegment, TerminalPlacedAccessorKind};
+use terminal_psi::TerminalPlacedAccessorKind;
 
 pub(super) fn lower(
     operation: &AbstractOperation,
@@ -49,58 +48,21 @@ pub(super) fn lower(
     let [argument] = structural_arguments.as_slice() else {
         return Err(invalid!());
     };
-    let (Some(StructuralPathSegment::Field(field)), parent) = (
-        argument.path.last(),
-        &argument.path[..argument.path.len().saturating_sub(1)],
-    ) else {
-        return Err(invalid!());
-    };
-    if *field != demand.view_field
-        || argument.access != demand.access
+    if argument.access != demand.access
+        || super::references::reference_source_type(function, live, types, argument)
+            != Some(demand.accessor)
         || !completion_claim_sources.is_empty()
         || !completion_receipts.is_empty()
     {
         return Err(invalid!());
     }
-    let location = StructuralArgument {
-        place: argument.place,
-        path: parent.to_vec(),
-        access: argument.access,
-    };
-    let interpretation =
-        super::references::placed_source(live, &location).ok_or_else(|| invalid!())?;
-    match &interpretation {
-        TargetPlacedInterpretation::Captured(captured) => {
-            if captured.carrier != demand.carrier || captured.schema != demand.schema {
-                return Err(invalid!());
-            }
-            let catalog = types.catalog();
-            let plan = catalog
-                .placed_views()
-                .iter()
-                .find(|plan| plan.carrier == demand.carrier)
-                .ok_or_else(|| invalid!())?;
-            let expected = terminal_semantics::placed_ram_plan_correspondence(
-                catalog.as_slice(),
-                catalog.placed_views(),
-                plan,
-                demand.schema,
-            )
-            .map_err(|_| invalid!())?;
-            if captured != &expected {
-                return Err(invalid!());
-            }
-        }
-        TargetPlacedInterpretation::Formal(formal) => {
-            if formal.placement_commitment != demand.placement_commitment
-                || !demand.access.admits(formal.access)
-            {
-                return Err(invalid!());
-            }
-        }
-    }
-    // Current def-use resolution must succeed independently of the catalog row.
-    // Formal sources remain activation obligations answered by every caller.
+    // The accessor's authored storage starts at its transfer container. Keep
+    // this actual reference, including captured projections and call results;
+    // recovering a whole-view parent would select a historical source instead
+    // of the pointer currently carried by the argument. Stage 00 admitted the
+    // exact boundary against every reachable placed origin. This stage joins
+    // its exact accessor type to current descriptor storage, not a new grant.
+    let location = argument.clone();
     super::references::normalized_source(function, live, types, &location)?;
     let operand = match (demand.operation, arguments.as_slice()) {
         (TerminalPlacedAccessorKind::Read, []) => None,
@@ -148,7 +110,6 @@ pub(super) fn lower(
         boundary: *boundary,
         realization,
         location,
-        interpretation,
         operand,
         result_home,
     });

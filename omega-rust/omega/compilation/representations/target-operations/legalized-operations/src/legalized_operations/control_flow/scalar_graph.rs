@@ -413,7 +413,6 @@ pub enum LegalizedScalarInstructionKind {
         boundary: semantic_vocabulary::BoundaryMachineId,
         realization: target_operations::PlacedScalarAccessRealization,
         location: terminal_psi::StructuralArgument,
-        interpretation: target_operations::TargetPlacedInterpretation,
         indices: Vec<LegalizedRuntimeIndexOperand>,
         operand: Option<ValueId>,
     },

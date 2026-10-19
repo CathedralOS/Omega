@@ -179,7 +179,6 @@ pub(super) fn validate_operation(
                 boundary,
                 realization,
                 location,
-                interpretation,
                 operand,
                 result_home,
             },
@@ -204,27 +203,23 @@ pub(super) fn validate_operation(
             let [argument] = structural_arguments.as_slice() else {
                 return Err(LegalizationError::custody());
             };
-            let mut parent = argument.clone();
-            if parent.path.pop()
-                != Some(terminal_psi::StructuralPathSegment::Field(
-                    demand.view_field,
-                ))
-                || &parent != location
+            if argument != location
                 || psi_operation != expected_operation
                 || boundary != expected_boundary
                 || realization.demand != demand
                 || argument.access != demand.access
                 || !completion_claim_sources.is_empty()
                 || !completion_receipts.is_empty()
-                || &super::super::reference_custody::placed_scalar_custody(
-                    optimized,
-                    custody,
-                    unit.structural_types.as_slice(),
-                    location,
-                )? != interpretation
             {
                 return Err(LegalizationError::custody());
             }
+            super::super::reference_custody::placed_scalar_custody(
+                optimized,
+                custody,
+                unit.structural_types.as_slice(),
+                location,
+                demand.accessor,
+            )?;
             match (
                 demand.operation,
                 arguments.as_slice(),

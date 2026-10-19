@@ -3138,10 +3138,16 @@ fail/layouts/false_constant_layout_contract rejected 2683ms expected @e63c4b1e20
 fail/layouts/layout_arithmetic_cancellation_keeps_child_obligation rejected 10195ms expected @c48489ea6ad6
 fail/layouts/layout_arithmetic_overwritten_snapshot rejected 9218ms expected @c48489ea6ad6
 fail/layouts/layout_contract_selected_equality rejected 537ms expected @e63c4b1e202d+wt
+fail/layouts/placed_factory_parent_storage_conflict rejected 7334ms expected @287adceca130+wt
+	statement 2 reads `registers.status` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/layouts/placed_factory_requires_complete_source_guard rejected 2901ms expected @c48489ea6ad6
+fail/layouts/placed_factory_requires_exclusive_source rejected 6056ms expected @287adceca130+wt
+	argument `source` for state `view_mut` is declared `&mut` (`&mut Registers`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+	machine `bad` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/layouts/placed_policy_requires_exact_attached_owner rejected 24ms expected @0855a204a2df+wt
 fail/layouts/placed_ram_mixed_callback rejected 40033ms expected @c48489ea6ad6
-fail/layouts/placed_shared_formal_cannot_write rejected 2581ms expected @c48489ea6ad6
+fail/layouts/placed_shared_formal_cannot_write rejected 5899ms expected @287adceca130+wt
+	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/layouts/placement_policy_unproved_callee_premise rejected 34ms expected @171dad7fbf01+wt
 fail/layouts/plan_laid_dynamic_plan rejected 1752ms expected @a9ae30e1c334+wt
 fail/layouts/plan_laid_policy_without_plan_machine rejected 69ms expected @a9ae30e1c334+wt
@@ -7174,6 +7180,7 @@ pass/layouts/runtime_layout_arithmetic_value_flow_exit checked 28474ms check-tar
 pass/layouts/runtime_multi_origin_encoded_reference_exit checked 11104ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_nested_restricted_field_read checked 11370ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_offset_encoded_reference_exit checked 11087ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/layouts/runtime_placed_accessor_writeback_exit checked 23897ms check-target:macos_arm64 @287adceca130+wt
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 11957ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_plan_laid_erased_field_exit checked 22134ms check-target:macos_arm64 @3d664be0c918+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 11579ms check-target:macos_arm64 @a9ae30e1c334+wt

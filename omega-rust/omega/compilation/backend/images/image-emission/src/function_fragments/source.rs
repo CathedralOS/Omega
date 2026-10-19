@@ -1074,15 +1074,7 @@ fn placed_scalar_retained(
     let [argument] = structural_arguments.as_slice() else {
         return false;
     };
-    let mut parent = argument.clone();
-    if parent.path.pop()
-        != Some(terminal_psi::StructuralPathSegment::Field(
-            demand.view_field,
-        ))
-        || parent != *location
-        || actual_boundary != boundary
-        || demand.boundary != *boundary
-    {
+    if argument != location || actual_boundary != boundary || demand.boundary != *boundary {
         return false;
     }
     if arguments
@@ -1105,9 +1097,9 @@ fn placed_scalar_retained(
         write: demand.operation == terminal_psi::TerminalPlacedAccessorKind::Write,
         bytes,
     };
-    let Ok(offset) = u32::try_from(demand.byte_offset) else {
-        return false;
-    };
+    // Selection follows the original accessor argument to its container; the
+    // instruction has no additional whole-view-relative displacement.
+    let offset = 0;
     let expected = selected_instructions::SelectedInstructionKind::PlacedScalarAccess {
         form,
         contract: realization.contract,

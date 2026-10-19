@@ -53,32 +53,3 @@ pub fn encode_placed_call_bindings(bytes: &mut Vec<u8>, bindings: &[TargetPlaced
         }
     }
 }
-
-pub(super) fn encode_interpretation(
-    bytes: &mut Vec<u8>,
-    interpretation: &target_operations::TargetPlacedInterpretation,
-) {
-    match interpretation {
-        target_operations::TargetPlacedInterpretation::Formal(input) => {
-            bytes.push(1);
-            encode_input(bytes, input);
-        }
-        target_operations::TargetPlacedInterpretation::Captured(correspondence) => {
-            bytes.push(0);
-            bytes.extend_from_slice(&correspondence.schema.get().to_le_bytes());
-            bytes.extend_from_slice(&correspondence.carrier.get().to_le_bytes());
-            bytes.extend_from_slice(&correspondence.source_byte_length.to_le_bytes());
-            bytes.extend_from_slice(&correspondence.required_base.modulus().to_le_bytes());
-            bytes.extend_from_slice(&correspondence.required_base.residue().to_le_bytes());
-            encode_len(bytes, correspondence.fields.len());
-            for field in &correspondence.fields {
-                bytes.extend_from_slice(&field.access_slot.to_le_bytes());
-                bytes.extend_from_slice(&field.source_field.get().to_le_bytes());
-                bytes.extend_from_slice(&field.byte_offset.to_le_bytes());
-                bytes.extend_from_slice(&field.transfer_width_bits.to_le_bytes());
-                super::scalar::encode_scalar_type(bytes, field.logical_scalar);
-                super::scalar::encode_scalar_type(bytes, field.stored_scalar);
-            }
-        }
-    }
-}

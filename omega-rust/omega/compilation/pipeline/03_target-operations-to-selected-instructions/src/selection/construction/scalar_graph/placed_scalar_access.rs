@@ -36,7 +36,7 @@ pub(super) fn emit(
         &signature.structural_types,
     )
     .ok_or_else(invalid)?;
-    if geometry.selected != demand.carrier
+    if geometry.selected != demand.accessor
         || !geometry.readable
         || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
             indices,
@@ -90,7 +90,10 @@ pub(super) fn emit(
             ..Default::default()
         },
     )?;
-    let offset = u32::try_from(demand.byte_offset).map_err(|_| invalid())?;
+    // The actual argument projection above already reaches the accessor's
+    // transfer container. Adding the plan's whole-view offset here would apply
+    // it twice, and recovering an old parent would lose captured selection.
+    let offset = 0;
     let mut registers = vec![pointer];
     if let Some(value) = operand {
         let (_, register, _, scalar) = builder.resolve(*value).ok_or_else(invalid)?;

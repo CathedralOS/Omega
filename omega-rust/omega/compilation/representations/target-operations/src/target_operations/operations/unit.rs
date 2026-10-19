@@ -98,13 +98,13 @@ pub enum TargetUnitOperation {
         result_home: crate::TargetStructuralHomeRequirement,
         machine: semantic_vocabulary::MachineId,
     },
-    /// One observable non-atomic scalar event on the original placed backing.
+    /// One observable non-atomic scalar event through the current accessor.
+    /// Its location already includes the placement's container displacement.
     PlacedScalarAccess {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
         realization: crate::PlacedScalarAccessRealization,
         location: StructuralArgument,
-        interpretation: crate::TargetPlacedInterpretation,
         operand: Option<TargetUnitScalarArgumentSource>,
         result_home: Option<TargetUnitScalarHomeRequirement>,
     },

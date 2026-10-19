@@ -3458,14 +3458,20 @@ fn call_transition(
     Ok(results)
 }
 
-/// A scalar accessor uses the current whole placed parent, independently of its field metadata.
+/// Authenticate the exact accessor's current descriptor, including its borrow
+/// ceiling and backing origins. Handler admission establishes placement supply;
+/// it does not replace this live reference check. Accessor identities are unique
+/// to the canonical plan field, so an unrelated field cannot substitute here.
 pub(in crate::legalization) fn placed_scalar_custody(
     function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
-) -> Result<target_operations::TargetPlacedInterpretation, LegalizationError> {
-    let interpretation = placed_source(custody, source).ok_or(invalid())?;
+    accessor: StructuralTypeId,
+) -> Result<(), LegalizationError> {
+    if reference_source_type(function, custody, types, source) != Some(accessor) {
+        return Err(invalid());
+    }
     normalized_source(function, custody, types, source)?;
-    Ok(interpretation)
+    Ok(())
 }
