@@ -1,0 +1,34 @@
+// Another machine receives a runtime count and still indexes a byte view.
+// Rejected: the machine receives index == items.len, so `Index < items.len`
+// cannot be discharged at read_at.
+machine measure(items: &[u8]) -> u32
+ensures result == 4;
+requires items.len > 1;
+{
+    4
+}
+
+machine read_at<Index: u32>(items: &[u8]) -> u8
+requires Index < items.len;
+{
+    items[Index]
+}
+
+machine consume(index: u32, items: &[u8]) -> u8
+requires index < items.len;
+{
+    read_at<index>(items)
+}
+
+machine indexed(items: &[u8]) -> u8
+requires items.len == 4;
+{
+    consume(measure(items), items)
+}
+
+machine main() crashes Trap {
+    let bytes: [u8; 4] = [9, 8, 7, 6];
+    transition indexed(&bytes[..]) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,23 @@
+// A match join of two copies of a runtime count still indexes a byte view.
+// Rejected: the joined count may equal items.len, so `Index < items.len`
+// cannot be discharged at read_at.
+machine read_at<Index: u32>(items: &[u8]) -> u8
+requires Index < items.len;
+{
+    items[Index]
+}
+
+machine indexed(items: &[u8], count: u32, flag: bool) -> u8
+requires count <= items.len;
+{
+    let copy: u32 = count;
+    let index: u32 = match flag { true -> count, false -> copy };
+    read_at<index>(items)
+}
+
+machine main() crashes Trap {
+    let bytes: [u8; 4] = [9, 8, 7, 6];
+    transition indexed(&bytes[..], 4, true) == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -1,0 +1,2 @@
+cannot prove requires contract for call pick
+needs fact `count < items.len` here
