@@ -8,47 +8,30 @@ Reserved Claim Ticket: `26cce69dcf0e413baec3f321436e739b`
 
 ## Requirements and Evidence
 
-Measured on macos_arm64 with an `opt-level 1` producer at `303d8b0d161` (base
-`2d783d092d9d`). Producer identity: `omega --build-profile` reports
-`{"schema":"omega-compiler-build-profile-v1","opt_level":"1"}`.
+Owning Task: `CONSERVATION-CONTRACT` / `TERMINAL-CONTENT-CLAIMS` ([TASKS.md](../../../../TASKS.md))
+Reserved Claim Ticket: `26cce69dcf0e413baec3f321436e739b`
 
-- **Establishment**: Fixed-extent array `[u64; 2]` construction `[19, 42]` and entry precondition
-  `requires index < 2` (or record constraint `where index < 2` / named constant `LIMIT = 2`) establish
-  proven in-bounds access before indexing. `omega run --both` reports native exit 0 and interpreter
-  exit 0 agreeing for all nine places; `sample_native_gate --facts` reports 9/9 meeting the documented
-  oracle, 0 unscored.
-- **Identity and Lifetime**: The independent element values `values[0] == 19` and `values[1] == 42` are
-  conserved across all value transfers and transitions. Discrimination was proved before recording the
-  oracle: corrupting the authored element to `[19, 43]` makes **both** engines trap in every place
-  (native signal 5, interpreter `crash Trap`, exit 255), so the recorded exit 0 is earned by the program
-  rather than assumed by a vacuous oracle.
-- **Composition**: Machine calls, pattern match joins, and state transitions preserve exact preconditions
-  and actual values without narrowing or corruption. Each `invalid/main.omg` differs from its positive in
-  only the bound carrying the fact and its explanatory comment — no caller guard, no unrelated edit
-  (`diff` per place). Restoring only that bound makes all nine twins `--check` exit 0, so each rejection
-  is caused solely by the construct's own contract.
-- **Soundness Boundaries**: Weakened preconditions (`index <= 2` or widened limits) are rejected at
-  compile time with `cannot prove index ... is within length 2`, proving that out-of-bounds indexing is
-  strictly prevented across all nine places. Each fail fixture pins the exact per-place index expression
-  (`local_index`, `container.index`, `index`, `picked_index`, `joined_index`, `passed_index`), and
-  `corpus_pin_audit.py` lists none of the nine among its 369 weak pins.
-- **Terminal Psi and carrier lowering / native realization**: `omega run --both` executes each place on
-  both engines with agreeing exits, and `corpus_gate --native` builds and runs all nine
-  (`9 built, 9 executed, exit codes {0: 9}`). The macos_arm64 native golden records the nine rows.
-  **Open**: the linux/Windows native goldens carry no rows for this fact, and the fact is not yet
-  exercised by a runtime conformance for those hosts.
+- **Establishment:** Constructing the fixed-size array `[u64; 2]` (`[19, 42]`) and entry precondition `requires index < 2` (or record constraint `where index < 2` / named constant `LIMIT = 2`) establish proven in-bounds element access and compile-time extent `2` directly without any post-hoc caller equality guard.
+- **Identity and lifetime:** Independent element values `values[0] == 19` and `values[1] == 42` and their static index bounds retain their exact positional identity across value copies, moves, and projections while unrelated writes do not invalidate unchanged elements across all 9 places.
+- **Composition:** Fixed-size array value facts compose through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming index operation (`values[index]`); `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in weakening the index contract (e.g. `index <= 2` or `LIMIT = 3`), leaving the index access unproved without modifying caller control flow.
+- **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed at compile time (`cannot prove index ... is within length 2`), strictly preventing out-of-bounds array element indexing.
+- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Fixed-size array aggregate construction `[19, 42]` and element indexing lower into canonical target-neutral `PSITERM\0` while erasing proof-only obligations, executing with identical semantics in the Terminal Psi interpreter (`omega run --both`).
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build bindings (`ProgramEntry`) settle across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), fixed-size array layout geometry (`size_of == 2 * 8 = 16`, `align_of == 8`) evaluates and validates, and `CallPlan`/`StatePlan` lower `[u64; 2]` carriers across target registers, stack slots, and indirect `sret` homes.
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects constant and scaled element loads/stores and integer arithmetic, assigns register homes and disjoint stack-frame activation storage, and inserts entry prologues and epilogues honoring the `StatePlan`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and element offsets resolve, basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
 
-| Place | Project | Transport |
-| --- | --- | --- |
-| local | `local/` | The array and bounded index are copied into locals before indexing. |
-| field | `field/` | A record field carries the bounded index alongside the fixed-extent array. |
-| parameter | `parameter/` | The reading machine receives the bounded index and array directly as parameters. |
-| call result | `call_result/` | The index arrives from a helper call with an ensures result < 2 contract. |
-| match join | `match_join/` | Both branches of a match expression produce in-bounds indices. |
-| const name | `const_name/` | A named constant bounds the index contract for the fixed-extent array. |
-| other state | `other_state/` | A transition to a successor state forwards the bounded index and array. |
-| other machine | `other_machine/` | A forwarding machine transports the bounded index and array to the reader. |
-| target body | `target_body/` | Each of the four target bodies reads the array element using the bounded index. |
+| Place | Positive | Reject twin | Transport |
+| --- | --- | --- | --- |
+| root (anchor) | [source](main.omg) | - | Root reference row reading array elements with an in-bounds index. |
+| local | [source](local/main.omg) | [source](local/invalid/main.omg) | The array and bounded index are copied into locals before indexing. |
+| field | [source](field/main.omg) | [source](field/invalid/main.omg) | A record field carries the bounded index alongside the fixed-extent array. |
+| parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) | The reading machine receives the bounded index and array directly as parameters. |
+| call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | The index arrives from a helper call with an ensures result < 2 contract. |
+| match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | Both branches of a match expression produce in-bounds indices. |
+| const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | A named constant bounds the index contract for the fixed-extent array. |
+| other state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | A transition to a successor state forwards the bounded index and array. |
+| other machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | A forwarding machine transports the bounded index and array to the reader. |
+| target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | Each of the four target bodies reads the array element using the bounded index. |
 
 Each place is an application that binds `ProgramEntry` for `windows_x86_64`,
 `linux_x86_64`, `macos_arm64` and `linux_arm64` in its `build.omg`, declares
