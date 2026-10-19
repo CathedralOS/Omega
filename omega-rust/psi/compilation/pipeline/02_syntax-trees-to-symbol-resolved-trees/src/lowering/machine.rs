@@ -854,6 +854,7 @@ fn lower_machine_states(
     let mut span = HandleSpan::empty();
 
     for (ordinal, state) in syntax_trees.items.state_handles(states).iter().enumerate() {
+        let authored_type = syntax_trees.items.state(*state).return_type;
         let state = lower_state_node(
             lowerer,
             syntax_trees,
@@ -866,6 +867,14 @@ fn lower_machine_states(
             .declarations
             .machine_states
             .append(state);
+        if authored_type.is_valid()
+            && let Some(sources) = &mut lowerer.equation_sources
+        {
+            sources.declared_types.push((
+                crate::preparation::machine_equations::DeclaredTypeOrigin::Result(state),
+                authored_type,
+            ));
+        }
         lowerer
             .symbol_resolved_trees
             .tables

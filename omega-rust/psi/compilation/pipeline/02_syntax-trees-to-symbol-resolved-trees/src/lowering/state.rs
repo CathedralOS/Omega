@@ -545,7 +545,7 @@ fn lower_state_statements(
 ) -> Result<HandleSpan<Statement>, Diagnostic> {
     let mut pending: Vec<Statement> = Vec::new();
     let mut run_start: Option<usize> = None;
-    let mut call_origins = Vec::new();
+    let mut statement_origins = Vec::new();
 
     for statement in syntax_trees.items.statements(statements) {
         lower_statement_into_pending(
@@ -554,7 +554,7 @@ fn lower_state_statements(
             *statement,
             &mut pending,
             &mut run_start,
-            &mut call_origins,
+            &mut statement_origins,
         )?;
     }
 
@@ -567,7 +567,9 @@ fn lower_state_statements(
             .state_statements
             .append_to_span(&mut span, lowered);
         if let Some(sources) = &mut lowerer.equation_sources
-            && let Some((_, original)) = call_origins.iter().find(|(offset, _)| *offset == index)
+            && let Some((_, original)) = statement_origins
+                .iter()
+                .find(|(offset, _)| *offset == index)
         {
             sources.statements.push((*original, handle));
         }
@@ -581,7 +583,7 @@ fn lower_statement_into_pending(
     statement: syntax::statement::StatementHandle,
     pending: &mut Vec<Statement>,
     run_start: &mut Option<usize>,
-    call_origins: &mut Vec<(usize, syntax::statement::StatementHandle)>,
+    statement_origins: &mut Vec<(usize, syntax::statement::StatementHandle)>,
 ) -> Result<(), Diagnostic> {
     // A single syntax statement can lower to MULTIPLE resolved statements: an
     // assignment or local whose value reads a runtime-indexed element in
@@ -606,7 +608,7 @@ fn lower_statement_into_pending(
         let lets_count = lowered.len() - 1;
         match *run_start {
             Some(start) if lets_count > 0 => {
-                for (offset, _) in call_origins.iter_mut() {
+                for (offset, _) in statement_origins.iter_mut() {
                     if *offset >= start {
                         *offset += lets_count;
                     }
@@ -638,9 +640,9 @@ fn lower_statement_into_pending(
 
     if matches!(
         syntax_trees.statements.statement(statement),
-        syntax::statement::StatementNode::Call(_)
+        syntax::statement::StatementNode::Call(_) | syntax::statement::StatementNode::LocalData(_)
     ) {
-        call_origins.push((pending.len() - 1, statement));
+        statement_origins.push((pending.len() - 1, statement));
     }
     Ok(())
 }
@@ -653,13 +655,23 @@ pub(crate) fn lower_state_parameters(
     let mut span = HandleSpan::empty();
 
     for parameter in syntax_trees.items.state_parameters(parameters) {
+        let authored_type = syntax_trees
+            .items
+            .state_parameter(*parameter)
+            .type_reference;
         let parameter = lower_state_parameter(lowerer, syntax_trees, *parameter)?;
-        lowerer
+        let handle = lowerer
             .symbol_resolved_trees
             .tables
             .declarations
             .state_parameters
             .append_to_span(&mut span, parameter);
+        if let Some(sources) = &mut lowerer.equation_sources {
+            sources.declared_types.push((
+                crate::preparation::machine_equations::DeclaredTypeOrigin::Parameter(handle),
+                authored_type,
+            ));
+        }
     }
 
     Ok(span)

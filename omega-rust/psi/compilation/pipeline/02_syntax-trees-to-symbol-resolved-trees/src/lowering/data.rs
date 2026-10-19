@@ -146,13 +146,25 @@ fn lower_data_definition_with_argument_origins(
         if matches!(member, syntax::item::DataMember::Retired(_)) {
             continue;
         }
+        let authored_type = match member {
+            syntax::item::DataMember::Field(field) => Some(field.type_reference),
+            _ => None,
+        };
         let member = lower_data_member(lowerer, syntax_trees, member, &case_fact_gate)?;
-        lowerer
+        let handle = lowerer
             .symbol_resolved_trees
             .tables
             .declarations
             .data_members
             .append_to_span(&mut members, member);
+        if let Some(authored_type) = authored_type
+            && let Some(sources) = &mut lowerer.equation_sources
+        {
+            sources.declared_types.push((
+                crate::preparation::machine_equations::DeclaredTypeOrigin::Field(handle),
+                authored_type,
+            ));
+        }
     }
     let retired_identities = syntax_trees
         .items
@@ -477,12 +489,18 @@ fn lower_data_member(
                         field.type_reference,
                     )?,
                 };
-                lowerer
+                let handle = lowerer
                     .symbol_resolved_trees
                     .tables
                     .declarations
                     .data_payload_fields
                     .append_to_span(&mut payload, lowered);
+                if let Some(sources) = &mut lowerer.equation_sources {
+                    sources.declared_types.push((
+                        crate::preparation::machine_equations::DeclaredTypeOrigin::Payload(handle),
+                        field.type_reference,
+                    ));
+                }
             }
             // CASE-CONSTRAINTS generic case-data synthesis: a generic case's
             // `where` facts deep-copy onto each synthesized instance

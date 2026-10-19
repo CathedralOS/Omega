@@ -294,6 +294,7 @@ fn lower_item_with_exposure(
                 syntax_trees,
                 definition.type_reference,
             )?;
+            let ordinal = lowerer.symbol_resolved_trees.roots.const_declarations.len();
             lowerer.symbol_resolved_trees.roots.const_declarations.push(
                 symbol_resolved_trees::constant::ConstDeclaration {
                     symbol: symbols::SymbolHandle::invalid(),
@@ -312,6 +313,12 @@ fn lower_item_with_exposure(
                     evaluated_value,
                 },
             );
+            if let Some(sources) = &mut lowerer.equation_sources {
+                sources.declared_types.push((
+                    crate::preparation::machine_equations::DeclaredTypeOrigin::Constant(ordinal),
+                    definition.type_reference,
+                ));
+            }
             lowerer.pending_const_declarations.push(
                 crate::resolution::lowerer::PendingConstDeclaration {
                     scope: definition.scope.clone(),

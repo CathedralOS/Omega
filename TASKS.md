@@ -5294,9 +5294,11 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Combine equations with argument/result inference and keep obligations
     through forwarding beyond closed scalar constructor indices, retained
     extensions, late-selected receivers, operator/conformance supply and
-    machine/evidence/value binders. Machine preparation still requires closed
-    explicit calls; keep unsolved-equation
-    rejection until each route discharges them. Scalar return-domain inference
+    machine/evidence/value binders. Closed declaration-backed ordinary call
+    types now combine with structural equations to infer omitted array type
+    and extent arguments (`samples/cli/facts/inferred_array_equation_call`,
+    all nine places and explicit-conflict twins). Open schemas and the other
+    routes above retain unsolved-equation rejection until discharged. Scalar return-domain inference
     from a typed parameter is separate.
   - Add named-lifetime identity and remaining const-index kinds;
     **WRITE-ONLY-BORROW** owns write-only admission.

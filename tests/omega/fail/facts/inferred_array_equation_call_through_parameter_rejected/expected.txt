@@ -1,0 +1,1 @@
+where equation binds `Capacity` to 2 but its explicit argument is 3

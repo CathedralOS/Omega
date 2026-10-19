@@ -41,8 +41,8 @@
 //! Runtime contents and compatible storage sizes never supply an argument.
 //! Data synthesis and machine-call preparation supply their exact selected
 //! declaration telescopes; this solver owns neither call selection nor
-//! publication. Machine preparation currently requires closed explicit calls
-//! and sends completed type roots back through ordinary data normalization;
+//! publication. Machine preparation combines closed declared ordinary types
+//! with fixed explicit arguments and sends completed type roots through data normalization;
 //! an equation does not discharge the selected constructor's own obligations.
 
 use crate::preparation::declaration_selection;
@@ -613,6 +613,36 @@ pub(crate) fn complete_equation_arguments(
     selection: Option<&declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
+    complete_equation_arguments_with_types(
+        syntax,
+        base_info,
+        base_name,
+        supplied,
+        &[],
+        const_values,
+        selection,
+        warnings,
+    )
+}
+
+/// Ordinary call types and declaration equations share one substitution. The
+/// exact formal/actual observations come from selected declarations, never
+/// runtime elements or compatible value bounds. Explicit arguments are fixed
+/// before compatibility; only patterns mentioning an omitted binder contribute
+/// inference, and every such occurrence is checked even after it is bound.
+/// Canonical generics.md (e3d20c0c1f44d36ac6221811e46446975bea57e8):
+/// "All applicable occurrences must be consistent, not just the first one visited."
+/// "Inference selects arguments before checking ordinary compatibility."
+pub(crate) fn complete_equation_arguments_with_types(
+    syntax: &mut SyntaxTrees,
+    base_info: EquationTemplate<'_>,
+    base_name: &Identifier,
+    supplied: &[TypeReferenceHandle],
+    ordinary_types: &[(TypeReferenceHandle, TypeReferenceHandle)],
+    const_values: &HashMap<String, i128>,
+    selection: Option<&declaration_selection::ConstantSelection>,
+    warnings: &mut Vec<Diagnostic>,
+) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
     let bindings = {
         let mut solver = Solver::new(
             &mut *syntax,
@@ -622,6 +652,18 @@ pub(crate) fn complete_equation_arguments(
             const_values,
             selection,
         );
+        for &(formal, actual) in ordinary_types {
+            let mut mentions = Vec::new();
+            type_structure::collect_binder_mentions(
+                solver.syntax,
+                formal,
+                base_info.parameter_names,
+                &mut mentions,
+            );
+            if mentions.iter().any(|index| *index >= supplied.len()) {
+                solver.match_type_structure(formal, actual, base_name.source_span())?;
+            }
+        }
         solver.solve(warnings)?;
         solver.bindings
     };

@@ -1957,6 +1957,24 @@ fail/facts/indexed_storage_address_identity_through_target_body_held_element rej
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/inferred_array_equation_call_through_call_result_rejected rejected 5029ms expected @cd657b07c6e2+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_call_through_const_name_rejected rejected 2718ms expected @cd657b07c6e2+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_call_through_field_rejected rejected 2856ms expected @cd657b07c6e2+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_call_through_local_rejected rejected 3172ms expected @cd657b07c6e2+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_call_through_match_join_rejected rejected 3202ms expected @cd657b07c6e2+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_call_through_other_machine_rejected rejected 3126ms expected @cd657b07c6e2+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_call_through_other_state_rejected rejected 3030ms expected @cd657b07c6e2+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_call_through_parameter_rejected rejected 3113ms expected @cd657b07c6e2+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_call_through_target_body_rejected rejected 2890ms expected @cd657b07c6e2+wt
+	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
 fail/facts/integer_range_delivery_through_call_result_missing_bound rejected 3488ms expected @ff8be1e0d475
 	cannot prove requires contract for call count from probe: source(input) <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/integer_range_delivery_through_const_name_missing_bound rejected 3482ms expected @ff8be1e0d475
@@ -2739,6 +2757,27 @@ fail/generics/index_equality_foreign_algebra rejected 1284ms expected @a9ae30e1c
 fail/generics/index_equality_selected_boolean_relation rejected 1372ms expected @a9ae30e1c334+wt
 fail/generics/indexed_domain_capacity_invalid_initializer rejected 814ms expected @a9ae30e1c334+wt
 fail/generics/inferred_argument_parameter_conflict rejected 215ms expected @6ef08ceefee0+wt
+fail/generics/inferred_machine_array_equation_constructor_identity_rejected rejected 3507ms expected @cd657b07c6e2+wt
+	generic machine `capacity` where type equation requires the same fixed-array constructor
+fail/generics/inferred_machine_array_equation_copy_bound_rejected rejected 3445ms expected @cd657b07c6e2+wt
+	generic machine `capacity` has a concrete specialization tuple that does not satisfy its authored type bounds
+fail/generics/inferred_machine_array_equation_cycle_rejected rejected 3178ms expected @cd657b07c6e2+wt
+	generic machine `circular` where equations define `Left` through itself; supply the argument explicitly
+fail/generics/inferred_machine_array_equation_match_conflict_rejected rejected 3340ms expected @cd657b07c6e2+wt
+	generic machine `capacity` where type equation has conflicting element types
+fail/generics/inferred_machine_array_equation_partial_conflict_rejected rejected 3913ms expected @cd657b07c6e2+wt
+	generic machine `paired` where equations bind `Capacity` to both 2 and 3
+fail/generics/inferred_machine_array_equation_repeated_conflict_rejected rejected 3042ms expected @cd657b07c6e2+wt
+	generic machine `paired` where type equation has conflicting element types
+fail/generics/inferred_machine_array_equation_repeated_conflict_reversed_rejected rejected 3112ms expected @cd657b07c6e2+wt
+	generic machine `paired` where type equation has conflicting element types
+fail/generics/inferred_machine_array_equation_result_argument_count_rejected rejected 4790ms expected @cd657b07c6e2+wt
+	machine `main` state `entry` assigns an array literal with 3 element(s) to a `[_; 2]` place; a fixed-array literal must supply exactly 2 element(s)
+	argument `items` for state `entry` expects `[u8; 2]`, got `array literal`
+fail/generics/inferred_machine_array_equation_result_conflict_rejected rejected 2832ms expected @cd657b07c6e2+wt
+	generic machine `same` where type equation has conflicting element types
+fail/generics/inferred_machine_array_equation_underdetermined_rejected rejected 2648ms expected @cd657b07c6e2+wt
+	generic machine `capacity` cannot determine `Length` from its where equations; supply the argument explicitly
 fail/generics/local_generic_result_parameter_mismatch rejected 250ms expected @6ef08ceefee0+wt
 fail/generics/local_slice_result_element_mismatch rejected 225ms expected @6ef08ceefee0+wt
 fail/generics/machine_bound_violated_at_call rejected 750ms expected @a9ae30e1c334+wt
@@ -6067,6 +6106,15 @@ pass/facts/indexed_storage_address_identity_through_other_machine_exit checked 6
 pass/facts/indexed_storage_address_identity_through_other_state_exit checked 6323ms check-target:macos_arm64 @69725a85bb43+wt
 pass/facts/indexed_storage_address_identity_through_parameter_exit checked 6351ms check-target:macos_arm64 @69725a85bb43+wt
 pass/facts/indexed_storage_address_identity_through_target_body_exit checked 6531ms check-target:macos_arm64 @69725a85bb43+wt
+pass/facts/inferred_array_equation_call_through_call_result_exit checked 8653ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/facts/inferred_array_equation_call_through_const_name_exit checked 8858ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/facts/inferred_array_equation_call_through_field_exit checked 8738ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/facts/inferred_array_equation_call_through_local_exit checked 8351ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/facts/inferred_array_equation_call_through_match_join_exit checked 9988ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/facts/inferred_array_equation_call_through_other_machine_exit checked 10468ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/facts/inferred_array_equation_call_through_other_state_exit checked 10003ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/facts/inferred_array_equation_call_through_parameter_exit checked 10223ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/facts/inferred_array_equation_call_through_target_body_exit checked 12212ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/facts/integer_range_delivery_through_call_result_exit checked 8927ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/integer_range_delivery_through_const_name_exit checked 7937ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/integer_range_delivery_through_field_exit checked 8077ms check-target:macos_arm64 @ff8be1e0d475
@@ -6568,6 +6616,13 @@ pass/generics/generic_result_parameter_receipt checked 2458ms @6ef08ceefee0+wt
 pass/generics/generic_seq_consuming_map_filter checked 2806ms @fcc053dc7014+wt
 pass/generics/generic_seq_map_filter checked 9967ms @fcc053dc7014+wt
 pass/generics/higher_order_schema checked 10059ms @5041ef1af684+wt
+pass/generics/inferred_machine_array_equation_deferred_bodies_exit checked 19762ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/generics/inferred_machine_array_equation_generic_owner_field_exit checked 12657ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/generics/inferred_machine_array_equation_named_extent_exit checked 11417ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/generics/inferred_machine_array_equation_nested_field_exit checked 13145ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/generics/inferred_machine_array_equation_partial_exit checked 12219ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/generics/inferred_machine_array_equation_result_exit checked 13349ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/generics/inferred_machine_array_equation_values_exit checked 15106ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/generics/machine_bound_satisfied_at_call checked 3528ms @a9ae30e1c334+wt
 pass/generics/machine_indexed_stream_dispatch checked 8234ms @0acd49d4fea4+wt
 pass/generics/machine_type_equations checked 1760ms @a9ae30e1c334+wt

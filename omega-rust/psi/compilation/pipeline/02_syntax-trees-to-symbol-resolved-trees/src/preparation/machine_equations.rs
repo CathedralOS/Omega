@@ -3,8 +3,9 @@
 //! Ordinary provisional resolution supplies exact selected declaration handles.
 //! The lowering pass records private source links while producing those handles;
 //! source coordinates and leaf spellings never reconstruct call identity. This
-//! bounded preparation route completes explicit static tuples, including full
-//! tuples, before ordinary checked monomorphization. Open applications remain
+//! preparation route combines fixed static arguments with declaration-backed
+//! ordinary argument/result types before solving structural equations. It never
+//! observes initializer contents or flow bounds. Open applications remain
 //! obligations and reject rather than entering later inference unchecked.
 //! Selected scalar constants share declaration canonicalization across direct
 //! and nested arguments. Nested constructor slots consume the selected declared
@@ -29,8 +30,12 @@ use syntax_trees::{
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
 
+mod argument_types;
+pub(crate) use argument_types::DeclaredTypeOrigin;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct SourceLinks {
+    pub(crate) declared_types: Vec<(DeclaredTypeOrigin, TypeReferenceHandle)>,
     pub(crate) declarations: Vec<(usize, Machine)>,
     pub(crate) expressions: Vec<(
         syntax_trees::expression::ExpressionHandle,
@@ -144,11 +149,14 @@ pub(crate) fn complete(
                         "machine equation application lost its authored call",
                     )]);
                 };
+                let ordinary_types =
+                    argument_types::call_constraints(syntax, trees, sources, call, Some(*resolved));
                 complete_authored_arguments(
                     syntax,
                     index,
                     &authored.target,
                     &mut authored.machine_arguments,
+                    &ordinary_types,
                     sources,
                     selection,
                     &mut completed_type_roots,
@@ -190,11 +198,13 @@ pub(crate) fn complete(
                 "machine equation application lost its authored statement",
             )]);
         };
+        let ordinary_types = argument_types::statement_constraints(syntax, trees, sources, call);
         complete_authored_arguments(
             syntax,
             index,
             &authored.target,
             &mut authored.machine_arguments,
+            &ordinary_types,
             sources,
             selection,
             &mut completed_type_roots,
@@ -363,13 +373,21 @@ fn complete_authored_arguments(
     index: usize,
     target: &syntax_trees::identifier::Identifier,
     machine_arguments: &mut Box<[StaticMachineArgument]>,
+    ordinary_types: &[(TypeReferenceHandle, TypeReferenceHandle)],
     sources: &SourceLinks,
     selection: &ConstantSelection<'_>,
     completed_type_roots: &mut Vec<syntax_trees::types::TypeReferenceHandle>,
 ) -> Result<(), Vec<Diagnostic>> {
-    *machine_arguments =
-        complete_arguments(syntax, index, target, machine_arguments, sources, selection)
-            .map_err(|error| vec![error])?;
+    *machine_arguments = complete_arguments(
+        syntax,
+        index,
+        target,
+        machine_arguments,
+        ordinary_types,
+        sources,
+        selection,
+    )
+    .map_err(|error| vec![error])?;
     completed_type_roots.extend(
         machine_arguments
             .iter()
@@ -384,6 +402,7 @@ fn complete_arguments(
     selected: usize,
     target: &syntax_trees::identifier::Identifier,
     supplied: &[StaticMachineArgument],
+    ordinary_types: &[(TypeReferenceHandle, TypeReferenceHandle)],
     sources: &SourceLinks,
     selection: &ConstantSelection<'_>,
 ) -> Result<Box<[StaticMachineArgument]>, Diagnostic> {
@@ -475,7 +494,7 @@ fn complete_arguments(
     }
     let const_values = module_constants::lexical_integer_const_values(syntax);
     let mut warnings = Vec::new();
-    let tuple = type_equations::complete_equation_arguments(
+    let tuple = type_equations::complete_equation_arguments_with_types(
         syntax,
         EquationTemplate {
             kind: "machine",
@@ -487,6 +506,7 @@ fn complete_arguments(
         },
         target,
         &arguments,
+        ordinary_types,
         &const_values,
         Some(selection),
         &mut warnings,
