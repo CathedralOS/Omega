@@ -25,10 +25,11 @@
 //!   guard miss falls through to the next arm still holding the value, so
 //!   those moves retire when the arm's statement ends.
 //! - A conditional move — inside one match arm or a short-circuit operand —
-//!   leaves the owner consumed on some paths only. Sibling arms still hold
-//!   the value, so the move applies once its statement completes; every later
-//!   use then reads a possibly consumed owner. A move no evaluated occurrence
-//!   claimed (an operand of an unreachable arm) never applies.
+//!   leaves the owner consumed on some paths only. The move applies immediately
+//!   on compatible evaluation routes; mutually exclusive sibling arms retain
+//!   the value. After the join, every later use sees a possibly consumed owner.
+//!   A move no evaluated occurrence claimed (an operand of an unreachable arm)
+//!   never applies.
 //! - A use at, below or above a consumed place observes absent storage. Partial
 //!   moves preserve disjoint siblings, not a whole ancestor value to pass to
 //!   another machine. Selected structural cleanup uses its exact residual
@@ -49,6 +50,7 @@ use validation::CanonicalPlace;
 use super::borrowed_windows::place_spelling;
 use super::linear_obligations::type_reference_is_reference;
 use super::owned_selection::place_paths_overlap;
+use crate::checks::ownership_occurrences::{EvaluationBranch, routes_compatible};
 
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
@@ -59,14 +61,12 @@ struct ConsumedPlace {
     path: Vec<facts::PlaceSegment>,
     spelling: String,
     moved_statement: usize,
+    route: Vec<EvaluationBranch>,
 }
 
 #[derive(Default)]
 pub(super) struct ConsumedOwners {
     consumed: Vec<ConsumedPlace>,
-    /// Conditional moves of the current statement; they join `consumed` when
-    /// the statement completes.
-    pending: Vec<ConsumedPlace>,
     /// `consumed` rows that predate the current statement. A transition
     /// statement truncates back to this length when it ends.
     statement_start: usize,
@@ -75,7 +75,6 @@ pub(super) struct ConsumedOwners {
 impl ConsumedOwners {
     pub(super) fn begin_statement(&mut self) {
         self.statement_start = self.consumed.len();
-        self.pending.clear();
     }
 
     /// Apply one ordered move. Moves that do not transfer owned storage of
@@ -89,17 +88,33 @@ impl ConsumedOwners {
         statement_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
         path: &[facts::PlaceSegment],
-        conditional: bool,
+        route: &[EvaluationBranch],
     ) {
-        let place = storage_place(
+        self.record_owned_place(
             program,
             machine,
             state,
+            statement_index,
             &CanonicalPlace {
                 root: event.root,
                 segments: path.to_vec(),
             },
+            route,
         );
+    }
+
+    /// Resolve the moved selection to exact owned storage before recording its
+    /// absence on the selected evaluation route.
+    fn record_owned_place(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        source: &CanonicalPlace,
+        route: &[EvaluationBranch],
+    ) {
+        let place = storage_place(program, machine, state, source);
         if !owned_custody_chain(program, machine, state, statement_index, &place) {
             return;
         }
@@ -108,12 +123,9 @@ impl ConsumedOwners {
             root: place.root,
             path: place.segments,
             moved_statement: statement_index,
+            route: route.to_vec(),
         };
-        if conditional {
-            self.pending.push(consumed);
-        } else {
-            self.consumed.push(consumed);
-        }
+        self.consumed.push(consumed);
     }
 
     /// A read, borrow, receiver or move overlapping a consumed place touches
@@ -127,13 +139,14 @@ impl ConsumedOwners {
         statement: &StatementNode,
         statement_index: usize,
         use_place: &CanonicalPlace,
+        route: &[EvaluationBranch],
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if self.consumed.is_empty() || !is_operational(statement) {
             return;
         }
         let place = storage_place(program, machine, state, use_place);
-        let Some(consumed) = self.consumed_through(&place) else {
+        let Some(consumed) = self.consumed_through(&place, route) else {
             return;
         };
         let spelling = place_spelling(program, machine, state, place.root, &place.segments);
@@ -209,9 +222,13 @@ impl ConsumedOwners {
     pub(super) fn finish_statement(&mut self, leaves_on_transition: bool) {
         if leaves_on_transition {
             self.consumed.truncate(self.statement_start);
-            self.pending.clear();
         } else {
-            self.consumed.append(&mut self.pending);
+            // Evaluation routes are local to this statement. Beyond its join,
+            // a value consumed on any returning path is no longer definitely
+            // available, even when the next statement repeats the same guard.
+            for consumed in &mut self.consumed {
+                consumed.route.clear();
+            }
         }
     }
 
@@ -219,9 +236,15 @@ impl ConsumedOwners {
     /// traversal is not an observation: the occurrence owner already retains
     /// only each operation's maximal selected place, so disjoint siblings do
     /// not spuriously observe their common parent.
-    fn consumed_through(&self, place: &CanonicalPlace) -> Option<&ConsumedPlace> {
+    fn consumed_through(
+        &self,
+        place: &CanonicalPlace,
+        route: &[EvaluationBranch],
+    ) -> Option<&ConsumedPlace> {
         self.consumed.iter().find(|consumed| {
-            consumed.root == place.root && place_paths_overlap(&place.segments, &consumed.path)
+            routes_compatible(&consumed.route, route)
+                && consumed.root == place.root
+                && place_paths_overlap(&place.segments, &consumed.path)
         })
     }
 }

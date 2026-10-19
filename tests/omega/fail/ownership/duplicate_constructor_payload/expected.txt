@@ -1,1 +1,2 @@
-projected custody overlaps an earlier transfer or release
+cannot use `choice::Present.value`
+after `choice::Present.value` was transferred or consumed

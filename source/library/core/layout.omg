@@ -392,8 +392,9 @@ requires fuel >= 1 && fuel <= 128
     ) -> AccessPlan {
         let mut rejected: AccessPlan = plan;
         rejected.entries[0] = AccessFieldEntry { key: key, access: access };
-        transition rejected.field_count < 32 {
-            true -> grow_invalid(rejected, rejected.field_count)
+        let field_count: u64 = rejected.field_count;
+        transition field_count < 32 {
+            true -> grow_invalid(rejected, field_count)
             _ -> (rejected)
         }
     }

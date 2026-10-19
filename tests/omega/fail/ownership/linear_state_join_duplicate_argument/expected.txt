@@ -1,1 +1,2 @@
-linear value `left` was already transferred or consumed
+cannot use `left`
+after `left` was transferred or consumed

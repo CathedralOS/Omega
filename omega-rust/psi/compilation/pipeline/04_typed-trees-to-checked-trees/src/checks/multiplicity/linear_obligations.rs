@@ -272,6 +272,7 @@ pub(super) fn prepare_storage_deaths(
                                 statement,
                                 statement_index,
                                 &place,
+                                &step.route,
                                 &mut consumed_owner_uses,
                             );
                             continue;
@@ -471,7 +472,7 @@ pub(super) fn prepare_storage_deaths(
                             statement_index,
                             event,
                             path,
-                            conditional,
+                            &step.route,
                         );
                     }
                 }

@@ -1,5 +1,5 @@
-// The source-only check does not run constructor custody completion. Full
-// checked publication must reject overlapping transfers from the same payload.
+// Source checking rejects the second transfer from the selected payload before
+// constructor custody completion can publish overlapping claims.
 data Token { value: i32; }
 data Choice { case Present(value: Token); case Empty; }
 data Pair { first: Token; second: Token; }

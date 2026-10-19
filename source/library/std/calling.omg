@@ -20,7 +20,9 @@ pub data SystemVEightbyteClass {
     case Sse;
 }
 
-pub data ValueClass {
+// ABI descriptions are reusable pure data, not ownership of described storage.
+// Policies inspect and pass them repeatedly while assembling a plan.
+pub data ValueClass [copy] {
     case Integer;
     case Float;
     case Reference;
@@ -28,18 +30,18 @@ pub data ValueClass {
     case Record(first_field: u64, field_count: u64);
 }
 
-pub data ValueShape {
+pub data ValueShape [copy] {
     class: ValueClass;
     byte_size: u64;
     alignment: u64;
 }
 
-pub data ValueField {
+pub data ValueField [copy] {
     shape: u64;
     byte_offset: u64;
 }
 
-pub data CallbackBinderIdentity {
+pub data CallbackBinderIdentity [copy] {
     binder: u64;
     requirement: u64;
 }
@@ -86,29 +88,29 @@ pub data NativePlace [copy] {
     ) where field_path_count >= 1, field_path_count <= 16;
 }
 
-pub data NativeCallbackDemandIdentity {
+pub data NativeCallbackDemandIdentity [copy] {
     destination: NativePlace;
     requirement: u64;
 }
 
-pub data NativeParameterOrigin {
+pub data NativeParameterOrigin [copy] {
     case SemanticFormal(formal_ordinal: u64);
     case PrivateCallback(binder: u64, requirement: u64);
 }
 
-pub data NativeParameterShape {
+pub data NativeParameterShape [copy] {
     case Semantic(root: u64);
     case TargetFunctionPointer(byte_size: u64, alignment: u64);
 }
 
-pub data NativeParameterIdentity {
+pub data NativeParameterIdentity [copy] {
     identity: u64;
     native_ordinal: u64;
     origin: NativeParameterOrigin;
     shape: NativeParameterShape;
 }
 
-pub data BoundarySignature where shape_count <= 256, field_count <= 256,
+pub data BoundarySignature [copy] where shape_count <= 256, field_count <= 256,
     parameter_count <= 32, native_parameter_count <= 32,
     callback_binder_count <= 32, callback_demand_count <= 32 {
     shapes: [ValueShape; 256];
