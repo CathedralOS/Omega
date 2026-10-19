@@ -2185,15 +2185,27 @@ fail/facts/compound_guard_through_other_state_compile rejected 3695ms expected @
 fail/facts/compound_guard_through_parameter_compile rejected 2369ms expected @2ef2ab353498+wt
 fail/facts/compound_guard_through_target_body_compile rejected 2356ms expected @2ef2ab353498+wt
 fail/facts/compound_guard_unequal_match_arm_compile rejected 2639ms expected @2ef2ab353498+wt
-fail/facts/compound_index_guard_through_call_result_rejected rejected 1015ms expected @ec38c6dfcf45
-fail/facts/compound_index_guard_through_const_name_rejected rejected 1062ms expected @ec38c6dfcf45
-fail/facts/compound_index_guard_through_field_rejected rejected 1088ms expected @ec38c6dfcf45
-fail/facts/compound_index_guard_through_local_rejected rejected 932ms expected @ec38c6dfcf45
-fail/facts/compound_index_guard_through_match_join_rejected rejected 992ms expected @ec38c6dfcf45
-fail/facts/compound_index_guard_through_other_machine_rejected rejected 946ms expected @ec38c6dfcf45
-fail/facts/compound_index_guard_through_other_state_rejected rejected 1003ms expected @ec38c6dfcf45
-fail/facts/compound_index_guard_through_parameter_rejected rejected 1026ms expected @ec38c6dfcf45
-fail/facts/compound_index_guard_through_target_body_rejected rejected 1082ms expected @ec38c6dfcf45
+fail/facts/compound_index_guard_through_call_result_rejected rejected 6799ms expected @8137d4f697de+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_const_name_rejected rejected 6672ms expected @8137d4f697de+wt
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_field_rejected rejected 6762ms expected @8137d4f697de+wt
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_local_rejected rejected 6421ms expected @8137d4f697de+wt
+	cannot prove index `b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_match_join_rejected rejected 6615ms expected @8137d4f697de+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_other_machine_rejected rejected 6535ms expected @8137d4f697de+wt
+	cannot prove index `main.b * 20 + main.a` is within length 200 in store::entry
+fail/facts/compound_index_guard_through_other_state_rejected rejected 6930ms expected @8137d4f697de+wt
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+fail/facts/compound_index_guard_through_parameter_rejected rejected 7302ms expected @8137d4f697de+wt
+	cannot prove index `b * 20 + a` is within length 200 in store::entry
+fail/facts/compound_index_guard_through_target_body_rejected rejected 7427ms expected @8137d4f697de+wt
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/facts/computed_constant_array_extent_index rejected 8090ms expected @7ee7ea840945+wt
 	cannot prove index `1` is within length 1
 fail/facts/computed_constant_array_extent_mismatch rejected 300ms expected @7ee7ea840945+wt
@@ -7719,15 +7731,15 @@ pass/facts/compound_guard_through_other_machine_compile checked 2089ms @2ef2ab35
 pass/facts/compound_guard_through_other_state_compile checked 1834ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_parameter_compile checked 1854ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_target_body_compile checked 2049ms @2ef2ab353498+wt
-pass/facts/compound_index_guard_through_call_result_exit checked 5660ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/compound_index_guard_through_const_name_exit checked 5834ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/compound_index_guard_through_field_exit checked 5759ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/compound_index_guard_through_local_exit checked 7052ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/compound_index_guard_through_match_join_exit checked 6939ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/compound_index_guard_through_other_machine_exit checked 6813ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/compound_index_guard_through_other_state_exit checked 6756ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/compound_index_guard_through_parameter_exit checked 6961ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/compound_index_guard_through_target_body_exit checked 7066ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/compound_index_guard_through_call_result_exit checked 70527ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/compound_index_guard_through_const_name_exit checked 70397ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/compound_index_guard_through_field_exit checked 70496ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/compound_index_guard_through_local_exit checked 80205ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/compound_index_guard_through_match_join_exit checked 79727ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/compound_index_guard_through_other_machine_exit checked 81376ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/compound_index_guard_through_other_state_exit checked 54653ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/compound_index_guard_through_parameter_exit checked 54193ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/compound_index_guard_through_target_body_exit checked 54819ms check-target:macos_arm64 @8137d4f697de+wt
 pass/facts/computed_constant_array_extent_exit checked 21578ms check-target:macos_arm64 @7ee7ea840945+wt
 pass/facts/computed_record_window_mixed_lifecycle_exit checked 25778ms check-target:macos_arm64 @dd658fb23eef
 pass/facts/computed_record_window_original_exit checked 8376ms check-target:macos_arm64 @408e4fc23fbc
