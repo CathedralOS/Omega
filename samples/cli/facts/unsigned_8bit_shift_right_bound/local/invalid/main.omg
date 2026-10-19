@@ -1,0 +1,27 @@
+// Fact: an 8-bit unsigned u8 logical right shift of a bounded input (val >= 160u8 && val <= 160u8) by 2u32 bits establishes shifted >= 40u8 && shifted <= 40u8 so exact 8-bit subtraction shifted - 40u8 is proved underflow-free across all nine places.
+// Invalid: weakened val produces shifted == 30, failing verify_shifted requires contract.
+
+machine compute_shift(val: u8) -> u8
+    requires val >= 120 && val <= 160
+{
+    val >> 2u32
+}
+
+machine verify_shifted(shifted: u8) -> u8
+    requires shifted >= 40 && shifted <= 40
+{
+    shifted - 40
+}
+
+machine main() crashes Trap {
+    let val: u8 = 120;
+    let shifted: u8 = compute_shift(val);
+    let local_shifted: u8 = shifted;
+    let check: u8 = verify_shifted(local_shifted);
+    transition check == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
