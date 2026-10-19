@@ -202,6 +202,60 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
         .domain(subject, domain, &mut Vec::new())
 }
 
+/// Membership of `subject` in one EXACT indexed (const-generic) instance.
+///
+/// [`prove_domain_at_place`] answers membership questions by declaration
+/// symbol, which is the whole theory of an atomic domain but not of a family:
+/// `BelowIndex<4>` and `BelowIndex<9>` share a symbol and have no variance
+/// relationship, so a fact about one must not satisfy an obligation for the
+/// other. [`domain_membership_implies`] correctly refuses that reduction, so an
+/// indexed requirement is discharged here by matching the carried fact's own
+/// interned instance identity instead of its family symbol.
+///
+/// Only live membership evidence is consulted. A declared constraint, a
+/// completed call's `ensures`, or an established initializer each record their
+/// exact instance; nothing here re-derives an instance from a type annotation
+/// or a predicate that could hold for several applications.
+pub(in crate::checks::contracts) fn prove_indexed_domain_at_place(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    subject: &CanonicalPlace,
+    domain: SymbolHandle,
+    instance: language_semantics::SemanticDomainId,
+) -> bool {
+    if !instance.is_valid() {
+        return false;
+    }
+    contexts.iter().any(|context| {
+        semantic
+            .context_view(semantic.contexts.get(*context))
+            .facts()
+            .any(|fact| {
+                let Some((_, _, candidate_symbol, candidate_instance)) =
+                    fact.payload.domain_membership()
+                else {
+                    return false;
+                };
+                if candidate_symbol != domain || candidate_instance != instance {
+                    return false;
+                }
+                let Some(place) = fact.place.as_place() else {
+                    return false;
+                };
+                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
+                    .is_some_and(|candidate| {
+                        candidate.root == subject.root
+                            && segments_cover_subject(
+                                program,
+                                &candidate.segments,
+                                &subject.segments,
+                            )
+                    })
+            })
+    })
+}
+
 /// Per-byte predicates survive a window; UTF-8 and nonempty do not. Strip
 /// exactly one authenticated range selector, then prove the live base through
 /// the same occurrence facts used for every other place. Bounds and custody

@@ -157,7 +157,14 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 true
             } else if !validation::field_domains::domain_requires_provenance(program, domain_symbol)
             {
-                super::super::super::prover::prove_domain_at_place(
+                super::super::super::prover::prove_indexed_domain_at_place(
+                    program,
+                    &facts.semantic,
+                    contexts,
+                    subject,
+                    domain_symbol,
+                    semantic_domain,
+                ) || super::super::super::prover::prove_domain_at_place(
                     program,
                     &facts.semantic,
                     contexts,

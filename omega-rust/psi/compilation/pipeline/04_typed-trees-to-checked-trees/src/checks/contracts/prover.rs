@@ -28,8 +28,8 @@ use facts::{FactPayload, FactPlace};
 
 mod assigned_values;
 pub(super) use assigned_values::{
-    byte_predicate_proven_at_place, prove_domain_at_place, scalar_value_at_place,
-    segments_cover_subject,
+    byte_predicate_proven_at_place, prove_domain_at_place, prove_indexed_domain_at_place,
+    scalar_value_at_place, segments_cover_subject,
 };
 mod captured_values;
 mod scalars;
