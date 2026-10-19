@@ -1393,6 +1393,12 @@ fail/domains/issued_record_wrapping_zero rejected 612ms expected @de35918cc70a+w
 fail/domains/issued_state_arrival_double_move rejected 599ms expected @0e81fb3e4cce+wt
 fail/domains/issued_state_arrival_mutated rejected 599ms expected @0e81fb3e4cce+wt
 fail/domains/issued_state_arrival_unissued rejected 609ms expected @0e81fb3e4cce+wt
+fail/domains/linear_qualification_reuse_moved_source rejected 5402ms expected @d012ed8f0bae+wt
+	cannot use `claim` in machine `exercise` state `entry` (statement 3) after `claim` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `claim` first
+fail/domains/linear_qualification_reuse_projected_source rejected 6049ms expected @d012ed8f0bae+wt
+	cannot use `holder.claim` in machine `exercise` state `entry` (statement 2) after `holder.claim` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `holder.claim` first
+fail/domains/linear_qualification_unselected_target_issuer rejected 8397ms expected @d012ed8f0bae+wt
+	`as ... in Claim::Tagged` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/domains/match_join_alias_domain_rejected rejected 1111ms expected @fd94a7b8095c+wt
 fail/domains/module_domain_broad_import_hides_leaf rejected 853ms expected @a9ae30e1c334+wt
 fail/domains/module_qualified_cast_domain_false rejected 285ms expected @2012446ad74a+wt
@@ -2230,6 +2236,37 @@ fail/facts/linear_claim_retirement_through_parameter_rejected rejected 2687ms ex
 	cannot use `token` in machine `consume` state `entry` (statement 1) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/facts/linear_claim_retirement_through_target_body_rejected rejected 2688ms expected @45cbafd80d9c
 	cannot use `token` in machine `consume` state `entry` (statement 1) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
+fail/facts/linear_routed_label_call_result rejected 5570ms expected @d012ed8f0bae+wt
+	cannot prove requires contract for call forward from exercise: Claim in Claim::Issued in state `entry`
+	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/linear_routed_label_const_name rejected 5448ms expected @d012ed8f0bae+wt
+	cannot prove initializer of `claim` in exercise is in domain `Claim::Issued`; an annotation cannot establish routed qualification
+	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	`as ... in Claim::Tagged` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/facts/linear_routed_label_field rejected 5495ms expected @d012ed8f0bae+wt
+	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Holder` field `claim` is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	`as ... in Claim::Tagged` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/facts/linear_routed_label_local rejected 5555ms expected @d012ed8f0bae+wt
+	cannot prove initializer of `claim` in exercise is in domain `Claim::Issued`; an annotation cannot establish routed qualification
+	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	`as ... in Claim::Tagged` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/facts/linear_routed_label_match_join rejected 5612ms expected @d012ed8f0bae+wt
+	cannot prove requires contract for call choose from exercise: Claim in Claim::Issued in state `entry`
+	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/linear_routed_label_other_machine rejected 5597ms expected @d012ed8f0bae+wt
+	cannot prove requires contract for call label from exercise: Claim in Claim::Issued in state `entry`
+	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/linear_routed_label_other_state rejected 5387ms expected @d012ed8f0bae+wt
+	cannot prove requires contract for call label from exercise: claim in Claim::Issued in state `entry`
+	cannot prove initializer of `claim` in exercise is in domain `Claim::Issued`; an annotation cannot establish routed qualification
+	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/linear_routed_label_parameter rejected 5354ms expected @d012ed8f0bae+wt
+	cannot prove requires contract for call label from exercise: Claim in Claim::Issued in state `entry`
+	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/linear_routed_label_target_body rejected 5382ms expected @d012ed8f0bae+wt
+	cannot prove requires contract for call label from exercise: Claim in Claim::Issued in state `entry`
+	construction value is not proven in domain `Claim::Issued` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/facts/live_across_call_spill_unproved_call_result rejected 2332ms expected @45cbafd80d9c
 	exact arithmetic in machine `run` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/live_across_call_spill_unproved_const_name rejected 2331ms expected @45cbafd80d9c
@@ -3252,9 +3289,11 @@ fail/machines/retired_self_expression rejected 0ms expected @a9ae30e1c334+wt
 fail/machines/retired_self_receiver rejected 0ms expected @a9ae30e1c334+wt
 fail/machines/retired_self_transition rejected 0ms expected @a9ae30e1c334+wt
 fail/machines/static_namespace_has_no_fields rejected 802ms expected @a9ae30e1c334+wt
-fail/memory/bump_allocator_cast_minted_vacant rejected 1331ms expected @a9ae30e1c334+wt
+fail/memory/bump_allocator_cast_minted_vacant rejected 2838ms expected @d012ed8f0bae+wt
+	`as ... in Extent::Vacant` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/memory/bump_allocator_live_allocation_dropped rejected 1647ms expected @a9ae30e1c334+wt
-fail/memory/bump_allocator_place_into_occupied rejected 811ms expected @a9ae30e1c334+wt
+fail/memory/bump_allocator_place_into_occupied rejected 961ms expected @d012ed8f0bae+wt
+	implicit domain weakening in argument `storage` for state `place` drops `Resident<SlotPlacement, Slot>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/memory/bump_allocator_release_with_live_resident rejected 942ms expected @a9ae30e1c334+wt
 fail/memory/bump_allocator_restated_resident_index_mismatch rejected 1316ms expected @a9ae30e1c334+wt
 fail/memory/indexed_resident_bodyless_handback rejected 1707ms expected @226fbdd49549+wt
@@ -3279,7 +3318,16 @@ fail/memory/indexed_resident_wrong_replacement rejected 770ms expected @226fbdd4
 fail/memory/native_allocation_direct_issuance_rejected rejected 339ms expected @d7fd01f47497+wt
 fail/memory/native_allocation_double_release_rejected rejected 496ms expected @d7fd01f47497+wt
 fail/memory/native_allocation_unissued_release_rejected rejected 1267ms expected @d7fd01f47497+wt
-fail/memory/weak_vacant_qualifier_drop rejected 889ms expected @a9ae30e1c334+wt
+fail/memory/resident_qualification_wrong_index rejected 2292ms expected @d012ed8f0bae+wt
+	`as ... in Resident` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/memory/resident_transfer_cast_forgery rejected 2082ms expected @d012ed8f0bae+wt
+	`as ... in Resident` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/memory/vacant_transfer_checked_adapter_forgery rejected 1917ms expected @d012ed8f0bae+wt
+	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Granted
+	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Vacant
+	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Granted
+fail/memory/weak_vacant_qualifier_drop rejected 1748ms expected @d012ed8f0bae+wt
+	construction of `Weak` field `e` is not proven in domain `Extent::Vacant` in sneak state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/modules/ambiguous_attached_machine_carrier rejected 140ms expected @61ba1df9375e+wt
 fail/modules/ambiguous_imported_data rejected 568ms expected @a9ae30e1c334+wt
 fail/modules/ambiguous_numeric_callable_not_builtin rejected 578ms expected @1f63ee648905+wt
@@ -5925,6 +5973,8 @@ pass/domains/indexed_domain_fact checked 9754ms @5041ef1af684+wt
 pass/domains/indexed_membership_follows_completed_values checked 11058ms check-target:macos_arm64 @a80b1ee9811e+wt
 pass/domains/intersected_qualifiers checked 9557ms @5041ef1af684+wt
 pass/domains/issued_indexed_subject_predicate checked 16965ms @c48489ea6ad6
+pass/domains/linear_qualification_nested_move checked 18154ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/domains/linear_qualification_projected_sibling checked 18297ms check-target:macos_arm64 @d012ed8f0bae+wt
 pass/domains/local_alias_domain_transfer checked 1774ms @a9ae30e1c334+wt
 pass/domains/match_domain_patterns checked 1622ms @a9ae30e1c334+wt
 pass/domains/match_domain_results checked 9876ms @5041ef1af684+wt
@@ -6579,6 +6629,15 @@ pass/facts/linear_claim_retirement_through_other_machine_exit checked 8021ms che
 pass/facts/linear_claim_retirement_through_other_state_exit checked 7982ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/linear_claim_retirement_through_parameter_exit checked 7938ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/linear_claim_retirement_through_target_body_exit checked 7826ms check-target:macos_arm64 @45cbafd80d9c
+pass/facts/linear_routed_label_call_result checked 18445ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_const_name checked 18161ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_field checked 18129ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_local checked 18128ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_match_join checked 18282ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_other_machine checked 18139ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_other_state checked 18161ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_parameter checked 18422ms check-target:macos_arm64 @d012ed8f0bae+wt
+pass/facts/linear_routed_label_target_body checked 18202ms check-target:macos_arm64 @d012ed8f0bae+wt
 pass/facts/live_across_call_spill_through_call_result_exit checked 7789ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/live_across_call_spill_through_const_name_exit checked 7813ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/live_across_call_spill_through_field_exit checked 7809ms check-target:macos_arm64 @45cbafd80d9c

@@ -832,7 +832,13 @@ fn claim_outcomes_for_expression(
         // map and every caller of such a machine was told its linear result
         // "has no unique conserved claim mapping".
         typed_trees::expression::ExpressionNode::Cast(cast)
-            if cast_conserves_carrier(program, state, statement_index, cast) =>
+            if validation::value_preserving_cast_operand(
+                program,
+                state.symbol,
+                statement_index,
+                expression,
+            )
+            .is_some() =>
         {
             claim_outcomes_for_expression(
                 program,
@@ -846,57 +852,6 @@ fn claim_outcomes_for_expression(
             )
         }
         _ => Vec::new(),
-    }
-}
-
-/// Whether a cast leaves the carrier that holds the claim untouched, so its
-/// result is the same storage under a different qualification. An exact
-/// carrier conversion builds a new value and conserves nothing, so both sides
-/// must unwrap to the same named declaration; an unresolved side answers no.
-///
-/// No authored source reaches the false branch today: a cast between two
-/// distinct linear declarations does not typecheck, and an arithmetic domain
-/// cast changes a primitive carrier that owns no claim to conserve. It is a
-/// fence, not a dispatch -- a later `as` form that does convert a
-/// claim-bearing carrier must not silently inherit conservation from the
-/// value it replaced.
-fn cast_conserves_carrier(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    cast: &typed_trees::expression::TableCastExpression,
-) -> bool {
-    let Some(value_type) = validation::expression_type_reference_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        cast.value,
-    ) else {
-        return false;
-    };
-    match (
-        carrier_declaration(program, value_type),
-        carrier_declaration(program, cast.target_type),
-    ) {
-        (Some(value_symbol), Some(target_symbol)) => value_symbol == target_symbol,
-        _ => false,
-    }
-}
-
-/// The named declaration a type reference ultimately denotes, unwrapping the
-/// constrained and borrowed spellings a qualification adds.
-fn carrier_declaration(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    let type_reference = program
-        .type_reference_table
-        .peeled_type_reference(type_reference);
-    match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
-            symbol.is_valid().then_some(*symbol)
-        }
-        _ => None,
     }
 }
 

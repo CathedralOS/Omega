@@ -5,13 +5,6 @@ use super::instance_collection::IndexedInstance;
 use facts::ProgramPoint;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(super) fn carrier_label(
-    program: &dyn ::validation::CheckingInput,
-    target_type: TypeReferenceHandle,
-) -> String {
-    program.display_type_reference(target_type)
-}
-
 /// The family spelling inside an instance label: `Resident<SlotPlacement, Slot>`
 /// names family `Resident`, so a diagnostic can name the family whose
 /// establishment is missing beside the exact instance that was declared.

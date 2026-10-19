@@ -63,7 +63,16 @@ pub fn receiving_value<'a>(
     if !expression.is_valid() {
         return None;
     }
-    while let Some(segment) = path.first() {
+    loop {
+        expression = crate::ownership_source_expression(
+            program,
+            event.state_symbol,
+            statement_index,
+            expression,
+        );
+        let Some(segment) = path.first() else {
+            break;
+        };
         match (program.expression_table.expression(expression), segment) {
             (ExpressionNode::ArrayLiteral(values), PlaceSegment::FixedIndex { index }) => {
                 expression = *program

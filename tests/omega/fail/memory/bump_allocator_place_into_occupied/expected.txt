@@ -1,1 +1,1 @@
-implicit domain strengthening in argument `storage` for state `place` assumes `Vacant`
+implicit domain weakening in argument `storage` for state `place` drops `Resident<SlotPlacement, Slot>`

@@ -44,11 +44,11 @@ pub use declarations::standard_declarations::{
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
-    call_type_arguments, closed_requirement_dispatch_is_valid,
-    named_conformance_target_requirement, nested_boundary_applications_compose,
-    result_initializer_call_is_admitted, selected_requirement_signature,
-    unit_result_initializer_call_is_admitted, unit_return_call_is_admitted,
-    unit_statement_call_is_admitted,
+    call_target_has_checked_body_contract, call_type_arguments,
+    closed_requirement_dispatch_is_valid, named_conformance_target_requirement,
+    nested_boundary_applications_compose, result_initializer_call_is_admitted,
+    selected_requirement_signature, unit_result_initializer_call_is_admitted,
+    unit_return_call_is_admitted, unit_statement_call_is_admitted,
 };
 pub use machine_calls::fact_only_citations::{
     fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
@@ -118,8 +118,8 @@ pub use value_custody::content_conservation::{data_variant_name, push_structural
 pub use value_custody::dispatch_extraction::DispatchExtraction;
 pub use value_custody::field_domains;
 pub use value_custody::owned_value_source::{
-    affine_owned_value_source, linear_owned_value_source, plain_owned_value_source,
-    whole_owned_value_source,
+    affine_owned_value_source, linear_owned_value_source, ownership_source_expression,
+    plain_owned_value_source, value_preserving_cast_operand, whole_owned_value_source,
 };
 pub use value_custody::permission_provenance::expression_permission_provenance;
 pub use value_custody::placed_atomic_observing_results;

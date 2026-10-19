@@ -967,42 +967,67 @@ fn judge_value_qualification_cast(
     {
         return;
     }
-    let semantic_domain = if cast.semantic_domain_id.is_valid() {
-        cast.semantic_domain_id
-    } else {
-        domain.semantic_id
-    };
-    if value_proves_qualification_in_contexts(
-        program,
-        facts,
-        state_flow,
-        statement_index,
-        cast.value,
-        domain_symbol,
-        semantic_domain,
-        contexts,
-    ) || (!requires_provenance
-        && value_satisfies_domain_predicates_in_contexts(
-            program,
-            facts,
-            state_flow,
-            statement_index,
-            cast.value,
-            domain_symbol,
-            contexts,
-            &mut Vec::new(),
-            None,
-            frames,
-        ))
-    {
-        record_qualification(
-            decisions,
-            state_flow,
-            statement_index,
-            expression,
-            semantic_domain,
-            domain_symbol,
-        );
+    // Typed normalization already expands transparent aliases into their exact
+    // constituent instances. These are obligations, not evidence: each atom
+    // must hold on the operand at this occurrence. Requiring a single fact for
+    // the alias would reject an existing routed claim plus a vacuous label;
+    // proving only predicates would instead forge the routed constituent.
+    let obligations =
+        validation::field_domains::declared_domain_constraint_records(program, cast.result_type);
+    let established = !obligations.is_empty()
+        && obligations.iter().all(|obligation| {
+            validation::field_domains::domain_is_vacuous(
+                program,
+                obligation.symbol,
+                &mut Vec::new(),
+            ) || decisions.iter().any(|(_, decision)| {
+                // The child completed before this operand judgment. Consume
+                // its exact checked membership, not the cast's target type or
+                // a declaration on storage. This composes qualifications while
+                // preserving the selected instance and evaluation occurrence.
+                decision.machine == state_flow.machine_symbol
+                    && decision.state == state_flow.state_symbol
+                    && decision.statement_index as usize == statement_index
+                    && decision.expression == cast.value
+                    && !decision.structural_value.is_valid()
+                    && decision.domain_symbol == obligation.symbol
+                    && decision.semantic_domain == obligation.semantic_id
+            }) || value_proves_qualification_in_contexts(
+                program,
+                facts,
+                state_flow,
+                statement_index,
+                cast.value,
+                obligation.symbol,
+                obligation.semantic_id,
+                contexts,
+            ) || (!validation::field_domains::domain_requires_provenance(
+                program,
+                obligation.symbol,
+            ) && value_satisfies_domain_predicates_in_contexts(
+                program,
+                facts,
+                state_flow,
+                statement_index,
+                cast.value,
+                obligation.symbol,
+                contexts,
+                &mut Vec::new(),
+                None,
+                frames,
+            ))
+        });
+    if established {
+        for obligation in obligations {
+            record_qualification(
+                decisions,
+                state_flow,
+                statement_index,
+                expression,
+                obligation.semantic_id,
+                obligation.symbol,
+            );
+        }
         return;
     }
     diagnostics.push(qualification_cast_refusal(

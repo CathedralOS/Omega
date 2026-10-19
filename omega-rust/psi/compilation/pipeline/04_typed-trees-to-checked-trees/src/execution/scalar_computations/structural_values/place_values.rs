@@ -84,11 +84,12 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueKind> {
-        let cast = self.program.expression_table.cast_node(expression)?;
-        if cast.form.is_recast() || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact {
-            return None;
-        }
-        let operand = cast.value;
+        let operand = validation::value_preserving_cast_operand(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )?;
         let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self.program.state_in_machine(machine, self.state)?;
         let actual =

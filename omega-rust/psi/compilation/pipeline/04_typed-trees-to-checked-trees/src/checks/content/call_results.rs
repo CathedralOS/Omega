@@ -129,9 +129,7 @@ pub(super) fn check_call_result_qualifications(
             // Checked bodies owe routed field membership at every exit. The
             // multiplicity checker independently replays their returned claim
             // maps, including identity-forwarding wrappers without a theorem.
-            if validation::find_machine_head(program, call.target_symbol)
-                .is_some_and(|(machine, _)| machine.body_is_present)
-            {
+            if validation::call_target_has_checked_body_contract(program, call.target_symbol) {
                 return Some(());
             }
 
@@ -414,8 +412,7 @@ fn call_parameter_qualification_join(
     {
         return None;
     }
-    let checked_body = validation::find_state(program, call_target)
-        .is_some_and(|(machine, _)| machine.body_is_present);
+    let checked_body = validation::call_target_has_checked_body_contract(program, call_target);
     let identities = crate::flow::call_parameter_qualification_identities(program, call_target);
     let position = parameters
         .iter()

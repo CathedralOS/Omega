@@ -317,22 +317,23 @@ pub(crate) fn emit<'source>(
     // retains its sources through the selected edge and an alias has no
     // edge to carry it. Only a `Place` source aliases: a call result establishes
     // a temporary whose checked completion still owns its residual cleanup.
-    // A whole-value view that establishes no new membership leaves its
-    // operand's storage geometry unchanged. Keep projected storage visible
-    // through these views; a value establishing facts still needs its normal
-    // producer. The alias below independently rejoins every selected claim.
+    // Whole-value views retain the selected storage geometry. Collect their
+    // checked memberships separately: the exact source-claim join below must
+    // precede any value formation that publishes those memberships.
     let mut storage_value = *value;
+    let mut storage_memberships = Vec::new();
     loop {
         let node = structural_values(checked).nodes.get(storage_value);
         let CheckedStructuralValueKind::Projection { source, path, .. } = &node.kind else {
             break;
         };
-        if !path.is_empty() || !node.qualification_decisions.is_empty() {
+        if !path.is_empty() {
             break;
         }
+        storage_memberships.push((node.qualification_decisions, node.expression));
         storage_value = *source;
     }
-    if emission.sources.is_empty()
+    let projected_storage = if emission.sources.is_empty()
         && let CheckedStructuralValueKind::Projection {
             source,
             path,
@@ -347,8 +348,7 @@ pub(crate) fn emit<'source>(
         && matches!(
             structural_values(checked).nodes.get(source).kind,
             CheckedStructuralValueKind::Place(_)
-        )
-    {
+        ) {
         let projected = emission.projection_source(identities, source, path)?;
         let alias_path =
             projected.lowered_path(identities, emission.type_ids, emission.structural_types)?;
@@ -494,17 +494,39 @@ pub(crate) fn emit<'source>(
                 multiplicity,
                 claims: selected_claims,
             };
-        return Ok(CompletedValue {
-            argument: StructuralArgument {
-                place: projected.root,
-                path: alias.path().to_vec(),
-                access: StructuralAccess::Owned,
-            },
-            binding: alias,
-            declaration: None,
-        });
-    }
-    let place = if emission.sources.is_empty()
+        Some(alias)
+    } else {
+        None
+    };
+    let place = if let Some(alias) = projected_storage {
+        let first_new_place = *emission.environment.next_place;
+        let mut argument = StructuralArgument {
+            place: alias.place(),
+            path: alias.path().to_vec(),
+            access: StructuralAccess::Owned,
+        };
+        let projected = structural_values(checked).nodes.get(storage_value);
+        storage_memberships.push((projected.qualification_decisions, projected.expression));
+        for (decisions, expression) in storage_memberships.into_iter().rev() {
+            argument = emission.retain_checked_memberships(
+                identities,
+                argument,
+                decisions,
+                expression,
+                first_new_place,
+            )?;
+        }
+        if argument.place == alias.place() {
+            return Ok(CompletedValue {
+                argument,
+                binding: alias,
+                declaration: None,
+            });
+        }
+        // The qualification transferred the selected child into its own home.
+        // Its original parent still owns every unselected sibling.
+        argument.place
+    } else if emission.sources.is_empty()
         && let Some((source, region, loan)) =
             match &structural_values(checked).nodes.get(*value).kind {
                 CheckedStructuralValueKind::BorrowedSliceView { source, region }
@@ -518,7 +540,8 @@ pub(crate) fn emit<'source>(
                     Some((source, region, LoanAccess::Mutable))
                 }
                 _ => None,
-            } {
+            }
+    {
         emission.direct_element_view(
             identities,
             source,

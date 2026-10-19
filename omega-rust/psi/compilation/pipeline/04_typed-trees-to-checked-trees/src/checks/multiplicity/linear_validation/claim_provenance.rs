@@ -207,6 +207,18 @@ fn expression_permission_claim_scan<X>(
     claim: fn(&LinearPlace) -> Option<X>,
     common: &dyn Fn(Vec<X>) -> Option<X>,
 ) -> Option<X> {
+    let source =
+        validation::ownership_source_expression(program, state_symbol, statement_index, expression);
+    if source != expression {
+        return descend(
+            program,
+            state_symbol,
+            statement_index,
+            source,
+            relative_path,
+            places,
+        );
+    }
     if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
         program.expression_table.expression(expression)
         && let Some(facts::PlaceSegment::Case { variant }) = relative_path.first()

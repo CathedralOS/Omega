@@ -1,1 +1,1 @@
-implicit domain strengthening in construction of `Weak` field `e` assumes `Vacant`
+construction of `Weak` field `e` is not proven in domain `Extent::Vacant`

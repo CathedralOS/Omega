@@ -94,19 +94,16 @@ pub(crate) fn build_qualification_facts(
                 if let Some(policy) = policy {
                     committed.push(policy);
                 }
-                // Declared-domain casts already carry the normalized symbol
-                // selected before validation. Checked facts consume that
-                // identity directly rather than repeating short-name lookup.
-                if cast.semantic_domain_symbol.is_valid()
-                    && let Some(domain) = program.domain_definition(cast.semantic_domain_symbol)
-                {
-                    let semantic_id = if cast.semantic_domain_id.is_valid() {
-                        cast.semantic_domain_id
-                    } else {
-                        domain.semantic_id
-                    };
-                    if semantic_id.is_valid() {
-                        committed.push(semantic_id);
+                // The result type retains the normalized atomic obligations.
+                // An alias is their conjunction, not another membership to
+                // publish. Checking and the Terminal catalog consume these
+                // same exact instances, independent of authored spelling.
+                for domain in ::validation::field_domains::declared_domain_constraint_records(
+                    program,
+                    cast.result_type,
+                ) {
+                    if domain.semantic_id.is_valid() {
+                        committed.push(domain.semantic_id);
                     }
                     if ::validation::field_domains::domain_is_vacuous(
                         program,
@@ -119,7 +116,7 @@ pub(crate) fn build_qualification_facts(
                             statement_index,
                             expression,
                             domain: domain.symbol,
-                            semantic_domain: semantic_id,
+                            semantic_domain: domain.semantic_id,
                         });
                     }
                 }

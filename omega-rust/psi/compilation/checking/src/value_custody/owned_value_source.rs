@@ -6,6 +6,45 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
+/// A qualification or erasure of the same stored structural carrier keeps
+/// its operand's ownership. Compare full applications, not nominal heads;
+/// representation conversion, arithmetic conversion and borrow recasts do not
+/// supply this relation. Membership checking remains independent.
+pub fn value_preserving_cast_operand(
+    program: &dyn crate::CheckingInput,
+    state: SymbolHandle,
+    statement: usize,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let cast = program.expression_table.cast_node(expression)?;
+    if cast.form.is_recast()
+        || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+        || program.primitive_type_reference(cast.target_type).is_some()
+    {
+        return None;
+    }
+    let actual = crate::expression_type_reference_in_state(program, state, statement, cast.value)?;
+    let actual_identity = crate::stored_structural_type_identity(program, actual, &[], &[]);
+    let target_identity =
+        crate::stored_structural_type_identity(program, cast.target_type, &[], &[]);
+    (actual_identity.is_valid() && actual_identity == target_identity).then_some(cast.value)
+}
+
+/// The evaluated owner beneath representation-preserving qualifications. This
+/// does not replay an initializer or turn a computed value into an lvalue;
+/// it identifies which exact operand's permission events a consumer must join.
+pub fn ownership_source_expression(
+    program: &dyn crate::CheckingInput,
+    state: SymbolHandle,
+    statement: usize,
+    mut expression: ExpressionHandle,
+) -> ExpressionHandle {
+    while let Some(operand) = value_preserving_cast_operand(program, state, statement, expression) {
+        expression = operand;
+    }
+    expression
+}
+
 /// Resolve a whole local or parameter without erasing a borrow, qualification,
 /// or nominal type. A projection is not its containing owner's whole value.
 pub fn plain_owned_value_source(

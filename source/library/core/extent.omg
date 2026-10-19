@@ -18,13 +18,35 @@ pub data Extent [linear] {
     length: u64;
 }
 
-// Settled dormant-content state vocabulary. These qualifications carry no
-// runtime payload: `Vacant` names an exact range with no live resident value,
-// while `Resident<P, T>` retains the invariant normalized placement-policy and
-// semantic-value identities for one complete live value. Placement operations
-// and custody checking are intentionally not declared in this milestone.
-pub domain Extent::Vacant;
-pub domain<P, T> Extent::Resident<P, T>;
+// These qualifications protect content custody independently of Granted.
+// Linearity and sibling domains are not issuer restrictions. A provider crossing
+// must establish the declared content state for this exact existing range;
+// the routes alone supply neither actual backing nor a Stable access profile.
+pub domain Extent::Vacant
+established by VacantContentTransfer::transfer;
+pub domain<P, T> Extent::Resident<P, T>
+established by ResidentContentTransfer::transfer;
+
+// Transfer an existing grant after an admitted provider establishes that its
+// exact range contains no live resident. This does not zero bytes, release the
+// range to an allocator, or permit reclassification by an ordinary checked call.
+pub boundary trait VacantContentTransfer {
+    machine transfer(storage: Extent in Granted) -> Extent
+    ensures
+        result in Granted & Vacant,
+        Granted::content(old(&storage)) == Granted::content(&result);
+}
+
+// Import already-established resident content from an admitted provider.
+// Every closed P/T application shares this exact route. The provider must bind
+// complete value custody, placement identity and backing; equal addresses or a
+// result annotation cannot supply them. This is not Initialize or a byte cast.
+pub boundary trait ResidentContentTransfer<P, T> {
+    machine transfer(storage: Extent in Granted) -> Extent
+    ensures
+        result in Granted & Resident<P, T>,
+        Granted::content(old(&storage)) == Granted::content(&result);
+}
 
 // Geometry is a transparent mathematical predicate. The endpoint lives in
 // unbounded proof Int, so a one-past endpoint may equal the exclusive bound

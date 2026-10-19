@@ -139,6 +139,31 @@ pub fn call_target_state(
         .or_else(|| program.state_by_symbol(symbol))
 }
 
+/// Whether the callable's contract is discharged by checked source bodies.
+/// A generated target-family interface has no body itself, but every member
+/// owes the common contract before target selection. A missing roster or an
+/// external member cannot borrow the checked members' proof authority.
+pub fn call_target_has_checked_body_contract(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> bool {
+    let Some((machine, _)) =
+        find_machine_head(program, symbol).or_else(|| find_state(program, symbol))
+    else {
+        return false;
+    };
+    if machine.target_family_interface {
+        return target_family_members(program, machine).is_some_and(|members| {
+            members.iter().all(|member| {
+                program
+                    .machine(member.machine)
+                    .is_some_and(|body| body.body_is_present)
+            })
+        });
+    }
+    machine.body_is_present
+}
+
 /// Resolve one exact call destination and its result contract. A stored
 /// body contributes its executable state; a requirement contributes its
 /// declaration. States owned by this activation remain internal control edges,

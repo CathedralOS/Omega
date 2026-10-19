@@ -1433,9 +1433,9 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
     operations: &mut [CheckedUnitEffectOperationPlan],
 ) -> Option<()> {
     let plans = &facts.values.structural_values;
-    let mut pending = vec![root];
+    let mut pending = vec![(root, false)];
     let mut visited = Vec::new();
-    while let Some(value) = pending.pop() {
+    while let Some((value, projected)) = pending.pop() {
         if !plans.nodes.is_valid(value) || visited.contains(&value) {
             return None;
         }
@@ -1443,7 +1443,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
         match &plans.nodes.get(value).kind {
             checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
             checked_trees::CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
-                pending.extend(arguments.iter().rev().copied());
+                pending.extend(arguments.iter().rev().map(|value| (*value, false)));
             }
             checked_trees::CheckedStructuralValueKind::Place(argument) => {
                 if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
@@ -1461,7 +1461,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
                         operations,
                         result.binding_ordinal,
                         argument.access,
-                        !argument.path.is_empty(),
+                        projected || !argument.path.is_empty(),
                     )?;
                 }
             }
@@ -1471,39 +1471,43 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
                     if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
                         field.value
                     {
-                        pending.push(value);
+                        pending.push((value, false));
                     }
                 }
             }
             checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
-                pending.extend(plans.dispatch_arms.span(*arms)?.iter().map(|arm| arm.value));
-            }
-            checked_trees::CheckedStructuralValueKind::Projection { source, .. }
-            | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
-                // The selected edge moves a projected child: its root owner
-                // remains live for the residual complement that edge commits.
-                if let checked_trees::CheckedStructuralValueKind::Place(argument) =
-                    &plans.nodes.get(*source).kind
-                    && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                        symbol,
-                    } = argument.source
-                {
-                    let mut matching = results
+                pending.extend(
+                    plans
+                        .dispatch_arms
+                        .span(*arms)?
                         .iter()
-                        .filter(|(_, source)| *source == facts::PlaceRoot::Symbol(symbol));
-                    let (result, _) = matching.next()?;
-                    if matching.next().is_some() || result.type_identity != argument.type_identity {
-                        return None;
-                    }
-                    consume_result(operations, result.binding_ordinal, argument.access, true)?;
-                }
+                        .map(|arm| (arm.value, projected)),
+                );
+            }
+            checked_trees::CheckedStructuralValueKind::Projection {
+                source,
+                path,
+                copies_selected_value,
+                ..
+            } => {
+                // A whole-value projection (including qualification) moves
+                // the same owner. Only a selected child or copied observation
+                // leaves residual custody. Carry that distinction through
+                // nested projections instead of recognizing one place shape.
+                pending.push((
+                    *source,
+                    projected || !path.is_empty() || *copies_selected_value,
+                ));
+            }
+            checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
+                pending.push((*source, projected));
             }
             checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
-                pending.extend(elements.iter().copied());
+                pending.extend(elements.iter().map(|value| (*value, false)));
             }
             checked_trees::CheckedStructuralValueKind::Reference { source_value, .. } => {
                 if source_value.is_valid() {
-                    pending.push(*source_value);
+                    pending.push((*source_value, false));
                 }
             }
             checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }

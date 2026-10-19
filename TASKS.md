@@ -4806,10 +4806,10 @@ wait for Cathedral's instruction coverage. The interpreter is
     **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**: prove aligned request
     geometry and the counted-residual/tail relationship.
   - Replace fixture-local `ResidentStorage` with **PLAN-LAID-VIEWS** layout,
-    establishment, element transfer and retirement. Core's `Vacant`/`Resident`
-    need authorized establishment routes under **DOMAIN-ISSUER-ROUTES**; the
-    current cast-forgery diagnostic is a heuristic over the carrier's other
-    domains. Live residents cannot merge as vacant.
+    establishment, element transfer and retirement. Execute core's protected
+    `Vacant`/`Resident` transfer routes over actual backing; a route declaration
+    alone supplies neither vacancy nor resident custody. Live residents cannot
+    merge as vacant.
   - Borrow the strategy exclusively through **BORROWED-STORAGE-RESTORATION**,
     ending at allocation return so allocations coexist (today the strategy
     moves through result records).
@@ -5419,16 +5419,11 @@ wait for Cathedral's instruction coverage. The interpreter is
     an exact `CallEnsures` receipt. Keep ordinary callee/conformance identities
     and bind the checked qualification to the exact invocation result, for
     ordinary and boundary calls. Reuse the structural/scalar route catalogs.
-  - Apply the [qualification rule](wiki/spec/language/domains.md#declaration-and-membership)
-    to copyable, affine and linear carriers. Remove the
-    `domain_target_is_custody_marked` heuristic from
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/index_compatibility.rs`;
-    unrelated domains must not restrict a route-free tag. With
-    **BUMP-ALLOCATOR-CANARY**, give `source/library/core/extent.omg`'s bare
-    `Vacant`/`Resident` real custody routes and migrate
-    `tests/omega/fail/memory/bump_allocator_cast_minted_vacant` off the
-    heuristic. Keep the `Region::Left`/`Right` linear move and vacuous scalar
-    tags.
+  - Exercise admitted provider issuance for core's protected `Vacant`/`Resident`
+    routes with **BUMP-ALLOCATOR-CANARY**. Ordinary checked adapters must not
+    inherit provider authority. Preserve the selected-domain qualification rule,
+    exact claim transport pinned by `facts/linear_routed_label`, the
+    `Region::Left`/`Right` linear move and vacuous scalar tags.
 
   Acceptance: `bodyless_owner_establishment` (or a sibling run fixture) binds an
   entry and runs issuer -> forwarder -> consumer natively with interpreter
