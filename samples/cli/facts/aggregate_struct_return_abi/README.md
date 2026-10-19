@@ -18,7 +18,12 @@ Every place performs the same operation: construct and return a 32-byte (four-`u
 
 ## Execution
 
-Each positive place is an application that exits 0:
+Each positive place is an application that exits 0. All ten positive programs
+(root `main.omg` and the nine places) bind `ProgramEntry` for the four hosted
+targets, declare `Expected exit: 0`, and were observed to run: `omega run --both`
+reports native `exit 0` together with Terminal `interp exit: 0` for every one of
+them. The nine places additionally carry `expected_native_exit.txt` with `0`, and
+the nine rows are pinned as `built ... exit:0` in the host native golden.
 
 ```sh
 omega run --both samples/cli/facts/aggregate_struct_return_abi/main.omg
@@ -33,16 +38,41 @@ omega run --both samples/cli/facts/aggregate_struct_return_abi/other_machine/mai
 omega run --both samples/cli/facts/aggregate_struct_return_abi/target_body/main.omg
 ```
 
-Each place has an `invalid/` twin whose fourth field bound and value is `39u64` instead of `40u64` (summing to `99u64`), causing exact subtraction `total - 100u64` to fail proof checking with `may overflow \`u64\`` (`exact subtraction underflow`). Check each twin with:
+Each place has an `invalid/` twin whose fourth field bound and value is `39u64` instead of `40u64` (summing to `99u64`), causing exact subtraction `total - 100u64` to fail proof checking with `may overflow \`u64\`` (`exact subtraction underflow`). Each twin carries a `sample.json` naming that rejection identity, so the negative controls are scored rather than unchecked. Check each twin with:
 
 ```sh
 omega --check samples/cli/facts/aggregate_struct_return_abi/<place>/invalid/main.omg
 ```
 
+## Observed evidence
+
+Measured on `2d783d092d9d` (producer `target/debug/omega`, opt-level 1, host
+`macos_arm64`):
+
+- `python3 tools/sample_native_gate.py --filter cli/facts/aggregate_struct_return_abi`
+  exits 0: `10/10 samples meet their documented oracle on macos_arm64` and
+  `9/9 intended-invalid controls match their authored rejection`.
+- `python3 tools/corpus_gate.py --filter facts/aggregate_struct_return_abi` reports
+  `0 structural move(s)` over `18 fixtures ({'checked': 9, 'rejected': 9})`, with
+  `0 fail fixtures did not reject`.
+- `python3 tools/corpus_gate.py --native --record --filter facts/aggregate_struct_return_abi`
+  pinned the nine positive places as `built ... exit:0`.
+
+The oracle was shown to discriminate at the native boundary rather than merely
+agreeing with itself. `omega run --both --keep --target macos_arm64` emits a
+Mach-O arm64 image in which `make_quartet` writes the 32-byte aggregate through
+the caller return home in `X8` (`mov x8, x8` / `str x1, [x8]` … `str x0, [x8, #0x18]`)
+and `probe` sets `mov x8, sp` before the call, copies four words, and computes
+`sum - 0x64`. Re-signing that image and patching only the single instruction that
+loads the fourth field (`movz x3, #0x28` to `movz x3, #0x27`, 40 to 39) changes the
+observed process outcome from `exit 0` to `exit 133` (SIGTRAP from the `brk #0`
+crash arm). The recorded exit is therefore what the program actually produces
+through the indirect aggregate return path.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
-- **Ticket:** `20b75f187237495cb50646307732fe42`.
+- **Ticket:** `268c1b7311ca4420ac912427369c41dc`.
 - **Requirement established:** End-to-end nine-place fact preservation and ABI realization for large structural aggregate returns exceeding register-return limits (`sret`). Specifically, a 32-byte structural record (`Quartet`) returned and passed by value preserves field refinement bounds summing to `100u64` across indirect return homes when subtracting `100u64`, with exact execution agreement between Terminal Psi and native code across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`).
 - **Obligations accounted for:**
   - *Establishment:* Concrete aggregate field initializers satisfy `Quartet`'s declared `where` refinement clauses (`first == 10u64`, `second == 20u64`, `third == 30u64`, `fourth == 40u64`), establishing the arithmetic invariant that the field sum is identically `100u64`.
