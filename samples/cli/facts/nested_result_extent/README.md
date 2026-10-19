@@ -47,6 +47,37 @@ omega run --both samples/cli/facts/nested_result_extent/target_body/main.omg
 
 All 10 samples report `native exit 0` and `interp exit: 0`.
 
+### Run record
+
+Measured on producer revision `8d0f98ca089` (`--build-profile` reports
+`opt_level` 1), host `macos_arm64`, library root `<worktree>/source/library`:
+
+```sh
+python3 tools/sample_native_gate.py --filter nested_result_extent
+# 10/10 samples meet their documented oracle on macos_arm64
+# 10/10 intended-invalid controls match their authored rejection
+
+python3 tools/corpus_gate.py --native --filter facts/nested_result_extent
+# clean — 11 fixtures ({'built': 11}); executed 11 (exit codes {'0': 11})
+```
+
+The golden rows live in `tests/omega/corpus_native_macos_arm64.txt`: the nine
+`pass/facts/nested_result_extent_through_<place>_exit` fixtures plus
+`nested_result_extent_after_disjoint_write_exit` and
+`nested_result_extent_captured_scalar_exit`, each stamped `built <ms> exit:0`.
+The two sample-side sibling witnesses are scored by the same gate; the
+sample-side `expected_native_exit.txt` alone is inert for
+`sample_native_gate.py` without an adjacent `input.txt`, so the corpus golden,
+not that file, is the measurement.
+
+The oracle discriminates. Shifting the extent carried through the nested result
+by one (`prefix.len + 1u64`, which leaves checking green because the proved
+bound is untouched) traps in **both** engines — `native signal 5` and
+`interp crash: Trap (host presentation agrees)` — while the one-token control
+reports `native exit 0` / `interp exit: 0`. Substituting `other.len` for
+`buffer.len` fails earlier still, at proof checking, with
+`cannot prove subslice range end bound`.
+
 Each place carries a fact-sensitive reject twin at `<place>/invalid/` (and root `invalid/`) that
 replaces `buffer.len` with an unrelated `other.len`. That bound cannot justify accessing `buffer`;
 the larger other view must not donate its extent. All reject twins fail closed at proof checking
