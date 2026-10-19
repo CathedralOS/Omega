@@ -211,6 +211,19 @@ pub enum ClosedConformanceApplicationSite {
         application: usize,
     },
     Occurrence(crate::static_applications::StaticMachineApplicationHandle),
+    TraitArgument(arena::Handle<TraitImplementationApplication>),
+}
+
+/// A named implementation selected by a source trait argument, independently
+/// of any runtime call. The retained scope is replayed against live authored
+/// roots; the derived supplying application cannot attest its own operands.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TraitImplementationApplication {
+    pub source_scope: crate::trait_definition::RetainedTraitScope,
+    pub parameter: symbols::SymbolHandle,
+    pub argument: types::TypeReferenceHandle,
+    pub supplying_application: crate::static_applications::StaticMachineApplicationHandle,
+    pub application: ClosedConformanceApplication,
 }
 
 /// An owned map row with its capture telescope applied. The method's own

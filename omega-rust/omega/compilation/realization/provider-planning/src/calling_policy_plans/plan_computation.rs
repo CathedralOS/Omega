@@ -189,7 +189,7 @@ pub fn compute_boundary_calling_plans(
         }
         let relationship = relationships[0];
         let relationship_span = relationship.source_span;
-        let (_, calling_policy_trait) = vocabularies
+        let (calling_trait, calling_policy_trait) = vocabularies
             .iter()
             .find(|(calling, _)| calling.symbol == relationship.symbol)
             .copied()
@@ -205,27 +205,26 @@ pub fn compute_boundary_calling_plans(
             ))
             .with_source_span(relationship_span)]);
         }
-        let instances =
-            boundary_policy_instances(typed, boundary, arguments[0]).map_err(|reason| {
-                vec![
-                    Diagnostic::error(format!(
-                        "boundary trait `{}` cannot evaluate Calling<Policy>: {reason}",
-                        boundary.name
-                    ))
-                    .with_source_span(relationship_span),
-                ]
-            })?;
+        let instances = boundary_policy_instances(typed, boundary).map_err(|reason| {
+            vec![
+                Diagnostic::error(format!(
+                    "boundary trait `{}` cannot evaluate Calling<Policy>: {reason}",
+                    boundary.name
+                ))
+                .with_source_span(relationship_span),
+            ]
+        })?;
         for BoundaryPolicyInstance {
             arguments: boundary_arguments,
             argument_owner,
-            policy_argument,
         } in instances
         {
             let policy_machine = selected_policy_machine(
                 typed,
                 boundary,
                 &boundary_arguments,
-                policy_argument,
+                argument_owner,
+                calling_trait,
                 calling_policy_trait,
                 target_profile,
             )

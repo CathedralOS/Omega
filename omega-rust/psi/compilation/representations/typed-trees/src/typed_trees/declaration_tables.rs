@@ -80,6 +80,17 @@ impl TypedTrees {
                 ));
             }
         }
+        for (handle, selected) in self.trait_implementation_applications.iter() {
+            let source = self
+                .expression_table
+                .static_machine_application(selected.supplying_application);
+            sites.push((
+                super::ClosedConformanceApplicationSite::TraitArgument(handle),
+                source.lexical_owner,
+                selected.supplying_application,
+                &selected.application,
+            ));
+        }
         sites
     }
 
@@ -88,6 +99,12 @@ impl TypedTrees {
         site: super::ClosedConformanceApplicationSite,
     ) -> Option<&mut super::ClosedConformanceApplication> {
         match site {
+            super::ClosedConformanceApplicationSite::TraitArgument(handle) => Some(
+                &mut self
+                    .trait_implementation_applications
+                    .get_mut(handle)
+                    .application,
+            ),
             super::ClosedConformanceApplicationSite::Invocation {
                 specialization,
                 application,
@@ -104,6 +121,34 @@ impl TypedTrees {
                 .application
                 .as_deref_mut(),
         }
+    }
+
+    /// Projection removes occurrences with their original source owner. Derived
+    /// application arenas are not independent roots and cannot keep each other
+    /// alive through a receiving trait shared by unrelated declarations.
+    pub fn retain_live_trait_implementation_applications(&mut self) {
+        let roots = self.applied_trait_roots();
+        let selected = self
+            .trait_implementation_applications
+            .iter()
+            .filter(|(_, selected)| {
+                let Some(scope) = selected.source_scope.scope(self) else {
+                    return true;
+                };
+                let mut live = false;
+                for root in &roots {
+                    root.visit(self, &mut |current| {
+                        live |= current.argument_owner == scope.argument_owner
+                            && current.same_application(self, &scope);
+                    });
+                }
+                live
+            })
+            .map(|(_, selected)| selected.clone())
+            .collect::<Vec<_>>();
+        let mut applications = arena::Arena::default();
+        applications.insert_many(selected);
+        self.trait_implementation_applications = applications;
     }
 
     /// The concrete machines a closed conformance application's occurrence

@@ -2377,6 +2377,26 @@ fail/facts/float_range_delivery_through_target_body_rejected rejected 3388ms exp
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/generic_calling_policy/constant_projection_exit rejected 20220ms expected @164f21ca3402
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/facts/generic_calling_policy/distinct_applications_exit rejected 11346ms expected @164f21ca3402
+	calling policy accepted an invalid plan: value 0 placement exceeds its declared shape
+fail/facts/generic_calling_policy/inline_const_exit rejected 12331ms expected @164f21ca3402
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/facts/generic_calling_policy/literal_range_exit rejected 17072ms expected @9d283dfe7e2f+wt
+	conformance `GenericPolicy` parameter `Width` has an invalid literal value: integer node `u64(-1)` does not fit exact carrier `u64`
+fail/facts/generic_calling_policy/missing_argument rejected 5749ms expected @164f21ca3402
+	generic conformance `GenericPolicy` requires 2 explicit non-lifetime argument(s), got 1; expected subject and trait shape never fill its own telescope
+fail/facts/generic_calling_policy/nested_argument_exit rejected 6984ms expected @164f21ca3402
+	generic data `Box` expected 1 arguments but got 2
+fail/facts/generic_calling_policy/nested_data_const_exit rejected 7007ms expected @164f21ca3402
+	const parameter `Count` of `Box` requires an integer literal argument or an in-scope const parameter, got `bool`
+fail/facts/generic_calling_policy/parameter_bound rejected 6389ms expected @164f21ca3402
+	type parameter `Element [copy]` of `GenericPolicy` was instantiated with `Box<u64>`, which does not satisfy `[copy]`
+fail/facts/generic_calling_policy/unresolved_argument rejected 5477ms expected @164f21ca3402
+	conformance `GenericPolicy` parameter `Width` requires a const argument, but `UnknownWidth` has another static category
+fail/facts/generic_calling_policy/wrong_argument_kind rejected 4935ms expected @164f21ca3402
+	conformance `GenericPolicy` parameter `Width` requires a const argument, but `<structural type>` has another static category
 fail/facts/generic_content_transfer_call_result rejected 3883ms expected @4c6fa0c02bf5+wt
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
@@ -7244,6 +7264,13 @@ pass/facts/float_range_delivery_through_other_machine_exit checked 18710ms check
 pass/facts/float_range_delivery_through_other_state_exit checked 18219ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/float_range_delivery_through_parameter_exit checked 18101ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/float_range_delivery_through_target_body_exit checked 18235ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/generic_calling_policy/bound_argument_exit checked 31430ms check-target:linux_x86_64 @164f21ca3402
+pass/facts/generic_calling_policy/constant_projection_exit checked 32057ms check-target:linux_x86_64 @164f21ca3402
+pass/facts/generic_calling_policy/distinct_applications_exit checked 21163ms check-target:linux_x86_64 @164f21ca3402
+pass/facts/generic_calling_policy/inline_const_exit checked 20966ms check-target:linux_x86_64 @164f21ca3402
+pass/facts/generic_calling_policy/literal_arguments_exit checked 34037ms check-target:linux_x86_64 @2220bcc69929
+pass/facts/generic_calling_policy/nested_argument_exit checked 21973ms check-target:linux_x86_64 @164f21ca3402
+pass/facts/generic_calling_policy/nested_data_const_exit checked 23258ms check-target:linux_x86_64 @164f21ca3402
 pass/facts/generic_content_transfer_call_result checked 8723ms check-target:macos_arm64 @4c6fa0c02bf5+wt
 pass/facts/generic_content_transfer_const_name checked 8744ms check-target:macos_arm64 @4c6fa0c02bf5+wt
 pass/facts/generic_content_transfer_field checked 8719ms check-target:macos_arm64 @4c6fa0c02bf5+wt
@@ -9568,6 +9595,7 @@ pass/traits/trait_member_effects checked 9242ms @5041ef1af684+wt
 pass/traits/trait_operator_token checked 8832ms @5041ef1af684+wt
 pass/traits/trait_parent_inherit checked 8738ms @5041ef1af684+wt
 pass/traits/transparent_refinement_declaration checked 10672ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/traits/unused_trait_implementation_member_exit checked 28866ms check-target:macos_arm64 @164f21ca3402
 pass/types/address_model_conversion checked 7052ms check-target:macos_arm64 @8fd8af53161a+wt
 pass/types/exact_address_conversion checked 3826ms check-target:macos_arm64 @3b422f31da30+wt
 pass/types/runtime_addr_algebra_exit checked 11700ms check-target:macos_arm64 @a9ae30e1c334+wt

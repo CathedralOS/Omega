@@ -46,6 +46,7 @@ mod placed_primitives;
 mod provider_tuple_closure;
 mod requirement_providers;
 mod selection;
+mod trait_implementation_arguments;
 pub(crate) use selection::infer_static_bindings;
 
 mod body_rewriting;
@@ -210,6 +211,10 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         crate::preparation::elaborate_projected_receivers(program)?;
         changed_owners.extend(contextual_calls::close(program)?);
         crate::constructed_results::retain_constructed_result_types(program);
+        trait_implementation_arguments::prepare(program)?;
+        program
+            .prepare_closed_conformance_scopes()
+            .map_err(|message| vec![Diagnostic::error(message)])?;
         contextual_calls::prepare_conformance_machine_demands(program)?;
         let captured_owners = captured_rows::close(program)?;
         let captures_changed = !captured_owners.is_empty();

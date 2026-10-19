@@ -792,11 +792,52 @@ fn visit_closed_conformance_inner(
 /// `where` facts, trait requirement signatures, named implementation rows,
 /// proposition binders/bodies, measure bodies, const initializers, operator
 /// signatures, domain facts, and wire field types.
+/// Implementation argument occurrences belong to their supplying declaration,
+/// not the ubiquitous receiving trait. Private projections retain only those
+/// owned roots, including the original simultaneous substitution frames.
+fn visit_owned_implementation_arguments(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    owner: SymbolHandle,
+) {
+    for (_, selected) in program
+        .trait_implementation_applications
+        .iter()
+        .filter(|(_, selected)| {
+            program
+                .expression_table
+                .static_machine_application(selected.supplying_application)
+                .lexical_owner
+                == owner
+        })
+    {
+        selected.source_scope.visit_references(program, retained);
+        visit_type_reference(program, retained, selected.argument);
+        visit_static_machine_bindings(program, retained, selected.supplying_application);
+        visit_closed_conformance(program, retained, &selected.application);
+        for (_, capture) in program
+            .captured_machine_applications
+            .iter()
+            .filter(|(_, capture)| {
+                capture.conformance_application == selected.application
+                    && program
+                        .expression_table
+                        .static_machine_application(capture.supplying_application)
+                        .lexical_owner
+                        == owner
+            })
+        {
+            visit_symbol(retained, capture.instance);
+        }
+    }
+}
+
 pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferences) {
     for data in program.data_definitions() {
         if !retained.declaration(data.symbol) {
             continue;
         }
+        visit_owned_implementation_arguments(program, retained, data.symbol);
         visit_symbol(retained, data.symbol);
         for plan in program
             .plan_laid_layouts
@@ -859,8 +900,10 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(definition.symbol) {
             continue;
         }
+        visit_owned_implementation_arguments(program, retained, definition.symbol);
         visit_symbol(retained, definition.symbol);
         visit_type_parameters(program, retained, definition.type_parameters);
+
         for requirement in program
             .trait_requirements(definition)
             .iter()
@@ -891,6 +934,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(conformance.symbol) {
             continue;
         }
+        visit_owned_implementation_arguments(program, retained, conformance.symbol);
         visit_symbol(retained, conformance.symbol);
         visit_type_parameters(program, retained, conformance.type_parameters);
         visit_symbol(retained, conformance.trait_symbol);
@@ -912,6 +956,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(proposition.symbol) {
             continue;
         }
+        visit_owned_implementation_arguments(program, retained, proposition.symbol);
         visit_symbol(retained, proposition.symbol);
         for binder in program.proposition_binders(proposition) {
             visit_symbol(retained, binder.symbol);
@@ -938,6 +983,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(definition.symbol) {
             continue;
         }
+        visit_owned_implementation_arguments(program, retained, definition.symbol);
         visit_type_parameters(program, retained, definition.binders);
         for parameter in program.mathematical_parameters(definition.parameters) {
             visit_mathematical_type(program, retained, parameter.ty);
@@ -952,6 +998,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(measure.symbol) {
             continue;
         }
+        visit_owned_implementation_arguments(program, retained, measure.symbol);
         visit_symbol(retained, measure.symbol);
         if let Some(parameter) = &measure.parameter {
             visit_type_reference(program, retained, parameter.type_reference);
@@ -966,6 +1013,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(declaration.symbol) {
             continue;
         }
+        visit_owned_implementation_arguments(program, retained, declaration.symbol);
         visit_symbol(retained, declaration.symbol);
         visit_type_reference(program, retained, declaration.declared_type);
         visit_expression(program, retained, declaration.authored_initializer);
@@ -986,6 +1034,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(operator.symbol) {
             continue;
         }
+        visit_owned_implementation_arguments(program, retained, operator.symbol);
         visit_symbol(retained, operator.symbol);
         visit_type_parameters(program, retained, operator.type_parameters);
         for parameter in program
@@ -1009,6 +1058,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(domain.symbol) {
             continue;
         }
+        visit_owned_implementation_arguments(program, retained, domain.symbol);
         visit_symbol(retained, domain.symbol);
         visit_type_parameters(program, retained, domain.type_parameters);
         visit_type_reference(program, retained, domain.target_type);
@@ -1022,6 +1072,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(schema.symbol) {
             continue;
         }
+        visit_owned_implementation_arguments(program, retained, schema.symbol);
         visit_symbol(retained, schema.symbol);
         for member in program.tables.wire_members.span_or_empty(schema.members) {
             if let crate::wire::WireMember::Field(field) = member {
@@ -1617,6 +1668,7 @@ pub fn visit_machine(
     machine: &crate::machine::Machine,
 ) {
     retained.enter_lexical_scope(machine.symbol);
+    visit_owned_implementation_arguments(program, retained, machine.symbol);
     if let Some(origin) = machine.entry_context_origin {
         visit_symbol(retained, origin.entry);
         visit_symbol(retained, origin.context_parameter);

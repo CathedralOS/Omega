@@ -133,19 +133,13 @@ pub(crate) fn project_trait_parent(
             .iter()
             .map(|argument| lifetime_binder_ordinal(argument, lifetime_binders, "trait parent"))
             .collect::<Result<Vec<_>, _>>()?,
-        arguments: compilation
-            .type_reference_table
-            .type_reference_handles(parent.arguments)
-            .iter()
-            .map(|argument| {
-                review_signature_type_identity_with_binders(
-                    compilation,
-                    *argument,
-                    binders,
-                    lifetime_binders,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?,
+        arguments: project_parent_arguments(
+            compilation,
+            definition,
+            parent,
+            binders,
+            lifetime_binders,
+        )?,
     })
 }
 
@@ -264,4 +258,59 @@ pub(crate) fn project_trait_requirement(
         blocks: requirement.blocks,
         termination,
     })
+}
+
+/// A named implementation is code with its own telescope, not a data type.
+/// Reclose the source selection before projecting its exact checked arguments.
+fn project_parent_arguments(
+    compilation: &PackageReviewInput<'_>,
+    definition: &typed_trees::trait_definition::TraitDefinition,
+    parent: &typed_trees::trait_definition::TraitRequirement,
+    binders: &[(SymbolHandle, String)],
+    lifetime_binders: &[typed_trees::name::Identifier],
+) -> Result<Vec<crate::record::PackageReviewTypeIdentity>, Vec<Diagnostic>> {
+    use typed_trees::data::TypeParameterKind;
+    use typed_trees::types::TypeReferenceNode;
+    let arguments = compilation
+        .type_reference_table
+        .type_reference_handles(parent.arguments);
+    let parameters = compilation.trait_type_parameters(definition);
+    if arguments.len() != parameters.len() {
+        return Err(vec![Diagnostic::error(
+            "reviewed trait parent has stale static telescope arity",
+        )]);
+    }
+    arguments.iter().zip(parameters).map(|(reference, parameter)| {
+        if !matches!(parameter.kind, TypeParameterKind::Implementation) {
+            return review_signature_type_identity_with_binders(compilation, *reference, binders, lifetime_binders);
+        }
+        let operand = compilation.static_operand_from_type_reference(*reference)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        // Caller-owned implementation binders retain their ordinal identity.
+        if operand.symbol.is_valid() && compilation.symbols.get(operand.symbol).kind == symbols::SymbolKind::ConformanceParameter {
+            return review_signature_type_identity_with_binders(compilation, *reference, binders, lifetime_binders);
+        }
+        let closed = validation::conformance_applications::close_conformance_application(compilation.checking_input, &operand)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let declaration = compilation.conformance_by_symbol(closed.declaration).ok_or_else(|| vec![Diagnostic::error("reviewed trait parent has no exact implementation declaration")])?;
+        let selected_parameters = compilation.conformance_type_parameters(declaration);
+        if selected_parameters.len() != closed.arguments.len() {
+            return Err(vec![Diagnostic::error("reviewed trait parent implementation has stale telescope arity")]);
+        }
+        let mut projection = validation::CheckingProjection::new(compilation.checking_input);
+        let children = selected_parameters.iter().zip(&closed.arguments).map(|(parameter, argument)| {
+            crate::capture::semantics::conformances::argument_type_reference(projection.program_mut(), argument, &parameter.kind, 0)
+        }).collect::<Result<Vec<_>, _>>()?;
+        let arguments = projection.program_mut().type_reference_table.insert_type_reference_handles(children);
+        let reference = projection.program_mut().type_reference_table.insert(TypeReferenceNode::Generic {
+            base_symbol: declaration.symbol,
+            base_name: declaration.alias.clone().ok_or_else(|| vec![Diagnostic::error("reviewed trait parent has an unnamed implementation")])?,
+            lifetime_arguments: closed.lifetime_arguments.iter().map(typed_trees::name::Identifier::generated).collect(),
+            arguments,
+        });
+        crate::capture::semantics::types::signature_type_identity(
+            compilation, &projection, compilation.custody.sources().exact_toolchain_sources(), reference, binders, lifetime_binders, &[], &[], false,
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        )
+    }).collect()
 }

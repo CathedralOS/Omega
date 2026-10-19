@@ -189,7 +189,12 @@ pub(crate) fn validate_package_type_identity_input_inner(
         } => {
             let parameters = program
                 .data_definition_by_symbol(*base_symbol)
-                .map(|definition| program.data_type_parameters(definition));
+                .map(|definition| program.data_type_parameters(definition))
+                .or_else(|| {
+                    program
+                        .conformance_by_symbol(*base_symbol)
+                        .map(|declaration| program.conformance_type_parameters(declaration))
+                });
             for (index, argument) in program
                 .type_reference_table
                 .type_reference_handles(*arguments)

@@ -20,6 +20,9 @@ pub(super) fn validate_trait_implementation_arguments(
     program: &dyn crate::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    if let Err(reason) = validate_retained_implementation_arguments(program) {
+        diagnostics.push(Diagnostic::error(reason));
+    }
     let mut validate = |symbol,
                         arguments: &[TypeReferenceHandle],
                         lifetime_arguments: &[typed_trees::name::Identifier],
@@ -308,6 +311,93 @@ fn validate_binding(
         if let Some(diagnostic) = diagnostics.first() {
             return Err(diagnostic.message.clone());
         }
+    }
+    Ok(())
+}
+
+/// A prepared declaration demand is useful only while its exact source slot
+/// remains live. Re-derive its meaning from the original simultaneous scopes;
+/// a generated supplying application cannot establish its own capture custody.
+fn validate_retained_implementation_arguments(
+    program: &dyn crate::CheckingInput,
+) -> Result<(), String> {
+    use typed_trees::static_applications::StaticMachineBindingValue;
+    let typed = program.typed_program();
+    let roots = typed.applied_trait_roots();
+    for (_, selected) in typed.trait_implementation_applications.iter() {
+        let scope = selected
+            .source_scope
+            .scope(typed)
+            .ok_or("trait implementation demand lost its original source scope")?;
+        let mut live = false;
+        for root in &roots {
+            root.visit(typed, &mut |current| {
+                live |= current.argument_owner == scope.argument_owner
+                    && current.same_application(typed, &scope);
+            });
+        }
+        if !live {
+            return Err(
+                "trait implementation demand has no exact live source application".to_owned(),
+            );
+        }
+        let parameter = typed
+            .trait_type_parameters(scope.declaration)
+            .iter()
+            .find(|parameter| {
+                parameter.symbol == selected.parameter
+                    && parameter.kind == TypeParameterKind::Implementation
+            })
+            .ok_or("trait implementation demand lost its exact implementation slot")?;
+        let expected = scope
+            .portable_parameter_identity(typed, parameter.symbol)
+            .ok_or("trait implementation demand has an unresolved source argument")?;
+        let actual = typed_trees::type_identity::portable_applied_type_identity(
+            typed,
+            selected.argument,
+            scope.argument_owner,
+            &[],
+        )
+        .ok_or("trait implementation demand has an unresolved materialized argument")?;
+        if actual != expected {
+            return Err(
+                "trait implementation demand changed its original source argument".to_owned(),
+            );
+        }
+        let operand = typed
+            .static_operand_from_type_reference(selected.argument)
+            .map_err(str::to_owned)?;
+        let source = typed
+            .expression_table
+            .static_machine_application(selected.supplying_application);
+        let arguments = typed
+            .expression_table
+            .static_machine_application_arguments(selected.supplying_application);
+        let bindings = typed
+            .expression_table
+            .static_machine_application_bindings(selected.supplying_application);
+        if source.lexical_owner != scope.argument_owner
+            || source.registration_operation != scope.declaration.symbol
+            || source.binding_declaration != scope.declaration.symbol
+            || arguments != [operand.clone()]
+            || bindings.len() != 1
+            || bindings[0].parameter != selected.parameter
+            || bindings[0].value != StaticMachineBindingValue::Conformance(operand.clone())
+            || source.conformance_selection.is_some()
+        {
+            return Err(
+                "trait implementation demand changed its supplying source application".to_owned(),
+            );
+        }
+        let closed = close_conformance_application(program, &operand)
+            .map_err(|diagnostic| diagnostic.message)?;
+        if closed != selected.application {
+            return Err(
+                "trait implementation demand changed its exact named map application".to_owned(),
+            );
+        }
+        validate_conformance_lifetime_arguments(program, &operand, source.lexical_owner)
+            .map_err(|diagnostic| diagnostic.message)?;
     }
     Ok(())
 }

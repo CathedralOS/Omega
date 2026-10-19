@@ -91,9 +91,15 @@ pub(crate) fn validate_trait_application_obligations(
                     diagnostics,
                 )
             }
-            TypeParameterKind::Implementation
-            | TypeParameterKind::Proposition { .. }
-            | TypeParameterKind::Machine { .. } => {}
+            TypeParameterKind::Implementation => validate_implementation_type_arguments(
+                program,
+                *argument,
+                application_label,
+                symbols,
+                caller_scope,
+                diagnostics,
+            ),
+            TypeParameterKind::Proposition { .. } | TypeParameterKind::Machine { .. } => {}
         }
     }
     super::super::trait_implementation_arguments::validate_trait_implementation_application(
@@ -404,4 +410,66 @@ fn indexed_carrier_parameter_matches(
                     )
             }),
     )
+}
+
+/// A named implementation's type operands remain source formation sites even
+/// when none of its inline machines use them. The map's own telescope supplies
+/// the categories; its caller supplies lexical type and lifetime custody.
+fn validate_implementation_type_arguments(
+    program: &dyn crate::CheckingInput,
+    argument: TypeReferenceHandle,
+    label: &str,
+    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
+    caller_scope: crate::value_custody::type_references::TypeParameterScope<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    use crate::value_custody::type_references::{
+        TypeReferenceOwner, validate_type_reference_handle,
+    };
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(argument)
+    else {
+        return;
+    };
+    let Some(declaration) = program.conformance_by_symbol(*base_symbol) else {
+        return;
+    };
+    let parameters = program.conformance_type_parameters(declaration);
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    // Exact conformance closure owns missing/excess argument diagnostics.
+    if parameters.len() != arguments.len() {
+        return;
+    }
+    crate::value_custody::type_references::validate_parameter_bounds(
+        program,
+        declaration
+            .alias
+            .as_ref()
+            .map_or(label, |name| name.as_str()),
+        parameters,
+        arguments,
+        caller_scope,
+        diagnostics,
+    );
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        if matches!(parameter.kind, TypeParameterKind::Type) {
+            validate_type_reference_handle(
+                program,
+                *argument,
+                symbols,
+                diagnostics,
+                TypeReferenceOwner::GenericBinder {
+                    owner: label,
+                    parameter: parameter.name.as_str(),
+                    generic_depth: 0,
+                },
+                caller_scope,
+            );
+        }
+    }
 }

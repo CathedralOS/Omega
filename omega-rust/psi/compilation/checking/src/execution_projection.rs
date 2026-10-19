@@ -381,6 +381,7 @@ pub fn retain_machine_roster(
     let mut applications = arena::Arena::default();
     applications.insert_many(captures);
     program.captured_machine_applications = applications;
+    program.retain_live_trait_implementation_applications();
     // Trait requirement signatures own reach rows too; only rows owned by a
     // pruned machine leave.
     program
@@ -402,6 +403,7 @@ pub fn retain_machine_roster(
 /// absence is not authorization to discard malformed evidence.
 fn apply_declaration_sidecar_pruning(program: &mut TypedTrees, removed: &HashSet<SymbolHandle>) {
     program.remove_trait_declaration_applications(|declaration| removed.contains(&declaration));
+    program.retain_live_trait_implementation_applications();
     let symbols = &program.symbols;
     let owner_removed = |mut symbol: SymbolHandle| {
         while symbol.is_valid() {

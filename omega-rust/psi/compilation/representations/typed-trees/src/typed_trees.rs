@@ -62,7 +62,8 @@ pub use commitments::{
     ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
     ClosedConformanceConstArgument, ClosedConformanceRowIdentity, MachineSpecialization,
     MachineSpecializationCommitment, MachineTemplateCommitment, StaticRequirementDispatch,
-    closed_conformance_applications_of, machine_specialization_matches_template_identity,
+    TraitImplementationApplication, closed_conformance_applications_of,
+    machine_specialization_matches_template_identity,
 };
 pub use placed_plans::{
     PlacedAccessPrimitive, PlacedAccessorTarget, PlacedAtomicObservingResultContract,
@@ -182,6 +183,8 @@ pub struct TypedTrees {
     /// specialization. Referenced realizers have no row in this arena.
     pub captured_machine_applications: Arena<CapturedMachineApplication>,
     pub captured_machine_states: Arena<CapturedMachineState>,
+    /// Source trait implementation slots demand map captures before checking.
+    pub trait_implementation_applications: Arena<TraitImplementationApplication>,
     /// Requirements instantiated under the `dyn Trait<Args>` applications
     /// that select or call them. Checking appends one record per
     /// (selector application, requirement) after specialization converges.
@@ -502,6 +505,7 @@ impl TypedTrees {
             machine_specializations: Vec::new(),
             captured_machine_applications: Arena::new(),
             captured_machine_states: Arena::new(),
+            trait_implementation_applications: Arena::new(),
             dynamic_slots: Vec::new(),
             target_machine_families: Vec::new(),
             boundary_completion_declarations: Arena::default(),

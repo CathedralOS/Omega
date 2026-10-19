@@ -252,8 +252,13 @@ helper that passes does not close an item.
     Remaining: product-producer parity for positional trait implementation
     binders and their ordered mixed telescopes; const-expression closure over
     open binders and package projection for generic implementation applications;
-    specialization of generic calling-policy realization machines and nested
-    data arguments before plan evaluation. Reflection selection rejects a
+    calling-policy/member kinds beyond the reference compiler's closed inline
+    calling-policy path. The reference producer now
+    specializes exact named calling-policy inline plan captures and nested data
+    arguments before plan evaluation; Linux System V boundary-result, distinct
+    applications, canonical const projection and refusal controls are pinned in
+    `samples/cli/facts/generic_calling_policy`. Other ABI/host policies remain
+    unqualified. Reflection selection rejects a
     named implementation as a member's operation until callable-contract checking lands
     (**Semantic reflection**).
   - Retire authored `Trait::member = Existing::machine;` rows under
