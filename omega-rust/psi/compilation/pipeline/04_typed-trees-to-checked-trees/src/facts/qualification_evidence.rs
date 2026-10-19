@@ -1,3 +1,9 @@
+//! Qualification originates at an authorized result boundary, not from a type
+//! annotation. Exact-machine routes name authored declarations; executable
+//! specialization changes the body symbol but not the invoked declaration.
+//! Follow retained application ownership for that join. Domain indices and
+//! result subjects remain in the ordinary contract facts and are not erased.
+
 use checked_trees::ContractProofFact;
 use facts::{FactPayload, QualificationEvidence};
 use language_semantics::{
@@ -146,10 +152,41 @@ fn machine_domain_establishment_origin(
             }
             DomainEstablishmentRoute::ExactMachine {
                 machine: authorized,
-            } => (*authorized == machine.symbol)
+            } => machine_invokes_declaration(program, machine, *authorized)
                 .then_some(QualificationEvidenceOrigin::AuthorizedRouteEstablishment),
             DomainEstablishmentRoute::BoundaryRequirement { .. } => None,
         })
+}
+
+fn machine_invokes_declaration(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    authorized: SymbolHandle,
+) -> bool {
+    let mut current = machine.symbol;
+    // Invocation and captured-data applications can compose. A bounded walk
+    // rejects cyclic or ambiguous origins rather than granting authority from
+    // diagnostic names, source spans, or a wrapper's calls to an issuer.
+    for _ in 0..=program.machines().len() {
+        if current == authorized {
+            return true;
+        }
+        let template = match program.executable_application_template(current) {
+            Ok(Some(template)) => template,
+            Ok(None) => {
+                let Some(declaration) = program.machine_by_symbol(current) else {
+                    return false;
+                };
+                declaration.generic_data_template
+            }
+            Err(_) => return false,
+        };
+        if !template.is_valid() || template == current {
+            return false;
+        }
+        current = template;
+    }
+    false
 }
 
 fn call_carry_permission_evidence(

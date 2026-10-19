@@ -200,15 +200,26 @@ pub(super) fn check_exit_ensures(
                     fact,
                 )
             };
+            // Issuer authority establishes the exact returned subject. It
+            // cannot discharge an otherwise unproved guarantee about an input,
+            // even when the same declaration also issues a qualified result.
             let authorized_route = match fact.payload {
-                facts::FactPayload::ContractDomainMembership { domain_symbol, .. } => program.machine(state_flow.machine_symbol)
-                    .is_some_and(|machine| {
+                facts::FactPayload::ContractDomainMembership {
+                    domain_symbol,
+                    value,
+                    ..
+                } => validation::reserved_result_owner(program, value).is_some_and(|(owner, _)| {
+                    if owner != state_flow.machine_symbol && owner != state_flow.state_symbol {
+                        return false;
+                    }
+                    program.machine(state_flow.machine_symbol).is_some_and(|machine| {
                         crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
                             program,
                             machine,
                             domain_symbol,
                         )
-                    }),
+                    })
+                }),
                 _ => false,
             };
             let route_predicates_satisfied = match fact.payload {

@@ -351,7 +351,7 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
             ) else {
                 continue;
             };
-            authorized.push((domain.semantic_id, domain.symbol));
+            authorized.push((membership.semantic_domain, domain.symbol));
         }
     }
     authorized
@@ -431,7 +431,7 @@ pub(in crate::execution::terminal_unit) fn register_authored_result_domains(
                 continue;
             };
             shapes.add_selected_domain(
-                definition.semantic_id,
+                membership.semantic_domain,
                 definition.symbol,
                 carrier,
                 binders,

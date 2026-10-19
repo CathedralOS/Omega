@@ -1335,6 +1335,31 @@ fail/domains/exit_ensures_unproven rejected 1682ms expected @a9ae30e1c334+wt
 fail/domains/fixed_byte_array_ascii_copy_no_nul rejected 818ms expected @ef7962801508
 fail/domains/fixed_byte_array_dynamic_candidate_membership rejected 839ms expected @bee4a8dcfd7e
 fail/domains/fixed_byte_array_predicate_copy_route rejected 830ms expected @ef7962801508
+fail/domains/generic_exact_issuer_linear_residual rejected 1743ms expected @3893811dcbf0+wt
+	linear value `wrapper` reaches scope exit without being consumed or transferred
+fail/domains/generic_exact_issuer_parameter_ensures rejected 1730ms expected @3893811dcbf0+wt
+	cannot prove ensures contract for exit from issue at statement 0: ticket in Issued<type:named(name(issue::P))>
+	cannot prove ensures contract for exit from issue$specialized$ffc46e127637e572$0 at statement 0: ticket in Issued<type:named(name(First))>
+fail/domains/generic_exact_issuer_predicate rejected 1722ms expected @3893811dcbf0+wt
+	cannot prove default-domain field requirement for return from issue at statement 0: Ticket requires Issued
+	cannot prove default-domain field requirement for return from issue$specialized$ffc46e127637e572$0 at statement 0: Ticket requires Issued
+fail/domains/generic_exact_issuer_premature_body rejected 1741ms expected @3893811dcbf0+wt
+	cannot prove requires contract for call consume from issue: ticket in Issued<type:named(name(consume::P))> in state `entry`
+	cannot prove requires contract for call consume$specialized$0907c0c7c81aaddb$0 from issue$specialized$ffc46e127637e572$0: ticket in Issued<type:named(name(First))> in state `entry`
+fail/domains/generic_exact_issuer_reconstructed_value rejected 1739ms expected @3893811dcbf0+wt
+	cannot prove default-domain field requirement for return from rebuild at statement 0: Ticket requires Issued
+	construction value is not proven in domain `Issued` in rebuild state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from rebuild$specialized$cea9ecdaa9894f62$0 at statement 0: Ticket requires Issued
+	construction value is not proven in domain `Issued` in rebuild$specialized$cea9ecdaa9894f62$0 state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/domains/generic_exact_issuer_reused_owner rejected 808ms expected @3893811dcbf0+wt
+	cannot use `ticket` in machine `main` state `entry` (statement 2) after `ticket` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
+fail/domains/generic_exact_issuer_unrelated_template rejected 1730ms expected @3893811dcbf0+wt
+	cannot prove default-domain field requirement for return from counterfeit at statement 0: Ticket requires Issued
+	construction value is not proven in domain `Issued` in counterfeit state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from counterfeit$specialized$ba96b453161a4939$0 at statement 0: Ticket requires Issued
+	construction value is not proven in domain `Issued` in counterfeit$specialized$ba96b453161a4939$0 state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/domains/generic_exact_issuer_wrong_index rejected 850ms expected @3893811dcbf0+wt
+	index compatibility condition `index-equality:Issued:main::entry:call-0-0:Issued<First>==Issued<Second>` is not established: actual `Issued<First>` and expected `Issued<Second>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/domains/guard_call_requires_established_membership rejected 867ms expected @2ef2ab353498+wt
 fail/domains/implicit_semantic_domain_local_weakening rejected 828ms expected @a9ae30e1c334+wt
 fail/domains/imported_provider_unissued_result rejected 5578ms expected @e5140c7a7be2+wt
@@ -5827,6 +5852,7 @@ pass/domains/runtime_case_constructor_child_memberships_exit checked 11262ms che
 pass/domains/runtime_computed_qualification_exit checked 11223ms check-target:macos_arm64 @9c4d1c444502
 pass/domains/runtime_constructor_ensured_membership_exit checked 9039ms check-target:macos_arm64 @dd191203ff08+wt
 pass/domains/runtime_forwarded_borrowed_result_domain_exit checked 83689ms check-target:linux_x86_64 @be2b40493220
+pass/domains/runtime_generic_exact_issuer_exit checked 8325ms check-target:macos_arm64 @3893811dcbf0+wt
 pass/domains/runtime_nested_record_membership_transport_exit checked 11182ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_qualified_borrowed_gated_input_exit checked 11348ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/runtime_qualified_ieee_field_read_exit checked 11525ms check-target:macos_arm64 @8d3a0acb500a+wt

@@ -105,11 +105,10 @@ impl<'program> ShapeCollector<'program> {
             // Qualified byte carriers preserve the actual declaration selected
             // by typing. Another capacity in the same family is not its proof
             // theory, even when both declarations happen to classify bytes.
-            let definition = typed_trees::domain::domain_by_symbol(self.program, selected_symbol?)?;
-            if definition.semantic_id != domain {
-                return None;
-            }
-            Some(definition)
+            Some(typed_trees::domain::domain_by_symbol(
+                self.program,
+                selected_symbol?,
+            )?)
         };
         self.add_domain_definition(domain, carrier, binders, definition, false)
     }
@@ -119,6 +118,10 @@ impl<'program> ShapeCollector<'program> {
     /// by that contract's authorization instead of searching those unrelated
     /// qualifications for it. Registration describes its theory, not evidence
     /// that the result satisfies it; the calling contract owns that judgment.
+    /// Typing retains the declaration symbol beside the instantiated semantic
+    /// identity. They are different coordinates for indexed families: the
+    /// declaration owns the routes, while the application owns membership.
+    /// Requiring the family's semantic ID here would erase every closed index.
     pub(in crate::execution::terminal_unit) fn add_selected_domain(
         &mut self,
         domain: SemanticDomainId,
@@ -128,9 +131,6 @@ impl<'program> ShapeCollector<'program> {
         stored_carrier: bool,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let definition = typed_trees::domain::domain_by_symbol(self.program, selected_symbol)?;
-        if definition.semantic_id != domain {
-            return None;
-        }
         self.add_domain_definition(domain, carrier, binders, Some(definition), stored_carrier)
     }
 
