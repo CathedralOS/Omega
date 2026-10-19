@@ -1,86 +1,93 @@
-# Selected evidence through owned structural inputs
+# Outcome structural evidence
 
-Selecting Success from pick(Gate{threshold:5}) transports exact
-above(gate.threshold) evidence and preserves threshold 5.
+Selecting `Success` from `pick(Gate { threshold: 5 })` transports exact `above(gate.threshold)`
+evidence and preserves threshold `5`.
 
-The root `main.omg` is the original probe. Each row uses the same Gate value,
-Success guarantee, `selected` selector and threshold comparison. Only the Gate's
-transport changes. The abstract proposition is nominal witness evidence; its
-name does not introduce an arithmetic theorem.
+The root `main.omg` is the canonical witness. Each row uses the same `Gate` value (`Gate { threshold: 5 }`),
+`Success` guarantee, `selected` selector, and threshold comparison (`gate.threshold == 5`). Only the `Gate`'s
+transport changes.
 
-| Place | Project | Transport |
-| --- | --- | --- |
-| local | `local/` | a local Gate |
-| field | `field/` | Holder.gate |
-| parameter | `parameter/` | a Gate parameter |
-| call result | `call_result/` | make_gate() |
-| match join | `match_join/` | both Boolean arms construct Gate{threshold:5} |
-| const name | `const_name/` | NAMED_GATE |
-| another state | `other_state/` | inspect's Gate parameter |
-| another machine | `other_machine/` | deliver() forwards the Gate |
-| another target body | `target_body/` | four hosted target bodies |
+## Places
 
-Every positive binds ProgramEntry for windows_x86_64, linux_x86_64,
-macos_arm64 and linux_arm64, and declares Expected exit: 0. Run a prepared
-project with `omega run --both <place>/main.omg`; use `omega update --project
-<place> --target <host>` first. Each row also calls pick_failure(), exercises
-the nonmatching arm without manufacturing a Success witness, and traps if
-that dispatch or the preserved threshold is wrong. Both match-join arms run.
+| Place | Positive Program | Reject Twin (invalid) | Transport Mechanism |
+| --- | --- | --- | --- |
+| root | [`main.omg`](main.omg) | — | canonical root probe passing `Gate { threshold: 5 }` to `probe` and `pick` |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | a local `Gate` copy |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | `Holder.gate` record field projection |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | an explicit machine `Gate` parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `make_gate()` contracted helper call result |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both Boolean match arms construct `Gate { threshold: 5 }` and join |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `NAMED_GATE` constant definition |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `inspect` successor state receives `Gate` parameter across transition |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `deliver()` forwarding machine passes `Gate` to consumer machine |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies on all four hosted platforms |
 
-Each `invalid/` twin removes only `selected = Fresh;` from pick. It must reject
-at the producer's applicable ordinary exit with:
+## Execution
+
+Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`.
+`omega run --both` reports Terminal Psi interpreter and native execution agreement:
+
+```sh
+omega run --both samples/cli/facts/outcome_structural_evidence/main.omg
+omega run --both samples/cli/facts/outcome_structural_evidence/local/main.omg
+omega run --both samples/cli/facts/outcome_structural_evidence/field/main.omg
+omega run --both samples/cli/facts/outcome_structural_evidence/parameter/main.omg
+omega run --both samples/cli/facts/outcome_structural_evidence/call_result/main.omg
+omega run --both samples/cli/facts/outcome_structural_evidence/match_join/main.omg
+omega run --both samples/cli/facts/outcome_structural_evidence/const_name/main.omg
+omega run --both samples/cli/facts/outcome_structural_evidence/other_state/main.omg
+omega run --both samples/cli/facts/outcome_structural_evidence/other_machine/main.omg
+omega run --both samples/cli/facts/outcome_structural_evidence/target_body/main.omg
+```
+
+Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.
+
+### The oracle discriminates
+
+`Main` transitions on `(probe()) && failure_arm()`. Each row calls `pick_failure()`, exercises the
+nonmatching arm without manufacturing a `Success` witness, and traps if that dispatch or the preserved
+threshold is wrong. If `gate.threshold` is corrupt (not 5) or outcome evidence is absent, the transition
+evaluates to false and enters `state bad() { crash Trap; }`, terminating with non-zero exit/signal.
+
+### Invalid controls and reject twins
+
+The `invalid` child of each place keeps the place's program shape and removes only `selected = Fresh;` from `pick`.
+It must reject at the producer's applicable ordinary exit with:
 
 ```
 outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit
 ```
 
-Selection is fact-sensitive: removing establishment invalidates the exact named
-guarantee consumed at the Success operation, even though the runtime comparison
-itself does not execute a proof. The nine pairs are pinned under
-`tests/omega/{pass,fail}/facts/outcome_structural_evidence_<place>`.
+Selection is fact-sensitive: removing establishment invalidates the exact named guarantee consumed at the
+`Success` operation, even though the runtime comparison itself does not execute a proof.
 
-## Obligations and implementation
+```sh
+omega --check samples/cli/facts/outcome_structural_evidence/local/invalid/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/field/invalid/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/parameter/invalid/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/call_result/invalid/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/match_join/invalid/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/const_name/invalid/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/other_state/invalid/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/other_machine/invalid/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/target_body/invalid/main.omg
+```
 
-Establishment belongs to every ordinary producer exit of the matching case.
-Failure exits owe no Success conclusion. The caller imports a row only under
-the exact result-case guard, retaining the selected Type witness identity.
-Equal proposition applications do not identify distinct witness values.
+## Requirements and Evidence
 
-Owned reference-free arguments are evaluated value snapshots. Their later source
-homes do not become proof subjects again merely by retaining the same spelling.
-Checking uses the existing normal-value path owner to compare completed scalar
-and projected values, including copies, later argument writes and branch agreement.
-Unknown captures and unsupported computed subjects cannot establish a binding.
-These comparison keys stay internal to checking. References and records containing
-borrowed storage do not acquire detached owned snapshot semantics.
+- **Parent outcome:** `OUTCOME-SPECIFIC-CALL-EVIDENCE` (`TASKS.md`) / [contracts](../../../../wiki/spec/proofs/contracts.md).
+- **Pinned fixtures:**
+  - Positive passes: `tests/omega/pass/facts/outcome_structural_evidence_<place>` (9 places pinned, each byte-identical to `<place>/main.omg` and recording native exit 0 and Terminal interpreter agreement).
+  - Negative controls: `tests/omega/fail/facts/outcome_structural_evidence_<place>` (9 places pinned, each byte-identical to `<place>/invalid/main.omg`, rejecting with `outcome-specific evidence \`selected\` is not definitely assigned on the matching ordinary exit`).
 
-The checked declaration classifies each subject by authored formal position and
-resolved field declarations. Terminal lowering retains a declaration-owned
-subject roster: scalar and structural parameter namespaces are distinct, and
-structural rows carry the complete authenticated field path. Ordinary evaluated
-call operands retain actual prefixes. External decoding rejoins the selected
-callee obligation, case, field, evidence term and exact subject roster. The
-canonical codec/fingerprint retains these rows; no runtime proof storage or
-cleanup is manufactured. The native and Terminal engines consume ordinary
-record copies and payloadless case dispatch.
+### Specification and Lowering Layers
 
-Focused call fixtures additionally check nested projections, two same-shaped
-record formals after a scalar formal, a closed constant proposition argument,
-and preservation of an old copy while the source becomes threshold 6. The
-checking-only snapshot forwarding controls use an erased requires lane; its
-structural state-contract native lowering remains outside this row. Their twins
-reject mutated record/scalar subjects, later-argument mutation and an unsupported
-same-name computed subject. They are not counted as runtime row acceptance.
-
-The governing contract is `wiki/spec/proofs/contracts.md`, blob
-`0551b01c0d931150f979d6ea295d3bafd99629bf`: exact subjects/substitutions,
-path- and result-sensitive guarantees, validity intersections, Type witness
-identity, and erased evidence retaining semantics without executable storage.
-The original baseline checked but `run --both` refused structural-input
-selection at Terminal lowering. This row advances owned, unrestricted,
-unqualified reference-free structural formals with exact primitive projections.
-
-Remaining OUTCOME-SPECIFIC-CALL-EVIDENCE scope includes entry claims, other
-contract rows, crash routes, borrowed/reference-bearing structural inputs,
-computed dependent subjects and broader evidence scope transport. This row does
-not claim those capabilities or other-host native execution.
+1. **Establishment:** Constructing the outcome variant `Outcome::Success` with `selected = Fresh;` satisfies the callee contract `ensures Outcome::Success -> { selected: above(gate.threshold); }`. Matching the outcome in `transition pick(gate) { Outcome::Success { ; selected: proof } -> ... }` establishes the structural variant fact and payload bound directly without any post-hoc caller equality guard (`transition x == 100`).
+2. **Identity and lifetime:** The matched outcome payload fact stays attached to the exact extracted field/value version (`gate.threshold == 5`) across moves, copies, and borrows. The owned reference-free argument `gate: Gate` represents an evaluated value snapshot; no intervening mutation alters or invalidates `gate.threshold` between snapshot creation, callee evaluation, and matching.
+3. **Composition:** The outcome structural evidence composes across all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming operation (`gate.threshold == 5`). Each positive `<place>/main.omg` vs. `<place>/invalid/main.omg` differs only in the omission of `selected = Fresh;` in `pick`, isolating the exact structural evidence guarantee under test.
+4. **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed with compilation error `outcome-specific evidence \`selected\` is not definitely assigned on the matching ordinary exit` when a branch or variant payload does not establish the required structural bound. Nonmatching exits (`Outcome::Failure`) owe no `Success` conclusion, and callers cannot manufacture a `Success` witness without taking that arm.
+5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Tagged outcome discriminant branching and payload extraction lower into canonical target-neutral `PSITERM\0` operations. Proof-only obligations (`selected: above(gate.threshold)`) are erased while preserving declaration-owned subject rosters (distinct scalar and structural parameter namespaces carrying authenticated field paths). Both Terminal Psi interpreter and native execution agree in `omega run --both`.
+6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles uniformly across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Tagged sum/outcome layout plans (discriminant tag + aligned payload offsets) and `Gate` layout (`u32` 4 bytes) validate target plans. `CallPlan` and `StatePlan` lower outcome arguments and returns across registers and stack slots according to target calling conventions.
+7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects discriminant tag comparisons, conditional branches, and payload field loads, assigns register homes and disjoint stack-frame storage, composes worst-case stack usage, and inserts entry prologues and multi-return epilogues honoring the `StatePlan` frame ceiling.
+8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve for tagged outcome homes, basic blocks and arm branches relax with offset reflow, machine-state footprint evidence validates transitive usage, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across host targets (`windows_x86_64` and `macos_arm64`).
