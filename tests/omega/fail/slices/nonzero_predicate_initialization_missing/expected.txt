@@ -1,0 +1,2 @@
+reading `selected` crosses an open default-domain invariant window
+the zeroed representation is not yet a value

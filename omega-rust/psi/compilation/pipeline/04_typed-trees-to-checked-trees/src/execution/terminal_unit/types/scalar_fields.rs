@@ -44,9 +44,9 @@ pub(crate) fn field_requires_place_observation(
 
 /// Whether primitive storage can retain the declaration's complete receiving
 /// restriction. Parameters and local declarations establish the same storage;
-/// replacements use the exact assignment judgment against its retained range.
+/// replacements use the exact assignment judgment against its full restriction.
 /// A domain kept only in custody (such as Finite) is not an unrestricted store,
-/// and arbitrary predicates still require their declaration-owned operation.
+/// Closed predicates retain their declaration-owned receiving operation.
 pub(in crate::execution::terminal_unit) fn supports_primitive_storage(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -58,7 +58,8 @@ pub(in crate::execution::terminal_unit) fn supports_primitive_storage(
         Some(CheckedUnitStructuralFieldType::Scalar(_)) => {
             validation::is_plain_scalar_storage(program, type_reference)
         }
-        Some(CheckedUnitStructuralFieldType::BoundedInteger(_)) => true,
+        Some(CheckedUnitStructuralFieldType::BoundedInteger(_))
+        | Some(CheckedUnitStructuralFieldType::RefinedScalar { .. }) => true,
         _ => false,
     }
 }

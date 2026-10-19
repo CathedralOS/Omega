@@ -1,0 +1,2 @@
+cannot prove the value assigned to `selected` in main is in domain `i32::Selected`
+requires every write to be established in that domain

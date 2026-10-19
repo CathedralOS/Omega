@@ -116,9 +116,14 @@ pub(crate) fn initialization_obligation(
     }
     match &declaration.scalar_restriction {
         None => Ok(None),
-        Some(terminal_psi::StructuralFieldType::BoundedInteger(_)) => Ok(Some(
-            crate::terminal_identities::obligation_id(allocate_dense(next_obligation)?),
-        )),
+        Some(restriction) if terminal_semantics::scalar_field_requires_evidence(restriction) => {
+            // The shared receiving-predicate owner covers intervals and closed
+            // refinements alike. Explicit initialization owes that complete
+            // predicate on its completed operand; zero membership is unrelated.
+            Ok(Some(crate::terminal_identities::obligation_id(
+                allocate_dense(next_obligation)?,
+            )))
+        }
         _ => unsupported("primitive storage has no supported initialization restriction"),
     }
 }

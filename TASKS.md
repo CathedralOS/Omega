@@ -4547,10 +4547,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `unit/attached_unit/view_ranges.rs` and
   `emission/operation_emission/view_subslice.rs` (shared `CheckedSubsliceSite`).
   Remaining:
-  - nonempty restricted scalar array and primitive-local construction still
-    lack an initializer-obligation roster when zero does not satisfy the
-    declared predicate. Terminal refuses these constructors; empty arrays
-    instantiate no element. Refined scalar parameter/state-arrival contracts
+  - Refined scalar parameter/state-arrival contracts
     still decline non-interval memberships in
     `checking/src/machine_calls/structural_call_custody.rs`; source checking of
     narrowed record-element slice arguments still lacks their default-domain

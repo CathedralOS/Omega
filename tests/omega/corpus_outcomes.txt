@@ -2393,6 +2393,29 @@ fail/facts/selected_native_code_layout_through_parameter_rejected rejected 21ms 
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
 fail/facts/selected_native_code_layout_through_target_body_rejected rejected 50ms expected @b9f8d3719246+wt
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_scalar_initializer_through_call_result_rejected rejected 1157ms expected @a0ebcac9edda+wt
+	cannot prove default-domain field requirement for return from make at statement 0: [1, 2][1] requires i32::Selected
+	array literal element is not proven in domain `i32::Selected` in make state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/selected_scalar_initializer_through_const_name_rejected rejected 30ms expected @a0ebcac9edda+wt
+	constant `ITEMS` is invalid: domain constraint `Selected` for the const leaf value is false; failed domain `i32::Selected`
+fail/facts/selected_scalar_initializer_through_field_rejected rejected 1238ms expected @a0ebcac9edda+wt
+	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/selected_scalar_initializer_through_local_rejected rejected 1259ms expected @a0ebcac9edda+wt
+	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/selected_scalar_initializer_through_match_join_rejected rejected 1224ms expected @a0ebcac9edda+wt
+	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/selected_scalar_initializer_through_other_machine_rejected rejected 1193ms expected @a0ebcac9edda+wt
+	cannot prove default-domain field requirement for call relay from exercise::entry: parameter items[1] requires i32::Selected
+	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/selected_scalar_initializer_through_other_state_rejected rejected 1123ms expected @a0ebcac9edda+wt
+	cannot prove default-domain field requirement for call ready from exercise::entry: parameter items[1] requires i32::Selected
+	cannot prove default-domain field requirement for call ready from exercise::entry: parameter items[1] requires i32::Selected
+	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/selected_scalar_initializer_through_parameter_rejected rejected 1205ms expected @a0ebcac9edda+wt
+	cannot prove default-domain field requirement for call consume from exercise::entry: parameter items[1] requires i32::Selected
+	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/selected_scalar_initializer_through_target_body_rejected rejected 1232ms expected @a0ebcac9edda+wt
+	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/facts/signed_division_quotient_unproved_call_result rejected 2405ms expected @45cbafd80d9c
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/signed_division_quotient_unproved_const_name rejected 2403ms expected @45cbafd80d9c
@@ -3572,6 +3595,10 @@ fail/slices/nested_descriptor_sibling_length rejected 568ms expected @7ba26861e7
 fail/slices/nested_stored_view_local_escape rejected 1097ms expected @8a2c1f68d503
 fail/slices/noncopy_array_view_keeps_backing_loan rejected 1721ms expected @a9ae30e1c334+wt
 fail/slices/nonempty_subslice_empty_range rejected 922ms expected @ef7962801508
+fail/slices/nonzero_predicate_initialization_missing rejected 389ms expected @a0ebcac9edda+wt
+	reading `selected` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `i32[in Selected]`
+fail/slices/nonzero_predicate_replacement_invalid rejected 1122ms expected @a0ebcac9edda+wt
+	cannot prove the value assigned to `selected` in main is in domain `i32::Selected`; a place declared `in i32::Selected` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/slices/overlapping_mut_subslice_windows_rejected rejected 1612ms expected @a9ae30e1c334+wt
 fail/slices/predicate_scalar_result_invalid_membership rejected 5116ms expected @a9ae30e1c334+wt
 fail/slices/predicate_scalar_store_invalid_membership rejected 5777ms expected @a9ae30e1c334+wt
@@ -6286,6 +6313,15 @@ pass/facts/selected_native_code_layout_through_other_machine_exit checked 8055ms
 pass/facts/selected_native_code_layout_through_other_state_exit checked 8043ms check-target:macos_arm64 @b9f8d3719246+wt
 pass/facts/selected_native_code_layout_through_parameter_exit checked 8053ms check-target:macos_arm64 @b9f8d3719246+wt
 pass/facts/selected_native_code_layout_through_target_body_exit checked 7957ms check-target:macos_arm64 @b9f8d3719246+wt
+pass/facts/selected_scalar_initializer_through_call_result_exit checked 8126ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/facts/selected_scalar_initializer_through_const_name_exit checked 8150ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/facts/selected_scalar_initializer_through_field_exit checked 7984ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/facts/selected_scalar_initializer_through_local_exit checked 7943ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/facts/selected_scalar_initializer_through_match_join_exit checked 8080ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/facts/selected_scalar_initializer_through_other_machine_exit checked 7877ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/facts/selected_scalar_initializer_through_other_state_exit checked 7880ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/facts/selected_scalar_initializer_through_parameter_exit checked 7923ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/facts/selected_scalar_initializer_through_target_body_exit checked 8126ms check-target:macos_arm64 @a0ebcac9edda+wt
 pass/facts/signed_division_quotient_through_call_result_exit checked 7575ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_const_name_exit checked 7742ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_field_exit checked 7695ms check-target:macos_arm64 @45cbafd80d9c
@@ -7597,6 +7633,7 @@ pass/slices/runtime_nested_stored_view_return_exit checked 5663ms check-target:m
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 11923ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_nested_view_candidate_backings_exit checked 5696ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_nested_view_descriptor_reseat_exit checked 5643ms check-target:macos_arm64 @f329f97f57f7+wt
+pass/slices/runtime_nonzero_predicate_scalar_snapshot_exit checked 8046ms check-target:macos_arm64 @a0ebcac9edda+wt
 pass/slices/runtime_ordered_nested_length_observation_exit checked 8822ms check-target:macos_arm64 @f334a04a60a7+wt
 pass/slices/runtime_policy_element_view_tail_recursion_exit checked 12241ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_predicate_qualified_scalar_copy_exit checked 10797ms check-target:macos_arm64 @a9ae30e1c334+wt
