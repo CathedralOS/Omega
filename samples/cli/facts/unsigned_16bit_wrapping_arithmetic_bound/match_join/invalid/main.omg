@@ -1,0 +1,39 @@
+// Fact: 16-bit unsigned wrapping addition lhs +% rhs with bounded interval 350u16 <= sum <= 600u16 establishes 350u16 <= sum <= 600u16 across all nine places so exact subtractions 600u16 - sum and sum - 350u16 are safe.
+// Invalid: match join result upper bound 601 allows underflow in 600u16 - sum. Place: match_join.
+// Expected diagnostic: may overflow `u16`
+
+machine choose_wrapping(flag: bool, lhs: u16, rhs: u16) -> u16
+requires lhs >= 300u16 && lhs <= 501u16 && rhs >= 50u16 && rhs <= 100u16
+ensures result >= 350u16 && result <= 601u16
+{
+    let w_lhs: u16 in Wrapping = lhs as u16 in Wrapping;
+    let w_rhs: u16 in Wrapping = rhs as u16 in Wrapping;
+    let sum_wrap: u16 in Wrapping = w_lhs + w_rhs;
+    let sum: u16 = sum_wrap as u16;
+    match flag {
+        true -> sum,
+        false -> sum,
+    }
+}
+
+machine compute_join(lhs: u16, rhs: u16) -> i32
+requires lhs >= 300u16 && lhs <= 501u16 && rhs >= 50u16 && rhs <= 100u16
+{
+    let sum: u16 = choose_wrapping(true, lhs, rhs);
+    let headroom: u16 = 600u16 - sum;
+    let margin: u16 = sum - 350u16;
+    0i32
+}
+
+machine probe() -> i32 {
+    compute_join(400u16, 80u16)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
