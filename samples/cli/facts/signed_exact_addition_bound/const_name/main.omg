@@ -1,0 +1,28 @@
+// Adding two bounded signed i64 values (base >= 20i64 && base <= 40i64 and delta >= 10i64 && delta <= 30i64) establishes the exact post-addition interval (sum >= 30i64 && sum <= 70i64), discharging exact subtraction 70i64 - sum across all nine places.
+// Expected exit: 0
+
+machine consume_margin(margin: i64) -> i64
+    requires margin >= 0i64 && margin <= 40i64
+{
+    margin
+}
+
+const MAX_SUM: i64 = 70i64;
+
+machine probe(base: i64, delta: i64) -> i64
+    requires base >= 20i64 && base <= 40i64 && delta >= 10i64 && delta <= 30i64
+{
+    let sum: i64 = base + delta;
+    let margin: i64 = MAX_SUM - sum;
+    consume_margin(margin)
+}
+
+machine main() crashes Trap {
+    let diff: i64 = probe(30i64, 20i64);
+    transition diff == 20i64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
