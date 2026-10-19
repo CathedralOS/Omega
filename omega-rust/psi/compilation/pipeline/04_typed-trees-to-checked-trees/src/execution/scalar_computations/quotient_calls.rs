@@ -41,6 +41,7 @@ impl Builder<'_, '_> {
             });
         Some(self.insert(expected, checked_trees::CheckedScalarComputationKind::StructuralField {
             atomic_ordering: None,
+            result_type,
             source_expression: expression, receiver_expression: expression, source_type: result_type, receiver_value,
             subject: checked_trees::CheckedUnitStructuralArgumentPlan {
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },

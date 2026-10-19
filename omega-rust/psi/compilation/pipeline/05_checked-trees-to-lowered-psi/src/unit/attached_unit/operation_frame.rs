@@ -77,8 +77,8 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::unit::{
     BoundaryMachineId, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Operation,
-    OperationKind, OperationResult, PlaceId, ScalarType, ServiceId, ServiceReachId,
-    StructuralAccess, StructuralArgument, StructuralDomainId, StructuralParameterDeclaration,
+    OperationKind, OperationResult, PlaceId, ServiceId, ServiceReachId, StructuralAccess,
+    StructuralArgument, StructuralDomainId, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
     ValueDeclaration, allocate_dense, lookup_type_id, place_id, unsupported,
 };
@@ -110,7 +110,7 @@ pub(crate) struct BoundaryParameters {
     pub(crate) id: BoundaryMachineId,
     pub(crate) structural: Vec<StructuralParameterDeclaration>,
     /// Dense scalar parameter types, in the declaration's scalar lane.
-    pub(crate) scalar: Vec<ScalarType>,
+    pub(crate) scalar: Vec<semantic_vocabulary::QualifiedScalarType>,
     /// The declaration's `scalar_requires` rows; each call owes one
     /// obligation per row.
     pub(crate) requirement_count: usize,

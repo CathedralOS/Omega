@@ -13,8 +13,9 @@ pub use qualifications::{
 };
 pub use scalar_qualifications::{
     ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarDomainPredicate,
-    ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCatalog, ScalarQualificationCoercion,
-    ScalarQualificationSet, ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite,
+    ScalarFieldQualification, ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCatalog,
+    ScalarQualificationCoercion, ScalarQualificationSet, ScalarReturnOrigin,
+    ScalarReturnQualification, ScalarReturnSite,
 };
 pub use structural::{
     ByteSequenceCarrier, StructuralCaseDeclaration, StructuralFieldDeclaration,

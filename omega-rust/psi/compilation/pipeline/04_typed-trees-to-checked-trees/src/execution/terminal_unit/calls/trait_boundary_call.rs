@@ -594,6 +594,9 @@ pub(super) fn build(
             )
         }
     };
+    phase("call operation: boundary scalar arguments");
+    let scalar_arguments =
+        checked_call_scalar_arguments(facts, state.symbol, coordinate, &scalar_parameters, true)?;
     checked_trees::CheckedUnitCallPlan::new(checked_trees::CheckedUnitCallParts {
         coordinate,
         source_site,
@@ -605,13 +608,7 @@ pub(super) fn build(
         },
         route: checked_trees::CheckedUnitCallRoute::Boundary,
         completion,
-        scalar_arguments: checked_call_scalar_arguments(
-            facts,
-            state.symbol,
-            coordinate,
-            &scalar_parameters,
-            true,
-        )?,
+        scalar_arguments,
         structural_arguments,
         result: checked_trees::CheckedUnitCallResult::Unit,
         transfers,

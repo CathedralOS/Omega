@@ -180,6 +180,7 @@ pub(super) fn validate_provider_candidate(
         return malformed("provider candidate references contract evidence rather than a callable");
     }
     validate_provider_scalar_contract(boundary, machine, &module.structural_domains)?;
+    super::scalar_boundary_contracts::validate_provider(module, boundary, &machine.parameters)?;
     for parameter in &candidate.signature.parameters {
         if !has_structural_type(module, parameter.structural_type) {
             return malformed("provider signature references an unknown structural type");

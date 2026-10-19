@@ -43,7 +43,7 @@ pub(crate) fn emit(
                     .scalar_computations
                     .nodes
                     .get(*observation);
-                let expression = match &node.kind {
+                let mut expression = match &node.kind {
                     checked_trees::CheckedScalarComputationKind::StructuralField {
                         receiver_value,
                         subject,
@@ -98,6 +98,17 @@ pub(crate) fn emit(
                         );
                     }
                 };
+                if let checked_trees::CheckedScalarComputationKind::StructuralField {
+                    result_type,
+                    ..
+                } = &node.kind
+                {
+                    expression.retain_observed_type(
+                        evaluation
+                            .shared_qualifications
+                            .value_type(checked, *result_type)?,
+                    )?;
+                }
                 let types = values
                     .iter()
                     .map(|value| value.value_type())

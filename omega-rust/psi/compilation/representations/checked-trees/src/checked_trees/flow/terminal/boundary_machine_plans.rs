@@ -95,6 +95,18 @@ pub enum CheckedBoundaryLifetimeDependency {
     },
 }
 
+/// A nominal scalar admission obligation, independent of its numeric predicate.
+/// The predicate uses one declaration-local subject at position zero; parameter
+/// packing never changes the retained domain application or issuer identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedBoundaryScalarDomainRequirementPlan {
+    pub argument_index: u32,
+    pub domain_symbol: SymbolHandle,
+    pub domain: SemanticDomainId,
+    pub primitive_type: PrimitiveType,
+    pub predicate: crate::CheckedBooleanExpression,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedBoundaryMachinePlan {
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
@@ -115,6 +127,9 @@ pub struct CheckedBoundaryMachinePlan {
     /// Canonical `(argument_index, domain)` order derived from exact normalized
     /// membership facts in the boundary contract.
     pub domain_requirements: Vec<CheckedUnitStructuralDomainRequirementPlan>,
+    /// Exact scalar-lane memberships, ordered by argument and domain. Numeric
+    /// predicates cannot replace these identities or establish their routes.
+    pub scalar_domain_requirements: Vec<CheckedBoundaryScalarDomainRequirementPlan>,
     /// The contract's scalar `requires` predicates in checked order: each
     /// authored clause that is not wholly structural membership, then the
     /// scalar parameter ranges. `Parameter` positions index

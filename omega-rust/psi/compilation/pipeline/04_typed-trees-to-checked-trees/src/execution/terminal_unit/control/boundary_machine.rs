@@ -17,8 +17,8 @@ use crate::execution::terminal_unit::types::{
     substituted_formal_type,
 };
 use crate::execution::terminal_unit::{
-    CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
-    CheckedUnitStructuralDomainRequirementPlan, SymbolHandle, is_reference,
+    CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, SymbolHandle,
+    is_reference,
 };
 
 pub(crate) fn build_boundary_machine(
@@ -66,6 +66,7 @@ pub(crate) fn build_boundary_machine(
             .iter()
             .chain(program.state_contracts(state)),
         &structural_parameters,
+        &scalar_parameters,
         &binders,
     )?;
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
@@ -75,7 +76,9 @@ pub(crate) fn build_boundary_machine(
         machine.symbol,
         program.state_parameters(state),
         &structural_parameters,
-        &domain_requirements,
+        &scalar_parameters,
+        &domain_requirements.structural,
+        &domain_requirements.scalar,
         state.return_type,
         program.machine_contracts(machine),
         program.state_contracts(state),
@@ -95,7 +98,8 @@ pub(crate) fn build_boundary_machine(
         structural_parameters,
         scalar_parameters,
         result,
-        domain_requirements,
+        domain_requirements: domain_requirements.structural,
+        scalar_domain_requirements: domain_requirements.scalar,
         scalar_ensures: validation::derive_scalar_boundary_guarantees(
             program, facts, machine, contract,
         ),
@@ -406,6 +410,7 @@ pub(crate) fn build_static_boundary_requirements(
                 program.state_signature_parameters(signature),
                 program.state_signature_contracts(signature).iter(),
                 &structural_parameters,
+                &scalar_parameters,
                 &[],
             ) else {
                 gaps.push(crate::execution::terminal_unit::plan_gaps::plan_gap(
@@ -432,7 +437,9 @@ pub(crate) fn build_static_boundary_requirements(
                 signature.symbol,
                 program.state_signature_parameters(signature),
                 &structural_parameters,
-                &domain_requirements,
+                &scalar_parameters,
+                &domain_requirements.structural,
+                &domain_requirements.scalar,
                 signature.return_type,
                 program.state_signature_contracts(signature),
                 &[],
@@ -486,7 +493,8 @@ pub(crate) fn build_static_boundary_requirements(
                 structural_parameters,
                 scalar_parameters,
                 result,
-                domain_requirements,
+                domain_requirements: domain_requirements.structural,
+                scalar_domain_requirements: domain_requirements.scalar,
                 scalar_ensures,
                 scalar_requires,
                 contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
@@ -539,61 +547,37 @@ fn build_boundary_operator(
         &[],
         &LocalConstructionTrace::default(),
     )?;
-    let mut scalar_requires = Vec::new();
-    for contract in program.operator_contracts(operator) {
-        if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
-            continue;
-        }
-        if contract.binding.is_some() {
-            return None;
-        }
-        let mut conjunction = None;
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let Some(expression) = fact.as_expression() else {
-                // A membership must be retained by the structural qualification
-                // route, never silently erased from this scalar contract.
-                return None;
-            };
-            let predicate = crate::values::lower_operator_crash_contract_expression(
-                program,
-                &facts.operators,
-                operator,
-                *expression,
-            )?;
-            conjunction = Some(match conjunction {
-                None => predicate,
-                Some(left) => checked_trees::CheckedBooleanExpression::And {
-                    left: Box::new(left),
-                    right: Box::new(predicate),
-                },
-            });
-        }
-        scalar_requires.push(checked_trees::ClosedScalarContractValue::Predicate(
-            conjunction?,
-        ));
-    }
-    let ranges = crate::values::lower_callable_parameter_range_requirements(
+    let domain_requirements = boundary_domain_requirements(
         program,
+        shapes,
         program.operator_parameters(operator),
+        program.operator_contracts(operator).iter(),
+        &structural_parameters,
+        &scalar_parameters,
+        &[],
+    )?;
+    let closed = crate::facts::build_callable_scalar_value_contract_plan(
+        program,
+        operator.symbol,
+        Some(program.operator_parameters(operator)),
+        operator.return_type,
+        program.operator_contracts(operator),
+        &facts.operators,
     );
-    for clause in ranges.scalar_clauses {
-        // A present but unrepresentable range cannot disappear from a
-        // boundary signature. Float ranges need their own proof carrier.
-        let Some(clause @ checked_trees::ClosedScalarContractValue::Predicate(_)) = clause else {
-            return None;
-        };
-        scalar_requires.push(clause);
-    }
-    let mut domain_requirements = Vec::new();
-    for (position, parameter) in structural_parameters.iter().enumerate() {
-        let argument_index = u32::try_from(position).ok()?;
-        domain_requirements.extend(parameter.qualifications.iter().map(|domain| {
-            CheckedUnitStructuralDomainRequirementPlan {
-                argument_index,
-                domain: *domain,
-            }
-        }));
-    }
+    let scalar_requires = boundary_scalar_requires(
+        program,
+        &facts.operators,
+        operator.symbol,
+        program.operator_parameters(operator),
+        &structural_parameters,
+        &scalar_parameters,
+        &domain_requirements.structural,
+        &domain_requirements.scalar,
+        operator.return_type,
+        program.operator_contracts(operator),
+        &[],
+        &closed,
+    )?;
     // Operator declarations have no authored service-reach clause. A public
     // omission is an explicit empty ceiling, not private body inference.
     let service_reach = language_semantics::ServiceReachSummary {
@@ -611,7 +595,8 @@ fn build_boundary_operator(
         structural_parameters,
         scalar_parameters,
         result,
-        domain_requirements,
+        domain_requirements: domain_requirements.structural,
+        scalar_domain_requirements: domain_requirements.scalar,
         scalar_ensures: Vec::new(),
         scalar_requires,
         contract_report_fingerprint: capsule.target_contract_report_fingerprint(),

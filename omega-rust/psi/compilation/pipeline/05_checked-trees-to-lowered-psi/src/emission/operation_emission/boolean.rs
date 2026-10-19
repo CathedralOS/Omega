@@ -50,6 +50,7 @@ pub(crate) enum LoweredBooleanReturnExpression {
         case: semantic_vocabulary::StructuralCaseId,
     },
     PrimitiveRead {
+        qualifications: semantic_vocabulary::ScalarQualificationSetId,
         source: super::expressions::PrimitiveReadSource,
         path: Vec<terminal_psi::StructuralPathSegment>,
     },
@@ -67,6 +68,7 @@ pub(crate) enum LoweredBooleanReturnExpression {
         path: Vec<String>,
     },
     StructuralField {
+        qualifications: semantic_vocabulary::ScalarQualificationSetId,
         source: super::expressions::PrimitiveReadSource,
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
@@ -147,8 +149,13 @@ pub(crate) fn emit_boolean_expression(
         }
         LoweredBooleanReturnExpression::Parameter { position }
         | LoweredBooleanReturnExpression::Local { position } => parameters[*position].id,
-        LoweredBooleanReturnExpression::PrimitiveRead { source, path } => emit_direct_expression(
+        LoweredBooleanReturnExpression::PrimitiveRead {
+            source,
+            path,
+            qualifications,
+        } => emit_direct_expression(
             &LoweredDirectExpression::PrimitiveRead {
+                qualifications: *qualifications,
                 source: source.clone(),
                 path: path.clone(),
                 scalar_type: ScalarType::Boolean,
@@ -209,24 +216,25 @@ pub(crate) fn emit_boolean_expression(
             )
         }
         LoweredBooleanReturnExpression::StructuralField {
+            qualifications,
             source,
             path,
             field,
         } => {
             let source = super::expressions::emit_read_source(source, operations);
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after a structural Boolean load");
-            operations.push_leaf(
-                scalar_result_declaration(id, ScalarType::Boolean),
+            emit_scalar_leaf(
                 OperationKind::BooleanStructuralField {
                     source,
                     path: path.clone(),
                     field: *field,
                 },
-            );
-            id
+                semantic_vocabulary::QualifiedScalarType {
+                    scalar_type: ScalarType::Boolean,
+                    qualifications: *qualifications,
+                },
+                next_value_identity,
+                operations,
+            )
         }
         LoweredBooleanReturnExpression::ByteSequencePredicate {
             predicate,

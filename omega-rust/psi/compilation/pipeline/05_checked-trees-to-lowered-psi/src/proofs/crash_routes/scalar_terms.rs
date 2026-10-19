@@ -161,6 +161,7 @@ pub(crate) fn lowered_erased_scalar_term(
         path,
         field,
         scalar_type,
+        ..
     } = expression
     {
         let (root, mut path) = source.field_origin(path);
@@ -543,6 +544,7 @@ fn checked_boolean_scalar_term_from_lowered(
             source,
             path,
             field,
+            ..
         } => {
             let (source, mut path) = source.field_origin(path);
             path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(

@@ -47,8 +47,8 @@ pub use atomic_plans::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomi
 pub use boundary_machine_plans::{
     CheckedBoundaryLifetimeDependency, CheckedBoundaryMachinePlan,
     CheckedBoundaryMachineResultPlan, CheckedBoundaryReferenceDestination,
-    CheckedBoundaryReferenceOutput, CheckedBoundaryScalarGuarantee,
-    CheckedProviderAttachmentRequirementPlan,
+    CheckedBoundaryReferenceOutput, CheckedBoundaryScalarDomainRequirementPlan,
+    CheckedBoundaryScalarGuarantee, CheckedProviderAttachmentRequirementPlan,
 };
 pub use composed_unit_control_plans::{
     CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,

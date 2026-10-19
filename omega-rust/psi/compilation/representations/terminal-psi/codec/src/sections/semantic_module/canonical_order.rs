@@ -492,6 +492,11 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 "boundary requirements by argument index and domain",
             ));
         }
+        if !strictly_increasing(declaration.scalar_domain_requirements.iter().copied()) {
+            return Err(CodecError::NonCanonicalOrder(
+                "boundary scalar domain requirements by argument index and domain",
+            ));
+        }
         for proposition in &declaration.scalar_requires {
             validate_canonical_proposition(proposition, 0)?;
         }

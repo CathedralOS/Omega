@@ -73,6 +73,18 @@ impl super::Expansion<'_> {
         site: &super::Site<'_>,
     ) -> Result<usize, LoweringError> {
         let (machine, state) = crate::declarations::state_declaration(self.checked, site.state)?;
+        let CheckedScalarComputationKind::StructuralField { result_type, .. } = self
+            .checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(computation)
+            .kind
+        else {
+            return unsupported("field observation lost its complete checked result type");
+        };
+        let result_type = self.qualifications.value_type(self.checked, result_type)?;
         let established = self
             .established_values
             .iter()
@@ -112,7 +124,7 @@ impl super::Expansion<'_> {
             // freshly evaluated receiver uses this read's checked retirement.
             let target = if established.is_none() && !normal_cleanup_actions.is_empty() {
                 let mut completed_types = input_types.to_vec();
-                completed_types.push(terminal_scalar_type(primitive)?.into());
+                completed_types.push(result_type);
                 self.push(LoweredScalarBranchState::jumping(
                     target,
                     Vec::new(),
@@ -126,10 +138,7 @@ impl super::Expansion<'_> {
                 target
             };
             let mut arguments = super::parameters(input_types);
-            arguments.push(super::parameter(
-                input_types.len(),
-                terminal_scalar_type(primitive)?.into(),
-            ));
+            arguments.push(super::parameter(input_types.len(), result_type));
             let observe = self.push(LoweredScalarBranchState {
                 structural_parameters: Vec::new(),
                 structural_effects: vec![LoweredScalarEffect::ObserveStructuralValue {
@@ -151,7 +160,7 @@ impl super::Expansion<'_> {
                 )),
             };
         }
-        let expression = if let Some(ordering) = atomic_ordering {
+        let mut expression = if let Some(ordering) = atomic_ordering {
             if established.is_some() || receiver.is_valid() {
                 return unsupported(
                     "atomic load must observe its exact live storage, not a copied receiver",
@@ -201,11 +210,9 @@ impl super::Expansion<'_> {
                 )?,
             }
         };
+        expression.retain_observed_type(result_type)?;
         let mut arguments = super::parameters(input_types);
-        arguments.push(super::parameter(
-            input_types.len(),
-            terminal_scalar_type(primitive)?.into(),
-        ));
+        arguments.push(super::parameter(input_types.len(), result_type));
         let observation = self.push(crate::scalar_lowering::branch_states::prepared::LoweredScalarBranchState {
             structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
@@ -1747,6 +1754,7 @@ fn observe(
             }
         } else {
             LoweredDirectExpression::IndexedPrimitiveRead {
+                qualifications: Default::default(),
                 source,
                 path: carrier_path.clone(),
                 index: Box::new(index),
@@ -1813,6 +1821,7 @@ fn observe(
     let leaf = match leaf_type {
         _ if crosses_reference || canonical_path.is_none() || field.is_none() => {
             LoweredDirectExpression::PrimitiveRead {
+                qualifications: Default::default(),
                 source: read_source,
                 path: read_path,
                 scalar_type: leaf_type,
@@ -1820,6 +1829,7 @@ fn observe(
         }
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
             expression: Box::new(LoweredBooleanReturnExpression::StructuralField {
+                qualifications: Default::default(),
                 source: read_source,
                 path: field_path.ok_or(LoweringError::Unsupported(
                     "record field observation lost its canonical source path",
@@ -1830,6 +1840,7 @@ fn observe(
             }),
         },
         ScalarType::Integer(_) => LoweredDirectExpression::StructuralField {
+            qualifications: Default::default(),
             source: read_source,
             path: field_path.ok_or(LoweringError::Unsupported(
                 "record field observation lost its canonical source path",
@@ -1840,6 +1851,7 @@ fn observe(
             scalar_type: leaf_type,
         },
         ScalarType::IeeeFloat(_) => LoweredDirectExpression::PrimitiveRead {
+            qualifications: Default::default(),
             source: read_source,
             path: read_path,
             scalar_type: leaf_type,

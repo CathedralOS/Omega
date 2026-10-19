@@ -93,6 +93,12 @@ pub(crate) fn encode(
             writer.id(*domain);
         }
     }
+    writer.len("scalar field qualifications", catalog.fields.len())?;
+    for field in &catalog.fields {
+        writer.id(field.field);
+        encode_scalar_type(writer, field.value_type.scalar_type);
+        writer.u64(field.value_type.qualifications.get());
+    }
     writer.len("scalar qualification coercions", catalog.coercions.len())?;
     for coercion in &catalog.coercions {
         writer.id(coercion.machine);
@@ -193,6 +199,15 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
                 domains: decode_ids(reader, "ScalarDomainId")?,
             })
         })?,
+        fields: decode_counted(reader, |reader| {
+            Ok(terminal_psi::ScalarFieldQualification {
+                field: reader.id("StructuralFieldId")?,
+                value_type: semantic_vocabulary::QualifiedScalarType {
+                    scalar_type: decode_scalar_type(reader)?,
+                    qualifications: ScalarQualificationSetId::new(reader.u64()?),
+                },
+            })
+        })?,
         coercions: decode_counted(reader, |reader| {
             Ok(ScalarQualificationCoercion {
                 machine: reader.id("MachineId")?,
@@ -224,6 +239,13 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
 }
 
 pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), CodecError> {
+    if catalog
+        .fields
+        .windows(2)
+        .any(|pair| pair[0].field >= pair[1].field)
+    {
+        return Err(CodecError::NonCanonicalOrder("scalar field qualifications"));
+    }
     if catalog.returns.windows(2).any(|pair| {
         let key = |row: &ScalarReturnQualification| (row.machine, row.edge, row.domain);
         key(&pair[0]) >= key(&pair[1])

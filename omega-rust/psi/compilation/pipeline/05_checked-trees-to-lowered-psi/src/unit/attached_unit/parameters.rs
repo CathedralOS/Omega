@@ -135,8 +135,11 @@ pub(crate) fn lower_unit_scalar_parameter_declarations(
                 .ok_or(LoweringError::Unsupported(
                     "Unit scalar formal has no authored parameter",
                 ))?;
-            let declared = qualifications.signature_value_type(checked, authored.type_reference)?;
-            if declared.scalar_type != carrier {
+            let declared = qualifications.parameter_value_type(state, parameter.source_position)?;
+            if declared.scalar_type != carrier
+                || checked.primitive_type_reference(authored.type_reference)
+                    != Some(parameter.primitive_type)
+            {
                 return unsupported("Unit scalar formal has a different authored carrier");
             }
             Ok(ValueDeclaration {

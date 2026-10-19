@@ -34,6 +34,7 @@ pub(crate) fn lower_declarations(
     checked: &CheckedTrees,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     boundaries: &[(&CheckedBoundaryMachinePlan, BoundaryIdentity)],
+    scalar_qualifications: &crate::expression_preparation::qualifications::PreparedScalarQualifications,
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domain_ids: &[StructuralDomainBinding],
@@ -123,7 +124,21 @@ pub(crate) fn lower_declarations(
         )?;
         let requirement_count = scalar_requires.len();
         let id = boundary_machine_id(dense_identity(index)?);
+        // The source and Terminal domain namespaces need not have the same
+        // ordinal order. Canonicalize after resolving the exact identities.
+        let mut scalar_domain_requirements = plan
+            .scalar_domain_requirements
+            .iter()
+            .map(|requirement| {
+                Ok(terminal_psi::ScalarDomainRequirement {
+                    argument_index: requirement.argument_index,
+                    domain: scalar_qualifications.boundary_domain_id(requirement)?,
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        scalar_domain_requirements.sort();
         declarations.push(BoundaryMachineDeclaration {
+            scalar_domain_requirements,
             declaration: checked
                 .machine(plan.machine)
                 .map(|_| {
@@ -223,7 +238,7 @@ pub(crate) fn lower_declarations(
             source: plan.machine,
             id,
             structural: parameters,
-            scalar: scalar_parameters,
+            scalar: scalar_qualifications.boundary_signature_types(plan)?,
             requirement_count,
         });
     }

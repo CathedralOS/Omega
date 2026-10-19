@@ -21,6 +21,15 @@ pub fn scalar_membership_carrier(
     if crate::field_domains::domain_requires_provenance(program, membership.domain_symbol) {
         return None;
     }
+    scalar_membership_value_carrier(program, membership)
+}
+
+/// The payload carrier of the exact application, independently of provenance.
+/// Callers retaining membership must separately preserve its nominal obligation.
+pub fn scalar_membership_value_carrier(
+    program: &dyn crate::CheckingInput,
+    membership: &ProofMembershipFact,
+) -> Option<PrimitiveType> {
     let arguments = program
         .type_reference_table
         .type_reference_handles(membership.domain_arguments);
@@ -90,6 +99,17 @@ pub fn scalar_membership_predicates(
     subject: &Scalar,
 ) -> Option<Vec<Boolean>> {
     scalar_membership_carrier(program, membership)?;
+    scalar_membership_value_predicates(program, membership, subject)
+}
+
+/// Project only the complete value predicate. Unlike predicate-only membership,
+/// this projection grants no routed identity or establishment authority.
+pub fn scalar_membership_value_predicates(
+    program: &dyn crate::CheckingInput,
+    membership: &ProofMembershipFact,
+    subject: &Scalar,
+) -> Option<Vec<Boolean>> {
+    scalar_membership_value_carrier(program, membership)?;
     let arguments = program
         .type_reference_table
         .type_reference_handles(membership.domain_arguments);

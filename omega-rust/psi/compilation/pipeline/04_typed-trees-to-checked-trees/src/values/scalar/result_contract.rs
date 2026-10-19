@@ -120,7 +120,23 @@ pub(crate) fn lower_callable_scalar_membership(
     membership: &typed_trees::domain::ProofMembershipFact,
     remaining: &mut usize,
 ) -> Option<CheckedBooleanExpression> {
-    let primitive = validation::scalar_membership_carrier(program, membership)?;
+    validation::scalar_membership_carrier(program, membership)?;
+    lower_callable_scalar_membership_value(
+        program, operators, owner, parameters, membership, remaining,
+    )
+}
+
+/// Numeric projection for an owner that independently retained exact membership.
+/// This must never stand in for the nominal admission obligation itself.
+pub(crate) fn lower_callable_scalar_membership_value(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    owner: symbols::SymbolHandle,
+    parameters: &[StateParameter],
+    membership: &typed_trees::domain::ProofMembershipFact,
+    remaining: &mut usize,
+) -> Option<CheckedBooleanExpression> {
+    let primitive = validation::scalar_membership_value_carrier(program, membership)?;
     let mut context = ContractPredicates {
         program,
         operators,
@@ -138,7 +154,7 @@ pub(crate) fn lower_callable_scalar_membership(
         lower_contract_integer_literal(program, operators, membership.value, primitive)?
     };
     let mut predicates =
-        validation::scalar_membership_predicates(program, membership, &subject)?.into_iter();
+        validation::scalar_membership_value_predicates(program, membership, &subject)?.into_iter();
     let first = predicates
         .next()
         .unwrap_or(CheckedBooleanExpression::Constant(true));

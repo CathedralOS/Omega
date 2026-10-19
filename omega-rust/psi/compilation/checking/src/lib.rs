@@ -101,7 +101,8 @@ pub use proof_contracts::contract_results::{
 pub use proof_contracts::domains::{
     integer_domain_membership, scalar_domain_predicate, scalar_domain_value_predicate,
     scalar_field_domain_predicate, scalar_field_restriction, scalar_membership_carrier,
-    scalar_membership_predicates, scalar_predicate_domains,
+    scalar_membership_predicates, scalar_membership_value_carrier,
+    scalar_membership_value_predicates, scalar_predicate_domains,
     scalar_state_contracts_are_qualifications, scalar_type_routed_domains, scalar_type_tags,
 };
 pub use proof_contracts::parameter_domains::parameter_domain_constraints;

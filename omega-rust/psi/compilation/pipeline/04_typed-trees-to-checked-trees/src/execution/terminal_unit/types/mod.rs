@@ -22,10 +22,12 @@ pub(crate) use scalar_fields::field_requires_place_observation;
 pub(super) use scalar_fields::{retain_scalar_field, supports_primitive_storage};
 
 mod affine_discards;
+mod boundary_domains;
 mod identities;
 mod parameters;
 mod shape_collector;
 mod signature_contracts;
+pub(in crate::execution::terminal_unit) use boundary_domains::boundary_domain_requirements;
 mod views;
 
 pub(in crate::execution::terminal_unit) use affine_discards::*;

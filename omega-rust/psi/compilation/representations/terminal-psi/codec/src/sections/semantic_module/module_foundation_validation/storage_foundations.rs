@@ -232,6 +232,13 @@ pub(super) fn validate_establish_reference(
         source_type,
         &source.path,
     );
+    super::scalar_fields::validate_primitive_reference_presentation(
+        module,
+        machine,
+        source.place,
+        source_path,
+        *access,
+    )?;
     let inline_owner = storage.is_none()
         && terminal_semantics::runtime_structural_field(
             module.structural_types.iter(),
@@ -292,6 +299,12 @@ pub(super) fn validate_establish_reference(
                 Some(observed) => observed,
                 None => validate_structural_path(module, source_type, source_path)?,
             };
+            super::scalar_fields::validate_storage_interpretation(
+                module,
+                source_type,
+                result.structural_type,
+                *access,
+            )?;
             terminal_semantics::reference_storage_source_compatible(
                 module.structural_types.iter(),
                 source_type,

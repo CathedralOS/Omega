@@ -28,7 +28,9 @@ use terminal_psi::StructuralReferentIdentity;
 
 mod operation_types;
 mod place_types;
+mod scalar_fields;
 pub(super) use operation_types::collect_operation_type_roots;
+pub(super) use scalar_fields::scalar_field_types;
 
 /// Retain the declarations used while evaluating a structural value tree.
 /// A selected leaf and its completed source own distinct storage: the source

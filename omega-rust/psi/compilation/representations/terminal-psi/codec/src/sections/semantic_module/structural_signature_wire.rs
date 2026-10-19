@@ -94,6 +94,14 @@ pub(crate) fn encode_boundary_machine(
         writer.id(requirement.domain);
     }
     writer.len(
+        "boundary scalar domain requirements",
+        declaration.scalar_domain_requirements.len(),
+    )?;
+    for requirement in &declaration.scalar_domain_requirements {
+        writer.u32(requirement.argument_index);
+        writer.id(requirement.domain);
+    }
+    writer.len(
         "boundary scalar requires",
         declaration.scalar_requires.len(),
     )?;
@@ -298,6 +306,12 @@ pub(crate) fn decode_boundary_machine(
             Ok(StructuralDomainRequirement {
                 argument_index: reader.u32()?,
                 domain: reader.id("StructuralDomainId")?,
+            })
+        })?,
+        scalar_domain_requirements: decode_counted(reader, |reader| {
+            Ok(terminal_psi::ScalarDomainRequirement {
+                argument_index: reader.u32()?,
+                domain: reader.id("ScalarDomainId")?,
             })
         })?,
         scalar_requires: decode_counted(reader, |reader| decode_proposition(reader, 0))?,

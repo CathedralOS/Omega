@@ -326,20 +326,9 @@ pub(crate) fn lower_unit_closure(
     )?;
     let root_service_reach = lower_root_service_reach(identities, checked, entry, &service_ids)?;
 
-    // Signatures: boundary declarations, then each admitted body's formals,
-    // claims and requirements, then every machine's Terminal identity.
-    let mut next_place = 1_u64;
-    let (boundary_machines, lowered_boundary_parameters) = boundaries::lower_declarations(
-        identities,
-        checked,
-        exact_toolchain_sources,
-        &boundaries,
-        &type_ids,
-        &structural_types,
-        &domain_ids,
-        &service_ids,
-        &mut next_place,
-    )?;
+    let boundary_signatures = boundaries.iter().map(|(plan, _)| *plan).collect::<Vec<_>>();
+    let scalar_fields =
+        catalog::scalar_field_types(identities, checked, plans, &type_ids, &structural_types)?;
     // One scalar qualification namespace for every machine the closure
     // emits; every body's signature declares against it.
     let qualifications =
@@ -348,7 +337,24 @@ pub(crate) fn lower_unit_closure(
             checked,
             &[],
             &closure,
+            &boundary_signatures,
+            &scalar_fields,
         )?;
+    // Signatures: boundary declarations, then each admitted body's formals,
+    // claims and requirements, then every machine's Terminal identity.
+    let mut next_place = 1_u64;
+    let (boundary_machines, lowered_boundary_parameters) = boundaries::lower_declarations(
+        identities,
+        checked,
+        exact_toolchain_sources,
+        &boundaries,
+        &qualifications,
+        &type_ids,
+        &structural_types,
+        &domain_ids,
+        &service_ids,
+        &mut next_place,
+    )?;
     let mut next_value = 1_u64;
     let machine_signatures = signatures::lower(
         identities,

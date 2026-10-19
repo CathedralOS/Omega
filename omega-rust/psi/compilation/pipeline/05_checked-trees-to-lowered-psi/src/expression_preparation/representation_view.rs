@@ -164,6 +164,7 @@ fn byte_region(
         let widened = LoweredDirectExpression::IntegerWiden {
             scalar_type: region,
             operand: Box::new(LoweredDirectExpression::IndexedPrimitiveRead {
+                qualifications: Default::default(),
                 source,
                 path: path.clone(),
                 index: byte_index,

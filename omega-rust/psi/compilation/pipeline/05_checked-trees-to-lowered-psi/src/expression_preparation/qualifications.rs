@@ -1,6 +1,6 @@
 //! One immutable scalar qualification namespace for an explicitly selected call closure.
 //!
-//! Source membership replay and catalog production share declaration validation.
+//! Source checking and catalog production use exact declaration applications.
 //! Catalog membership names a theory; it never substitutes for a cast's checked
 //! introduction evidence. Preparation freezes identities before any machine emits.
 
@@ -22,6 +22,9 @@ use terminal_psi::{
     ScalarQualificationSet,
 };
 
+mod fields;
+mod parameters;
+pub(crate) use fields::FieldType;
 mod returns;
 pub(crate) use returns::SourceScalarReturn;
 pub(crate) use returns::retain_returns;
@@ -29,6 +32,7 @@ pub(crate) use returns::retain_returns;
 #[derive(Clone)]
 pub(crate) struct PreparedScalarQualifications {
     catalog: ScalarQualificationCatalog,
+    parameters: Vec<parameters::ParameterQualification>,
 }
 
 impl PreparedScalarQualifications {
@@ -39,13 +43,21 @@ impl PreparedScalarQualifications {
     /// A Unit body's scalar signature joins this namespace for vacuous tags
     /// and routed theories with a complete predicate projection. Route-free
     /// predicates keep their existing numeric-contract representation.
+    /// Boundary requirements join this same namespace before declarations emit;
+    /// a bare formal with explicit membership names the same theory as a
+    /// qualified formal, without manufacturing a constrained source type.
     pub(crate) fn prepare(
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &CheckedTrees,
         signatures: &[SymbolHandle],
         bodies: &[SymbolHandle],
+        boundaries: &[&checked_trees::CheckedBoundaryMachinePlan],
+        fields: &[FieldType],
     ) -> Result<Self, LoweringError> {
-        let mut references = Vec::new();
+        let mut references = fields
+            .iter()
+            .map(|(_, reference)| *reference)
+            .collect::<Vec<_>>();
         for symbol in signatures {
             let machine = checked.machine(*symbol).ok_or(LoweringError::Unsupported(
                 "scalar qualification closure lost a machine",
@@ -93,6 +105,7 @@ impl PreparedScalarQualifications {
         for handle in super::computation_graph::reachable_nodes(checked, &roots)? {
             match &plans.nodes.get(handle).kind {
                 CheckedScalarComputationKind::Qualification { result_type, .. }
+                | CheckedScalarComputationKind::StructuralField { result_type, .. }
                 | CheckedScalarComputationKind::AuthoredCast { result_type, .. } => {
                     references.push(*result_type)
                 }
@@ -106,48 +119,17 @@ impl PreparedScalarQualifications {
             let scalar_type = terminal_scalar_type(primitive)?;
             let mut atom_identities = Vec::new();
             for (symbol, semantic_id) in atoms {
-                let identity = checked
-                    .semantic_domains
-                    .name(semantic_id)
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar qualification lost its canonical identity",
-                    ))?
-                    .to_owned();
-                let semantic_domain = DomainSemanticId::new(u64::from(semantic_id.0)).ok_or(
-                    LoweringError::Unsupported(
-                        "scalar qualification has an invalid semantic identity",
-                    ),
-                )?;
-                let establishment_routes =
-                    scalar_domain_establishment_routes(identities, checked, symbol)?;
                 let predicate =
                     domain_predicate(identities, checked, reference, symbol, semantic_id)?;
-                if let Some(existing) = catalog
-                    .domains
-                    .iter()
-                    .find(|domain| domain.identity == identities.intern(&identity))
-                {
-                    if existing.carrier != scalar_type
-                        || existing.semantic_domain != semantic_domain
-                        || existing.establishment_routes != establishment_routes
-                        || existing.predicate != predicate
-                    {
-                        return unsupported(
-                            "scalar qualification identity has conflicting declarations",
-                        );
-                    }
-                } else {
-                    catalog.domains.push(ScalarDomainDeclaration {
-                        predicate,
-                        id: ScalarDomainId::new(1).ok_or(LoweringError::Unsupported(
-                            "invalid initial scalar domain identity",
-                        ))?,
-                        semantic_domain,
-                        identity: identities.intern(&identity.clone()),
-                        carrier: scalar_type,
-                        establishment_routes,
-                    });
-                }
+                let identity = retain_domain(
+                    &mut catalog,
+                    identities,
+                    checked,
+                    symbol,
+                    semantic_id,
+                    scalar_type,
+                    predicate,
+                )?;
                 atom_identities.push(identity);
             }
             atom_identities.sort();
@@ -156,6 +138,49 @@ impl PreparedScalarQualifications {
                 atom_sets.push(atom_identities);
             }
         }
+        for boundary in boundaries {
+            let mut parameter_sets = vec![Vec::new(); boundary.scalar_parameters.len()];
+            for requirement in &boundary.scalar_domain_requirements {
+                let scalar_type = terminal_scalar_type(requirement.primitive_type)?;
+                let routed = validation::field_domains::domain_requires_provenance(
+                    &checked.typed,
+                    requirement.domain_symbol,
+                );
+                let predicate = if routed {
+                    Some(retained_domain_predicate(
+                        identities,
+                        &requirement.predicate,
+                        scalar_type,
+                    )?)
+                } else {
+                    None
+                };
+                let identity = retain_domain(
+                    &mut catalog,
+                    identities,
+                    checked,
+                    requirement.domain_symbol,
+                    requirement.domain,
+                    scalar_type,
+                    predicate,
+                )?;
+                parameter_sets
+                    .get_mut(requirement.argument_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "boundary membership has no scalar formal",
+                    ))?
+                    .push(identity);
+            }
+            for mut atoms in parameter_sets {
+                atoms.sort();
+                atoms.dedup();
+                if !atoms.is_empty() {
+                    atom_sets.push(atoms);
+                }
+            }
+        }
+        let parameter_atoms =
+            parameters::prepare(identities, checked, bodies, &mut catalog, &mut atom_sets)?;
         catalog.domains.sort_by(|left, right| {
             identities
                 .text(left.identity)
@@ -202,7 +227,13 @@ impl PreparedScalarQualifications {
                 domains,
             });
         }
-        Ok(Self { catalog })
+        let parameters = parameters::resolve(&catalog, parameter_atoms)?;
+        let mut prepared = Self {
+            catalog,
+            parameters,
+        };
+        prepared.retain_fields(checked, fields)?;
+        Ok(prepared)
     }
 
     /// An empty namespace for emission contexts that own no prepared scalar
@@ -212,6 +243,7 @@ impl PreparedScalarQualifications {
     pub(crate) fn empty() -> Self {
         Self {
             catalog: ScalarQualificationCatalog::default(),
+            parameters: Vec::new(),
         }
     }
 
@@ -220,10 +252,9 @@ impl PreparedScalarQualifications {
     }
 
     /// The declared type of a Unit body's scalar parameter or result. Unit
-    /// planning admits a semantic atom on such a slot only when it is a
-    /// scalar tag, which this qualified signature carries in place of a
-    /// predicate; a slot without tags is a bare carrier, and its other
-    /// refinements stay with their predicate owners.
+    /// planning retains vacuous tags and routed atoms with complete predicate
+    /// components. Qualification keeps identity while the numeric contract
+    /// independently carries predicates; bare carriers add no nominal evidence.
     pub(crate) fn signature_value_type(
         &self,
         checked: &CheckedTrees,
@@ -286,6 +317,61 @@ impl PreparedScalarQualifications {
         })
     }
 
+    pub(crate) fn boundary_domain_id(
+        &self,
+        requirement: &checked_trees::CheckedBoundaryScalarDomainRequirementPlan,
+    ) -> Result<ScalarDomainId, LoweringError> {
+        let carrier = terminal_scalar_type(requirement.primitive_type)?;
+        self.catalog
+            .domains
+            .iter()
+            .find(|domain| {
+                domain.semantic_domain.get() == u64::from(requirement.domain.0)
+                    && domain.carrier == carrier
+            })
+            .map(|domain| domain.id)
+            .ok_or(LoweringError::Unsupported(
+                "boundary scalar membership lost its prepared declaration",
+            ))
+    }
+
+    pub(crate) fn boundary_signature_types(
+        &self,
+        boundary: &checked_trees::CheckedBoundaryMachinePlan,
+    ) -> Result<Vec<QualifiedScalarType>, LoweringError> {
+        boundary
+            .scalar_parameters
+            .iter()
+            .enumerate()
+            .map(|(position, parameter)| {
+                let mut domains = boundary
+                    .scalar_domain_requirements
+                    .iter()
+                    .filter(|row| row.argument_index as usize == position)
+                    .map(|row| self.boundary_domain_id(row))
+                    .collect::<Result<Vec<_>, _>>()?;
+                domains.sort();
+                domains.dedup();
+                let qualifications = if domains.is_empty() {
+                    ScalarQualificationSetId::ZERO
+                } else {
+                    self.catalog
+                        .sets
+                        .iter()
+                        .find(|set| set.domains == domains)
+                        .map(|set| set.id)
+                        .ok_or(LoweringError::Unsupported(
+                            "boundary scalar signature lost its prepared qualification set",
+                        ))?
+                };
+                Ok(QualifiedScalarType {
+                    scalar_type: terminal_scalar_type(parameter.primitive_type)?,
+                    qualifications,
+                })
+            })
+            .collect()
+    }
+
     pub(crate) fn scalar_state_types(
         &self,
         checked: &CheckedTrees,
@@ -301,7 +387,8 @@ impl PreparedScalarQualifications {
         let parameters = checked
             .state_parameters(state)
             .iter()
-            .filter(|parameter| {
+            .enumerate()
+            .filter(|(_, parameter)| {
                 // An `[erased]` binding owns no scalar entry; the typed
                 // relevance decides that here, independently of the plan.
                 !parameter.relevance.is_erased()
@@ -309,10 +396,90 @@ impl PreparedScalarQualifications {
                         .primitive_type_reference(parameter.type_reference)
                         .is_some()
             })
-            .map(|parameter| self.value_type(checked, parameter.type_reference))
+            .map(|(position, _)| {
+                self.parameter_value_type(
+                    state.symbol,
+                    u32::try_from(position).map_err(|_| {
+                        LoweringError::Unsupported("scalar formal position exceeds u32")
+                    })?,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?;
         Ok((parameters, self.value_type(checked, state.return_type)?))
     }
+}
+
+/// Catalog registration is shared by executable signatures and boundary
+/// admission rows. They name one exact theory, never equivalent predicates.
+fn retain_domain(
+    catalog: &mut ScalarQualificationCatalog,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    symbol: SymbolHandle,
+    semantic_id: SemanticDomainId,
+    scalar_type: semantic_vocabulary::ScalarType,
+    predicate: Option<terminal_psi::ScalarDomainPredicate>,
+) -> Result<String, LoweringError> {
+    let identity = checked
+        .semantic_domains
+        .name(semantic_id)
+        .ok_or(LoweringError::Unsupported(
+            "scalar qualification lost its canonical identity",
+        ))?
+        .to_owned();
+    let semantic_domain = DomainSemanticId::new(u64::from(semantic_id.0)).ok_or(
+        LoweringError::Unsupported("scalar qualification has an invalid semantic identity"),
+    )?;
+    let establishment_routes = scalar_domain_establishment_routes(identities, checked, symbol)?;
+    let retained_identity = identities.intern(&identity);
+    if let Some(existing) = catalog
+        .domains
+        .iter()
+        .find(|domain| domain.identity == retained_identity)
+    {
+        if existing.carrier != scalar_type
+            || existing.semantic_domain != semantic_domain
+            || existing.establishment_routes != establishment_routes
+            || existing.predicate != predicate
+        {
+            return unsupported("scalar qualification identity has conflicting declarations");
+        }
+    } else {
+        catalog.domains.push(ScalarDomainDeclaration {
+            predicate,
+            id: ScalarDomainId::new(1).ok_or(LoweringError::Unsupported(
+                "invalid initial scalar domain identity",
+            ))?,
+            semantic_domain,
+            identity: retained_identity,
+            carrier: scalar_type,
+            establishment_routes,
+        });
+    }
+    Ok(identity)
+}
+
+fn retained_domain_predicate(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    predicate: &checked_trees::CheckedBooleanExpression,
+    carrier: semantic_vocabulary::ScalarType,
+) -> Result<terminal_psi::ScalarDomainPredicate, LoweringError> {
+    let subject = crate::terminal_identities::value_id(1);
+    let proposition = crate::scalar_lowering::contracts::proposition(
+        identities,
+        predicate,
+        &[terminal_psi::ValueDeclaration {
+            id: subject,
+            scalar_type: carrier,
+            qualifications: ScalarQualificationSetId::ZERO,
+        }],
+        &[],
+        &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
+    )?;
+    Ok(terminal_psi::ScalarDomainPredicate {
+        subject,
+        proposition,
+    })
 }
 
 /// The canonical issuer routes one declared domain carries into the

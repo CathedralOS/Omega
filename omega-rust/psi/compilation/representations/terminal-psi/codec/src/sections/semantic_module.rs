@@ -37,7 +37,11 @@ pub(crate) mod structural_type_wire;
 pub(crate) mod wire;
 
 #[cfg(test)]
+mod boundary_scalar_tests;
+#[cfg(test)]
 mod routed_scalar_tests;
+#[cfg(test)]
+mod stored_scalar_tests;
 #[cfg(test)]
 mod target_family_tests;
 
@@ -103,7 +107,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Folded constants retain exact target-scoped selected-realization dependencies.
 // Caller-activation establishment and release carry exact site/custody operands.
 // Indexed source proof carriers and cited theorem roots retain exact semantic identities.
-pub(crate) const FORMAT_MARKER: u16 = 174;
+// Boundary scalar parameters and stored fields retain independent membership rows.
+pub(crate) const FORMAT_MARKER: u16 = 175;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

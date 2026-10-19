@@ -319,6 +319,7 @@ pub(crate) fn resolve_typed(
     {
         let (source, path) = resolve_case_primitive(identities, binding, projection, scalar_type)?;
         return Ok(LoweredDirectExpression::PrimitiveRead {
+            qualifications: Default::default(),
             source,
             path,
             scalar_type,
@@ -372,6 +373,7 @@ pub(crate) fn resolve_typed(
         }
     }
     Ok(LoweredDirectExpression::PrimitiveRead {
+        qualifications: Default::default(),
         source: binding.source.into(),
         path: physical_path,
         scalar_type,
@@ -466,6 +468,7 @@ fn descriptor_observation(
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(LoweredDirectExpression::IndexedPrimitiveRead {
+        qualifications: Default::default(),
         source: binding.source,
         path: prefix,
         index: Box::new(selector),
@@ -485,12 +488,14 @@ fn canonical_field_read(
     match scalar_type {
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
             expression: Box::new(LoweredBooleanReturnExpression::StructuralField {
+                qualifications: Default::default(),
                 source,
                 path,
                 field,
             }),
         },
         _ => LoweredDirectExpression::StructuralField {
+            qualifications: Default::default(),
             source,
             path,
             field,
@@ -509,10 +514,15 @@ pub(crate) fn boolean_observation(
     match observation {
         LoweredDirectExpression::Boolean { expression } => *expression,
         LoweredDirectExpression::PrimitiveRead {
+            qualifications,
             source,
             path,
             scalar_type: ScalarType::Boolean,
-        } => LoweredBooleanReturnExpression::PrimitiveRead { source, path },
+        } => LoweredBooleanReturnExpression::PrimitiveRead {
+            qualifications,
+            source,
+            path,
+        },
         operand => LoweredBooleanReturnExpression::ScalarObservation {
             operand: Box::new(operand),
         },

@@ -12,7 +12,7 @@ use terminal_psi::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
 };
 
-fn module() -> TerminalModule {
+pub(super) fn module() -> TerminalModule {
     let machine_id = MachineId::new(1).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
     let subject = ValueId::new(1).unwrap();

@@ -417,6 +417,8 @@ pub enum CheckedScalarComputationKind {
         /// preserve their ordering and emit AtomicAccess rather than a plain
         /// field read. None is an ordinary observation, never an atomic read.
         atomic_ordering: Option<language_core::atomic::MemoryOrdering>,
+        /// Complete observed scalar type, independent of the containing root.
+        result_type: typed_trees::types::TypeReferenceHandle,
         source_expression: typed_trees::expression::ExpressionHandle,
         /// Exact receiver occurrence before place normalization. Zero for a
         /// synthesized formal coordinate; lowering never reopens the member AST

@@ -15,7 +15,9 @@ pub(super) fn boundary_scalar_requires(
     owner: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     structural_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
     domain_requirements: &[checked_trees::CheckedUnitStructuralDomainRequirementPlan],
+    scalar_domain_requirements: &[checked_trees::CheckedBoundaryScalarDomainRequirementPlan],
     result_type: typed_trees::types::TypeReferenceHandle,
     contracts: &[typed_trees::signature::SignatureContract],
     entry_contracts: &[typed_trees::signature::SignatureContract],
@@ -87,7 +89,34 @@ pub(super) fn boundary_scalar_requires(
                     if structural {
                         continue;
                     }
-                    crate::values::scalar::result_contract::lower_callable_scalar_membership(
+                    let retained_scalar =
+                        validation::single_segment_name_symbol(program, membership.value)
+                            .and_then(|symbol| {
+                                parameters
+                                    .iter()
+                                    .position(|parameter| parameter.symbol == symbol)
+                            })
+                            .is_some_and(|position| {
+                                scalar_parameters
+                                    .iter()
+                                    .position(|parameter| {
+                                        parameter.source_position as usize == position
+                                    })
+                                    .is_some_and(|scalar_position| {
+                                        scalar_domain_requirements.iter().any(|requirement| {
+                                            requirement.argument_index as usize == scalar_position
+                                                && requirement.domain == membership.semantic_domain
+                                                && requirement.domain_symbol
+                                                    == membership.domain_symbol
+                                        })
+                                    })
+                            });
+                    let project = if retained_scalar {
+                        crate::values::scalar::result_contract::lower_callable_scalar_membership_value
+                    } else {
+                        crate::values::scalar::result_contract::lower_callable_scalar_membership
+                    };
+                    project(
                         program,
                         operators,
                         owner,

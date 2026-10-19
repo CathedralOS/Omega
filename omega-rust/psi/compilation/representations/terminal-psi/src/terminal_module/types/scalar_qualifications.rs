@@ -21,6 +21,11 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ScalarQualificationCatalog {
+    /// Exact scalar receiving memberships for declared record/case fields.
+    /// Every initializer and replacement supplies these from its actual SSA
+    /// value; a readable field observation captures them on a fresh snapshot.
+    /// Numeric field restrictions remain independent and grant no membership.
+    pub fields: Vec<ScalarFieldQualification>,
     /// Source-checked result membership bound to exact normal return edges.
     /// These are independent of both the domain's predicate and its routes.
     pub returns: Vec<ScalarReturnQualification>,
@@ -37,6 +42,12 @@ pub struct ScalarQualificationCatalog {
     /// bounds also publish as `requires` propositions on the owner contract,
     /// so an independently replayed call edge proves delivery.
     pub integer_entry_ranges: Vec<ScalarIntegerRange>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScalarFieldQualification {
+    pub field: semantic_vocabulary::StructuralFieldId,
+    pub value_type: semantic_vocabulary::QualifiedScalarType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

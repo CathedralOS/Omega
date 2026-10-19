@@ -126,6 +126,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 scalar_type,
             )?;
             Ok(LoweredDirectExpression::PrimitiveRead {
+                qualifications: Default::default(),
                 source: source.into(),
                 path,
                 scalar_type,
@@ -549,6 +550,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 return unsupported("indexed read exceeds its selector namespace");
             }
             Ok(LoweredDirectExpression::IndexedPrimitiveRead {
+                qualifications: Default::default(),
                 source,
                 path,
                 index,
@@ -681,6 +683,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 ScalarType::Boolean,
             )?;
             LoweredBooleanReturnExpression::PrimitiveRead {
+                qualifications: Default::default(),
                 source: source.into(),
                 path,
             }

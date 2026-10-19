@@ -318,6 +318,7 @@ pub(crate) fn byte_overlay_read(
     };
     let byte_type = terminal_scalar_type(PrimitiveType::U8)?;
     let first_byte = LoweredDirectExpression::IndexedPrimitiveRead {
+        qualifications: Default::default(),
         source,
         path: path.to_vec(),
         index: Box::new(index),

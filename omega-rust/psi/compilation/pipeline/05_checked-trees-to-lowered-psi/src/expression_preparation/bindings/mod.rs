@@ -1034,6 +1034,7 @@ impl ScalarBindings {
             "record loan coordinate was not captured at formation",
         ))?;
         Ok(LoweredDirectExpression::PrimitiveRead {
+            qualifications: Default::default(),
             source: crate::emission::operation_emission::expressions::PrimitiveReadSource::Place(
                 source,
             ),
@@ -1700,6 +1701,7 @@ impl ScalarBindings {
             return unsupported("storage selector is not an integer read");
         }
         Ok(LoweredDirectExpression::PrimitiveRead {
+            qualifications: Default::default(),
             source: source.into(),
             path,
             scalar_type,
@@ -1727,6 +1729,7 @@ impl ScalarBindings {
                 binding.scalar_type,
             )?;
             Ok(LoweredDirectExpression::PrimitiveRead {
+                qualifications: Default::default(),
                 source: source.into(),
                 path,
                 scalar_type: binding.scalar_type,

@@ -348,12 +348,14 @@ fn substitute_boolean(
             operand: Box::new(substitute_direct(*operand, bound)),
         },
         Boolean::StructuralField {
+            qualifications,
             source,
             path,
             field,
         } => match bound_position(bound, &source, &path, field) {
             Some(position) => Boolean::Parameter { position },
             None => Boolean::StructuralField {
+                qualifications,
                 source,
                 path,
                 field,
@@ -460,6 +462,7 @@ pub(crate) fn substitute_direct(
         // case payload parameters are snapshots, never its observed resident.
         atomic @ Direct::AtomicLoad { .. } => atomic,
         Direct::StructuralField {
+            qualifications,
             source,
             path,
             field,
@@ -470,6 +473,7 @@ pub(crate) fn substitute_direct(
                 scalar_type,
             },
             None => Direct::StructuralField {
+                qualifications,
                 source,
                 path,
                 field,
@@ -490,6 +494,7 @@ pub(crate) fn substitute_direct(
             bound_decided,
         },
         Direct::IndexedPrimitiveRead {
+            qualifications,
             source,
             path,
             index,
@@ -498,6 +503,7 @@ pub(crate) fn substitute_direct(
             scalar_type,
             bound_decided,
         } => Direct::IndexedPrimitiveRead {
+            qualifications,
             bound_decided,
             source,
             path,

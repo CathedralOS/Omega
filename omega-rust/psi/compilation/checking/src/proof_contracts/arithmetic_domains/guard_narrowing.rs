@@ -23,6 +23,7 @@ mod case_facts;
 mod parameter_bounds;
 mod predicate_facts;
 pub(super) mod projected_facts;
+mod requirements;
 pub(crate) use arrivals::{
     OccurrenceValueEnvironments, inferred_normal_return_interval, occurrence_value_environment,
     occurrence_value_environments,
@@ -198,7 +199,7 @@ pub(crate) fn requires_value_environment(
             parameter.type_reference,
         );
     }
-    arrivals::seed_state_requirements(program, machine, entry_state, None, &mut environment);
+    requirements::seed_state_requirements(program, machine, entry_state, None, &mut environment);
     environment
 }
 
@@ -1236,7 +1237,7 @@ pub(crate) fn incoming_guard_environments(
         .iter()
         .zip(&mut environments)
     {
-        arrivals::seed_state_requirements(program, machine, state, frames, environment);
+        requirements::seed_state_requirements(program, machine, state, frames, environment);
     }
     let environments = std::sync::Arc::new(environments);
     // Publish only after all arrivals and requirements are complete. The
@@ -1273,6 +1274,6 @@ pub(crate) fn incoming_guard_environment(
         .into_iter()
         .find_map(|(symbol, environment)| (symbol == state.symbol).then_some(environment))
         .unwrap_or_default();
-    arrivals::seed_state_requirements(program, machine, state, frames, &mut environment);
+    requirements::seed_state_requirements(program, machine, state, frames, &mut environment);
     environment
 }

@@ -1596,6 +1596,12 @@ fail/domains/routed_qualification_reference_recast rejected 695ms expected @8137
 	machine `forge` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 fail/domains/routed_record_capture_after_sibling_mutation rejected 698ms expected @2ef2ab353498+wt
 fail/domains/scalar_alias_zero_requires_all_predicates rejected 5313ms expected @a9ae30e1c334+wt
+fail/domains/scalar_boundary_erased_other_route_is_not_membership rejected 4076ms expected @8d0f98ca0891+wt
+	cannot prove requires contract for call subtract from main: value as u64 in u64::AtLeast100 in state `entry`
+fail/domains/scalar_boundary_numeric_cannot_replace_issuer rejected 4073ms expected @8d0f98ca0891+wt
+	cannot prove requires contract for call subtract from main: value in u64::AtLeast100 in state `entry`
+fail/domains/scalar_boundary_provider_cannot_add_membership rejected 3117ms expected @8d0f98ca0891+wt
+	machine `Actual::subtract` realizes `Consume::subtract` but requires `value in u64::Extra`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/domains/scalar_domain_mixed_return_bad_predicate rejected 2089ms expected @83f47d8fae73
 	cannot prove scalar result domain for return from choose at statement 1: i64::Nonnegative
 fail/domains/scalar_domain_stale_call_result rejected 2021ms expected @83f47d8fae73
@@ -1606,6 +1612,18 @@ fail/domains/scalar_domain_unexecuted_call_guarantee rejected 2098ms expected @8
 	cannot prove scalar result domain for return from issue at statement 1: i64::Issued
 fail/domains/scalar_domain_unrelated_call_result rejected 1893ms expected @83f47d8fae73
 	cannot prove scalar result domain for return from issue at statement 2: i64::Issued
+fail/domains/scalar_entry_membership_invalidated_before_forward rejected 4127ms expected @8d0f98ca0891+wt
+	cannot prove requires contract for call reduce from Actual::subtract: value in u64::AtLeast100 (invalidated by prior mutation of value; value is part of u64::AtLeast100) in state `subtract`
+fail/domains/scalar_entry_membership_invalidated_before_subtraction rejected 2733ms expected @8d0f98ca0891+wt
+	exact arithmetic in machine `Actual::subtract` state `subtract` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/domains/scalar_field_mutable_erasure_cannot_restore_membership rejected 2700ms expected @8d0f98ca0891+wt
+	machine `main` state `entry`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
+fail/domains/scalar_field_write_requires_issuer rejected 4039ms expected @8d0f98ca0891+wt
+	cannot prove requires contract for call subtract from main: payload.value in u64::AtLeast100 (invalidated by prior mutation of payload.value; payload.value is part of u64::AtLeast100) in state `entry`
+	cannot prove the value assigned to `payload.value` in main is in domain `u64::AtLeast100`; a place declared `in u64::AtLeast100` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/domains/scalar_field_zero_cannot_introduce_membership rejected 2968ms expected @8d0f98ca0891+wt
+	reading `value.value` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `u64[in Issued]`
+	reading `value.value` crosses an open default-domain invariant window before data `Payload` is established: the zeroed representation is not yet a `Payload` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/domains/semantic_cast_fact_false rejected 2613ms expected @a9ae30e1c334+wt
 fail/domains/semantic_predicate_cast_false rejected 286ms expected @896172b5d9d8+wt
 fail/domains/semantic_predicate_domain_call_false rejected 1154ms expected @896172b5d9d8+wt
@@ -4404,6 +4422,24 @@ fail/facts/runtime_index_application_through_target_body_payload_outside_limit r
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/scalar_boundary_parameter/call_result rejected 2705ms expected @8d0f98ca0891+wt
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/const_name rejected 2817ms expected @8d0f98ca0891+wt
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/field rejected 2875ms expected @8d0f98ca0891+wt
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/local rejected 2941ms expected @8d0f98ca0891+wt
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/match_join rejected 2713ms expected @8d0f98ca0891+wt
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/other_machine rejected 2709ms expected @8d0f98ca0891+wt
+	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/other_state rejected 2737ms expected @8d0f98ca0891+wt
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/parameter rejected 2730ms expected @8d0f98ca0891+wt
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/target_body rejected 2666ms expected @8d0f98ca0891+wt
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 fail/facts/scalar_domain_call_guarantee/call_result rejected 4423ms expected @83f47d8fae73
 	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
 fail/facts/scalar_domain_call_guarantee/const_name rejected 4167ms expected @83f47d8fae73

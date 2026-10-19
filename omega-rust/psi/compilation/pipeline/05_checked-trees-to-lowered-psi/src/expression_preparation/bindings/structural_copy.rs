@@ -120,6 +120,7 @@ impl ScalarBindings {
                         field,
                     )) => self.runtime_index_field(identities, field)?,
                     Segment::CapturedIndex(place) => LoweredDirectExpression::PrimitiveRead {
+                        qualifications: Default::default(),
                         source: crate::emission::operation_emission::expressions::PrimitiveReadSource::Place(*place),
                         path: Vec::new(),
                         scalar_type: super::terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?,

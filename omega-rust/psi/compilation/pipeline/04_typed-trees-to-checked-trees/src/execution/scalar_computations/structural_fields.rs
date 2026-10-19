@@ -93,6 +93,7 @@ impl Builder<'_, '_> {
             expected,
             CheckedScalarComputationKind::StructuralField {
                 atomic_ordering: None,
+                result_type: validation::reference_shell(self.program, reference)?.referee,
                 source_expression: expression,
                 receiver_expression: expression,
                 source_type: reference,
@@ -283,6 +284,12 @@ impl Builder<'_, '_> {
             field.primitive_type,
             CheckedScalarComputationKind::StructuralField {
                 atomic_ordering: None,
+                result_type: validation::expression_type_reference_in_state(
+                    self.program,
+                    self.state,
+                    self.statement_index,
+                    expression,
+                )?,
                 source_expression: expression,
                 receiver_expression: match self.program.expression_table.expression(expression) {
                     ExpressionNode::Member(member) => member.receiver,

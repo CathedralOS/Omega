@@ -102,15 +102,53 @@ fn predicate_interval(
     if domain.subject != DomainConstraintSubject::Declared {
         return None;
     }
-    let definition = program.domain_definition(domain.symbol)?;
+    application_predicate_interval(
+        program,
+        domain.symbol,
+        &domain.arguments,
+        domain.semantic_id,
+    )
+}
+
+/// Numeric consequences of a membership the caller already assumes. Open
+/// endpoints remain open; a routed identity is never inferred from this range.
+pub(crate) fn membership_predicate_bounds(
+    program: &dyn crate::CheckingInput,
+    membership: &typed_trees::domain::ProofMembershipFact,
+) -> Option<(
+    Option<numerics::bignum::BigInt>,
+    Option<numerics::bignum::BigInt>,
+)> {
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(membership.domain_arguments);
+    if arguments.len() != membership.domain_arguments.len() {
+        return None;
+    }
+    let interval = application_predicate_interval(
+        program,
+        membership.domain_symbol,
+        arguments,
+        membership.semantic_domain,
+    )?;
+    Some((interval.minimum, interval.maximum))
+}
+
+fn application_predicate_interval(
+    program: &dyn crate::CheckingInput,
+    symbol: symbols::SymbolHandle,
+    arguments: &[typed_trees::types::TypeReferenceHandle],
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> Option<PredicateInterval> {
+    let definition = program.domain_definition(symbol)?;
     if definition.alias.is_some() {
         return None;
     }
     let indices = crate::proof_contracts::domains::closed_integer_index_bindings(
         program,
         definition,
-        &domain.arguments,
-        domain.semantic_id,
+        arguments,
+        semantic_domain,
     )?;
     let mut interval = PredicateInterval {
         minimum: None,

@@ -113,12 +113,14 @@ pub(crate) enum LoweredDirectExpression {
         source: PrimitiveReadSource,
         path: Vec<terminal_psi::StructuralPathSegment>,
         scalar_type: ScalarType,
+        qualifications: semantic_vocabulary::ScalarQualificationSetId,
     },
     StructuralField {
         source: PrimitiveReadSource,
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
         scalar_type: ScalarType,
+        qualifications: semantic_vocabulary::ScalarQualificationSetId,
     },
     ByteSequenceLength {
         source: PlaceId,
@@ -151,6 +153,7 @@ pub(crate) enum LoweredDirectExpression {
     /// scalar field (`cells[i].hp`), which the verifier resolves against the
     /// element's declaration.
     IndexedPrimitiveRead {
+        qualifications: semantic_vocabulary::ScalarQualificationSetId,
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         index: Box<LoweredDirectExpression>,
@@ -258,10 +261,79 @@ pub(crate) enum LoweredDirectExpression {
 }
 
 impl LoweredDirectExpression {
+    /// A checked storage observation snapshots the declared memberships along
+    /// with its carrier. This annotates the existing read, not a coercion that
+    /// could manufacture membership on a bare value.
+    pub(crate) fn retain_observed_type(
+        &mut self,
+        value_type: QualifiedScalarType,
+    ) -> Result<(), LoweringError> {
+        if self.scalar_type() != value_type.scalar_type {
+            return unsupported("storage observation changed its scalar carrier");
+        }
+        match self {
+            Self::PrimitiveRead { qualifications, .. }
+            | Self::StructuralField { qualifications, .. }
+            | Self::IndexedPrimitiveRead { qualifications, .. } => {
+                *qualifications = value_type.qualifications
+            }
+            Self::Boolean { expression } => match expression.as_mut() {
+                LoweredBooleanReturnExpression::PrimitiveRead { qualifications, .. }
+                | LoweredBooleanReturnExpression::StructuralField { qualifications, .. } => {
+                    *qualifications = value_type.qualifications
+                }
+                LoweredBooleanReturnExpression::ScalarObservation { operand } => {
+                    operand.retain_observed_type(value_type)?
+                }
+                _ if value_type.qualifications.is_empty() => {}
+                _ => return unsupported("qualified Boolean observation has no storage read"),
+            },
+            _ if value_type.qualifications.is_empty() => {}
+            _ => return unsupported("qualified scalar observation has no storage read"),
+        }
+        Ok(())
+    }
+
     pub(crate) fn value_type(
         &self,
         parameters: &[QualifiedScalarType],
     ) -> Result<QualifiedScalarType, LoweringError> {
+        match self {
+            Self::PrimitiveRead {
+                scalar_type,
+                qualifications,
+                ..
+            }
+            | Self::StructuralField {
+                scalar_type,
+                qualifications,
+                ..
+            }
+            | Self::IndexedPrimitiveRead {
+                scalar_type,
+                qualifications,
+                ..
+            } => {
+                return Ok(QualifiedScalarType {
+                    scalar_type: *scalar_type,
+                    qualifications: *qualifications,
+                });
+            }
+            Self::Boolean { expression } => match expression.as_ref() {
+                LoweredBooleanReturnExpression::ScalarObservation { operand } => {
+                    return operand.value_type(parameters);
+                }
+                LoweredBooleanReturnExpression::PrimitiveRead { qualifications, .. }
+                | LoweredBooleanReturnExpression::StructuralField { qualifications, .. } => {
+                    return Ok(QualifiedScalarType {
+                        scalar_type: ScalarType::Boolean,
+                        qualifications: *qualifications,
+                    });
+                }
+                _ => {}
+            },
+            _ => {}
+        }
         let position = match self {
             Self::Parameter { position, .. } | Self::Local { position, .. } => Some(*position),
             Self::Boolean { expression } => match expression.as_ref() {
@@ -318,7 +390,7 @@ impl LoweredDirectExpression {
 
 pub(crate) fn emit_scalar_leaf(
     kind: OperationKind,
-    scalar_type: ScalarType,
+    value_type: impl Into<QualifiedScalarType>,
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
 ) -> ValueId {
@@ -326,7 +398,15 @@ pub(crate) fn emit_scalar_leaf(
     *next_value_identity = next_value_identity
         .checked_add(1)
         .expect("generated value identity advances after a scalar leaf");
-    operations.push_leaf(scalar_result_declaration(id, scalar_type), kind);
+    let value_type = value_type.into();
+    operations.push_leaf(
+        OperationResult::Scalar(ValueDeclaration {
+            id,
+            scalar_type: value_type.scalar_type,
+            qualifications: value_type.qualifications,
+        }),
+        kind,
+    );
     id
 }
 
@@ -643,6 +723,7 @@ pub(crate) fn emit_direct_expression(
             source,
             path,
             scalar_type,
+            qualifications,
         } => {
             let source = emit_read_source(source, operations);
             emit_scalar_leaf(
@@ -650,7 +731,10 @@ pub(crate) fn emit_direct_expression(
                     source,
                     path: path.clone(),
                 },
-                *scalar_type,
+                QualifiedScalarType {
+                    scalar_type: *scalar_type,
+                    qualifications: *qualifications,
+                },
                 next_value_identity,
                 operations,
             )
@@ -660,6 +744,7 @@ pub(crate) fn emit_direct_expression(
             path,
             field,
             scalar_type,
+            qualifications,
         } => {
             let source = emit_read_source(source, operations);
             emit_scalar_leaf(
@@ -668,7 +753,10 @@ pub(crate) fn emit_direct_expression(
                     path: path.clone(),
                     field: *field,
                 },
-                *scalar_type,
+                QualifiedScalarType {
+                    scalar_type: *scalar_type,
+                    qualifications: *qualifications,
+                },
                 next_value_identity,
                 operations,
             )
@@ -808,6 +896,7 @@ pub(crate) fn emit_direct_expression(
             )
         }
         LoweredDirectExpression::IndexedPrimitiveRead {
+            qualifications,
             source,
             path,
             index,
@@ -850,7 +939,10 @@ pub(crate) fn emit_direct_expression(
                     source: *source,
                     path,
                 },
-                *scalar_type,
+                QualifiedScalarType {
+                    scalar_type: *scalar_type,
+                    qualifications: *qualifications,
+                },
                 next_value_identity,
                 operations,
             )

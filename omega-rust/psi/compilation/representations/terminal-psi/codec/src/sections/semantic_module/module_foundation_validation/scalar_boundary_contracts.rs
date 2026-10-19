@@ -1,0 +1,102 @@
+//! Exact scalar membership joins at external boundary-declaration ingress.
+//! Predicate truth and original introduction belong to source checking. These
+//! joins prevent transport from substituting a bare value, unrelated domain or
+//! provider with stronger nominal requirements for that checked contract.
+
+use super::{CodecError, TerminalMachine, TerminalModule, malformed};
+use semantic_vocabulary::{ScalarDomainId, ScalarQualificationSetId, ValueId};
+use terminal_psi::{BoundaryMachineDeclaration, ValueDeclaration};
+
+fn domains(
+    module: &TerminalModule,
+    set: ScalarQualificationSetId,
+) -> Result<&[ScalarDomainId], CodecError> {
+    if set.is_empty() {
+        return Ok(&[]);
+    }
+    module
+        .scalar_qualifications
+        .sets
+        .iter()
+        .find(|row| row.id == set)
+        .map(|row| row.domains.as_slice())
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "boundary scalar value names an absent qualification set",
+        ))
+}
+
+pub(super) fn validate_declarations(module: &TerminalModule) -> Result<(), CodecError> {
+    for boundary in &module.boundary_machines {
+        for requirement in &boundary.scalar_domain_requirements {
+            let carrier = boundary
+                .scalar_parameters
+                .get(requirement.argument_index as usize)
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "boundary scalar domain requirement has no parameter",
+                ))?;
+            let domain = module
+                .scalar_qualifications
+                .domains
+                .iter()
+                .find(|domain| domain.id == requirement.domain)
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "boundary scalar requirement names an absent domain",
+                ))?;
+            if domain.carrier != *carrier {
+                return malformed("boundary scalar domain requirement changes its carrier");
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn validate_arguments(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    boundary: &BoundaryMachineDeclaration,
+    arguments: &[ValueId],
+) -> Result<(), CodecError> {
+    for requirement in &boundary.scalar_domain_requirements {
+        let argument = arguments.get(requirement.argument_index as usize).ok_or(
+            CodecError::MalformedStructuralFoundation(
+                "boundary scalar domain requirement has no actual argument",
+            ),
+        )?;
+        let actual = machine
+            .parameters
+            .iter()
+            .chain(machine.block_parameters())
+            .chain(
+                machine
+                    .operations()
+                    .filter_map(|operation| operation.result.scalar_ref()),
+            )
+            .find(|value| value.id == *argument)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "boundary scalar membership has no exact value declaration",
+            ))?;
+        if !domains(module, actual.qualifications)?.contains(&requirement.domain) {
+            return malformed("boundary scalar argument lacks its required domain identity");
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn validate_provider(
+    module: &TerminalModule,
+    boundary: &BoundaryMachineDeclaration,
+    parameters: &[ValueDeclaration],
+) -> Result<(), CodecError> {
+    for (argument_index, parameter) in parameters.iter().enumerate() {
+        for domain in domains(module, parameter.qualifications)? {
+            if !boundary.scalar_domain_requirements.iter().any(|required| {
+                required.argument_index as usize == argument_index && required.domain == *domain
+            }) {
+                return malformed(
+                    "provider candidate requires scalar membership absent from its boundary",
+                );
+            }
+        }
+    }
+    Ok(())
+}

@@ -401,7 +401,7 @@ pub(super) fn conformances(
                 || scalar_parameters
                     .iter()
                     .zip(&realized.parameters)
-                    .any(|(boundary, candidate)| *boundary != candidate.scalar_type)
+                    .any(|(boundary, candidate)| boundary.scalar_type != candidate.scalar_type)
             {
                 return unsupported(
                     "provider candidate scalar signature disagrees with its boundary requirement",

@@ -223,8 +223,9 @@ pub use structural_window::{
 pub use zero_valid_storage::{scalar_declaration_accepts_zero, zero_valid_record_storage};
 pub use zeroed_structural::{
     EstablishedErasedStructuralField, ZeroedStructuralLeaf,
-    zeroed_projected_byte_qualifications_hold, zeroed_structural_leaves,
-    zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,
+    zeroed_projected_byte_qualifications_hold, zeroed_structural_fields_satisfy,
+    zeroed_structural_leaves, zeroed_structural_leaves_with_established_erased_fields,
+    zeroed_structural_shape,
 };
 
 pub mod descriptor_lifetimes;

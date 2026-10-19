@@ -24,7 +24,7 @@ pub use declarations::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
     BoundaryReferenceDestination, BoundaryReferenceOutput, BoundaryStructuralResultDeclaration,
     CheckedBoundaryCallable, ContentConservationGuarantee, ProgramLocalRootIntroductionSchema,
-    StructuralDomainRequirement, find_boundary_machine,
+    ScalarDomainRequirement, StructuralDomainRequirement, find_boundary_machine,
     program_local_root_introduction_compatibility_report_identity,
 };
 pub use dynamic_dispatch::{

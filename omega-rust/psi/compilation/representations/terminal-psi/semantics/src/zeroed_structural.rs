@@ -134,14 +134,27 @@ pub fn zeroed_structural_shape<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> bool {
+    zeroed_structural_fields_satisfy(types, root, |_| true)
+}
+
+/// Apply an independent receiving requirement to exactly the fields a zero
+/// value instantiates. This reuses shape admission's finite declaration walk:
+/// empty arrays and inactive cases supply no value or membership to check.
+/// The predicate can refuse establishment; it never grants copy or loan custody.
+pub fn zeroed_structural_fields_satisfy<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    accepts_field: impl Fn(&StructuralFieldDeclaration) -> bool,
+) -> bool {
     let declarations: Vec<_> = types.collect();
-    zeroed_declaration_graph(&declarations, root, false)
+    zeroed_declaration_graph(&declarations, root, false, &accepts_field)
 }
 
 fn zeroed_declaration_graph(
     declarations: &[&StructuralTypeDeclaration],
     root: StructuralTypeId,
     allow_established_fields: bool,
+    accepts_field: &impl Fn(&StructuralFieldDeclaration) -> bool,
 ) -> bool {
     // Declaration-indexed DFS marks distinguish a backedge from a shared
     // child reached by several fields. Array extents do not grow this walk.
@@ -210,7 +223,7 @@ fn zeroed_declaration_graph(
             // The first case's payload is part of the zero value: a scalar
             // must accept zero and an aggregate must itself begin zero.
             for field in &first.fields {
-                if field.relevance.is_erased() {
+                if field.relevance.is_erased() || !accepts_field(field) {
                     return false;
                 }
                 if let Some(member) = field.field_type.as_structural() {
@@ -231,7 +244,7 @@ fn zeroed_declaration_graph(
             {
                 continue;
             }
-            if field.relevance.is_erased() {
+            if field.relevance.is_erased() || !accepts_field(field) {
                 return false;
             }
             if let Some(member) = field.field_type.as_structural() {
@@ -295,7 +308,9 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
     established_fields: &[EstablishedErasedStructuralField],
 ) -> Option<Vec<ZeroedStructuralLeaf>> {
     let declarations: Vec<&StructuralTypeDeclaration> = types.collect();
-    if !zeroed_declaration_graph(&declarations, root, !established_fields.is_empty()) {
+    if !zeroed_declaration_graph(&declarations, root, !established_fields.is_empty(), &|_| {
+        true
+    }) {
         return None;
     }
     let mut consumed = vec![false; established_fields.len()];

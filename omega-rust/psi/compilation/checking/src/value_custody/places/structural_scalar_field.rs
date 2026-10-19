@@ -1126,7 +1126,18 @@ fn realized_scalar_carrier(
                         }
                         bounded = true;
                     } else {
-                        crate::scalar_field_domain_predicate(program, domain, primitive)?;
+                        // Read geometry retains the carrier and numeric
+                        // component only. The complete receiving type and
+                        // checked custody carry nominal membership separately;
+                        // describing a read cannot introduce a routed value.
+                        crate::scalar_domain_value_predicate(
+                            program,
+                            domain,
+                            checked_trees::CheckedScalarExpression::Parameter {
+                                position: 0,
+                                primitive_type: primitive,
+                            },
+                        )?;
                     }
                 }
                 _ => return None,

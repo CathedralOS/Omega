@@ -16,6 +16,8 @@ mod call_foundations;
 mod declaration_foundations;
 mod machine_foundations;
 mod reference_outputs;
+mod scalar_boundary_contracts;
+mod scalar_fields;
 mod scalar_observations;
 mod scalar_qualifications;
 mod storage_foundations;
@@ -66,6 +68,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         .validate(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     scalar_qualifications::validate(module)?;
+    scalar_boundary_contracts::validate_declarations(module)?;
+    scalar_fields::validate(module)?;
     terminal_semantics::quotients::validate_quotient_catalog(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::closed_conformances::validate_closed_conformances(module)
@@ -1111,6 +1115,13 @@ fn validate_structural_arguments(
     presentation: StructuralArgumentPresentation,
 ) -> Result<(), CodecError> {
     for (argument, expected) in arguments.iter().zip(expected) {
+        scalar_fields::validate_primitive_reference_presentation(
+            module,
+            machine,
+            argument.place,
+            &argument.path,
+            expected.access,
+        )?;
         if expected.access == terminal_psi::StructuralAccess::Owned
             && terminal_semantics::contains_placed_carrier(module, expected.structural_type)
         {

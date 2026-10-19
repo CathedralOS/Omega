@@ -18,6 +18,14 @@ pub struct StructuralDomainRequirement {
     pub domain: StructuralDomainId,
 }
 
+/// A scalar argument's exact nominal qualification. Its primitive carrier and
+/// any independently retained predicate are not substitutes for membership.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ScalarDomainRequirement {
+    pub argument_index: u32,
+    pub domain: semantic_vocabulary::ScalarDomainId,
+}
+
 /// Place-free structural result shared by boundary and dynamic call signatures.
 /// Unlike a machine result declaration this has no proof-visible place: the
 /// successful call operation creates the caller-local result place.
@@ -217,6 +225,9 @@ pub struct BoundaryMachineDeclaration {
     /// Admission consumes qualifications already carried by the arguments;
     /// these rows are not proof propositions.
     pub requires: Vec<StructuralDomainRequirement>,
+    /// Exact carried scalar memberships, separate from numeric propositions.
+    /// Indices name packed scalar arguments; rows never add runtime ABI words.
+    pub scalar_domain_requirements: Vec<ScalarDomainRequirement>,
     /// The requirement's scalar `requires` propositions, in canonical order
     /// and in this declaration's scalar-formal namespace (the crash routes'
     /// namespace). Every `BoundaryCall` owes one obligation per row at the

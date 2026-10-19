@@ -41,14 +41,9 @@ pub(crate) fn complete_operands(
     if structural_arguments.len() != target.structural.len() {
         return unsupported("boundary arguments disagree with their declared structural roster");
     }
-    let expected = target
-        .scalar
-        .iter()
-        .map(|scalar| (*scalar).into())
-        .collect::<Vec<_>>();
     let arguments = crate::unit::attached_unit::argument_evaluation::validated_values(
         Some(arguments),
-        &expected,
+        &target.scalar,
     )?
     .iter()
     .map(|value| value.id)
@@ -125,7 +120,7 @@ pub(super) fn emit_boundary_call_binding(
     let mut arguments = Vec::with_capacity(call.arguments.len());
     for (argument, expected) in call.arguments.iter().zip(&target.scalar) {
         let value_type = argument.value_type(&parameter_types)?;
-        if value_type.scalar_type != *expected || !value_type.qualifications.is_empty() {
+        if value_type != *expected {
             return unsupported("nested boundary application operand disagrees with its formal");
         }
         arguments.push(ValueDeclaration {
@@ -160,7 +155,11 @@ pub(super) fn emit_boundary_call_binding(
     let policy = call.result_policy.bind(
         raw,
         &operands.arguments,
-        &target.scalar,
+        &target
+            .scalar
+            .iter()
+            .map(|parameter| parameter.scalar_type)
+            .collect::<Vec<_>>(),
         next_value_identity,
         operations,
     )?;

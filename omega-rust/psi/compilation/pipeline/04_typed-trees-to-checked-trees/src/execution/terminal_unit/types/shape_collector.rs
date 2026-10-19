@@ -1337,6 +1337,7 @@ impl<'program> ShapeCollector<'program> {
             }
         }
         Some(CheckedUnitStructuralFieldPlan {
+            type_reference: field_type_reference,
             identity: checked_trees::CheckedMemberIdentity::of_member(
                 field.identity,
                 field.name.clone(),

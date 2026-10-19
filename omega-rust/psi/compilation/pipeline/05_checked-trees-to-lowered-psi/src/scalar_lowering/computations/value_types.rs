@@ -48,6 +48,7 @@ fn value_type(
         | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
         | CheckedScalarComputationKind::ByteSequencePredicate { .. } => ScalarType::Boolean.into(),
         CheckedScalarComputationKind::Qualification { result_type, .. }
+        | CheckedScalarComputationKind::StructuralField { result_type, .. }
         | CheckedScalarComputationKind::AuthoredCast { result_type, .. } => {
             qualifications.value_type(checked, *result_type)?
         }
@@ -84,7 +85,6 @@ fn value_type(
         CheckedScalarComputationKind::Apply { .. }
         | CheckedScalarComputationKind::StorageObservation { .. }
         | CheckedScalarComputationKind::Call { .. }
-        | CheckedScalarComputationKind::StructuralField { .. }
         | CheckedScalarComputationKind::SelectedComparison { .. } => {
             terminal_scalar_type(node.primitive_type)?.into()
         }

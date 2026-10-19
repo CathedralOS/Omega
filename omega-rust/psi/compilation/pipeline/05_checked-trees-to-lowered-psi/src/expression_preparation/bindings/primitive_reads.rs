@@ -133,6 +133,7 @@ pub(crate) fn captured_observation(
             return unsupported("captured primitive observation requires fixed-array storage");
         }
         Direct::IndexedPrimitiveRead {
+            qualifications: Default::default(),
             source,
             path: capture.carrier_path.clone(),
             index,
@@ -147,18 +148,21 @@ pub(crate) fn captured_observation(
         match observation.scalar_type {
             ScalarType::Boolean => Direct::Boolean {
                 expression: Box::new(crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression::StructuralField {
+                    qualifications: Default::default(),
                     source: source.into(),
                     path: observation.path.clone(),
                     field,
                 }),
             },
             ScalarType::Integer(_) => Direct::StructuralField {
+                qualifications: Default::default(),
                 source: source.into(),
                 path: observation.path.clone(),
                 field,
                 scalar_type: observation.scalar_type,
             },
             ScalarType::IeeeFloat(_) => Direct::PrimitiveRead {
+                qualifications: Default::default(),
                 source: source.into(),
                 path: capture.carrier_path.clone(),
                 scalar_type: observation.scalar_type,
@@ -180,6 +184,7 @@ pub(crate) fn captured_observation(
             unreachable!()
         };
         Direct::IndexedPrimitiveRead {
+            qualifications: Default::default(),
             source,
             path: path.to_vec(),
             index: Box::new(Direct::IntegerLiteral {
@@ -193,6 +198,7 @@ pub(crate) fn captured_observation(
         }
     } else {
         Direct::PrimitiveRead {
+            qualifications: Default::default(),
             source: source.into(),
             path: capture.carrier_path.clone(),
             scalar_type: observation.scalar_type,

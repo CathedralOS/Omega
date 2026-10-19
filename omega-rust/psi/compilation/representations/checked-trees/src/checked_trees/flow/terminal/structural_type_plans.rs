@@ -159,6 +159,9 @@ pub struct CheckedUnitStructuralCasePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralFieldPlan {
+    /// Exact authored receiving type; numeric storage restrictions do not
+    /// replace its independent nominal scalar memberships.
+    pub type_reference: crate::types::TypeReferenceHandle,
     pub identity: CheckedMemberIdentity,
     pub relevance: BindingRelevance,
     pub field_type: CheckedUnitStructuralFieldType,

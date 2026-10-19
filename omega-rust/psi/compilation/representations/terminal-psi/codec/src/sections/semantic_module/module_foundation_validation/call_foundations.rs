@@ -597,6 +597,7 @@ pub(super) fn validate_external_completion(
     {
         return malformed("external completion has the wrong argument or obligation arity");
     }
+    super::scalar_boundary_contracts::validate_arguments(module, machine, declaration, arguments)?;
     for (argument, expected) in arguments.iter().zip(&declaration.scalar_parameters) {
         let mut declarations = machine
             .parameters
@@ -703,6 +704,7 @@ pub(super) fn validate_boundary_call(
     if arguments.len() != boundary.scalar_parameters.len() {
         return malformed("boundary call has the wrong scalar arity");
     }
+    super::scalar_boundary_contracts::validate_arguments(module, machine, boundary, arguments)?;
     if structural_arguments.len() != boundary.structural_parameters.len() {
         return malformed("boundary call has the wrong structural arity");
     }

@@ -242,11 +242,7 @@ impl OperationFrame<'_, '_> {
         }
         let arguments = argument_evaluation::validated_values(
             inputs.evaluated_scalar_arguments,
-            &target
-                .scalar
-                .iter()
-                .map(|scalar_type| (*scalar_type).into())
-                .collect::<Vec<_>>(),
+            &target.scalar,
         )?
         .to_vec();
         let structural_arguments = self.lower_runtime_structural_arguments(

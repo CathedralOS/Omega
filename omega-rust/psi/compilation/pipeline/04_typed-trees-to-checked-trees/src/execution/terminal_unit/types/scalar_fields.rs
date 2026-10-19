@@ -152,8 +152,17 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
                                 program, primitive, domain,
                             )
                         else {
-                            let next = validation::scalar_field_domain_predicate(
-                                program, domain, primitive,
+                            // This is the numeric component of storage validity,
+                            // not its complete membership contract. The field's
+                            // retained receiving type independently carries its
+                            // nominal atoms and issuer requirements.
+                            let next = validation::scalar_domain_value_predicate(
+                                program,
+                                domain,
+                                checked_trees::CheckedScalarExpression::Parameter {
+                                    position: 0,
+                                    primitive_type: primitive,
+                                },
                             )?;
                             predicate = Some(match predicate {
                                 None => next,

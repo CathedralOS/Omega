@@ -524,6 +524,7 @@ mod tests {
         boundary: BoundaryMachineId,
     ) -> terminal_psi::BoundaryMachineDeclaration {
         terminal_psi::BoundaryMachineDeclaration {
+            scalar_domain_requirements: Vec::new(),
             declaration: None,
             role: terminal_psi::BoundaryDeclarationRole::Callable,
             id: boundary,
