@@ -77,6 +77,49 @@ Full 8-layer specification and lowering evidence:
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions, emitting calls to `Resource::drop` before function return or state transition. Disjoint activation frames allocate spill and scratch slots for mutable references while composing worst-case stack usage (WCSU) and bounded activation claims (`committed <= bound`).
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow around synthesized drop epilogues, transitive machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi (`omega run --both`).
 
+## Discrimination: which obligation class this fact belongs to
+
+This fact's obligation is a **cleanup/disposition obligation**, not a value/arithmetic
+bound, a `where`-clause construction fact, or an index/range proof. The distinction
+matters because it decides whether a runtime trap is reachable at all. Measured with
+the built producer on this checkout:
+
+- **Satisfied clause (control).** `Resource { valid: 1u64, value: 30u64 }` proves the
+  drop clause at the selected exit edge; both engines report `exit 0`. The cleanup
+  precondition is statically discharged, so no runtime check is emitted.
+- **False call-site contract.** A caller supplying `exercise(0u64)` where the callee
+  declares `requires tag == 1u64` refuses statically at the call gate:
+  `machine main state entry value call to exercise violates required fact tag == 1:
+  the instantiated fact is structurally false (0 == 1)`. No trap.
+- **Range-admitting contract.** Binding the resource tag from a parameter whose
+  contract admits a range (`requires tag <= 1u64`) — so constant folding cannot decide
+  the tag and the range includes the violating value — **still refuses statically**:
+  `cannot prove automatic cleanup requires at selected edge from exercise state entry
+  after statement 1: res does not establish Resource::drop clause resource.valid == 1`.
+
+That third probe is the load-bearing observation. For a value/arithmetic bound, a
+boundary contract admitting a range defeats constant folding and typically yields a
+runtime trap. A cleanup obligation does not behave that way: the disposition is decided
+on the edge partition, and `check_cleanup_requirements` refuses the edge whenever the
+clause is not implied, before any runtime realization exists. **No runtime trap is
+reachable through this fact's obligation.** The nine reject twins therefore all refuse
+statically; that is this obligation's class, not a missing probe.
+
+The lever that changes the outcome is downstream of what the clause proves: the fact is
+only observable when the disposition is *permitted*, which is why every positive place
+makes the discarded root's disposition the thing the program depends on (`50u64 - result`
+is proved from the bound the cleanup preserves).
+
+## Fixture pins
+
+The nine places and nine reject twins are pinned under
+[`tests/omega/pass/facts`](../../../../tests/omega/pass/facts) and
+[`tests/omega/fail/facts`](../../../../tests/omega/fail/facts) as
+`affine_discard_root_cleanup[_through_<place>]_exit` and
+`affine_discard_root_cleanup_through_<place>_rejected`. Each reject twin authors both
+`sample.json` (`rejection_contains`) and `expected.txt`; `rejection_contains` takes
+precedence.
+
 ## What remains open
 
 Compound nested linear resource graphs with multiple non-trivial drop dependencies, conditional drop flags with partially moved fields, and asynchronous cancellation cleanup paths remain governed under the wider `RESOURCE-CLEANUP-MODEL` roadmap.
