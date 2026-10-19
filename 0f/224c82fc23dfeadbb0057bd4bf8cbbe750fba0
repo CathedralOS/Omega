@@ -1,0 +1,4 @@
+owner: DeepSeek / w22 pool case_payload_transport
+provenance: agent=deepseek model=deepseek-v4.1-flash effort=high lane=w22-pool fact=case_payload_transport
+ticket: eb9cbef2753f4865aa7ccf629b386fb4
+published_utc: 2026-10-19T04:45:06.354122+00:00
