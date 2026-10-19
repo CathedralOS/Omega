@@ -1460,6 +1460,15 @@ pass/facts/selected_scalar_initializer_through_other_machine_exit built 24910ms 
 pass/facts/selected_scalar_initializer_through_other_state_exit built 24556ms exit:0 @f98259e86dd2
 pass/facts/selected_scalar_initializer_through_parameter_exit built 24677ms exit:0 @f98259e86dd2
 pass/facts/selected_scalar_initializer_through_target_body_exit built 25231ms exit:0 @f98259e86dd2
+pass/facts/signed_division_quotient_through_call_result_exit built 10688ms exit:0 @f98259e86dd2
+pass/facts/signed_division_quotient_through_const_name_exit built 10675ms exit:0 @f98259e86dd2
+pass/facts/signed_division_quotient_through_field_exit built 10780ms exit:0 @f98259e86dd2
+pass/facts/signed_division_quotient_through_local_exit built 10849ms exit:0 @f98259e86dd2
+pass/facts/signed_division_quotient_through_match_join_exit built 10742ms exit:0 @f98259e86dd2
+pass/facts/signed_division_quotient_through_other_machine_exit built 10765ms exit:0 @f98259e86dd2
+pass/facts/signed_division_quotient_through_other_state_exit built 10748ms exit:0 @f98259e86dd2
+pass/facts/signed_division_quotient_through_parameter_exit built 10699ms exit:0 @f98259e86dd2
+pass/facts/signed_division_quotient_through_target_body_exit built 10779ms exit:0 @f98259e86dd2
 pass/facts/temporary_case_cleanup_original_exit built 3991ms exit:0 @46f72294c589
 pass/facts/temporary_case_cleanup_through_call_result_exit built 3819ms exit:0 @46f72294c589
 pass/facts/temporary_case_cleanup_through_const_name_exit built 3904ms exit:0 @46f72294c589
