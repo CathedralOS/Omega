@@ -1319,6 +1319,16 @@ pass/facts/address_count_partition_through_other_machine_exit built 31982ms exit
 pass/facts/address_count_partition_through_other_state_exit built 31961ms exit:0 @9d27f400f753
 pass/facts/address_count_partition_through_parameter_exit built 31740ms exit:0 @9d27f400f753
 pass/facts/address_count_partition_through_target_body_exit built 32240ms exit:0 @9d27f400f753
+pass/facts/affine_discard_root_cleanup_exit built 56437ms exit:0 @9f17a6cf5f9c
+pass/facts/affine_discard_root_cleanup_through_call_result_exit built 56770ms exit:0 @9f17a6cf5f9c
+pass/facts/affine_discard_root_cleanup_through_const_name_exit built 56438ms exit:0 @9f17a6cf5f9c
+pass/facts/affine_discard_root_cleanup_through_field_exit built 56841ms exit:0 @9f17a6cf5f9c
+pass/facts/affine_discard_root_cleanup_through_local_exit built 57170ms exit:0 @9f17a6cf5f9c
+pass/facts/affine_discard_root_cleanup_through_match_join_exit built 56889ms exit:0 @9f17a6cf5f9c
+pass/facts/affine_discard_root_cleanup_through_other_machine_exit built 56952ms exit:0 @9f17a6cf5f9c
+pass/facts/affine_discard_root_cleanup_through_other_state_exit built 57038ms exit:0 @9f17a6cf5f9c
+pass/facts/affine_discard_root_cleanup_through_parameter_exit built 57053ms exit:0 @9f17a6cf5f9c
+pass/facts/affine_discard_root_cleanup_through_target_body_exit built 57148ms exit:0 @9f17a6cf5f9c
 pass/facts/aggregate_struct_return_abi_through_call_result_exit built 25941ms exit:0 @2d783d092d9d
 pass/facts/aggregate_struct_return_abi_through_const_name_exit built 25988ms exit:0 @2d783d092d9d
 pass/facts/aggregate_struct_return_abi_through_field_exit built 25963ms exit:0 @2d783d092d9d
