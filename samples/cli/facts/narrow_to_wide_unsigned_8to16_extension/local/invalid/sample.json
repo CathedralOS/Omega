@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "exact arithmetic in machine",
+    "may overflow `u16`"
+  ]
+}
