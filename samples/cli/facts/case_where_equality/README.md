@@ -67,8 +67,56 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 
 ## Pinned Fixtures
 
+The sample folder is named `case_where_equality`; its fixture families are
+`case_equality_through_<place>_compile` (check-only siblings) and
+`case_where_equality_through_<place>_exit` (the runtime witnesses). Both were
+listed here before either was measured; only the `_compile` family had golden
+rows. The nine `_exit` rows below are now recorded.
+
 - Positive passes: `tests/omega/pass/facts/case_equality_through_<place>_compile` and `tests/omega/pass/facts/case_where_equality_through_<place>_exit` (all 9 places pinned, each recording native exit 0).
 - Negative controls: `tests/omega/fail/facts/case_equality_through_<place>_compile` and `tests/omega/fail/facts/case_where_equality_through_<place>_rejected` (all 9 places pinned, rejecting with exact arithmetic overflow).
+
+### Recorded measurements
+
+All nine `_exit` fixtures record `built ... exit:0` in
+`tests/omega/corpus_native_macos_arm64.txt`, and the same nine record
+`interpreter-exit:0 interpreter:agrees` in
+`tests/omega/corpus_both_macos_arm64.txt`, which is the pinned Terminal
+Psi/native agreement. The nine reject twins record `rejected ... expected` in
+`tests/omega/corpus_outcomes.txt`. Root plus nine places each print
+`native exit 0` / `interp exit: 0` under `omega run --both`;
+`tools/sample_native_gate.py --filter cli/facts/case_where_equality` reports
+10/10 pass, 11/11 intended-invalid controls matched, 2 check-only probes.
+
+### The oracle discriminates, and the corruption refuses statically
+
+Exit `0` separates the exact subtraction from every other outcome: `hi - lo = 0`
+selects `pass()`, and any other width selects `fail() { crash Trap; }`. Forcing
+that fail path (adding `+7u64` after the proved subtraction, so a non-zero width
+reaches the transition) makes both engines trap:
+
+```text
+native signal 5
+interp crash: Trap (host presentation agrees)   exit 255
+```
+
+The baseline keeps `native exit 0` / `interp exit: 0`, so the oracle is
+discriminative in both directions.
+
+The case predicate itself cannot be corrupted into a runtime trap. Every
+corruption of the construct's own input is refused during source checking,
+before native production:
+
+| Corruption | Observed source result |
+| --- | --- |
+| `Point { lo: 17, hi: 3 }` against its own `where lo == hi` | static refusal: `a where fact evaluates FALSE at this construction (ch12: construction is the gate)` |
+| `Point { lo, hi }` from runtime parameters bounded only by `requires lo <= 100u64 && hi <= 100u64` | static refusal: `cannot prove the case constraint: a where fact is not established by the values observed at this construction` |
+| remove `where lo == hi`, keep the `4`/`4` constructor | **checks and runs** (`native exit 0`) -- closed scalar projection proves `4 - 4` independently, as the materialized-literal audit below already recorded |
+
+So the fact is enforced at the construction gate, not at runtime: only a
+corruption applied *after* the proved subtraction reaches the trap path above.
+That distinction is why this row's discrimination needs the post-proof width
+corruption rather than an unequal payload.
 
 `Interval [copy]` explicitly permits the ordinary copies used by the place
 programs. Unannotated owned data is affine even when all its fields are scalar;
