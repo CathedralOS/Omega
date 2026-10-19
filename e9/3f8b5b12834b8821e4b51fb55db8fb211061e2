@@ -1,0 +1,4 @@
+owner: slot-11 / mutable-borrow-field-writeback
+provenance: agent=deepseek model=deepseek-v4.1-flash effort=high
+ticket: fa4d0547c07349b895bada3645131dfe
+published_utc: 2026-10-19T21:11:30.937724+00:00
