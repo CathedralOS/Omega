@@ -2138,16 +2138,29 @@ fail/facts/no_wrap_domain_through_target_body_requires_geometry rejected 2583ms 
 	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nominal_loan_backing_cleanup_through_call_result_cleanup_prerequisite rejected 8874ms expected @753e7ce7a36e+wt
-fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite rejected 7088ms expected @753e7ce7a36e+wt
-fail/facts/nominal_loan_backing_cleanup_through_field_cleanup_prerequisite rejected 4487ms expected @753e7ce7a36e+wt
-fail/facts/nominal_loan_backing_cleanup_through_local_cleanup_prerequisite rejected 4840ms expected @753e7ce7a36e+wt
-fail/facts/nominal_loan_backing_cleanup_through_match_join_cleanup_prerequisite rejected 8234ms expected @753e7ce7a36e+wt
-fail/facts/nominal_loan_backing_cleanup_through_other_machine_cleanup_prerequisite rejected 8904ms expected @753e7ce7a36e+wt
-fail/facts/nominal_loan_backing_cleanup_through_other_state_cleanup_prerequisite rejected 8457ms expected @753e7ce7a36e+wt
-fail/facts/nominal_loan_backing_cleanup_through_parameter_cleanup_prerequisite rejected 7421ms expected @753e7ce7a36e+wt
-fail/facts/nominal_loan_backing_cleanup_through_target_body_cleanup_prerequisite rejected 8892ms expected @753e7ce7a36e+wt
-fail/facts/nominal_loan_backing_cleanup_unequal_match_cleanup_prerequisite rejected 7826ms expected @753e7ce7a36e+wt
+fail/facts/nominal_loan_backing_cleanup_through_call_result_cleanup_prerequisite rejected 8513ms expected @d698b30fd9ab+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite rejected 9112ms expected @d698b30fd9ab+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_field_cleanup_prerequisite rejected 7646ms expected @d698b30fd9ab+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: holder.room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_local_cleanup_prerequisite rejected 7242ms expected @d698b30fd9ab+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_match_join_cleanup_prerequisite rejected 7119ms expected @d698b30fd9ab+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_other_machine_cleanup_prerequisite rejected 6860ms expected @d698b30fd9ab+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_other_state_cleanup_prerequisite rejected 7110ms expected @d698b30fd9ab+wt
+	cannot prove automatic cleanup requires at selected edge from scope state prepare after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_parameter_cleanup_prerequisite rejected 7198ms expected @d698b30fd9ab+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 0: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_through_target_body_cleanup_prerequisite rejected 6972ms expected @d698b30fd9ab+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_unequal_match_cleanup_prerequisite rejected 6951ms expected @d698b30fd9ab+wt
+	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
 fail/facts/nominal_reference_cleanup_through_call_result_prerequisite rejected 633ms expected @d7a10cf8ff64+wt
 fail/facts/nominal_reference_cleanup_through_const_name_prerequisite rejected 633ms expected @d7a10cf8ff64+wt
 fail/facts/nominal_reference_cleanup_through_field_prerequisite rejected 634ms expected @d7a10cf8ff64+wt
@@ -6063,15 +6076,15 @@ pass/facts/no_wrap_domain_through_other_machine_exit checked 8708ms check-target
 pass/facts/no_wrap_domain_through_other_state_exit checked 8892ms check-target:macos_arm64 @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_parameter_exit checked 9155ms check-target:macos_arm64 @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_target_body_exit checked 8800ms check-target:macos_arm64 @d2f0e31ca0d4+wt
-pass/facts/nominal_loan_backing_cleanup_through_call_result_exit checked 12631ms check-target:linux_x86_64 @753e7ce7a36e+wt
-pass/facts/nominal_loan_backing_cleanup_through_const_name_exit checked 11019ms check-target:linux_x86_64 @753e7ce7a36e+wt
-pass/facts/nominal_loan_backing_cleanup_through_field_exit checked 16379ms check-target:linux_x86_64 @753e7ce7a36e+wt
-pass/facts/nominal_loan_backing_cleanup_through_local_exit checked 17878ms check-target:linux_x86_64 @753e7ce7a36e+wt
-pass/facts/nominal_loan_backing_cleanup_through_match_join_exit checked 13634ms check-target:linux_x86_64 @753e7ce7a36e+wt
-pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit checked 14785ms check-target:linux_x86_64 @753e7ce7a36e+wt
-pass/facts/nominal_loan_backing_cleanup_through_other_state_exit checked 17579ms check-target:linux_x86_64 @753e7ce7a36e+wt
-pass/facts/nominal_loan_backing_cleanup_through_parameter_exit checked 11232ms check-target:linux_x86_64 @753e7ce7a36e+wt
-pass/facts/nominal_loan_backing_cleanup_through_target_body_exit checked 18692ms check-target:linux_x86_64 @753e7ce7a36e+wt
+pass/facts/nominal_loan_backing_cleanup_through_call_result_exit checked 19461ms check-target:macos_arm64 @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_const_name_exit checked 19457ms check-target:macos_arm64 @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_field_exit checked 19596ms check-target:macos_arm64 @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_local_exit checked 19334ms check-target:macos_arm64 @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_match_join_exit checked 19763ms check-target:macos_arm64 @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit checked 19635ms check-target:macos_arm64 @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_other_state_exit checked 19681ms check-target:macos_arm64 @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_parameter_exit checked 19374ms check-target:macos_arm64 @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_target_body_exit checked 19796ms check-target:macos_arm64 @d698b30fd9ab+wt
 pass/facts/nominal_reference_cleanup_through_call_result_exit checked 3700ms check-target:macos_arm64 @d7a10cf8ff64+wt
 pass/facts/nominal_reference_cleanup_through_const_name_exit checked 3700ms check-target:macos_arm64 @d7a10cf8ff64+wt
 pass/facts/nominal_reference_cleanup_through_field_exit checked 3509ms check-target:macos_arm64 @d7a10cf8ff64+wt

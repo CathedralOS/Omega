@@ -620,6 +620,15 @@ pass/facts/nested_result_extent_through_other_machine_exit built 3434ms exit:0 i
 pass/facts/nested_result_extent_through_other_state_exit built 3422ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_parameter_exit built 3520ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/nested_result_extent_through_target_body_exit built 3544ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
+pass/facts/nominal_loan_backing_cleanup_through_call_result_exit built 10955ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_const_name_exit built 10601ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_field_exit built 11124ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_local_exit built 10661ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_match_join_exit built 10967ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit built 10588ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_other_state_exit built 10811ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_parameter_exit built 11018ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
+pass/facts/nominal_loan_backing_cleanup_through_target_body_exit built 10799ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d698b30fd9ab+wt
 pass/facts/nominal_reference_cleanup_through_call_result_exit built 3787ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
 pass/facts/nominal_reference_cleanup_through_const_name_exit built 3860ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
 pass/facts/nominal_reference_cleanup_through_field_exit built 3717ms exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt
