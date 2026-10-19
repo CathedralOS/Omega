@@ -51,6 +51,38 @@ Full 8-layer specification and lowering evidence:
 
 Still open under CML4: multi-level projected mutable loans, dynamic runtime-sized projection slices, and foreign non-hosted native execution.
 
+## Measured run record
+
+Producer: opt-level 1 `omega`, target `macos_arm64`, base `cc2f948d148`.
+
+- All ten positives (root plus nine places) run `omega run --both` at native
+  exit 0 agreeing with interpreter exit 0.
+- All nine `invalid/` twins refuse at `--check` with exit 1 and the pinned
+  fragment `cannot prove automatic cleanup requires`, naming
+  `Pair.second does not establish Receipt::drop clause`.
+- Nine `expected_native_exit.txt` oracles record nine `built ... exit:0` rows
+  in `tests/omega/corpus_native_macos_arm64.txt`.
+- `python3 tools/sample_native_gate.py --facts --filter borrowed_projection_cleanup`:
+  10/10 samples meet their documented oracle on `macos_arm64`, 9/9
+  intended-invalid controls match their authored rejection.
+- `python3 tools/corpus_gate.py --native --filter facts/borrowed_projection_cleanup`:
+  clean, 9 fixtures built, 9 executed at exit codes `{0: 9}`.
+- `python3 tools/corpus_gate.py --filter facts/borrowed_projection_cleanup`:
+  18 fixtures, 9 `checked` and 9 `rejected`, 0 fail fixtures failing to reject.
+- `python3 tools/corpus_gate.py --compare cc2f948d148 --filter facts/borrowed_projection_cleanup`:
+  0 lost, 0 gained. The nine fail twins' stored diagnostic text moved before
+  this change; this row neither caused nor regressed it.
+
+### Discrimination
+
+The recorded exit 0 is causal, not inert. Corrupting only the projection's own
+observed value — the `observe` guard 7 to 8, leaving `Pair.first` and the
+`Receipt::drop` contract untouched — flips all nine places from native exit 0
+and interpreter exit 0 to native signal 5 with interpreter crash Trap, both
+engines agreeing. A vacuous-guard control (`transition true`) still exits 0,
+so the `bad()` arm is reachable and the trap comes from the observed value
+rather than from an unreachable branch.
+
 Canonical authority: [ownership and borrowing](../../../../wiki/spec/language/ownership.md)
 retains original borrowed storage until callee completion.
 [Normal cleanup](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#normal-cleanup)
