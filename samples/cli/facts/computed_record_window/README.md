@@ -1,42 +1,62 @@
 # Computed record window
 
-In the `which == 0` arm, `[0..which + 2]` has length 2; `hold` preserves that
-extent in its returned `Held.values`, through which `write_pair` writes the backing.
-Every place retains this fact, bound, operation, and `f64` backing. The original
-root program remains unchanged.
+Parent task: **STATE-LOCAL-VALUE-FRONTIER** / **SAMPLE-CORPUS** (`TASKS.md`).
 
-The nine place programs are `local`, `field`, `parameter`, `call_result`,
-`match_join`, `const_name`, `other_state`, `other_machine`, and `target_body`.
-Each has a corresponding `controls/invalid_<place>` project. The twin changes
-only the matched endpoint from 2 to 1 (including the endpoint machine's own
-contract or the named constant). It must fail the unchanged length-2 promise;
-the state twin instead fails admission to the state requiring that extent.
-The controls match both the proof-refusal identity and its length proposition.
+## Governing requirement
 
-Each child exits 0 only after checking the four original backing elements with
-exact float equality. It exercises both the zero arm and wildcard arm; the join
-also exercises both Boolean alternatives. Writes must affect the selected two
-elements and preserve the other two. The state place forms the view before the
-transition and carries its extent into an explicit state contract. All four
-host target bodies are checked; only the matching host is executed.
+In the `which == 0` arm, `[0..which + 2]` has length 2; `hold` preserves that extent in its returned `Held.values`, through which `write_pair` writes the backing array. Every place retains this fact, bound, operation, and `f64` backing.
+
+**In the which == 0 arm, [0..which + 2] has length 2; hold preserves that extent in its returned Held.values, through which write_pair writes the backing.**
+
+Every place performs the same operation: compute a record window / subview (`&mut samples[0..which + 2]`) from an underlying four-element `f64` array (`samples: [f64; 4]`) in the matched `which == 0` branch, package it into a returned record `Held { values: samples }` under precondition `requires samples.len == 2` and postcondition `ensures result.values.len == 2`, write `0.0` and `1.0` through the returned field `leading.values` via `write_pair`, and verify that `samples[0] == 0.0` and `samples[1] == 1.0` while `samples[2]` and `samples[3]` preserve `9.0`. The positive oracle asserts the exact float values and exits 0 in both native and Terminal execution. Each invalid twin changes only the computed window endpoint from 2 to 1 (e.g. `[0..which + 1]`), failing the unchanged length-2 promise; the state twin fails admission to the state requiring that extent.
+
+## Places
+
+| Place | Positive | Reject twin | Transport |
+| --- | --- | --- | --- |
+| Root | [`main.omg`](main.omg) | — | Root baseline window computation across local, field, and call subjects with transition verification |
+| Local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | Computed slice window returned from machine and held in a record local |
+| Field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | Computed slice window stored in an enclosing record field before holding and writing |
+| Parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Computed slice window passed as an explicit machine parameter |
+| Call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Computed slice window returned directly from a helper call result |
+| Match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Both match arms yield slice windows that join with guaranteed extent |
+| Const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Named constant endpoint supplies the computed slice window bound |
+| Another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | State transition transports the computed slice window into a successor state |
+| Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Forwarding machine transports the computed slice window across machine boundaries |
+| Another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped machine bodies compute and return the slice window on each hosted target |
+| Case payload | [`case_payload/main.omg`](case_payload/main.omg) | [`case_payload/invalid/main.omg`](case_payload/invalid/main.omg) | Computed slice window packaged into an enum variant payload requiring `held.values.len == 2` |
+
+Existing controls under `controls/invalid_<place>` are preserved intact.
+
+### Verification commands
+
+Root `main.omg` and all place projects bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declare `Expected exit: 0`. Run any positive directly:
 
 ```sh
-python3 tools/sample_native_gate.py --filter cli/facts/computed_record_window
-python3 tools/corpus_gate.py --both --filter computed_record_window
+omega run --both samples/cli/facts/computed_record_window/main.omg
+omega run --both samples/cli/facts/computed_record_window/local/main.omg
+omega run --both samples/cli/facts/computed_record_window/field/main.omg
+omega run --both samples/cli/facts/computed_record_window/parameter/main.omg
+omega run --both samples/cli/facts/computed_record_window/call_result/main.omg
+omega run --both samples/cli/facts/computed_record_window/match_join/main.omg
+omega run --both samples/cli/facts/computed_record_window/const_name/main.omg
+omega run --both samples/cli/facts/computed_record_window/other_state/main.omg
+omega run --both samples/cli/facts/computed_record_window/other_machine/main.omg
+omega run --both samples/cli/facts/computed_record_window/target_body/main.omg
+omega run --both samples/cli/facts/computed_record_window/case_payload/main.omg
+```
+
+Each place has an `invalid/` twin whose computed window endpoint is 1 instead of 2, failing the length-2 promise. Check each twin with:
+
+```sh
+omega --check samples/cli/facts/computed_record_window/<place>/invalid/main.omg
 ```
 
 ## Measured oracle
 
-The root, all nine places, and `case_payload` each carry
-`expected_native_exit.txt` containing `0` beside an empty `input.txt`. Both
-files are required: `tools/sample_native_gate.py` honors authored `expected_*`
-files only for a project that carries `input.txt`, and otherwise scores the
-header alone. Measured on `macos_arm64` with the gate CLI: 11/11 samples meet
-their documented oracle with 0 unscored, and 10/10 intended-invalid controls
-match their authored rejection.
+The root, all nine places, and `case_payload` each carry `expected_native_exit.txt` containing `0` beside an empty `input.txt`. Both files are required: `tools/sample_native_gate.py` honors authored `expected_*` files only for a project that carries `input.txt`, and otherwise scores the header alone.
 
-The oracle discriminates on both halves of the fact. Against a byte-identical
-copy of `local/main.omg`:
+The oracle discriminates on both halves of the fact. Against a byte-identical copy of `local/main.omg`:
 
 | Probe | Result |
 | --- | --- |
@@ -44,83 +64,20 @@ copy of `local/main.omg`:
 | `write_pair` writes 5.0/7.0 instead of 0.0/1.0, every contract intact | native signal 5, interp crash Trap, exit 255 |
 | zero arm becomes `samples[1..index + 3]` with the length-2 promise intact | native signal 5, interp crash Trap, exit 255 |
 
-The second row shows the write through the returned record field is observable
-rather than assumed; the third shows a wrong window endpoint traps even when
-the promised length is unchanged.
+The second row shows the write through the returned record field is observable rather than assumed; the third shows a wrong window endpoint traps even when the promised length is unchanged.
 
-The matching regression pairs live under `tests/omega/{pass,fail}/facts`.
-`corpus_native_macos_arm64.txt` records all eleven positive fixtures at
-`exit:0`, and the nine `_rejected` rows pin the refuse diagnostics. A separate
-nonhost-body control weakens only the Windows body. Borrow controls
-also retain live-parent and detached-child exclusions.
+## Requirements and Evidence
 
-## Requirement coverage
+Owning task: **STATE-LOCAL-VALUE-FRONTIER** / **SAMPLE-CORPUS** (`TASKS.md`).
+The requirement established is that a record window / subview computed at runtime from a matched arm and carried out through a returned record field is proved from the matched branch hypothesis rather than a literal `[0..2]` spelling, and that writes through the returned field are observable and preserve disjoint sibling elements across all nine places.
 
-Owning task: the **Computed calls and state transfers** item under
-`TASKS.md` **SAMPLE-CORPUS**. The requirement discharged is that a window end
-computed at runtime and carried out through a returned record field is proved
-from the matched arm rather than from a literal `[0..2]` spelling, and that the
-write through that returned field is observable at runtime.
+- **Establishment:** Computing or borrowing a record window / subview (`&mut samples[0..which + 2]`) from an underlying backing array (`samples: [f64; 4]`) inside the matched branch `which == 0` establishes the window's extent (`result.len == 2`) directly from the branch hypothesis (`which == 0` implies `which + 2 == 2`). Machine `hold<'samples>(samples: &'samples mut [f64]) -> Held<'samples>` consumes the slice view under `requires samples.len == 2` and republishes `ensures result.values.len == 2` on the returned `Held` record. The length-2 invariant is established directly by the callee contracts and match facts without any post-hoc caller equality guard (`transition x == 100`).
+- **Identity and lifetime:** The computed record window retains its exact backing field identity and referent extent while unrelated sibling elements remain accessible. The returned record `Held<'samples> { values: &'samples mut [f64] }` carries an exclusive borrow of the subslice `samples[0..2]`. The borrow origin correctly tracks the parent array `samples` across local binding, record encapsulation, parameter passing, and state transitions, ensuring that writes through `leading.values` mutate only `samples[0]` and `samples[1]` while preserving `samples[2]` and `samples[3]` (`9.0`).
+- **Composition:** The computed record window and its extent/loan fact compose through all nine places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`, and `case_payload`) into the consuming write `write_pair(leading.values)` and subsequent backing verification. Across all nine places, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the computed window endpoint (e.g., `0 -> &mut samples[0..index + 1]` yielding length 1 instead of 2, or a named constant / state contract requiring extent 2 with endpoint 1), keeping the record holding and write operations identical.
+- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins (and corresponding `controls/invalid_*` controls) fail closed at compile time: when the computed window endpoint produces a subslice of length 1, `window` cannot discharge `ensures result.len == 2`, rejecting with `cannot prove ensures contract for exit from window` (`result.len == 2`), or fails admission to a successor state requiring that extent. Static verification prevents under-length or improperly bounded slice views from being wrapped in records or passed to `write_pair`.
+- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Computed record windows, view descriptors, and borrow restoration windows lower into canonical target-neutral Terminal Psi (`PSITERM\0`), preserving view descriptor carriers (pointer and length pair) inside the containing `Held` record while erasing proof-only obligation tags (`proof-term-tags`). The Terminal Psi interpreter evaluates slice indexing, length checks, record packaging, and indirect writes through view descriptors, agreeing identically with native execution (`omega run --both`, exit 0).
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Build companion rows join `ProgramEntry` declarations across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) to the Terminal catalog without reopening source. Layout plans validate backing array geometry (`[f64; 4]`: `size_of = 32`, `align_of = 8`), slice descriptors (`&mut [f64]`: pointer + length, `size_of = 16`, `align_of = 8`), and record `Held` (`size_of = 16`, `align_of = 8`). `CallPlan`/`StatePlan` lower slice views and record carriers across register pairs (e.g. `rcx`+`rdx` / `x0`+`x1`) and stack slots.
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Target backend lowering selects integer arithmetic for window offset calculations (`which + 2`), indexed double-precision floating-point loads and stores (`movsd` / `ldr d0`, `str d0`), and assigns register homes and activation frame storage. Worst-case stack usage (WCSU) is composed, and standard function entry prologues and epilogues are emitted honoring the `StatePlan` ceiling.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and slice descriptor offsets resolve, basic blocks and conditional branches relax with offset reflow around exit transitions, machine-state footprint evidence is validated (`actual_transitive_footprint ⊆ permitted_transitive_use`), and direct PE/ELF/Mach-O images are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across host targets including `windows_x86_64` and `macos_arm64`.
 
-- **Establishment.** The `ensures result.len == 2` contract on each window
-  machine is what supplies the extent; `hold` consumes it as
-  `requires samples.len == 2` and republishes `result.values.len == 2`. No
-  caller-side guard substitutes for it — `exercise` branches only on the
-  observed backing values.
-- **Identity and lifetime.** `Held.values` is the returned record field and the
-  sole write path to the backing; the four `f64` elements are read after the
-  write in the same state.
-- **Composition.** Each place moves the same computed length through a
-  different carrier (local, field, parameter, call result, match join, const
-  name, successor state, forwarding machine, target body). The positive and its
-  twin differ only in the matched endpoint, never in a caller guard.
-- **Soundness boundaries.** `hold` transfers the view into the record and
-  `write_pair` consumes it; the borrow that supplies the window stays live
-  across the call, which is the property the match-join witness pinned.
-- **Terminal Psi and carrier lowering.** `omega run --both` requires native and
-  Terminal Psi to agree on every place; both report exit 0.
-- **Native realization, frame/layout encoding, and image emission.** All four
-  hosted targets are checked; the row's eleven fixtures are recorded at
-  `exit:0` in the native golden.
-
-`tests/omega/run/slices/computed_record_window` binds all four hosted targets
-and now carries its own exit 0 oracle, recorded as `built ... exit:0` in the
-native golden alongside the eleven `_exit` fixtures.
-
-The match-join witness exposed `hold(view)` rejecting its own supplying view:
-`creates local borrow leading while local borrow view is still active`.
-Returning an unprojected referent descriptor must retain its actual supplier,
-even when a computed endpoint prevents a spatial containment proof. The repair
-preserves source-derived descriptor identity; projected referent children keep
-their independent lineage obligations.
-
-Authority comes from [borrowed range access](../../../../wiki/spec/language/expressions.md#borrowed-range-access),
-[match facts](../../../../wiki/spec/language/patterns.md), and
-[loan transfer and parent lineage](../../../../wiki/spec/language/ownership.md).
-
-Native realization also exposed two carrier-accounting gaps. Completion now
-captures returned mutable-slice sources alongside reference records before
-retiring local descriptors. View disposition uses the complete exact activation
-roster: every locally established alternative must have one valid establishment
-and the same release status. Multiple alternative claims realize one descriptor
-retirement; missing mappings, mixed coverage, and duplicate events still reject.
-The mixed-lifecycle regression exercises direct and call-produced views across
-both drop and state-transfer exits.
-
-These repairs implement the existing [return transaction](../../../../wiki/spec/terminal-psi/structural_access.md),
-[loan lifecycle](../../../../wiki/spec/terminal-psi/loans.md), and
-[call result custody](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md).
-
-The root program's transition `tail(&mut trace)` also exposed a home-namespace
-gap: state loan chains resolved a lent local's completed home only among
-discardable record results, so an array or byte-view local's binding answered
-"no exact completed home". All structural result bindings share the one
-establishment ordinal namespace; the lookup now names any of them.
-
-`case_payload/main.omg` keeps the same computed length-2 window and original
-backing write through `Outcome::Some { held: hold(window(samples, 0)) }`.
-Its selected case requires `held.values.len == 2` before construction; matching
-then carries that established condition into the state calling `write_pair`.
-The invalid twin changes only the window extent to 1. The constructor must
-consume completed operand snapshots and public call guarantees, without using
-its own not-yet-established case condition as a premise.
+The row is pinned by `tests/omega/pass/facts/computed_record_window_through_*_exit` and `tests/omega/fail/facts/computed_record_window_through_*_rejected` fixtures; every positive records native exit 0.
