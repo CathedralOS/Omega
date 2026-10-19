@@ -2325,15 +2325,24 @@ fail/facts/scalar_width_shifts_through_target_body_rejected rejected 2360ms expe
 	exact arithmetic in machine `shift_round_trip` state `entry` local `shifted` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_round_trip` state `entry` local `shifted` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_round_trip` state `entry` local `shifted` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/selected_native_code_layout_through_call_result_rejected rejected 27ms expected @b2bd1ba421fd+wt
-fail/facts/selected_native_code_layout_through_const_name_rejected rejected 24ms expected @b2bd1ba421fd+wt
-fail/facts/selected_native_code_layout_through_field_rejected rejected 26ms expected @b2bd1ba421fd+wt
-fail/facts/selected_native_code_layout_through_local_rejected rejected 25ms expected @b2bd1ba421fd+wt
-fail/facts/selected_native_code_layout_through_match_join_rejected rejected 32ms expected @b2bd1ba421fd+wt
-fail/facts/selected_native_code_layout_through_other_machine_rejected rejected 27ms expected @b2bd1ba421fd+wt
-fail/facts/selected_native_code_layout_through_other_state_rejected rejected 28ms expected @b2bd1ba421fd+wt
-fail/facts/selected_native_code_layout_through_parameter_rejected rejected 34ms expected @b2bd1ba421fd+wt
-fail/facts/selected_native_code_layout_through_target_body_rejected rejected 29ms expected @b2bd1ba421fd+wt
+fail/facts/selected_native_code_layout_through_call_result_rejected rejected 45ms expected @b9f8d3719246+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_const_name_rejected rejected 62ms expected @b9f8d3719246+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_field_rejected rejected 48ms expected @b9f8d3719246+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_local_rejected rejected 45ms expected @b9f8d3719246+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_match_join_rejected rejected 29ms expected @b9f8d3719246+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_other_machine_rejected rejected 22ms expected @b9f8d3719246+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_other_state_rejected rejected 17ms expected @b9f8d3719246+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_parameter_rejected rejected 21ms expected @b9f8d3719246+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
+fail/facts/selected_native_code_layout_through_target_body_rejected rejected 50ms expected @b9f8d3719246+wt
+	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
 fail/facts/signed_division_quotient_unproved_call_result rejected 2405ms expected @45cbafd80d9c
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/signed_division_quotient_unproved_const_name rejected 2403ms expected @45cbafd80d9c
@@ -6190,15 +6199,15 @@ pass/facts/scalar_width_shifts_through_other_machine_exit checked 7813ms check-t
 pass/facts/scalar_width_shifts_through_other_state_exit checked 7670ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_width_shifts_through_parameter_exit checked 7770ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_width_shifts_through_target_body_exit checked 7759ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/selected_native_code_layout_through_call_result_exit checked 8222ms check-target:linux_x86_64 @b2bd1ba421fd+wt
-pass/facts/selected_native_code_layout_through_const_name_exit checked 7944ms check-target:linux_x86_64 @b2bd1ba421fd+wt
-pass/facts/selected_native_code_layout_through_field_exit checked 8017ms check-target:linux_x86_64 @b2bd1ba421fd+wt
-pass/facts/selected_native_code_layout_through_local_exit checked 8062ms check-target:linux_x86_64 @b2bd1ba421fd+wt
-pass/facts/selected_native_code_layout_through_match_join_exit checked 8020ms check-target:linux_x86_64 @b2bd1ba421fd+wt
-pass/facts/selected_native_code_layout_through_other_machine_exit checked 8202ms check-target:linux_x86_64 @b2bd1ba421fd+wt
-pass/facts/selected_native_code_layout_through_other_state_exit checked 7960ms check-target:linux_x86_64 @b2bd1ba421fd+wt
-pass/facts/selected_native_code_layout_through_parameter_exit checked 7910ms check-target:linux_x86_64 @b2bd1ba421fd+wt
-pass/facts/selected_native_code_layout_through_target_body_exit checked 7977ms check-target:linux_x86_64 @b2bd1ba421fd+wt
+pass/facts/selected_native_code_layout_through_call_result_exit checked 7955ms check-target:macos_arm64 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_const_name_exit checked 7952ms check-target:macos_arm64 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_field_exit checked 8011ms check-target:macos_arm64 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_local_exit checked 7987ms check-target:macos_arm64 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_match_join_exit checked 7940ms check-target:macos_arm64 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_other_machine_exit checked 8055ms check-target:macos_arm64 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_other_state_exit checked 8043ms check-target:macos_arm64 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_parameter_exit checked 8053ms check-target:macos_arm64 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_target_body_exit checked 7957ms check-target:macos_arm64 @b9f8d3719246+wt
 pass/facts/signed_division_quotient_through_call_result_exit checked 7575ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_const_name_exit checked 7742ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_field_exit checked 7695ms check-target:macos_arm64 @45cbafd80d9c

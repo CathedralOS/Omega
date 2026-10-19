@@ -1370,6 +1370,15 @@ pass/facts/reference_arrival_handoff_through_other_machine_exit built 6277ms exi
 pass/facts/reference_arrival_handoff_through_other_state_exit built 6315ms exit:0 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_parameter_exit built 6349ms exit:0 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_target_body_exit built 6344ms exit:0 @3424ad143d6e
+pass/facts/selected_native_code_layout_through_call_result_exit built 8945ms exit:0 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_const_name_exit built 8947ms exit:0 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_field_exit built 8946ms exit:0 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_local_exit built 8954ms exit:0 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_match_join_exit built 8950ms exit:0 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_other_machine_exit built 8944ms exit:0 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_other_state_exit built 8953ms exit:0 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_parameter_exit built 8944ms exit:0 @b9f8d3719246+wt
+pass/facts/selected_native_code_layout_through_target_body_exit built 8944ms exit:0 @b9f8d3719246+wt
 pass/facts/temporary_case_cleanup_original_exit built 3991ms exit:0 @46f72294c589
 pass/facts/temporary_case_cleanup_through_call_result_exit built 3819ms exit:0 @46f72294c589
 pass/facts/temporary_case_cleanup_through_const_name_exit built 3904ms exit:0 @46f72294c589
