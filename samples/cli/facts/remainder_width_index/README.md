@@ -8,8 +8,11 @@ The operation is `buckets[value % width]` on a four-byte view whose length is
 `value == 15` it is 3 and the byte is 6. Each place copies that sentence and
 performs that selection; only the transport of the width relation changes.
 
+## Places
+
 | Place | Positive | Invalid | Width transport |
 | --- | --- | --- | --- |
+| (root) | [source](main.omg) | — | root application indexing view via remainder |
 | local | [source](local/main.omg) | [source](local/invalid/main.omg) | a local copy of the view's length |
 | field | [source](field/main.omg) | [source](field/invalid/main.omg) | a record field whose contract equals the length |
 | parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) | an explicit parameter required to equal the length |
@@ -67,30 +70,46 @@ caller guards.
   `width == buckets.len as u64` from local assignment, field/parameter/state
   contracts, call `ensures`, match arms, or `const WIDTH`, the slice indexing
   obligation `value % width < buckets.len` is discharged directly at
-  `buckets[value % width]`.
-- **Identity and lifetime:** the fact tracks the exact slice descriptor length
+  `buckets[value % width]` without any post-hoc caller equality guard.
+- **Identity and lifetime:** The fact tracks the exact slice descriptor length
   `buckets.len` and the `u64` width carrier (`width`, `window.width`, or
   `WIDTH`) across local bindings, record fields, call boundaries, and state
-  transitions while `buckets` remains borrowed and unmodified.
-- **Composition:** calls substitute exact actuals (`measure(buckets)` and
+  transitions while `buckets` remains borrowed as an immutable view and unmodified.
+- **Composition:** Calls substitute exact actuals (`measure(buckets)` and
   `read_at(value, buckets, ...)`), `match_join` retains the length equality
   only when established on both `true` and `false` arms (both executed at
   runtime), and `other_state` proves the arrival contract on `land` before
   indexing. Each `<place>/invalid/main.omg` differs from `<place>/main.omg`
   only in widening the width relation to `buckets.len as u64 + 1` (and `5` at
   call sites where required by the widened contract).
-- **Soundness boundaries:** every `invalid/` twin and corresponding
+- **Soundness boundaries:** Every `invalid/` twin and corresponding
   `tests/omega/fail/facts/remainder_width_through_*_rejected` fixture rejects at
   `buckets[value % ...]` with `cannot prove index ... is within unknown slice length`,
   and non-Exact casts remain rejected by
   `tests/omega/fail/collections/contract_length_wrapping_result_cast_rejected`.
-- **Terminal Psi and carrier lowering:** exact `u64` remainder and borrowed
-  slice indexing lower into Terminal Psi preserving the borrowed `&[u8]` view
-  descriptor and unsigned remainder evaluation across all nine places.
-- **Native realization, frame/layout encoding, and image emission:** root
-  `main.omg` and all nine positive places bind `ProgramEntry` for
-  `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, declare
-  `// Expected exit: 0`, and pass `omega run --both` with native and Terminal
-  Psi execution agreement (`exit 0`). What remains open: symbolic non-equality
-  divisor upper bounds (`width <= buckets.len as u64` with `width > 0`) and
-  signed remainder indexing bounds.
+- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Exact `u64` remainder
+  arithmetic and borrowed slice indexing lower into canonical target-neutral
+  Terminal Psi (`PSITERM\0`), preserving the borrowed `&[u8]` view descriptor
+  `(ptr, len)`, borrow restoration windows, unsigned modulo operations, and
+  bounds-checked projections across all nine places. All 10 positive entries
+  execute in the Terminal Psi interpreter (`omega run --both`), agreeing with native exit 0.
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
+  `ProgramEntry` settles across all four hosted targets (`windows_x86_64`,
+  `linux_x86_64`, `macos_arm64`, `linux_arm64`) through companion build
+  declarations. Target layout plans evaluate two-word slice descriptors (`size_of == 16`,
+  `align_of == 8`), and target calling plans (`CallPlan`/`StatePlan`) pass slice fat
+  pointers and `u64` values in standard ABI registers (RCX/RDX on `windows_x86_64`,
+  RDI/RSI on `linux_x86_64`, X0/X1 on `macos_arm64` and `linux_arm64`).
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):**
+  Backend lowering selects unsigned division/remainder instructions (`div` on x86-64,
+  `udiv` + `msub` on ARM64) and scaled indexed address loads (`movzx` / `ldrb`) for
+  byte selection, assigns register homes and disjoint stack-frame activation storage,
+  and inserts entry prologues and multi-return epilogues respecting the `StatePlan` ceiling.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):**
+  Symbolic stack-frame displacements resolve for slice descriptors and local
+  variables, basic blocks and conditional branches relax with offset reflow,
+  machine-state footprint evidence validates, and direct PE/ELF/Mach-O executables
+  are emitted, agreeing with Terminal Psi (`omega run --both` exit 0) across host
+  targets including `windows_x86_64` and `macos_arm64`.
+
+What remains open: symbolic non-equality divisor upper bounds (`width <= buckets.len as u64` with `width > 0`) and signed remainder indexing bounds.
