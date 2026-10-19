@@ -2551,24 +2551,24 @@ fail/facts/scalar_width_shifts_through_target_body_rejected rejected 2360ms expe
 	exact arithmetic in machine `shift_round_trip` state `entry` local `shifted` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_round_trip` state `entry` local `shifted` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_round_trip` state `entry` local `shifted` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/scoped_scalar_initializer_through_call_result_rejected rejected 3390ms expected @076ea863c75f
+fail/facts/scoped_scalar_initializer_through_call_result_rejected rejected 11633ms expected @81d9bd48f2a9+wt
 	cannot prove initializer of `scoped` in make is in domain `BelowIndex`; an annotation cannot establish routed qualification
-fail/facts/scoped_scalar_initializer_through_const_name_rejected rejected 198ms expected @076ea863c75f
+fail/facts/scoped_scalar_initializer_through_const_name_rejected rejected 472ms expected @81d9bd48f2a9+wt
 	cannot prove scalar result domain for return from @const-qualification-SCALAR-0 at statement 0: BelowIndex
-fail/facts/scoped_scalar_initializer_through_field_rejected rejected 1071ms expected @076ea863c75f
+fail/facts/scoped_scalar_initializer_through_field_rejected rejected 3518ms expected @81d9bd48f2a9+wt
 	construction of `Holder` field `scoped`: value 4 is outside its declared range `-9223372036854775808..=3`
-fail/facts/scoped_scalar_initializer_through_local_rejected rejected 3174ms expected @076ea863c75f
+fail/facts/scoped_scalar_initializer_through_local_rejected rejected 10699ms expected @81d9bd48f2a9+wt
 	cannot prove initializer of `scoped` in exercise is in domain `BelowIndex`; an annotation cannot establish routed qualification
-fail/facts/scoped_scalar_initializer_through_match_join_rejected rejected 3248ms expected @076ea863c75f
+fail/facts/scoped_scalar_initializer_through_match_join_rejected rejected 10487ms expected @81d9bd48f2a9+wt
 	cannot prove initializer of `value` in left is in domain `BelowIndex`; an annotation cannot establish routed qualification
 	cannot prove initializer of `value` in right is in domain `BelowIndex`; an annotation cannot establish routed qualification
-fail/facts/scoped_scalar_initializer_through_other_machine_rejected rejected 3267ms expected @076ea863c75f
+fail/facts/scoped_scalar_initializer_through_other_machine_rejected rejected 9354ms expected @81d9bd48f2a9+wt
 	cannot prove initializer of `scoped` in exercise is in domain `BelowIndex`; an annotation cannot establish routed qualification
-fail/facts/scoped_scalar_initializer_through_other_state_rejected rejected 3137ms expected @076ea863c75f
+fail/facts/scoped_scalar_initializer_through_other_state_rejected rejected 9894ms expected @81d9bd48f2a9+wt
 	cannot prove initializer of `scoped` in exercise is in domain `BelowIndex`; an annotation cannot establish routed qualification
-fail/facts/scoped_scalar_initializer_through_parameter_rejected rejected 1771ms expected @076ea863c75f
+fail/facts/scoped_scalar_initializer_through_parameter_rejected rejected 5002ms expected @81d9bd48f2a9+wt
 	cannot prove initializer of `scoped` in exercise is in domain `BelowIndex`; an annotation cannot establish routed qualification
-fail/facts/scoped_scalar_initializer_through_target_body_rejected rejected 1726ms expected @076ea863c75f
+fail/facts/scoped_scalar_initializer_through_target_body_rejected rejected 5121ms expected @81d9bd48f2a9+wt
 	cannot prove initializer of `scoped` in exercise is in domain `BelowIndex`; an annotation cannot establish routed qualification
 fail/facts/selected_native_code_layout_through_call_result_rejected rejected 45ms expected @b9f8d3719246+wt
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
@@ -6621,15 +6621,15 @@ pass/facts/scalar_width_shifts_through_other_machine_exit checked 7813ms check-t
 pass/facts/scalar_width_shifts_through_other_state_exit checked 7670ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_width_shifts_through_parameter_exit checked 7770ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_width_shifts_through_target_body_exit checked 7759ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/scoped_scalar_initializer_through_call_result_exit checked 17169ms check-target:macos_arm64 @076ea863c75f
-pass/facts/scoped_scalar_initializer_through_const_name_exit checked 17468ms check-target:macos_arm64 @076ea863c75f
-pass/facts/scoped_scalar_initializer_through_field_exit checked 17330ms check-target:macos_arm64 @076ea863c75f
-pass/facts/scoped_scalar_initializer_through_local_exit checked 17201ms check-target:macos_arm64 @076ea863c75f
-pass/facts/scoped_scalar_initializer_through_match_join_exit checked 17099ms check-target:macos_arm64 @076ea863c75f
-pass/facts/scoped_scalar_initializer_through_other_machine_exit checked 17399ms check-target:macos_arm64 @076ea863c75f
-pass/facts/scoped_scalar_initializer_through_other_state_exit checked 17358ms check-target:macos_arm64 @076ea863c75f
-pass/facts/scoped_scalar_initializer_through_parameter_exit checked 17300ms check-target:macos_arm64 @076ea863c75f
-pass/facts/scoped_scalar_initializer_through_target_body_exit checked 17346ms check-target:macos_arm64 @076ea863c75f
+pass/facts/scoped_scalar_initializer_through_call_result_exit checked 56010ms check-target:macos_arm64 @81d9bd48f2a9+wt
+pass/facts/scoped_scalar_initializer_through_const_name_exit checked 56364ms check-target:macos_arm64 @81d9bd48f2a9+wt
+pass/facts/scoped_scalar_initializer_through_field_exit checked 55943ms check-target:macos_arm64 @81d9bd48f2a9+wt
+pass/facts/scoped_scalar_initializer_through_local_exit checked 55800ms check-target:macos_arm64 @81d9bd48f2a9+wt
+pass/facts/scoped_scalar_initializer_through_match_join_exit checked 55493ms check-target:macos_arm64 @81d9bd48f2a9+wt
+pass/facts/scoped_scalar_initializer_through_other_machine_exit checked 55445ms check-target:macos_arm64 @81d9bd48f2a9+wt
+pass/facts/scoped_scalar_initializer_through_other_state_exit checked 56028ms check-target:macos_arm64 @81d9bd48f2a9+wt
+pass/facts/scoped_scalar_initializer_through_parameter_exit checked 55553ms check-target:macos_arm64 @81d9bd48f2a9+wt
+pass/facts/scoped_scalar_initializer_through_target_body_exit checked 55417ms check-target:macos_arm64 @81d9bd48f2a9+wt
 pass/facts/selected_native_code_layout_through_call_result_exit checked 7955ms check-target:macos_arm64 @b9f8d3719246+wt
 pass/facts/selected_native_code_layout_through_const_name_exit checked 7952ms check-target:macos_arm64 @b9f8d3719246+wt
 pass/facts/selected_native_code_layout_through_field_exit checked 8011ms check-target:macos_arm64 @b9f8d3719246+wt

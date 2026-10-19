@@ -89,14 +89,37 @@ whose value is not a literal or a live place read. The declaration supplies
 goals, never premises, and a mismatched instance is never satisfied by a
 same-symbol application.
 
-## Terminal Psi and carrier lowering
+## Checked-to-Terminal Psi lowering (Psi 05–07)
 
 `u64 in BelowIndex<4>` is the ordinary `u64` carrier: no runtime tag, wrapper,
 hidden storage or instance-specific ABI is introduced. Source construction
-lowers without loss into Terminal Psi and the same target-neutral scalar
-operations, and every place realizes that same carrier. `omega run --both`
-observes the identical result from the interpreter core and native execution,
-which is the agreement recorded below.
+lowers without loss into canonical target-neutral Terminal Psi and the same
+target-neutral scalar operations, erasing the proof-only qualification binding
+while preserving the executable value, and every place realizes that same
+carrier. `omega run --both` observes the identical result from the interpreter
+core and native execution, which is the agreement recorded below.
+
+## Provider settlement, layout geometry, and ABI calling plans (Omega 00–02)
+
+The scoped qualification adds no provider demand, no layout and no call-plan
+placement: `BelowIndex<4>` has the `u64` carrier's ordinary size and alignment,
+and the places that call and return use the same scalar register lane they would
+without the qualification. What changes is only which predicates the
+initializer must prove before that carrier becomes readable.
+
+## Instruction selection, register homes, and activation frame realization (Omega 03–06)
+
+The scoped instance selects no instruction, register home, spill slot or frame
+layout. The `parameter`, `call_result` and `other_machine` places exercise the
+same scalar call and return path, and the `other_state` place the same state
+transition, with the established value live across them unchanged.
+
+## Form encoding, branch relaxation, relocations, and native image emission (Omega 07–09 + emission)
+
+Each place emits an ordinary image for its bound targets; the qualification
+introduces no relocation, byte-pool or dispatch-table entry. The `match_join`
+place exercises the ordinary branch layout for its two arms, and every place
+executes at the authored exit.
 
 ## Native realization and image emission
 
