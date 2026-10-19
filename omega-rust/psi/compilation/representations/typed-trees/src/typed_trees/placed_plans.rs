@@ -1,6 +1,8 @@
 //! Placed view, field and accessor plans and the plan-laid layouts.
 
+mod primitive_selection;
 mod sealed_accessors;
+pub use primitive_selection::PlacedAccessPrimitive;
 pub use sealed_accessors::{PlacedScalarAccessorDeclaration, PlacedScalarAccessorOperation};
 
 use crate::typed_trees::ClosedConformanceApplication;

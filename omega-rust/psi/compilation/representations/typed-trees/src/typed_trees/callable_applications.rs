@@ -116,6 +116,9 @@ pub struct CallableSubstitution {
 pub struct AppliedMachineCallable<'a> {
     pub lexical_owner: SymbolHandle,
     pub provider: crate::static_applications::StaticMachineApplicationHandle,
+    /// Executable entry selected by this occurrence. The substituted source
+    /// signature below deliberately retains the original declaration symbol.
+    pub selected_entry: SymbolHandle,
     pub required: &'a signature::StateSignature,
     pub selected: &'a signature::StateSignature,
     pub source_required: &'a signature::StateSignature,

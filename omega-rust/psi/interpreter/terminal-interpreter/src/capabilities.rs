@@ -95,6 +95,7 @@ pub(crate) fn check_with_private_entry_ram(
     let mut imports = BTreeSet::new();
     let mut missing_providers = BTreeSet::new();
     let mut placed_candidates = Vec::new();
+    let mut selected_calls = Vec::new();
     let mut external_completion = None;
     let mut external_demands = BTreeSet::new();
     let mut pending = vec![entry];
@@ -178,6 +179,9 @@ pub(crate) fn check_with_private_entry_ram(
                                 *boundary,
                             )?;
                             if let terminal_psi::TargetMachineCallable::Machine(member) = member {
+                                if !selected_calls.contains(&(*boundary, member)) {
+                                    selected_calls.push((*boundary, member));
+                                }
                                 crate::calls::target_families::validate_result_transport(
                                     operation,
                                     program.verified_machine(member)?,
@@ -295,8 +299,10 @@ pub(crate) fn check_with_private_entry_ram(
     // formation proof discharges the adapter obligation for an internal RAM
     // handler. Host, mixed and unresolved alternatives remain in the roster.
     if !placed_candidates.is_empty() {
-        let graph =
-            terminal_semantics::descriptor_results::terminal_placed_origin_graph(&program.catalogs);
+        let graph = terminal_semantics::descriptor_results::terminal_placed_origin_graph(
+            &program.catalogs,
+            &selected_calls,
+        );
         if let Some(graph) = graph {
             let mut origins = terminal_semantics::PlacedRamOriginAnalysis::new(
                 &program.catalogs,

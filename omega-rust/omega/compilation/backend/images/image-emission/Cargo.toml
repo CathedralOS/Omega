@@ -23,6 +23,7 @@ legalized-operations = { path = "../../../representations/target-operations/lega
 selected-instructions = { path = "../../../representations/selected-instructions" }
 calling-conventions = { path = "../../calling-conventions" }
 abstract-operations = { path = "../../../representations/abstract-operations" }
+optimization-unit-semantics = { path = "../../../representations/abstract-operations/optimization-unit/semantics" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 layout-plans = { path = "../../../../../psi/foundation/layout-plans", optional = true }

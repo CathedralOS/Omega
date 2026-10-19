@@ -1589,6 +1589,8 @@ fail/effects/nominal_callback_console_const_reach rejected 105ms expected @a9ae3
 fail/effects/portable_filesystem_write_needs_write_reach rejected 4838ms expected @aebe0714a499+wt
 fail/effects/provider_authored_reach_beyond_invocation rejected 920ms expected @7e6c0ae564d2+wt
 fail/effects/reviewed_service_rows_missing_capability rejected 2676ms expected @088321186835+wt
+fail/effects/static_boundary_callback_reach rejected 1328ms expected @3b18b32f7117+wt
+	machine `main` state `entry` does not satisfy trait `Published` machine `run`: service `Read` is not allowed by the trait requirement
 fail/effects/synchronous_callback_block_required rejected 337ms expected @c5a7c1ce1957+wt
 fail/effects/synchronous_callback_reach_required rejected 473ms expected @fef885d565a2+wt
 fail/effects/top_level_callback_block_required rejected 342ms expected @c5a7c1ce1957+wt
@@ -2441,6 +2443,24 @@ fail/facts/owned_qualified_reference_carrier_reuse rejected 369ms expected @ab16
 fail/facts/owned_qualified_reference_field_reuse rejected 1316ms expected @ab16f19fe1b1+wt
 fail/facts/owned_qualified_reference_result_reuse rejected 1305ms expected @ab16f19fe1b1+wt
 fail/facts/owned_qualified_reference_selection_reuse rejected 1288ms expected @ab16f19fe1b1+wt
+fail/facts/placed_stable_write/call_result rejected 14565ms expected @3b18b32f7117+wt
+	placed write application: the placement plan does not permit this operation
+fail/facts/placed_stable_write/const_name rejected 13851ms expected @3b18b32f7117+wt
+	placed write application: the placement plan does not permit this operation
+fail/facts/placed_stable_write/field rejected 14246ms expected @3b18b32f7117+wt
+	placed write application: the placement plan does not permit this operation
+fail/facts/placed_stable_write/local rejected 14018ms expected @3b18b32f7117+wt
+	placed write application: the placement plan does not permit this operation
+fail/facts/placed_stable_write/match_join rejected 14211ms expected @3b18b32f7117+wt
+	placed write application: the placement plan does not permit this operation
+fail/facts/placed_stable_write/other_machine rejected 14057ms expected @3b18b32f7117+wt
+	placed write application: the placement plan does not permit this operation
+fail/facts/placed_stable_write/other_state rejected 13492ms expected @3b18b32f7117+wt
+	placed write application: the placement plan does not permit this operation
+fail/facts/placed_stable_write/parameter rejected 13169ms expected @3b18b32f7117+wt
+	placed write application: the placement plan does not permit this operation
+fail/facts/placed_stable_write/target_body rejected 13626ms expected @3b18b32f7117+wt
+	placed write application: the placement plan does not permit this operation
 fail/facts/qualified_join_routed_authority rejected 727ms expected @8a884ecc43d5+wt
 fail/facts/qualified_linear_value_reused_after_transfer rejected 391ms expected @ab16f19fe1b1+wt
 fail/facts/qualified_owned_join_missing_arm rejected 267ms expected @8a884ecc43d5+wt
@@ -3188,6 +3208,22 @@ fail/layouts/placed_factory_requires_exclusive_source rejected 6056ms expected @
 	argument `source` for state `view_mut` is declared `&mut` (`&mut Registers`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 	machine `bad` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/layouts/placed_policy_requires_exact_attached_owner rejected 24ms expected @0855a204a2df+wt
+fail/layouts/placed_primitive_denied_write rejected 13088ms expected @3b18b32f7117+wt
+	placed write application: the placement plan does not permit this operation
+fail/layouts/placed_primitive_generic_wrapper rejected 13141ms expected @3b18b32f7117+wt
+	placed read application: requires an exact compiler-issued placed field accessor; an ordinary or unconstrained generic type grants no operation
+fail/layouts/placed_primitive_lookalike rejected 12723ms expected @3b18b32f7117+wt
+	placed read application: requires an exact compiler-issued placed field accessor; an ordinary or unconstrained generic type grants no operation
+fail/layouts/placed_primitive_private_unused rejected 16102ms expected @3b18b32f7117+wt
+	binding-private placed accessor `number` belongs to placement policy `StablePlacement`'s package
+fail/layouts/placed_primitive_reference_accessor rejected 13029ms expected @3b18b32f7117+wt
+	argument `field` for state `entry` expects `&PlacedField<Placed<StablePlacement,Value>,number>`, got `member access`
+fail/layouts/placed_primitive_shared_source rejected 11196ms expected @3b18b32f7117+wt
+	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
+fail/layouts/placed_primitive_unused_invalid rejected 9163ms expected @3b18b32f7117+wt
+	placed read application: requires an exact compiler-issued placed field accessor; an ordinary or unconstrained generic type grants no operation
+fail/layouts/placed_primitive_wrong_value rejected 9006ms expected @3b18b32f7117+wt
+	placed read application: value type does not match the placed field's exact value type
 fail/layouts/placed_ram_mixed_callback rejected 40033ms expected @c48489ea6ad6
 fail/layouts/placed_shared_formal_cannot_write rejected 5899ms expected @287adceca130+wt
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
@@ -6072,6 +6108,7 @@ pass/effects/reach_inferred_wrapper checked 9161ms @5041ef1af684+wt
 pass/effects/reach_through_machine_param checked 9378ms @5041ef1af684+wt
 pass/effects/reviewed_service_rows_exit checked 13265ms check-target:macos_arm64 @088321186835+wt
 pass/effects/runtime_empty_boundary_reach_exit checked 8163ms check-target:macos_arm64 @03d6ab4d9d4c
+pass/effects/static_boundary_callback_reach checked 4794ms @3b18b32f7117+wt
 pass/effects/structural_callback_reach checked 1685ms @a9ae30e1c334+wt
 pass/effects/top_level_callback_provider_ceiling checked 1241ms @c5a7c1ce1957+wt
 pass/effects/windows_filesystem_capability_rows checked 9299ms @18ee7b79c832
@@ -6656,6 +6693,15 @@ pass/facts/owned_qualified_reference_carrier_exit checked 3812ms check-target:ma
 pass/facts/owned_qualified_reference_field_exit checked 3796ms check-target:macos_arm64 @ab16f19fe1b1+wt
 pass/facts/owned_qualified_reference_result_exit checked 3797ms check-target:macos_arm64 @ab16f19fe1b1+wt
 pass/facts/owned_qualified_reference_selection_exit checked 3821ms check-target:macos_arm64 @ab16f19fe1b1+wt
+pass/facts/placed_stable_write/call_result checked 52995ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/facts/placed_stable_write/const_name checked 50676ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/facts/placed_stable_write/field checked 51617ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/facts/placed_stable_write/local checked 51144ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/facts/placed_stable_write/match_join checked 51597ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/facts/placed_stable_write/other_machine checked 51678ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/facts/placed_stable_write/other_state checked 52020ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/facts/placed_stable_write/parameter checked 51520ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/facts/placed_stable_write/target_body checked 53045ms check-target:macos_arm64 @3b18b32f7117+wt
 pass/facts/qualified_borrowed_join_exit checked 3994ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/qualified_owned_join_exit checked 4372ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/range_fact_delivery_through_call_result_exit checked 8159ms check-target:macos_arm64 @ff8be1e0d475
@@ -7262,6 +7308,15 @@ pass/layouts/nested_record_layout_queries_compile checked 1659ms @a9ae30e1c334+w
 pass/layouts/nested_sum_member_layout_compile checked 1655ms @a9ae30e1c334+wt
 pass/layouts/odd_array_then_byte_layout_compile checked 1799ms @a9ae30e1c334+wt
 pass/layouts/placed_policy_owner_selection checked 6243ms @0855a204a2df+wt
+pass/layouts/placed_primitive_aligned_backing checked 61089ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/layouts/placed_primitive_authored_name checked 20985ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/layouts/placed_primitive_callback checked 49798ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/layouts/placed_primitive_generic_concrete checked 45204ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/layouts/placed_primitive_mixed_backing_rejected rejected 38856ms check-target:macos_arm64 @3b18b32f7117+wt
+	native artifact fragment object publication failed: placed backing geometry at MachineId(2)/OperationId(22): actual backing does not meet the placed schema, extent or base congruence
+pass/layouts/placed_primitive_returned_backing checked 32866ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/layouts/placed_primitive_stored_backing checked 32881ms check-target:macos_arm64 @3b18b32f7117+wt
+pass/layouts/placed_primitive_unused_valid checked 32704ms check-target:macos_arm64 @3b18b32f7117+wt
 pass/layouts/placed_ram_mixed_callback checked 9120ms @7c1edd43e7e4+wt
 pass/layouts/placed_view_call_custody checked 52441ms terminal-inspections:match @ce05f6f0788b
 pass/layouts/placed_view_source_access_compile checked 13118ms @a9ae30e1c334+wt

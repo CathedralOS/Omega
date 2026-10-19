@@ -680,7 +680,7 @@ pub fn terminal_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
     module
         .machines
         .iter()
-        .filter_map(|machine| terminal_flow::adapt(module, machine, DescriptorSlotKind::Views))
+        .filter_map(|machine| terminal_flow::adapt(module, machine, DescriptorSlotKind::Views, &[]))
         .collect()
 }
 
@@ -689,17 +689,31 @@ pub fn terminal_reference_graph(module: &TerminalModule) -> Vec<DescriptorMachin
     module
         .machines
         .iter()
-        .filter_map(|machine| terminal_flow::adapt(module, machine, DescriptorSlotKind::References))
+        .filter_map(|machine| {
+            terminal_flow::adapt(module, machine, DescriptorSlotKind::References, &[])
+        })
         .collect()
 }
 
 /// Placed-loan provenance uses the same exact descriptor transport graph,
 /// retaining formation tokens separately from ordinary backing addresses.
-pub fn terminal_placed_origin_graph(module: &TerminalModule) -> Option<Vec<DescriptorMachine>> {
+/// Selected checked callees are supplied by the execution owner, never inferred
+/// from a family spelling or from whichever member happens to have a body.
+pub fn terminal_placed_origin_graph(
+    module: &TerminalModule,
+    selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+) -> Option<Vec<DescriptorMachine>> {
     module
         .machines
         .iter()
-        .map(|machine| terminal_flow::adapt(module, machine, DescriptorSlotKind::PlacedOrigins))
+        .map(|machine| {
+            terminal_flow::adapt(
+                module,
+                machine,
+                DescriptorSlotKind::PlacedOrigins,
+                selected_calls,
+            )
+        })
         .collect()
 }
 

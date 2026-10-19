@@ -7,6 +7,7 @@
 //! value checking.
 
 mod forwarded_evidence;
+mod placed_primitives;
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -217,10 +218,11 @@ pub fn validate_static_machine_bindings(
         .flat_map(|application| {
             program
                 .applied_machine_callables(*application)
-                .map(|view| view.provider)
+                .map(|view| (view.provider, view.selected_entry))
         })
         .collect::<Vec<_>>();
-    applications.extend(providers);
+    call_targets.extend(providers.iter().copied());
+    applications.extend(providers.into_iter().map(|(provider, _)| provider));
     for handle in applications {
         let application = program.expression_table.static_machine_application(handle);
         let bindings = program
@@ -229,6 +231,16 @@ pub fn validate_static_machine_bindings(
         let lifetimes = program
             .expression_table
             .static_machine_application_lifetimes(handle);
+        if let Err(diagnostic) = placed_primitives::validate(
+            program,
+            application,
+            bindings,
+            call_targets
+                .iter()
+                .filter_map(|(source, target)| (*source == handle).then_some(*target)),
+        ) {
+            diagnostics.push(diagnostic);
+        }
         if bindings.is_empty() && lifetimes.is_empty() {
             continue;
         }

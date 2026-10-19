@@ -767,6 +767,7 @@ dependencies = [
  "machine-emission",
  "object-file",
  "optimization-core",
+ "optimization-unit-semantics",
  "program-entry-plan",
  "register-model",
  "runtime-abi",

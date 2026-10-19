@@ -32,6 +32,11 @@ pub enum FunctionFragmentObjectArtifactError {
         operation_description: String,
     },
     Mismatch(&'static str),
+    PlacedBackingGeometry {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        reason: &'static str,
+    },
     PrivateFunctions(crate::ObjectError),
     ForeignCalls(crate::ObjectError),
     NativeEntryBridge(machine_emission::native_entry_bridge::NativeEntryBridgeError),
@@ -47,6 +52,14 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
             Self::NativeEntryBridge(error) => write!(formatter, "native entry transport: {error}"),
             Self::PhysicalEntry(error) => error.fmt(formatter),
             Self::Unsupported(reason) | Self::Mismatch(reason) => formatter.write_str(reason),
+            Self::PlacedBackingGeometry {
+                machine,
+                operation,
+                reason,
+            } => write!(
+                formatter,
+                "placed backing geometry at {machine:?}/{operation:?}: {reason}",
+            ),
             Self::UnaccountedOperation {
                 machine,
                 operation_ordinal,

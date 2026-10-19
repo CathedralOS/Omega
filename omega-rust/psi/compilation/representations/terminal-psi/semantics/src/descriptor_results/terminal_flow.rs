@@ -21,6 +21,7 @@ pub(super) fn adapt(
     module: &TerminalModule,
     machine: &TerminalMachine,
     slot_kind: DescriptorSlotKind,
+    selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
 ) -> Option<DescriptorMachine> {
     let mut graph = DescriptorMachine {
         id: machine.id,
@@ -334,6 +335,37 @@ pub(super) fn adapt(
             if !payload_writes.is_empty() {
                 graph.payload_invalidations.insert(position, payload_writes);
             }
+            // A selected checked family member is an ordinary callee for
+            // descriptor transport. Feed its exact arguments through the same
+            // graph join; opaque boundaries keep their invalidation semantics.
+            let direct_call = match &operation.kind {
+                OperationKind::CallUnit {
+                    callee,
+                    structural_arguments,
+                    ..
+                }
+                | OperationKind::CallStructuralScalar {
+                    callee,
+                    structural_arguments,
+                    ..
+                }
+                | terminal_psi::call_structural_pair_pattern!(callee, structural_arguments, ..) => {
+                    Some((*callee, structural_arguments))
+                }
+                OperationKind::BoundaryCall {
+                    boundary,
+                    structural_arguments,
+                    ..
+                } => {
+                    let mut selections = selected_calls.iter().filter(|(head, _)| head == boundary);
+                    match (selections.next(), selections.next()) {
+                        (Some((_, callee)), None) => Some((*callee, structural_arguments)),
+                        (None, None) => None,
+                        _ => return None,
+                    }
+                }
+                _ => None,
+            };
             match &operation.kind {
                 OperationKind::ByteSequenceLength { source }
                 | OperationKind::ElementViewLength { source } => {
@@ -847,21 +879,12 @@ pub(super) fn adapt(
                     }
                     graph.calls.insert(position, call);
                 }
-                OperationKind::CallUnit {
-                    callee,
-                    structural_arguments,
-                    ..
-                }
-                | OperationKind::CallStructuralScalar {
-                    callee,
-                    structural_arguments,
-                    ..
-                }
-                | terminal_psi::call_structural_pair_pattern!(callee, structural_arguments, ..) => {
+                _ if direct_call.is_some() => {
+                    let (callee, structural_arguments) = direct_call?;
                     let mut matching = module
                         .machines
                         .iter()
-                        .filter(|machine| machine.id == *callee);
+                        .filter(|machine| machine.id == callee);
                     let callee = matching.next()?;
                     if matching.next().is_some()
                         || callee.structural_parameters.len() != structural_arguments.len()

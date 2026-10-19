@@ -23,6 +23,11 @@ pub(crate) struct AggregateViewRegion {
 #[derive(Clone)]
 pub(crate) struct AggregateBacking {
     pub(crate) value: TerminalStructuralValue,
+    /// A placed presentation keeps its exact RAM occurrence across borrowed
+    /// call and state ingress, including an already selected field accessor.
+    /// The pinned home and attenuated access travel together; its type alone
+    /// cannot reconstruct either association.
+    pub(crate) placed_ram: Option<super::PlacedRamReference>,
     /// Logical re-view geometry and physical byte storage are independent:
     /// a typed re-view may itself borrow an already captured byte region.
     pub(crate) region: Option<AggregateViewRegion>,

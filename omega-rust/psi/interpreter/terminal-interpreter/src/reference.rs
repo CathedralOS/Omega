@@ -969,11 +969,26 @@ impl TerminalExecution<'_> {
         if byte_region.is_some() && argument.access == StructuralAccess::Owned {
             return Err(malformed());
         }
-        let backing = (region.is_some() || byte_region.is_some()).then(|| AggregateBacking {
-            value: value.clone(),
-            region,
-            byte_region,
-        });
+        let mut placed_ram = projected.placed_ram;
+        if let Some(ram) = &mut placed_ram {
+            self.validate_placed_ram_home(ram)?;
+            if argument.access == StructuralAccess::Owned
+                || !access_covers(ram.access, argument.access)
+                || ram.presentation != value
+            {
+                return Err(malformed());
+            }
+            ram.access = argument.access;
+        }
+        let backing =
+            (region.is_some() || byte_region.is_some() || placed_ram.is_some()).then(|| {
+                AggregateBacking {
+                    value: value.clone(),
+                    placed_ram,
+                    region,
+                    byte_region,
+                }
+            });
         if let Some(region) = region {
             value.structural_type = region.structural_type;
         }
@@ -1144,9 +1159,9 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
-        let (backing, view) = match self.aggregate_argument_backings.get(&place) {
-            Some(backing) => (&backing.value, backing.region),
-            None => (owner, None),
+        let (backing, view, placed_ram) = match self.aggregate_argument_backings.get(&place) {
+            Some(backing) => (&backing.value, backing.region, backing.placed_ram.clone()),
+            None => (owner, None, None),
         };
         self.resolve_reference_view_path_with_leaf_type(
             backing,
@@ -1154,7 +1169,7 @@ impl TerminalExecution<'_> {
             Some(access),
             leaf_type,
             view,
-            None,
+            placed_ram,
             self.element_view_values.get(&place).cloned(),
         )?
         .ok_or_else(malformed)
@@ -1209,9 +1224,9 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
         let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
-        let (backing, view) = match self.aggregate_argument_backings.get(&place) {
-            Some(backing) => (&backing.value, backing.region),
-            None => (owner, None),
+        let (backing, view, placed_ram) = match self.aggregate_argument_backings.get(&place) {
+            Some(backing) => (&backing.value, backing.region, backing.placed_ram.clone()),
+            None => (owner, None, None),
         };
         self.resolve_reference_view_path_with_leaf_type(
             backing,
@@ -1219,7 +1234,7 @@ impl TerminalExecution<'_> {
             None,
             terminal_psi::StructuralFieldType::canonical_leaf_type,
             view,
-            None,
+            placed_ram,
             self.element_view_values.get(&place).cloned(),
         )?
         .map(|projection| projection.value)
@@ -1678,9 +1693,12 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     let path = binding.source.path.as_slice();
-                    let (backing, view) = match aggregate_backings.get(&parameter.place) {
-                        Some(backing) => (&backing.value, backing.region),
-                        None => (owner, None),
+                    let (backing, view, placed_ram) = match aggregate_backings.get(&parameter.place)
+                    {
+                        Some(backing) => {
+                            (&backing.value, backing.region, backing.placed_ram.clone())
+                        }
+                        None => (owner, None, None),
                     };
                     let Some(projected) = self.resolve_reference_view_path_with_leaf_type(
                         backing,
@@ -1688,12 +1706,14 @@ impl TerminalExecution<'_> {
                         Some(source.access),
                         terminal_psi::StructuralFieldType::canonical_leaf_type,
                         view,
-                        placed_occurrences
-                            .values()
-                            .find(|occurrence| {
-                                occurrence.view == StructuralRuntimePlace::from(owner)
-                            })
-                            .and_then(|occurrence| occurrence.ram.clone()),
+                        placed_ram.or_else(|| {
+                            placed_occurrences
+                                .values()
+                                .find(|occurrence| {
+                                    occurrence.view == StructuralRuntimePlace::from(owner)
+                                })
+                                .and_then(|occurrence| occurrence.ram.clone())
+                        }),
                         array_loans.get(&parameter.place).cloned(),
                     )?
                     else {

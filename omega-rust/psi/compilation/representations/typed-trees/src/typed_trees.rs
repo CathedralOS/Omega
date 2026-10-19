@@ -65,11 +65,12 @@ pub use commitments::{
     closed_conformance_applications_of, machine_specialization_matches_template_identity,
 };
 pub use placed_plans::{
-    PlacedAccessorTarget, PlacedAtomicObservingResultContract, PlacedAtomicResidentContract,
-    PlacedFieldPlan, PlacedScalarAccessorDeclaration, PlacedScalarAccessorOperation,
-    PlacedViewPlan, PlanLaidBitField, PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField,
-    PlanLaidLayout, PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidSchemaArgument,
-    PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
+    PlacedAccessPrimitive, PlacedAccessorTarget, PlacedAtomicObservingResultContract,
+    PlacedAtomicResidentContract, PlacedFieldPlan, PlacedScalarAccessorDeclaration,
+    PlacedScalarAccessorOperation, PlacedViewPlan, PlanLaidBitField, PlanLaidBitFragment,
+    PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations,
+    PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind,
+    PlanLaidTargetLayout,
 };
 
 use crate::{

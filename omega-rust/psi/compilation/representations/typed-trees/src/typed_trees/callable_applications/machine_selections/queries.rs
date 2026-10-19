@@ -66,6 +66,7 @@ impl TypedTrees {
                             .static_machine_application(*provider)
                             .lexical_owner,
                         provider: *provider,
+                        selected_entry: *entry,
                         required,
                         selected: &prepared.signature,
                         source_required,
@@ -193,6 +194,7 @@ impl TypedTrees {
             .filter_map(move |(_, prepared)| {
                 let AppliedCallableOwner::MachineSelection {
                     invocation: source,
+                    selected: entry,
                     provider,
                     required,
                     source_required,
@@ -209,6 +211,7 @@ impl TypedTrees {
                         .static_machine_application(*provider)
                         .lexical_owner,
                     provider: *provider,
+                    selected_entry: *entry,
                     required,
                     selected: &prepared.signature,
                     source_required,

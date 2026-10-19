@@ -10,7 +10,7 @@ use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use semantic_vocabulary::MachineId;
 mod aggregate_results;
 mod control_flow;
-mod placed_reference;
+pub(super) mod placed_reference;
 mod primitive_accesses;
 mod stack_calls;
 mod structural_case;
@@ -156,6 +156,25 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         ));
     }
     let current = source.source().source().source().source();
+    let abstract_plan = current.optimized_target().optimized().plan();
+    let geometry_graph = abstract_plan
+        .operations()
+        .any(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::EstablishPlacedReference { .. }
+            )
+        })
+        .then(|| placed_reference::backing_geometry::graph(abstract_plan))
+        .flatten();
+    let mut geometry = geometry_graph.as_ref().map(|graph| {
+        placed_reference::backing_geometry::BackingGeometry::new(
+            abstract_plan,
+            current.selected_plan(),
+            current.optimized_target().target_operations(),
+            graph,
+        )
+    });
     for fragment in &fragments.functions {
         let (abstracted, targeted) = function(source, fragment.machine)?;
         let unit = matches!(abstracted.result, AbstractFunctionResult::Unit);
@@ -343,6 +362,11 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     structural_fields::retained(abstracted, operation, targeted)
                         && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                 }
+                AbstractOperation::EstablishPlacedReference { psi_operation, result, source, correspondence } => {
+                    geometry.as_mut().is_some_and(|geometry| placed_reference::retained(
+                        *psi_operation, result, source, correspondence, targeted, selected, geometry,
+                    ).is_some())
+                }
                 AbstractOperation::StructuralCaseMembership { .. }
                 | abstract_operations::establish_record_or_case_pattern!(..)
                 | AbstractOperation::StructuralLeafCopy { .. }
@@ -351,7 +375,6 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | abstract_operations::move_or_store_structural_field_pattern!()
                 | AbstractOperation::EstablishTrivialAffineLocal { .. }
                 | AbstractOperation::EstablishReference { .. }
-                | AbstractOperation::EstablishPlacedReference { .. }
                 | AbstractOperation::ReleaseReference { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishStructuralArray { .. }

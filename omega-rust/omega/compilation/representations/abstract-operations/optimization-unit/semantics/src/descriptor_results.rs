@@ -724,6 +724,27 @@ fn adapt(
                             .push((slot, kernel::DescriptorCallOrigin::Empty));
                     }
                 }
+                O::EstablishPlacedReference {
+                    psi_operation,
+                    result,
+                    correspondence,
+                    ..
+                } if slot_kind == kernel::DescriptorSlotKind::References => {
+                    // A placed presentation is not a typed alias to the source
+                    // schema. Retain its formation through reference transport
+                    // without letting ordinary slot traversal reinterpret it.
+                    // Physical geometry belongs to the formation's actual
+                    // source; this token supplies no allocation guarantee.
+                    graph.originations.entry(position).or_default().push((
+                        DescriptorLocation::whole(result.place),
+                        kernel::DescriptorCallOrigin::PlacedFormation {
+                            machine: function.machine,
+                            operation: *psi_operation,
+                            place: result.place,
+                            carrier: correspondence.carrier,
+                        },
+                    ));
+                }
                 O::EstablishElementView { result, source, .. }
                 | O::EstablishReference { result, source, .. } => {
                     let destination = DescriptorLocation::whole(result.place);

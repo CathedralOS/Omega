@@ -96,11 +96,11 @@ pub(crate) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
 /// The address model scales `index` by `stride`; the obligation, not this
 /// layout, is what proves `index < extent`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RuntimeElement {
-    pub(crate) index: semantic_vocabulary::ValueId,
-    pub(crate) obligation: semantic_vocabulary::ObligationId,
-    pub(crate) stride: u32,
-    pub(crate) extent: Option<u64>,
+pub struct RuntimeElement {
+    pub index: semantic_vocabulary::ValueId,
+    pub obligation: semantic_vocabulary::ObligationId,
+    pub stride: u32,
+    pub extent: Option<u64>,
 }
 
 /// Whether legalized runtime traversals are exactly a projection's runtime
@@ -164,24 +164,24 @@ fn runtime_span_within_storage(
 
 /// One pointer word selected within its own contiguous carrier region.
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct PointerSlot {
-    pub(crate) byte_offset: u32,
-    pub(crate) indices: std::ops::Range<usize>,
-    pub(crate) scalar_descriptor: bool,
+pub struct PointerSlot {
+    pub byte_offset: u32,
+    pub indices: std::ops::Range<usize>,
+    pub scalar_descriptor: bool,
 }
 
 /// Address formation regions retain selectors on the side of each pointer
 /// crossing where they were authored. Construction scratch, not another IR.
-pub(crate) struct ReferenceSourceGeometry<Endpoint = StructuralTypeId> {
+pub struct ReferenceSourceGeometry<Endpoint = StructuralTypeId> {
     /// The final contiguous storage region, distinct from the descriptor root.
-    pub(crate) region_root: StructuralTypeId,
-    pub(crate) uses_borrowed_backing: bool,
+    pub region_root: StructuralTypeId,
+    pub uses_borrowed_backing: bool,
     /// Declared read permission at every crossing, not a liveness judgment.
-    pub(crate) readable: bool,
-    pub(crate) selected: Endpoint,
-    pub(crate) byte_offset: u32,
-    pub(crate) pointer_slots: Vec<PointerSlot>,
-    pub(crate) elements: Vec<RuntimeElement>,
+    pub readable: bool,
+    pub selected: Endpoint,
+    pub byte_offset: u32,
+    pub pointer_slots: Vec<PointerSlot>,
+    pub elements: Vec<RuntimeElement>,
 }
 
 /// The extent word of the selected element descriptor, in element units.
@@ -217,7 +217,7 @@ pub(crate) fn descriptor_source_geometry(
 /// byte field has no nominal declaration, and equal-capacity owners elsewhere
 /// in the catalog cannot supply its identity. The caller separately joins this
 /// storage contract to the explicitly declared reference presentation.
-pub(crate) fn reference_formation_geometry<'types>(
+pub fn reference_formation_geometry<'types>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &'types [StructuralTypeDeclaration],

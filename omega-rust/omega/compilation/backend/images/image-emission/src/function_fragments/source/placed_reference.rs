@@ -7,16 +7,75 @@ use selected_instructions::{
     SelectedInstructionKind, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::{OperationId, ValueId};
+use semantic_vocabulary::{OperationId, PlaceId, ValueId};
 use target_operations::{TargetFunction, TargetUnitOperation};
-use terminal_psi::{
-    PlacedRamCorrespondence, StructuralArgument, StructuralOperationResult, StructuralPathSegment,
-    StructuralTypeShape,
-};
+use terminal_psi::{PlacedRamCorrespondence, StructuralArgument, StructuralOperationResult};
+
+pub(super) mod backing_geometry;
+
+/// Discharge formation geometry once concrete allocations and all callers are
+/// available. Selection uses ordinary reference transport, not a special
+/// adjacent-definition shortcut. Retained artifact admission independently
+/// checks both this physical obligation and the selected pointer expression.
+pub(in crate::function_fragments) fn establish_geometry(
+    source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
+) -> Result<(), super::Error> {
+    let current = source.source().source().source().source();
+    let abstracted = current.optimized_target().optimized().plan();
+    let targeted = current.optimized_target().target_operations();
+    let selected = current.selected_plan();
+    if !targeted.functions.iter().any(|function| {
+        function.graph.operations().any(|operation| {
+            matches!(
+                operation,
+                TargetUnitOperation::EstablishPlacedReference { .. }
+            )
+        })
+    }) {
+        return Ok(());
+    }
+    let graph = backing_geometry::graph(abstracted).ok_or(super::Error::Mismatch(
+        "placed formation has no complete reference-origin graph",
+    ))?;
+    let mut geometry =
+        backing_geometry::BackingGeometry::new(abstracted, selected, targeted, &graph);
+    for function in &targeted.functions {
+        for operation in function.graph.operations() {
+            if let TargetUnitOperation::EstablishPlacedReference {
+                psi_operation,
+                result_home,
+                source,
+                correspondence,
+            } = operation
+            {
+                geometry
+                    .proves(
+                        function.machine,
+                        result_home.place(),
+                        source,
+                        correspondence,
+                    )
+                    .map_err(|reason| super::Error::PlacedBackingGeometry {
+                        machine: function.machine,
+                        operation: *psi_operation,
+                        reason,
+                    })?;
+            }
+        }
+    }
+    Ok(())
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum AddressBase {
+    Allocation(LocalStorageSlotId),
+    BorrowedFormal(PlaceId),
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Address {
-    slot: LocalStorageSlotId,
+    base: AddressBase,
+    loads: Vec<(u64, Vec<(ValueId, u64)>)>,
     offset: u64,
     indices: Vec<(ValueId, u64)>,
 }
@@ -45,12 +104,43 @@ fn precedes(
     producer: selected_instructions::SelectedInstructionId,
     consumer: selected_instructions::SelectedInstructionId,
 ) -> bool {
-    selected.blocks.iter().any(|block| {
-        block
-            .instruction_index(producer)
-            .zip(block.instruction_index(consumer))
-            .is_some_and(|(producer, consumer)| producer < consumer)
-    })
+    let producer_block = selected
+        .blocks
+        .iter()
+        .find(|block| block.instruction_index(producer).is_some());
+    let consumer_block = selected
+        .blocks
+        .iter()
+        .find(|block| block.instruction_index(consumer).is_some());
+    let (Some(producer_block), Some(consumer_block)) = (producer_block, consumer_block) else {
+        return false;
+    };
+    if producer_block.id == consumer_block.id {
+        return producer_block.instruction_index(producer)
+            < consumer_block.instruction_index(consumer);
+    }
+    // A cross-block definition must dominate use: deleting its block must
+    // make the consumer unreachable from entry. No layout-order assumption.
+    let mut pending = vec![selected.entry_block];
+    let mut visited = Vec::new();
+    while let Some(block) = pending.pop() {
+        if block == producer_block.id || visited.contains(&block) {
+            continue;
+        }
+        if block == consumer_block.id {
+            return false;
+        }
+        visited.push(block);
+        let Some(block) = selected.block(block) else {
+            return false;
+        };
+        pending.extend(
+            selected_instructions::terminator_successors(&block.terminator)
+                .iter()
+                .map(|successor| successor.block),
+        );
+    }
+    true
 }
 
 fn source_value(
@@ -98,19 +188,26 @@ fn source_value(
     }
 }
 
-fn definition<'a>(
-    selected: &'a SelectedFunction,
+fn definition(
+    selected: &SelectedFunction,
     operation: OperationId,
     register: VirtualRegisterId,
-) -> Option<&'a SelectedInstruction> {
+) -> Option<&SelectedInstruction> {
     let mut rows = selected.instructions().filter(|row| {
-        if !row.provenance.operations.contains(&operation) {
+        if !row.provenance.operations.contains(&operation)
+            && !matches!(
+                row.kind,
+                SelectedInstructionKind::FrameAddress { .. } | SelectedInstructionKind::CopyI64
+            )
+        {
             return false;
         }
         let output = match row.kind {
             SelectedInstructionKind::FrameAddress { .. }
             | SelectedInstructionKind::MaterializeI64 { .. } => 0,
-            SelectedInstructionKind::AddressOffset { .. } => 1,
+            SelectedInstructionKind::AddressOffset { .. }
+            | SelectedInstructionKind::Load64 { .. }
+            | SelectedInstructionKind::CopyI64 => 1,
             SelectedInstructionKind::ByteViewAddress
             | SelectedInstructionKind::WrappingMultiplyI64 => 2,
             _ => return false,
@@ -178,6 +275,37 @@ fn address(
     if remaining == 0 {
         return None;
     }
+    if let VirtualRegisterOrigin::StructuralParameter {
+        place,
+        parameter_index,
+    } = selected.virtual_register(register)?.origin
+    {
+        let parameter = selected
+            .structural
+            .as_ref()?
+            .parameters
+            .get(parameter_index)?;
+        if parameter.semantic.place != place
+            || parameter.semantic.access == terminal_psi::StructuralAccess::Owned
+            || all_instructions(selected).any(|instruction| {
+                instruction.operands.iter().any(|operand| {
+                    operand.virtual_register == register
+                        && matches!(
+                            operand.access,
+                            RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+                        )
+                })
+            })
+        {
+            return None;
+        }
+        return Some(Address {
+            base: AddressBase::BorrowedFormal(place),
+            loads: Vec::new(),
+            offset: 0,
+            indices: Vec::new(),
+        });
+    }
     let row = definition(selected, operation, register)?;
     if !precedes(selected, row.id, consumer.id) {
         return None;
@@ -187,13 +315,26 @@ fn address(
             slot: FrameStorageSlotId::Local(slot),
             byte_offset,
         } => Some(Address {
-            slot,
+            base: AddressBase::Allocation(slot),
+            loads: Vec::new(),
             offset: u64::from(byte_offset),
             indices: Vec::new(),
         }),
         SelectedInstructionKind::AddressOffset { byte_offset } => {
             let mut result = address(selected, operation, operand(row, 0)?, remaining - 1, row)?;
             result.offset = result.offset.checked_add(u64::from(byte_offset))?;
+            Some(result)
+        }
+        SelectedInstructionKind::CopyI64 => {
+            address(selected, operation, operand(row, 0)?, remaining - 1, row)
+        }
+        SelectedInstructionKind::Load64 { byte_offset } => {
+            let mut result = address(selected, operation, operand(row, 0)?, remaining - 1, row)?;
+            result.offset = result.offset.checked_add(u64::from(byte_offset))?;
+            result
+                .loads
+                .push((result.offset, std::mem::take(&mut result.indices)));
+            result.offset = 0;
             Some(result)
         }
         SelectedInstructionKind::ByteViewAddress => {
@@ -207,82 +348,6 @@ fn address(
     }
 }
 
-/// Independently recover an adjacent whole descriptor's current formation.
-/// Adjacency in the same target block excludes a store, reseating, escape or
-/// call between its exact definition and capture. Other pointer transports
-/// remain external address obligations rather than inferred frame origins.
-fn frame_source(
-    target: &TargetFunction,
-    consumer: OperationId,
-    source: &StructuralArgument,
-    pending: &mut Vec<semantic_vocabulary::PlaceId>,
-) -> Option<StructuralArgument> {
-    if !source.path.contains(&StructuralPathSegment::Referent) {
-        return Some(source.clone());
-    }
-    if source.path != [StructuralPathSegment::Referent] || pending.contains(&source.place) {
-        return None;
-    }
-    pending.push(source.place);
-    let mut definitions = target.graph.operations().filter_map(|row| match row {
-        TargetUnitOperation::EstablishReference {
-            psi_operation,
-            result_home,
-            source: prior,
-            storage: None,
-        } if result_home.place() == source.place => Some((*psi_operation, result_home, prior)),
-        _ => None,
-    });
-    let (Some((producer, home, prior)), None) = (definitions.next(), definitions.next()) else {
-        return None;
-    };
-    let (_, result) = home.operation_result()?;
-    let declaration =
-        terminal_psi::find_structural_type(&target.graph.structural_types, result.structural_type)?;
-    let StructuralTypeShape::Reference { access, .. } = declaration.shape else {
-        return None;
-    };
-    if !source.access.admits(access)
-        || !access.admits(prior.access)
-        || !result.is_affine_plain()
-        || !target.graph.blocks.iter().any(|block| {
-            block.operations.windows(2).any(|pair| {
-                pair[0]
-                    .structural_result_home()
-                    .is_some_and(|(operation, _)| operation == producer)
-                    && pair[1]
-                        .structural_result_home()
-                        .is_some_and(|(operation, _)| operation == consumer)
-            })
-        })
-    {
-        return None;
-    }
-    let mut prior_roots = target.graph.operations().filter_map(|row| {
-        row.structural_result_home()
-            .filter(|(_, home)| home.place() == prior.place)
-            .map(|(_, home)| home.structural_type())
-    });
-    let (Some(prior_root), None) = (prior_roots.next(), prior_roots.next()) else {
-        return None;
-    };
-    let tip = terminal_semantics::runtime_structural_path_tip(
-        target.graph.structural_types.iter(),
-        prior_root,
-        &prior.path,
-    )?;
-    if !terminal_semantics::reference_source_compatible(
-        target.graph.structural_types.iter(),
-        tip.id,
-        result.structural_type,
-    ) {
-        return None;
-    }
-    let resolved = frame_source(target, producer, prior, pending);
-    pending.pop();
-    resolved
-}
-
 pub(super) fn retained(
     operation: OperationId,
     result: &StructuralOperationResult,
@@ -290,32 +355,86 @@ pub(super) fn retained(
     correspondence: &PlacedRamCorrespondence,
     target: &TargetFunction,
     selected: &SelectedFunction,
+    geometry: &mut backing_geometry::BackingGeometry<'_>,
 ) -> Option<()> {
-    let frame_source = frame_source(target, operation, source, &mut Vec::new())?;
+    geometry
+        .proves(target.machine, result.place, source, correspondence)
+        .ok()?;
     let types = &target.graph.structural_types;
-    let mut roots = target.graph.operations().filter_map(|row| {
-        row.structural_result_home()
-            .filter(|(_, home)| home.place() == frame_source.place)
-            .map(|(producer, home)| (producer, home.structural_type()))
-    });
+    let mut roots = target
+        .graph
+        .operations()
+        .filter_map(|row| {
+            row.structural_result_home()
+                .filter(|(_, home)| home.place() == source.place)
+                .map(|(producer, home)| {
+                    (
+                        Some(LocalStorageSlotId::Structural {
+                            operation: producer,
+                            place: source.place,
+                        }),
+                        home.structural_type(),
+                    )
+                })
+        })
+        .chain(
+            target
+                .graph
+                .parameters
+                .iter()
+                .filter(|row| row.place == source.place)
+                .map(|row| {
+                    (
+                        (row.access == terminal_psi::StructuralAccess::Owned).then_some(
+                            LocalStorageSlotId::StructuralParameter {
+                                place: source.place,
+                            },
+                        ),
+                        row.structural_type,
+                    )
+                }),
+        )
+        .chain(target.graph.blocks.iter().flat_map(|block| {
+            block
+                .structural_parameters
+                .iter()
+                .filter(|row| row.place == source.place)
+                .map(|row| {
+                    (
+                        Some(LocalStorageSlotId::StructuralBlockParameter {
+                            block: block.block,
+                            place: row.place,
+                        }),
+                        row.structural_type,
+                    )
+                })
+        }));
     let (Some((producer, root)), None) = (roots.next(), roots.next()) else {
         return None;
     };
     let mut allocations = selected
         .local_storage_slots
         .iter()
-        .filter(|slot| slot.id.structural_place() == Some(frame_source.place));
-    let (Some(allocation), None) = (allocations.next(), allocations.next()) else {
+        .filter(|slot| slot.id.structural_place() == Some(source.place));
+    let (allocation, None) = (allocations.next(), allocations.next()) else {
         return None;
     };
-    if allocation.id
-        != (LocalStorageSlotId::Structural {
-            operation: producer,
-            place: frame_source.place,
-        })
-    {
-        return None;
-    }
+    let base = if let Some(allocation) = allocation {
+        if Some(allocation.id) != producer {
+            return None;
+        }
+        AddressBase::Allocation(allocation.id)
+    } else {
+        let parameter = target
+            .graph
+            .parameters
+            .iter()
+            .find(|row| row.place == source.place)?;
+        if producer.is_some() || parameter.access == terminal_psi::StructuralAccess::Owned {
+            return None;
+        }
+        AddressBase::BorrowedFormal(source.place)
+    };
     let mut destinations = selected
         .local_storage_slots
         .iter()
@@ -333,54 +452,38 @@ pub(super) fn retained(
     {
         return None;
     }
-    let mut path = Vec::new();
-    let mut indices = Vec::new();
-    let mut maximum_offset = 0_u64;
-    for segment in &frame_source.path {
-        if let StructuralPathSegment::RuntimeIndex { index, .. } = segment {
-            let (_, array) =
-                terminal_semantics::canonical_static_projection(types.iter(), root, &path)?;
-            let StructuralTypeShape::FixedArray { element, length } = array.shape else {
-                return None;
-            };
-            let (size, alignment) =
-                terminal_semantics::reference_storage_layout(types.iter(), element)?;
-            let stride = size.checked_add(alignment.checked_sub(1)?)? / alignment * alignment;
-            maximum_offset =
-                maximum_offset.checked_add(length.checked_sub(1)?.checked_mul(stride)?)?;
-            indices.push((*index, stride));
-            path.push(StructuralPathSegment::FixedIndex(0));
-        } else {
-            if matches!(
-                segment,
-                StructuralPathSegment::Referent | StructuralPathSegment::RepresentationView { .. }
-            ) {
-                return None;
-            }
-            path.push(segment.clone());
-        }
-    }
-    let (_, tip) = terminal_semantics::canonical_static_projection(types.iter(), root, &path)?;
-    if tip.id != correspondence.schema {
+    let native = target_operations_to_selected_instructions::reference_formation_geometry(
+        root,
+        &source.path,
+        types.as_slice(),
+    )?;
+    if native.selected.as_structural() != Some(correspondence.schema) {
         return None;
     }
-    let region = terminal_semantics::reference_storage_region(types.iter(), root, &path)?;
-    let modulus = correspondence.required_base.modulus();
-    if region.byte_length != correspondence.source_byte_length
-        || u64::from(allocation.alignment) % modulus != 0
-        || region.byte_offset % modulus != correspondence.required_base.residue()
-        || indices.iter().any(|(_, stride)| stride % modulus != 0)
-        || maximum_offset
-            .checked_add(region.byte_offset)?
-            .checked_add(region.byte_length)?
-            > u64::from(allocation.byte_size)
-    {
-        return None;
+    let selectors = |range: std::ops::Range<usize>| -> Option<Vec<(ValueId, u64)>> {
+        Some(
+            native
+                .elements
+                .get(range)?
+                .iter()
+                .map(|element| (element.index, u64::from(element.stride)))
+                .collect(),
+        )
+    };
+    let mut loads = Vec::new();
+    let mut first_leaf = 0;
+    for slot in &native.pointer_slots {
+        loads.push((
+            u64::from(slot.byte_offset),
+            selectors(slot.indices.clone())?,
+        ));
+        first_leaf = slot.indices.end;
     }
     let expected = Address {
-        slot: allocation.id,
-        offset: region.byte_offset,
-        indices,
+        base,
+        loads,
+        offset: u64::from(native.byte_offset),
+        indices: selectors(first_leaf..native.elements.len())?,
     };
     let mut stores = selected.memory_accesses.iter().filter(|row| {
         row.origin == SelectedMemoryAccessOrigin::Operation(operation)
@@ -422,22 +525,22 @@ pub(super) fn retained(
                 | SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::WrappingMultiplyI64
                 | SelectedInstructionKind::MaterializeI64 { .. }
-        ) {
-            if store_block
-                .instruction_index(row.id)
-                .is_none_or(|position| position >= store_position)
-            {
-                return None;
-            }
+                | SelectedInstructionKind::Load64 { .. }
+        ) && store_block
+            .instruction_index(row.id)
+            .is_none_or(|position| position >= store_position)
+        {
+            return None;
         }
     }
     let captured = address(
         selected,
         operation,
         operand(instruction, 1)?,
-        frame_source.path.len() + 4,
+        selected.virtual_registers.len() + 1,
         instruction,
-    )?;
+    );
+    let captured = captured?;
     if captured != expected {
         return None;
     }
@@ -450,31 +553,8 @@ pub(super) fn retained(
     )?;
     if destination.offset != 0
         || !destination.indices.is_empty()
-        || destination.slot != destination_slot.id
-    {
-        return None;
-    }
-    let mut source_addresses = selected.memory_accesses.iter().filter(|row| {
-        row.origin == SelectedMemoryAccessOrigin::Operation(operation)
-            && row.place == frame_source.place
-            && row.byte_offset == 0
-            && u64::from(row.byte_count) == correspondence.source_byte_length
-            && row.role
-                == SelectedMemoryAccessRole::AddressLocal {
-                    slot: allocation.id,
-                }
-    });
-    let (Some(source_address), None) = (source_addresses.next(), source_addresses.next()) else {
-        return None;
-    };
-    let frame = selected
-        .instructions()
-        .find(|row| row.id == source_address.instruction)?;
-    if frame.kind
-        != (SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Local(allocation.id),
-            byte_offset: 0,
-        })
+        || !destination.loads.is_empty()
+        || destination.base != AddressBase::Allocation(destination_slot.id)
     {
         return None;
     }

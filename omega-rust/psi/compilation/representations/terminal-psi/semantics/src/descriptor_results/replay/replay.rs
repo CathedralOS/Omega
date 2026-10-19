@@ -309,6 +309,29 @@ impl<'a> Replay<'a> {
             StorageResolution::Alternatives => location.clone(),
         };
         let root = DescriptorLocation::whole(location.root);
+        // Reading the backing identity of a whole ordinary referent preserves
+        // the pointer captured in its carrier. An incoming reference field is
+        // an Incoming slot, not an inline subtree of the containing argument.
+        // A descriptor endpoint instead needs its own contents observation.
+        if self.slot_kind == DescriptorSlotKind::References
+            && let Some((DescriptorPathSegment::Referent, path)) = location.path.split_last()
+        {
+            let root_type = *machine.place_types.get(&location.root)?;
+            let endpoint = crate::descriptor_lifetimes::descriptor_location_type(
+                self.types,
+                root_type,
+                &location.path,
+            )?;
+            if !self.slot_kind.is_slot(self.types, endpoint)
+                && !is_descriptor(self.types.iter(), endpoint)
+            {
+                let carrier = DescriptorLocation {
+                    root: location.root,
+                    path: path.to_vec(),
+                };
+                return self.read(machine, state, &carrier);
+            }
+        }
         // The pointer temporary's origin is the pointee carrier. An unfilled
         // child slot on the temporary is not an invalidated owned subtree.
         let external_pointee =

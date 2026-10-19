@@ -350,6 +350,41 @@ pub(crate) fn retain_closed_reach_applications(
             continue;
         }
         calls.sort_by_key(|call| call.operation);
+        // This optional projection describes direct in-module substitution.
+        // A valid boundary or inlined operation keeps the ordinary inferred
+        // reach and installation requirements, but cannot masquerade as such
+        // a call. Decide coverage before installing any occurrence markers.
+        // Consumers requiring an independent closed application still reject
+        // its absence; omission grants no invocation or effect evidence.
+        let terminal_owner = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == owner)
+            .ok_or(LoweringError::Unsupported(
+                "closed reach source owner has no Terminal machine",
+            ))?;
+        let mut direct_coverage = true;
+        for call in &calls {
+            let mut operations = terminal_owner
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|operation| operation.id == call.operation);
+            let (Some(operation), None) = (operations.next(), operations.next()) else {
+                return unsupported("closed reach consumer has no unique exact owner operation");
+            };
+            if !matches!(
+                telescope.get(call.binder as usize),
+                Some(ClosedReachParameter::Machine(_))
+            ) {
+                return unsupported("closed reach consumer does not select a machine binder");
+            }
+            direct_coverage &= direct_call_parts(&operation.kind).is_some();
+        }
+        if !direct_coverage {
+            module.services.truncate(original_service_count);
+            continue;
+        }
         // Type/const specialization selects actual custody leaves. Retain
         // their contractual contribution beside the template dependency; it
         // cannot be recovered from authored calls alone or by subtracting a

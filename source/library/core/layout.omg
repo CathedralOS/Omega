@@ -532,6 +532,16 @@ pub trait Writable<Field, T> {
     machine write(placed_field: &mut Field, value: T);
 }
 
+// Exact compiler-supplied primitives, not blanket conformance evidence. The
+// compiler closes these applications only for a field accessor issued by the
+// selected placement plan, with its exact value type and operation permission.
+// Ordinary generic helpers must declare an explicit operation requirement;
+// an unconstrained type parameter cannot acquire placed access by forwarding.
+pub boundary machine placed_read<Accessor, Value>(field: &Accessor) -> Value
+satisfies Readable<Accessor, Value>::read;
+pub boundary machine placed_write<Accessor, Value>(field: &mut Accessor, value: Value)
+satisfies Writable<Accessor, Value>::write;
+
 pub boundary data PlacedField<T>;
 
 boundary machine PlacedField::read<T>(placed_field: &PlacedField<T>) -> T

@@ -25,6 +25,7 @@ pub fn build_function_fragment_object_artifact(
         dynamic_dispatch,
     } = request;
     let source = replay.as_ref();
+    super::source::placed_reference::establish_geometry(source)?;
     let text = source.source().text_section();
     let fragments = source::fragments(source);
     let mut object = ObjectPlan::with_capacity(text.target, 1, text.functions.len());

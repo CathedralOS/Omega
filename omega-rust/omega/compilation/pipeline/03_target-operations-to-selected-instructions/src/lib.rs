@@ -37,6 +37,13 @@ mod optimized;
 mod selection;
 mod structural_inputs;
 
+// Receiving audits use the same native storage geometry (including reference
+// words), then independently prove the selected address expression. Portable
+// schema geometry intentionally cannot describe those native descriptor slots.
+pub use structural_inputs::structural_reference_input::{
+    PointerSlot, ReferenceSourceGeometry, RuntimeElement, reference_formation_geometry,
+};
+
 // The stage entry and its custody join.
 pub use abstract_operations_to_target_operations::{
     DescriptorInputGuard, descriptor_input_guard_for_call,

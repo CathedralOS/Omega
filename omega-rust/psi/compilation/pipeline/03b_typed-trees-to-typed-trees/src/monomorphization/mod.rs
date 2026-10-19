@@ -42,6 +42,7 @@ mod captured_rows;
 mod contextual_calls;
 mod explicit_arguments;
 mod native_query_lifetimes;
+mod placed_primitives;
 mod provider_tuple_closure;
 mod requirement_providers;
 mod selection;
@@ -252,7 +253,15 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             &selections,
         )?);
         let mut diagnostics = Vec::new();
-        let mut applied_any = captures_changed;
+        // A catalog operation selects an installed entry, not a body clone.
+        // Its closed tuple may be independent of an enclosing generic API.
+        // Ordinary checked-body specialization keeps its own staging below.
+        let mut applied_any = placed_primitives::select_calls(
+            program,
+            &candidates,
+            &mut selections,
+            &mut changed_owners,
+        )? || captures_changed;
         for (candidate_index, candidate) in candidates.iter().enumerate() {
             // Open callers keep their symbolic applications. Concrete applications
             // of the same template are independent tuples, never evidence with
