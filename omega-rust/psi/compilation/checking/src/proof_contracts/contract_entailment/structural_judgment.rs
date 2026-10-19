@@ -1661,7 +1661,15 @@ impl<'program> StructuralJudge<'program> {
         if self.require_closed_computation && !value.is_closed_value() {
             return None;
         }
-        super::observed_projections::project_field(value, field_name)
+        let projected = super::observed_projections::project_field(value, field_name)?;
+        // A completed reference is a descriptor, not a snapshot of its
+        // referent. Project owned fields normally, but leave a projection
+        // through an unobserved descriptor to the executing read, which can
+        // capture a fresh value at the current storage epoch. Keeping the
+        // descriptor projection here would make later scalar operations
+        // reject the entire prefix, including independent facts.
+        (!super::structural_terms::term_is_unobserved_descriptor(self.program, &projected))
+            .then_some(projected)
     }
 
     /// Form an expression under its actual declaring machine/state before
