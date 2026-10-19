@@ -1,0 +1,4 @@
+owner: w26-batch151
+provenance: coordinator=model=gemini-4-argon,reasoning_effort=medium;workers=model=gemini-3.8-flash,reasoning_effort=medium
+ticket: 62a3f174fde34f839f2de26f3721a7fc
+published_utc: 2026-10-19T15:17:45.901306+00:00
