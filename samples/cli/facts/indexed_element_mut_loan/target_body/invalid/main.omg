@@ -1,0 +1,48 @@
+// A runtime index below 2 exclusively loans one Room to bump; its count increases once and its neighbor is unchanged.
+// Place: target_body.
+// Invalid: the selected element already has a live exclusive loan at bump.
+data Room { exit_count: u32 in Wrapping; }
+machine bump(room: &mut Room) {
+    room.exit_count = room.exit_count + 1;
+}
+linux_x86_64 machine apply(rooms: &mut [Room; 2], selected: u64)
+requires selected < 2
+{
+    let held: &mut Room = &mut rooms[selected];
+    bump(&mut rooms[selected]);
+    held.exit_count = held.exit_count + 1;
+}
+linux_arm64 machine apply(rooms: &mut [Room; 2], selected: u64)
+requires selected < 2
+{
+    let held: &mut Room = &mut rooms[selected];
+    bump(&mut rooms[selected]);
+    held.exit_count = held.exit_count + 1;
+}
+macos_arm64 machine apply(rooms: &mut [Room; 2], selected: u64)
+requires selected < 2
+{
+    let held: &mut Room = &mut rooms[selected];
+    bump(&mut rooms[selected]);
+    held.exit_count = held.exit_count + 1;
+}
+windows_x86_64 machine apply(rooms: &mut [Room; 2], selected: u64)
+requires selected < 2
+{
+    let held: &mut Room = &mut rooms[selected];
+    bump(&mut rooms[selected]);
+    held.exit_count = held.exit_count + 1;
+}
+machine exercise(from_index: u64) -> bool
+requires from_index < 2
+{
+    let rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
+    apply(&mut rooms, from_index);
+    (from_index == 0 && rooms[0].exit_count == 1 && rooms[1].exit_count == 10)
+        || (from_index == 1 && rooms[0].exit_count == 0 && rooms[1].exit_count == 11)
+}
+machine main() crashes Trap {
+    transition exercise(0) && exercise(1) { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

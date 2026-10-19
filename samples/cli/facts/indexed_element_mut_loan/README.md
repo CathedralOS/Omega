@@ -10,17 +10,17 @@ The root `main.omg` and nine child applications have an observable oracle: exit 
 after count checks, or `Trap` on a wrong result. Their `build.omg` files bind
 all four hosted targets. Native execution evidence must name its matching host.
 
-| Place | Project | Transport to the indexed loan |
-| --- | --- | --- |
-| local | `local/` | a local copy of the runtime selector |
-| field | `field/` | the selector is read directly from a record field |
-| parameter | `parameter/` | the array and selector are explicit callee parameters |
-| call result | `call_result/` | `select_index` returns the selector with an equality postcondition |
-| match join | `match_join/` | a join chooses between equal runtime selectors; both arms run |
-| const name | `const_name/` | `ROOM_COUNT = 2` supplies the bound on the runtime selector |
-| another state | `other_state/` | a successor state receives array and selector and performs the loan |
-| another machine | `other_machine/` | a forwarding machine transports array and selector to the loaning machine |
-| another target body | `target_body/` | each of four target bodies performs the same indexed loan |
+| Place | Project | Positive Witness | Reject Twin | Transport to the indexed loan |
+| --- | --- | --- | --- | --- |
+| local | `local/` | [source](local/main.omg) | [source](local/invalid/main.omg) | a local copy of the runtime selector |
+| field | `field/` | [source](field/main.omg) | [source](field/invalid/main.omg) | the selector is read directly from a record field |
+| parameter | `parameter/` | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) | the array and selector are explicit callee parameters |
+| call result | `call_result/` | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | `select_index` returns the selector with an equality postcondition |
+| match join | `match_join/` | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | a join chooses between equal runtime selectors; both arms run |
+| const name | `const_name/` | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | `ROOM_COUNT = 2` supplies the bound on the runtime selector |
+| another state | `other_state/` | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | a successor state receives array and selector and performs the loan |
+| another machine | `other_machine/` | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | a forwarding machine transports array and selector to the loaning machine |
+| another target body | `target_body/` | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | each of four target bodies performs the same indexed loan |
 
 Every `exercise` requires the same strict upper bound, `index < 2` (spelled
 `index < ROOM_COUNT` in the const place). `u64` supplies nonnegativity. Neither
@@ -28,11 +28,11 @@ this bound nor the result checks manufacture mutable authority. The selected
 loan must be exclusive, refer to the original array storage, and end before
 the caller observes the counts.
 
-Each project has one `controls/held_loan/` twin. It adds a competing
-`&mut Room` loan of the same selected element, uses it after the `bump` call,
-and must reject at that call for the still-active `held` borrow. It retains
-the same bound, initialization and increment operation. A provider failure,
-unproved bound, or another rejection does not satisfy `expected.txt`.
+Each project has an `invalid/` twin (as well as `controls/held_loan/`). It adds
+a competing `&mut Room` loan of the same selected element, uses it after the
+`bump` call, and must reject at that call for the still-active `held` borrow. It
+retains the same bound, initialization and increment operation. A provider
+failure, unproved bound, or another rejection does not satisfy `expected.txt`.
 
 The canonical contracts are
 [borrows and aliases](../../../../wiki/spec/language/ownership.md#borrows-and-aliases),
@@ -61,11 +61,21 @@ result-operand storage presentation, and another state reached a missing loan
 transfer. The compiler repair retains the call's already evaluated selector
 in the result-backed argument path and carries checked loans of affine local
 backing across state edges. The repaired row runs all nine applications with
-exit 0 on Linux x86-64, and all nine twins retain their intended rejection.
-The root application and nine place projects all verify that loan with exit 0.
+exit 0 on Linux x86-64 and Windows x86-64, and all nine twins retain their
+intended rejection. The root application and nine place projects all verify
+that loan with exit 0.
 
 The additional regression
 `tests/omega/pass/borrows/runtime_result_element_call_selector_capture_exit`
 changes the selector in a later call argument and checks that the callee
 mutates the element selected by the earlier argument. This tests formation
 order rather than merely storing an index in an immutable local.
+
+## Requirements and Evidence
+
+- **Establishment:** Every positive witness establishes index validity via `requires from_index < 2` (or `from_index < ROOM_COUNT` with `ROOM_COUNT = 2`) on an unsigned `u64` runtime selector, proving in-bounds access before forming `&mut rooms[selected]`. No post-hoc caller equality guards manufacture authority.
+- **Identity and lifetime:** The mutable loan `&mut rooms[selected]` refers directly to the selected element inside the backing `[Room; 2]` array storage for the duration of `bump`, mutating only the selected element while preserving the unselected neighbor's identity and retiring the loan before subsequent caller reads.
+- **Composition:** Across locals, record fields, parameters, contracted call results (`ensures result == index`), `match` joins, named constants, state transitions (`other_state`), forwarding machines (`other_machine`), and all four target-scoped machine bodies (`target_body`), the runtime selector and exclusive element loan compose cleanly. Each `<place>/main.omg` vs `<place>/invalid/main.omg` differs only in the competing `let held: &mut Room = &mut rooms[...]` loan live across `bump`.
+- **Soundness boundaries:** Each `<place>/invalid/main.omg` (and `<place>/controls/held_loan/main.omg`) introduces a competing exclusive borrow `held` of the same indexed element that remains live after `bump(&mut rooms[...])`, and is rejected at compile time with `while local borrow \`held\` is still active` (`exit 1`).
+- **Terminal Psi and carrier lowering:** Runtime-indexed mutable element loans lower into Terminal Psi borrow/write-back frames that capture the evaluated selector once and write the updated `Room` back to the exact indexed slot of the caller's `[Room; 2]` storage without clobbering adjacent elements.
+- **Native realization, frame/layout encoding, and image emission:** All four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) are bound via `ProgramEntry` in `build.omg`, and native execution agrees with Terminal Psi (`omega run --both`, exit 0) across root `main.omg`, all nine positive place projects, and all nine `tests/omega/pass/facts/indexed_element_mut_loan_through_*_exit` corpus fixtures on `windows_x86_64`.
