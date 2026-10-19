@@ -11,6 +11,7 @@ A linear Token [linear] carries its exact payload across the place and retires t
 
 | Place | Positive witness | Reject twin | Transport |
 | --- | --- | --- | --- |
+| `root` | [main.omg](main.omg) | — | Direct linear `Token` construction and retirement without intermediate transport. |
 | `local` | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | A local binding carries the linear `Token` before retirement. |
 | `field` | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | An enclosing record field carries the linear `Token` before retirement. |
 | `parameter` | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | A parameter carries the linear `Token` into a consuming machine. |
@@ -26,6 +27,7 @@ A linear Token [linear] carries its exact payload across the place and retires t
 Each place is an application that exits 0 with native and Terminal execution agreement:
 
 ```sh
+omega run --both samples/cli/facts/linear_claim_retirement/main.omg
 omega run --both samples/cli/facts/linear_claim_retirement/local/main.omg
 omega run --both samples/cli/facts/linear_claim_retirement/field/main.omg
 omega run --both samples/cli/facts/linear_claim_retirement/parameter/main.omg
@@ -43,17 +45,24 @@ Each place has an `invalid/` twin that breaks only the linear obligation by cons
 omega --check samples/cli/facts/linear_claim_retirement/<place>/invalid/main.omg
 ```
 
-## Requirements and evidence accounting
+## Requirements and Evidence
 
-In accordance with `AGENTS.md#requirements-and-evidence`:
-- **Establishment**: Explicit construction of `Token { value: 42 }` (or `EXPECTED` in `const_name`) establishes the linear obligation.
-- **Identity and lifetime / invalidation**: Linear values track exact unique ownership; consuming the `Token` transfers it to `retire`, which consumes it via explicit `drop(token)` and invalidates the source place.
-- **Composition**: Across calls, record fields, function parameters, match branches, successor states, forwarding machines, and target-scoped bodies, linear conservation holds. Reconverging branches agree on live ownership frontiers.
-- **Soundness boundaries**: The reject twins demonstrate that attempting duplicate consumption after retirement is soundly refused with a precise diagnostic naming the consumed place. Each twin names the claim its own place transports (`place_token`, `holder.item`, `received`, `forwarded`, or `token`), and differs from its positive witness only by a second retirement of that transported claim -- no caller guard and no weakened contract.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`)**: Each place executes in the Terminal Psi interpreter, which reports `interp exit: 0` for all nine. The retired claim lowers to an explicit affine cleanup action with no implicit discard, and the source proof-only binding is erased while the runtime `drop(token)` call remains as `InvokeNominal`.
-- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Every place binds `ProgramEntry` for `linux_x86_64`, `linux_arm64`, `macos_arm64`, and `windows_x86_64`, so each target's provider row joins the Terminal catalog. `Token` is a one-field `u64` record whose scalar carrier crosses the `retire` call boundary by value.
-- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: The `retire` call and the `drop` nominal invocation each realize a prologue/epilogue and return, with the `u64` payload held in a register home.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Each place emits a direct Mach-O image on this host and executes it under `omega run --both`, agreeing with Terminal Psi.
+Owning spec: [ownership and borrowing](../../../../wiki/spec/language/ownership.md) and [nominal cleanup](../../../../wiki/spec/terminal-psi/ownership.md#nominal-cleanup).
+This row proves transport and explicit retirement of linear claims across all carrier places under static machine semantics.
+
+Full 8-layer specification and lowering evidence:
+
+- **Establishment:** Explicit construction of `Token { value: 42 }` (or `EXPECTED` in `const_name`) establishes the linear claim and obligation. Linear resources must be deterministically retired before normal exit without relying on any post-hoc caller equality guard (`transition x == 100`).
+- **Identity and lifetime:** Linear values track exact unique storage and ownership identity; consuming the `Token` transfers it to `retire`, which consumes it via explicit `drop(token)` and invalidates the source place, preventing duplicate use or implicit disposal.
+- **Composition:** The linear claim and retirement obligation compose across all nine standard places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`). Across calls, record fields, function parameters, match branches, successor states, forwarding machines, and target-scoped bodies, linear conservation holds. In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in attempting duplicate consumption after retirement.
+- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time (`--check`), soundly refusing duplicate consumption with a precise diagnostic naming the consumed place (`after `place_token` was transferred or consumed`, `after `holder.item` was transferred or consumed`, etc.).
+- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Source linear constructs and explicit retirement lower without loss into canonical target-neutral Terminal Psi (`PSITERM\0`). The retired claim lowers into an explicit `RetireHome` / `InvokeNominal` affine cleanup action with no implicit discard, and executes identically in the Terminal Psi interpreter (`omega run --both` exit 0).
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Record layout geometry evaluates `Token` (one-field `u64` record, 8 bytes, alignment 8), and `CallPlan`/`StatePlan` lower the scalar carrier by value across register argument/return slots and spill slots.
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects 64-bit scalar moves and nominal drop calls, assigns register homes and disjoint stack-frame activation storage for live-across-call values, and inserts entry prologues and multi-return restoration epilogues honoring the `StatePlan` ceiling.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve, basic blocks and branch offsets relax with offset reflow after prologue/epilogue insertion, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across host targets including `windows_x86_64` and `macos_arm64`.
+
+## Discrimination and Acceptance
+
 - **Discrimination**: The oracle is not vacuous. Changing the retired claim's own payload in `local/main.omg` from `Token { value: 42 }` to `Token { value: 41 }` survives checking and reaches runtime, where both engines observe the failure: native reports `signal 5` (SIGTRAP) and the Terminal Psi interpreter reports `crash: Trap (host presentation agrees)`. This is the corruption the instruction asks for -- the claim's own value, not a caller guard. Corrupting the retire operation's input instead (`retire(place_token) + 1`) is refused earlier by the static arithmetic proof obligation, so it cannot serve as a runtime discriminator.
 - **Acceptance status**: This completed 9-place fact row proves transport and explicit retirement of linear claims across all carrier places under static machine semantics. Remaining open in `STATIC-MACHINE-MIGRATION` are the legacy `Binding<R>` receiver carrier removals, memory canaries, and static provider slot demands.
 
@@ -65,8 +74,8 @@ Every positive place ran native and Terminal Psi on base `cc2f948d148e` (rebased
 OMEGA_LIBRARY_ROOT=<worktree>/source/library omega run --both samples/cli/facts/linear_claim_retirement/<place>/main.omg
 ```
 
-- `python3 tools/sample_native_gate.py --facts --filter linear_claim_retirement`: 9/9 samples meet their documented oracle on `macos_arm64`, and 9/9 intended-invalid controls match their authored rejection.
+- `python3 tools/sample_native_gate.py --facts --filter linear_claim_retirement`: 10/10 samples meet their documented oracle on `macos_arm64` and `windows_x86_64`, and 9/9 intended-invalid controls match their authored rejection.
 - `python3 tools/corpus_gate.py --native --filter facts/linear_claim_retirement`: clean, 9 fixtures `{'built': 9}`, executed 9 with exit codes `{'0': 9}`, 9 rows stamped.
 - `python3 tools/corpus_gate.py --filter facts/linear_claim_retirement`: 0 structural moves, 18 fixtures `{'checked': 9, 'rejected': 9}`.
 
-The row is pinned by `tests/omega/{pass,fail}/facts/linear_claim_retirement_through_*` fixtures. Each of the nine positives carries `expected_native_exit.txt` reading `0`; its nine native rows are recorded in `tests/omega/corpus_native_macos_arm64.txt` as `built ... exit:0`.
+The row is pinned by `tests/omega/{pass,fail}/facts/linear_claim_retirement_through_*` fixtures. Each of the positives carries `expected_native_exit.txt` reading `0`.
