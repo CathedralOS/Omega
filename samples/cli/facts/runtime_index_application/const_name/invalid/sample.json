@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "data `Index` literal violates the default domain",
+    "a `where` fact evaluates FALSE at this construction"
+  ]
+}

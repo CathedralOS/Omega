@@ -96,12 +96,37 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             .map(|(_, contract)| (contract.facts, Vec::new(), None)),
     );
     proof_fact_scopes.extend(program.data_definitions.iter().flat_map(|definition| {
+        // Value binders have leading descriptor fields, in telescope order
+        // (lowering::data). A predicate observes that captured field, not a
+        // second same-spelled type parameter. Keep only this producer-owned
+        // association out of the lexical roster; authored duplicate fields
+        // still remain ambiguous, and const/type parameters keep their roles.
+        let descriptor_parameters = program
+            .data_type_parameters(definition.type_parameters)
+            .iter()
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    symbol_resolved_trees::data::TypeParameterKind::Value { .. }
+                )
+            })
+            .zip(program.data_members(definition.members))
+            .filter_map(|(parameter, member)| match member {
+                symbol_resolved_trees::data::DataMember::Field(field)
+                    if field.name == parameter.name =>
+                {
+                    Some(parameter.symbol)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
         let mut local_symbols = program
             .tables
             .declarations
             .data_type_parameters
             .span_or_empty(definition.type_parameters)
             .iter()
+            .filter(|parameter| !descriptor_parameters.contains(&parameter.symbol))
             .map(|parameter| (parameter.name.as_str().to_owned(), parameter.symbol))
             .collect::<Vec<_>>();
         local_symbols.extend(

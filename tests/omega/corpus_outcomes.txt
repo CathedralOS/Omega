@@ -2441,6 +2441,27 @@ fail/facts/runtime_count_index_through_other_machine_out_of_bounds rejected 5168
 fail/facts/runtime_count_index_through_other_state_out_of_bounds rejected 5258ms expected @ce5f8c9f2f5f
 fail/facts/runtime_count_index_through_parameter_out_of_bounds rejected 5516ms expected @ce5f8c9f2f5f
 fail/facts/runtime_count_index_through_target_body_out_of_bounds rejected 5290ms expected @ce5f8c9f2f5f
+fail/facts/runtime_index_application_through_call_result_payload_outside_limit rejected 5918ms expected @336cafc17e1a+wt
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_through_const_name_payload_outside_limit rejected 5850ms expected @336cafc17e1a+wt
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_through_field_payload_outside_limit rejected 4823ms expected @336cafc17e1a+wt
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_through_local_payload_outside_limit rejected 6038ms expected @336cafc17e1a+wt
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_through_match_join_payload_outside_limit rejected 5910ms expected @336cafc17e1a+wt
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_through_other_machine_payload_outside_limit rejected 4098ms expected @336cafc17e1a+wt
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_through_other_state_payload_outside_limit rejected 5689ms expected @336cafc17e1a+wt
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_through_parameter_payload_outside_limit rejected 4472ms expected @336cafc17e1a+wt
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/runtime_index_application_through_target_body_payload_outside_limit rejected 3659ms expected @336cafc17e1a+wt
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/scalar_sign_zero_extension_unproved_call_result rejected 2364ms expected @45cbafd80d9c
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/scalar_sign_zero_extension_unproved_const_name rejected 2248ms expected @45cbafd80d9c
@@ -2936,6 +2957,8 @@ fail/generics/runtime_index_carrier_state_mismatch rejected 1741ms expected @afe
 fail/generics/runtime_index_carrier_tail_descriptor rejected 1776ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_tail_mismatch rejected 1756ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_tail_stale rejected 1759ms expected @afe3f46cebb2+wt
+fail/generics/runtime_index_predicate_global_shadow rejected 6360ms expected @336cafc17e1a+wt
+	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/selected_operator_preserves_blocking_ceiling rejected 1353ms expected @a9ae30e1c334+wt
 fail/generics/state_argument_generic_result_parameter_mismatch rejected 259ms expected @6ef08ceefee0+wt
 fail/generics/static_callable_excess_local_type_argument rejected 905ms expected @a9ae30e1c334+wt
@@ -6452,6 +6475,15 @@ pass/facts/runtime_count_index_through_other_machine_exit checked 15663ms check-
 pass/facts/runtime_count_index_through_other_state_exit checked 15231ms check-target:macos_arm64 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_parameter_exit checked 15999ms check-target:macos_arm64 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_target_body_exit checked 16520ms check-target:macos_arm64 @ce5f8c9f2f5f
+pass/facts/runtime_index_application_through_call_result_exit checked 13743ms check-target:macos_arm64 @336cafc17e1a+wt
+pass/facts/runtime_index_application_through_const_name_exit checked 19848ms check-target:macos_arm64 @336cafc17e1a+wt
+pass/facts/runtime_index_application_through_field_exit checked 19679ms check-target:macos_arm64 @336cafc17e1a+wt
+pass/facts/runtime_index_application_through_local_exit checked 15928ms check-target:macos_arm64 @336cafc17e1a+wt
+pass/facts/runtime_index_application_through_match_join_exit checked 19877ms check-target:macos_arm64 @336cafc17e1a+wt
+pass/facts/runtime_index_application_through_other_machine_exit checked 13003ms check-target:macos_arm64 @336cafc17e1a+wt
+pass/facts/runtime_index_application_through_other_state_exit checked 19741ms check-target:macos_arm64 @336cafc17e1a+wt
+pass/facts/runtime_index_application_through_parameter_exit checked 18736ms check-target:macos_arm64 @336cafc17e1a+wt
+pass/facts/runtime_index_application_through_target_body_exit checked 13976ms check-target:macos_arm64 @336cafc17e1a+wt
 pass/facts/scalar_sign_zero_extension_through_call_result_exit checked 7632ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_sign_zero_extension_through_const_name_exit checked 7578ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_sign_zero_extension_through_field_exit checked 7709ms check-target:macos_arm64 @45cbafd80d9c
@@ -6815,6 +6847,7 @@ pass/generics/runtime_index_carrier_parameter checked 6749ms @afe3f46cebb2+wt
 pass/generics/runtime_index_carrier_runtime checked 6072ms @afe3f46cebb2+wt
 pass/generics/runtime_index_carrier_static checked 6006ms @afe3f46cebb2+wt
 pass/generics/runtime_index_carrier_static_bool checked 5957ms @afe3f46cebb2+wt
+pass/generics/runtime_index_predicate_second_descriptor_exit checked 13651ms check-target:macos_arm64 @336cafc17e1a+wt
 pass/generics/runtime_inherited_composite_requirement_exit checked 8636ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/generics/runtime_linear_constructor_instances_exit checked 11286ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_machine_equation_nested_boolean_exit checked 5659ms check-target:macos_arm64 @589aedee8ebc+wt

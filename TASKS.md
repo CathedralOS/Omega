@@ -5239,7 +5239,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   with fixed-representation data; **FINITE-GENERIC-DISPATCH** owns finite
   families.
 
-  - Admission and construction binding: data value arguments still go through
+  - Admission and construction binding beyond directly named scalar subjects
+    on fixed-representation data (the coupled default-domain route is covered
+    by `samples/cli/facts/runtime_index_application`): data value arguments go through
     `validate_const_data_argument`
     (`omega-rust/psi/compilation/checking/src/value_custody/type_references/generic_arguments.rs`),
     and `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering/data.rs`

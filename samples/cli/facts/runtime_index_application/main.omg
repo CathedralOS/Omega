@@ -1,0 +1,14 @@
+// Expected exit: 0
+// A runtime limit from 9 to 10 binds Index<limit>, retaining payload 8 below the exact captured limit.
+data Index<Limit: u32> [copy] where value < Limit { value: u32; }
+machine probe(limit:u32)->u32 requires limit>=9 && limit<=10 {
+ let indexed:Index<limit> = Index{value:8};
+ indexed.value
+}
+machine main() crashes Trap {
+ let first:u32=probe(9);
+ let second:u32=probe(10);
+ transition first==8 && second==8 { true->done() _->bad() }
+ state done(){}
+ state bad(){crash Trap;}
+}
