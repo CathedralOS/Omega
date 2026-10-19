@@ -548,9 +548,8 @@ class Claims:
         # Preserve existing callers supplying fixed/retry tickets. Only this
         # legacy interface needs the historical replay check, within the same
         # wall-clock budget. Ordinary registration never scans commit messages.
-        if not getattr(options, "fresh_ticket", False) and snapshot["version"] and self.git(
-                "log", "-1", "--format=%H", "--fixed-strings",
-                f"--grep={options.ticket}", snapshot["version"]).stdout:
+        if not getattr(options, "fresh_ticket", False) and snapshot["version"] and coordination.history_contains_message(
+                self.repository, snapshot["version"], options.ticket, deadline=self.deadline):
             raise ClaimsError("This ticket was already removed. Claim with a new ticket.")
         # A claim makes work visible; it never refuses work. Another live
         # claim on the same item is reported like an overlapping path, and

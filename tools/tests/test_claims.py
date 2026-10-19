@@ -176,10 +176,20 @@ class RegistrationBudgetTests(unittest.TestCase):
 
     def test_external_retired_ticket_still_rejects(self):
         module, registry = self.registry()
-        registry.git.return_value = SimpleNamespace(returncode=0, stdout="removed")
-        with self.assertRaises(module.ClaimsError):
+        with mock.patch.object(module.coordination, "history_contains_message", return_value=True) as history, \
+                self.assertRaises(module.ClaimsError):
             registry.prepare_claim(self.options(fresh=False), self.snapshot(), [])
-        self.assertEqual(registry.git.call_args.args[0], "log")
+        history.assert_called_once_with(registry.repository, "b" * 40, "a" * 32,
+                                        deadline=registry.deadline)
+
+    def test_external_ticket_requires_completed_history_absence(self):
+        module, registry = self.registry()
+        with mock.patch.object(module.coordination, "history_contains_message", return_value=False):
+            self.assertTrue(registry.prepare_claim(self.options(fresh=False), self.snapshot(), [])["proceed"])
+        with mock.patch.object(module.coordination, "history_contains_message",
+                               side_effect=module.coordination.CoordinationTimeout("incomplete")), \
+                self.assertRaises(module.coordination.CoordinationTimeout):
+            registry.prepare_claim(self.options(fresh=False), self.snapshot(), [])
 
     def test_uncertain_accepted_then_removed_claim_cannot_resurrect(self):
         module, registry = self.registry()

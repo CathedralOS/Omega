@@ -9,6 +9,7 @@ mutation as a child commit keeps removed identities permanently invalid.
 Nothing here knows a document's shape; each protocol owns its record.
 """
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -57,6 +58,186 @@ def utc(value):
 
 def emit(record):
     print(json.dumps(record, ensure_ascii=True, separators=(",", ":")))
+
+
+def _stop_history_process(process):
+    """Settle the owned Git tree, including a transport holding a pipe open."""
+    note = ""
+    try:
+        if os.name == "nt":
+            result = subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL, timeout=5, check=False)
+            if result.returncode:
+                note = "Git history descendant cleanup is unconfirmed."
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    except (OSError, subprocess.TimeoutExpired):
+        note = "Git history descendant cleanup is unconfirmed."
+    finally:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass
+        process.wait()
+    return note
+
+
+@contextmanager
+def _history_process(repository, arguments, standard_input, output, deadline):
+    # Keep stdout file-backed: on Windows an exited leader's descendant may
+    # retain a pipe even after taskkill reports unconfirmed tree cleanup.
+    # Regular-file polling below still returns at the shared deadline.
+    remaining_seconds(deadline)
+    with tempfile.TemporaryFile() as errors:
+        process = subprocess.Popen(
+            ["git", "-C", str(repository), "-c", "core.deltaBaseCacheLimit=16m",
+             *arguments], stdin=standard_input, stdout=output, stderr=errors,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+            start_new_session=os.name != "nt", bufsize=0)
+        completed = False
+        control = {"matched": False}
+        try:
+            yield process, control
+            remaining_seconds(deadline)
+            if control["matched"]:
+                # Git is still waiting for its next request. Settle its owned
+                # tree before closing stdin, while Windows can identify it.
+                note = _stop_history_process(process)
+                if note:
+                    raise CoordinationError(note)
+            else:
+                code = process.wait(timeout=remaining_seconds(deadline))
+                if code:
+                    errors.seek(0)
+                    raise CoordinationError(f"Git history failed ({code}): "
+                                            + errors.read(8192).decode("utf-8", errors="replace"))
+            completed = True
+        except subprocess.TimeoutExpired as error:
+            raise CoordinationTimeout("Coordination deadline exceeded during Git history.") from error
+        finally:
+            if not completed:
+                note = _stop_history_process(process)
+                if note:
+                    raise CoordinationError(note)
+            if process.stdin is not None:
+                process.stdin.close()
+
+
+class _HistoryOutput:
+    """Read a growing regular file without blocking on a retained pipe."""
+    def __init__(self, stream, process, deadline):
+        self.stream, self.process, self.deadline = stream, process, deadline
+
+    def read(self, size):
+        while True:
+            remaining = remaining_seconds(self.deadline)
+            chunk = self.stream.read(size)
+            if chunk:
+                return chunk
+            if self.process.poll() is not None:
+                # The producer may have written and exited between read/poll.
+                return self.stream.read(size)
+            time.sleep(min(0.0005, remaining) if remaining is not None else 0.0005)
+
+    def readline(self, limit):
+        line = bytearray()
+        while len(line) < limit:
+            chunk = self.read(1)
+            if not chunk:
+                break
+            line.extend(chunk)
+            if chunk == b"\n":
+                break
+        return bytes(line)
+
+
+def _message_matches(stream, size, needle, deadline):
+    # Registry snapshots can be megabytes. Retain only a chunk and the overlap
+    # needed to recognize a header separator or fixed string across chunks.
+    in_message, matched, tail = False, False, b""
+    while size:
+        remaining_seconds(deadline)
+        chunk = stream.read(min(size, 65536))
+        if not chunk:
+            raise CoordinationError("Truncated Git history object.")
+        size -= len(chunk)
+        chunk = tail + chunk
+        if not in_message:
+            separator = chunk.find(b"\n\n")
+            if separator < 0:
+                tail = chunk[-1:]
+                continue
+            in_message = True
+            chunk = chunk[separator + 2:]
+        matched = matched or needle in chunk
+        tail = chunk[-(len(needle) - 1):] if len(needle) > 1 else b""
+    if not in_message:
+        raise CoordinationError("Malformed Git history commit header.")
+    return matched
+
+
+def history_contains_message(repository, tip, text, *, deadline=None):
+    """Search all reachable commit messages without retaining snapshot bodies.
+
+    `git log --grep` retains parsed commit buffers during its revision walk;
+    full registry snapshots across a long history exhausted a 16 GiB executor.
+    Enumerate every reachable parent to disk first, then let a single cat-file
+    process stream authenticated commit objects. Only successful full exhaustion
+    proves absence. A match can stop early because it forbids ticket reuse.
+    """
+    object_id(tip, "History tip")
+    needle = text.encode("ascii")
+    if not needle or b"\n" in needle:
+        raise CoordinationError("History search requires one nonempty fixed string.")
+    with tempfile.TemporaryDirectory(prefix="coordination-history-") as directory:
+        identities = Path(directory) / "commits"
+        output_path = Path(directory) / "object"
+        with identities.open("wb") as output:
+            with _history_process(repository, ["rev-list", tip], subprocess.DEVNULL,
+                                  output, deadline) as (process, _):
+                process.wait(timeout=remaining_seconds(deadline))
+        with identities.open("rb") as expected, output_path.open("w+b", buffering=0) as output, \
+                output_path.open("rb", buffering=0) as reader:
+            with _history_process(repository, ["cat-file", "--batch"], subprocess.PIPE,
+                                  output, deadline) as (process, control):
+                stream = _HistoryOutput(reader, process, deadline)
+                seen, found = False, False
+                for line in expected:
+                    identity = line.rstrip(b"\n")
+                    object_id(identity.decode("ascii"), "History commit")
+                    seen = True
+                    # One outstanding request makes a complete frame the writer's
+                    # acknowledgment. Rewind only after its delimiter is consumed.
+                    output.truncate(0)
+                    output.seek(0)
+                    reader.seek(0)
+                    process.stdin.write(identity + b"\n")
+                    process.stdin.flush()
+                    header = stream.readline(4097)
+                    match = re.fullmatch(rb"([0-9a-f]{40}|[0-9a-f]{64}) commit ([0-9]+)\n", header)
+                    if not match or match[1] != identity:
+                        raise CoordinationError("Malformed or missing Git history object.")
+                    matched = _message_matches(stream, int(match[2]), needle, deadline)
+                    if stream.read(1) != b"\n":
+                        raise CoordinationError("Truncated Git history object delimiter.")
+                    if reader.read(1):
+                        raise CoordinationError("Unexpected extra Git history output.")
+                    if matched:
+                        found = True
+                        break
+                if found:
+                    control["matched"] = True
+                else:
+                    process.stdin.close()
+                    # EOF needs successful Git exit, never an empty spool.
+                    process.wait(timeout=remaining_seconds(deadline))
+                if not seen or reader.read(1):
+                    raise CoordinationError("Incomplete Git history enumeration or extra object output.")
+    return found
 
 
 def git(repository, *arguments, input_text="", allow_failure=False, deadline=None):

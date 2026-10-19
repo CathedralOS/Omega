@@ -28,6 +28,14 @@ so read the task and its parked status.
   continue isolated work; do not repeatedly wait or claim registration succeeded.
 
 `--path` accepts repeated, comma/whitespace-separated files or directories.
+
+Explicit-ticket recovery checks every reachable registry commit before allowing
+an absent ticket to register again. This scan spools commit identities and
+streams one message at a time: full-snapshot histories must not retain all
+messages in memory. A timeout, missing object or malformed stream cannot prove
+absence. The existing `--timeout-seconds` budget covers enumeration, scanning
+and the eventual conditional write together; a longer explicit budget never
+weakens retired-ticket checks or changes the ticket being recovered.
 These are estimates, not edit permissions; necessary scope can grow without a
 new claim. Boards remain shared: claim their items, not board-file paths. A
 sample and the compiler repairs it needs are one piece of work under one claim.
