@@ -7,6 +7,7 @@
 //   close_handle(handle) == 0
 // exits: 70 ok; 71 create_file returned 0; 72 write_file != 6; 73 close != 0.
 use omega_language_std::windows_filesystem_host;
+use omega::language::core::filesystem_authority;
 use omega_language_std::console;
 
 data Main {
@@ -15,7 +16,7 @@ data Main {
     rc: i32;
 }
 
-machine Main::main(main: &mut Main) reaches Console + WindowsFilesystemHost {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     main.handle = WindowsFilesystemHost::create_file("omega_fswin_native.bin", 1073741824, 0, 2, 128);
     transition main.handle != 0 { true -> write(main) _ -> bad(main, 71) }
 

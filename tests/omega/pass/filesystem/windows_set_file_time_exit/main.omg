@@ -3,11 +3,12 @@
 // legacy CRT descriptor bridge; the fixed timestamp is still assembled from
 // the original eight literal bytes, independently of the Unix conversion.
 use omega_language_std::windows_filesystem_host;
+use omega::language::core::filesystem_authority;
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main { handle: u64; bytes: [u8; 8]; }
-machine Main::main(main: &mut Main) reaches Console + WindowsFilesystemHost {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     main.handle = WindowsFilesystemHost::create_file("omega_wsft_probe.txt", 1073741824, 7, 2, 128);
     transition main.handle != 0 { true -> seed(main) _ -> bad(main, 71) }
     state seed(main: &mut Main) {

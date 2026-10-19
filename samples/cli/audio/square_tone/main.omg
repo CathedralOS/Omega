@@ -28,7 +28,7 @@ data Main {
     byte: u8;
 }
 
-machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + WindowsFilesystemHost + ProcessExit {
+machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + ProcessExit {
     Console::write_line("square_tone: 444 Hz square wave, 8-bit unsigned mono PCM at 8000 Hz, 1 s");
 
     // Canonical 44-byte WAV header, little-endian fields.

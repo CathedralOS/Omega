@@ -1592,6 +1592,7 @@ pass/filesystem/native_metadata_ino built 22408ms exit:0 @4a4b15ea2933+wt
 pass/filesystem/native_metadata_nlink built 5648ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_read_dir_iter built 5345ms exit:0 stdout:match @e01f73c689de+wt
 pass/filesystem/native_wrapper_write_all_result built 16640ms exit:0 stdout:match @cc43b6679d2a+wt
+pass/filesystem/portable_raw_family_capabilities_exit built 25125ms exit:0 @5258cc05d27f
 pass/filesystem/runtime_local_host_result_dispatch_exit built 3686ms exit:70 @e01f73c689de+wt
 pass/filesystem/runtime_portable_copy_errors_exit built 19236ms exit:0 @cc43b6679d2a+wt
 pass/filesystem/runtime_portable_directory_failure_exit built 12872ms exit:0 @7e6a01265b4b

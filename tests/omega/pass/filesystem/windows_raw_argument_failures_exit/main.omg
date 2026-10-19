@@ -1,10 +1,11 @@
 // Expected Windows exit: 70. Invalid requests fail before exposing storage
 // or creating a file; an OS metadata failure never becomes an all-zero success.
 use omega_language_std::windows_filesystem_host;
+use omega::language::core::filesystem_authority;
 use omega_language_std::console;
 
 data Main { buffer: [u8; 1]; }
-machine Main::main(main: &mut Main) reaches Console + WindowsFilesystemHost {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let extent: i64 = WindowsFilesystemHost::read_file(0, &mut main.buffer, 2);
     transition extent == -87 { true -> asynchronous(main) _ -> bad(main, 71) }
     state asynchronous(main: &mut Main) {

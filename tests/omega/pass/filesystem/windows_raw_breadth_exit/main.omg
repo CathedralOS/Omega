@@ -3,6 +3,7 @@
 // attributes, non-replacing rename, missing old name, mkdir/delete/rmdir.
 // Failure exits 71..87 retain the original matrix's independent checks.
 use omega_language_std::windows_filesystem_host;
+use omega::language::core::filesystem_authority;
 
 use omega_language_std::console;
 
@@ -15,7 +16,7 @@ data Main {
     rc: i32;
 }
 
-machine Main::main(main: &mut Main) reaches Console + WindowsFilesystemHost {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     main.handle = WindowsFilesystemHost::create_file("omega_fswin_breadth_a.txt", 1073741824, 7, 2, 128);
     transition main.handle != 0 { true -> write_it(main) _ -> bad(main, 71) }
 
