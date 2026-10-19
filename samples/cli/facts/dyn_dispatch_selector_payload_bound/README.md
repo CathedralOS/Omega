@@ -24,6 +24,32 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Pinned fixtures
+
+The sample folder and its fixture family do not share a name. Each place is
+pinned under `tests/omega/` as
+`dyn_dispatch_selector_payload_bound_through_<place>_{exit,rejected}`, following
+the sibling `named_conformance_dispatch_*` and `length_*` rows:
+
+| Place | Positive fixture | Reject twin fixture |
+| --- | --- | --- |
+| local | [pass/facts/dyn_dispatch_selector_payload_bound_through_local_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_local_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_local_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_local_rejected/main.omg) |
+| field | [pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_field_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_field_rejected/main.omg) |
+| parameter | [pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_parameter_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_parameter_rejected/main.omg) |
+| call result | [pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_call_result_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_call_result_rejected/main.omg) |
+| match join | [pass/facts/dyn_dispatch_selector_payload_bound_through_match_join_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_match_join_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected/main.omg) |
+| const name | [pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_const_name_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_const_name_rejected/main.omg) |
+| another state | [pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected/main.omg) |
+| another machine | [pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_other_machine_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_other_machine_rejected/main.omg) |
+| another target body | [pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_target_body_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_target_body_rejected/main.omg) |
+
+Each pass fixture copies its place's `main.omg` byte for byte, declares
+`Expected exit: 0`, binds `ProgramEntry` for all four hosted targets, and
+carries its own `expected_native_exit.txt`. Each reject twin copies its
+place's `invalid/main.omg` and authors its expectation in `invalid/`-style
+fragments (`exact arithmetic`, `` may overflow `u64` ``), which the corpus
+runner weighs against the refusal it actually produced.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `DYNAMIC-DISPATCH` / `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION` ([TASKS.md](../../../../TASKS.md)).
@@ -51,3 +77,57 @@ Full 8-layer specification and lowering evidence:
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic dispatch table references resolve into concrete read-only `dyn` dispatch-table relocations. Basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute natively with Terminal Psi agreement (`omega run --both` reports `native exit 0` and `interp exit: 0`) across host platforms.
 
 Remaining open under DYNAMIC-DISPATCH: multi-trait composite dyn selectors, dynamically sized trait object payload projections, and cross-package generic conformance specialization tables.
+
+## Run record
+
+Producer: `omega` built from this candidate, `--build-profile` reporting
+`{"schema":"omega-compiler-build-profile-v1","opt_level":"1"}`. Host:
+macOS arm64. Command per place: `omega run --both <place>/main.omg`.
+
+| Place | Positive (`--both`) | Reject twin (`--check`) |
+| --- | --- | --- |
+| root | `native exit 0` / `interp exit: 0` | — |
+| local | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
+| field | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
+| parameter | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
+| call result | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
+| match join | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
+| const name | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
+| another state | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `evaluate` local `diff` may overflow `u64` `` |
+| another machine | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `forward` state `entry` terminal expression may overflow `u64` `` |
+| another target body | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64` `` |
+
+This row established coverage, not a compiler repair: all ten positive
+projects already ran green on the base, and the gap was that no host-pinned
+golden row had been recorded. No compiler source changed.
+
+## Dispatch discrimination
+
+The obligation's class decides where a violation is caught. For this fact the
+bound is a **value/arithmetic bound** discharged by exact subtraction, so the
+violation surfaces at the consuming operation; the selection itself settles at
+the conformance gate.
+
+- **Runtime, selector identity is load-bearing.** Two probes differ in exactly
+  one token, the selected implementation. `ActualEvaluator` (whose member
+  returns `38u64`) gives `native exit 0` / `interp exit: 0`. Swapping to
+  `OtherEvaluator` (whose member returns `7u64`, so `diff` is `81`) traps both
+  engines: `native signal 5` and `interp crash: Trap (host presentation
+  agrees)`. The runtime dispatch reads the selected implementation's body; it
+  is not a statically folded constant.
+- **Static, the bound is proof information.** `88u64 - result` is provable
+  only because `result <= 88u64` genuinely crosses the selector lane. Tightening
+  the same program to `87u64 - result` refuses statically with ``exact arithmetic
+  ... may overflow `u64` ``, so the postcondition is carried as a fact rather
+  than re-derived from a known return value.
+- **Static, at the conformance gate.** An implementation whose member realizes
+  the requirement but weakens its postcondition (`ensures result <= 200u64`,
+  returning `89u64`) is refused before any call:
+  ``machine `LooseEvaluator::compute` realizes `PayloadEvaluator::compute` but
+  does not guarantee its `ensures result <= 88`; callers of the requirement
+  assume it``. This is the same soundness behavior the sibling
+  `named_conformance_dispatch` row measured.
+- **Separation holds.** Changing only the data argument (`10u64` to `9999u64`)
+  while keeping the same selector and requirement leaves both engines at exit
+  0, confirming the selector and data lanes are independent operands with no
+  receiver attachment.
