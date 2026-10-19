@@ -120,8 +120,12 @@ bound to the sha it was taken for, so the rebased candidate has none. Publish
 never builds inside the lease, so it refuses with `no build receipt at
 .../<sha>.json` and a granted claim is lost. Compare the base the claim
 returned against your candidate's parent; when they differ, rebase, `verify`
-again, then publish. A sibling lost a claim to exactly this, and its re-verify
-after the rebase took 0.90s because the build was warm.
+again, then publish. When the incoming main movement between the prior receipt's
+base and the new base touched no Rust, Cargo, or toolchain files (and the
+candidate's own Rust diff is unchanged), `verify` automatically carries forward
+the prior passing Cargo/mbx check evidence into the new candidate's receipt in
+under a second (`reused_build_from`) while still re-checking pending markers,
+golden corpus rows, and qualification.
 
 **Keep the build warm, or the re-verify cannot fit the lease.** When main moves
 under a held claim, the re-verify of the rebased sha has to finish inside the

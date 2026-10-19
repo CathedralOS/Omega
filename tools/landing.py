@@ -415,6 +415,56 @@ def write_receipt(repository, receipt):
                     encoding="utf-8")
     return path
 
+def reusable_build_receipt(repository, base, head, workspaces, packages):
+    """Reuse a prior passing build receipt in this worktree when rebasing
+    onto a new base leaves all Rust/Cargo/toolchain inputs unchanged."""
+    directory = Path(repository) / "build" / "landing_receipts"
+    if not directory.is_dir():
+        return None
+    commits = coordination.git(repository, "rev-list", "--reverse",
+                               f"{base}..{head}").stdout.split()
+    candidates = sorted(directory.glob("*.json"),
+                        key=lambda path: path.stat().st_mtime, reverse=True)
+    for path in candidates:
+        try:
+            prior = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if (not isinstance(prior, dict)
+                or prior.get("schema") != RECEIPT_SCHEMA
+                or prior.get("exit_code") != 0):
+            continue
+        prior_candidate = prior.get("candidate")
+        prior_base = prior.get("base")
+        if (not isinstance(prior_candidate, str)
+                or not isinstance(prior_base, str)
+                or prior_candidate == head):
+            continue
+        if (coordination.git(repository, "cat-file", "-e",
+                             f"{prior_candidate}^{{commit}}",
+                             allow_failure=True).returncode
+                or coordination.git(repository, "cat-file", "-e",
+                                    f"{prior_base}^{{commit}}",
+                                    allow_failure=True).returncode):
+            continue
+        if receipt_failure(repository, prior_candidate, set(packages),
+                           workspaces=workspaces, base=prior_base) is not None:
+            continue
+        if (affected_workspaces(repository, prior_base, base)
+                or affected_workspaces(repository, prior_candidate, head)):
+            continue
+        prior_commits = coordination.git(
+            repository, "rev-list", "--reverse",
+            f"{prior_base}..{prior_candidate}", allow_failure=True
+        ).stdout.split()
+        if len(prior_commits) != len(commits):
+            continue
+        if any(affected_workspaces(repository, old_commit, new_commit)
+               for old_commit, new_commit in zip(prior_commits, commits)):
+            continue
+        return prior
+    return None
+
 def verify(repository, base, qualification_path=None):
     """Build-receipt producer: `check` the affected crates at a clean HEAD.
 
@@ -453,26 +503,35 @@ def verify(repository, base, qualification_path=None):
     packages = sorted({package for names in workspaces.values() for package in names})
     command = None
     checks = []
+    intermediate = []
+    reused_from = None
     exit_code = 0
     if packages:
-        tool = "mbx" if shutil.which("mbx") else "cargo"
-        target_kwargs = windows_safe_target_kwargs(repository)
-        for workspace, names in sorted(workspaces.items()):
-            check_command = [tool, "check"]
-            if workspace != ".":
-                check_command += ["--manifest-path", str(repository / workspace)]
-            for package in sorted(names):
-                check_command += ["-p", package]
-            check_started = time.monotonic()
-            checked_exit = subprocess.run(check_command, cwd=repository, **target_kwargs).returncode
-            checks.append({"workspace": workspace, "packages": sorted(names),
-                           "command": check_command, "exit_code": checked_exit,
-                           "duration_seconds": time.monotonic() - check_started})
-            if command is None:
-                command = check_command
-            if checked_exit and not exit_code:
-                exit_code = checked_exit
-    intermediate = intermediate_checks(repository, base, head, tool) if packages else []
+        reused = reusable_build_receipt(repository, base, head, workspaces, packages)
+        if reused is not None:
+            command = reused.get("command")
+            checks = reused.get("checks", [])
+            intermediate = reused.get("intermediate", [])
+            reused_from = reused.get("candidate")
+        else:
+            tool = "mbx" if shutil.which("mbx") else "cargo"
+            target_kwargs = windows_safe_target_kwargs(repository)
+            for workspace, names in sorted(workspaces.items()):
+                check_command = [tool, "check"]
+                if workspace != ".":
+                    check_command += ["--manifest-path", str(repository / workspace)]
+                for package in sorted(names):
+                    check_command += ["-p", package]
+                check_started = time.monotonic()
+                checked_exit = subprocess.run(check_command, cwd=repository, **target_kwargs).returncode
+                checks.append({"workspace": workspace, "packages": sorted(names),
+                               "command": check_command, "exit_code": checked_exit,
+                               "duration_seconds": time.monotonic() - check_started})
+                if command is None:
+                    command = check_command
+                if checked_exit and not exit_code:
+                    exit_code = checked_exit
+            intermediate = intermediate_checks(repository, base, head, tool)
     broken = sorted({check["commit"][:12] for check in intermediate if check["exit_code"]})
     if broken:
         exit_code = exit_code or 1
@@ -502,6 +561,8 @@ def verify(repository, base, qualification_path=None):
                "pending": [list(item) for item in pending],
                "exit_code": exit_code, "utc": now(),
                "duration_seconds": time.monotonic() - started}
+    if reused_from:
+        receipt["reused_build_from"] = reused_from
     if qualification_receipt:
         # Mandatory build checks still ran for this exact HEAD. Rejoin the
         # qualification again afterwards: a concurrently replaced compiler or
