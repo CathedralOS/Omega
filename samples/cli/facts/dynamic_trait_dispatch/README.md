@@ -70,3 +70,35 @@ Ticket: `e5f8ec0912314fa78f865ec38c7c5b2d`.
 Remaining open scope under `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`: multi-method dynamic vtable dispatch, finite generic method families with canonical value tuples, and cross-package dynamic conformance visibility export.
 
 The row is pinned by `tests/omega/pass/facts/dynamic_trait_dispatch_through_*_exit` and `tests/omega/fail/facts/dynamic_trait_dispatch_unproved_*` fixtures; every positive records native exit 0.
+
+### Recorded measurements
+
+Producer `2d783d092d9d`, target `macos_arm64`, CLI opt-level 1.
+
+| Check | Command | Observed |
+| --- | --- | --- |
+| nine places plus root run | `omega run --both <place>/main.omg` | native exit 0 and Terminal exit 0, 10/10 |
+| nine reject twins | `omega --check <place>/invalid/main.omg` | `cannot prove requires contract for call dyn WeightedCombine::combine`, 9/9 |
+| sample gate | `python3 tools/sample_native_gate.py --facts --filter dynamic_trait_dispatch` | 10/10 meet the oracle, 9/9 intended-invalid matched |
+| fixture native leg | `python3 tools/corpus_gate.py --native --filter dynamic_trait_dispatch` | clean; 9 built, 9 executed, exit codes `{0: 9}` |
+
+Every sample place and the root carry `expected_native_exit.txt` of `0`
+beside the `Expected exit: 0` header. The executed oracle for the row is the
+one the corpus gate reads: `tests/omega/pass/facts/dynamic_trait_dispatch_through_<place>_exit/expected_native_exit.txt`,
+whose nine rows are recorded in `tests/omega/corpus_native_macos_arm64.txt`.
+
+**Oracle discrimination.** The recorded `0` is measured, not assumed. The
+selector is the only input that decides the value: holding the trait contract
+and both data arguments fixed, `UnitCombine as dyn WeightedCombine` gives
+`native exit 0` / `interp exit: 0`, while swapping in a second conformance
+`AltCombine satisfies WeightedCombine` — same declared contract, body
+`left + right + 1u64` — gives `native signal 5` / `interp crash: Trap
+(host presentation agrees)`. Both engines move together with the selector, and
+neither agrees with the recorded `0` for the wrong selection. The compiler also
+refuses to declare a realization that does not guarantee the requirement's
+`ensures`, so a conforming implementation cannot silently return the wrong
+value.
+
+**Fixture oracle enforcement.** Corrupting one recorded expectation to `7`
+makes the gate refuse with `expected native 7, observed built {'exit': '0'}`,
+so the pinned rows are enforced rather than inert.
