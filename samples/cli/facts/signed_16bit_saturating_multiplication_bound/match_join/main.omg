@@ -1,0 +1,45 @@
+// Fact: 16-bit signed saturating multiplication lhs *| rhs with bounded interval 50i16 <= prod <= 200i16 establishes 50i16 <= prod <= 200i16 across all nine places so exact subtractions 200i16 - prod and prod - 50i16 are safe.
+// Place: match_join. Both match arms produce the saturating product joining into subtraction bounds.
+// Expected exit: 0
+
+machine verify_prod(prod: i16) -> i32
+requires prod >= 50i16 && prod <= 200i16
+{
+    let headroom: i16 = 200i16 - prod;
+    let margin: i16 = prod - 50i16;
+    0i32
+}
+
+machine choose_saturating(flag: bool, lhs: i16, rhs: i16) -> i16
+requires lhs >= 10i16 && lhs <= 20i16 && rhs >= 5i16 && rhs <= 10i16
+ensures result >= 50i16 && result <= 200i16
+{
+    let w_lhs: i16 in Saturating = lhs as i16 in Saturating;
+    let w_rhs: i16 in Saturating = rhs as i16 in Saturating;
+    let prod_sat: i16 in Saturating = w_lhs * w_rhs;
+    let prod: i16 = prod_sat as i16;
+    match flag {
+        true -> prod,
+        false -> prod,
+    }
+}
+
+machine compute_join(lhs: i16, rhs: i16) -> i32
+requires lhs >= 10i16 && lhs <= 20i16 && rhs >= 5i16 && rhs <= 10i16
+{
+    let prod: i16 = choose_saturating(true, lhs, rhs);
+    verify_prod(prod)
+}
+
+machine probe() -> i32 {
+    compute_join(15i16, 8i16)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
