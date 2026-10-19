@@ -1,0 +1,35 @@
+// Fact: Adding two bounded 32-bit unsigned u32 values (lhs >= 20u32 && lhs <= 40u32 and rhs >= 30u32 && rhs <= 50u32) establishes the exact post-addition interval (sum >= 50u32 && sum <= 90u32), discharging both 90u32 - sum and sum - 50u32 across all nine places.
+// Place: const name. The bounds and subtraction limits reference declared symbolic constants.
+// Expected exit: 0
+
+const LHS_MIN: u32 = 20u32;
+const LHS_MAX: u32 = 40u32;
+const RHS_MIN: u32 = 30u32;
+const RHS_MAX: u32 = 50u32;
+const SUM_MIN: u32 = 50u32;
+const SUM_MAX: u32 = 90u32;
+
+machine evaluate(lhs: u32, rhs: u32) -> i32
+    requires lhs >= LHS_MIN && lhs <= LHS_MAX;
+    requires rhs >= RHS_MIN && rhs <= RHS_MAX;
+{
+    let sum: u32 = lhs + rhs;
+    let headroom: u32 = SUM_MAX - sum;
+    let margin: u32 = sum - SUM_MIN;
+    transition sum == 70u32 && headroom == 20u32 && margin == 20u32 {
+        true -> pass()
+        _ -> fail()
+    }
+    state pass() -> i32 { 0 }
+    state fail() -> i32 { 1 }
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate(30u32, 40u32);
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
