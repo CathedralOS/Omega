@@ -49,6 +49,28 @@ python3 tools/sample_native_gate.py --cli <omega> --facts --filter compound_inde
 The sample gate reports ten passing programs (root plus nine places), nine
 intended-invalid rejections, and zero unscored.
 
+## Discrimination
+
+The oracle was proved to discriminate before the `macos_arm64` golden rows were
+recorded. Each corruption changed one component of the compound index, and the
+engines were observed rather than assumed.
+
+| Corruption | Component changed | Observed result | Class |
+| --- | --- | --- | --- |
+| grid extent `200 -> 74` with guard ceiling `200 -> 74` | collection length and guard ceiling together | `cannot prove index 75 is within length 74`, check exits 1 | static refusal |
+| index written as the fixed constant `250` into a length-`200` grid | access coordinate | `cannot prove index 250 is within length 200`, check exits 1 | static refusal |
+| stride `20 -> 10`, oracle `grid[75] == 7` retained | stride feeding the compound index | `native signal 5` + `interp crash: Trap`, exit 255 | runtime trap |
+| stored element `7 -> 8` | stored value read back by the oracle | `native signal 5` + `interp crash: Trap`, exit 255 | runtime trap |
+
+The two classes split along whether the checker can constant-fold the
+corruption. Changing the extent or writing a literal coordinate is decided at
+check time, so native production never runs. Corrupting the stride or the
+stored element keeps a well-typed guard and a provable index, so the program
+compiles and the disagreement surfaces at execution, where the native engine
+traps (`signal 5`) and the Terminal Psi interpreter raises `Trap`. Both engines
+agree in both classes. The oracle therefore measures the compound index guard
+rather than merely the program's ability to compile.
+
 ## Requirements and Evidence
 
 Owning task: **INDEX-INDUCTIVE-BOUNDS** ([TASKS.md](../../../../TASKS.md)). This row establishes that a compound boolean arithmetic guard (`0 <= b * 20 + a < 200`) proves in-bounds indexed array access across all nine transport places.
