@@ -46,6 +46,14 @@ custody obligations. Atomic-to-atomic views retain their operation and
 observation requirements. This rule does not itself establish a mutex's
 payload-custody protocol.
 
+[Domain access policy](domains.md#domain-owned-read-and-write-authority) also
+applies to atomic events: observation requires the applicable read grant,
+mutation the write grant, and a read-modify-write event both. Shared atomic
+access is not an exemption from `written by`; authorized machines may lend the
+exact access to an atomic helper without making that helper a new establishment
+route. Policy and custody survive representation casts. None of these grants
+alone proves that a mutex holds exclusive access to its separate payload.
+
 Observing compare-exchange compares stored representation with `encode(expected)`,
 not user equality. Non-observing exchange uses the selected copyable key's
 encoding law. Fetch proofs cover every provider-readable raw representation,

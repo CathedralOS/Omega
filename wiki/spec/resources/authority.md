@@ -26,6 +26,23 @@ historical fact may instead qualify a reusable carrier. Non-copyability does not
 itself imply divisibility. [Domains](../language/domains.md) owns qualification,
 weakening, aliases, and semantic-role composition.
 
+## Domain access authority
+
+[Domain-owned read/write policy](../language/domains.md#domain-owned-read-and-write-authority)
+separates `read by` and `written by` from `established by`. The latter controls
+introduction of provenance, not all later accesses. Access routes authorize
+specific operations on specific qualified subjects; they add no backing, loan,
+validity, resource supply, or concurrency guarantee. The domain owner and carrier
+owner gain no ambient access privilege.
+
+Exact route resolution and the private-route metadata exception below apply to
+all three catalogs. Their authority is distinct: an issuer is not implicitly a
+reader/writer, and an access route is not an issuer. Requirement access routes
+deliberately admit selected conformers, with boundary admission where applicable.
+Authorized invocations may delegate scoped access through checked helper calls;
+the grant cannot escape its authorizing scope. Ordinary transport or `as` cannot
+launder a restricted view into unrestricted read/write authority.
+
 ## Completion authority and implementation selection
 
 The settled decision `boundary-requirement-call-without-installation` uses

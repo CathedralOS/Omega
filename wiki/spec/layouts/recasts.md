@@ -47,6 +47,13 @@ concurrent-mutation permission, bypass required atomic observations, or evade
 outstanding ownership, custody, domain, and synchronization obligations. Judge the enabled
 operations, not just whether the reference is spelled `&` or `&mut`.
 
+[Domain-owned access restrictions](../language/domains.md#domain-owned-read-and-write-authority)
+are part of that source authority. Forgetting a domain with `read by` or
+`written by` must retain the restriction on the resulting view; a target/use
+that requires broader authority rejects. Neither exclusive ownership nor an
+atomic-to-atomic or intermediate byte cast bypasses an installed domain policy.
+Ordinary erasure of non-owning meaning remains legal when it does not widen access.
+
 In particular, [atomic operations](../language/concurrency.md#atomic-operations)
 can write through shared access. Their access rules apply to recasts too:
 

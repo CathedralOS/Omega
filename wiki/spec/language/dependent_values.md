@@ -84,6 +84,15 @@ representation guarantee, not universal semantic membership or ambient write
 authority. A zeroed storage representation can be accessed as an established
 value only after its default-domain obligations hold.
 
+Field qualifications may also carry
+[domain-owned read/write restrictions](domains.md#domain-owned-read-and-write-authority).
+Establishing validity does not grant access forbidden by that policy. It remains
+attached to the governed field through parent borrows, projections, whole-place
+replacement, and qualification forgetting. Invariant windows permit temporary
+invalidity only under otherwise-authorized access; they do not waive a reader or
+writer restriction. Fresh construction and policy installation follow the domain
+establishment rules, not an implicit file-local or constructor privilege.
+
 Anonymous interval constraints on common fields are written in the data `where`;
 constraints involving one case's payload are written in that case's `where`.
 Bracketed scalar range suffixes are not a second default-domain syntax.
@@ -139,6 +148,10 @@ Contracts may state `requires value in Domain` and corresponding
 need not survive a call unless the ordinary contract guarantees it. Zeroed or
 partially established storage still needs establishment before a readable borrow;
 a qualified machine name grants no construction or validity exception.
+
+That predicate-fact rule does not authorize dropping a governed subject's access
+policy. Forgetting the displayed domain or invalidating a flow predicate cannot
+create a reader/writer grant; retained restrictions follow their governed lifetime.
 
 ### Collection invariants
 

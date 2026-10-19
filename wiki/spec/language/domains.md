@@ -4,9 +4,9 @@ Named decision: `qualified-fixed-byte-array-carrier`, settled 2026-10-14.
 
 A domain attaches a static theory to a carrier without adding a runtime tag,
 wrapper, hidden storage, or second object model. Predicate requirements,
-semantic contributions, authorized establishment routes, and transparent aliases
-are independently normalized aspects of that theory. Multiplicity, content,
-carry, and provider evidence keep their own judgments.
+semantic contributions, authorized establishment and access routes, and
+transparent aliases are independently normalized aspects of that theory.
+Multiplicity, content, carry, and provider evidence keep their own judgments.
 
 Qualification never selects or changes storage representation, capacity, live
 length, layout, or collection kind. In particular, `[u8; N] in D` is the same
@@ -95,9 +95,14 @@ concrete machine as an alternative authorized origin, not an invocation.
 Predicates alone establish predicate-only membership.
 A routed domain additionally needs exact authorized provenance, even when all
 its predicates are proved. A predicate-free domain with establishment routes
-still requires that provenance. A declaration with neither predicates nor routes
-adds no membership obligation: a valid bare `i32` may be explicitly qualified as
-`Km` without an owner grant. Predicate-free does not mean uninhabited.
+still requires that provenance. A declaration with neither predicates nor
+establishment routes adds no predicate or issuer obligation: a valid bare `i32`
+may be explicitly qualified as `Km` without an owner grant. Predicate-free does
+not mean uninhabited.
+
+Access clauses add independent permission obligations under
+[domain-owned read/write authority](#domain-owned-read-and-write-authority);
+absence of an issuer restriction does not waive those obligations.
 
 This rule also applies to affine and linear carriers
 (`linear-carrier-vacuous-qualification`). Multiplicity governs use of the carrier,
@@ -168,6 +173,126 @@ Importing enables selection, not membership, minting, or implicit operator
 changes. A value carrying a foreign qualification retains its exact identity and
 evidence without activating the domain for authored lookup. Carrying it does not
 grant additional dependency reach or expose other extensions.
+
+## Domain-owned read and write authority
+
+Named decision: `domain-read-write-authority`.
+
+Domains may independently restrict who obtains access to their qualified subject:
+
+```omega
+pub domain Cell::Controlled
+    established by Cell::create
+    read by Cell::read
+    written by Cell::set;
+
+pub data Counter {
+    cell: Cell in Controlled;
+}
+```
+
+`read by` and `written by` belong to the domain declaration, not the field or
+data declaration. Fields use ordinary qualification. Each clause has a nonempty,
+comma-separated list of alternative exact machine declarations or trait
+requirements. Omitting a clause adds no restriction on that access axis; it does
+not mean deny-all. `written by` does not imply `read by`, or conversely.
+The clause words are recognized in domain-clause position; they do not reserve
+ordinary machine names such as `Cell::read`. `established by` remains independent:
+an issuer need not be a reader or writer, and an authorized reader or writer
+cannot thereby mint membership.
+
+Access routes use the same exact-declaration resolution, requirement-versus-machine
+distinction, private-route visibility exception, and selected-conformance rules
+as [establishment routes](../resources/authority.md#establishment-routes).
+An exact machine is authorized during its invocation; a requirement authorizes
+the invocation through that requirement and its selected implementation, not an
+unrelated direct call to a satisfying machine. No whole-file, package, namespace,
+carrier-owner, or same-trait privilege follows. These clauses change neither
+declaration visibility nor package dependency authority.
+
+### Governed subjects and operations
+
+The policy applies to the exact qualified value/storage occurrence and its
+structural subplaces, not every value of the carrier. A qualified field protects
+that field; a qualified whole record protects its contained fields. Following a
+stored reference additionally obeys the referent's own authority and loan rules;
+the policy does not grant access to arbitrary referenced storage. Introducing a
+foreign domain cannot impose a policy on unrelated values or existing domains.
+
+Reading stored contents, including discriminants, comparisons, codecs, and
+runtime reflection, requires read authority. Changing contents, including
+projected writes, whole-value replacement of a governed place, and atomic stores,
+requires write authority. Read-modify-write operations require both. Operations
+that return or inspect displaced content must also satisfy their observation and
+custody contracts. The operation's semantics determine its access, not whether
+its parameter spells `&` or `&mut`.
+
+An authorized route removes only its domain's access restriction for the supplied
+subject and applicable axis. It does not create backing, widen a borrow, bypass
+exclusivity, prove a predicate, waive cleanup, or confer concurrent access. In
+particular, write authorization does not make an ordinary shared reference
+writable. Atomic shared writes require both their ordinary atomic authority and
+any applicable domain write authorization. Type/field metadata and already
+established proof facts are not new runtime reads; they cannot manufacture an
+executable view. This is an access rule, not an information-flow secrecy policy.
+
+### Establishment, transport, and helper calls
+
+Constructing a fresh valid carrier precedes establishing its qualification.
+Issuance checks the existing carrier, predicate, provenance, and custody rules
+and installs the access policy; it does not retroactively require a constructor
+to read or write an already-protected value. Existing governed storage cannot
+use reconstruction, zero initialization, or an invariant window to bypass its
+policy. Introducing a policy requires compatible live loans: no surviving alias
+may retain an access path that violates the policy for the governed lifetime.
+
+Moving an intact governed value transports its policy and custody. A permitted
+whole-value copy preserves the policy on the copy; it does not expose its fields
+as unrestricted values. Compiler-generated byte movement is not source-level
+observation or permission to inspect the bytes. Borrowed projection, extraction,
+state transport, and generic substitution retain the applicable subject/policy
+relationships. Public field names or ownership of the enclosing record do not
+waive an installed field policy.
+
+Callers may forward a restricted value or reference to an authorized operation
+without personally acquiring its read/write grant. Argument admission still
+proves carrier validity, qualification, lifetime, and the required ordinary loan.
+The authorized invocation can lend access on those exact subjects to ordinary
+helpers through checked arguments and reborrows. A helper does not need to be
+listed separately; it receives only the delegated access, not ambient privilege
+over other values. Bare parameter spelling, wrappers, callbacks, and indirect
+calls cannot replace that argument-admission proof.
+
+Delegated access is bounded by the authorizing invocation and its loan lifetime.
+Helpers cannot retain the grant after that scope ends; suspension retains its
+ordinary call/loan obligations rather than extending them. Returning a restricted
+reference transports the restriction, not a fresh unrestricted grant. An
+authorized reader may intentionally publish an observed result under its ordinary
+result contract; that is not a promise of confidentiality. Access permission
+alone does not prove a mutex's exclusion, ordering, or payload-custody protocol.
+
+### Composition and erasure
+
+Every applicable atom must authorize the requested access. Alternatives within
+one clause are disjunctive; independent domains and inherited policies compose
+conjunctively. Alias expansion cannot drop a constituent's policy, and a child
+domain cannot widen a parent's access. Normalization retains the separate exact
+read and write route sets, subject, and substituted indices in semantic interface
+identity. Changing a route set is an interface change, not a private-body detail.
+
+Forgetting a displayed qualification never increases access. A bare or recast
+view must retain the governed storage's access restrictions; if the target/use
+requires broader authority, it rejects. This applies equally to by-value
+transport, intermediate byte views, atomic-to-atomic recasts, and structural
+projection. Explicit `as` cannot discharge the policy merely because a domain is
+non-owning or has no predicates. Ordinary predicate/unit erasure remains available
+when it does not evade an access or custody obligation. See
+[recast authority](../layouts/recasts.md#access-authority-and-concurrent-observation).
+
+These clauses add no runtime permission bits, storage wrapper, alias/newtype
+declaration form, or field-private syntax. They attach checked access policy to
+ordinary domain-qualified values. Compiler implementation and a complete mutex
+construction are not established by this specification settlement.
 
 ## Refinement and executable membership
 
@@ -270,10 +395,13 @@ operations, not the interpretation of earlier work or the stored payload.
 
 Weakening is per normalized atom:
 
-- Predicate-only atoms may disappear implicitly.
+- Predicate-only atoms with no access policy may disappear implicitly.
 - Semantic atoms and non-owning routed provenance require explicit `as` erasure.
 - An atom containing both predicates and a route follows the routed rule.
 - Owned claims cannot be cast away; they must be consumed or transferred.
+- Access policies survive qualification forgetting whenever needed to prevent
+  authority amplification; a view that cannot retain them rejects. Neither
+  non-owning provenance nor explicit erasure waives `read by` / `written by`.
 
 Thus `i32::Km & Positive` may flow to `i32::Km`, but not implicitly to bare
 `i32`. Carry demands survive qualification forgetting until the underlying
@@ -319,7 +447,8 @@ defined by [numeric values](numeric_values.md) and total proof formation by
 
 Named machine and requirement calls may overload by result domain. Their
 dispatch projection contains normalized semantic-role contributions, routed
-provenance, and empty explicit tags. Predicate-only domains contribute no key.
+provenance, access-policy atoms, and empty explicit tags. Predicate-only domains
+without access policies contribute no key.
 The expected result projection must equal one declared projection; without an
 expected result, lookup selects the empty projection. Only afterward check
 predicates and ordinary compatibility.
@@ -347,9 +476,9 @@ affected callers, implementations, and consumers. Weakening the expanded atoms
 still follows their individual predicate, semantic, or custody rules.
 
 The deterministic normalizer owns domain identity, semantic interface identity,
-and specialization keys: exact carrier, normalized atoms/roles, routes,
-canonical indices, and alias expansion. Stronger entailment may accept more
-programs but cannot change identity or operator meaning. Physical ABI remains
+and specialization keys: exact carrier, normalized atoms/roles, establishment
+and read/write routes, canonical indices, and alias expansion. Stronger entailment
+may accept more programs but cannot change identity or operator meaning. Physical ABI remains
 the carrier's; semantic interface identity retains the domain theory.
 
 ## Indexed families

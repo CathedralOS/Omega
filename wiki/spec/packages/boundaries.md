@@ -77,14 +77,15 @@ Selection settles before supply admission; rejection of the supply does not
 erase the declaration it selected. Nested machine-parameter contracts and
 generic applications retain the same selections.
 
-Each domain establishment route selects an exact trait requirement or concrete
-machine, retaining its target kind and author-side dependency/visibility checks.
+Each domain establishment, read, or write route selects an exact trait
+requirement or concrete machine, retaining its target kind and author-side
+dependency/visibility checks. The three catalogs retain their separate roles.
 Repeated authored routes retain their occurrences even when equal semantic
 alternatives normalize to one route. A public domain may authorize a private
 requirement or machine accessible to its author under the
 [private-issuer rule](../resources/authority.md#private-issuer-routes).
 The catalog retains exact identities and dependencies for verification without
-making the issuer callable, externally implementable, or source-nameable.
+making the selected route callable, externally implementable, or source-nameable.
 Public predicates, carrier types, and ordinary signatures keep their existing
 exposure rules. Lexical subjects/binders do not become declaration-selection rows.
 

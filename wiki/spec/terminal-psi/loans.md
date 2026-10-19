@@ -13,6 +13,16 @@ non-interference cannot create a loan, repair missing resource custody, extend
 its lifetime, or widen access. Circular justification between these judgments
 rejects before either can authorize execution.
 
+Source checking includes
+[domain access policy](../language/domains.md#domain-owned-read-and-write-authority)
+in the permission judgment: exact subject and normalized domain, requested
+read/write axis, authorized machine or requirement invocation, and any delegated
+loan's origin and scope. This is not a predicate fact that can be forgotten at a
+join. Projection, calls, casts, state transport, and restoration preserve those
+restrictions; a bare reference type cannot manufacture an unrestricted grant.
+Helpers receive only checked delegated access. Nothing here requires replaying
+successful checking between trusted stages or adding runtime permission storage.
+
 The split is a criterion, not a closed list of obligations. Disjointness,
 containment and non-interference are relations over existing, versioned subjects
 and may be proved. Loan descent, access attenuation, temporal containment and

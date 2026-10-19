@@ -4,8 +4,8 @@ A domain is a zero-cost semantic theory attached to a value's unchanged
 carrier.
 
 A domain can state predicates, contribute a unit meaning or arithmetic policy,
-name authorized establishment routes, or alias other domains. These roles are
-checked separately. The [domain specification](../spec/language/domains.md)
+name authorized establishment/read/write routes, or alias other domains. These
+roles are checked separately. The [domain specification](../spec/language/domains.md)
 owns the complete rules; this chapter shows how to use them.
 
 Domains add no runtime tag or hidden storage. Their predicates do not execute
@@ -138,6 +138,95 @@ machine Game::start_game(game: &mut Game)
     game.phase = GamePhase::Playing;
 }
 ```
+
+## Read And Write Authority
+
+Domain access restrictions are opt-in. `read by` names the operations allowed
+to obtain read access; `written by` does the same for writes. They are independent
+of each other and of `established by`. An omitted clause adds no restriction on
+that axis; ordinary borrowing, validity, and authority rules still apply.
+
+The policy belongs to the domain, not to the file or a field-private annotation.
+Fields simply use a qualified type. This is settled source design; compiler
+support remains an implementation task.
+
+```omega
+pub data Cell {
+    value: u32;
+}
+
+pub domain Cell::Controlled
+    established by Cell::create
+    read by Cell::read
+    written by Cell::set;
+
+pub data Counter {
+    cell: Cell in Controlled;
+}
+
+pub machine Cell::create(value: u32) -> Cell in Controlled {
+    Cell { value: value }
+}
+
+pub machine Cell::read(cell: &Cell in Controlled) -> u32 {
+    cell.value
+}
+
+pub machine Cell::set(cell: &write Cell in Controlled, value: u32) {
+    write_cell(cell, value);
+}
+
+// Ordinary helper; not separately listed as a domain writer.
+machine write_cell(cell: &write Cell, value: u32) {
+    cell.value = value;
+}
+```
+
+`create` establishes the qualification on a fresh carrier. It is not thereby
+authorized to read or write an existing controlled cell. `set` receives write
+authority for its argument and lends that exact access to `write_cell`; it cannot
+read the old value. `read` may publish the observed scalar as its ordinary result.
+Sharing the `Cell::` namespace grants other machines nothing.
+
+Consumer code uses the public operations without acquiring their grants itself:
+
+```omega
+let counter: Counter = Counter { cell: Cell::create(0) };
+Cell::set(&write counter.cell, 7);
+let observed: u32 = Cell::read(&counter.cell);
+```
+
+In a separate, unauthorized machine, these accesses reject even in the same file:
+
+```omega
+let leaked: u32 = counter.cell.value; // Missing read authorization.
+counter.cell.value = 9;              // Missing write authorization.
+write_cell(&write counter.cell, 9);  // No authorized delegation to the helper.
+```
+
+Forwarding a restricted reference to an authorized operation is different from
+observing or changing its contents. Helper grants are tied to the authorizing
+invocation, exact subject, access axis, and loan lifetime; they cannot escape as
+unrestricted references. An intact move or permitted copy retains the policy.
+Fresh initialization does not waive the policy of an already-governed place.
+
+Access lists may also name exact trait requirements. Valid selected conformers
+then supply the operation under the ordinary requirement/admission rules. The
+domain owner chooses that openness; neither an unrelated conformer nor a
+same-spelled machine gains authority. Multiple domains must all permit an access.
+
+Casts and aliases do not erase this protection. Dropping `Controlled` from the
+displayed type must retain the storage's restrictions or reject a use needing
+broader access. The same applies to atomic-to-atomic casts and intermediate byte
+views. Atomic stores need write authority even through `&`; atomic read-modify-write
+operations need both read and write authority.
+
+This does not introduce a data-alias/newtype form or settle a mutex's payload
+protocol. It changes no representation and adds no runtime permission bits.
+Existing declaration visibility stays separate: public fields reveal structure,
+not unrestricted access, and the policy is not a guarantee of secrecy.
+The [domain access contract](../spec/language/domains.md#domain-owned-read-and-write-authority)
+owns establishment, delegation, composition, and erasure details.
 
 ## Establishing And Qualifying Domains
 
@@ -390,13 +479,17 @@ and then relabels.
 
 Weakening is checked per domain atom:
 
-- predicate-only facts may weaken implicitly;
+- predicate-only facts without access policies may weaken implicitly;
 - semantic or non-owning provenance facts require explicit `as` erasure;
 - a domain with both predicates and a route follows the stronger routed rule;
   and
 - an owned claim cannot be cast away and must be consumed or transferred.
 
-The last rule comes from ownership and custody, not merely from the presence
+Read/write policies cannot be erased to increase authority. A view may omit the
+displayed domain only while retaining its access restrictions; a use requiring
+broader access rejects. Non-owning provenance and explicit `as` are not exceptions.
+
+The owned-claim rule comes from ownership and custody, not merely from the presence
 of a route. A non-owning historical fact may be explicitly forgotten; a live
 `Extent::Granted` claim remains accountable.
 
@@ -449,20 +542,24 @@ Weakening is evaluated independently for each domain atom. An `i32::Km &
 Positive` may implicitly shed `Positive` when an `i32::Km` is expected, while
 `Km` prevents the same value from implicitly becoming bare `i32`.
 
-A predicate-only atom weakens implicitly because forgetting a proved
-proposition cannot make the carrier invalid. A semantic atom or a non-owning
-provenance atom requires an explicit `as` to the target without that atom.
+A predicate-only atom without an access policy weakens implicitly because
+forgetting a proved proposition cannot make the carrier invalid. A semantic atom
+or a non-owning provenance atom requires an explicit `as` to the target without that atom.
 When one declaration carries both predicates and an establishment route, the
 route governs removal. An owned obligation cannot weaken or cast away; custody
 requires consumption or transfer.
+
+An access-policy atom additionally retains its read/write restrictions. Neither
+predicate weakening nor explicit semantic erasure expands authority over the
+governed value or backing.
 
 ### Domains in result overload selection
 
 Explicit named machines and requirements may overload one path and parameter
 signature by their normalized result-domain set. Predicate knowledge alone
 never selects such an overload. Semantic-role contributions, routed
-provenance, and empty explicit tags do; a mixed domain selects by its identity
-and still owes its predicates after selection. This partition is derived from
+provenance, access-policy atoms, and empty explicit tags do; a mixed domain selects
+by its identity and still owes its predicates after selection. This partition is derived from
 the existing normalized domain record and requires no source marker.
 
 The expected result's dispatch-bearing set must equal the declaration's set.
@@ -548,8 +645,9 @@ uninhabitedness may inform diagnostics, not invalidate the declaration.
 
 Do not confuse uninhabited domains with predicate-free domains. A predicate-free
 domain with authorized establishment routes certifies provenance; one without
-routes permits explicit qualification of any compatible valid carrier value.
-Neither rule changes. See [uninhabited domains](../spec/language/domains.md#uninhabited-domains)
+establishment routes adds no issuer requirement. Any access policy still needs
+compatible loans and governs subsequent use. See
+[uninhabited domains](../spec/language/domains.md#uninhabited-domains)
 for the declaration and proof rules.
 
 An invariant window does not establish membership; actual contents remain

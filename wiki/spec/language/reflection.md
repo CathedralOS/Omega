@@ -84,6 +84,13 @@ recursively inspect the types of supplied fields. Recursive descent uses each
 field type's explicitly selected operation. A metadata key or editable flag is
 not a delegated accessor.
 
+Structural visibility does not override
+[domain-owned access policy](domains.md#domain-owned-read-and-write-authority).
+Enumerating field descriptions grants neither `read by` nor `written by`
+authority over a value. Runtime visitors and generated codecs must receive the
+same authorized, subject-bound access as handwritten operations; compile-time
+execution and reflective projection cannot bypass the policy.
+
 An initial schema query requires authorized complete structural visibility. It
 does not hide inaccessible members while claiming complete coverage. Fields and
 cases inherit their semantic owner's visibility; there is no new independently

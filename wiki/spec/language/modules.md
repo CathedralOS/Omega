@@ -133,6 +133,7 @@ An authorized public conformance may retain private implementation identities
 without granting consumers direct selection of them. A public domain's
 [issuer catalog](../resources/authority.md#private-issuer-routes) may likewise
 retain private trait requirements or exact machines accessible to its author.
+The same limited exception applies to its exact `read by` / `written by` routes.
 That authorization metadata grants no consumer call, conformance, or private-type
 selection permission. Other public signatures and predicates retain their
 ordinary exposure rules; this is not general public access to private names.
@@ -147,8 +148,13 @@ application or accept the assumptions of a bodyless claim.
 
 Publishing structural data publishes its field names and shape. Authorized
 consumers may read, construct, and update values subject to field types,
-invariants, borrowing, and qualification requirements. Visibility is not
-confidentiality, unforgeable authority, or an ABI policy.
+invariants, borrowing, and qualification requirements, including
+[domain-owned read/write policy](domains.md#domain-owned-read-and-write-authority).
+Knowing a field name grants no access that its qualified type withholds. Those
+restrictions are opt-in domain clauses, not field visibility or privileges for
+every machine in a file, namespace, or package. Omitting them adds no access
+restriction beyond ordinary validity, ownership, and other authority rules.
+Visibility is not confidentiality, unforgeable authority, or an ABI policy.
 
 Constructing geometry or handle bits does not construct its routed authority or
 provider provenance. Confidential state remains in custody outside the

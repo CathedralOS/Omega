@@ -595,6 +595,11 @@ With genuine exclusive access, ordinary/atomic recasts remain eligible when
 layout, two-way validity, and outstanding obligations permit them. Casting
 through bytes does not bypass these checks.
 
+The same rule applies to domain `read by` / `written by` policies. Omitting the
+domain in a cast cannot unlock the governed storage, even with exclusive access
+or an atomic-to-atomic target. The view retains its restrictions or the broader
+use rejects. See [domain access](chapter_8_domains.md#read-and-write-authority).
+
 Atomic-to-atomic casts are not categorically forbidden; they must preserve the
 authorized operations and observation protocol. This is an access-preserving
 cast rule, not a mutex design or a new domain-minting restriction. A mutex still

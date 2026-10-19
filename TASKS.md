@@ -1775,6 +1775,37 @@ defines the complete product bar.
   `TypeConstraintNode::Range`, range-shell inference and suffix-recommending
   diagnostics; reject suffixes in every type position; delete the recipe.
 
+- **DOMAIN-ACCESS-AUTHORITY.** Implement the settled
+  [domain read/write policy](wiki/spec/language/domains.md#domain-owned-read-and-write-authority)
+  end to end; source clauses are `read by` and `written by`, independent of
+  `established by`. This is an access-policy feature, not field visibility,
+  nominal-alias syntax, or a completed mutex implementation.
+
+  Carry normalized exact route identities and subject-bound access restrictions
+  through the common permission/loan model. Reuse establishment-route resolution
+  for exact machines and selected trait requirements; do not special-case source
+  spellings, atomic wrappers, or particular fields. Omitted clauses add no policy;
+  composed domains retain every restriction. The guide's
+  [controlled cell](wiki/language_guide/chapter_8_domains.md#read-and-write-authority)
+  is the first witness: public structure, authorized read and write-only update,
+  and a writer delegating to an unlisted helper. Its interpreter/native results
+  agree without extra runtime permission fields or a changed carrier layout.
+
+  Acceptance: the same policy survives the ordinary fact/loan transport places,
+  nested fields, whole-place replacement, requirement dispatch, helper calls,
+  reflection and codecs. Reject unauthorized reads/writes, an issuer accessing
+  existing protected contents without an access route, a writer-only route reading
+  through otherwise-readable `&mut`, wrong-subject or escaped helper grants,
+  incompatible preexisting aliases, and bypass through bare helper parameters,
+  explicit domain erasure, intermediate
+  byte views, or atomic-to-atomic recasts. Preserve permitted intact transport,
+  authorized observation results, unrelated unqualified carrier uses, and ordinary
+  predicate/unit erasure. Atomic stores require the write grant even through shared
+  access; read-modify-write requires both. Build these checks into the general
+  access judgment, retaining ordinary validity, custody, and concurrency rules.
+  Rejection controls must establish their other obligations so missing issuance,
+  layout support, or an ordinary borrow error cannot masquerade as policy enforcement.
+
 - **NOMINAL-FIELD-FLOW.** Close the Dungeon Crawler's field-domain execution
   under [mutable arguments and declared field domains](wiki/spec/language/dependent_values.md#mutable-arguments-and-declared-field-domains)
   and [static declarations](wiki/spec/language/machines.md#static-declarations-and-explicit-state).
