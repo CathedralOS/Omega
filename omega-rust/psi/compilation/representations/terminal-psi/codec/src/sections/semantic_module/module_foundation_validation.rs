@@ -61,6 +61,10 @@ pub(super) fn declared_scalar_type(
 /// carrier relationships, signatures, and operation/result shape; it does not
 /// prove qualifications, reach closure, or claim dataflow.
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
+    module
+        .folded_constants
+        .validate(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     scalar_qualifications::validate(module)?;
     terminal_semantics::quotients::validate_quotient_catalog(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;

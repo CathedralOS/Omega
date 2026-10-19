@@ -27,97 +27,134 @@ pub(crate) fn validate_conformances(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (index, conformance) in program.conformances().iter().enumerate() {
-        let implementation_name = conformance
-            .alias
-            .as_ref()
-            .map_or("<unnamed implementation>", |alias| alias.as_str());
-        let trait_name = conformance.trait_name.as_str();
-        let conformance_name = conformance.alias.as_ref().map(|name| name.as_str());
-
         if program.conformances()[..index].iter().any(|previous| {
             !program
                 .symbols
                 .source_scopes_separate(previous.symbol, conformance.symbol)
                 && previous.alias == conformance.alias
         }) {
+            let name = conformance
+                .alias
+                .as_ref()
+                .map_or("<unnamed implementation>", |alias| alias.as_str());
             diagnostics.push(Diagnostic::error(format!(
-                "named implementation `{implementation_name}` is declared more than once"
+                "named implementation `{name}` is declared more than once"
             )));
         }
-
-        let Some(trait_definition) = trait_definition_by_symbol(program, conformance.trait_symbol)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "conformance `{implementation_name} satisfies {trait_name}` names unknown trait `{trait_name}`"
-            )));
-            continue;
-        };
-
-        let expected_lifetimes = trait_definition.lifetime_parameters.len();
-        if conformance.trait_lifetime_arguments.len() != expected_lifetimes {
-            diagnostics.push(Diagnostic::error(format!(
-                "conformance `{implementation_name} satisfies {trait_name}` expects {expected_lifetimes} target-trait lifetime argument(s), got {}",
-                conformance.trait_lifetime_arguments.len()
-            )));
-            continue;
-        }
-        if conformance.trait_lifetime_arguments.iter().any(|ordinal| {
-            usize::try_from(*ordinal).map_or(true, |ordinal| {
-                ordinal >= conformance.lifetime_parameters.len()
-            })
-        }) {
-            diagnostics.push(Diagnostic::error(format!(
-                "conformance `{implementation_name} satisfies {trait_name}` retains a target-trait lifetime outside its conformance telescope"
-            )));
-            continue;
-        }
-
-        let arguments = program
-            .type_reference_table
-            .type_reference_handles(conformance.arguments);
-        let expected = program.trait_type_parameters(trait_definition).len();
-        if arguments.len() != expected {
-            diagnostics.push(Diagnostic::error(format!(
-                "conformance `{implementation_name} satisfies {trait_name}` expects {expected} generic argument(s), got {}",
-                arguments.len()
-            )));
-            continue;
-        }
-
-        let applied_lifetimes = conformance
-            .trait_lifetime_arguments
-            .iter()
-            .map(|ordinal| conformance.lifetime_parameters[*ordinal as usize].clone())
-            .collect::<Vec<_>>();
-        super::conformance::validate_trait_application_obligations(
-            program,
-            trait_definition,
-            arguments,
-            &applied_lifetimes,
-            &format!("conformance `{implementation_name} satisfies {trait_name}`"),
-            symbols,
-            crate::value_custody::type_references::TypeParameterScope {
-                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                lexical_owner: conformance.symbol,
-                type_parameters: program
-                    .data_type_parameters
-                    .span_or_empty(conformance.type_parameters),
-                lifetime_parameters: &conformance.lifetime_parameters,
-            },
-            diagnostics,
-        );
-
-        validate_closed_rows(
-            program,
-            service_reaches,
-            implementation_name,
-            trait_definition,
-            &conformance.rows,
-            conformance_name,
-            conformance,
-            diagnostics,
-        );
+        validate_named_implementation(program, service_reaches, symbols, conformance, diagnostics);
     }
+}
+
+/// Rejoin a selected map with its ordinary conformance judgment before
+/// semantic execution. Selecting its code never substitutes for proving the
+/// complete requirement contracts and explicit trait arguments.
+pub fn revalidate_named_implementation(
+    program: &dyn crate::CheckingInput,
+    conformance: &typed_trees::trait_definition::Conformance,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let symbols = crate::declarations::symbols::TopLevelSymbols::build(program, &mut diagnostics);
+    let operational = crate::infer_operational_may(program);
+    let service_reaches = crate::infer_service_reaches(program, &operational);
+    validate_named_implementation(
+        program,
+        &service_reaches,
+        &symbols,
+        conformance,
+        &mut diagnostics,
+    );
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn validate_named_implementation(
+    program: &dyn crate::CheckingInput,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
+    symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
+    conformance: &typed_trees::trait_definition::Conformance,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let implementation_name = conformance
+        .alias
+        .as_ref()
+        .map_or("<unnamed implementation>", |alias| alias.as_str());
+    let trait_name = conformance.trait_name.as_str();
+    let conformance_name = conformance.alias.as_ref().map(|name| name.as_str());
+    let Some(trait_definition) = trait_definition_by_symbol(program, conformance.trait_symbol)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "conformance `{implementation_name} satisfies {trait_name}` names unknown trait `{trait_name}`"
+        )));
+        return;
+    };
+
+    let expected_lifetimes = trait_definition.lifetime_parameters.len();
+    if conformance.trait_lifetime_arguments.len() != expected_lifetimes {
+        diagnostics.push(Diagnostic::error(format!(
+            "conformance `{implementation_name} satisfies {trait_name}` expects {expected_lifetimes} target-trait lifetime argument(s), got {}",
+            conformance.trait_lifetime_arguments.len()
+        )));
+        return;
+    }
+    if conformance.trait_lifetime_arguments.iter().any(|ordinal| {
+        usize::try_from(*ordinal).map_or(true, |ordinal| {
+            ordinal >= conformance.lifetime_parameters.len()
+        })
+    }) {
+        diagnostics.push(Diagnostic::error(format!(
+            "conformance `{implementation_name} satisfies {trait_name}` retains a target-trait lifetime outside its conformance telescope"
+        )));
+        return;
+    }
+
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments);
+    let expected = program.trait_type_parameters(trait_definition).len();
+    if arguments.len() != expected {
+        diagnostics.push(Diagnostic::error(format!(
+            "conformance `{implementation_name} satisfies {trait_name}` expects {expected} generic argument(s), got {}",
+            arguments.len()
+        )));
+        return;
+    }
+
+    let applied_lifetimes = conformance
+        .trait_lifetime_arguments
+        .iter()
+        .map(|ordinal| conformance.lifetime_parameters[*ordinal as usize].clone())
+        .collect::<Vec<_>>();
+    super::conformance::validate_trait_application_obligations(
+        program,
+        trait_definition,
+        arguments,
+        &applied_lifetimes,
+        &format!("conformance `{implementation_name} satisfies {trait_name}`"),
+        symbols,
+        crate::value_custody::type_references::TypeParameterScope {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
+            lexical_owner: conformance.symbol,
+            type_parameters: program
+                .data_type_parameters
+                .span_or_empty(conformance.type_parameters),
+            lifetime_parameters: &conformance.lifetime_parameters,
+        },
+        diagnostics,
+    );
+
+    validate_closed_rows(
+        program,
+        service_reaches,
+        implementation_name,
+        trait_definition,
+        &conformance.rows,
+        conformance_name,
+        conformance,
+        diagnostics,
+    );
 }
 
 fn validate_closed_rows(

@@ -23,7 +23,7 @@ fn boundary_application_requirement_identity(
         .boundary_operator_requirement_callable_identity(operator)
 }
 
-/// The requirement-slot identity for a direct requirement-machine use.
+/// The exact callable identity for a direct requirement use.
 fn requirement_machine_identity(
     program: &dyn ::validation::CheckingInput,
     requirement_symbol: symbols::SymbolHandle,
@@ -238,18 +238,37 @@ pub(crate) fn bind_boundary_operator_application_demands(
             ));
             continue;
         };
-        let rejoins = program
-            .machine_by_symbol(requirement_use.requirement_symbol)
-            .is_some_and(|requirement| {
-                program
-                    .machine_states(requirement)
-                    .first()
-                    .is_some_and(|entry| entry.symbol == call.target_symbol)
+        let trait_rejoins = program
+            .trait_machine_signature(requirement_use.requirement_symbol)
+            .is_some_and(|(owner, signature)| {
+                owner.is_boundary
+                    && signature.symbol == call.target_symbol
+                    && program.trait_type_parameters(owner).is_empty()
+                    && signature.type_parameters.is_empty()
+                    && (!call.receiver.is_valid()
+                        || matches!(program.expression_table.expression(call.receiver),
+                            ExpressionNode::Name(path) if path.symbol == owner.symbol))
             });
+        let rejoins = trait_rejoins
+            || program
+                .machine_by_symbol(requirement_use.requirement_symbol)
+                .is_some_and(|requirement| {
+                    program
+                        .machine_states(requirement)
+                        .first()
+                        .is_some_and(|entry| entry.symbol == call.target_symbol)
+                });
         if !rejoins {
             diagnostics.push(diagnostics::Diagnostic::error(
-                "retained direct requirement use does not rejoin its requirement's entry state",
+                "retained direct requirement use does not rejoin its exact callable declaration",
             ));
+            continue;
+        }
+        if trait_rejoins {
+            // A trait requirement has no operator application telescope.
+            // Keep its exact named selection fact for constant evaluation;
+            // ordinary Trait BoundaryCall/catalog admission owns the call.
+            // Actual authored operators were retained by their own lanes above.
             continue;
         }
         applications.push(CheckedBoundaryOperatorApplicationDemand {

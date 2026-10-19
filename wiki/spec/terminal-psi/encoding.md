@@ -627,9 +627,10 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 171 + `u16` vocabulary
-marker 129 + the entry machine id, followed by the module's counted tables in
-the declaration order below and ending with boundary-application candidates.
+Module bytes are `PSITERM\0` + `u16` format marker 172 + `u16` vocabulary
+marker 129 + the entry callable, followed by the module tables in the
+declaration order below. The entry callable uses its ordinary machine-or-boundary
+tag and identifier encoding.
 
 The quotient catalog retains nominal formations and executable copy/call joins.
 A call join names the public machine, representative machine and call occurrence,
@@ -637,41 +638,61 @@ then its structural-input relations and result relation. Scalar actuals use the
 ordinary scalar call lane. Correspondence checking judgments, selected theorem
 schemas and automatic/selected implication evidence remain source-side and are
 not serialized here. Marker 171 replaces the earlier proof-row catalog layout;
-older markers are rejected before their payload is read.
+older markers are rejected before their payload is read. Marker 172 adds the
+folded constant closure below, retaining that quotient layout; marker 171
+artifacts reject before their payload is read.
 
 <!-- module-table-order -->
 | # | Module table | Row |
 | --- | --- | --- |
-| 1 | scalar qualification catalog | the five counted catalog tables above |
-| 2 | structural types | counted structural type declarations |
-| 3 | structural referent identities | counted identity-only pointer targets |
-| 4 | structural domains | counted structural domain declarations |
-| 5 | services | counted service declarations |
-| 6 | concrete root service reach | counted service ids |
-| 7 | installation reach dependencies | counted installation reach rows |
-| 8 | placed-view inputs | counted placed-view input rows |
-| 9 | reborrow restored call uses | counted restored-use rows |
-| 10 | boundary machines | counted boundary machine declarations |
-| 11 | provider candidates | counted provider candidate rows |
-| 12 | dynamic dispatch | counted interfaces and implementation tables |
-| 13 | float-meaning projections | counted projection rows |
-| 14 | float-meaning equalities | counted equality rows |
-| 15 | proposition declarations | counted proposition declaration rows |
-| 16 | proposition applications | counted proposition application rows |
-| 17 | evidence terms | counted evidence term rows |
-| 18 | evidence contract lanes | counted evidence lane rows |
-| 19 | proof-output invocations | counted proof-output call rows |
-| 20 | proof recursive components | counted recursive component rows |
-| 21 | closed conformance applications | counted conformance application rows |
-| 22 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 23 | scalar block invariants | the counted invariant rows above |
-| 24 | operation crash contracts | counted operation crash contract rows |
-| 25 | machines | counted machine rows |
-| 26 | target-machine families | counted family rows |
-| 27 | target layout applications | counted complete checked policy alternatives |
-| 28 | boundary application demands | counted exact requirement/application rows |
-| 29 | callback applications | counted checked registrar occurrences |
-| 30 | boundary application candidates | counted checked bodies for closed applications |
+| 1 | identity catalog | counted UTF-8 identity strings |
+| 2 | scalar qualification catalog | the five counted catalog tables above |
+| 3 | quotient catalog | the canonical quotient catalog |
+| 4 | folded constant closure | optional primary target and counted selected-realization dependencies, below |
+| 5 | structural types | counted structural type declarations |
+| 6 | structural referent identities | counted identity-only pointer targets |
+| 7 | structural domains | counted structural domain declarations |
+| 8 | services | counted service declarations |
+| 9 | concrete root service reach | counted service ids |
+| 10 | installation reach dependencies | counted installation reach rows |
+| 11 | placed-view plans | counted placement policy plans |
+| 12 | placed-view inputs | counted placed-view input rows |
+| 13 | reborrow restored call uses | counted restored-use rows |
+| 14 | boundary machines | counted boundary machine declarations |
+| 15 | provider candidates | counted provider candidate rows |
+| 16 | dynamic dispatch | counted interfaces and implementation tables |
+| 17 | float-meaning projections | counted projection rows |
+| 18 | float-meaning equalities | counted equality rows |
+| 19 | proposition declarations | counted proposition declaration rows |
+| 20 | proposition applications | counted proposition application rows |
+| 21 | evidence terms | counted evidence term rows |
+| 22 | evidence contract lanes | counted evidence lane rows |
+| 23 | proof-output invocations | counted proof-output call rows |
+| 24 | proof recursive components | counted recursive component rows |
+| 25 | closed conformance applications | counted conformance application rows |
+| 26 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 27 | scalar block invariants | the counted invariant rows above |
+| 28 | operation crash contracts | counted operation crash contract rows |
+| 29 | machines | counted machine rows |
+| 30 | target-machine families | counted family rows |
+| 31 | target layout applications | counted complete checked policy alternatives |
+| 32 | boundary application demands | counted exact requirement/application rows |
+| 33 | callback applications | counted checked registrar occurrences |
+| 34 | boundary application candidates | counted checked bodies for closed applications |
+| 35 | task activation demands | counted task activation demand rows |
+
+The folded constant closure encodes a presence Boolean and optional counted
+UTF-8 primary target, then a counted dependency list. Each dependency encodes,
+in order: counted UTF-8 target, `u32` requirement identity index, 32-byte
+normalized provider-plan commitment, and a candidate-presence Boolean. A present
+candidate adds boundary machine id, checked machine id and `u32` selecting
+declaration identity index, in that order. An absent candidate retains the
+existing primitive intrinsic route; it creates no checked-body candidate.
+Dependencies are strictly ordered and unique. Targets and referenced identity
+strings are nonempty; commitments are nonzero. Structural admission rejoins
+present candidates to the exact checked catalog. Receiving realization closure
+checks reconstruct complete canonical plan inputs and bind the primary target;
+the wire commitment alone grants no provider installation or authority.
 
 A dynamic slot encodes its id, declaring-trait and requirement identity strings,
 counted family tuple, counted scalar formals and counted structural formals.

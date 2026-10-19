@@ -142,6 +142,7 @@ pub struct TerminalRuntimeSupplies {
     pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
+    pub(crate) folded_constant_target: Option<String>,
     pub(crate) target_machines: Option<AdmittedTargetMachineSelections>,
     pub(crate) target_layouts: Option<std::sync::Arc<AdmittedTargetLayouts>>,
 }
@@ -194,6 +195,7 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
                 }))
                 .collect(),
             assumed_bindings: selected.assumed_bindings().to_vec(),
+            folded_constant_target: selected.folded_constant_target().map(str::to_owned),
             target_machines: None,
             target_layouts: None,
         }

@@ -125,31 +125,9 @@ impl SelectedConstantEvaluation {
             else {
                 continue;
             };
-            if plan.rows.iter().any(|row| {
-                matches!(
-                    row.binding,
-                    effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
-                )
-            }) {
-                if crate::derive_selected_primitive_float_binary_execution(typed, plan, requirement)
-                    .map_err(|error| vec![error])?
-                    .is_some()
-                {
-                    selected.operators.push(
-                        SelectedBuildTimeBinaryOperator::prepare(
-                            typed,
-                            expression,
-                            origin,
-                            requirement,
-                            policy,
-                            CheckedProviderPlanCommitment::from_digest(
-                                *plan.identity_digest().as_bytes(),
-                            ),
-                        )
-                        .map_err(|reason| vec![Diagnostic::error(reason)])?,
-                    );
-                }
-            } else if let Some(provider) =
+            // Select this exact method, not the binding kind of a sibling
+            // row in the same boundary-trait plan.
+            if let Some((provider, declaration)) =
                 provider_planning::selected_requirement_checked_adapter(context, plan, requirement)
                     .map_err(|error| vec![error])?
             {
@@ -161,6 +139,30 @@ impl SelectedConstantEvaluation {
                         requirement,
                         provider,
                         plan.provider_type.clone(),
+                        declaration,
+                        plan.provider_type_package_identity,
+                        target_profile.target_name(),
+                        CheckedProviderPlanCommitment::from_digest(
+                            *plan.identity_digest().as_bytes(),
+                        ),
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
+                );
+            } else if crate::derive_selected_primitive_float_binary_execution(
+                typed,
+                plan,
+                requirement,
+            )
+            .map_err(|error| vec![error])?
+            .is_some()
+            {
+                selected.operators.push(
+                    SelectedBuildTimeBinaryOperator::prepare(
+                        typed,
+                        expression,
+                        origin,
+                        requirement,
+                        policy,
                         CheckedProviderPlanCommitment::from_digest(
                             *plan.identity_digest().as_bytes(),
                         ),

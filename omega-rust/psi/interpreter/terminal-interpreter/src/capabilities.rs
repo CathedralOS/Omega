@@ -831,6 +831,7 @@ mod tests {
                 AdmittedBoundarySupply::CheckedProvider(provider),
             )]),
             assumed_bindings: Vec::new(),
+            folded_constant_target: None,
             target_machines: None,
             target_layouts: None,
         };
@@ -1063,6 +1064,7 @@ mod tests {
             entry: None,
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),
             assumed_bindings: Vec::new(),
+            folded_constant_target: None,
             target_machines: None,
             target_layouts: None,
         };

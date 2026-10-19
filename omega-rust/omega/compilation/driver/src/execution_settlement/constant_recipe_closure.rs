@@ -175,8 +175,21 @@ pub(super) fn close_constant_recipes(
         .decided_formations
         .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
     closed_facts.operators.decided_formations.dedup();
-    receipts.sort_by_key(|receipt| (receipt.requirement.arena_index(), receipt.plan_identity));
+    receipts.sort_by(|left, right| {
+        left.target_scope
+            .cmp(&right.target_scope)
+            .then(
+                left.requirement
+                    .arena_index()
+                    .cmp(&right.requirement.arena_index()),
+            )
+            .then(left.plan_identity.cmp(&right.plan_identity))
+    });
     receipts.dedup();
+    if !receipts.is_empty() {
+        closed_typed.constant_recipe_closure.target_scope =
+            selected_target_profile.target_name().to_owned();
+    }
     Ok(Arc::new(CheckedTrees::with_roots(
         closed_typed,
         closed_facts,
@@ -215,6 +228,9 @@ fn close_constant_values(
         .map(|row| ConstantRecipeDependencyReceipt {
             requirement: row.requirement,
             plan_identity: *row.provider.as_bytes(),
+            target_scope: selected_target_profile.target_name().to_owned(),
+            provider_declaration: Default::default(),
+            provider_machine: Default::default(),
         })
         .chain(
             provider_bodies
@@ -222,13 +238,20 @@ fn close_constant_values(
                 .map(|row| ConstantRecipeDependencyReceipt {
                     requirement: row.requirement,
                     plan_identity: *row.provider.as_bytes(),
+                    target_scope: row.target_scope.clone(),
+                    provider_declaration: row.provider_declaration,
+                    provider_machine: row.provider_machine,
                 }),
         )
         .collect();
     receipts.sort_by(|left, right| {
-        left.requirement
-            .arena_index()
-            .cmp(&right.requirement.arena_index())
+        left.target_scope
+            .cmp(&right.target_scope)
+            .then(
+                left.requirement
+                    .arena_index()
+                    .cmp(&right.requirement.arena_index()),
+            )
             .then(left.plan_identity.cmp(&right.plan_identity))
     });
     receipts.dedup();

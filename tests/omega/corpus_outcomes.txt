@@ -4384,6 +4384,12 @@ fail/facts/stack_frame_slot_isolation_unproved_target_body rejected 2295ms expec
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/subslice_state_extent_wrong_view_rejected rejected 605ms expected @cbdcc23565fb
+fail/facts/target_scoped_constant_false_contract rejected 17279ms expected @f84839bf641a
+	cannot prove ensures contract for exit from Small::get at statement 0: result == 5
+fail/facts/target_scoped_constant_missing_method rejected 156ms expected @f84839bf641a
+	closed conformance `Small satisfies Answer` is incomplete: missing `Answer::other`
+fail/facts/target_scoped_constant_realization_absent rejected 23356ms expected @f84839bf641a
+	slot `Answer` has 3 covering provider plans for the selected target: `<selected target>::Small::satisfies::Answer` [<fingerprint>], `<selected target>::Large::satisfies::Answer` [<fingerprint>], `<selected target>::Same::satisfies::Answer` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<Answer, ProviderType>(b);`
 fail/facts/temporary_case_cleanup_through_call_result_rejected rejected 1103ms expected @46f72294c589
 fail/facts/temporary_case_cleanup_through_const_name_rejected rejected 1102ms expected @46f72294c589
 fail/facts/temporary_case_cleanup_through_field_rejected rejected 1703ms expected @46f72294c589
@@ -9381,6 +9387,9 @@ pass/facts/stack_frame_slot_isolation_through_other_state_exit checked 7666ms ch
 pass/facts/stack_frame_slot_isolation_through_parameter_exit checked 7730ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/stack_frame_slot_isolation_through_target_body_exit checked 7822ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/subslice_state_extent_after_write_exit checked 3987ms check-target:macos_arm64 @cbdcc23565fb
+pass/facts/target_scoped_constant_multi_method_exit checked 32994ms check-target:macos_arm64 @f84839bf641a
+pass/facts/target_scoped_constant_realization_exit checked 36883ms check-target:macos_arm64 @f84839bf641a
+pass/facts/target_scoped_constant_zero_extent_exit checked 34056ms check-target:macos_arm64 @f84839bf641a
 pass/facts/temporary_case_cleanup_original_exit checked 3691ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_call_result_exit checked 3690ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_const_name_exit checked 3690ms check-target:macos_arm64 @46f72294c589

@@ -24,6 +24,7 @@ mod declaration_wire;
 mod dynamic_dispatch_wire;
 mod evidence_wire;
 mod float_meaning_wire;
+mod folded_constant_wire;
 mod operation_crash_contract_wire;
 mod placed_plan_wire;
 mod placed_view_wire;
@@ -74,6 +75,7 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     }
     super::scalar_qualification_wire::encode(&mut writer, &module.scalar_qualifications)?;
     quotient_wire::encode(&mut writer, &module.quotients)?;
+    folded_constant_wire::encode(&mut writer, &module.folded_constants)?;
     writer.len("structural types", module.structural_types.len())?;
     for declaration in &module.structural_types {
         encode_structural_type(&mut writer, declaration)?;
@@ -275,6 +277,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let identities = TerminalIdentityTable::from(identity_entries);
     let scalar_qualifications = super::scalar_qualification_wire::decode(reader)?;
     let quotients = quotient_wire::decode(reader)?;
+    let folded_constants = folded_constant_wire::decode(reader)?;
     let structural_types = decode_counted(reader, decode_structural_type)?;
     let structural_referents = decode_counted(reader, |reader| {
         Ok(terminal_psi::StructuralReferentIdentity {
@@ -345,6 +348,7 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         decode_counted(reader, boundary_application_wire::decode_candidate)?;
     let task_activation_demands = decode_demands(reader)?;
     Ok(TerminalModule {
+        folded_constants,
         quotients,
         scalar_qualifications,
         scalar_block_invariants,

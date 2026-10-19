@@ -67,6 +67,7 @@ pub(crate) mod catalog;
 mod claims;
 pub(crate) mod completion_cleanup;
 mod entry_requirements;
+mod folded_constants;
 mod providers;
 pub(crate) mod signatures;
 pub(crate) mod target_families;
@@ -541,6 +542,15 @@ pub(crate) fn lower_unit_closure(
         &machines,
     )?;
 
+    let folded_constants = folded_constants::lower(
+        checked,
+        identities,
+        exact_toolchain_sources,
+        &provider_candidate_plans,
+        &provider_candidates,
+        &machine_ids,
+    )?;
+
     // Publication: one module in canonical roster order.
     let target_machine_families =
         target_families::lower(checked, &machine_ids, &lowered_boundary_parameters)?;
@@ -607,6 +617,7 @@ pub(crate) fn lower_unit_closure(
     }
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            folded_constants,
             callback_applications: Vec::new(),
             boundary_application_candidates: Vec::new(),
             boundary_application_demands: Vec::new(),

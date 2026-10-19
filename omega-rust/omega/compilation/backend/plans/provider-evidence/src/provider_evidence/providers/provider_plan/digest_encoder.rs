@@ -51,25 +51,40 @@ pub(crate) trait DigestFeed {
     }
 }
 
-pub(crate) struct ProviderPlanDigestEncoder(Sha256);
+const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v4\0";
+
+pub(crate) struct ProviderPlanDigestEncoder(Sha256, Option<Vec<u8>>);
 
 impl DigestFeed for ProviderPlanDigestEncoder {
     fn raw(&mut self, bytes: &[u8]) {
         self.0.update(bytes);
+        if let Some(preimage) = &mut self.1 {
+            preimage.extend_from_slice(bytes);
+        }
     }
 }
 
 impl ProviderPlanDigestEncoder {
     pub(crate) fn for_provider_plan() -> Self {
         let mut digest = Sha256::new();
-        digest.update(b"omega.provider-plan.sha256.v4\0");
-        Self(digest)
+        digest.update(PROVIDER_PLAN_DOMAIN);
+        Self(digest, None)
+    }
+
+    pub(crate) fn for_provider_plan_preimage() -> Self {
+        let mut encoder = Self(Sha256::new(), Some(Vec::new()));
+        encoder.raw(PROVIDER_PLAN_DOMAIN);
+        encoder
+    }
+
+    pub(crate) fn finish_preimage(self) -> Vec<u8> {
+        self.1.expect("preimage encoder")
     }
 
     pub(crate) fn for_service_schema() -> Self {
         let mut digest = Sha256::new();
         digest.update(b"omega.service-schema.sha256.v4\0");
-        Self(digest)
+        Self(digest, None)
     }
 
     pub(crate) fn finish(self) -> [u8; 32] {
@@ -103,7 +118,7 @@ impl ProviderPlanDigestEncoder {
         match identity {
             Some(identity) => {
                 self.byte(1);
-                self.0.update(identity.digest());
+                self.raw(&identity.digest());
             }
             None => self.byte(0),
         }
@@ -268,7 +283,7 @@ impl ProviderPlanDigestEncoder {
                     target::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
                         self.byte(1);
                         self.bytes(library);
-                        self.0.update(ordinal.to_le_bytes());
+                        self.raw(&ordinal.to_le_bytes());
                     }
                     target::ForeignLocatorCandidate::ElfVersioned {
                         object,

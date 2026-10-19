@@ -93,7 +93,12 @@ impl TerminalTargetProviderSelection {
                 }
             }
         }
-        terminal_installation::admit_provider_installation(
+        let dependencies = matching_folded_constant_dependencies(
+            artifact,
+            target,
+            self.plans.iter().map(|selected| &selected.plan),
+        )?;
+        let installation = terminal_installation::admit_provider_installation(
             artifact,
             &supplied,
             &effects::SelectedProviderPlanFacts::from_selected_plans(
@@ -113,8 +118,95 @@ impl TerminalTargetProviderSelection {
             })
             .collect::<Vec<_>>(),
         )
-        .map_err(|error| format!("catalog admission rejected: {error:?}"))
+        .map_err(|error| format!("catalog admission rejected: {error:?}"))?;
+        if artifact.module().folded_constants.target.is_some() {
+            installation.admit_folded_constant_closure(artifact, target, &dependencies)
+        } else {
+            Ok(installation)
+        }
     }
+}
+
+/// Reconstruct the primary historical realization applications from current
+/// whole normalized plans. Supplemental proof scopes remain immutable semantic
+/// provenance, validated against their own catalog associations at ingress.
+pub fn matching_folded_constant_dependencies<'plan>(
+    artifact: terminal_codec::TerminalArtifactView<'_>,
+    target: &str,
+    plans: impl IntoIterator<Item = &'plan effects::provider_plan::ProviderPlan>,
+) -> Result<Vec<Vec<u8>>, String> {
+    let module = artifact.module();
+    let closure = &module.folded_constants;
+    closure.validate(module).map_err(str::to_owned)?;
+    let Some(required_target) = &closure.target else {
+        return Ok(Vec::new());
+    };
+    if required_target != target {
+        return Err(format!(
+            "folded constant target closure is `{required_target}`, not `{target}`"
+        ));
+    }
+    let plans: Vec<_> = plans.into_iter().collect();
+    let mut matched = Vec::new();
+    for dependency in closure
+        .dependencies
+        .iter()
+        .filter(|dependency| dependency.target == target)
+    {
+        let requirement = module
+            .identities
+            .text(dependency.requirement)
+            .ok_or("folded constant requirement identity is absent")?;
+        let mut matches = 0;
+        let mut preimage = None;
+        for plan in plans.iter().copied().filter(|plan| {
+            plan.target == target && plan.identity_digest().as_bytes() == &dependency.plan
+        }) {
+            for row in plan
+                .rows
+                .iter()
+                .filter(|row| plan.identity_text(row.requirement_identity) == requirement)
+            {
+                let corresponds = match (&dependency.candidate, &row.binding) {
+                    (
+                        Some(association),
+                        effects::provider_plan::ProviderBinding::CheckedAdapter {
+                            machine_identity,
+                            machine_package_identity,
+                        },
+                    ) => module.provider_candidates.iter().any(|candidate| {
+                        candidate.boundary == association.boundary
+                            && candidate.candidate == association.machine
+                            && candidate.provider_declaration == association.declaration
+                            && candidate.source_requirement_identity == dependency.requirement
+                            && module.identities.text(candidate.provider_identity)
+                                == Some(plan.provider_type.as_str())
+                            && module.identities.text(candidate.source_candidate_identity)
+                                == Some(plan.identity_text(*machine_identity))
+                            && candidate.source_candidate_package_identity
+                                == *machine_package_identity
+                    }),
+                    (None, effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }) => {
+                        true
+                    }
+                    _ => false,
+                };
+                if corresponds {
+                    matches += 1;
+                    preimage = Some(plan.identity_preimage());
+                }
+            }
+        }
+        if matches != 1 {
+            return Err(format!(
+                "folded constant realization `{requirement}` differs from the selected provider plan"
+            ));
+        }
+        matched.push(preimage.expect("one matching normalized plan"));
+    }
+    matched.sort();
+    matched.dedup();
+    Ok(matched)
 }
 
 fn checked_candidate_roster(

@@ -126,6 +126,25 @@ pub fn layout_type_reference(
     .layout_type_reference_handle(type_reference, &[])
 }
 
+/// Query one carrier using the ordinary layout traversal, retaining the
+/// distinction between a genuine zero size and an extent whose constant has
+/// not closed. A fresh builder owns each query; no provisional geometry escapes.
+pub fn try_layout_type_reference(
+    program: &TypedTrees,
+    target: NativeTarget,
+    opaque_representation_selections: &[OpaqueRepresentationSelection],
+    type_reference: TypeReferenceHandle,
+) -> Result<Option<TypeLayout>, Diagnostic> {
+    let mut builder = LayoutBuilder::new(
+        program,
+        target,
+        opaque_representation_selections,
+        OpaqueRepresentationDemand::ByValue,
+    );
+    let layout = builder.layout_type_reference_handle(type_reference, &[])?;
+    Ok((!builder.unresolved_array_extent).then_some(layout))
+}
+
 /// The complete layout catalog eagerly visits declarations that may never be
 /// used. Only an explicit type-layout request is proof that an unselected
 /// opaque is demanded by value.
@@ -139,6 +158,9 @@ struct LayoutBuilder<'program> {
     data_definitions: &'program [DataDefinition],
     data_layouts: Arena<DataLayout>,
     data_visiting: LayoutVisitStack,
+    /// Set by the actual by-value traversal, after generic binding lookup.
+    /// Query callers discard provisional geometry when this flag is set.
+    unresolved_array_extent: bool,
     fields: Arena<FieldLayout>,
     bit_fields: Vec<BitFieldLayout>,
     stored_integers: Vec<StoredIntegerLayout>,
@@ -244,6 +266,7 @@ impl<'program> LayoutBuilder<'program> {
             data_definitions,
             data_layouts: Arena::with_capacity(data_definitions.len()),
             data_visiting: LayoutVisitStack::with_capacity(data_definitions.len()),
+            unresolved_array_extent: false,
             fields: Arena::with_capacity(field_capacity),
             bit_fields: Vec::new(),
             stored_integers: Vec::new(),

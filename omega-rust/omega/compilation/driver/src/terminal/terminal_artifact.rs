@@ -232,6 +232,16 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     for relationship in &first.view.build.config.assumed_bindings {
                         boundary_roots.extend([relationship.required, relationship.supplied]);
                     }
+                    // Folded uses can be the last reference to these requirements.
+                    // Retain their ordinary catalog custody without inventing calls.
+                    boundary_roots.extend(
+                        program_typed
+                            .constant_recipe_closure
+                            .receipts
+                            .iter()
+                            .filter(|receipt| receipt.provider_machine.is_valid())
+                            .map(|receipt| receipt.requirement),
+                    );
                     boundary_roots
                         .sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
                     boundary_roots.dedup();
@@ -239,6 +249,14 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     if machines.is_empty() {
                         machines.push(entry.selected_machine);
                     }
+                    machines.extend(
+                        program_typed
+                            .constant_recipe_closure
+                            .receipts
+                            .iter()
+                            .filter(|receipt| receipt.provider_machine.is_valid())
+                            .map(|receipt| receipt.provider_machine),
+                    );
                     machines.extend(program_typed.machines().iter().filter_map(|machine| {
                         machine.entry_context_origin.map(|_| machine.symbol)
                     }));

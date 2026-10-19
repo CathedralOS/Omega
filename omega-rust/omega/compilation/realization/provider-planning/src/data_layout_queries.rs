@@ -120,15 +120,28 @@ pub fn fold_data_layout_queries(
                 .with_source_span(reference),
             ]);
         }
-        reject_unresolved_layout_operands(program, operand)
-            .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(reference)])?;
-        let layout = layout::layout_type_reference(
+        if !defer_uninstalled_plans {
+            reject_unresolved_layout_operands(program, operand)
+                .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(reference)])?;
+        }
+        let layout = layout::try_layout_type_reference(
             layout_program.as_ref().unwrap_or(program),
             target.native_target(),
             opaque_representation_selections,
             operand,
         )
         .map_err(|error| vec![error])?;
+        let Some(layout) = layout else {
+            if defer_uninstalled_plans {
+                continue;
+            }
+            return Err(vec![
+                Diagnostic::error(format!(
+                    "`{spelling}` cannot measure a carrier with an unresolved array extent"
+                ))
+                .with_source_span(reference),
+            ]);
+        };
         let extent = match query.kind {
             DataLayoutQueryKind::Size => layout.size,
             DataLayoutQueryKind::Alignment => layout.alignment,

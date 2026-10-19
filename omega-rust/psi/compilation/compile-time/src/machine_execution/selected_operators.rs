@@ -36,6 +36,10 @@ pub struct SelectedBuildTimeProviderBody {
     pub provider_state: symbols::SymbolHandle,
     /// The nominal provider type the settled plan owns.
     pub provider_type: String,
+    /// Exact selecting declaration, independent of the realization's code owner.
+    pub provider_declaration: symbols::SymbolHandle,
+    /// Capsule under which Omega selected this realization.
+    pub target_scope: String,
     /// The settled ProviderPlan commitment; never a name or fingerprint alone.
     pub provider: checked_trees::CheckedProviderPlanCommitment,
 }
@@ -53,6 +57,9 @@ impl SelectedBuildTimeProviderBody {
         requirement: symbols::SymbolHandle,
         provider: &typed_trees::machine::Machine,
         provider_type: String,
+        provider_declaration: symbols::SymbolHandle,
+        provider_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+        target_scope: &str,
         commitment: checked_trees::CheckedProviderPlanCommitment,
     ) -> Result<Self, String> {
         let operands = match program.expression_table.expression(expression) {
@@ -71,6 +78,26 @@ impl SelectedBuildTimeProviderBody {
         let Some(entry) = program.machine_states(provider).first() else {
             return Err("selected build-time provider has no executable entry state".into());
         };
+        if !provider_declaration.is_valid()
+            || program.symbols.display_path(provider_declaration, "::") != provider_type
+            || program
+                .symbols
+                .symbol_package_identity(provider_declaration)
+                != provider_package
+            || (program
+                .conformance_by_symbol(provider_declaration)
+                .is_none()
+                && !program
+                    .data_definitions()
+                    .iter()
+                    .any(|owner| owner.symbol == provider_declaration))
+            || target_scope.is_empty()
+        {
+            return Err(
+                "selected build-time provider has ambiguous declaration or absent target custody"
+                    .into(),
+            );
+        }
         Ok(Self {
             expression,
             origin,
@@ -79,6 +106,8 @@ impl SelectedBuildTimeProviderBody {
             provider_machine: provider.symbol,
             provider_state: entry.symbol,
             provider_type,
+            provider_declaration,
+            target_scope: target_scope.to_owned(),
             provider: commitment,
         })
     }
@@ -361,9 +390,12 @@ pub fn validate_selected_provider_bodies(
         let [provider] = providers.as_slice() else {
             return Err("selected build-time provider machine is not unique".into());
         };
-        if provider.attached_data.as_ref().map(|owner| owner.as_str())
-            != Some(row.provider_type.as_str())
-            || program.attached_data_path(provider).as_deref() != Some(row.provider_type.as_str())
+        let named_provider = program.conformance_by_symbol(row.provider_declaration);
+        if program.symbols.display_path(row.provider_declaration, "::") != row.provider_type
+            || (named_provider.is_none()
+                && (provider.attached_data_symbol != row.provider_declaration
+                    || program.attached_data_path(provider).as_deref()
+                        != Some(row.provider_type.as_str())))
         {
             return Err(
                 "selected build-time provider does not belong to its nominal provider type".into(),
@@ -386,6 +418,13 @@ pub fn validate_selected_provider_bodies(
                 "selected build-time provider state is not the provider's executable entry".into(),
             );
         }
+        if row.target_scope.is_empty()
+            || program
+                .machine_authored_target(provider)
+                .is_some_and(|target| target != row.target_scope)
+        {
+            return Err("selected build-time provider belongs to another target capsule".into());
+        }
         if program
             .machine_contracts(provider)
             .iter()
@@ -396,6 +435,88 @@ pub fn validate_selected_provider_bodies(
                 "selected build-time provider body crash contracts have no build-time execution support"
                     .into(),
             );
+        }
+        if let Some((owner, requirement)) = program.trait_machine_signature(row.requirement) {
+            if !owner.is_boundary
+                || spelled_spelling.is_some_and(|spelling| requirement.spelling != Some(spelling))
+            {
+                return Err(
+                    "selected build-time trait requirement lost its exact boundary identity".into(),
+                );
+            }
+            if !program.trait_type_parameters(owner).is_empty()
+                || !requirement.type_parameters.is_empty()
+            {
+                return Err(
+                    "selected build-time requirement needs its closed trait application".into(),
+                );
+            }
+            if program
+                .signature_contracts
+                .span_or_empty(requirement.contracts)
+                .iter()
+                .any(|contract| contract.is_crashes())
+            {
+                return Err(
+                    "selected operator crash invocations have no build-time execution support"
+                        .into(),
+                );
+            }
+            let parameters = program.state_parameters(entry);
+            let required_parameters = program.state_signature_parameters(requirement);
+            if parameters.len() != row.operands.len()
+                || required_parameters.len() != row.operands.len()
+                || program.normalized_type_identity(entry.return_type)
+                    != program.normalized_type_identity(requirement.return_type)
+                || !parameters
+                    .iter()
+                    .zip(required_parameters.iter())
+                    .all(|(actual, required)| {
+                        program.normalized_type_identity(actual.type_reference)
+                            == program.normalized_type_identity(required.type_reference)
+                    })
+            {
+                return Err("selected build-time provider entry signature differs from its trait requirement".into());
+            }
+            let bound = if let Some(declaration) = named_provider {
+                // Named code owns a closed map, not an implicit data receiver.
+                // Rejoin its exact requirement and entry. Ordinary checking of
+                // the evaluation graph retains all conformance obligations.
+                validation::revalidate_named_implementation(program, declaration)
+                    .map_err(|diagnostics| format!("selected build-time implementation does not satisfy its contracts: {diagnostics:?}"))?;
+                declaration
+                    .rows
+                    .iter()
+                    .filter(|mapping| {
+                        mapping.declaring_trait == owner.symbol
+                            && mapping.requirement == row.requirement
+                            && (mapping.realization_machine == provider.symbol
+                                && mapping.realization_state == entry.symbol
+                                || program.target_machine_families.iter().any(|family| {
+                                    family.canonical == mapping.realization_machine
+                                        && family.members.iter().any(|member| {
+                                            member.machine == provider.symbol
+                                                && member.target.as_str() == row.target_scope
+                                        })
+                                }))
+                    })
+                    .count()
+            } else {
+                validation::revalidate_machine_trait_conformances(program, provider)
+                    .map_err(|diagnostics| format!("selected build-time provider does not satisfy its contracts: {diagnostics:?}"))?;
+                program.machine_trait_conformances(provider).iter().filter(|conformance| {
+                    conformance.external_binding.is_none()
+                        && matches!(typed_trees::machine::resolve_satisfied_declaration(program, provider, conformance),
+                            Some(typed_trees::machine::SatisfiedDeclaration::Trait { definition, requirement })
+                                if definition.symbol == owner.symbol && requirement.symbol == row.requirement)
+                }).count()
+            };
+            if bound != 1 {
+                return Err(
+                    "selected build-time provider has no unique exact trait realization".into(),
+                );
+            }
+            continue;
         }
         let mut requirements = program
             .machines()

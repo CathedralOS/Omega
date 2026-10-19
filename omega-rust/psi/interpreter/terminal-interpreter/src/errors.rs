@@ -137,6 +137,7 @@ pub enum TerminalInterpretError {
     ContentTransformationMismatch(&'static str),
     CompletionReceiptMismatch,
     ProviderInstallationIdentityMismatch,
+    FoldedConstantClosure(&'static str),
     TargetMachineSelectionIdentityMismatch,
     TargetLayoutSelectionIdentityMismatch,
     TargetLayoutSelectionMissing(terminal_psi::LayoutApplicationId),

@@ -252,25 +252,24 @@ impl BuildTimeAdmissionPlan {
                 return true;
             }
             let boundary_use = |selected_operator_symbol| {
-                // Before call normalization the same machine requirement is
-                // selected through its token-signature view instead.
+                // Named trait requirements and token views carry the same
+                // unsettled realization demand. Read their exact declaration,
+                // never the spelling of a call or the absence of an entry.
                 program
-                    .operators()
-                    .iter()
-                    .chain(program.machine_token_bindings())
-                    .any(|operator| {
-                        operator.symbol == selected_operator_symbol && operator.is_boundary
-                    })
+                    .trait_machine_signature(selected_operator_symbol)
+                    .is_some_and(|(owner, _)| owner.is_boundary)
+                    || program
+                        .operators()
+                        .iter()
+                        .chain(program.machine_token_bindings())
+                        .any(|operator| {
+                            operator.symbol == selected_operator_symbol && operator.is_boundary
+                        })
             };
             if facts
-                .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
-                .any(|fact| {
-                    fact.origin.machine_symbol() == Some(machine)
-                        && boundary_use(fact.selected_operator_symbol)
-                })
-                || facts.named_uses().any(|fact| {
-                    fact.origin.machine_symbol() == Some(machine)
-                        && boundary_use(fact.selected_operator_symbol)
+                .resolved_expression_selections()
+                .any(|(_, origin, requirement, _)| {
+                    origin.machine_symbol() == Some(machine) && boundary_use(requirement)
                 })
             {
                 return true;

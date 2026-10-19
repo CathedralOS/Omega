@@ -50,7 +50,7 @@ pub(crate) fn exact_row_for_schema_method<'plan>(
     Ok(*row)
 }
 
-/// Join one selected top-level requirement or legacy operator to its exact
+/// Join one selected requirement to its exact
 /// checked adapter. Absence means the declaration has no boundary schema or
 /// the selected realization is not a checked body; malformed authority rejects.
 /// A retained requirement outside the supplied context rejects rather than
@@ -60,7 +60,13 @@ pub fn selected_requirement_checked_adapter<'typed>(
     context: ProviderPlanningContext<'typed>,
     plan: &ProviderPlan,
     requirement: symbols::SymbolHandle,
-) -> Result<Option<&'typed checked_trees::typed_trees::machine::Machine>, diagnostics::Diagnostic> {
+) -> Result<
+    Option<(
+        &'typed checked_trees::typed_trees::machine::Machine,
+        symbols::SymbolHandle,
+    )>,
+    diagnostics::Diagnostic,
+> {
     let typed = context.typed;
     if !context.contains(requirement) {
         return Err(diagnostics::Diagnostic::error(format!(
@@ -70,8 +76,11 @@ pub fn selected_requirement_checked_adapter<'typed>(
     }
     // Actual machines own their schemas, including token-spelled requirements.
     // A signature view must not supply a fallback schema for an invalid machine.
+    let trait_method = typed.trait_machine_signature(requirement);
     let schema = if let Some(machine) = typed.machine(requirement) {
         crate::service_schema::from_typed_boundary_requirement(context, machine)
+    } else if let Some((owner, _)) = trait_method {
+        crate::service_schema::from_typed(context, &[], owner)
     } else {
         typed
             .operator_definition_by_symbol(requirement)
@@ -80,9 +89,20 @@ pub fn selected_requirement_checked_adapter<'typed>(
     let Some(schema) = schema else {
         return Ok(None);
     };
-    let [required_method] = schema.methods.as_slice() else {
+    let trait_identity = trait_method
+        .map(|(owner, method)| typed.trait_requirement_callable_identity_text(owner, method));
+    let methods = schema
+        .methods
+        .iter()
+        .filter(|method| {
+            trait_identity.as_ref().is_none_or(|identity| {
+                schema.identity_text(method.requirement_identity) == identity.as_str()
+            })
+        })
+        .collect::<Vec<_>>();
+    let [required_method] = methods.as_slice() else {
         return Err(diagnostics::Diagnostic::error(
-            "selected build-time requirement must retain exactly one schema method",
+            "selected build-time requirement must identify exactly one schema method",
         ));
     };
     let overload_identity = &required_method.requirement_identity;
@@ -92,25 +112,19 @@ pub fn selected_requirement_checked_adapter<'typed>(
             plan.name,
         )));
     }
-    let [method] = plan.schema.methods.as_slice() else {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "selected build-time operator ProviderPlan `{}` must retain exactly one schema method",
-            plan.name,
-        )));
-    };
-    let [row] = plan.rows.as_slice() else {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "selected build-time operator ProviderPlan `{}` must retain exactly one realization row",
-            plan.name,
-        )));
-    };
-    if plan.schema != schema || !plan.schema.row_binds_method(row, method, &plan.identities) {
+    if plan.schema != schema || plan.rows.len() != schema.methods.len() {
         return Err(diagnostics::Diagnostic::error(format!(
             "selected build-time operator ProviderPlan `{}` does not bind exact overload `{}`",
             plan.name,
             schema.identity_text(*overload_identity),
         )));
     }
+    // A trait owns one plan for all its methods. Select the demanded exact
+    // coordinate without requiring the whole trait to be a singleton slot.
+    for method in &schema.methods {
+        exact_row_for_schema_method(plan, method)?;
+    }
+    let row = exact_row_for_schema_method(plan, required_method)?;
     let ProviderBinding::CheckedAdapter { .. } = &row.binding else {
         return Ok(None);
     };
@@ -120,7 +134,17 @@ pub fn selected_requirement_checked_adapter<'typed>(
             plan.name,
         )));
     }
-    exact_checked_adapter(context, plan, row).map(Some)
+    let adapter = exact_checked_adapter(context, plan, row)?;
+    let declaration = match crate::provider_identity::named_provider(context, plan) {
+        Some(owner) => owner.symbol,
+        None => adapter.attached_data_symbol,
+    };
+    if !declaration.is_valid() || !context.contains(declaration) {
+        return Err(diagnostics::Diagnostic::error(
+            "selected build-time provider lost its exact selecting declaration",
+        ));
+    }
+    Ok(Some((adapter, declaration)))
 }
 
 /// Rejoin one active adapter within the caller's declaration context, retaining

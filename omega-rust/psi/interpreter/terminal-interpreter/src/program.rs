@@ -57,6 +57,23 @@ impl AdmittedTerminalProgram<'_> {
         if installation.is_some_and(|installation| installation.terminal_psi != self.identity) {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
+        if let Some(target) = self.catalogs.folded_constants.target.as_deref() {
+            let supplies = installation
+                .filter(|supplies| supplies.folded_constant_target.as_deref() == Some(target))
+                .ok_or(TerminalInterpretError::FoldedConstantClosure(
+                    "missing or incompatible realization closure",
+                ))?;
+            if supplies
+                .target_machines
+                .as_ref()
+                .map(|selected| selected.target())
+                != Some(target)
+            {
+                return Err(TerminalInterpretError::FoldedConstantClosure(
+                    "execution target differs from folded constant closure",
+                ));
+            }
+        }
         let root = installation
             .and_then(|supplies| supplies.entry)
             .unwrap_or(self.catalogs.entry);
@@ -387,6 +404,7 @@ impl<'artifact> TerminalProgram<'artifact> {
                 entry: None,
                 supplies: BTreeMap::new(),
                 assumed_bindings: Vec::new(),
+                folded_constant_target: None,
                 target_machines: None,
                 target_layouts: None,
             });

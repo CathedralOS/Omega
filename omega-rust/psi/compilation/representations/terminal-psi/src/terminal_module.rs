@@ -7,6 +7,10 @@
 //! No target layout, selected installation, or transformation history lives here.
 
 pub mod boundary;
+pub mod folded_constants;
+pub use folded_constants::{
+    FoldedConstantCandidate, FoldedConstantClosure, FoldedConstantDependency,
+};
 pub mod control_flow;
 pub mod identity;
 pub mod observation;
@@ -142,6 +146,9 @@ use semantic_vocabulary::{MachineId, ServiceId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalModule {
+    /// Historical semantic compatibility consumed by folding. This supplies
+    /// no executable boundary demand, provider installation or host authority.
+    pub folded_constants: FoldedConstantClosure,
     /// Exact whole-value quotient adaptations; ordinary shape carries no observation authority.
     pub quotients: quotients::TerminalQuotientCatalog,
     pub vocabulary_marker: VocabularyMarker,
@@ -311,6 +318,7 @@ impl TerminalModule {
     /// producer's literal.
     pub fn for_entry(entry: MachineId) -> Self {
         Self {
+            folded_constants: Default::default(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: TargetMachineCallable::Machine(entry),
             identities: Default::default(),

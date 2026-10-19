@@ -21,4 +21,5 @@ pub use callback_placements::{
 };
 pub use target_providers::{
     TerminalTargetProviderPlan, TerminalTargetProviderProposal, TerminalTargetProviderSelection,
+    matching_folded_constant_dependencies,
 };

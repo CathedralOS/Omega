@@ -62,6 +62,11 @@ pub type ConstantRecipeHandle = Handle<RetainedConstantRecipe>;
 pub struct ConstantRecipeDependencyReceipt {
     pub requirement: SymbolHandle,
     pub plan_identity: [u8; 32],
+    pub target_scope: String,
+    /// Exact choosing declaration and body, independently of code ownership.
+    /// Invalid only for the sealed primitive-intrinsic execution route.
+    pub provider_declaration: SymbolHandle,
+    pub provider_machine: SymbolHandle,
 }
 
 /// One recipe's value under a closure.
@@ -75,6 +80,8 @@ pub struct ClosedConstantRecipe {
 /// receipts the evaluation consumed. Empty in the shared program.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConstantRecipeClosure {
+    /// Primary value application; supplemental proof receipts keep own scopes.
+    pub target_scope: String,
     pub values: Vec<ClosedConstantRecipe>,
     pub receipts: Vec<ConstantRecipeDependencyReceipt>,
 }
@@ -305,7 +312,11 @@ impl crate::TypedTrees {
             }
         }
         if unclosed.is_empty() {
-            Ok(ConstantRecipeClosure { values, receipts })
+            Ok(ConstantRecipeClosure {
+                values,
+                receipts,
+                ..Default::default()
+            })
         } else {
             Err(unclosed)
         }

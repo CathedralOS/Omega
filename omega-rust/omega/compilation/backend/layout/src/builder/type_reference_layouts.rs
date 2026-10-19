@@ -71,6 +71,7 @@ impl<'program> LayoutBuilder<'program> {
                 let Some(length) =
                     fixed_array_length(self.program, type_reference, length, bindings)
                 else {
+                    self.unresolved_array_extent = true;
                     return Ok(TypeLayout::default());
                 };
 

@@ -45,6 +45,7 @@ pub use conformance::GenericBoundRequirement;
 pub use conformance::compose_forwarded_trait_arguments;
 pub use conformance::generic_bound_operator_requirement;
 pub use conformance::resolve_closed_requirement_application;
+pub use conformance::revalidate_machine_trait_conformances;
 pub use conformance::revalidate_top_level_requirement_realization;
 pub(crate) use conformance::{
     named_conformance_argument_matches, validate_external_leaf_native_shapes,
@@ -61,6 +62,7 @@ pub(crate) use dynamic::{
     dynamic_requirement_ineligibility, dynamic_selector_application,
     report_dynamic_receiver_call_error,
 };
+pub use named_implementations::revalidate_named_implementation;
 pub(crate) use named_implementations::validate_conformances;
 pub use provider_regions::{ProviderRegionCorrespondence, provider_region_correspondence};
 pub(crate) use requirements::validate_trait_requirements;

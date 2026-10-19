@@ -456,6 +456,30 @@ pub fn revalidate_top_level_requirement_realization(
     }
 }
 
+/// Reuse the ordinary machine conformance judgment at selected-execution
+/// admission. Exact row selection is separate from proving its contracts.
+pub fn revalidate_machine_trait_conformances(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let symbols = crate::declarations::symbols::TopLevelSymbols::build(program, &mut diagnostics);
+    let operational = crate::infer_operational_may(program);
+    let service_reaches = crate::infer_service_reaches(program, &operational);
+    validate_machine_trait_conformances(
+        program,
+        &service_reaches,
+        machine,
+        &symbols,
+        &mut diagnostics,
+    );
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 fn validate_top_level_requirement_effect_ceiling(
     program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,

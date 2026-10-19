@@ -261,7 +261,8 @@ pub use declarations::traits::{
     collect_dynamic_slot_demands, compose_forwarded_trait_arguments, dynamic_call_demand,
     dynamic_expression_call_demand, generic_bound_operator_requirement, qualified_trait_scope,
     resolve_closed_requirement_application, resolve_dynamic_call_targets,
-    resolve_selected_dynamic_call_targets, revalidate_top_level_requirement_realization,
+    resolve_selected_dynamic_call_targets, revalidate_machine_trait_conformances,
+    revalidate_named_implementation, revalidate_top_level_requirement_realization,
 };
 pub use machine_calls::effect_inference::{
     boundary_signature_service_reach, declared_machine_invocations, declared_signature_invocations,

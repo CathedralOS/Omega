@@ -442,7 +442,7 @@ pub fn selected_use_plan<'a>(
 }
 
 /// The one selected ProviderPlan whose schema binds `requirement` — a boundary
-/// operator's requirement identity or a top-level requirement — in its exact
+/// operator, trait-method or top-level requirement — in its exact
 /// declaring package and dependency purpose, with its index in `plans`.
 pub fn selected_requirement_plan<'a>(
     context: crate::ProviderPlanningContext<'_>,
@@ -453,6 +453,27 @@ pub fn selected_requirement_plan<'a>(
         return None;
     }
     let typed = context.typed;
+    if let Some((owner, method)) = typed.trait_machine_signature(requirement) {
+        let identity = typed.trait_requirement_callable_identity_text(owner, method);
+        if identity.is_empty() {
+            return None;
+        }
+        let mut matching = plans.iter().enumerate().filter(|(_, plan)| {
+            crate::service_schema::schema_binds_exact_boundary_trait(context, &plan.schema, owner)
+                && plan
+                    .schema
+                    .methods
+                    .iter()
+                    .filter(|candidate| {
+                        plan.schema.identity_text(candidate.requirement_identity)
+                            == identity.as_str()
+                    })
+                    .count()
+                    == 1
+        });
+        let selected = matching.next()?;
+        return matching.next().is_none().then_some(selected);
+    }
     let mut matching: Vec<(usize, &'a ProviderPlan)> = match typed
         .operator_definition_by_symbol(requirement)
     {

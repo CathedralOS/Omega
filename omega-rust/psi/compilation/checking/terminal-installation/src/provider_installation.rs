@@ -77,6 +77,8 @@ pub struct AdmittedProviderSelections {
     terminal_psi: terminal_psi::TerminalPsiIdentity,
     providers: BTreeMap<BoundaryMachineId, AdmittedProviderSelection>,
     assumed_bindings: Vec<AdmittedAssumedBinding>,
+    /// Historical compatibility only; this adds no runtime provider row.
+    folded_constant_target: Option<String>,
 }
 
 // Build agreement compares selecting declarations, not just dispatch bodies:
@@ -91,6 +93,87 @@ struct AdmittedProviderSelection {
 }
 
 impl AdmittedProviderSelections {
+    /// Admit historical realization choices after Omega reconstructs their
+    /// normalized plan inputs. Recompute the existing domain-separated SHA-256
+    /// commitment here; a copied digest or dependency record cannot seal custody.
+    /// Exact catalog admission independently joins
+    /// every checked body/declaration; historical choices never enter dispatch.
+    pub fn admit_folded_constant_closure(
+        mut self,
+        artifact: terminal_codec::TerminalArtifactView<'_>,
+        target: &str,
+        plan_preimages: &[Vec<u8>],
+    ) -> Result<Self, String> {
+        if self.terminal_psi != artifact.identity() {
+            return Err("folded constant closure names another Terminal artifact".into());
+        }
+        let module = artifact.module();
+        module
+            .folded_constants
+            .validate(module)
+            .map_err(str::to_owned)?;
+        if module.folded_constants.target.as_deref() != Some(target) {
+            return Err("folded constant closure belongs to another target".into());
+        }
+        let expected: Vec<_> = module
+            .folded_constants
+            .dependencies
+            .iter()
+            .filter(|dependency| dependency.target == target)
+            .cloned()
+            .collect();
+        module
+            .folded_constants
+            .validate_plan_inputs(target, plan_preimages)
+            .map_err(str::to_owned)?;
+        let mut historical = Vec::new();
+        for dependency in &expected {
+            let Some(association) = &dependency.candidate else {
+                continue;
+            };
+            let candidate = module
+                .provider_candidates
+                .iter()
+                .find(|candidate| {
+                    candidate.boundary == association.boundary
+                        && candidate.candidate == association.machine
+                        && candidate.provider_declaration == association.declaration
+                        && candidate.source_requirement_identity == dependency.requirement
+                })
+                .ok_or("folded constant historical candidate is absent")?;
+            if self.providers.contains_key(&candidate.boundary)
+                && !self.contains_candidate(candidate)
+            {
+                return Err("runtime provider substitutes the folded constant realization".into());
+            }
+            historical.push(ProviderInstallationSelection {
+                boundary: candidate.boundary,
+                candidate: candidate.candidate,
+                provider_identity: module
+                    .identities
+                    .text(candidate.provider_identity)
+                    .ok_or("historical provider identity is absent")?
+                    .into(),
+                provider_declaration: module
+                    .identities
+                    .text(candidate.provider_declaration.identity())
+                    .ok_or("historical selecting declaration is absent")?
+                    .into(),
+            });
+        }
+        historical.sort();
+        historical.dedup();
+        // This temporary admission proves catalog choice, not an installation
+        // into the runtime provider map retained by self.
+        admit_provider_selections(module, artifact.identity(), &historical, &[])
+            .map_err(|error| format!("folded constant catalog admission rejected: {error:?}"))?;
+        self.folded_constant_target = Some(target.to_owned());
+        Ok(self)
+    }
+
+    pub fn folded_constant_target(&self) -> Option<&str> {
+        self.folded_constant_target.as_deref()
+    }
     /// Observe whether this exact artifact-scoped candidate is the installed
     /// row, including the choosing declaration and complete receiving tuple.
     pub fn contains_candidate(
@@ -307,6 +390,7 @@ fn admit_provider_selections(
         terminal_psi: identity,
         providers: installed,
         assumed_bindings,
+        folded_constant_target: None,
     })
 }
 

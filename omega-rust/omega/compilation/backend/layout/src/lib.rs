@@ -25,7 +25,10 @@ pub use boundary_values::{
     BoundaryTypeBinding, BoundaryValueLayout, append_boundary_value_shape,
     substitute_boundary_type_reference,
 };
-pub use builder::{build_layout_plan, build_layout_plan_for_roots, layout_type_reference};
+pub use builder::{
+    build_layout_plan, build_layout_plan_for_roots, layout_type_reference,
+    try_layout_type_reference,
+};
 pub use callback_layout::{PrivateCallbackInlineField, PrivateCallbackLayout};
 pub(crate) use layout_plan::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, ENUM_TAG_BYTES, FieldLayout,

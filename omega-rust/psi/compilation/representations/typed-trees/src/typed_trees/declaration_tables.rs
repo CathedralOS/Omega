@@ -126,7 +126,44 @@ impl TypedTrees {
     /// Projection removes occurrences with their original source owner. Derived
     /// application arenas are not independent roots and cannot keep each other
     /// alive through a receiving trait shared by unrelated declarations.
-    pub fn retain_live_trait_implementation_applications(&mut self) {
+    pub fn retain_live_trait_implementation_applications(
+        &mut self,
+        removed: &std::collections::HashSet<symbols::SymbolHandle>,
+    ) {
+        let owner_removed = |mut owner: symbols::SymbolHandle| {
+            while owner.is_valid() {
+                if removed.contains(&owner) {
+                    return true;
+                }
+                owner = self.symbols.get(owner).parent;
+            }
+            false
+        };
+        // An unavailable scope can mean either malformed evidence or a source
+        // declaration deliberately removed by this private projection. Only
+        // the exact removed roster distinguishes them. Both source records
+        // must have left: a mismatched or unknown surviving owner still owes
+        // ordinary validation. Prune before the derived rows can enter the
+        // live-root census and keep an unrelated calling-policy demand alive.
+        let known_live = self
+            .trait_implementation_applications
+            .iter()
+            .filter(|(_, selected)| {
+                let source_owner = selected.source_scope.supplying_owner();
+                let supplying_owner = if selected.supplying_application.is_valid() {
+                    self.expression_table
+                        .static_machine_application(selected.supplying_application)
+                        .lexical_owner
+                } else {
+                    symbols::SymbolHandle::invalid()
+                };
+                !(owner_removed(source_owner) && owner_removed(supplying_owner))
+            })
+            .map(|(_, selected)| selected.clone())
+            .collect::<Vec<_>>();
+        let mut applications = arena::Arena::default();
+        applications.insert_many(known_live);
+        self.trait_implementation_applications = applications;
         let roots = self.applied_trait_roots();
         let selected = self
             .trait_implementation_applications

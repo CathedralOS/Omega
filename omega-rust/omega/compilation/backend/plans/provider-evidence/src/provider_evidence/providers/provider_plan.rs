@@ -267,7 +267,21 @@ impl ProviderPlan {
     }
 
     fn encode_identity_digest(&self) -> ProviderPlanDigest {
-        let mut encoder = ProviderPlanDigestEncoder::for_provider_plan();
+        ProviderPlanDigest::from_digest(
+            self.encode_identity(ProviderPlanDigestEncoder::for_provider_plan())
+                .finish(),
+        )
+    }
+
+    /// Exact canonical input to the v4 normalized-plan commitment. Receivers
+    /// recompute the commitment before admitting a historical folded closure.
+    /// Reconstruct from current fields, independently of the digest memo.
+    pub fn identity_preimage(&self) -> Vec<u8> {
+        self.encode_identity(ProviderPlanDigestEncoder::for_provider_plan_preimage())
+            .finish_preimage()
+    }
+
+    fn encode_identity(&self, mut encoder: ProviderPlanDigestEncoder) -> ProviderPlanDigestEncoder {
         encoder.string(&self.name);
         encoder.string(&self.provider_type);
         encoder.package_identity(self.provider_type_package_identity);
@@ -309,7 +323,7 @@ impl ProviderPlan {
             encoder.provider_binding(&row.binding, &self.identities);
         }
         encoder.package_identity(self.origin_package_identity);
-        ProviderPlanDigest::from_digest(encoder.finish())
+        encoder
     }
 
     /// Historical FNV-1a report fingerprint over the canonical rendering

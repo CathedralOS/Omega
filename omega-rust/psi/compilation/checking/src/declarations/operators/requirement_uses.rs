@@ -1,8 +1,8 @@
-//! Direct calls to receiver-free top-level boundary requirements,
+//! Direct calls to receiver-free boundary requirements,
 //! retained as the requirement-spelling twin of named boundary-operator uses.
 //!
-//! The typed call targets the requirement's entry state; the fact retains the
-//! requirement machine itself plus the arithmetic-policy result adapter its
+//! The typed call targets a requirement entry state or an exact boundary-trait
+//! signature; the fact retains that declaration plus the result-policy adapter its
 //! arguments select, exactly as a named `F32::*` operator use does, so each
 //! target's selected plan joins either spelling by requirement identity and
 //! the intrinsic execution bridge resolves both through one requirement view.
@@ -98,9 +98,32 @@ fn named_requirement_use_fact(
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
 ) -> Option<CheckedNamedRequirementUseFact> {
-    let requirement = directly_callable_requirement(program, call.target_symbol)?;
-    let entry = program.machine_states(requirement).first()?;
-    let policy_adapter = match program.primitive_type_reference(entry.return_type) {
+    // Trait requirements have their own exact signature declaration, rather
+    // than a synthetic top-level Machine. Retain that declaration just as we
+    // retain a top-level requirement; selection and execution admission still
+    // belong to their ordinary downstream owners.
+    let (requirement_symbol, return_type) =
+        if let Some((owner, signature)) = program.trait_machine_signature(call.target_symbol) {
+            // A namespace qualifier is represented as a receiver expression too.
+            // Only this exact trait declaration is static here; an arbitrary value
+            // or another namespace cannot be erased by selected execution.
+            let static_receiver = !call.receiver.is_valid()
+                || matches!(program.expression_table.expression(call.receiver),
+                ExpressionNode::Name(path) if path.symbol == owner.symbol);
+            if !owner.is_boundary
+                || !static_receiver
+                || !program.trait_type_parameters(owner).is_empty()
+                || !signature.type_parameters.is_empty()
+            {
+                return None;
+            }
+            (signature.symbol, signature.return_type)
+        } else {
+            let requirement = directly_callable_requirement(program, call.target_symbol)?;
+            let entry = program.machine_states(requirement).first()?;
+            (requirement.symbol, entry.return_type)
+        };
+    let policy_adapter = match program.primitive_type_reference(return_type) {
         Some(PrimitiveType::F32) => {
             named_float_policy_adapter(program, call, origin, FloatFormat::BINARY32)
         }
@@ -112,7 +135,7 @@ fn named_requirement_use_fact(
     Some(CheckedNamedRequirementUseFact {
         expression,
         origin,
-        requirement_symbol: requirement.symbol,
+        requirement_symbol,
         policy_adapter,
     })
 }

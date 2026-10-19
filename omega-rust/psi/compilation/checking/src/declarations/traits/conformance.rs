@@ -57,7 +57,7 @@ pub use generic_operator::generic_bound_operator_requirement;
 pub(crate) use machine_conformance::validate_machine_trait_conformances;
 pub use machine_conformance::{
     compose_forwarded_trait_arguments, resolve_closed_requirement_application,
-    revalidate_top_level_requirement_realization,
+    revalidate_machine_trait_conformances, revalidate_top_level_requirement_realization,
 };
 pub(crate) use signature_matching::{
     authored_conformance_machine, validate_applied_trait_signature,
