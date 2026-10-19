@@ -1177,11 +1177,18 @@ pub(in crate::execution::terminal_unit) fn retain_selected_sources(
             operation.discardable_structural_result_by_ordinal_mut(binding_ordinal)
         });
         let (result, discard) = producers.next()?;
-        if producers.next().is_some()
-            || result.multiplicity != Multiplicity::Affine
-            || result.statement_index != source.statement_ordinal
-            || !*discard
-        {
+        if producers.next().is_some() || result.statement_index != source.statement_ordinal {
+            return None;
+        }
+        // Linear production never incurred implicit disposal. Its complete
+        // selected move owes no return-drop flag, but cannot leave a residual.
+        if result.multiplicity == Multiplicity::Linear {
+            if source.retains_storage || *discard {
+                return None;
+            }
+            continue;
+        }
+        if result.multiplicity != Multiplicity::Affine || !*discard {
             return None;
         }
         *discard = false;

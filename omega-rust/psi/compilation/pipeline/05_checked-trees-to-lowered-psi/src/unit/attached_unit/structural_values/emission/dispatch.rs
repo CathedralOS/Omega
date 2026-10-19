@@ -84,7 +84,47 @@ impl Emission<'_, '_, '_> {
                 }
             }
             self.values.truncate(source_count);
-            self.value(identities, arm.value, Some(&mut *continuation))?;
+            // Constructor births and moved claims belong to this predecessor,
+            // not to the destination names bound at the common continuation.
+            let arm_claims = self
+                .checked
+                .facts
+                .flow
+                .ownership
+                .owned_selection_at(self.state, self.statement)
+                .map(|(_, receipt)| {
+                    crate::emission::claim_bindings::prepare_selection_arm_claims(
+                        identities,
+                        self.checked,
+                        receipt,
+                        arm.source_arm,
+                        self.structural_type,
+                        self.environment.structural_types,
+                    )
+                })
+                .transpose()?;
+            let previous = if let Some(prepared) = arm_claims.filter(|claims| !claims.is_empty()) {
+                let claims = crate::emission::claim_bindings::emit_establishment_claims(
+                    &prepared,
+                    &mut self.calls.claims,
+                )?;
+                let introductions = crate::emission::claim_bindings::direct_establishment_claims(
+                    &prepared,
+                    &self.calls.claims,
+                )?;
+                Some((
+                    std::mem::replace(&mut self.completion_claims, claims),
+                    std::mem::replace(&mut self.direct_establishments, introductions),
+                ))
+            } else {
+                None
+            };
+            let emitted = self.value(identities, arm.value, Some(&mut *continuation));
+            if let Some((claims, introductions)) = previous {
+                self.completion_claims = claims;
+                self.direct_establishments = introductions;
+            }
+            emitted?;
             self.restore_fallback(fallback);
         }
         if is_root {

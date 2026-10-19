@@ -27,6 +27,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
     statement_index: usize,
     statement: &StatementNode,
     places: &mut [LinearPlace],
+    claim_identities: &mut super::super::linear_obligations::ClaimIdentityAllocator,
 ) -> Result<bool, Diagnostic> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let (expression, destination, type_reference) = match statement {
@@ -129,6 +130,40 @@ pub(in crate::checks::multiplicity) fn record_statement(
     let leaf_frontier = |leaf_type: TypeReferenceHandle| {
         crate::checks::multiplicity::linear_validation::linear_claim_frontier(program, leaf_type)
     };
+    // A record's affine shell does not make its contained claims discardable.
+    // Each exact consumed claim must move on every reachable edge, irrespective
+    // of which result field receives it. Swaps preserve that set; omitting a
+    // source on one arm does not. Duplicate moves on one arm were rejected above.
+    let terminal_count = terminal_arm_values(program, expression);
+    let mut claim_edges = Vec::new();
+    for (_, arm, root, path, leaf_type) in &leaves {
+        for claim in leaf_frontier(*leaf_type) {
+            let mut claim_path = path.clone();
+            claim_path.extend(claim.path);
+            if !claim_edges
+                .iter()
+                .any(|(candidate_root, candidate_path, candidate_arm)| {
+                    candidate_root == root && candidate_path == &claim_path && candidate_arm == arm
+                })
+            {
+                claim_edges.push((*root, claim_path, *arm));
+            }
+        }
+    }
+    for (root, path, _) in &claim_edges {
+        if claim_edges
+            .iter()
+            .filter(|(candidate_root, candidate_path, _)| {
+                candidate_root == root && candidate_path == path
+            })
+            .count()
+            != terminal_count
+        {
+            return Err(Diagnostic::error(
+                "linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges",
+            ));
+        }
+    }
     let mut sources = Vec::new();
     for (_, _, root, _, _) in &leaves {
         // A call's structural product roots its own once-evaluated custody;
@@ -298,15 +333,16 @@ pub(in crate::checks::multiplicity) fn record_statement(
                 ));
             }
         }
-        // A whole-leaf source is selected at its root boundary, so its local
-        // type is the result type. A source reached only through projected
-        // leaves instead owes the exact moved path recorded on each transfer;
-        // the projected leaf type was already checked against the result.
-        if leaves.iter().any(|(_, _, leaf_root, path, _)| {
-            *leaf_root == facts::PlaceRoot::Symbol(symbol) && path.is_empty()
-        }) && program.normalized_type_identity(source_reference)
-            != program.normalized_type_identity(type_reference)
-        {
+        // A whole source must match the receiving leaf's type, not necessarily
+        // the enclosing selection's type: construction may move it beneath a
+        // field in a different carrier. Projected leaves already checked their
+        // exact moved path's type when the leaf roster was collected.
+        if leaves.iter().any(|(_, _, leaf_root, path, leaf_type)| {
+            *leaf_root == facts::PlaceRoot::Symbol(symbol)
+                && path.is_empty()
+                && program.normalized_type_identity(source_reference)
+                    != program.normalized_type_identity(*leaf_type)
+        }) {
             return Err(Diagnostic::error(
                 "owned match source must be an available whole plain-affine local of the exact result type",
             ));
@@ -348,6 +384,13 @@ pub(in crate::checks::multiplicity) fn record_statement(
         sources.push(FlowOwnedSelectionSource {
             symbol,
             statement_ordinal: u32::try_from(source_ordinal).map_err(|_| unsupported())?,
+            retains_storage: leaves
+                .iter()
+                .filter(|(_, _, root, path, _)| {
+                    *root == facts::PlaceRoot::Symbol(symbol) && path.is_empty()
+                })
+                .count()
+                != terminal_count,
             provenance,
             claim_identity,
             origin_selection,
@@ -365,7 +408,15 @@ pub(in crate::checks::multiplicity) fn record_statement(
     });
     let sources = facts.flow.ownership.selection_sources.insert_many(sources);
     let mut transfers = Vec::new();
+    let selection_expression = expression;
     for (expression, source_arm, root, path, leaf_type) in leaves {
+        let result_path = super::results::operand_result_path(
+            program,
+            selection_expression,
+            source_arm,
+            expression,
+            type_reference,
+        )?;
         let (source, claims) = match root {
             facts::PlaceRoot::Symbol(symbol) => {
                 let ordinal = facts
@@ -424,6 +475,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
             source_arm,
             source,
             path: facts.flow.ownership.segments.insert_many(path),
+            result_path: facts.flow.ownership.segments.insert_many(result_path),
             claims: facts
                 .flow
                 .ownership
@@ -436,7 +488,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
         .ownership
         .selection_transfers
         .insert_many(transfers);
-    let receipt = FlowOwnedSelectionReceipt {
+    let mut receipt = FlowOwnedSelectionReceipt {
         machine: machine.symbol,
         state: state.symbol,
         statement_ordinal: u32::try_from(statement_index).map_err(|_| unsupported())?,
@@ -445,15 +497,31 @@ pub(in crate::checks::multiplicity) fn record_statement(
         type_reference,
         sources,
         transfers,
+        result_claims: Default::default(),
+        produced_claims: Default::default(),
         death: PermissionEventSource::StateExit,
     };
-    apply_availability(program, &facts.flow.ownership, &receipt, places);
+    receipt.produced_claims = super::results::record_productions(
+        program,
+        &mut facts.flow.ownership,
+        &receipt,
+        machine,
+        state,
+        places,
+        claim_identities,
+    )?;
+    receipt.result_claims = super::results::bind_results(
+        program,
+        &mut facts.flow.ownership,
+        &receipt,
+        claim_identities,
+    )?;
+    apply_availability(&facts.flow.ownership, &receipt, places);
     facts.flow.ownership.owned_selections.append(receipt);
     Ok(true)
 }
 
 pub(in crate::checks::multiplicity) fn apply_availability(
-    program: &dyn ::validation::CheckingInput,
     ownership: &checked_trees::FlowOwnershipFacts,
     receipt: &FlowOwnedSelectionReceipt,
     places: &mut [LinearPlace],
@@ -492,91 +560,24 @@ pub(in crate::checks::multiplicity) fn apply_availability(
             }
         }
     }
-    // A linear join whose edges all move the same consumed claim hands that
-    // claim itself to the destination: its identity and provenance survive
-    // the transfer. A fresh-per-edge product leaves both edge-dependent.
-    let inherited = (program.type_multiplicity(receipt.type_reference) == Multiplicity::Linear)
-        .then(|| {
-            ownership
-                .selection_transfers
-                .span_or_empty(receipt.transfers)
-                .iter()
-                .find_map(|transfer| {
-                    if !transfer.source.is_valid() {
-                        return None;
-                    }
-                    ownership
-                        .selection_transfer_claims
-                        .span_or_empty(transfer.claims)
-                        .first()
-                        .map(|claim| (claim.claim_identity, claim.provenance))
-                })
-        })
-        .flatten();
-    if let Some(place) = places.iter_mut().find(|place| {
-        place.root == facts::PlaceRoot::Symbol(receipt.destination) && place.path.is_empty()
-    }) {
-        place.live = true;
-        place.case_excluded = false;
-        place.ever_established = true;
-        place.provenance = Some(
-            inherited
-                .map(|(_, provenance)| provenance)
-                .unwrap_or(PermissionProvenance::Unknown),
-        );
-        place.claim_identity = Some(
-            inherited
-                .map(|(identity, _)| identity)
-                .unwrap_or(PermissionClaimIdentity::Unknown),
-        );
-    }
-    // An affine carrier destination has no tracked root place: the join
-    // establishes each frontier claim place instead. A claim position
-    // inherits the consumed claim's identity and provenance only when every
-    // reachable edge supplies the same pair; a distinct source on any arm, a
-    // fresh product, or a claimless leaf leaves both edge-dependent.
+    // Bind by destination path, never source catalogue position. An invariant
+    // source keeps its name; differing arms use the receipt's joined name,
+    // whose alternatives remain on the exact selected transfer graph.
     if receipt.destination.is_valid() {
-        let transfers = ownership
-            .selection_transfers
-            .span_or_empty(receipt.transfers);
-        let fully_sourced = transfers.len() == terminal_arm_values(program, receipt.expression)
-            && transfers.iter().all(|transfer| transfer.source.is_valid());
-        for (position, place) in places
+        for place in places
             .iter_mut()
-            .filter(|place| {
-                place.root == facts::PlaceRoot::Symbol(receipt.destination)
-                    && !place.path.is_empty()
-            })
-            .enumerate()
+            .filter(|place| place.root == facts::PlaceRoot::Symbol(receipt.destination))
         {
-            let inherited_claim = fully_sourced.then(|| {
-                transfers
-                    .iter()
-                    .map(|transfer| {
-                        ownership
-                            .selection_transfer_claims
-                            .span_or_empty(transfer.claims)
-                            .get(position)
-                            .map(|claim| (claim.claim_identity, claim.provenance))
-                    })
-                    .collect::<Option<Vec<_>>>()
-            });
-            let unanimous = inherited_claim.flatten().and_then(|positions| {
-                (positions.iter().all(|position| *position == positions[0])).then_some(positions[0])
-            });
+            let binding = ownership
+                .selection_result_claims
+                .span_or_empty(receipt.result_claims)
+                .iter()
+                .find(|claim| ownership.segments.span_or_empty(claim.path) == place.path);
             place.live = true;
             place.case_excluded = false;
             place.ever_established = true;
-            place.provenance = Some(
-                unanimous
-                    .map(|(_, provenance)| provenance)
-                    .unwrap_or(PermissionProvenance::Unknown),
-            );
-            place.claim_identity = Some(
-                unanimous
-                    .map(|(identity, _)| identity)
-                    .unwrap_or(PermissionClaimIdentity::Unknown),
-            );
+            place.provenance = binding.map(|claim| claim.provenance);
+            place.claim_identity = binding.map(|claim| claim.claim_identity);
         }
     }
 }

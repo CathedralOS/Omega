@@ -148,7 +148,6 @@ pub(crate) fn validate_linear_permission_events(
                             }
                             selections.consume(program, &facts.flow.ownership, receipt);
                             owned_selection::apply_availability(
-                                program,
                                 &facts.flow.ownership,
                                 receipt,
                                 places,

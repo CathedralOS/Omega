@@ -609,7 +609,15 @@ impl StructuralJudge<'_> {
         if depth >= 64 {
             return None;
         }
-        let value = self.resolve(value.clone());
+        // Keep mathematical arithmetic visible to the polynomial owner. A
+        // rewrite such as base + length = end may replace the complete sum
+        // with end; doing that before collecting its operands also erases the
+        // equation that connects end to the nonnegative length. Captured
+        // scalar operands still resolve normally, with formation checked below.
+        let value = match value.semantic_value() {
+            StructuralTerm::MathematicalBinary { .. } => value.clone(),
+            _ => self.resolve(value.clone()),
+        };
         match value.semantic_value() {
             StructuralTerm::Integer(value) => Some(Polynomial::constant(value.clone())),
             StructuralTerm::BoundValue(symbol)

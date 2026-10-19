@@ -1,0 +1,9 @@
+data Token { value: u64; }
+data Pair { left: Token; right: Token; }
+machine reuse(selected: bool, left: Token, right: Token) -> u64 {
+    let pair: Pair = match selected {
+        true -> Pair { left: left, right: right },
+        false -> Pair { left: left, right: right },
+    };
+    left.value
+}

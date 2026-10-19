@@ -801,7 +801,8 @@ pub(crate) fn occurrence_contexts(
                     }
                     target
                 }
-                checked_trees::FlowClaimJoinExitKind::CallResult { .. } => return None,
+                checked_trees::FlowClaimJoinExitKind::CallResult { .. }
+                | checked_trees::FlowClaimJoinExitKind::SelectionArm { .. } => return None,
             };
             // A successor loan retains its owned backing until that
             // invocation returns. Check its cleanup after transitive writes

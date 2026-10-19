@@ -115,6 +115,11 @@ pub struct FlowOwnedSelectionReceipt {
     pub destination: SymbolHandle,
     pub type_reference: typed_trees::types::TypeReferenceHandle,
     pub transfers: HandleSpan<FlowOwnedSelectionTransfer>,
+    /// Destination-local names bound to arriving obligations, never new
+    /// resource establishments. Paths are relative to the complete result.
+    pub result_claims: HandleSpan<FlowOwnedSelectionResultClaim>,
+    /// Actual constructor births on selected arms, separate from movements.
+    pub produced_claims: HandleSpan<FlowOwnedSelectionProducedClaim>,
     /// Distinct incoming owners, in reverse declaration order. This is a
     /// candidate roster, not a committed transfer or unconditional drop list.
     /// At the death edge, dispose precisely its complement under the selected
@@ -129,6 +134,10 @@ pub struct FlowOwnedSelectionReceipt {
 pub struct FlowOwnedSelectionSource {
     pub symbol: SymbolHandle,
     pub statement_ordinal: u32,
+    /// False only when every reachable arm moves this whole source. True
+    /// retains potentially live storage for the selected residual schedule;
+    /// a source count alone cannot establish whether any complement survives.
+    pub retains_storage: bool,
     pub provenance: language_semantics::PermissionProvenance,
     pub claim_identity: language_semantics::PermissionClaimIdentity,
     /// Zero means the source has the direct provenance above. A nonzero handle
@@ -148,12 +157,33 @@ pub struct FlowOwnedSelectionTransfer {
     /// a nonempty path (fields and literal fixed indexes only) selects one
     /// affine child while the root's residual custody dies on the same edge.
     pub path: HandleSpan<facts::PlaceSegment>,
+    /// Receiving path of this operand beneath the selected result. Source
+    /// and destination paths are independent when construction moves fields.
+    pub result_path: HandleSpan<facts::PlaceSegment>,
     /// The exact linear claims this leaf consumes, each named by its full path
     /// below the source root in canonical frontier order. A plain-owned leaf
     /// carries none; a linear leaf names its one claim; a whole affine carrier
     /// names its complete claim frontier, so the join discharges every linear
     /// child instead of inventing an aggregate root claim.
     pub claims: HandleSpan<FlowOwnedSelectionClaim>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowOwnedSelectionResultClaim {
+    pub path: HandleSpan<facts::PlaceSegment>,
+    pub claim_identity: language_semantics::PermissionClaimIdentity,
+    pub provenance: language_semantics::PermissionProvenance,
+}
+
+/// A checked literal producer establishes this root obligation on one arm.
+/// Its result path locates that producer beneath the selected aggregate.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowOwnedSelectionProducedClaim {
+    pub source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub result_path: HandleSpan<facts::PlaceSegment>,
+    pub claim_identity: language_semantics::PermissionClaimIdentity,
+    pub provenance: language_semantics::PermissionProvenance,
 }
 
 /// One consumed linear claim inside a selection transfer. `path` is the
@@ -272,6 +302,12 @@ pub enum FlowClaimJoinExitKind {
     /// Completion of a nested call whose result supplies the enclosing exit.
     CallResult {
         call_ordinal: usize,
+    },
+    /// The terminal authored arm plus its containing selection retains the
+    /// route through nested matches without expanding independent choices.
+    SelectionArm {
+        expression: typed_trees::expression::ExpressionHandle,
+        arm: arena::Handle<typed_trees::expression::TableMatchArm>,
     },
 }
 

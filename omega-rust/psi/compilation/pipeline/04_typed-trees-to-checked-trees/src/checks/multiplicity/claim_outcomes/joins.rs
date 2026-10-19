@@ -7,7 +7,8 @@
 use super::{
     ClaimAbsence, argument_for_parameter, bind_claim_outcome_source_at_arguments,
     bind_claim_outcome_source_at_call, claim_outcomes_for_expression,
-    claim_paths_are_case_alternatives, derive_checked_claim_outcome_maps, parameter_for_symbol,
+    claim_paths_are_case_alternatives, derive_checked_claim_outcome_maps, named_claim_invocation,
+    parameter_for_symbol, selection_alternatives,
 };
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
@@ -33,6 +34,19 @@ struct ExitFrontier {
     exits: Vec<FlowClaimJoinExit>,
     entries: Vec<CheckedClaimOutcomeEntry>,
     inactive_paths: Vec<Vec<PlaceSegment>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum JoinedOccurrence {
+    Call {
+        state: SymbolHandle,
+        statement: usize,
+        ordinal: usize,
+    },
+    Selection {
+        state: SymbolHandle,
+        statement: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -292,6 +306,13 @@ fn state_frontiers(
                                             statement_index,
                                             program.statement_table.expression_handles(*arguments),
                                             target_state,
+                                            named_claim_invocation(
+                                                program,
+                                                state,
+                                                statement_index,
+                                                path.symbol,
+                                                *arguments,
+                                            )?,
                                             &entry.source,
                                             &ownership.segments,
                                             events,
@@ -390,6 +411,39 @@ fn expression_frontiers(
             },
         );
     }
+    if let Some((_, receipt)) = ownership.owned_selection_at(state.symbol, statement as u32)
+        && receipt.expression == expression
+    {
+        let mut frontiers = Vec::new();
+        for (arm, entries) in selection_alternatives(program, state, ownership, events, receipt)? {
+            if !complete_frontier(program, state.return_type, &entries, &[]) {
+                return None;
+            }
+            frontiers.extend(expand_joined_frontier(
+                program,
+                borrow,
+                state,
+                ownership,
+                events,
+                maps,
+                active,
+                &[],
+                ExitFrontier {
+                    exits: vec![
+                        edge,
+                        FlowClaimJoinExit {
+                            state_symbol: state.symbol,
+                            statement_index: statement,
+                            kind: FlowClaimJoinExitKind::SelectionArm { expression, arm },
+                        },
+                    ],
+                    entries,
+                    inactive_paths: Vec::new(),
+                },
+            )?);
+        }
+        return Some(frontiers);
+    }
     let call = program.expression_table.call_node(expression)?;
     let target = validation::call_target_state(program, call.target_symbol)?;
     let mut frontiers = state_frontiers(program, borrow, target, ownership, events, maps, active)?;
@@ -431,9 +485,100 @@ fn expand_joined_frontier(
     events: &[FlowPermissionEventFact],
     maps: &[CheckedClaimOutcomeMap],
     active: &mut Vec<SymbolHandle>,
-    visited: &[(SymbolHandle, usize, usize)],
+    visited: &[JoinedOccurrence],
     frontier: ExitFrontier,
 ) -> Option<Vec<ExitFrontier>> {
+    let selected = frontier
+        .entries
+        .iter()
+        .find_map(|entry| match entry.source {
+            CheckedClaimOutcomeSource::Established {
+                provenance:
+                    PermissionProvenance::Joined {
+                        machine_symbol,
+                        state_symbol,
+                        source: PermissionEventSource::Statement { statement_index },
+                        ..
+                    },
+                ..
+            } => Some((machine_symbol, state_symbol, statement_index)),
+            _ => None,
+        });
+    if let Some((machine, owner, statement)) = selected {
+        let occurrence = JoinedOccurrence::Selection {
+            state: owner,
+            statement,
+        };
+        if owner != state.symbol || visited.contains(&occurrence) {
+            return None;
+        }
+        let (_, receipt) = ownership.owned_selection_at(owner, statement as u32)?;
+        if receipt.machine != machine {
+            return None;
+        }
+        let mut visited = visited.to_vec();
+        visited.push(occurrence);
+        let mut expanded = Vec::new();
+        for (arm, alternatives) in
+            selection_alternatives(program, state, ownership, events, receipt)?
+        {
+            let mut next = frontier.clone();
+            next.exits.push(FlowClaimJoinExit {
+                state_symbol: owner,
+                statement_index: statement,
+                kind: FlowClaimJoinExitKind::SelectionArm {
+                    expression: receipt.expression,
+                    arm,
+                },
+            });
+            for entry in &mut next.entries {
+                let CheckedClaimOutcomeSource::Established {
+                    claim_identity,
+                    provenance,
+                } = entry.source
+                else {
+                    continue;
+                };
+                if !matches!(provenance, PermissionProvenance::Joined { machine_symbol, state_symbol,
+                    source: PermissionEventSource::Statement { statement_index }, .. }
+                    if (machine_symbol, state_symbol, statement_index) == (machine, owner, statement))
+                {
+                    continue;
+                }
+                let mut bindings = ownership
+                    .selection_result_claims
+                    .span_or_empty(receipt.result_claims)
+                    .iter()
+                    .filter(|claim| {
+                        claim.claim_identity == claim_identity && claim.provenance == provenance
+                    });
+                let binding = bindings.next()?;
+                if bindings.next().is_some() {
+                    return None;
+                }
+                let path = ownership.segments.span_or_empty(binding.path);
+                let mut sources = alternatives
+                    .iter()
+                    .filter(|alternative| alternative.output_path == path);
+                entry.source = sources.next()?.source.clone();
+                if sources.next().is_some() {
+                    return None;
+                }
+            }
+            if !complete_frontier(
+                program,
+                state.return_type,
+                &next.entries,
+                &next.inactive_paths,
+            ) {
+                return None;
+            }
+            expanded.extend(expand_joined_frontier(
+                program, borrow, state, ownership, events, maps, active, &visited, next,
+            )?);
+        }
+        return Some(expanded);
+    }
     let joined = frontier
         .entries
         .iter()
@@ -467,7 +612,11 @@ fn expand_joined_frontier(
     if owner != state.symbol {
         return None;
     }
-    let invocation = (owner, statement, ordinal);
+    let invocation = JoinedOccurrence::Call {
+        state: owner,
+        statement,
+        ordinal,
+    };
     if visited.contains(&invocation) {
         return None;
     }
@@ -964,7 +1113,21 @@ fn derive_receipts(
         let carries_absence = alternatives
             .iter()
             .any(|alternative| alternative.source.is_none());
-        if shared_source && !callee_establishment && !carries_absence {
+        // The invariant-map route publishes only complete result frontiers.
+        // A uniform input field beside an arm-local birth therefore still
+        // needs this call correspondence when no complete map was published.
+        // Uniformity alone cannot stand in for an actually available map.
+        let mapped_input = maps.iter().any(|map| {
+            map.state_symbol == target.symbol
+                && map.entries.iter().any(|entry| {
+                    entry.output_path == received_path
+                        && first
+                            .source
+                            .as_ref()
+                            .is_some_and(|(source, _)| entry.source == *source)
+                })
+        });
+        if shared_source && !callee_establishment && !carries_absence && mapped_input {
             continue;
         }
         // Only the result occurrence allocated at this call can name its join.
@@ -1229,7 +1392,19 @@ pub(crate) fn validate_call_claim_joins(
         .collect::<Option<Vec<_>>>();
     let valid = recorded.as_ref() == Some(&expected)
         && events.iter().all(|event| {
-            if matches!(event.provenance, PermissionProvenance::Joined { .. }) {
+            if matches!(
+                event.provenance,
+                PermissionProvenance::Joined {
+                    source: PermissionEventSource::Statement { .. },
+                    ..
+                }
+            ) {
+                super::super::owned_selection::selection_claim_origin(
+                    ownership,
+                    event.claim_identity,
+                    event.provenance,
+                )
+            } else if matches!(event.provenance, PermissionProvenance::Joined { .. }) {
                 expected.iter().any(|receipt| {
                     receipt.identity == event.claim_identity
                         && join_provenance(receipt) == Some(event.provenance)

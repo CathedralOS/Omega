@@ -170,12 +170,12 @@ pub use flow::{
     FlowInvalidationFact, FlowInvalidationFacts, FlowInvalidationSource, FlowLoanCompletionFact,
     FlowOperandChild, FlowOperandFact, FlowOperandReferent, FlowOperandRetainedLeaf,
     FlowOperandRetention, FlowOperatorInvocationFact, FlowOwnedSelectionClaim,
-    FlowOwnedSelectionReceipt, FlowOwnedSelectionSource, FlowOwnedSelectionTransfer,
-    FlowOwnershipFacts, FlowPermissionEvaluation, FlowPermissionEventFact, FlowSemanticContextRef,
-    FlowStateFact, FlowStateOutgoingFact, FlowStatementFact, FlowStorageTransferFact,
-    FlowStorageTransferSource, FlowValueObservationFact, RetiredFlowCall,
-    checked_structural_type_by_identity, is_borrowed_view, is_bounded_nominal_cleanup_record,
-    is_partial_affine_field_type,
+    FlowOwnedSelectionProducedClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionResultClaim,
+    FlowOwnedSelectionSource, FlowOwnedSelectionTransfer, FlowOwnershipFacts,
+    FlowPermissionEvaluation, FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact,
+    FlowStateOutgoingFact, FlowStatementFact, FlowStorageTransferFact, FlowStorageTransferSource,
+    FlowValueObservationFact, RetiredFlowCall, checked_structural_type_by_identity,
+    is_borrowed_view, is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
 };
 pub use operators::{
     CheckedArithmeticPolicyAdapter, CheckedBoundaryApplicationOperands,

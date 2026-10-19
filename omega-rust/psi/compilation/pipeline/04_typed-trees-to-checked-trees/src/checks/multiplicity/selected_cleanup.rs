@@ -46,6 +46,11 @@ impl SelectedCleanup {
             return Ok(());
         }
         for source in ownership.selection_sources.span_or_empty(receipt.sources) {
+            if !source.retains_storage {
+                // Construction may consume several whole sources on every
+                // arm. None of those sources leaves an unselected owner.
+                continue;
+            }
             let root = PlaceRoot::Symbol(source.symbol);
             let reference = validation::canonical_place_type_reference(
                 program,

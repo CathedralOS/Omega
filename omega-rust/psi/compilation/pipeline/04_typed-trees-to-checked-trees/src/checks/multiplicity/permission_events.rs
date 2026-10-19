@@ -73,6 +73,8 @@ pub(crate) fn prepare_permission_events(
     facts.flow.ownership.selection_sources = arena::Arena::default();
     facts.flow.ownership.selection_transfers = arena::Arena::default();
     facts.flow.ownership.selection_transfer_claims = arena::Arena::default();
+    facts.flow.ownership.selection_result_claims = arena::Arena::default();
+    facts.flow.ownership.selection_produced_claims = arena::Arena::default();
     let mut claim_identities = ClaimIdentityAllocator::default();
     facts.flow.ownership.loan_completions = arena::Arena::default();
     let call_frames = validation::CallFrameResolver::new(program);
@@ -289,6 +291,7 @@ pub(crate) fn prepare_permission_events(
                                 statement_index,
                                 &statements[statement_index],
                                 places,
+                                &mut claim_identities,
                             ) {
                                 Ok(true) => {
                                     if let Some((handle, receipt)) = facts
@@ -628,12 +631,7 @@ pub(crate) fn record_crash_frontier_lower_bounds(
                             .ownership
                             .owned_selection_at(state.symbol, statement as u32)
                     {
-                        owned_selection::apply_availability(
-                            program,
-                            &facts.flow.ownership,
-                            receipt,
-                            places,
-                        );
+                        owned_selection::apply_availability(&facts.flow.ownership, receipt, places);
                         return;
                     }
                     apply_recorded_statement_events(

@@ -1,8 +1,9 @@
-//! Conditional whole-local transfers, keyed by existing source selection nodes.
-//! Availability is conservative; residual custody remains in the receipts until
-//! the actual death edge. A path constructing a fresh result discards, at the
-//! join edge, the one source whose residual slot the result displaces; every
-//! other complement stays in the receipt until the actual death edge.
+//! Selected owned values retain exact source and destination paths per arm.
+//! Whole moves settle their original storage on every arm; partial moves keep
+//! the typed residual until its checked death. Fresh literal producers retain
+//! separate establishment evidence rather than masquerading as transfers.
+//! Result names bind the obligations that actually arrive. Different arm
+//! identities can join without gaining common lineage or new resource authority.
 //! A shared-reference member owns descriptor storage, not its referent. Its
 //! carrier therefore needs the same selected-source receipt as other owned
 //! storage; loan checking independently retains its complete backing frontier.
@@ -21,7 +22,9 @@ mod availability;
 mod leaves;
 mod occurrences;
 mod operands;
+mod results;
 pub(super) use occurrences::SelectionOccurrences;
+pub(in crate::checks::multiplicity) use results::{selection_claim_origin, terminal_arms};
 
 /// Finite stored-value transport is independent of access, availability and
 /// retirement. Loan checking retains every descriptor's exact backing frontier.

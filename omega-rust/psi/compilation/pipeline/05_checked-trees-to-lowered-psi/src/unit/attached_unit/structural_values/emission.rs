@@ -126,6 +126,10 @@ pub(crate) fn emit<'source>(
                 ))?
                 .iter()
                 .rev()
+                // This roster owns residual cleanup, not selected moves. The
+                // checker records complete whole-source coverage once; moved
+                // operands still resolve through the full transfer receipt.
+                .filter(|source| source.retains_storage)
                 .map(|source| {
                     if let Some(argument) =
                         crate::expression_preparation::bindings::structural_local_by_root(
@@ -969,7 +973,9 @@ fn prepare_owners(
                 .span_or_empty(receipt.sources)
                 .iter()
                 .any(|source| {
-                    source.symbol == parameter.symbol && source.statement_ordinal == position as u32
+                    source.symbol == parameter.symbol
+                        && source.statement_ordinal == position as u32
+                        && source.retains_storage
                 })
             {
                 continue;

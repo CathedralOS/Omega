@@ -242,6 +242,7 @@ pub(super) fn collect_leaves(
             for field in fields {
                 collect_field_leaves(
                     program,
+                    places,
                     machine,
                     state,
                     statement_index,
@@ -334,13 +335,13 @@ pub(super) fn collect_leaves(
     }
 }
 
-/// One record field's contribution to the roster: an exact projected child
-/// moves as a leaf, while every other field shape stays on the fresh-construction
-/// operand rules. Whole names are not field leaves: a field's carrier is its
-/// declared member type, not the source root's whole-place type, so a whole
-/// name at field position cannot name the moved custody the roster records.
+/// One record field contributes the same owned operand as an arm-level value.
+/// Resolve its own type before selecting that source: the surrounding record's
+/// type is not the moved field's carrier. Whole and projected sources retain
+/// their exact current path; only genuinely fresh values use construction rules.
 pub(super) fn collect_field_leaves(
     program: &dyn ::validation::CheckingInput,
+    places: &[super::super::linear_obligations::LinearPlace],
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -354,6 +355,19 @@ pub(super) fn collect_field_leaves(
         TypeReferenceHandle,
     )>,
 ) -> Result<(), Diagnostic> {
+    if let Some(reference) =
+        validation::expression_result_type_reference(program, machine, state, field)
+        && let Some(symbol) = owned_source(program, places, field, reference)
+    {
+        leaves.push((
+            field,
+            source_arm,
+            facts::PlaceRoot::Symbol(symbol),
+            Vec::new(),
+            reference,
+        ));
+        return Ok(());
+    }
     let fresh = |field| {
         hidden_ownership_operands(
             program,
@@ -398,6 +412,7 @@ pub(super) fn collect_field_leaves(
             for nested in fields {
                 collect_field_leaves(
                     program,
+                    places,
                     machine,
                     state,
                     statement_index,

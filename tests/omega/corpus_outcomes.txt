@@ -2062,6 +2062,28 @@ fail/facts/computed_subslice_extent_target_body_insufficient_bound rejected 2148
 	cannot prove requires contract for call range from read: __hoist_37 <= __hoist_38 && __hoist_38 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call range from read: __hoist_39 <= __hoist_40 && __hoist_40 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call range from read: __hoist_41 <= __hoist_42 && __hoist_42 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/content_interval_adjacency/call_result rejected 4955ms expected @f77f2aa2a1c2+wt
+	cannot prove ensures contract for exit from carry at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+	cannot prove ensures contract for exit from forward at statement 1: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+fail/facts/content_interval_adjacency/const_name rejected 4761ms expected @f77f2aa2a1c2+wt
+	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+fail/facts/content_interval_adjacency/field rejected 4888ms expected @f77f2aa2a1c2+wt
+	cannot prove ensures contract for exit from forward at statement 1: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+fail/facts/content_interval_adjacency/local rejected 4828ms expected @f77f2aa2a1c2+wt
+	cannot prove ensures contract for exit from forward at statement 1: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+fail/facts/content_interval_adjacency/match_join rejected 4806ms expected @f77f2aa2a1c2+wt
+	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+fail/facts/content_interval_adjacency/other_machine rejected 4679ms expected @f77f2aa2a1c2+wt
+	cannot prove ensures contract for exit from Forwarder::forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+fail/facts/content_interval_adjacency/other_state rejected 4678ms expected @f77f2aa2a1c2+wt
+	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+fail/facts/content_interval_adjacency/parameter rejected 4674ms expected @f77f2aa2a1c2+wt
+	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+fail/facts/content_interval_adjacency/target_body rejected 4551ms expected @f77f2aa2a1c2+wt
+	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
+	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
 fail/facts/data_where_standing_through_call_result_rejected rejected 2381ms expected @07f1c64be9c1
 fail/facts/data_where_standing_through_const_name_rejected rejected 2160ms expected @07f1c64be9c1
 fail/facts/data_where_standing_through_field_rejected rejected 2121ms expected @07f1c64be9c1
@@ -4019,6 +4041,16 @@ fail/ownership/selected_carrier_partial_refill_contains_consumed_owner rejected 
 fail/ownership/selected_carrier_refill_reads_consumed_source rejected 1312ms expected @a9ae30e1c334+wt
 fail/ownership/selected_constructed_argument_double_consumption rejected 345ms expected @a81c7e227ee2+wt
 	cannot use `held` in machine `selected` state `entry` (statement 1) after `held` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `held` first
+fail/ownership/selected_constructor_duplicate_source rejected 716ms expected @f77f2aa2a1c2+wt
+	owned match record fields must name disjoint moved places; overlapping paths on one arm consume the same owned storage twice
+fail/ownership/selected_constructor_live_borrow rejected 714ms expected @f77f2aa2a1c2+wt
+	owned match source with borrowed custody requires selected loan-closure evidence
+fail/ownership/selected_constructor_missing_linear_move rejected 724ms expected @f77f2aa2a1c2+wt
+	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/ownership/selected_constructor_overlapping_source rejected 719ms expected @f77f2aa2a1c2+wt
+	owned match record fields must name disjoint moved places; overlapping paths on one arm consume the same owned storage twice
+fail/ownership/selected_constructor_source_reuse rejected 690ms expected @f77f2aa2a1c2+wt
+	owned value may have been transferred by an earlier match; it cannot be used here
 fail/ownership/selected_linear_temporary_double_consumption rejected 349ms expected @a81c7e227ee2+wt
 	cannot use `receipt` in machine `invalid` state `entry` (statement 1) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/selected_partial_owner_reuse rejected 1238ms expected @a9ae30e1c334+wt
@@ -6983,6 +7015,15 @@ pass/facts/computed_subslice_extent_other_machine_exit checked 62526ms check-tar
 pass/facts/computed_subslice_extent_other_state_exit checked 63248ms check-target:macos_arm64 @3f2f7090cbe0
 pass/facts/computed_subslice_extent_parameter_exit checked 62538ms check-target:macos_arm64 @3f2f7090cbe0
 pass/facts/computed_subslice_extent_target_body_exit checked 63318ms check-target:macos_arm64 @3f2f7090cbe0
+pass/facts/content_interval_adjacency/call_result checked 12620ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/facts/content_interval_adjacency/const_name checked 12109ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/facts/content_interval_adjacency/field checked 12159ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/facts/content_interval_adjacency/local checked 11770ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/facts/content_interval_adjacency/match_join checked 11715ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/facts/content_interval_adjacency/other_machine checked 11742ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/facts/content_interval_adjacency/other_state checked 11735ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/facts/content_interval_adjacency/parameter checked 11741ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/facts/content_interval_adjacency/target_body checked 11792ms check-target:macos_arm64 @f77f2aa2a1c2+wt
 pass/facts/data_where_standing_through_call_result_exit checked 8632ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_const_name_exit checked 8260ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_field_exit checked 8405ms check-target:macos_arm64 @07f1c64be9c1
@@ -8357,6 +8398,8 @@ pass/ownership/runtime_unknown_affine_case_discard_exit checked 10704ms check-ta
 pass/ownership/runtime_view_parameter_element_window_exit checked 11550ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_whole_borrowed_transform_exit checked 12004ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_whole_borrowed_window_crash_exit checked 11009ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/selected_constructor_fresh_field checked 11765ms check-target:macos_arm64 @f77f2aa2a1c2+wt
+pass/ownership/selected_constructor_swapped_fields checked 11720ms check-target:macos_arm64 @f77f2aa2a1c2+wt
 pass/ownership/shared_array_view_compile checked 1580ms @a9ae30e1c334+wt
 pass/ownership/shared_float_view_compile checked 1703ms @a9ae30e1c334+wt
 pass/ownership/shared_record_view_compile checked 1858ms @a9ae30e1c334+wt

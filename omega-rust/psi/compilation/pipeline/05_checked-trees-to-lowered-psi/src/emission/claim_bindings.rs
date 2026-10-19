@@ -392,6 +392,49 @@ pub(crate) fn prepare_establishment_claims(
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<PreparedClaim>, LoweringError> {
     let (root, receiving_path) = receiving_claim_place(checked, machine, state, statement, root)?;
+    if let Some((_, receipt)) = checked
+        .facts
+        .flow
+        .ownership
+        .owned_selection_at(state, statement as u32)
+        && receipt.machine == machine
+        && root
+            == if receipt.destination.is_valid() {
+                facts::PlaceRoot::Symbol(receipt.destination)
+            } else {
+                facts::PlaceRoot::Expression(receipt.expression)
+            }
+    {
+        return checked.facts.flow.ownership.selection_result_claims
+            .span_or_empty(receipt.result_claims).iter().filter_map(|claim| {
+                let path = checked.facts.flow.ownership.segments.span_or_empty(claim.path)
+                    .strip_prefix(receiving_path.as_slice())?;
+                Some((claim, path))
+            }).map(|(claim, path)| {
+                let path = validation::structural_claim_path(&checked.typed, type_reference, path)
+                    .map_err(LoweringError::Unsupported)?;
+                Ok(PreparedClaim {
+                    identity: claim.claim_identity,
+                    path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                        identities, &path, structural_type, structural_types,
+                    )?,
+                    // Only the exact checked selection owns these destination
+                    // names. Block entry binds actual incoming obligations;
+                    // no construction introduction may be emitted for them.
+                    fresh: matches!((claim.claim_identity, claim.provenance),
+                        (PermissionClaimIdentity::Established { machine_symbol, state_symbol,
+                            source: language_semantics::PermissionEventSource::Statement { statement_index }, ordinal },
+                        language_semantics::PermissionProvenance::Joined {
+                            machine_symbol: source_machine, state_symbol: source_state,
+                            source: language_semantics::PermissionEventSource::Statement { statement_index: source_statement },
+                            ordinal: source_ordinal })
+                        if machine_symbol == machine && state_symbol == state && statement_index == statement
+                            && (machine_symbol, state_symbol, statement_index, ordinal)
+                                == (source_machine, source_state, source_statement, source_ordinal)),
+                    direct_establishment: false,
+                })
+            }).collect();
+    }
     checked.facts.flow.ownership.permissions.iter().map(|(_, event)| event)
         .filter(|event| event.machine_symbol == machine && event.state_symbol == state
             && event.root == root
@@ -452,6 +495,74 @@ pub(crate) fn emit_establishment_claims(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     emitted.sort();
     Ok(emitted)
+}
+
+/// The arm owns actual transferred claims and constructor births. Destination
+/// join names are reserved separately and cannot authorize these introductions.
+pub(crate) fn prepare_selection_arm_claims(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &checked_trees::CheckedTrees,
+    receipt: &checked_trees::FlowOwnedSelectionReceipt,
+    arm: arena::Handle<typed_trees::expression::TableMatchArm>,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<PreparedClaim>, LoweringError> {
+    let ownership = &checked.facts.flow.ownership;
+    let mut prepared = Vec::new();
+    let mut append = |identity,
+                      path: &[facts::PlaceSegment],
+                      produced|
+     -> Result<(), LoweringError> {
+        let path = validation::structural_claim_path(&checked.typed, receipt.type_reference, path)
+            .map_err(LoweringError::Unsupported)?;
+        prepared.push(PreparedClaim {
+            identity,
+            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                identities, &path, structural_type, structural_types,
+            )?,
+            fresh: produced,
+            direct_establishment: produced,
+        });
+        Ok(())
+    };
+    for transfer in ownership
+        .selection_transfers
+        .span_or_empty(receipt.transfers)
+        .iter()
+        .filter(|transfer| transfer.source_arm == arm)
+    {
+        for claim in ownership
+            .selection_transfer_claims
+            .span_or_empty(transfer.claims)
+        {
+            let suffix = ownership
+                .segments
+                .span_or_empty(claim.path)
+                .strip_prefix(ownership.segments.span_or_empty(transfer.path))
+                .ok_or(LoweringError::Unsupported(
+                    "selected claim is outside its moved source",
+                ))?;
+            let mut path = ownership
+                .segments
+                .span_or_empty(transfer.result_path)
+                .to_vec();
+            path.extend_from_slice(suffix);
+            append(claim.claim_identity, &path, false)?;
+        }
+    }
+    for produced in ownership
+        .selection_produced_claims
+        .span_or_empty(receipt.produced_claims)
+        .iter()
+        .filter(|produced| produced.source_arm == arm)
+    {
+        append(
+            produced.claim_identity,
+            ownership.segments.span_or_empty(produced.result_path),
+            true,
+        )?;
+    }
+    Ok(prepared)
 }
 
 /// Reserve the namespace identity authenticated at this completion. A fresh

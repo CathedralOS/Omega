@@ -112,9 +112,9 @@ pub use ownership::{
     FlowClaimJoinExit, FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeEntryFact,
     FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowInstructionDispositionFact,
     FlowInstructionEffectReceiptFact, FlowLoanCompletionFact, FlowOwnedSelectionClaim,
-    FlowOwnedSelectionReceipt, FlowOwnedSelectionSource, FlowOwnedSelectionTransfer,
-    FlowPermissionEvaluation, FlowPermissionEventFact, FlowStorageTransferFact,
-    FlowStorageTransferSource,
+    FlowOwnedSelectionProducedClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionResultClaim,
+    FlowOwnedSelectionSource, FlowOwnedSelectionTransfer, FlowPermissionEvaluation,
+    FlowPermissionEventFact, FlowStorageTransferFact, FlowStorageTransferSource,
 };
 pub use roots::{
     FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts, FlowFacts,

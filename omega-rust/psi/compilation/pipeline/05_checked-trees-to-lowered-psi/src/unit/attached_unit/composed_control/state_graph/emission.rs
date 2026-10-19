@@ -212,6 +212,45 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         let claim = claim_id(allocate_dense(&mut next_claim)?);
         claims.source_claims.push((event.claim_identity, claim));
     }
+    // Selected block arrivals own destination-local names too. Reserve the
+    // checked roster before emitting a graph's fixed namespace; actual arms
+    // bind incoming obligations and never introduce resources at these names.
+    for (_, receipt) in checked.facts.flow.ownership.owned_selections.iter() {
+        if !state_owners
+            .iter()
+            .any(|(state, machine)| *state == receipt.state && *machine == receipt.machine)
+        {
+            continue;
+        }
+        for identity in checked
+            .facts
+            .flow
+            .ownership
+            .selection_result_claims
+            .span_or_empty(receipt.result_claims)
+            .iter()
+            .map(|claim| claim.claim_identity)
+            .chain(
+                checked
+                    .facts
+                    .flow
+                    .ownership
+                    .selection_produced_claims
+                    .span_or_empty(receipt.produced_claims)
+                    .iter()
+                    .map(|claim| claim.claim_identity),
+            )
+        {
+            if !claims
+                .source_claims
+                .iter()
+                .any(|(existing, _)| *existing == identity)
+            {
+                let claim = claim_id(allocate_dense(&mut next_claim)?);
+                claims.source_claims.push((identity, claim));
+            }
+        }
+    }
     // A structural call result establishes the claims it carries when the
     // call completes. A received result keeps the receiving local's identity
     // (or an input's, returned on every exit); a result no place receives is

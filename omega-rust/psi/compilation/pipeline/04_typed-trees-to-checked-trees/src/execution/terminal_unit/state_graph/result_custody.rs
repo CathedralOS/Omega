@@ -283,13 +283,13 @@ pub(super) fn account<'calls>(
                     continuation,
                 )
         };
-        // A selected source has one exact alternative partition: transfer
-        // to the result when chosen, or conditional normal disposal at its
-        // original home otherwise. The checked receipt and candidate cleanup
-        // retain both alternatives independently of the final control shape.
-        // The surviving result still owes its own transfer or disposal.
-        let selection_residual_source = result.multiplicity == Multiplicity::Affine
-            && facts
+        // A selected source either moves whole on every arm, or retains an
+        // exact residual with conditional normal disposal. Whole transfer
+        // discharges linear storage too; only affine storage may rely on
+        // residual disposal. The destination continues the arriving claims
+        // and still owes its own transfer or retirement.
+        let selection_source_disposition =
+            facts
                 .flow
                 .ownership
                 .owned_selections
@@ -297,7 +297,6 @@ pub(super) fn account<'calls>(
                 .any(|(_, receipt)| {
                     receipt.machine == machine.symbol
                         && receipt.state == state.symbol
-                        && receipt.death == PermissionEventSource::StateExit
                         && facts
                             .flow
                             .ownership
@@ -305,6 +304,12 @@ pub(super) fn account<'calls>(
                             .span_or_empty(receipt.sources)
                             .iter()
                             .any(|source| {
+                                if source.retains_storage
+                                    && (result.multiplicity != Multiplicity::Affine
+                                        || receipt.death != PermissionEventSource::StateExit)
+                                {
+                                    return false;
+                                }
                                 let boundary = operations
                                     .iter()
                                     .position(|operation| {
@@ -817,7 +822,7 @@ pub(super) fn account<'calls>(
             }
             // A crash abandons custody; it owns no normal disposal.
             CheckedComposedUnitControlTerminatorPlan::Crash { .. } => false,
-        } || selection_residual_source;
+        } || selection_source_disposition;
         // A whole owned argument ends an affine local's custody at the call,
         // just as it ends a linear result or an inline operand's custody.
         // Sequencing retires the producer's discard flag; count the exact
