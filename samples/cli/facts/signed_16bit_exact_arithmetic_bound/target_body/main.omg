@@ -1,0 +1,57 @@
+// Fact: adding two bounded 16-bit signed i16 values (lhs >= 100i16 && lhs <= 200i16 and rhs >= 150i16 && rhs <= 250i16) establishes the exact post-addition interval (sum >= 250i16 && sum <= 450i16), discharging a downstream contract requiring sum >= 250i16 && sum <= 450i16 (and exact subtraction 450i16 - sum) across all nine places.
+// Expected exit: 0
+
+machine verify_i16_margin(v: i16) -> i32
+requires v >= 0i16 && v <= 200i16
+{
+    transition v == 100i16 {
+        true -> 0i32
+        _ -> 1i32
+    }
+}
+
+linux_x86_64 machine exercise(lhs: i16, rhs: i16) -> i32
+requires lhs >= 100i16 && lhs <= 200i16
+requires rhs >= 150i16 && rhs <= 250i16
+{
+    let sum: i16 = lhs + rhs;
+    let margin: i16 = 450i16 - sum;
+    verify_i16_margin(margin)
+}
+
+linux_arm64 machine exercise(lhs: i16, rhs: i16) -> i32
+requires lhs >= 100i16 && lhs <= 200i16
+requires rhs >= 150i16 && rhs <= 250i16
+{
+    let sum: i16 = lhs + rhs;
+    let margin: i16 = 450i16 - sum;
+    verify_i16_margin(margin)
+}
+
+macos_arm64 machine exercise(lhs: i16, rhs: i16) -> i32
+requires lhs >= 100i16 && lhs <= 200i16
+requires rhs >= 150i16 && rhs <= 250i16
+{
+    let sum: i16 = lhs + rhs;
+    let margin: i16 = 450i16 - sum;
+    verify_i16_margin(margin)
+}
+
+windows_x86_64 machine exercise(lhs: i16, rhs: i16) -> i32
+requires lhs >= 100i16 && lhs <= 200i16
+requires rhs >= 150i16 && rhs <= 250i16
+{
+    let sum: i16 = lhs + rhs;
+    let margin: i16 = 450i16 - sum;
+    verify_i16_margin(margin)
+}
+
+machine main() crashes Trap {
+    let exit_code: i32 = exercise(150i16, 200i16);
+    transition exit_code == 0i32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
