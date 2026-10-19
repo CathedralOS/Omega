@@ -3713,6 +3713,8 @@ fail/providers/scalar_membership_boundary_issuer rejected 780ms expected @8d82e5
 fail/providers/service_nonboundary_requirement_rejected rejected 829ms expected @a9ae30e1c334+wt
 fail/providers/structural_membership_boundary_wrong_value rejected 691ms expected @d75fe4ba5012+wt
 fail/providers/target_contract_requires_preserved rejected 1475ms expected @eca66ed24a79+wt
+fail/providers/transitive_provider_missing_raw rejected 11845ms expected @961ad2678c82+wt
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(RawMeasure::measure),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 fail/providers/via_signature_mismatch_rejected rejected 1339ms expected @a9ae30e1c334+wt
 fail/providers/via_with_body_rejected rejected 801ms expected @a9ae30e1c334+wt
 fail/providers/windows_filesystem_host_unprovided_on_linux rejected 8682ms expected @91d9836f544f+wt

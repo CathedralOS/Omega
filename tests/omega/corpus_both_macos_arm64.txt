@@ -929,6 +929,7 @@ pass/providers/runtime_boundary_linear_borrowed_argument_exit built 5586ms exit:
 pass/providers/runtime_boundary_linear_result_exit built 4994ms exit:70 interpreter-exit:70 interpreter:agrees @20ad71d6e3a6+wt
 pass/providers/runtime_boundary_qualified_state_exit built 3963ms exit:0 interpreter-exit:0 interpreter:agrees @d75fe4ba5012+wt
 pass/providers/runtime_closed_provider_and_assumed_chain_exit built 5865ms exit:0 interpreter-exit:0 interpreter:agrees @8bcf9d86d52e
+pass/providers/runtime_transitive_provider_slot_exit built 11480ms exit:0 interpreter-exit:0 interpreter:agrees @961ad2678c82+wt
 pass/providers/same_name_requirement_dispatch_exit built 5125ms exit:70 interpreter-exit:70 interpreter:agrees @292c990572a9+wt
 pass/providers/same_name_requirement_right_dispatch_exit built 5107ms exit:70 interpreter-exit:70 interpreter:agrees @292c990572a9+wt
 pass/providers/selected_const_provider_call_identity_exit built 2803ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b

@@ -1,7 +1,6 @@
 // Expected exit: 0.
-// Only the portable slot crosses into application data. The selected provider
-// retains a static raw requirement call; raw authority is not another field.
-use omega::language::core::binding;
+// The application invokes only its portable requirement. Its selected checked
+// provider retains the raw requirement as a static dependency, not source data.
 use omega_language_std::console;
 
 pub boundary trait RawMeasure {
@@ -10,16 +9,21 @@ pub boundary trait RawMeasure {
 pub boundary trait PortableMeasure {
     machine measure(value: i32) -> i32 invokes RawMeasure;
 }
-RawMeasureProvider satisfies RawMeasure { RawMeasure::measure = measure_raw; }
-PortableMeasureProvider satisfies PortableMeasure { PortableMeasure::measure = measure_portable; }
-data RawMeasureDefaults { }
-machine measure_raw(value: i32) -> i32 { value }
-machine measure_portable(value: i32) -> i32 {
-    RawMeasure::measure(value)
+RawMeasureProvider satisfies RawMeasure {
+    machine measure(value: i32) -> i32 { value }
 }
-data Main { portable: Binding<PortableMeasure>; }
-machine Main::main(main: &mut Main) reaches Console {
-    let observed: i32 = main.portable.measure(37);
+PortableMeasureProvider satisfies PortableMeasure {
+    machine measure(value: i32) -> i32 invokes RawMeasure; {
+        RawMeasure::measure(value)
+    }
+}
+data RawMeasureDefaults { }
+data Main { }
+machine Main::main(main: &mut Main) reaches Console
+invokes PortableMeasure;
+invokes Console;
+{
+    let observed: i32 = PortableMeasure::measure(37);
     transition observed == 37 {
         true -> good()
         false -> bad()
