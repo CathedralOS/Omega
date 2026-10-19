@@ -936,16 +936,19 @@ fn recognize_structural_state_leaves_from<'a>(
                                 transition.target,
                             )?;
                         if requirement.as_deref().is_some_and(|observer| {
-                            !crate::machine_calls::calls::named_state_may_reach(
-                                program,
-                                machine,
-                                target_state,
-                                observer.site().state,
-                            )
+                            observer.site().state == state.symbol
+                                || !crate::machine_calls::calls::named_state_may_reach(
+                                    program,
+                                    machine,
+                                    target_state,
+                                    observer.site().state,
+                                )
                         }) {
-                            // This transferred path cannot execute the queried
-                            // occurrence. Its effects and mathematical opacity
-                            // cannot supply or erase that occurrence's facts.
+                            // A jump leaves this state invocation; a cycle back
+                            // is a new arrival, not execution of its later arm.
+                            // Other states are traversed only when they can
+                            // reach the queried occurrence. Each recurrent
+                            // arrival separately owes its state contract.
                             continue;
                         }
                         let target_parameters = program.state_parameters(target_state);
@@ -996,6 +999,15 @@ fn recognize_structural_state_leaves_from<'a>(
                     }
                     _ => return None,
                 }
+            }
+            if requirement.as_deref().is_some_and(|observer| {
+                observer.site().state == state.symbol
+                    && observer.site().statement_index == statement_index
+            }) {
+                // All normal guard outcomes at the requested occurrence were
+                // visited above. Later arms cannot establish or invalidate it;
+                // in particular, do not unroll their recurrent successors.
+                return Some(leaves);
             }
         }
         Some(leaves)

@@ -163,6 +163,14 @@ fn result_type(
     if let Some(declaration) = program.expression_const_declaration(expression) {
         return Some(declaration.declared_type);
     }
+    // Immutable compiler-owned members are values, not parameter/local places.
+    // Preserve their declared type before operator selection; an absent type
+    // would let an unrelated numeric overload treat the operand as a wildcard.
+    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+        && let Some(reference) = super::builtin_member_type_reference(program, path.symbol)
+    {
+        return Some(reference);
+    }
     active.push(expression);
     let result = match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => result_type(program, owner, atomic.value, active),

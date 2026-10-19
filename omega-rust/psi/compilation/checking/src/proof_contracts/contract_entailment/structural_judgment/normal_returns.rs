@@ -1756,18 +1756,20 @@ impl<'program> StructuralJudge<'program> {
 }
 
 /// Discarding a value never discards an operation's own effects. Calls,
-/// atomics, casts and non-builtin operators keep their complete owner; ordinary
-/// construction and projection have only the effects of their ordered children.
+/// atomics, executable conversions and non-builtin operators keep their complete
+/// owner. Representation recasts, construction and projection have only their
+/// ordered children's effects; the recast checker owns compatibility and loans.
 fn discarded_value_has_no_own_effects(
     program: &dyn crate::CheckingInput,
     scope: ValueScope<'_>,
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Call(_)
-        | ExpressionNode::Atomic(_)
-        | ExpressionNode::Cast(_)
-        | ExpressionNode::Unary(_) => false,
+        ExpressionNode::Call(_) | ExpressionNode::Atomic(_) | ExpressionNode::Unary(_) => false,
+        // A recast borrows existing backing; it does not execute a conversion.
+        // Its completed reference may remain opaque without discarding the
+        // prefix's independent premises or claiming new referent contents.
+        ExpressionNode::Cast(cast) => cast.form.is_recast(),
         ExpressionNode::Binary(_) => crate::has_builtin_binary_expression_meaning(
             program,
             scope.0,

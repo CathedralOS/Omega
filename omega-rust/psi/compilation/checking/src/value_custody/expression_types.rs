@@ -730,14 +730,26 @@ fn argument_matches_type_reference_using(
     }
 }
 
+/// Compiler-owned value members have declaration types without being storage
+/// places in a callable telescope. Share this exact-symbol query with both
+/// abstract and executed result typing; spelling and the host width add none.
+fn builtin_member_type_reference(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    match program.symbols.builtin_type_member(symbol)? {
+        symbols::BuiltinTypeMember::AddressBound => {
+            crate::proof_contracts::proof_embeddings::proof_int_type_reference(program)
+        }
+    }
+}
+
 pub(crate) fn named_value_type_reference(
     program: &dyn crate::CheckingInput,
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<TypeReferenceHandle> {
-    if program.symbols.builtin_type_member(path.symbol)
-        == Some(symbols::BuiltinTypeMember::AddressBound)
-    {
-        return crate::proof_contracts::proof_embeddings::proof_int_type_reference(program);
+    if let Some(reference) = builtin_member_type_reference(program, path.symbol) {
+        return Some(reference);
     }
     let [_] = program.expression_table.name_path_members(path.members) else {
         return None;
