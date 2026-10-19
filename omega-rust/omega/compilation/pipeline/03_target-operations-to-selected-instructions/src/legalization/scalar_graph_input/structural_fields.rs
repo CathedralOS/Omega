@@ -1,7 +1,6 @@
 use super::{AbstractOperation, PsiOptimizationFunction, ScalarType};
 use optimization_unit_semantics::byte_field_root;
 use terminal_psi::find_structural_type;
-use terminal_psi::live_field_by_id;
 
 pub(in crate::legalization) fn scalar_store_destination(
     function: &PsiOptimizationFunction,
@@ -706,7 +705,11 @@ pub(in crate::legalization) fn read(
         }
         _ => (path.as_slice(), None),
     };
-    let mut runtime_path = runtime_path(structural_type, carrier_path, types)?;
+    let mut runtime_path = terminal_semantics::canonical_structural_storage_path(
+        types.iter(),
+        structural_type,
+        carrier_path,
+    )?;
     match case {
         None => crate::structural_inputs::structural_reference_input::field_read(
             structural_type,
@@ -733,62 +736,4 @@ pub(in crate::legalization) fn read(
         path: runtime_path,
     };
     Some((operation, result, source, case, field))
-}
-
-/// The runtime spelling of a canonical projection beneath `root`: each field
-/// by its declared identity, and fixed-array indices bounded at every hop.
-/// Element-view indexing retains its terminal-segment admission.
-fn runtime_path(
-    root: semantic_vocabulary::StructuralTypeId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-    types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<Vec<terminal_psi::StructuralPathSegment>> {
-    let mut carrier = root;
-    let mut runtime_path = Vec::with_capacity(path.len());
-    for (position, segment) in path.iter().enumerate() {
-        match segment {
-            semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
-                let fields = find_structural_type(types, carrier)?
-                    .shape
-                    .direct_fields()?;
-                let selected = live_field_by_id(fields, *field)?;
-                let child = match &selected.field_type {
-                    terminal_psi::StructuralFieldType::Structural(child) => *child,
-                    leaf => {
-                        leaf.canonical_leaf_type()?
-                            .leaf_declaration(types.iter())?
-                            .id
-                    }
-                };
-                runtime_path.push(terminal_psi::StructuralPathSegment::Field(
-                    selected.identity.clone(),
-                ));
-                carrier = child;
-            }
-            // Replay each fixed extent even when a later field continues
-            // inside the element; the producer's offset is not authority.
-            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index) => {
-                let element = match &find_structural_type(types, carrier)?.shape {
-                    terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
-                        if index >= length {
-                            return None;
-                        }
-                        element
-                    }
-                    // An element view's live extent is the bound proven by
-                    // its producer; the index names one member.
-                    terminal_psi::StructuralTypeShape::ElementView { element, .. }
-                        if position + 1 == path.len() =>
-                    {
-                        element
-                    }
-                    _ => return None,
-                };
-                runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
-                carrier = *element;
-            }
-            _ => return None,
-        }
-    }
-    Some(runtime_path)
 }

@@ -421,126 +421,28 @@ pub(super) fn lower(
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let mut carrier = structural_type;
-            let mut runtime_path = Vec::with_capacity(path.len());
-            if through_reference {
-                runtime_path.push(terminal_psi::StructuralPathSegment::Referent);
-            }
-            let mut case = None;
-            // A trailing `Case` step names the declared case whose payload
-            // field the read observes; its payload overlays the sum's own
-            // place, so the step joins no runtime path segment.
-            let carrier_end = match path.last() {
-                Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(_)) => {
-                    path.len() - 1
-                }
-                _ => path.len(),
-            };
-            for (position, segment) in path.iter().enumerate() {
-                match segment {
-                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
-                        let shape = &types
-                            .get(&carrier)
-                            .ok_or_else(|| {
-                                LoweringError::unsupported_control_flow(function.machine)
-                            })?
-                            .shape;
-                        // Common members are always present: entering their
-                        // structural child is the same Field hop as a record,
-                        // independent of the mixed parent's selected payload.
-                        let fields = match shape {
-                            StructuralTypeShape::Record { fields, .. }
-                            | StructuralTypeShape::Mixed { fields, .. } => fields,
-                            _ => {
-                                return Err(LoweringError::unsupported_control_flow(
-                                    function.machine,
-                                ));
-                            }
-                        };
-                        let selected = fields
-                            .iter()
-                            .find(|candidate| {
-                                candidate.id == *field && !candidate.relevance.is_erased()
-                            })
-                            .ok_or_else(|| {
-                                LoweringError::unsupported_control_flow(function.machine)
-                            })?;
-                        let Some(child) = selected.field_type.as_structural() else {
-                            return Err(LoweringError::unsupported_control_flow(function.machine));
-                        };
-                        runtime_path.push(terminal_psi::StructuralPathSegment::Field(
-                            selected.identity.clone(),
-                        ));
-                        carrier = child;
-                    }
-                    // Fixed-array indices compose with later record fields;
-                    // each hop retains its own declared bound. Element views
-                    // keep the separately verified terminal-index contract.
-                    semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index) => {
-                        let shape = &types
-                            .get(&carrier)
-                            .ok_or_else(|| {
-                                LoweringError::unsupported_control_flow(function.machine)
-                            })?
-                            .shape;
-                        let element = match shape {
-                            StructuralTypeShape::FixedArray { element, length } => {
-                                if index >= length {
-                                    return Err(LoweringError::unsupported_control_flow(
-                                        function.machine,
-                                    ));
-                                }
-                                element
-                            }
-                            // An element view's live extent is the bound proven
-                            // by its producer; the index names one member.
-                            StructuralTypeShape::ElementView { element, .. }
-                                if position + 1 == carrier_end =>
-                            {
-                                element
-                            }
-                            _ => {
-                                return Err(LoweringError::unsupported_control_flow(
-                                    function.machine,
-                                ));
-                            }
-                        };
-                        runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
-                        carrier = *element;
-                    }
-                    semantic_vocabulary::CanonicalStructuralPathSegment::Case(identity)
-                        if position == carrier_end =>
-                    {
-                        case = Some(*identity);
-                    }
-                    _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
-                }
-            }
-            let declaration = types
-                .get(&carrier)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            // A mixed shape's common field needs no `Case` step: it sits on the
-            // carrier beside the tag whatever case is active.
-            let fields = match (&declaration.shape, case) {
-                (terminal_psi::record_or_mixed_shape_pattern!(fields), None) => fields,
-                (
-                    StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
-                    Some(case),
-                ) => {
-                    &cases
-                        .iter()
-                        .find(|candidate| candidate.id == case)
-                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-                        .fields
-                }
-                _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
-            };
-            if !fields.iter().any(|candidate| {
-                candidate.id == field
-                    && !candidate.relevance.is_erased()
-                    && candidate.field_type.scalar_type() == Some(result.scalar_type)
-            }) {
+            if declaration.field_type.scalar_type() != Some(result.scalar_type) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            // A final Case selects the scalar field's namespace; intermediate
+            // Case/Field pairs enter structural payloads and must survive in
+            // the storage path. Reuse declaration-local projection instead of
+            // a second field/index-only walker that loses those coordinates.
+            // Geometry supplies no active-case or backing-access authority.
+            let (carrier_path, case) = match path.split_last() {
+                Some((semantic_vocabulary::CanonicalStructuralPathSegment::Case(case), prefix)) => {
+                    (prefix, Some(*case))
+                }
+                _ => (path.as_slice(), None),
+            };
+            let mut runtime_path = terminal_semantics::canonical_structural_storage_path(
+                types.values().copied(),
+                structural_type,
+                carrier_path,
+            )
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            if through_reference {
+                runtime_path.insert(0, terminal_psi::StructuralPathSegment::Referent);
             }
             retain_result(psi_operation, result, live)?;
             (

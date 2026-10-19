@@ -861,6 +861,14 @@ fail/capabilities/native_slice_external_leaf_rejected rejected 292ms expected @e
 fail/capabilities/provider_widens_requirement_ceiling rejected 4446ms expected @a9ae30e1c334+wt
 fail/capabilities/undeclared_synchronous_invocation rejected 1341ms expected @a9ae30e1c334+wt
 fail/capabilities/via_producer_without_target_body rejected 10865ms expected @9f9aac0513f8+wt
+fail/cases/nested_payload_read_after_case_replacement rejected 1523ms expected @0dcdf04b1e57+wt
+	machine `read_stale` state `entry` statement 1: cannot prove selected case for payload access
+	machine `read_stale` state `entry` statement 1: cannot prove selected case for payload access
+fail/cases/nested_payload_write_only_read rejected 467ms expected @0dcdf04b1e57+wt
+	machine `read_unavailable` state `entry` reads field `outcome` from write-only parameter `envelope`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+	machine `read_unavailable` state `entry` reads field `outcome` from write-only parameter `envelope`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+	machine `read_unavailable` state `entry` reads field `mode` from write-only parameter `envelope`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+	machine `read_unavailable` state `entry` reads field `outcome` from write-only parameter `envelope`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/collections/anonymous_fractional_call_index rejected 191ms expected @f2695b4cc065
 fail/collections/anonymous_fractional_index rejected 175ms expected @f2695b4cc065
 fail/collections/anonymous_fractional_window rejected 174ms expected @f2695b4cc065
@@ -5232,6 +5240,7 @@ pass/cases/ordered_underscore_arms checked 9689ms @5041ef1af684+wt
 pass/cases/param_case_payload_return checked 9708ms @5041ef1af684+wt
 pass/cases/runtime_call_result_case_membership_exit checked 13653ms check-target:macos_arm64 @7c0518fd7afd+wt
 pass/cases/runtime_case_payload_policy_cast_exit checked 7965ms check-target:macos_arm64 @31988b31bfed+wt
+pass/cases/runtime_nested_payload_scalar_projection_exit checked 7780ms check-target:macos_arm64 @0dcdf04b1e57+wt
 pass/cases/runtime_refuted_generic_case_dispatch_exit checked 7328ms check-target:macos_arm64 @c083b963e5ba
 pass/cases/self_payload_return checked 9538ms @5041ef1af684+wt
 pass/cases/union_guard_paren checked 9242ms @5041ef1af684+wt

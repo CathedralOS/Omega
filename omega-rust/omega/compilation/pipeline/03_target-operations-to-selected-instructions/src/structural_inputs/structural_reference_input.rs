@@ -2573,7 +2573,7 @@ fn scalar_access_within_storage(
         })
 }
 
-/// Exact static carrier geometry: record fields and bounded fixed-array indices.
+/// Exact static carrier geometry, including selected structural case payloads.
 /// Callers independently reconstruct readable root custody and availability;
 /// this helper does not grant access to storage.
 pub(crate) fn field_read(
@@ -2586,7 +2586,9 @@ pub(crate) fn field_read(
     if !path.iter().all(|segment| {
         matches!(
             segment,
-            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            StructuralPathSegment::Field(_)
+                | StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::Case(_)
         )
     }) {
         return None;
@@ -2608,8 +2610,12 @@ pub(crate) fn field_read(
                 <= u64::from(root.unwrap().byte_size))
         .then_some(read);
     }
-    scalar_field_geometry(structural_type, path, field, scalar, declarations, false)
-        .map(|(offset, bytes, _)| (offset, bytes))
+    // The shared projection consumes each Case with its exact following Field
+    // and case-specific layout. This static interface cannot discard runtime
+    // selector terms or turn pointer crossings into constant displacements.
+    let (offset, bytes, elements) =
+        scalar_field_geometry(structural_type, path, field, scalar, declarations, false)?;
+    elements.is_empty().then_some((offset, bytes))
 }
 
 /// A mixed shape's common field sits on the carrier beside the tag whatever

@@ -1025,61 +1025,17 @@ pub(super) fn retained(
         }
         _ => (path.as_slice(), None),
     };
-    let mut runtime_path = Vec::with_capacity(carrier_path.len());
-    for (position, segment) in carrier_path.iter().enumerate() {
-        match segment {
-            semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
-                let Some(declaration) = terminal_psi::find_structural_type(
-                    target.graph.structural_types.as_slice(),
-                    carrier,
-                ) else {
-                    return false;
-                };
-                let Some(fields) = declaration.shape.direct_fields() else {
-                    return false;
-                };
-                let Some(selected) = live_field_by_id(fields, *field) else {
-                    return false;
-                };
-                let Some(child) = selected.field_type.as_structural() else {
-                    return false;
-                };
-                runtime_path.push(terminal_psi::StructuralPathSegment::Field(
-                    selected.identity.clone(),
-                ));
-                carrier = child;
-            }
-            // Fixed-array indices compose with later record fields and replay
-            // each declared bound. Element views keep the terminal-index rule:
-            // their bound comes from the separately proved live extent.
-            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index) => {
-                let Some(declaration) = terminal_psi::find_structural_type(
-                    target.graph.structural_types.as_slice(),
-                    carrier,
-                ) else {
-                    return false;
-                };
-                let element = match &declaration.shape {
-                    terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
-                        if index >= length {
-                            return false;
-                        }
-                        *element
-                    }
-                    terminal_psi::StructuralTypeShape::ElementView { element, .. }
-                        if position + 1 == carrier_path.len() =>
-                    {
-                        *element
-                    }
-                    _ => return false,
-                };
-                runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
-                carrier = element;
-            }
-            _ => return false,
-        }
-    }
-    root_path.extend(runtime_path.iter().cloned());
+    // Publication retains the same declared Case/Field coordinates as native
+    // lowering. Reconstructing only fields and indices would reject valid
+    // nested payloads after their exact operations already survived selection.
+    let Some(runtime_path) = terminal_semantics::canonical_structural_storage_path(
+        target.graph.structural_types.iter(),
+        carrier,
+        carrier_path,
+    ) else {
+        return false;
+    };
+    root_path.extend(runtime_path);
     let expected_source = StructuralArgument {
         place,
         access,

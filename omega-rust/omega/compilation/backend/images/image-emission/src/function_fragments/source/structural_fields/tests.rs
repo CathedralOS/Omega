@@ -103,6 +103,8 @@ fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
 
 fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) {
     // These fixtures isolate source membership, not object/load replay certificates.
+    // The declared record still supplies the namespace used by path translation;
+    // an absent catalog is not a valid identity projection of typed storage.
     let machine = MachineId::new(1).unwrap();
     let block = BlockId::new(1).unwrap();
     let edge = EdgeId::new(1).unwrap();
@@ -192,7 +194,26 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
             edges: vec![edge],
         },
         graph: TargetControlGraph {
-            structural_types: vec![].into(),
+            structural_types: vec![StructuralTypeDeclaration {
+                id: StructuralTypeId::new(1).unwrap(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
+                shape: StructuralTypeShape::Record {
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                    fields: vec![StructuralFieldDeclaration {
+                        id: field,
+                        identity: terminal_psi::TerminalIdentityIndex(2),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: terminal_psi::StructuralFieldType::Scalar(scalar_type),
+                        storage: None,
+                    }],
+                },
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                scalar_restriction: None,
+            }]
+            .into(),
             call_plan,
             scalar_parameters: vec![],
             parameters: vec![target_parameter],
@@ -1867,12 +1888,19 @@ fn owned_parameter_field_membership_keeps_exact_value_access_and_graph_replay() 
         for multiplicity in [
             StructuralMultiplicity::Affine,
             StructuralMultiplicity::Unrestricted,
+            StructuralMultiplicity::Linear,
         ] {
             let (function, target) = owned_field_fixture(scalar_type, multiplicity);
             assert!(retained(&function, &function.operations[0], &target));
             assert!(super::super::requires_graph_storage_replay(
                 &function.operations
             ));
+            let mut undeclared = target.clone();
+            undeclared.graph.structural_types = Vec::new().into();
+            assert!(
+                !retained(&function, &function.operations[0], &undeclared),
+                "a typed path needs its declaration catalog"
+            );
             for mutation in 0..6 {
                 let mut changed = target.clone();
                 let TargetUnitOperation::StructuralScalarFieldRead {
@@ -1897,8 +1925,14 @@ fn owned_parameter_field_membership_keeps_exact_value_access_and_graph_replay() 
                 assert!(!retained(&function, &function.operations[0], &changed));
             }
         }
-        // Even matching declarations cannot grant access to a linear or write-only root.
-        let (function, target) = owned_field_fixture(scalar_type, StructuralMultiplicity::Linear);
+        // A scalar snapshot does not consume an owned composite or settle its
+        // linear cleanup. Borrowed linear and write-only roots retain their
+        // independent admission restrictions even with matching declarations.
+        let (mut function, mut target) =
+            owned_field_fixture(scalar_type, StructuralMultiplicity::Linear);
+        function.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        target.graph.parameters[0].access = StructuralAccess::SharedBorrow;
+        scalar_field_read_source_mut(&mut target.graph, 0).access = StructuralAccess::SharedBorrow;
         assert!(!retained(&function, &function.operations[0], &target));
         let (mut function, mut target) =
             owned_field_fixture(scalar_type, StructuralMultiplicity::Affine);
