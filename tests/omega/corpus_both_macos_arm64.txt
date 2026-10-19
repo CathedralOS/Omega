@@ -892,6 +892,7 @@ pass/proofs/declaration_predicate_calls_exit built 4308ms exit:0 interpreter-exi
 pass/proofs/declaration_synthesized_equality_value_context built 3616ms exit:0 interpreter-exit:0 interpreter:agrees @4ef5069e9f3b+wt
 pass/proofs/disjunctive_domain_result_exit built 3681ms exit:0 interpreter-exit:0 interpreter:agrees @93160ec7e266+wt
 pass/proofs/domain_mathematical_selection_exit built 3976ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
+pass/proofs/embedded_address_bounds_exit built 8298ms exit:0 interpreter-exit:0 interpreter:agrees @232ee85de964+wt
 pass/proofs/kernel_integer_subtract_order built 3453ms exit:0 interpreter-exit:0 interpreter:agrees @1a353f2e117b+wt
 pass/proofs/mathematical_predicate_contract_import_exit built 3407ms exit:0 interpreter-exit:0 interpreter:agrees @4a6e7ac34b03
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit built 2843ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1

@@ -66,6 +66,7 @@ pub(super) fn contract_owner_environment(
         ContractProofFactOwner::OperatorDeclaration { operator_symbol } => {
             let operator = typed_trees::operator::declaration_by_symbol(program, operator_symbol)?;
             Some(environment_from_parameters(
+                operator_symbol,
                 program.operator_parameters(operator),
                 operator.return_type,
                 None,
@@ -76,6 +77,7 @@ pub(super) fn contract_owner_environment(
         } => {
             let operator = typed_trees::operator::declaration_by_symbol(program, operator_symbol)?;
             Some(environment_from_parameters(
+                operator_symbol,
                 program.operator_parameters(operator),
                 operator.return_type,
                 None,
@@ -98,6 +100,7 @@ pub(super) fn machine_environment(
         .is_valid()
         .then_some(InferredType::Nominal(machine.attached_data_symbol));
     environment_from_parameters(
+        machine.symbol,
         parameters,
         result_type.unwrap_or_else(TypeReferenceHandle::invalid),
         self_type,
@@ -115,6 +118,7 @@ pub(super) fn signature_environment(
             .flatten()
     }) {
         return Some(environment_from_parameters(
+            state_symbol,
             program.state_signature_parameters(signature),
             signature.return_type,
             None,
@@ -122,6 +126,7 @@ pub(super) fn signature_environment(
     }
     let (_, signature) = program.machine_parameter_signature(state_symbol)?;
     Some(environment_from_parameters(
+        state_symbol,
         program.state_signature_parameters(signature),
         signature.return_type,
         None,
@@ -129,11 +134,13 @@ pub(super) fn signature_environment(
 }
 
 pub(super) fn environment_from_parameters(
+    owner: SymbolHandle,
     parameters: &[StateParameter],
     result_type: TypeReferenceHandle,
     self_type: Option<InferredType>,
 ) -> TypeEnvironment {
     TypeEnvironment {
+        owner,
         self_type,
         result_type: result_type.is_valid().then_some(result_type),
         bindings: parameters
@@ -172,6 +179,7 @@ pub(super) fn exact_owner_environments(
             .any(|fact| proof_fact_value_contains_expression(program, fact, expression))
         {
             environments.push(TypeEnvironment {
+                owner: domain.symbol,
                 bindings: vec![Binding {
                     name: domain.subject_name.to_string(),
                     symbol: domain.subject_symbol,
@@ -214,6 +222,7 @@ pub(super) fn collect_measure_environments(
             continue;
         };
         environments.push(environment_from_parameters(
+            measure.symbol,
             std::slice::from_ref(parameter),
             measure.return_type,
             None,
@@ -244,6 +253,7 @@ pub(super) fn collect_proposition_environments(
         };
         if contains {
             environments.push(environment_from_parameters(
+                proposition.symbol,
                 program.proposition_parameters(proposition),
                 TypeReferenceHandle::invalid(),
                 None,
@@ -299,11 +309,13 @@ pub(super) fn collect_parameter_constraint_environments(
                     continue;
                 }
                 let environment = TypeEnvironment {
+                    owner: machine.symbol,
                     self_type: machine
                         .attached_data_symbol
                         .is_valid()
                         .then_some(InferredType::Nominal(machine.attached_data_symbol)),
                     bindings: environment_from_parameters(
+                        machine.symbol,
                         &parameters[..index],
                         TypeReferenceHandle::invalid(),
                         None,
@@ -320,6 +332,7 @@ pub(super) fn collect_parameter_constraint_environments(
         for signature in program.trait_machine_signatures(definition) {
             collect_telescope_constraint_environments(
                 program,
+                signature.symbol,
                 program.state_signature_parameters(signature),
                 expression,
                 environments,
@@ -329,6 +342,7 @@ pub(super) fn collect_parameter_constraint_environments(
     for operator in program.all_operators() {
         collect_telescope_constraint_environments(
             program,
+            operator.symbol,
             program.operator_parameters(operator),
             expression,
             environments,
@@ -337,6 +351,7 @@ pub(super) fn collect_parameter_constraint_environments(
     for proposition in program.propositions() {
         collect_telescope_constraint_environments(
             program,
+            proposition.symbol,
             program.proposition_parameters(proposition),
             expression,
             environments,
@@ -347,6 +362,7 @@ pub(super) fn collect_parameter_constraint_environments(
 
 pub(super) fn collect_telescope_constraint_environments(
     program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
     environments: &mut Vec<TypeEnvironment>,
@@ -360,8 +376,12 @@ pub(super) fn collect_telescope_constraint_environments(
         ) {
             continue;
         }
-        let environment =
-            environment_from_parameters(&parameters[..index], TypeReferenceHandle::invalid(), None);
+        let environment = environment_from_parameters(
+            owner,
+            &parameters[..index],
+            TypeReferenceHandle::invalid(),
+            None,
+        );
         environments.push(environment);
     }
     Some(())
@@ -480,6 +500,7 @@ pub(super) fn data_type_environments(
                         environments.push((
                             payload_reached,
                             TypeEnvironment {
+                                owner: definition.symbol,
                                 bindings: payload,
                                 ..Default::default()
                             },
@@ -492,6 +513,7 @@ pub(super) fn data_type_environments(
             environments.push((
                 reached,
                 TypeEnvironment {
+                    owner: definition.symbol,
                     bindings: common,
                     ..Default::default()
                 },

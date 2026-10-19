@@ -48,6 +48,7 @@ struct Binding {
 
 #[derive(Debug, Clone, Default)]
 struct TypeEnvironment {
+    owner: SymbolHandle,
     self_type: Option<InferredType>,
     result_type: Option<TypeReferenceHandle>,
     bindings: Vec<Binding>,

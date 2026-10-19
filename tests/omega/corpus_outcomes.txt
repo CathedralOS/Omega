@@ -3359,6 +3359,8 @@ fail/proofs/disjunctive_domain_false_arm rejected 732ms expected @93160ec7e266+w
 fail/proofs/disjunctive_domain_mutated_subject rejected 668ms expected @93160ec7e266+wt
 fail/proofs/disjunctive_domain_wrong_subject rejected 677ms expected @93160ec7e266+wt
 fail/proofs/domain_mathematical_narrow_import rejected 242ms expected @8a884ecc43d5+wt
+fail/proofs/embedded_address_bound_not_strict rejected 958ms expected @232ee85de964+wt
+	exact arithmetic in machine `offset` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/proofs/fact_only_proof_value_citation_linear_resource rejected 4427ms expected @4ce1ff349782+wt
 fail/proofs/fact_only_proof_value_citation_missing_premise rejected 1840ms expected @4ce1ff349782+wt
 fail/proofs/fact_only_proof_value_citation_mutable rejected 2555ms expected @4ce1ff349782+wt
@@ -3433,9 +3435,15 @@ fail/proofs/proof_bignum_constant_false rejected 891ms expected @a9ae30e1c334+wt
 fail/proofs/proof_integer_embedding_boolean rejected 799ms expected @a9ae30e1c334+wt
 fail/proofs/proof_integer_embedding_denotational_operand_crash rejected 1432ms expected @a9ae30e1c334+wt
 fail/proofs/proof_integer_embedding_denotational_operand_nontermination rejected 1361ms expected @a9ae30e1c334+wt
+fail/proofs/proof_integer_embedding_reference rejected 975ms expected @232ee85de964+wt
+	compiler-owned `embed(value)` accepts only a fixed-width integer or address value
 fail/proofs/proof_integer_embedding_runtime rejected 887ms expected @a9ae30e1c334+wt
 fail/proofs/proof_integer_quotient_bound_false_twin rejected 841ms expected @a9ae30e1c334+wt
 fail/proofs/proof_integer_quotient_false_twin rejected 845ms expected @a9ae30e1c334+wt
+fail/proofs/proof_integer_undefined_remainder rejected 2834ms expected @232ee85de964+wt
+	cannot prove ensures contract for exit from undefined_remainder at statement 0: embed(7) % embed(divisor) - embed(7) % embed(divisor) == 0
+fail/proofs/proof_integer_unformed_quotient rejected 2746ms expected @232ee85de964+wt
+	cannot prove ensures contract for exit from unformed_quotient at statement 0: embed(7) / embed(divisor) == embed(7) / embed(divisor)
 fail/proofs/proof_integer_zero_divisor rejected 1588ms expected @a9ae30e1c334+wt
 fail/proofs/proposition_const_operand_extent_rejected rejected 836ms expected @a9ae30e1c334+wt
 fail/proofs/proposition_reference_operand_depth_rejected rejected 882ms expected @a9ae30e1c334+wt
@@ -7451,6 +7459,7 @@ pass/proofs/disjunctive_domain_result_exit checked 3801ms check-target:macos_arm
 pass/proofs/domain_mathematical_selection_exit checked 3978ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/proofs/embed_collection_length checked 1042ms @73e11f08dcbb+wt
 pass/proofs/embed_returned_length checked 1047ms @b276a0918018+wt
+pass/proofs/embedded_address_bounds_exit checked 11453ms check-target:macos_arm64 @232ee85de964+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 14367ms check-target:linux_x86_64 @4ce1ff349782+wt
 pass/proofs/family_carrier_relation_laws checked 1811ms @47fae30824a7+wt
 pass/proofs/field_view_index_contract checked 5381ms @d3431e5a76cb+wt

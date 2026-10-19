@@ -827,55 +827,26 @@ fn operand_type_at_depth(
                 operand_place_projection_type(program, machine, state, expression, depth + 1)
             })
         }
-        ExpressionNode::Call(_) => declared_place_type_raw(program, machine, state, expression),
-        ExpressionNode::Cast(cast) => Some(cast.target_type),
-        ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
-        ExpressionNode::Binary(binary) => {
-            let spelling = typed_trees::operator::arithmetic_operator_spelling(binary.operator)?;
-            let operands = [binary.left, binary.right];
-            let types = operands
-                .map(|operand| operand_type_at_depth(program, machine, state, operand, depth + 1));
-            let carrier = types.into_iter().flatten().next()?;
-            // Primitive lookup permits constraint shells but not references.
-            // Check that before the structural helper unwraps either shell.
-            program.primitive_type_reference(carrier)?;
-            let unwrapped =
-                crate::value_custody::places::unwrapped_type_reference(program, carrier)?;
-            let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(unwrapped)
-            else {
-                return None;
-            };
-            if !program
-                .symbols
-                .builtin_type_atom(*symbol)
-                .is_some_and(|atom| atom.is_fixed_integer())
-                || !operands
-                    .into_iter()
-                    .zip(types)
-                    .all(|(operand, reference)| match reference {
-                        Some(reference) => {
-                            program.normalized_type_identity(reference)
-                                == program.normalized_type_identity(carrier)
-                        }
-                        None => matches!(program.expression_table.expression(operand),
-                            ExpressionNode::Integer(literal) if literal.landing().is_none()),
-                    })
-                || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+        ExpressionNode::Call(_) | ExpressionNode::Binary(_) => {
+            // Computed operands use the same selected-result query as value
+            // checking. Reconstructing only fixed-integer syntax here lost
+            // proof Int and turned embeds/sums into wildcard overload inputs.
+            // The query retains the actual selected carrier; it neither
+            // borrows a peer's type nor supplies a range or membership fact.
+            match state {
+                Some(state) => {
+                    crate::expression_result_type_reference(program, machine, state, expression)
+                }
+                None => crate::parameter_expression_result_type_reference(
                     program,
                     machine.symbol,
+                    program.state_parameters(program.machine_states(machine).first()?),
                     expression,
-                    spelling,
-                    &types,
-                )
-            {
-                return None;
+                ),
             }
-            // Recover a carrier only after checking this operation's meaning.
-            // Keep the known binding's semantic shell conservatively; no range
-            // or qualification proof is inferred for the computed value here.
-            Some(carrier)
         }
+        ExpressionNode::Cast(cast) => Some(cast.target_type),
+        ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         // In particular, do not let declared_place_type_raw erase a Borrow
         // shell and incorrectly rule out a reference-typed operator candidate.
         _ => None,

@@ -292,6 +292,23 @@ impl StructuralJudge<'_> {
         for (predicate, truth) in self.rewrites.iter() {
             let truth = self.resolve(truth.clone());
             let StructuralTerm::Constructor { data, case, fields } = truth.semantic_value() else {
+                // Selected normal guarantees also retain equations between
+                // mathematical values, not just predicates equated to true.
+                // Read both sides in the same captured-value namespace: a
+                // returned scalar and a field containing it have different
+                // source type handles but the same observed value identity.
+                // Keep each side's operation obligations on this premise so
+                // the equation cannot establish its own formation.
+                let start = observations.operations.len();
+                if let (Some(left), Some(right)) = (
+                    self.mathematical_value(predicate, observations, 0),
+                    self.mathematical_value(&truth, observations, 0),
+                ) {
+                    comparisons.push((
+                        (BinaryOperator::Equal, left, right),
+                        start..observations.operations.len(),
+                    ));
+                }
                 continue;
             };
             if data != "bool" || !fields.is_empty() {

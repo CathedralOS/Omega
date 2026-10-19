@@ -41,6 +41,7 @@ pub(super) fn build_owner_environment_index(
             reached.extend(proof_fact_reachable_expressions(program, fact));
         }
         index.add_all(reached, || TypeEnvironment {
+            owner: domain.symbol,
             bindings: vec![Binding {
                 name: domain.subject_name.to_string(),
                 symbol: domain.subject_symbol,
@@ -199,6 +200,7 @@ pub(super) fn index_proposition_environments(
         }
         index.add_all(reached, || {
             environment_from_parameters(
+                proposition.symbol,
                 program.proposition_parameters(proposition),
                 TypeReferenceHandle::invalid(),
                 None,
@@ -220,7 +222,12 @@ pub(super) fn index_measure_environments(
             reached.extend(super::reachable_expressions(program, *root));
         }
         index.add_all(reached, || {
-            environment_from_parameters(std::slice::from_ref(parameter), measure.return_type, None)
+            environment_from_parameters(
+                measure.symbol,
+                std::slice::from_ref(parameter),
+                measure.return_type,
+                None,
+            )
         });
     }
 }
@@ -236,11 +243,13 @@ pub(super) fn index_parameter_constraint_environments(
                 index.add_all(
                     type_reference_reachable_expressions(program, parameter.type_reference),
                     || TypeEnvironment {
+                        owner: machine.symbol,
                         self_type: machine
                             .attached_data_symbol
                             .is_valid()
                             .then_some(InferredType::Nominal(machine.attached_data_symbol)),
                         bindings: environment_from_parameters(
+                            machine.symbol,
                             &parameters[..parameter_index],
                             TypeReferenceHandle::invalid(),
                             None,
@@ -256,21 +265,33 @@ pub(super) fn index_parameter_constraint_environments(
         for signature in program.trait_machine_signatures(definition) {
             index_telescope_parameters(
                 program,
+                signature.symbol,
                 program.state_signature_parameters(signature),
                 index,
             );
         }
     }
     for operator in program.all_operators() {
-        index_telescope_parameters(program, program.operator_parameters(operator), index);
+        index_telescope_parameters(
+            program,
+            operator.symbol,
+            program.operator_parameters(operator),
+            index,
+        );
     }
     for proposition in program.propositions() {
-        index_telescope_parameters(program, program.proposition_parameters(proposition), index);
+        index_telescope_parameters(
+            program,
+            proposition.symbol,
+            program.proposition_parameters(proposition),
+            index,
+        );
     }
 }
 
 pub(super) fn index_telescope_parameters(
     program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
     parameters: &[StateParameter],
     index: &mut OwnerIndex,
 ) {
@@ -279,6 +300,7 @@ pub(super) fn index_telescope_parameters(
             type_reference_reachable_expressions(program, parameter.type_reference),
             || {
                 environment_from_parameters(
+                    owner,
                     &parameters[..parameter_index],
                     TypeReferenceHandle::invalid(),
                     None,

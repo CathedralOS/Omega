@@ -1,0 +1,1 @@
+compiler-owned `embed(value)` accepts only a fixed-width integer or address value

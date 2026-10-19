@@ -185,7 +185,10 @@ pub(super) fn infer_expression_type(
         ExpressionNode::Name(path) => {
             if path.symbol.is_valid()
                 && let Some(type_reference) =
-                    crate::declaration_type_reference(program, path.symbol)
+                    crate::value_custody::expression_types::named_value_type_reference(
+                        program, path,
+                    )
+                    .or_else(|| crate::declaration_type_reference(program, path.symbol))
             {
                 return Some(InferredType::TypeReference(type_reference));
             }
@@ -229,23 +232,31 @@ pub(super) fn infer_expression_type(
             )
             .map(InferredType::TypeReference)
         }
-        ExpressionNode::Call(call) => {
-            if let Some(operator) =
-                typed_trees::operator::resolve_named_expression_call(program, call)
-            {
-                return operator
-                    .return_type
-                    .is_valid()
-                    .then_some(InferredType::TypeReference(operator.return_type));
-            }
-            program
-                .state_by_symbol(call.target_symbol)
-                .and_then(|state| {
-                    state
-                        .return_type
-                        .is_valid()
-                        .then_some(InferredType::TypeReference(state.return_type))
-                })
+        ExpressionNode::Call(_)
+        | ExpressionNode::Binary(_)
+        | ExpressionNode::Unary(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_) => {
+            // The environment binds leaves; the ordinary result-type owner
+            // selects computations. A separate call/binary recognizer here
+            // lost proof Int and treated known operands as overload wildcards.
+            // Keep the declaring owner so its trait meanings remain in scope.
+            crate::value_custody::expression_types::declaration_expression_result_type_reference(
+                program,
+                environment.owner,
+                &|leaf| match infer_expression_type(
+                    program,
+                    leaf,
+                    environment,
+                    &mut visited.clone(),
+                )? {
+                    InferredType::TypeReference(reference) => Some(reference),
+                    _ => None,
+                },
+                expression,
+            )
+            .map(InferredType::TypeReference)
         }
         ExpressionNode::Indexed(indexed) => {
             let collection =
@@ -268,13 +279,8 @@ pub(super) fn infer_expression_type(
             .then_some(InferredType::Nominal(literal.type_symbol)),
         ExpressionNode::String(_) => Some(InferredType::CompilerString),
         ExpressionNode::ArrayLiteral(_)
-        | ExpressionNode::Binary(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
-        | ExpressionNode::Unary(_)
         | ExpressionNode::ZeroValue(_) => None,
     }
 }

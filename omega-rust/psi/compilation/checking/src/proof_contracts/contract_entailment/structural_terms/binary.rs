@@ -159,6 +159,17 @@ pub(crate) fn binary_term_in_scope(
         program,
         [binary.left, binary.right],
     ) {
+        // A source type establishes the operation's meaning, not formation.
+        // Structural congruence has no nonzero-divisor evidence: admitting a
+        // quotient here would prove `undefined == undefined` by reflexivity.
+        // The arithmetic judgment owns partial integer operations and checks
+        // their divisor before using either their value or cancellation.
+        if matches!(
+            binary.operator,
+            BinaryOperator::Divide | BinaryOperator::Modulo
+        ) {
+            return None;
+        }
         return Some(StructuralTerm::MathematicalBinary {
             operator: binary.operator,
             left: Box::new(left),

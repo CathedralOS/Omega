@@ -188,6 +188,15 @@ fn result_type(
             )
         }
         ExpressionNode::Call(call) => (|| {
+            // The sealed embedding has an unbounded Int result, not an
+            // unresolved runtime call. Its operand still owes the independent
+            // embedding/formation checks. Losing this type lets unrelated
+            // numeric overloads match it as a wildcard during proof selection.
+            if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) {
+                return crate::proof_contracts::proof_embeddings::expression_type_reference(
+                    program, expression,
+                );
+            }
             if let Some(reference) =
                 crate::mathematical_applications::result_type_reference(program, call)
             {
