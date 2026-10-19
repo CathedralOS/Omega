@@ -48,6 +48,12 @@ error: call from `read_seven` to `maybe_zero` at statement ... call 0 has an unc
 
 (or `call from read_seven to forward` for `other_machine` and `target_body`). Check a twin with `omega --check samples/cli/facts/indexed_crash_guard/<place>/invalid/main.omg`.
 
+The root-level [`private_omission/`](private_omission/main.omg) is not a
+reject twin: it keeps `read_seven` private while omitting the equality, so
+the public omitted-cause prohibition does not apply and it compiles and runs
+with exit 0. It stands as the recorded exposure of that private coverage gap,
+not as a ninth-tenth control.
+
 The corpus pairs are pinned by `tests/omega/{pass,fail}/facts/indexed_crash_guard_through_<place>`.
 
 ## Requirements and Evidence
