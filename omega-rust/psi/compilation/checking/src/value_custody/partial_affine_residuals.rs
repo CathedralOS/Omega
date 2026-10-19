@@ -449,11 +449,11 @@ fn visit_region(
                 }
                 let payload_moves = moved_paths.iter().filter_map(|(path, identity)| {
                     matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)
-                        .then_some((&path[1..], *identity))
+                        .then(|| (&path[1..], *identity))
                 }).collect::<Vec<_>>();
                 let payload_boundaries = boundaries.iter().filter_map(|(path, identity)| {
                     matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Case(candidate)) if candidate == &case.identity)
-                        .then_some((&path[1..], *identity))
+                        .then(|| (&path[1..], *identity))
                 }).collect::<Vec<_>>();
                 // An empty/inline selected alternative still owes disposal of
                 // the sum occurrence. Its condition names the tag separately:

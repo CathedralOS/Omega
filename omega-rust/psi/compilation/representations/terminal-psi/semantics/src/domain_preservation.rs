@@ -497,36 +497,14 @@ pub fn store_preserves_content<'a>(
             }) {
                 return false;
             }
-            let mut input = Vec::new();
-            for segment in &claim.input.segments {
-                let step = match segment {
-                    semantic_vocabulary::ContentPlaceSegment::Field(identity) => identities
-                        .index_of(identity)
-                        .map(StructuralPathSegment::Field),
-                    semantic_vocabulary::ContentPlaceSegment::FixedIndex(index) => {
-                        Some(StructuralPathSegment::FixedIndex(*index))
-                    }
-                    semantic_vocabulary::ContentPlaceSegment::Case(identity) => {
-                        let Some(carrier) =
-                            crate::runtime_structural_path_tip(types.clone(), root, &input)
-                        else {
-                            return false;
-                        };
-                        identities.index_of(identity).and_then(|identity| {
-                            carrier
-                                .shape
-                                .sum_cases()?
-                                .iter()
-                                .find(|case| case.identity == identity)
-                                .map(|case| StructuralPathSegment::Case(case.id))
-                        })
-                    }
-                };
-                let Some(step) = step else {
-                    return false;
-                };
-                input.push(step);
-            }
+            let Some(input) = crate::content_transformations::structural_path(
+                types.clone(),
+                identities,
+                root,
+                &claim.input.segments,
+            ) else {
+                return false;
+            };
             if !crate::structural_paths_may_overlap(&input, &write) {
                 return true;
             }

@@ -70,6 +70,12 @@ pub(super) fn project_structural_leaf_copy(
             psi_operation,
             result,
             source,
+        }
+        | AbstractOperation::TransformContent {
+            psi_operation,
+            result,
+            source,
+            ..
         } => {
             owned_path = source.path.clone().into();
             (*psi_operation, result, source.place, &owned_path)

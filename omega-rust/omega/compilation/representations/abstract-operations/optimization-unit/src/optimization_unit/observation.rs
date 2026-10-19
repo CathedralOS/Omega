@@ -418,6 +418,7 @@ fn operation_observations(
         // or reorder against other observations of the same storage.
         | O::StructuralLeafCopy { .. }
         | O::MoveStructuralValue { .. }
+        | O::TransformContent { .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceSubslice { .. }
         | abstract_operations::byte_view_length_triple_pattern!(..)

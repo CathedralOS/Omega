@@ -701,7 +701,7 @@ impl Builder<'_, '_> {
             // Result storage does not depend on the source of executable
             // supply. The ordinary call planner retains the exact boundary,
             // body or dynamic route and its independent completion custody.
-            if !value_predicates::structural_call_carrier_matches(self.program, returned, expected)
+            if !value_predicates::structural_carriers_match(self.program, returned, expected)
                 || crate::execution::terminal_unit::control::checked_structural_result_type(
                     self.program,
                     &mut crate::execution::terminal_unit::types::ShapeCollector::new(self.program),
@@ -736,11 +736,11 @@ impl Builder<'_, '_> {
         } else if let Some(projection) = self.projected_owned_place(expression, expected) {
             projection
         } else if let Some(constructor) = self.case_construction(expression) {
-            if self
-                .program
-                .normalized_type_identity(constructor.type_reference)
-                != self.program.normalized_type_identity(expected)
-            {
+            if !value_predicates::structural_carriers_match(
+                self.program,
+                constructor.type_reference,
+                expected,
+            ) {
                 return None;
             }
             let field_values = self

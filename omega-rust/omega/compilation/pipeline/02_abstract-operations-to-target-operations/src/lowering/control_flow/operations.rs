@@ -338,7 +338,8 @@ pub(super) fn lower_operation(
             provenance,
         ),
         AbstractOperation::StructuralLeafCopy { .. }
-        | AbstractOperation::MoveStructuralValue { .. } => super::leaf_copy::transport(
+        | AbstractOperation::MoveStructuralValue { .. }
+        | AbstractOperation::TransformContent { .. } => super::leaf_copy::transport(
             operation,
             function,
             structural_types,

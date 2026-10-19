@@ -636,25 +636,15 @@ fn partition_entry_binding(
                         return None;
                     }
                     for producer in producers {
-                        if !crate::flow::operand_entry_origin_is_stable(
+                        if !super::content_paths::preserves_entry_observation(
                             program,
-                            &facts.flow,
-                            captured.operand,
-                            &producer.projected,
-                        ) {
-                            return None;
-                        }
-                        let origin = crate::flow::value_origin_before_statement(
-                            program,
-                            &facts.flow,
+                            facts,
                             machine,
                             state_flow,
-                            captured.operand.statement_index,
+                            captured.operand,
                             producer.projected,
-                            None,
-                            crate::flow::ValueObservation::Contents,
-                        )?;
-                        if origin != expected {
+                            &expected,
+                        ) {
                             return None;
                         }
                     }

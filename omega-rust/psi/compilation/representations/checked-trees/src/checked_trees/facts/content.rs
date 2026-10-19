@@ -21,12 +21,93 @@ pub struct ContentProjectionFacts {
     /// transfer-stable input claims, and any exact result-identity rewrite rows
     /// used by the substitution; they never add a new `separate(...)` node.
     pub partition_compositions: Vec<ContentPartitionCompositionFact>,
+    /// Independently proved body equations joined to exact entry and returned
+    /// carrier claims. These rows prove the numeric relation, not permission
+    /// to consume an input or establish an output domain. A custody transaction
+    /// must additionally check live ownership, predicates and compatible lineage.
+    pub body_conservations: arena::Arena<ContentBodyConservationFact>,
+    pub body_claim_bindings: arena::Arena<ContentBodyClaimBinding>,
+    pub body_available_inputs: arena::Arena<ContentBodyAvailableInput>,
+    /// Atomic owned transformations selected at an actual value completion.
+    /// Their derivations retain parent bindings as well as the common lineage
+    /// anchor: the anchor alone is not qualification or backing evidence.
+    pub body_transformations: arena::Arena<ContentBodyTransformation>,
+    pub body_derivations: arena::Arena<ContentBodyDerivation>,
     /// Exact lifetime-bound shared custody admitted for a retained foreign
     /// result. This checked-only row never grants ownership: it binds one
     /// whole direct parameter loan to one whole result and retains both exact
     /// content projections so later consumers need not reselect by spelling
     /// or trust compact report fingerprints.
     pub retained_borrow_custodies: Vec<RetainedBorrowCustodyFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContentBodyTransformation {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub completed_value: arena::Handle<crate::FlowOperandFact>,
+    pub evaluation: crate::FlowPermissionEvaluation,
+    /// Joint accounting: no claim/qualification input or output occurs in
+    /// two rows. Different qualifications on a claim remain independent.
+    pub derivations: HandleSpan<ContentBodyDerivation>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContentBodyDerivation {
+    /// Exact proved equation, original input occurrences, live parent places,
+    /// unchanged entry revisions and existing raw output claim identities.
+    pub conservation: arena::Handle<ContentBodyConservationFact>,
+    /// Existing qualified ancestor, never an identity minted by arithmetic.
+    /// This supplements the parent bindings rather than replacing them.
+    pub lineage_anchor: PermissionClaimIdentity,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContentBodyConservationFact {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub returned_at: arena::Handle<crate::FlowStateOutgoingFact>,
+    /// Exact completed producer. A later outgoing use discovers this demand,
+    /// but supplies no premises to this earlier observation.
+    pub completed_value: arena::Handle<crate::FlowOperandFact>,
+    /// Selected invocation lane at that completion. Alternative transition
+    /// targets in one statement do not share an ownership frontier.
+    pub evaluation: crate::FlowPermissionEvaluation,
+    /// Exact equation in this owner's immutable `conservation_plans` table.
+    pub plan_index: usize,
+    pub inputs: HandleSpan<ContentBodyClaimBinding>,
+    pub outputs: HandleSpan<ContentBodyClaimBinding>,
+    /// All inputs, or empty when the ownership walk could not establish their
+    /// exact live membership, unchanged projected content and absence of
+    /// conflicting loans at completion. This is not a consumption receipt:
+    /// complete qualification coverage, lineage compatibility and atomic
+    /// output establishment remain obligations of the transformation.
+    /// This observation belongs to the captured value's completion, not exit.
+    pub available_inputs: HandleSpan<ContentBodyAvailableInput>,
+}
+
+/// Current custody of one equation input, observed by the ordinary permission
+/// walk. A move changes this place without changing the bound entry claim.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContentBodyAvailableInput {
+    pub binding: arena::Handle<ContentBodyClaimBinding>,
+    pub root: facts::PlaceRoot,
+    pub segments: HandleSpan<facts::PlaceSegment>,
+    pub provenance: language_semantics::PermissionProvenance,
+}
+
+/// One exact projection occurrence and its existing nominal carrier claim.
+/// Adding derived authority must not mint a second carrier claim for this value.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContentBodyClaimBinding {
+    pub claim_identity: PermissionClaimIdentity,
+    pub domain: SymbolHandle,
+    pub semantic_domain: SemanticDomainId,
+    pub projection_machine: SymbolHandle,
+    /// Entry parameter for an input; zero for a callable result.
+    pub parameter_symbol: SymbolHandle,
+    /// Resolved claim path in `FlowOwnershipFacts::segments`.
+    pub segments: HandleSpan<facts::PlaceSegment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,6 +188,108 @@ pub struct ContentPartitionPlaceSubstitution {
 }
 
 impl ContentProjectionFacts {
+    /// Whether one exact construction occurrence receives this membership from
+    /// its enclosing completed transaction. Follow only constructing child edges:
+    /// retained children of a later alias must not backdate the judgment.
+    pub fn publishes_formation_membership(
+        &self,
+        flow: &crate::FlowFacts,
+        state: SymbolHandle,
+        statement: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+        domain: SymbolHandle,
+        semantic_domain: SemanticDomainId,
+    ) -> bool {
+        let at_path = |mut value: arena::Handle<crate::FlowOperandFact>,
+                       mut path: &[facts::PlaceSegment]| {
+            while !path.is_empty() {
+                let capture = flow.control.operands.get(value);
+                let mut children = flow
+                    .control
+                    .operand_children
+                    .span_or_empty(capture.children)
+                    .iter()
+                    .filter_map(|child| {
+                        let destination =
+                            flow.control.operand_child_paths.span_or_empty(child.path);
+                        (child.parent == capture.expression
+                            && !destination.is_empty()
+                            && path.starts_with(destination))
+                        .then_some((child.value, destination.len()))
+                    });
+                let (selected, length) = children.next()?;
+                if children.next().is_some() || !flow.control.operands.is_valid(selected) {
+                    return None;
+                }
+                value = selected;
+                path = &path[length..];
+            }
+            Some(value)
+        };
+        let mut matching = self.body_transformations.iter().filter(|(_, transaction)| {
+            transaction.state_symbol == state
+                && self
+                    .body_derivations
+                    .span_or_empty(transaction.derivations)
+                    .iter()
+                    .any(|derived| {
+                        let equation = self.body_conservations.get(derived.conservation);
+                        self.body_claim_bindings
+                            .span_or_empty(equation.outputs)
+                            .iter()
+                            .any(|output| {
+                                if output.domain != domain
+                                    || output.semantic_domain != semantic_domain
+                                {
+                                    return false;
+                                }
+                                let path = flow.ownership.segments.span_or_empty(output.segments);
+                                let Some(selected) = at_path(transaction.completed_value, path)
+                                else {
+                                    return false;
+                                };
+                                let capture = flow.control.operands.get(selected);
+                                capture.state_symbol == state
+                                    && capture.statement_index == statement
+                                    && capture.expression == expression
+                            })
+                    })
+        });
+        // Do not choose one of multiple evaluation routes sharing coordinates.
+        matching.next().is_some() && matching.next().is_none()
+    }
+
+    /// Membership published by this exact completion, not by an ancestor or
+    /// a later use of the same source place. Paths are relative to its result.
+    pub fn establishes_completed_membership(
+        &self,
+        flow: &crate::FlowFacts,
+        value: arena::Handle<crate::FlowOperandFact>,
+        path: &[facts::PlaceSegment],
+        domain: SymbolHandle,
+        semantic_domain: SemanticDomainId,
+    ) -> bool {
+        self.body_transformations.iter().any(|(_, transaction)| {
+            transaction.completed_value == value
+                && self
+                    .body_derivations
+                    .span_or_empty(transaction.derivations)
+                    .iter()
+                    .any(|derived| {
+                        let equation = self.body_conservations.get(derived.conservation);
+                        self.body_claim_bindings
+                            .span_or_empty(equation.outputs)
+                            .iter()
+                            .any(|output| {
+                                output.domain == domain
+                                    && output.semantic_domain == semantic_domain
+                                    && flow.ownership.segments.span_or_empty(output.segments)
+                                        == path
+                            })
+                    })
+        })
+    }
+
     pub fn for_semantic_domain(&self, domain: SemanticDomainId) -> Option<&ContentProjectionPlan> {
         domain
             .is_valid()

@@ -781,6 +781,10 @@ fn validate_operation_foundation(
         OperationKind::MoveStructuralValue { .. } => {
             storage_foundations::validate_move_structural_value(module, machine, operation)?
         }
+        OperationKind::TransformContent { .. } => {
+            terminal_semantics::content_transformations::validate_shape(module, machine, operation)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
+        }
         OperationKind::ByteSequenceRead { .. } => {
             storage_foundations::validate_byte_sequence_read(operation)?
         }

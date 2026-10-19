@@ -64,6 +64,99 @@ struct Receipt {
     alternatives: Vec<Alternative>,
 }
 
+/// Preparation copies semantic paths, never handles into an arena that the
+/// next source walk rebuilds. The receiving identity alone is insufficient:
+/// its ordinal can change when an earlier establishment becomes inactive.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ReceivingClaim {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    source: PermissionEventSource,
+    expression: ExpressionHandle,
+    root: PlaceRoot,
+    path: Vec<PlaceSegment>,
+    identity: PermissionClaimIdentity,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PreparedCallClaimJoin {
+    receiver: ReceivingClaim,
+    provenance: PermissionProvenance,
+}
+
+/// A previous iteration supplies a hypothesis for this exact completion, not
+/// authority. Publication rederives every receipt from the current source walk;
+/// changed or missing consulted bindings force another walk before its custody
+/// observations and cleanup decisions may escape preparation.
+#[derive(Default)]
+pub(super) struct CallJoinPreparation {
+    bindings: Vec<PreparedCallClaimJoin>,
+    dependencies: Vec<ReceivingClaim>,
+}
+
+impl CallJoinPreparation {
+    pub(super) fn begin(&mut self) {
+        self.dependencies.clear();
+    }
+
+    pub(super) fn update(&mut self, bindings: Vec<PreparedCallClaimJoin>) -> bool {
+        let changed = self.dependencies.iter().any(|receiver| {
+            self.bindings
+                .iter()
+                .find(|binding| binding.receiver == *receiver)
+                != bindings
+                    .iter()
+                    .find(|binding| binding.receiver == *receiver)
+        });
+        self.bindings = bindings;
+        changed
+    }
+
+    pub(super) fn resolve(
+        &mut self,
+        segments: &arena::Arena<PlaceSegment>,
+        expression: ExpressionHandle,
+        event: &mut FlowPermissionEventFact,
+    ) {
+        if event.kind != PermissionEventKind::Establish
+            || event.access != PermissionAccess::Owned
+            || !event.obligation_live
+            || event.provenance
+                != super::established_provenance(
+                    event.machine_symbol,
+                    event.state_symbol,
+                    event.source,
+                )
+            || !matches!(event.claim_identity,
+                PermissionClaimIdentity::Established { machine_symbol, state_symbol, source, .. }
+                if machine_symbol == event.machine_symbol && state_symbol == event.state_symbol
+                    && source == event.source)
+        {
+            return;
+        }
+        let receiver = ReceivingClaim {
+            machine: event.machine_symbol,
+            state: event.state_symbol,
+            source: event.source,
+            expression,
+            root: event.root,
+            path: segments.span_or_empty(event.segments).to_vec(),
+            identity: event.claim_identity,
+        };
+        if let Some(binding) = self
+            .bindings
+            .iter()
+            .find(|binding| binding.receiver == receiver)
+        {
+            event.provenance = binding.provenance;
+        }
+        // Failed lookups matter too: a new receipt must trigger preparation.
+        if !self.dependencies.contains(&receiver) {
+            self.dependencies.push(receiver);
+        }
+    }
+}
+
 fn known_source(source: &CheckedClaimOutcomeSource) -> bool {
     match source {
         CheckedClaimOutcomeSource::Input {
@@ -177,6 +270,11 @@ fn state_frontiers(
                             } => {
                                 let target_state =
                                     validation::call_target_state(program, path.symbol)?;
+                                if validation::normal_completion_possible(program, target_state)
+                                    == Some(false)
+                                {
+                                    continue;
+                                }
                                 let mut children = state_frontiers(
                                     program,
                                     borrow,
@@ -509,7 +607,7 @@ fn expand_joined_frontier(
     Some(expanded)
 }
 
-fn complete_frontier(
+pub(super) fn complete_frontier(
     program: &dyn ::validation::CheckingInput,
     result_type: typed_trees::types::TypeReferenceHandle,
     entries: &[CheckedClaimOutcomeEntry],
@@ -726,8 +824,8 @@ fn derive_receipts(
     borrow: &checked_trees::BorrowFacts,
     ownership: &FlowOwnershipFacts,
     events: &[FlowPermissionEventFact],
-) -> Vec<Receipt> {
-    let maps = derive_checked_claim_outcome_maps(program, borrow, ownership, events);
+) -> Result<Vec<Receipt>, &'static str> {
+    let maps = derive_checked_claim_outcome_maps(program, borrow, ownership, events)?;
     let mut receipts = Vec::new();
     for event in events {
         if event.kind != PermissionEventKind::Establish
@@ -899,7 +997,7 @@ fn derive_receipts(
             alternatives,
         });
     }
-    receipts
+    Ok(receipts)
 }
 
 fn join_provenance(receipt: &Receipt) -> Option<PermissionProvenance> {
@@ -943,7 +1041,7 @@ fn store_source(
 pub(crate) fn publish_call_claim_joins(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
-) {
+) -> Result<Vec<PreparedCallClaimJoin>, &'static str> {
     let ownership = &mut facts.flow.ownership;
     let mut events = ownership
         .permissions
@@ -951,8 +1049,9 @@ pub(crate) fn publish_call_claim_joins(
         .map(|(_, event)| event.clone())
         .collect::<Vec<_>>();
     // Earlier call joins can feed later calls, but no receipt cites itself.
+    let mut converged = false;
     for _ in 0..=events.len() {
-        let receipts = derive_receipts(program, &facts.borrow, ownership, &events);
+        let receipts = derive_receipts(program, &facts.borrow, ownership, &events)?;
         let mut changed = false;
         for receipt in &receipts {
             let Some(provenance) = join_provenance(receipt) else {
@@ -966,16 +1065,38 @@ pub(crate) fn publish_call_claim_joins(
             }
         }
         if !changed {
+            converged = true;
             break;
         }
     }
-    let receipts = derive_receipts(program, &facts.borrow, ownership, &events);
+    if !converged {
+        return Err("call-result claim joins did not converge");
+    }
+    let receipts = derive_receipts(program, &facts.borrow, ownership, &events)?;
     ownership.permissions = arena::Arena::default();
     ownership.permissions.insert_many(events);
     ownership.claim_join_receipts = arena::Arena::default();
     ownership.claim_join_alternatives = arena::Arena::default();
     ownership.claim_join_exits = arena::Arena::default();
+    let mut prepared = Vec::new();
     for receipt in receipts {
+        let PermissionClaimIdentity::Established { source, .. } = receipt.identity else {
+            return Err("call-result join lacks an exact receiving identity");
+        };
+        let provenance = join_provenance(&receipt)
+            .ok_or("call-result join lacks exact invocation provenance")?;
+        prepared.push(PreparedCallClaimJoin {
+            receiver: ReceivingClaim {
+                machine: receipt.machine,
+                state: receipt.state,
+                source,
+                expression: receipt.expression,
+                root: receipt.root,
+                path: receipt.path.clone(),
+                identity: receipt.identity,
+            },
+            provenance,
+        });
         let mut alternatives = Vec::new();
         for alternative in receipt.alternatives {
             let exits = ownership.claim_join_exits.insert_many(alternative.exits);
@@ -1009,6 +1130,7 @@ pub(crate) fn publish_call_claim_joins(
             alternatives,
         });
     }
+    Ok(prepared)
 }
 
 fn read_source(
@@ -1045,7 +1167,13 @@ pub(crate) fn validate_call_claim_joins(
         .iter()
         .map(|(_, event)| event.clone())
         .collect::<Vec<_>>();
-    let expected = derive_receipts(program, borrow, ownership, &events);
+    let expected = match derive_receipts(program, borrow, ownership, &events) {
+        Ok(receipts) => receipts,
+        Err(message) => {
+            diagnostics.push(Diagnostic::error(message));
+            return;
+        }
+    };
     let recorded = ownership
         .claim_join_receipts
         .iter()

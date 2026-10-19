@@ -353,6 +353,26 @@ pub(super) fn encode_content_conservation_guarantee(
     encode_content_conservation(bytes, &guarantee.conservation);
 }
 
+pub(super) fn encode_content_transformation(
+    bytes: &mut CanonicalBytes,
+    derived: &terminal_psi::ContentTransformationDerivation,
+) {
+    encode_content_conservation(bytes, &derived.conservation);
+    bytes.id(derived.lineage_anchor);
+    for bindings in [&derived.inputs, &derived.outputs] {
+        bytes.slice(bindings, |bytes, binding| {
+            bytes.id(binding.claim);
+            encode_content_term(
+                bytes,
+                &semantic_vocabulary::ContentTerm::Projection {
+                    projection: binding.projection,
+                    subject: binding.subject.clone(),
+                },
+            );
+        });
+    }
+}
+
 pub(super) fn encode_content_conservation(
     bytes: &mut CanonicalBytes,
     conservation: &ContentConservation,
@@ -423,6 +443,7 @@ pub(super) fn encode_structural_type(
     bytes.id(declaration.id);
     bytes.u32(declaration.identity.0);
     bytes.u8(u8::from(declaration.no_code_affine_cleanup));
+    bytes.u8(u8::from(declaration.owns_linear_claim));
     bytes.u8(u8::from(declaration.descriptor_cleanup));
     match &declaration.shape {
         StructuralTypeShape::BindingCarrier => bytes.u8(11),

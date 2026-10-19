@@ -210,6 +210,7 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
         },
         declaration: StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -358,6 +359,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         literal_operation: OperationId::new(47).unwrap(),
         structural_type: StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,

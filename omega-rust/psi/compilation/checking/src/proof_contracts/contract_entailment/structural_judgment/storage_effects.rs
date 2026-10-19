@@ -409,7 +409,7 @@ impl StructuralJudge<'_> {
         path: &[language_semantics::content::ContentPlaceSegment],
         version: language_semantics::content::ContentPlaceVersion,
     ) -> Option<super::StructuralTerm> {
-        use language_semantics::content::{ContentPlaceSegment, ContentPlaceVersion};
+        use language_semantics::content::ContentPlaceSegment;
         self.requires_value_preservation().then_some(())?;
         let segments = path
             .iter()
@@ -429,10 +429,44 @@ impl StructuralJudge<'_> {
                 ),
             })
             .collect::<Vec<_>>();
-        if let Some(stored) = self.stored_values.iter().find(|stored| {
-            stored.coordinate.root.as_symbol() == Some(root)
-                && stored.coordinate.segments == segments
-        }) {
+        self.captured_projection(
+            &CapturedStorageCoordinate {
+                root: facts::PlaceRoot::Symbol(root),
+                segments,
+            },
+            version,
+        )
+    }
+
+    /// Query a captured place rather than reconstructing its initializer.
+    /// Current local/call-result storage and an entry parameter use the same
+    /// revision ledger; claim forwarding alone never establishes byte equality.
+    pub(in crate::proof_contracts::contract_entailment) fn captured_place_projection(
+        &self,
+        place: &crate::CanonicalPlace,
+        version: language_semantics::content::ContentPlaceVersion,
+    ) -> Option<super::StructuralTerm> {
+        self.requires_value_preservation().then_some(())?;
+        let coordinate = self.capture_storage_place(place.clone())?;
+        self.captured_projection(&coordinate, version)
+    }
+
+    fn captured_projection(
+        &self,
+        coordinate: &CapturedStorageCoordinate,
+        version: language_semantics::content::ContentPlaceVersion,
+    ) -> Option<super::StructuralTerm> {
+        use language_semantics::content::ContentPlaceVersion;
+        if version == ContentPlaceVersion::Current
+            && let Some(value) = self.current_storage_value(coordinate)
+        {
+            return Some(value);
+        }
+        if let Some(stored) = self
+            .stored_values
+            .iter()
+            .find(|stored| stored.coordinate == *coordinate)
+        {
             let value = match version {
                 ContentPlaceVersion::Entry => stored.entry.clone(),
                 ContentPlaceVersion::Current => stored.current.clone(),
@@ -441,21 +475,21 @@ impl StructuralJudge<'_> {
                 return value;
             }
         }
-        // A completed whole-value move retains the same entry snapshot even
-        // when field reads occur only in a later state. Project that captured
-        // revision, never a later current read or an invalidated source slot.
-        let reference = crate::declaration_type_reference(self.program, root)?;
+        // Whole-value observations retain typed case/field structure even
+        // without an individually captured leaf. Project the requested
+        // captured revision; a retired current snapshot cannot borrow Entry.
+        let reference =
+            crate::declaration_type_reference(self.program, coordinate.root.as_symbol()?)?;
         self.stored_values.iter().find_map(|stored| {
-            if stored.coordinate.root.as_symbol() != Some(root)
-                || !stored.coordinate.segments.is_empty()
-            {
+            if stored.coordinate.root != coordinate.root || !stored.coordinate.segments.is_empty() {
                 return None;
             }
             let value = match version {
                 ContentPlaceVersion::Entry => stored.entry.clone(),
                 ContentPlaceVersion::Current => stored.current.clone(),
             }?;
-            let path = segments
+            let path = coordinate
+                .segments
                 .iter()
                 .map(|segment| match segment {
                     CapturedStorageSegment::Place(segment) => Some(*segment),

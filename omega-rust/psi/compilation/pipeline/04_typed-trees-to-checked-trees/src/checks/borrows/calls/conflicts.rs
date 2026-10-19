@@ -55,7 +55,7 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
             .filter(|(_, access)| access.expression == event.expression)
         {
             for access in &accesses[..move_index] {
-                if access.end_before_access.is_some_and(|end| end <= move_index)
+                if super::staging::access_released_in_prefix(access, preceding, route)
                     // Earlier owned operands have already detached their
                     // values; they are not loans held over the caller's old
                     // storage. Repeated use is judged by move accounting.

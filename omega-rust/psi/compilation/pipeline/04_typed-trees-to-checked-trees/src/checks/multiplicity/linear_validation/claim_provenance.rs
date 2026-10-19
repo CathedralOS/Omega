@@ -281,14 +281,11 @@ fn expression_permission_claim_scan<X>(
     )?;
     let mut source_path = source.segments;
     source_path.extend_from_slice(relative_path);
+    // A guarded claim still belongs to its exact carrier. Reading a scalar
+    // below that carrier copies data, not the enclosing payload's ownership.
     let matches = places
         .iter()
-        .filter(|place| {
-            place.root == source.root
-                && place.live
-                && (place.path == source_path
-                    || (place.conditional && source_path.starts_with(place.path.as_slice())))
-        })
+        .filter(|place| place.root == source.root && place.live && place.path == source_path)
         .filter_map(claim)
         .collect();
     common(matches)

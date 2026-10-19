@@ -28,6 +28,7 @@ mod collection_backing;
 pub mod control_graph;
 pub mod descriptor_results;
 pub(crate) use optimization::digest_encoder;
+pub mod owned_structure;
 mod partial_affine;
 mod placed_ram_correspondence;
 mod placed_scalar_boundaries;
@@ -42,6 +43,7 @@ pub use placed_view_plans::{
     PlacedPlanError, contains_placed_carrier, contains_placed_carrier_in_catalog,
     validate_placed_view_catalog, validate_placed_view_plans,
 };
+pub mod content_transformations;
 mod domain_preservation;
 pub use domain_preservation::{
     domain_predicate_is_closed, domain_write_is_disjoint,

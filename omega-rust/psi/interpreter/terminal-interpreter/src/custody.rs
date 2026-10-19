@@ -64,6 +64,18 @@ pub(crate) fn bind_result_claim(
     Ok(())
 }
 
+/// A loan follows backing identity, not the descriptor carrier's location.
+/// Moving that descriptor elsewhere does not unpin the selected owner.
+pub(crate) fn has_live_loan(
+    references: &BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
+    value: &TerminalStructuralValue,
+) -> bool {
+    references.values().any(|referent| {
+        referent.view.opaque_identity == value.opaque_identity
+            && terminal_semantics::structural_paths_may_overlap(&referent.view.path, &value.path)
+    })
+}
+
 pub(crate) fn commit_cleanup_action(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_cases: &BTreeMap<
@@ -141,13 +153,7 @@ pub(crate) fn commit_cleanup_action(
             // owned descriptor inside it is instead a descendant: the parent
             // hook borrows the intact carrier before the ordered child actions
             // dispose those descriptors, never their external referents.
-            if reference_referents.values().any(|referent| {
-                referent.view.opaque_identity == value.opaque_identity
-                    && terminal_semantics::structural_paths_may_overlap(
-                        &referent.view.path,
-                        &value.path,
-                    )
-            }) {
+            if has_live_loan(reference_referents, &value) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
             begin_nominal_cleanup(

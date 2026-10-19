@@ -827,9 +827,16 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::MoveStructuralValue { source } = &operation.kind else {
-            return Err(malformed());
+        let (source, parents, derivations) = match &operation.kind {
+            OperationKind::MoveStructuralValue { source } => (source, &[][..], &[][..]),
+            OperationKind::TransformContent {
+                source,
+                parents,
+                derivations,
+            } => (source, parents.as_slice(), derivations.as_slice()),
+            _ => return Err(malformed()),
         };
+        let retired = self.content_parent_claims(parents, derivations)?;
         let result = operation.result.structural().ok_or_else(malformed)?;
         let machine = self.program.verified_machine(self.current_machine)?;
         let whole_multiplicity = machine
@@ -862,6 +869,18 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let (whole, projected) = child.memberships();
+        if matches!(operation.kind, OperationKind::TransformContent { .. }) {
+            terminal_semantics::content_transformations::validate_memberships(
+                &self.program.catalogs.structural_types,
+                &self.program.catalogs.structural_domains,
+                &self.program.catalogs.identities,
+                result,
+                derivations,
+                whole,
+                projected,
+            )
+            .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
+        }
         if whole
             .iter()
             .any(|domain| !result.qualifications.contains(domain))
@@ -893,7 +912,7 @@ impl TerminalExecution<'_> {
             &StructuralRuntimePlace::from(&value),
             transfers_custody,
         )?;
-        let claims = self.stage_constructor_claims(
+        let mut claims = self.stage_constructor_claims(
             crate::record::ResultClaimOrigin::Transfer,
             result,
             &[(source, Vec::new())],
@@ -903,6 +922,16 @@ impl TerminalExecution<'_> {
         self.validate_transferred_affine_complement(source, result, &frontier, &|current| {
             storage.case_at_projection(self, &value, &current.path)
         })?;
+        for parent in parents {
+            if !self.stage_constructor_operand(parent, &mut frontier, &mut consumed)? {
+                return Err(TerminalInterpretError::ClaimTransferMismatch);
+            }
+        }
+        for identity in retired {
+            if claims.remove(&identity).is_none() {
+                return Err(TerminalInterpretError::ClaimTransferMismatch);
+            }
+        }
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         storage.publish(self)?;
         self.structural_values.insert(result.place, value);

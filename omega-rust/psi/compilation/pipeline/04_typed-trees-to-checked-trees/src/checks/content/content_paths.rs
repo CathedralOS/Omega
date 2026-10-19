@@ -57,12 +57,32 @@ pub(crate) fn unique_entry_claim_identity(
     parameter_symbol: SymbolHandle,
     input_path: &[facts::PlaceSegment],
 ) -> Option<PermissionClaimIdentity> {
-    let identities = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
+    entry_claim_identity(
+        facts,
+        state_symbol,
+        parameter_symbol,
+        input_path,
+        facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .map(|(_, event)| event),
+    )
+}
+
+/// Recording and final consumers share the exact entry-claim join. Recording
+/// supplies its event prefix because the final permission arena is not yet
+/// published; neither consumer reconstructs identity from carrier geometry.
+pub(super) fn entry_claim_identity<'event>(
+    facts: &CheckFacts,
+    state_symbol: SymbolHandle,
+    parameter_symbol: SymbolHandle,
+    input_path: &[facts::PlaceSegment],
+    events: impl Iterator<Item = &'event checked_trees::FlowPermissionEventFact>,
+) -> Option<PermissionClaimIdentity> {
+    let identities = events
+        .filter(|event| {
             event.state_symbol == state_symbol
                 && event.source == PermissionEventSource::StateEntry
                 && event.kind == PermissionEventKind::Establish
@@ -72,7 +92,7 @@ pub(crate) fn unique_entry_claim_identity(
                 && facts.flow.ownership.segments.span_or_empty(event.segments) == input_path
                 && event.claim_identity != PermissionClaimIdentity::Unknown
         })
-        .map(|(_, event)| event.claim_identity)
+        .map(|event| event.claim_identity)
         .fold(Vec::new(), |mut identities, identity| {
             if !identities.contains(&identity) {
                 identities.push(identity);
@@ -373,4 +393,30 @@ pub(crate) fn projection_observations(
         }
     }
     Some(paths)
+}
+
+/// Compare one content dependency with its exact entry source. The ordinary
+/// origin query covers preceding statements; the capture's write prefix covers
+/// effects already performed in the current statement. Neither alone suffices.
+pub(crate) fn preserves_entry_observation(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &checked_trees::FlowStateFact,
+    operand: &checked_trees::FlowOperandFact,
+    observed: validation::CanonicalPlace,
+    expected: &validation::CanonicalPlace,
+) -> bool {
+    crate::flow::operand_entry_origin_is_stable(program, &facts.flow, operand, &observed)
+        && crate::flow::value_origin_before_statement(
+            program,
+            &facts.flow,
+            machine,
+            state,
+            operand.statement_index,
+            observed,
+            None,
+            crate::flow::ValueObservation::Contents,
+        )
+        .is_some_and(|origin| origin == *expected)
 }

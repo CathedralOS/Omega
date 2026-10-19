@@ -102,6 +102,7 @@ pub(crate) fn test_byte_read_declaration(
 ) -> terminal_psi::StructuralTypeDeclaration {
     terminal_psi::StructuralTypeDeclaration {
         quotient_carrier: None,
+        owns_linear_claim: false,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,

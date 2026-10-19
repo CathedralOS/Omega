@@ -163,7 +163,7 @@ pub(crate) fn owned_structural_home(
     Ok(home)
 }
 
-fn published_structural_type(
+pub(crate) fn published_structural_type(
     parameters: &[(u32, StructuralParameterDeclaration)],
     locals: &[StructuralLocalBinding],
     completed: &[terminal_psi::StructuralPlaceDeclaration],

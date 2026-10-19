@@ -320,11 +320,11 @@ impl Builder<'_, '_> {
             .program
             .closed_data_definition(constructor.type_reference)?
             .symbol;
-        if self
-            .program
-            .normalized_type_identity(constructor.type_reference)
-            != self.program.normalized_type_identity(expected)
-        {
+        if !super::value_predicates::structural_carriers_match(
+            self.program,
+            constructor.type_reference,
+            expected,
+        ) {
             return None;
         }
         let mut fields = Vec::with_capacity(constructor.fields.len());

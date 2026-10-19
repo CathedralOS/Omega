@@ -73,6 +73,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         // root; it carries no call, boundary, or physical edge either.
         | AbstractOperation::StructuralLeafCopy { .. }
         | AbstractOperation::MoveStructuralValue { .. }
+        | AbstractOperation::TransformContent { .. }
         | AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::IeeeFloatConstant { .. }
         | AbstractOperation::IeeeFloatCompare { .. }

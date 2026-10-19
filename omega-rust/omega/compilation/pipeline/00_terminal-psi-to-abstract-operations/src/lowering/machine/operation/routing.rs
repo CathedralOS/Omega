@@ -532,6 +532,28 @@ pub(super) fn lower(
         terminal_psi::move_or_store_structural_field_pattern!() => {
             borrowed_windows::lower(operation, machine, structural_types)
         }
+        OperationKind::TransformContent {
+            source,
+            parents,
+            derivations,
+        } => {
+            let result =
+                operation
+                    .result
+                    .structural()
+                    .ok_or(LoweringError::InvalidOwnedValueTransfer {
+                        machine: machine.id,
+                        operation: operation.id,
+                        reason: "content transformation has no structural result",
+                    })?;
+            Ok(AbstractOperation::TransformContent {
+                psi_operation: operation.id,
+                result: result.clone(),
+                source: source.clone(),
+                parents: parents.clone(),
+                derivations: derivations.clone(),
+            })
+        }
         OperationKind::MoveStructuralValue { source } => {
             let result =
                 operation

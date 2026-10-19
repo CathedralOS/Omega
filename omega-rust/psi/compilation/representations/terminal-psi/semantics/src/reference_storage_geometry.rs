@@ -305,6 +305,7 @@ mod tests {
         let types = [
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -327,6 +328,7 @@ mod tests {
             },
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -360,6 +362,7 @@ mod tests {
     fn fragmented_fields_do_not_hide_the_record_extent_or_invent_a_scalar_address() {
         let types = [StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,

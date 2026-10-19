@@ -317,6 +317,15 @@ pub enum AbstractOperation {
         result: StructuralOperationResult,
         source: StructuralArgument,
     },
+    /// Explicit content custody transaction, retaining its proof relation and
+    /// every parent operand even when payload realization is an ordinary move.
+    TransformContent {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: StructuralArgument,
+        parents: Vec<StructuralArgument>,
+        derivations: Vec<terminal_psi::ContentTransformationDerivation>,
+    },
     /// Establish one owned copy of an `Unrestricted` leaf projected out of a
     /// live readable root. The source stays fully intact: copying observes
     /// contents like a structural field read, so shared loans admit it where
@@ -915,6 +924,7 @@ impl AbstractOperation {
             | Self::MoveStructuralField { result, .. }
             | Self::StructuralLeafCopy { result, .. }
             | Self::MoveStructuralValue { result, .. }
+            | Self::TransformContent { result, .. }
             | Self::EstablishCase { result, .. }
             | Self::EstablishByteSequenceConcatenation { result, .. }
             | Self::EstablishZeroedStructural { result, .. }
@@ -983,6 +993,11 @@ impl AbstractOperation {
                 vec![destination.path.as_slice(), path.as_slice()]
             }
             Self::MoveStructuralValue { source, .. } => vec![source.path.as_slice()],
+            Self::TransformContent {
+                source, parents, ..
+            } => std::iter::once(source.path.as_slice())
+                .chain(parents.iter().map(|parent| parent.path.as_slice()))
+                .collect(),
             Self::StructuralLeafCopy { path, .. } => match path {
                 super::StructuralCopyPath::Ordinary(path) => vec![path.as_slice()],
                 super::StructuralCopyPath::Case(_) => Vec::new(),
@@ -1084,6 +1099,7 @@ impl AbstractOperation {
             | Self::StoreStructuralField { psi_operation, .. }
             | Self::StructuralLeafCopy { psi_operation, .. }
             | Self::MoveStructuralValue { psi_operation, .. }
+            | Self::TransformContent { psi_operation, .. }
             | Self::EstablishScalarArray { psi_operation, .. }
             | Self::EstablishStructuralArray { psi_operation, .. }
             | Self::EstablishCase { psi_operation, .. }

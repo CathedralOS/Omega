@@ -85,6 +85,7 @@ pub(crate) use evaluator::call_site_boolean_contract_expression_value;
 pub(crate) use evidence::{
     exact_target_evidence_parameters, instantiate_contract_expression_evidence_parameter,
 };
+pub(crate) use exits::exact_scalar_membership;
 use exits::{CyclicHeaderInvariants, check_exit_ensures};
 pub(crate) use exits::{
     exclusive_referent_type, is_readable_mutable_reference, value_provable_domain,

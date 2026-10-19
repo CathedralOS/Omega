@@ -280,6 +280,22 @@ pub(super) fn prepare_storage_deaths(
                         crate::checks::ownership_occurrences::StatementStep::Complete(
                             expression,
                         ) => {
+                            for parent in super::content_transformations::consumed_places(
+                                facts,
+                                machine.symbol,
+                                state.symbol,
+                                statement_index,
+                                expression,
+                            ) {
+                                consumed.record_owned_place(
+                                    program,
+                                    machine,
+                                    state,
+                                    statement_index,
+                                    &parent,
+                                    &step.route,
+                                );
+                            }
                             // The match's own invocation is its join: agreed
                             // arm debts become one statement-level hole here,
                             // after every arm's reads already ran against its

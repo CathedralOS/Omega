@@ -1210,6 +1210,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
                 | O::EstablishByteSequenceConcatenation { result, .. }
                 | O::StructuralLeafCopy { result, .. }
                 | O::MoveStructuralValue { result, .. }
+                | O::TransformContent { result, .. }
                 | O::CallStructural {
                     result: AbstractStructuralCallResult::Structural { result, .. },
                     ..

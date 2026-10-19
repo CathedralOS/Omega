@@ -96,6 +96,16 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         } => {
             places.insert(result.place);
         }
+        O::TransformContent {
+            source,
+            parents,
+            result,
+            ..
+        } => {
+            places.insert(result.place);
+            places.insert(source.place);
+            places.extend(parents.iter().map(|parent| parent.place));
+        }
         O::StructuralLeafCopy { source, result, .. } => {
             places.insert(*source);
             places.insert(result.place);
@@ -190,6 +200,7 @@ pub(super) fn collect_operation_structural_places(
             ..
         }
         | AbstractOperation::MoveStructuralValue { psi_operation, result, .. }
+        | AbstractOperation::TransformContent { psi_operation, result, .. }
         | AbstractOperation::BoundaryCall {
             psi_operation,
             result: abstract_operations::AbstractBoundaryResult::Structural(result),

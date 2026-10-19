@@ -38,6 +38,12 @@ pub(super) fn transport(
             psi_operation,
             result,
             source,
+        }
+        | AbstractOperation::TransformContent {
+            psi_operation,
+            result,
+            source,
+            ..
         } => {
             owned_path = source.path.clone().into();
             (

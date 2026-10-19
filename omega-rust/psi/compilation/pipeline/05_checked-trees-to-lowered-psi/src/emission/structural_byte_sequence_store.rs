@@ -261,6 +261,7 @@ pub(crate) fn prepare_types(
                     ))?;
                 types.push(StructuralTypeDeclaration {
                     quotient_carrier: None,
+                    owns_linear_claim: false,
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: false,
                     scalar_restriction: None,
@@ -304,6 +305,7 @@ pub(crate) fn literal_view_type(
     let id = structural_type_id(identity);
     types.push(StructuralTypeDeclaration {
         quotient_carrier: None,
+        owns_linear_claim: false,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,
@@ -350,6 +352,7 @@ pub(crate) fn descriptor_value_type(
     );
     types.push(StructuralTypeDeclaration {
         quotient_carrier: None,
+        owns_linear_claim: false,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,

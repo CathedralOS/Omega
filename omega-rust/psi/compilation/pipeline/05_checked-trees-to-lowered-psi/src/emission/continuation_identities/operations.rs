@@ -10,11 +10,32 @@ impl IdentityMap {
         &mut self,
         operation: &mut OperationKind,
     ) -> Result<(), LoweringError> {
+        // Operand rewrites normally carry their content subjects with them.
+        // Namespace substitution also rewrites definitions, so retain the
+        // original evidence until every root can be mapped exactly once. A
+        // newly allocated input may have the same number as an old output.
+        let content_derivations = match operation {
+            OperationKind::TransformContent { derivations, .. } => std::mem::take(derivations),
+            _ => Vec::new(),
+        };
         operation.map_scalar_uses(&mut |value| self.value(value));
         operation.map_structural_uses(&mut |place| self.place(place));
         map_obligations(operation, &mut |obligation| self.obligation(obligation));
         match operation {
             OperationKind::EstablishNativeCodeLayout { .. } => {}
+            OperationKind::TransformContent { derivations, .. } => {
+                *derivations = content_derivations;
+                for derived in derivations.iter_mut() {
+                    derived.map_places(&mut |place| self.place(place));
+                    derived.lineage_anchor = self.claim(derived.lineage_anchor);
+                    for binding in derived.inputs.iter_mut().chain(&mut derived.outputs) {
+                        binding.claim = self.claim(binding.claim);
+                    }
+                    derived.inputs.sort();
+                    derived.outputs.sort();
+                }
+                derivations.sort();
+            }
             OperationKind::EstablishByteSequenceLiteral { destination, .. }
             | OperationKind::EstablishElementView { destination, .. }
             | OperationKind::EstablishMutableElementView { destination, .. }
@@ -249,6 +270,7 @@ pub(crate) fn map_obligations(
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::MoveStructuralField { .. }
         | OperationKind::MoveStructuralValue { .. }
+        | OperationKind::TransformContent { .. }
         | OperationKind::StoreStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::StructuralLeafCopy { .. }

@@ -58,6 +58,7 @@ pub(super) fn encode_type(
     }
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, declaration.identity.0.to_le_bytes());
+    bytes.push(u8::from(declaration.owns_linear_claim));
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
     match &declaration.shape {
@@ -153,6 +154,7 @@ pub(super) fn decode_type(
     };
     let id = decode_id(cursor, StructuralTypeId::new)?;
     let identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
+    let owns_linear_claim = decode_bool(cursor)?;
     let no_code_affine_cleanup = decode_bool(cursor)?;
     let descriptor_cleanup = decode_bool(cursor)?;
     let mut scalar_restriction = None;
@@ -242,6 +244,7 @@ pub(super) fn decode_type(
     };
     Ok(StructuralTypeDeclaration {
         quotient_carrier,
+        owns_linear_claim,
         no_code_affine_cleanup,
         descriptor_cleanup,
         scalar_restriction,

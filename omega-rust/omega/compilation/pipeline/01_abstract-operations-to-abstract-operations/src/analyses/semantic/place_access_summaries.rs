@@ -628,6 +628,13 @@ fn scan_operation(
         O::MoveStructuralValue { source, .. } => {
             pending.attribute_argument(context, source, true, true);
         }
+        O::TransformContent {
+            source, parents, ..
+        } => {
+            for argument in std::iter::once(source).chain(parents) {
+                pending.attribute_argument(context, argument, true, true);
+            }
+        }
         O::ByteSequenceRead { source, .. } => {
             pending.attribute(context, *source, Vec::new(), AccessKind::Read);
         }

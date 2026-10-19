@@ -532,6 +532,20 @@ pub enum OperationKind {
     MoveStructuralValue {
         source: StructuralArgument,
     },
+    /// Complete a checked n-to-m content transformation after raw payload
+    /// assembly. Source custody is transported unchanged; parent custody is
+    /// consumed jointly by the retained derivations. Only the completed result
+    /// receives the derived qualifications. Neither ordinary construction nor
+    /// an annotation grants those memberships to the earlier raw operands.
+    /// All arguments are owned, disjoint live places. Rejection or a crash
+    /// before successful completion publishes no result or consumption.
+    TransformContent {
+        source: StructuralArgument,
+        /// Positional operand inventory in producer encounter order, like
+        /// other structural argument lists. Evaluation precedes this operation.
+        parents: Vec<StructuralArgument>,
+        derivations: Vec<crate::ContentTransformationDerivation>,
+    },
     /// Establish one owned copy of an `Unrestricted` leaf projected out of a
     /// live root the machine may only read. The source stays fully intact:
     /// copying observes contents like a scalar field read, so shared loans
@@ -1329,6 +1343,7 @@ impl OperationKind {
             | Self::PrimitiveScalarRead { .. }
             | Self::MoveStructuralField { .. }
             | Self::MoveStructuralValue { .. }
+            | Self::TransformContent { .. }
             | Self::StoreStructuralField { .. }
             | Self::StructuralCaseMembership { .. }
             | Self::StructuralLeafCopy { .. }

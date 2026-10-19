@@ -93,7 +93,11 @@ pub(super) fn operation(
                 TargetUnitOperation::EstablishRecord { psi_operation: retained, result_home, fields: retained_fields }
                 if psi_operation == retained && result_home.operation_result() == Some((*psi_operation, result)) && fields == retained_fields)).count() == 1
         }
-        AbstractOperation::MoveStructuralValue { psi_operation, result, source } => {
+        // Both operations transport the raw payload into one fresh home.
+        // TransformContent's parent retirement is checked by abstract custody
+        // replay; it does not copy parent descriptors into the result.
+        AbstractOperation::MoveStructuralValue { psi_operation, result, source }
+        | AbstractOperation::TransformContent { psi_operation, result, source, .. } => {
             graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: abstract_operations::StructuralCopyPath::Ordinary(retained_path), .. }
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))

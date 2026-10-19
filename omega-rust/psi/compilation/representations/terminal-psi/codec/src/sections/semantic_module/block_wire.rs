@@ -137,6 +137,16 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::MoveStructuralValue { source } => {
             storage_operations::encode_move_structural_value(writer, source)?
         }
+        OperationKind::TransformContent {
+            source,
+            parents,
+            derivations,
+        } => {
+            writer.u8(operation_tags::TRANSFORM_CONTENT);
+            super::structural_place_wire::encode_structural_arguments(writer, &[source])?;
+            super::structural_place_wire::encode_structural_arguments(writer, &parents)?;
+            super::content_wire::encode_content_transformations(writer, &derivations)?;
+        }
         OperationKind::StructuralCaseLeafCopy { source, path } => {
             storage_operations::encode_structural_case_leaf_copy(writer, source, &path)?
         }
@@ -850,6 +860,20 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::STRUCTURAL_LEAF_COPY => {
             storage_operations::decode_structural_leaf_copy(reader)?
+        }
+        operation_tags::TRANSFORM_CONTENT => {
+            let mut sources = super::structural_place_wire::decode_structural_arguments(reader)?;
+            if sources.len() != 1 {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "content transformation requires one payload",
+                ));
+            }
+            let source = sources.remove(0);
+            OperationKind::TransformContent {
+                source,
+                parents: super::structural_place_wire::decode_structural_arguments(reader)?,
+                derivations: super::content_wire::decode_content_transformations(reader)?,
+            }
         }
         operation_tags::MOVE_STRUCTURAL_VALUE => {
             storage_operations::decode_move_structural_value(reader)?

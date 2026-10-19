@@ -194,13 +194,9 @@ pub(super) fn initializer_satisfies_indexed_domain(
     {
         return false;
     }
-    let Some(scalar) = completed_integer_initializer_value(
-        program,
-        facts,
-        state,
-        statement_index,
-        value,
-    ) else {
+    let Some(scalar) =
+        completed_integer_initializer_value(program, facts, state, statement_index, value)
+    else {
         return false;
     };
     matches!(

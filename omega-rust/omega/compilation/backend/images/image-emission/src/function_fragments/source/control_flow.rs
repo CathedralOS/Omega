@@ -349,6 +349,7 @@ mod cleanup_tests {
         let structural_type = StructuralTypeId::new(1).unwrap();
         let structural_types = vec![StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,

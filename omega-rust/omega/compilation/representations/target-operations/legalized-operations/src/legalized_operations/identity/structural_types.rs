@@ -49,6 +49,7 @@ fn element_view_encoding_distinguishes_access_ceilings() {
     ] {
         let declaration = StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: true,
             scalar_restriction: None,
@@ -57,6 +58,30 @@ fn element_view_encoding_distinguishes_access_ceilings() {
             shape: StructuralTypeShape::ElementView {
                 element: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                 access,
+            },
+        };
+        let mut bytes = Vec::new();
+        encode_structural_type(&mut bytes, &declaration);
+        assert!(!encodings.contains(&bytes));
+        encodings.push(bytes);
+    }
+}
+
+#[test]
+fn declaration_owned_linearity_changes_encoded_identity() {
+    let mut encodings = Vec::new();
+    for owns_linear_claim in [false, true] {
+        let declaration = StructuralTypeDeclaration {
+            quotient_carrier: None,
+            owns_linear_claim,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
+            shape: StructuralTypeShape::Record {
+                fields: Vec::new(),
+                storage: terminal_psi::StructuralRecordStorage::Packed,
             },
         };
         let mut bytes = Vec::new();
@@ -308,6 +333,7 @@ pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlac
 pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDeclaration) {
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
     bytes.extend_from_slice(&declaration.identity.0.to_le_bytes());
+    bytes.push(u8::from(declaration.owns_linear_claim));
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
     match &declaration.shape {

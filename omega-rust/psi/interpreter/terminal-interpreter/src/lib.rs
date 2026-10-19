@@ -39,6 +39,7 @@ mod atomic_operations;
 mod byte_sequences;
 mod calls;
 mod capabilities;
+mod content_transformations;
 mod custody;
 mod effects;
 mod element_views;

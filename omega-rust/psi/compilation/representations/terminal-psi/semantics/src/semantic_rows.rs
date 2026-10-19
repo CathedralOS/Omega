@@ -172,6 +172,7 @@ operation_semantic_rows! {
     StructuralCaseMembership => ("schema:operation:structural-case-membership", LeafDenotation, None),
     StructuralLeafCopy => ("schema:operation:structural-leaf-copy", LeafDenotation, None),
     MoveStructuralValue => ("schema:operation:move-structural-value", LeafDenotation, None),
+    TransformContent => ("schema:operation:transform-content", LeafDenotation, None),
     StructuralCaseLeafCopy => ("schema:operation:structural-case-leaf-copy", LeafDenotation, None),
     WriteOnlyPrimitiveStore => ("schema:operation:write-only-primitive-store", LeafDenotation, None),
     StructuralScalarFieldStore => ("schema:operation:structural-scalar-field-store", LeafDenotation, None),

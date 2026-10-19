@@ -8,6 +8,11 @@
 //! were, with the nested-ownership and generic-substitution tests beside
 //! them.
 
+mod body_input_frontier;
+mod content_transformations;
+pub(crate) use body_input_frontier::{
+    observe_inputs as observe_body_inputs, publish as publish_body_inputs,
+};
 mod borrowed_windows;
 mod claim_outcomes;
 pub(crate) use claim_outcomes::claim_paths_are_case_alternatives;
@@ -24,9 +29,12 @@ mod instruction_dispositions;
 mod permission_events;
 mod permission_schedule;
 mod returned_claims;
+pub(crate) use linear_obligations::LinearPlace;
+pub(crate) use returned_claims::completed_owned_claims;
 pub(crate) use returned_claims::{ReturnedClaim, ReturnedClaimSource, current_returned_claims};
 mod selected_cleanup;
 mod selected_evaluation;
+pub(crate) use claim_outcomes::ClaimOutcomePreparation;
 pub(crate) use permission_events::prepare_permission_events;
 mod projected_affine;
 mod temporary_results;

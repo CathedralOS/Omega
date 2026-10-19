@@ -11,6 +11,11 @@ pub struct StructuralTypeDeclaration {
     pub quotient_carrier: Option<StructuralTypeId>,
     pub id: StructuralTypeId,
     pub identity: TerminalIdentityIndex,
+    /// Declaration-owned whole linear obligation, independent of the current
+    /// occurrence's frontier. A whole parent claim may mask this child's live
+    /// row but cannot erase its disposition requirement. Arrays remain
+    /// transparent and never inherit this bit from their element carrier.
+    pub owns_linear_claim: bool,
     /// Checked authority that disposing represented owned contents requires no
     /// executable cleanup. This does not remove claims, loans, or access checks.
     pub no_code_affine_cleanup: bool,
@@ -891,6 +896,7 @@ mod tests {
         let types = vec![
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -903,6 +909,7 @@ mod tests {
             },
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -912,6 +919,7 @@ mod tests {
             },
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -930,6 +938,7 @@ mod tests {
             },
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,

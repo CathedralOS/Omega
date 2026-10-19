@@ -375,96 +375,91 @@ fn reaching_store_values<'capture>(
         return None;
     };
     let source = &source.projected;
-    if !matches!(source.root, PlaceRoot::Symbol(_))
-        || !super::operand_entry_origin_is_stable(program, flow, operand, &source)
+    if !matches!(source.root, PlaceRoot::Symbol(_)) {
+        return None;
+    }
+    let typed_state = program.state_by_symbol(state.state_symbol)?;
+    let super::stored_values::StoredOperand::Value {
+        capture,
+        reference,
+        projection,
+    } = super::stored_values::before_statement(
+        program,
+        semantic,
+        &flow.control,
+        typed_state,
+        state.statements,
+        operand.statement_index,
+        operand.entry_origin_writes,
+        operand.entry_origin_unknown_write,
+        source,
+        super::stored_values::StoredObservation::Contents,
+    )?
+    else {
+        return None;
+    };
+    let stored = flow.control.operands.get(capture);
+    // Zero formation has no evaluated RHS. Its establishment facts belong to
+    // the observed storage, not an invalid completed producer. Copyability is
+    // this proof consumer's obligation, not the storage association's policy.
+    if !program
+        .expression_table
+        .expression_is_valid(stored.expression)
+        || !reference.is_valid()
+        || !validation::project_type_reference_from_segments(program, reference, &projection)
+            .is_some_and(|projected| {
+                super::operand_contexts::operand_binds_stable_copy(program, projected)
+            })
     {
         return None;
     }
-    // Storage order and execution order can differ across admitted assembly
-    // jumps. A missing executed row cannot assert that a value was preserved.
-    let typed_state = program.state_by_symbol(state.state_symbol)?;
-    let order = program
-        .statement_table
-        .admitted_execution_order(typed_state.statement_nodes);
-    let end = order.position(operand.statement_index).or_else(|| {
-        (operand.statement_index
-            == program
-                .statement_table
-                .statements(typed_state.statement_nodes)
-                .len())
-        .then_some(order.indices().len())
-    })?;
-    for &index in order.indices()[..end].iter().rev() {
-        let statement = flow.state_statement(state, index)?;
-        if semantic.places.is_valid(statement.stored_destination)
-            && flow.control.operands.is_valid(statement.stored_value)
-        {
-            let destination = super::canonical_place_from_semantic_place(
-                program,
-                semantic,
-                semantic.places.get(statement.stored_destination),
-            )?;
-            if destination.root == source.root
-                && destination.segments.len() <= source.segments.len()
-                && destination
-                    .segments
-                    .iter()
-                    .zip(&source.segments)
-                    .all(|(left, right)| {
-                        super::canonical_place_segments_equal(program, *left, *right)
-                    })
-            {
-                let stored = flow.control.operands.get(statement.stored_value);
-                let stored_type = stored.type_reference;
-                // Zero formation has no evaluated RHS. Its establishment
-                // facts belong to the observed storage, not an invalid source
-                // expression pretending to be a completed producer.
-                if !program
-                    .expression_table
-                    .expression_is_valid(stored.expression)
-                    || !stored_type.is_valid()
-                    || !validation::project_type_reference_from_segments(
-                        program,
-                        stored_type,
-                        &source.segments[destination.segments.len()..],
-                    )
-                    .is_some_and(|projected| {
-                        super::operand_contexts::operand_binds_stable_copy(program, projected)
-                    })
-                {
-                    return None;
-                }
-                return captured_operand_values(
-                    program,
-                    flow,
-                    semantic,
-                    state,
-                    stored,
-                    stored_type,
-                    &source.segments[destination.segments.len()..],
-                );
-            }
-        }
-        if !super::entry_origin_is_stable(
-            program,
-            &flow.control,
-            statement.completed_content_writes,
-            statement.completed_content_unknown_write,
-            &source,
-        ) {
-            return None;
-        }
-    }
-    None
+    captured_operand_values(
+        program,
+        flow,
+        semantic,
+        state,
+        stored,
+        reference,
+        &projection,
+    )
 }
 
 pub(crate) fn captured_operand_at_path<'capture>(
     program: &dyn ::validation::CheckingInput,
     control: &'capture FlowControlFacts,
+    operand: &'capture FlowOperandFact,
+    type_reference: TypeReferenceHandle,
+    path: &[PlaceSegment],
+) -> Option<(&'capture FlowOperandFact, TypeReferenceHandle)> {
+    let (operand, reference, _) =
+        projected_capture(program, control, operand, type_reference, path)?;
+    Some((operand, reference))
+}
+
+pub(crate) fn captured_operand_handle_at_path(
+    program: &dyn ::validation::CheckingInput,
+    control: &FlowControlFacts,
+    capture: arena::Handle<FlowOperandFact>,
+    reference: TypeReferenceHandle,
+    path: &[PlaceSegment],
+) -> Option<arena::Handle<FlowOperandFact>> {
+    let operand = control.operands.get(capture);
+    let (_, _, selected) = projected_capture(program, control, operand, reference, path)?;
+    Some(if path.is_empty() { capture } else { selected })
+}
+
+fn projected_capture<'capture>(
+    program: &dyn ::validation::CheckingInput,
+    control: &'capture FlowControlFacts,
     mut operand: &'capture FlowOperandFact,
     mut type_reference: TypeReferenceHandle,
     mut path: &[PlaceSegment],
-) -> Option<(&'capture FlowOperandFact, TypeReferenceHandle)> {
+) -> Option<(
+    &'capture FlowOperandFact,
+    TypeReferenceHandle,
+    arena::Handle<FlowOperandFact>,
+)> {
+    let mut selected_handle = arena::Handle::invalid();
     while !path.is_empty() {
         let mut selected = None;
         for child in control.operand_children.span(operand.children)? {
@@ -484,6 +479,7 @@ pub(crate) fn captured_operand_at_path<'capture>(
             }
         }
         let (child, length) = selected?;
+        selected_handle = child.value;
         operand = control.operands.get(child.value);
         type_reference = operand_child_type(
             program,
@@ -495,5 +491,5 @@ pub(crate) fn captured_operand_at_path<'capture>(
     }
     type_reference
         .is_valid()
-        .then_some((operand, type_reference))
+        .then_some((operand, type_reference, selected_handle))
 }

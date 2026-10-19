@@ -89,6 +89,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
     let declarations = [
         StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -101,6 +102,7 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
         },
         StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -188,6 +190,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
         let declarations = [
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -200,6 +203,7 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
             },
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -257,6 +261,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
     let declarations = vec![
         StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -269,6 +274,7 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
         },
         StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -377,6 +383,7 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
     };
     let sum_declaration = |fields: Vec<StructuralFieldDeclaration>| StructuralTypeDeclaration {
         quotient_carrier: None,
+        owns_linear_claim: false,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,
@@ -399,6 +406,7 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
         vec![
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -527,6 +535,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         let mut declarations = vec![
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -539,6 +548,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             },
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -548,6 +558,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             },
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -565,6 +576,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             declarations[2].id = nested_array;
             declarations.push(StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -603,6 +615,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         let declarations = vec![
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -615,6 +628,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             },
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -624,6 +638,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             },
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -642,6 +657,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     let cyclic = vec![
         StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -654,6 +670,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         },
         StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -675,6 +692,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     let mixed_declaration =
         |common: Vec<StructuralFieldDeclaration>, case_fields| StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,
@@ -702,6 +720,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
         vec![
             StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,

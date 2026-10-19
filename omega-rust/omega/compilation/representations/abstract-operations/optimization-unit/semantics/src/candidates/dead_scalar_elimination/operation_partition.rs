@@ -65,6 +65,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | abstract_operations::move_or_store_structural_field_pattern!()
         | O::StructuralLeafCopy { .. }
         | O::MoveStructuralValue { .. }
+        | O::TransformContent { .. }
         // A Trapping primitive's crash is observable even when its result
         // is unused, so an unused instance is never dead.
         | O::TrappingInteger { .. }

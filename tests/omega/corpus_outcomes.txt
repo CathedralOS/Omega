@@ -1130,6 +1130,21 @@ fail/core/content_projected_duplicate_consumption rejected 287ms expected @7bd69
 fail/core/content_projection_arbitrary_call rejected 922ms expected @a9ae30e1c334+wt
 fail/core/content_projection_foreign_owner rejected 827ms expected @a9ae30e1c334+wt
 fail/core/content_retained_custody_from_borrow rejected 1571ms expected @a9ae30e1c334+wt
+fail/core/content_transform_active_payload rejected 1926ms expected @42423ab60d61+wt
+	linear value `whole` reaches scope exit without being consumed or transferred
+fail/core/content_transform_live_parent_loan rejected 2233ms expected @42423ab60d61+wt
+	construction of `Pieces` field `left` is not proven in domain `Extent::Granted` in split state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Pieces` field `right` is not proven in domain `Extent::Granted` in split state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+fail/core/content_transform_nested_cleanup_loss rejected 2165ms expected @42423ab60d61+wt
+	linear value `whole` reaches scope exit without being consumed or transferred
+fail/core/content_transform_nested_generic_loss rejected 2216ms expected @42423ab60d61+wt
+	linear value `whole` reaches scope exit without being consumed or transferred
+fail/core/content_transform_nested_linear_loss rejected 2218ms expected @42423ab60d61+wt
+	linear value `whole` reaches scope exit without being consumed or transferred
+fail/core/content_transform_nested_loss rejected 2188ms expected @42423ab60d61+wt
+	linear value `whole` reaches scope exit without being consumed or transferred
+fail/core/content_transform_retagged_parent rejected 2406ms expected @42423ab60d61+wt
+	linear value `whole` reaches scope exit without being consumed or transferred
 fail/core/extent_root_adapter_direct_call_does_not_grant rejected 1719ms expected @a9ae30e1c334+wt
 fail/core/extent_scope_loss rejected 1569ms expected @a9ae30e1c334+wt
 fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 5239ms expected @a9ae30e1c334+wt
@@ -1154,6 +1169,30 @@ fail/core/numeric_trapping_conversion_altered_cause_rejected rejected 5345ms exp
 fail/core/numeric_trapping_conversion_published_without_crash_rejected rejected 5519ms expected @a9ae30e1c334+wt
 fail/core/numeric_widened_range_shift_overflow_rejected rejected 2840ms expected @a9ae30e1c334+wt
 fail/core/numeric_widened_result_narrow_carrier_rejected rejected 2673ms expected @a9ae30e1c334+wt
+fail/core/owned_content_partition_borrowed_parent rejected 2278ms expected @42423ab60d61+wt
+	cannot prove default-domain field requirement for return from split at statement 2: Pieces.left requires Extent::Granted
+	cannot prove default-domain field requirement for return from split at statement 2: Pieces.right requires Extent::Granted
+	construction of `Pieces` field `left` is not proven in domain `Extent::Granted` in split state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
+	construction of `Pieces` field `right` is not proven in domain `Extent::Granted` in split state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
+	callable `split` returns content-bearing custody `Extent::Granted` sourced only from borrowed parameter `whole` through a structural field; retained-after-return authority requires a consumed owned input
+	callable `split` returns content-bearing custody `Extent::Granted` sourced only from borrowed parameter `whole` through a structural field; retained-after-return authority requires a consumed owned input
+fail/core/owned_content_partition_parent_reuse rejected 1007ms expected @42423ab60d61+wt
+	cannot use `whole.length` in machine `split` state `entry` (statement 3) after `whole` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `whole` first
+fail/core/owned_content_partition_raw_child_authority rejected 2263ms expected @42423ab60d61+wt
+	cannot prove initializer of `left` in split is in domain `Extent::Granted`; an annotation cannot establish routed qualification
+	construction value is not proven in domain `Extent::Granted` in split state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/core/owned_content_partition_raw_child_cast rejected 2282ms expected @42423ab60d61+wt
+	cannot prove default-domain field requirement for return from split at statement 0: Pieces.right requires Extent::Granted
+	`as ... in Extent::Granted` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+	construction value is not proven in domain `Extent::Granted` in split state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Pieces` field `right` is not proven in domain `Extent::Granted` in split state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	linear value `whole` reaches scope exit without being consumed or transferred
+fail/core/owned_content_partition_without_theorem rejected 2269ms expected @42423ab60d61+wt
+	cannot prove default-domain field requirement for return from split at statement 2: Pieces.left requires Extent::Granted
+	cannot prove default-domain field requirement for return from split at statement 2: Pieces.right requires Extent::Granted
+	construction of `Pieces` field `left` is not proven in domain `Extent::Granted` in split state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
+	construction of `Pieces` field `right` is not proven in domain `Extent::Granted` in split state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
+	linear value `whole` reaches scope exit without being consumed or transferred
 fail/core/placed_construction_rejected rejected 14ms expected @a9ae30e1c334+wt
 fail/core/qualified_integer_cast_argument_requires_representability rejected 793ms expected @a9ae30e1c334+wt
 fail/core/qualified_integer_cast_call_all_returns_require_fit rejected 880ms expected @a9ae30e1c334+wt
@@ -5572,6 +5611,10 @@ pass/core/content_conservation_unobserved_write_exit checked 6825ms check-target
 pass/core/content_conservation_wrapper_exit checked 3399ms check-target:macos_arm64 @94192499b002+wt
 pass/core/content_counted_partition_exit checked 3956ms check-target:macos_arm64 @b794c35ad5f8+wt
 pass/core/content_retained_custody_round_trip checked 11400ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/core/content_transform_empty_array checked 2707ms @42423ab60d61+wt
+pass/core/content_transform_ended_parent_loan checked 2815ms @42423ab60d61+wt
+pass/core/content_transform_inactive_payload checked 2707ms @42423ab60d61+wt
+pass/core/content_transform_predicate_array checked 2775ms @42423ab60d61+wt
 pass/core/extent_core_surface checked 1673ms @a9ae30e1c334+wt
 pass/core/extent_root_provider_adapter checked 11044ms check-target:macos_arm64 @83314997c2b2
 pass/core/interrupt_obligations_surface checked 2415ms @eac8a2f4b8cc+wt
@@ -5594,6 +5637,8 @@ pass/core/numeric_unsigned_narrowing_policies checked 14785ms check-target:macos
 pass/core/numeric_unsigned_to_signed_policies checked 14390ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/numeric_widening_preserves_values checked 14347ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/numeric_widening_published_ranges checked 13982ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/core/owned_content_partition checked 10297ms @42423ab60d61+wt
+pass/core/owned_content_partition_local checked 2501ms @42423ab60d61+wt
 pass/core/qualified_integer_cast_preserves_value_exit checked 7765ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/runtime_guarded_trapping_addition_exit checked 11662ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/runtime_guarded_trapping_conversion_exit checked 11308ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8644,6 +8689,13 @@ run/generics/runtime_value_index_operands checked 7083ms check-target:macos_arm6
 run/layouts/placed_ram_capture_return checked 60512ms check-target:macos_arm64 @c48489ea6ad6
 run/layouts/placed_ram_stored_field_return checked 92970ms check-target:macos_arm64 @c48489ea6ad6
 run/nested_mut_alias_assignment_return checked 11468ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/ownership/claim_correspondence_all_returns checked 10218ms check-target:macos_arm64 @42423ab60d61+wt
+run/ownership/content_transform_case_alias checked 9897ms check-target:macos_arm64 @42423ab60d61+wt
+run/ownership/content_transform_case_parent checked 9922ms check-target:macos_arm64 @42423ab60d61+wt
+run/ownership/content_transform_empty_array checked 9838ms check-target:macos_arm64 @42423ab60d61+wt
+run/ownership/content_transform_ended_parent_loan checked 9954ms check-target:macos_arm64 @42423ab60d61+wt
+run/ownership/content_transform_inactive_content checked 9730ms check-target:macos_arm64 @42423ab60d61+wt
+run/ownership/content_transform_inactive_payload checked 9565ms check-target:macos_arm64 @42423ab60d61+wt
 run/ownership/declared_record_selected_exit_disposal checked 11660ms check-target:macos_arm64 @93ba1f664f65+wt
 run/ownership/linear_result_crash_ceiling checked 3661ms check-target:macos_arm64 @45cbafd80d9c+wt
 run/ownership/linear_result_guarded_terminal_call checked 3661ms check-target:macos_arm64 @45cbafd80d9c+wt

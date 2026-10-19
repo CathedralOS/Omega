@@ -13,6 +13,25 @@ use checked_trees::{
 };
 use typed_trees::expression::ExpressionNode;
 
+/// A staged access ends at its producer-owned completion, not when the next
+/// accessed place happens to be observed. Explicit moves supply the prefix
+/// before their occurrence; an implicit completion supplies the inclusive
+/// prefix after completion. Both keep the same branch selection.
+pub(in crate::checks::borrows) fn access_released_in_prefix(
+    access: &BorrowArgumentAccessFact,
+    prefix: &[crate::checks::ownership_occurrences::StatementOccurrence],
+    route: &[crate::checks::ownership_occurrences::EvaluationBranch],
+) -> bool {
+    use crate::checks::ownership_occurrences::{StatementStep, routes_compatible};
+    access.end_before_access == Some(0)
+        || (access.released_at.is_valid()
+            && prefix.iter().any(|occurrence| {
+                matches!(occurrence.step, StatementStep::Complete(expression)
+                    if expression == access.released_at)
+                    && routes_compatible(&occurrence.route, route)
+            }))
+}
+
 pub(super) fn copied_read_before_reference_transfer(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,

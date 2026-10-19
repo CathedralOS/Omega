@@ -91,7 +91,11 @@ impl QualificationFacts {
     /// arena and let each value retain a span instead of making every lowering
     /// search the program's source facts again. Reordering judgments does not
     /// reorder operand evaluation or create ownership authority.
-    pub fn link_value_formations(&mut self, values: &mut crate::CheckedStructuralValuePlans) {
+    pub fn link_value_formations(
+        &mut self,
+        values: &mut crate::CheckedStructuralValuePlans,
+        flow: &crate::FlowFacts,
+    ) {
         let mut decisions = std::mem::take(&mut self.value_formations)
             .into_items()
             .collect::<Vec<_>>();
@@ -111,6 +115,12 @@ impl QualificationFacts {
                     structural_value: crate::CheckedStructuralValueHandle::invalid(),
                 }),
         );
+        // The source judgment may rely on the completion transaction. Attaching
+        // that judgment to the raw producer would publish its authority before
+        // consuming the parents, then publish it a second time at TransformContent.
+        // Only this exact occurrence is deferred; later aliases inherit the
+        // completed membership normally, and synthetic values own distinct sites.
+        decisions.retain(|decision| !self.transformation_publishes(flow, decision));
         let coordinate =
             |machine: SymbolHandle,
              state: SymbolHandle,
@@ -179,6 +189,24 @@ impl QualificationFacts {
                 Err(_) => arena::HandleSpan::empty(),
             };
         });
+    }
+
+    fn transformation_publishes(
+        &self,
+        flow: &crate::FlowFacts,
+        decision: &CheckedValueQualification,
+    ) -> bool {
+        if decision.structural_value.is_valid() {
+            return false;
+        }
+        self.content.publishes_formation_membership(
+            flow,
+            decision.state,
+            decision.statement_index as usize,
+            decision.expression,
+            decision.domain_symbol,
+            decision.semantic_domain,
+        )
     }
 
     pub fn for_machine(&self, machine: SymbolHandle) -> Option<&MachineQualifications> {

@@ -27,8 +27,7 @@ use super::{
     ContentStructuralPlace, ContentTerm, LoweringError, PermissionClaimIdentity, PlaceId,
     Proposition, PropositionContext, SemanticDomainId, StructuralContentProjection,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeDeclaration, StructuralTypeShape, conservation_report_fingerprint,
-    lookup_claim_id, unsupported,
+    StructuralTypeDeclaration, conservation_report_fingerprint, lookup_claim_id, unsupported,
 };
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 
@@ -301,46 +300,42 @@ pub(crate) fn lower_whole_content_entry_claims(
         if content.is_empty() {
             continue;
         }
-        let mut carrier =
-            terminal_psi::find_structural_type(structural_types, parameter.structural_type).ok_or(
-                LoweringError::Unsupported("content entry carrier is absent"),
-            )?;
         let mut segments = Vec::with_capacity(entry_claim.path.len());
         for segment in &entry_claim.path {
-            let child = match (segment, &carrier.shape) {
-                (
-                    CheckedUnitStructuralPathSegment::Field(identity),
-                    StructuralTypeShape::Record { fields, .. },
-                ) => {
-                    let field = terminal_psi::field_by_identity(
-                        fields,
-                        identities.intern(&identity.spelling()),
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "content claim field is absent from its carrier",
-                    ))?;
-                    if field.relevance != language_core::BindingRelevance::Relevant {
-                        return unsupported("content claim traverses an erased field");
-                    }
-                    let Some(child) = field.field_type.as_structural() else {
-                        return unsupported("content claim selects a nonstructural field");
-                    };
-                    segments.push(ContentPlaceSegment::Field(identity.spelling()));
-                    child
+            segments.push(match segment {
+                CheckedUnitStructuralPathSegment::Field(identity) => {
+                    identities.intern(&identity.spelling());
+                    ContentPlaceSegment::Field(identity.spelling())
                 }
-                (
-                    CheckedUnitStructuralPathSegment::FixedIndex(index),
-                    StructuralTypeShape::FixedArray { element, length },
-                ) if index < length => {
-                    segments.push(ContentPlaceSegment::FixedIndex(*index));
-                    *element
+                CheckedUnitStructuralPathSegment::Case(identity) => {
+                    identities.intern(&identity.spelling());
+                    ContentPlaceSegment::Case(identity.spelling())
+                }
+                CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                    ContentPlaceSegment::FixedIndex(*index)
                 }
                 _ => return unsupported("content claim has an unsupported or mistyped path"),
-            };
-            carrier = terminal_psi::find_structural_type(structural_types, child).ok_or(
-                LoweringError::Unsupported("content claim leaf carrier is absent"),
-            )?;
+            });
         }
+        // Entry claims and completed transformations use the same exact
+        // carrier-relative projection grammar, including guarded payloads.
+        let path = terminal_semantics::content_transformations::structural_path(
+            structural_types.iter(),
+            &identities.snapshot(),
+            parameter.structural_type,
+            &segments,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "content claim has an unsupported or mistyped path",
+        ))?;
+        let carrier = terminal_semantics::runtime_structural_path_tip(
+            structural_types.iter(),
+            parameter.structural_type,
+            &path,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "content claim leaf carrier is absent",
+        ))?;
         let mut projections = content
             .into_iter()
             .map(|projection| {

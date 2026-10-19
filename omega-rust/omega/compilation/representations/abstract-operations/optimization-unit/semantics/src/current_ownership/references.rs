@@ -1233,7 +1233,16 @@ pub(super) fn apply_operation(
                 live,
             );
         }
-        O::MoveStructuralValue { result, source, .. } => {
+        O::MoveStructuralValue { result, source, .. }
+        | O::TransformContent { result, source, .. } => {
+            if let O::TransformContent { parents, .. } = operation {
+                // Parent accounts retire; their reference carriers are not
+                // payload operands to relocate into the children. A live loan
+                // into a parent or a resident descriptor must end separately.
+                for parent in parents {
+                    check_region_access(function, block, node, live, parent.place, &parent.path)?;
+                }
+            }
             return establish_constructor(
                 function,
                 structural_types,

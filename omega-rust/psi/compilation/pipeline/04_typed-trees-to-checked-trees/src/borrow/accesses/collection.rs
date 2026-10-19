@@ -127,6 +127,7 @@ impl<'a> BorrowAccessCollection<'a> {
             .skip(first_access)
         {
             access.end_before_access = None;
+            access.released_at = Default::default();
         }
     }
 
@@ -154,7 +155,10 @@ impl<'a> BorrowAccessCollection<'a> {
             .iter_mut()
             .skip(first_access)
         {
-            access.end_before_access.get_or_insert(end_before_access);
+            if access.end_before_access.is_none() {
+                access.end_before_access = Some(end_before_access);
+                access.released_at = expression;
+            }
         }
     }
 

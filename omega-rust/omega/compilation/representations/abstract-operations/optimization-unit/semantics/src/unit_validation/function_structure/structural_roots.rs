@@ -42,6 +42,7 @@ pub(crate) fn validate_structural_root_operations(
     function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    predecessors: &BTreeMap<semantic_vocabulary::BlockId, BTreeSet<semantic_vocabulary::BlockId>>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let shared_descriptor_result = function.result.structural().is_some_and(|result| {
         result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
@@ -155,7 +156,7 @@ pub(crate) fn validate_structural_root_operations(
                     })
             }
         };
-    for block in &function.blocks {
+    for (block_position, block) in function.blocks.iter().enumerate() {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let node_index = u32::try_from(node_index).expect("unit node index fits u32");
             if !view_memberships_match(unit, function, block.id, node_index, &node.operation) {
@@ -924,6 +925,12 @@ pub(crate) fn validate_structural_root_operations(
                     psi_operation,
                     result,
                     source,
+                }
+                | O::TransformContent {
+                    psi_operation,
+                    result,
+                    source,
+                    ..
                 } => {
                     // A refinement moves an existing owned occurrence. It is
                     // neither borrowed-window extraction nor a new loan or
@@ -986,6 +993,61 @@ pub(crate) fn validate_structural_root_operations(
                             .any(|row| !result.projected_qualifications.contains(row))
                     {
                         return Err(invalid("transfer loses the selected source memberships"));
+                    }
+                    if let O::TransformContent {
+                        parents,
+                        derivations,
+                        ..
+                    } = &node.operation
+                    {
+                        terminal_semantics::content_transformations::validate_contract(
+                            &unit.structural_types, &unit.structural_domains, &unit.identities,
+                            &|place| crate::unit_validation::operation_contracts::structural_source_contract(function, place)
+                                .map(|contract| contract.structural_type),
+                            source, parents, derivations, result,
+                        ).map_err(invalid)?;
+                        terminal_semantics::content_transformations::validate_memberships(
+                            &unit.structural_types,
+                            &unit.structural_domains,
+                            &unit.identities,
+                            result,
+                            derivations,
+                            &contract.qualifications,
+                            &contract.projected_qualifications,
+                        )
+                        .map_err(invalid)?;
+                        for parent in parents {
+                            let root = crate::unit_validation::operation_contracts::structural_source_contract(function, parent.place)
+                                .ok_or_else(|| invalid("content parent source contract is absent"))?;
+                            let parent_contract = terminal_semantics::descriptor_results::current_selected_payload_contract(
+                                &unit.structural_types, &unit.structural_domains, &graph, function.machine,
+                                (block.id, node_index), parent.place, &parent.path,
+                                &|place| crate::unit_validation::operation_contracts::structural_source_contract(function, place)
+                                    .map(|contract| contract.payload_contract()),
+                            ).map_err(invalid)?;
+                            terminal_semantics::content_transformations::validate_parent_memberships(
+                                &unit.structural_types, &unit.structural_domains, &unit.identities,
+                                root.structural_type, parent, derivations,
+                                &parent_contract.qualifications, &parent_contract.projected_qualifications,
+                                &|relative| {
+                                    let mut path = parent.path.clone();
+                                    for segment in relative {
+                                        if let terminal_psi::StructuralPathSegment::Case(case) = segment
+                                            && super::membership_on_every_path(
+                                                function, structural_types, predecessors,
+                                                (block_position, node_index as usize), parent.place,
+                                                &path, *case, false,
+                                            )
+                                        {
+                                            return true;
+                                        }
+                                        path.push(segment.clone());
+                                    }
+                                    false
+                                },
+                            ).map_err(invalid)?;
+                        }
+                        continue;
                     }
                     // Predicate establishment was checked by Psi. The native
                     // contract still rejects direct routed issuance here;

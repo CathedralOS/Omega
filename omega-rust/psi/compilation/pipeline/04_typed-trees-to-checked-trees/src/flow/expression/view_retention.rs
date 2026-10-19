@@ -186,15 +186,15 @@ impl Execution<'_, '_, '_> {
             source,
         )?;
         Some(match capture {
-            super::super::stored_views::StoredOperand::Unavailable => Handle::invalid(),
-            super::super::stored_views::StoredOperand::Value {
+            super::super::stored_values::StoredOperand::Unavailable => Handle::invalid(),
+            super::super::stored_values::StoredOperand::Value {
                 capture,
                 projection,
                 ..
             } => super::super::operand_values::captured_retention_at_path(
                 self.program,
                 &self.context.control,
-                &capture,
+                self.context.control.operands.get(capture),
                 &projection,
             ),
         })
@@ -279,11 +279,12 @@ impl Execution<'_, '_, '_> {
                 self.entry_origin_unknown_write,
                 &source,
             ) {
-                Some(super::super::stored_views::StoredOperand::Value {
+                Some(super::super::stored_values::StoredOperand::Value {
                     capture,
                     projection,
                     ..
                 }) => {
+                    let capture = *self.context.control.operands.get(capture);
                     if projection.is_empty() {
                         value = capture;
                     } else {
@@ -338,7 +339,7 @@ impl Execution<'_, '_, '_> {
                 &self.context.control.statements,
                 self.context.state_statements_start,
             );
-            let Some(super::super::stored_views::StoredOperand::Value {
+            let Some(super::super::stored_values::StoredOperand::Value {
                 capture,
                 projection,
                 ..
@@ -356,6 +357,7 @@ impl Execution<'_, '_, '_> {
             else {
                 return Handle::invalid();
             };
+            let capture = *self.context.control.operands.get(capture);
             if projection.is_empty() {
                 value = capture;
             } else {

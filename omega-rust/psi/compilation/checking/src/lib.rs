@@ -90,6 +90,7 @@ pub use proof_contracts::contract_entailment::{
     CapturedScalarObservation, captured_call_subject_identity, captured_collection_length,
     captured_integer_value, captured_scalar_observations, closed_collection_length,
     closed_collection_length_at_place, closed_collection_length_under_matches,
+    completed_value_preserves_entry_projection, completed_value_proves_content_conservation,
     completed_value_proves_domain_predicate, completed_value_refutes_domain,
     owned_contract_subject, unique_literal_field,
 };
@@ -496,8 +497,8 @@ pub use machine_calls::calls::{
     collect_call_sites_in_statement, find_call_site, find_call_site_in_state, find_machine,
     find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
     find_state_in_machine, find_state_on_machine, machine_parameter_signature_symbol,
-    machine_state_by_symbols, machine_state_count, receiver_can_dispatch_to_machine,
-    resolve_name_path_member_symbol, resolve_state_call_target,
+    machine_state_by_symbols, machine_state_count, normal_completion_possible,
+    receiver_can_dispatch_to_machine, resolve_name_path_member_symbol, resolve_state_call_target,
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,
     statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
     transition_call_target,

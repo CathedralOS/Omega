@@ -7,6 +7,7 @@
 //! identities through call receipts; content substitution must not replace a
 //! completed invocation with its callee's static establishment.
 
+use super::linear_obligations::LinearPlace;
 use checked_trees::{CheckFacts, FlowOperandFact, FlowPermissionEvaluation, FlowStateOutgoingFact};
 use facts::PlaceSegment;
 use language_semantics::{PermissionAccess, PermissionClaimIdentity, PermissionEventKind};
@@ -36,74 +37,183 @@ pub(crate) fn current_returned_claims(
         return Err("outgoing edge has no completed value capture");
     }
     let operand = facts.flow.control.operands.get(outgoing.returned_value);
-    captured_claims(program, facts, outgoing, operand)
-}
-
-fn captured_claims(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    outgoing: &FlowStateOutgoingFact,
-    operand: &FlowOperandFact,
-) -> Result<Vec<ReturnedClaim>, &'static str> {
-    if !operand.type_reference.is_valid()
-        || operand.state_symbol != outgoing.state_symbol
+    if operand.state_symbol != outgoing.state_symbol
         || operand.statement_index != outgoing.statement_index
     {
         return Err("returned capture does not belong to this typed outgoing occurrence");
     }
-    let frontier = super::linear_claim_frontier(program, operand.type_reference);
-    if frontier.is_empty() {
-        return Ok(Vec::new());
-    }
+    captured_claims(
+        program,
+        facts,
+        operand,
+        Default::default(),
+        &|operand, place, _| returned_place_claims(facts, outgoing, operand, place),
+    )
+}
+
+/// Observe the live frontier before the enclosing operation moves its result.
+/// This uses the same capture/path traversal as outgoing correspondence, but
+/// reads the current ownership walk rather than future transfer events.
+pub(crate) fn completed_owned_claims(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    operand: &FlowOperandFact,
+    places: &[LinearPlace],
+    evaluation_events: &[checked_trees::FlowPermissionEventFact],
+) -> Result<Vec<ReturnedClaim>, &'static str> {
+    captured_claims(
+        program,
+        facts,
+        operand,
+        Default::default(),
+        &|capture, source, parent| {
+            // An assembled child has already moved into this value. Its exact
+            // transfer retains the original claim even if a later sibling restored
+            // the source slot with a different owner. Only the current permission
+            // producer's evaluation prefix is supplied here; Call-source moves
+            // belong to the callee and cannot provide construction custody.
+            if parent.is_valid() {
+                let transferred = transferred_place_claims(
+                    facts,
+                    capture.state_symbol,
+                    capture.statement_index,
+                    capture,
+                    source,
+                    evaluation_events.iter(),
+                )?;
+                if !transferred.is_empty() {
+                    return Ok(transferred);
+                }
+            }
+            places
+                .iter()
+                .filter_map(|place| {
+                    if place.root != source.root || !place.ever_established || place.zero_image {
+                        return None;
+                    }
+                    let path = place.path.strip_prefix(source.segments.as_slice())?;
+                    if !place.live && !place.case_excluded {
+                        return None;
+                    }
+                    Some(if place.case_excluded {
+                        Ok(ReturnedClaim {
+                            path: path.to_vec(),
+                            source: ReturnedClaimSource::Inactive,
+                        })
+                    } else {
+                        match place.claim_identity {
+                            Some(identity) if identity != PermissionClaimIdentity::Unknown => {
+                                Ok(ReturnedClaim {
+                                    path: path.to_vec(),
+                                    source: ReturnedClaimSource::Live(identity),
+                                })
+                            }
+                            _ => Err("completed live owner has no exact claim identity"),
+                        }
+                    })
+                })
+                .collect()
+        },
+    )
+}
+
+fn returned_place_claims(
+    facts: &CheckFacts,
+    outgoing: &FlowStateOutgoingFact,
+    operand: &FlowOperandFact,
+    place: &validation::CanonicalPlace,
+) -> Result<Vec<ReturnedClaim>, &'static str> {
     let evaluation = if outgoing.transition_target.is_valid() {
         FlowPermissionEvaluation::TransitionTarget(outgoing.transition_target)
     } else {
         FlowPermissionEvaluation::Statement
     };
-    let mut claims = Vec::new();
-    if let Some(place) = validation::canonical_place_from_expression_in_state(
-        program,
+    transferred_place_claims(
+        facts,
         outgoing.state_symbol,
         outgoing.statement_index,
-        operand.expression,
-    ) {
-        for (_, event) in facts
+        operand,
+        place,
+        facts
             .flow
             .ownership
             .permissions
             .iter()
             .filter(|(_, event)| {
-                event.machine_symbol == outgoing.machine_symbol
-                    && event.state_symbol == outgoing.state_symbol
-                    && event.evaluation == evaluation
-                    && event.expression == operand.expression
-                    && event.kind == PermissionEventKind::Transfer
-                    && event.access == PermissionAccess::Owned
-                    && event.root == place.root
-                    && event.source
-                        == language_semantics::PermissionEventSource::Statement {
-                            statement_index: outgoing.statement_index,
-                        }
+                event.machine_symbol == outgoing.machine_symbol && event.evaluation == evaluation
             })
-        {
-            let path = facts.flow.ownership.segments.span_or_empty(event.segments);
-            let Some(suffix) = path.strip_prefix(place.segments.as_slice()) else {
-                continue;
-            };
-            let source = if event.obligation_live {
-                if event.claim_identity == PermissionClaimIdentity::Unknown {
-                    return Err("returned live permission has no established claim identity");
-                }
-                ReturnedClaimSource::Live(event.claim_identity)
-            } else {
-                ReturnedClaimSource::Inactive
-            };
-            claims.push(ReturnedClaim {
-                path: suffix.to_vec(),
-                source,
-            });
-        }
+            .map(|(_, event)| event),
+    )
+}
+
+/// Claim movement is read from the produced ledger, never inferred from a
+/// dead source slot. The caller scopes this iterator to the exact evaluation;
+/// an in-progress producer has not yet finalized every event's lane field.
+fn transferred_place_claims<'event>(
+    facts: &CheckFacts,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    operand: &FlowOperandFact,
+    place: &validation::CanonicalPlace,
+    events: impl Iterator<Item = &'event checked_trees::FlowPermissionEventFact>,
+) -> Result<Vec<ReturnedClaim>, &'static str> {
+    let mut claims = Vec::new();
+    for event in events.filter(|event| {
+        event.state_symbol == state
+            && event.expression == operand.expression
+            && event.kind == PermissionEventKind::Transfer
+            && event.access == PermissionAccess::Owned
+            && event.root == place.root
+            && event.source
+                == language_semantics::PermissionEventSource::Statement { statement_index }
+    }) {
+        let path = facts.flow.ownership.segments.span_or_empty(event.segments);
+        let Some(suffix) = path.strip_prefix(place.segments.as_slice()) else {
+            continue;
+        };
+        let source = if event.obligation_live {
+            if event.claim_identity == PermissionClaimIdentity::Unknown {
+                return Err("returned live permission has no established claim identity");
+            }
+            ReturnedClaimSource::Live(event.claim_identity)
+        } else {
+            ReturnedClaimSource::Inactive
+        };
+        claims.push(ReturnedClaim {
+            path: suffix.to_vec(),
+            source,
+        });
     }
+    Ok(claims)
+}
+
+fn captured_claims(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    operand: &FlowOperandFact,
+    parent: typed_trees::expression::ExpressionHandle,
+    observe: &impl Fn(
+        &FlowOperandFact,
+        &validation::CanonicalPlace,
+        typed_trees::expression::ExpressionHandle,
+    ) -> Result<Vec<ReturnedClaim>, &'static str>,
+) -> Result<Vec<ReturnedClaim>, &'static str> {
+    if !operand.type_reference.is_valid() {
+        return Err("completed capture has no result type");
+    }
+    let frontier = super::linear_claim_frontier(program, operand.type_reference);
+    if frontier.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut claims = match validation::canonical_place_from_expression_in_state(
+        program,
+        operand.state_symbol,
+        operand.statement_index,
+        operand.expression,
+    ) {
+        Some(place) => observe(operand, &place, parent)?,
+        None => Vec::new(),
+    };
     if claims.is_empty() {
         // Child paths are resolved destination identities retained by operand
         // evaluation. Constructors, nested aggregates and detached values use
@@ -115,7 +225,15 @@ fn captured_claims(
             .span_or_empty(operand.children)
         {
             let child_operand = facts.flow.control.operands.get(child.value);
-            for mut claim in captured_claims(program, facts, outgoing, child_operand)? {
+            if child.parent != operand.expression
+                || child_operand.state_symbol != operand.state_symbol
+                || child_operand.statement_index != operand.statement_index
+            {
+                return Err("child capture belongs to another evaluation occurrence");
+            }
+            for mut claim in
+                captured_claims(program, facts, child_operand, operand.expression, observe)?
+            {
                 let mut path = facts
                     .flow
                     .control

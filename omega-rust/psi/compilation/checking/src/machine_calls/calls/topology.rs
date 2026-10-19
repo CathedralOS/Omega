@@ -2,6 +2,68 @@
 
 use symbols::SymbolHandle;
 
+/// Conservative normal-completion reachability over admitted state control.
+/// Explicit crash edges and closed nonreturning cycles supply no return.
+/// Unknown bodies and ordinary value evaluation remain potentially normal;
+/// missing custody/origin evidence is never evidence of nonreturning control.
+pub fn normal_completion_possible(
+    program: &dyn crate::CheckingInput,
+    initial: &typed_trees::state::State,
+) -> Option<bool> {
+    use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+    let mut pending = vec![initial.symbol];
+    let mut visited = Vec::new();
+    while let Some(symbol) = pending.pop() {
+        if visited.contains(&symbol) {
+            continue;
+        }
+        visited.push(symbol);
+        let (machine, state) = find_state(program, symbol)?;
+        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+            || !machine.body_is_present
+        {
+            return Some(true);
+        }
+        let statements = typed_trees::statement::reachable_state_statements(
+            program.statement_table.statements(state.statement_nodes),
+        );
+        let mut has_transition = false;
+        for (position, statement) in statements.iter().enumerate() {
+            match statement {
+                StatementNode::Expression(_) if position + 1 == statements.len() => {
+                    return Some(true);
+                }
+                StatementNode::Transition(transition) => {
+                    has_transition = true;
+                    if matches!(transition.exit, TransitionExit::Crash(_)) {
+                        continue;
+                    }
+                    for target in transition.targets() {
+                        match program.statement_table.transition_target(target) {
+                            TransitionTargetNode::Named { path, .. } => {
+                                let Some(destination) = call_target_state(program, path.symbol)
+                                else {
+                                    return Some(true);
+                                };
+                                pending.push(destination.symbol);
+                            }
+                            TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
+                                return Some(true);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        // A body without a control edge can complete implicitly as Unit.
+        if !has_transition {
+            return Some(true);
+        }
+    }
+    Some(false)
+}
+
 pub fn find_state_in_machine(
     program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,

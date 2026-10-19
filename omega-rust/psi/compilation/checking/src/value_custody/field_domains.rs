@@ -457,7 +457,16 @@ pub type FieldDomainIdentity = (
     language_semantics::SemanticDomainId,
 );
 
-type OwnedFieldDomainIdentities = Vec<FieldDomainIdentity>;
+/// Declared child obligations, including linear custody and nominal cleanup
+/// hidden by a parent, and paths whose owned layout is unresolved. These paths do not mint
+/// additional claim identities. A whole-value disposition must account for
+/// their custody, or prove their enclosing case inactive.
+#[derive(Clone, Default)]
+pub struct OwnedFieldObligations {
+    pub identities: Vec<FieldDomainIdentity>,
+    pub custody: Vec<Vec<facts::PlaceSegment>>,
+    pub unresolved: Vec<Vec<facts::PlaceSegment>>,
+}
 
 /// Lazy owned-result qualification answers for this checking invocation.
 /// Queries retain exact type-reference generations; a private mutated
@@ -465,7 +474,7 @@ type OwnedFieldDomainIdentities = Vec<FieldDomainIdentity>;
 pub(crate) struct OwnedFieldDomainQueries {
     rows: Vec<(
         TypeReferenceHandle,
-        std::sync::OnceLock<OwnedFieldDomainIdentities>,
+        std::sync::OnceLock<OwnedFieldObligations>,
     )>,
 }
 
@@ -486,8 +495,17 @@ impl OwnedFieldDomainQueries {
 pub fn declared_owned_field_domain_identities(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
-) -> OwnedFieldDomainIdentities {
-    let compute = || declared_owned_field_domain_identities_uncached(program, reference);
+) -> Vec<FieldDomainIdentity> {
+    declared_owned_field_obligations(program, reference).identities
+}
+
+/// The same owned-field walk with completeness retained. These are obligations,
+/// not proof that a membership is currently established or a case selected.
+pub fn declared_owned_field_obligations(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> OwnedFieldObligations {
+    let compute = || declared_owned_field_obligations_uncached(program, reference);
     let Some(memos) = program.checking_memos() else {
         return compute();
     };
@@ -503,20 +521,16 @@ pub fn declared_owned_field_domain_identities(
     queries.rows[position].1.get_or_init(compute).clone()
 }
 
-fn declared_owned_field_domain_identities_uncached(
+fn declared_owned_field_obligations_uncached(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
-) -> OwnedFieldDomainIdentities {
+) -> OwnedFieldObligations {
     fn visit(
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
         prefix: &mut Vec<facts::PlaceSegment>,
         ancestors: &mut Vec<SymbolHandle>,
-        output: &mut Vec<(
-            Vec<facts::PlaceSegment>,
-            SymbolHandle,
-            language_semantics::SemanticDomainId,
-        )>,
+        output: &mut OwnedFieldObligations,
     ) {
         let carrier = program
             .type_reference_table
@@ -528,14 +542,29 @@ fn declared_owned_field_domain_identities_uncached(
             return;
         }
         if !prefix.is_empty() {
-            output.extend(
+            // Multiplicity alone is not an established root obligation: an
+            // empty fixed array inherits its element's property but owns no
+            // elements. Transparent frontiers are visited below at their exact
+            // child paths, rather than invented as another aggregate claim.
+            if crate::linear_claim_frontier(program, carrier)
+                .iter()
+                .any(|claim| claim.path.is_empty())
+                || crate::nominal_cleanup_machine_for_type(program, reference, &[]).is_some()
+            {
+                output.custody.push(prefix.clone());
+            }
+            output.identities.extend(
                 domain_constraint_identities(program, reference)
                     .into_iter()
                     .map(|(symbol, identity)| (prefix.clone(), symbol, identity)),
             );
         }
-        if let Some(data) = owned_nominal_data_definition(program, carrier) {
+        if let Some(data) = program
+            .closed_data_definition(carrier)
+            .or_else(|| owned_nominal_data_definition(program, carrier))
+        {
             if ancestors.contains(&data.symbol) {
+                output.unresolved.push(prefix.clone());
                 return;
             }
             ancestors.push(data.symbol);
@@ -559,7 +588,7 @@ fn declared_owned_field_domain_identities_uncached(
             // Every element has the same identities below its index. Visit
             // one element under a placeholder index and repeat the result per
             // index rather than walking each element of a large buffer.
-            let mut element = Vec::new();
+            let mut element = OwnedFieldObligations::default();
             let mut element_prefix = vec![facts::PlaceSegment::FixedIndex { index: 0 }];
             visit(
                 program,
@@ -569,17 +598,36 @@ fn declared_owned_field_domain_identities_uncached(
                 &mut element,
             );
             for index in 0..*length {
-                for (path, symbol, identity) in &element {
+                for (path, symbol, identity) in &element.identities {
                     let mut indexed = Vec::with_capacity(prefix.len() + path.len());
                     indexed.extend_from_slice(prefix);
                     indexed.push(facts::PlaceSegment::FixedIndex { index });
                     indexed.extend_from_slice(&path[1..]);
-                    output.push((indexed, *symbol, *identity));
+                    output.identities.push((indexed, *symbol, *identity));
+                }
+                for path in &element.unresolved {
+                    let mut indexed = prefix.clone();
+                    indexed.push(facts::PlaceSegment::FixedIndex { index });
+                    indexed.extend_from_slice(&path[1..]);
+                    output.unresolved.push(indexed);
+                }
+                for path in &element.custody {
+                    let mut indexed = prefix.clone();
+                    indexed.push(facts::PlaceSegment::FixedIndex { index });
+                    indexed.extend_from_slice(&path[1..]);
+                    output.custody.push(indexed);
                 }
             }
+        } else if program.primitive_type_reference(carrier).is_none()
+            && !matches!(
+                program.type_reference_table.type_reference(carrier),
+                TypeReferenceNode::Unit
+            )
+        {
+            output.unresolved.push(prefix.clone());
         }
     }
-    let mut output = Vec::new();
+    let mut output = OwnedFieldObligations::default();
     visit(
         program,
         reference,

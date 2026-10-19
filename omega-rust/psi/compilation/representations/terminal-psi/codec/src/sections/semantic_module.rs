@@ -94,7 +94,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Owned value transfers retain occurrence-bound memberships and original custody.
 // Guarded selections retain the exact structural formal projection and its
 // distinct dense argument namespace; older bytes have no projection tag.
-pub(crate) const FORMAT_MARKER: u16 = 167;
+// Completed content transformations retain exact input/output claims; structural
+// declarations retain their own linear obligation beneath whole parent claims.
+pub(crate) const FORMAT_MARKER: u16 = 168;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

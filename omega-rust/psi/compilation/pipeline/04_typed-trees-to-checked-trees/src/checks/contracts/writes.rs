@@ -102,9 +102,10 @@ pub(super) fn check_domain_field_writes(
         {
             continue;
         }
-        for domain in
-            validation::field_domains::declared_domain_constraint_records(program, value.type_reference)
-        {
+        for domain in validation::field_domains::declared_domain_constraint_records(
+            program,
+            value.type_reference,
+        ) {
             let domain_symbol = domain.symbol;
             let semantic_domain = domain.semantic_id;
             // The checked result boundary introduces routed provenance only

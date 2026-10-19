@@ -62,6 +62,7 @@ pub(crate) fn reconstruct_declared_places(
             // result place like any establishment's.
             | O::StructuralLeafCopy { result, .. }
             | O::MoveStructuralValue { result, .. }
+            | O::TransformContent { result, .. }
             | O::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -164,6 +165,13 @@ pub(crate) fn validate_operation_places(
             require(source.place, known)?
         }
         O::MoveStructuralValue { source, .. } => require(source.place, known)?,
+        O::TransformContent {
+            source, parents, ..
+        } => {
+            for argument in std::iter::once(source).chain(parents) {
+                require(argument.place, known)?;
+            }
+        }
         O::ReleaseReference { source, .. } => require(*source, known)?,
         O::WriteOnlyPrimitiveStore { destination, .. } => {
             require(destination.place(), known)?;

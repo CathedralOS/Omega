@@ -806,7 +806,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     CallUnit => flow execute_call_unit,
                                     StructuralScalarFieldStore => flow execute_structural_scalar_field_store,
                                     MoveStructuralField => advance execute_move_structural_field,
-                                    MoveStructuralValue => advance execute_move_structural_value,
+                                    MoveStructuralValue | TransformContent => advance execute_move_structural_value,
                                     StoreStructuralField => advance execute_store_structural_field,
                                     ByteSequenceStore => advance execute_byte_sequence_store,
                                     StructuralByteSequenceFieldStore => advance execute_structural_byte_sequence_field_store,

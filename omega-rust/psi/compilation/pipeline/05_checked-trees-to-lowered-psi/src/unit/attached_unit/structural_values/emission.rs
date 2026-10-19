@@ -27,6 +27,7 @@ use checked_trees::{
 
 mod completed_storage;
 mod completions;
+mod content_transformations;
 mod copied_place;
 mod dispatch;
 mod element_views;
@@ -561,6 +562,7 @@ pub(crate) fn emit<'source>(
         // constructor operand. Retain its established facts before forming
         // the receiving declaration, without changing the source contract.
         let node = structural_values(checked).nodes.get(*value);
+        emission.bind_fresh_completion_claims(&source, first_new_place)?;
         let source = emission.retain_checked_memberships(
             identities,
             source,
@@ -1111,6 +1113,34 @@ impl ProjectionSource {
 }
 
 impl Emission<'_, '_, '_> {
+    /// Attach the checked establishment to the actual producer before any
+    /// membership-preserving transfer. Binding only the final receiving place
+    /// would make a move appear to introduce custody its source never owned.
+    fn bind_fresh_completion_claims(
+        &mut self,
+        source: &StructuralArgument,
+        first_new_place: u64,
+    ) -> Result<(), LoweringError> {
+        if source.path.is_empty()
+            && source.place.get() >= first_new_place
+            && !self.completion_claims.is_empty()
+            && self.operations.operations.iter().any(|operation| {
+                operation
+                    .result
+                    .structural()
+                    .is_some_and(|result| result.place == source.place)
+            })
+        {
+            Self::bind_completion_claims(
+                self.operations,
+                source.place,
+                &self.completion_claims,
+                &self.direct_establishments,
+            )?;
+        }
+        Ok(())
+    }
+
     /// The argument source arriving at `place`, when the receipt carries one.
     fn source_at(&self, place: PlaceId) -> Option<&StructuralArgument> {
         self.sources.iter().find(|source| source.place == place)
@@ -1518,7 +1548,6 @@ impl Emission<'_, '_, '_> {
         reference: checked_trees::types::TypeReferenceHandle,
     ) -> Result<super::operand_claims::CompletedOperand, LoweringError> {
         let first_new_place = *self.environment.next_place;
-        let first_new_operation = self.operations.next_identity;
         let node = self.structural_value_node(value);
         // A projection of existing storage moves its child in place; the
         // owner keeps its residual. An anonymous call result has no owner to
@@ -1561,23 +1590,7 @@ impl Emission<'_, '_, '_> {
         let result = self
             .value(identities, value, None)
             .and_then(|argument| {
-                let place = argument.place;
-                if !self.completion_claims.is_empty()
-                    && self.operations.operations.iter().any(|operation| {
-                        operation.id.get() >= first_new_operation
-                            && operation
-                                .result
-                                .structural()
-                                .is_some_and(|result| result.place == place)
-                    })
-                {
-                    Self::bind_completion_claims(
-                        self.operations,
-                        place,
-                        &self.completion_claims,
-                        &self.direct_establishments,
-                    )?;
-                }
+                self.bind_fresh_completion_claims(&argument, first_new_place)?;
                 Ok(argument)
             })
             .and_then(|argument| {
@@ -1644,6 +1657,27 @@ impl Emission<'_, '_, '_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
+        value: CheckedStructuralValueHandle,
+        continuation: Option<&mut ValueContinuation>,
+    ) -> Result<StructuralArgument, LoweringError> {
+        let node = self.structural_value_node(value);
+        let transaction = self.content_transformation(&node)?;
+        if let Some(transaction) = transaction {
+            // Formation owns the transaction, before any enclosing join can
+            // publish this occurrence as a qualified source value.
+            let raw = self.raw_value(identities, value, None)?;
+            let transformed = self.transform_content(identities, raw, transaction)?;
+            if let Some(continuation) = continuation {
+                self.complete_value(transformed.clone(), continuation)?;
+            }
+            return Ok(transformed);
+        }
+        self.raw_value(identities, value, continuation)
+    }
+
+    fn raw_value(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: CheckedStructuralValueHandle,
         continuation: Option<&mut ValueContinuation>,
     ) -> Result<StructuralArgument, LoweringError> {

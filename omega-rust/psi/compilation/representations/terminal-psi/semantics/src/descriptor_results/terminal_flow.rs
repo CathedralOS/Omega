@@ -497,13 +497,15 @@ pub(super) fn adapt(
                     );
                 }
                 terminal_psi::structural_leaf_copy_pair_pattern!()
-                | OperationKind::MoveStructuralValue { .. } => {
+                | OperationKind::MoveStructuralValue { .. }
+                | OperationKind::TransformContent { .. } => {
                     let destination = DescriptorLocation::whole(result?.place);
                     let source = match &operation.kind {
                         OperationKind::StructuralLeafCopy { source, path } => {
                             location(*source, path, None)
                         }
-                        OperationKind::MoveStructuralValue { source } => {
+                        OperationKind::MoveStructuralValue { source }
+                        | OperationKind::TransformContent { source, .. } => {
                             location(source.place, &source.path, None)
                         }
                         OperationKind::StructuralCaseLeafCopy { source, path } => {

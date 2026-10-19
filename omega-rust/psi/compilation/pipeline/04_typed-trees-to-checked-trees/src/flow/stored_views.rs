@@ -5,16 +5,7 @@ use arena::HandleSpan;
 use checked_trees::{FlowControlFacts, FlowOperandReferent, FlowStatementFact};
 use validation::CanonicalPlace;
 
-/// One authoritative reaching store, before interpreting its descriptor as
-/// geometry or lifetime dependencies. Unavailable is not an older initializer.
-pub(crate) enum StoredOperand {
-    Unavailable,
-    Value {
-        capture: checked_trees::FlowOperandFact,
-        reference: typed_trees::types::TypeReferenceHandle,
-        projection: Vec<facts::PlaceSegment>,
-    },
-}
+use super::stored_values::{StoredObservation, StoredOperand};
 
 pub(crate) fn before_statement(
     program: &dyn validation::CheckingInput,
@@ -45,16 +36,17 @@ pub(crate) fn before_statement(
     else {
         return Some(Vec::new());
     };
+    let capture = control.operands.get(capture);
     // This consumer needs actual descriptor contents. A lifetime-only leaf
     // does not supply an address, even though the reaching store is known.
     let (capture, reference, projection) =
         if super::operand_contexts::operand_binds_live_view(program, reference) {
-            (&capture, reference, projection.as_slice())
+            (capture, reference, projection.as_slice())
         } else {
             let Some((selected, reference)) = super::operand_values::captured_operand_at_path(
                 program,
                 control,
-                &capture,
+                capture,
                 reference,
                 &projection,
             ) else {
@@ -116,60 +108,19 @@ pub(crate) fn capture_before_statement(
     {
         return None;
     }
-    if !super::operand_contexts::binding_origin_is_stable(
+    if let Some(stored) = super::stored_values::before_statement(
         program,
+        semantic,
         control,
+        state,
+        statements,
+        before,
         writes,
         unknown_write,
         source,
+        StoredObservation::Binding,
     ) {
-        return Some(StoredOperand::Unavailable);
-    }
-    let order = program
-        .statement_table
-        .admitted_execution_order(state.statement_nodes);
-    let end = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .len();
-    for statement in control
-        .statements
-        .span_or_empty(statements)
-        .iter()
-        .rev()
-        .filter(|row| {
-            order.precedes(row.statement_index, before)
-                || before == end && order.position(row.statement_index).is_some()
-        })
-    {
-        if semantic.places.is_valid(statement.stored_destination)
-            && control.operands.is_valid(statement.stored_value)
-        {
-            let destination = super::canonical_place_from_semantic_place(
-                program,
-                semantic,
-                semantic.places.get(statement.stored_destination),
-            )?;
-            if destination.root == source.root && source.segments.starts_with(&destination.segments)
-            {
-                let stored = control.operands.get(statement.stored_value);
-                let path = &source.segments[destination.segments.len()..];
-                return Some(StoredOperand::Value {
-                    capture: *stored,
-                    reference: stored.type_reference,
-                    projection: path.to_vec(),
-                });
-            }
-        }
-        if !super::operand_contexts::binding_origin_is_stable(
-            program,
-            control,
-            statement.completed_writes,
-            statement.completed_unknown_write,
-            source,
-        ) {
-            return Some(StoredOperand::Unavailable);
-        }
+        return Some(stored);
     }
     source
         .root

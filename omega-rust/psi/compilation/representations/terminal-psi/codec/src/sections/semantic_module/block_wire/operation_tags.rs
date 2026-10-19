@@ -254,3 +254,6 @@ pub(super) const STORAGE_ADDRESS: u8 = 123;
 
 /// Identity-preserving owned transfer with occurrence-bound memberships.
 pub(super) const MOVE_STRUCTURAL_VALUE: u8 = 124;
+
+/// Checked content transformation with explicit owned parent operands.
+pub(super) const TRANSFORM_CONTENT: u8 = 125;

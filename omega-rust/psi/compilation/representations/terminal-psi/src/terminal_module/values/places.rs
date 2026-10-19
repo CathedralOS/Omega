@@ -228,7 +228,8 @@ impl OperationKind {
     /// This is a mechanical use inventory, not a custody transformation.
     /// Result declarations and establishment destinations are definitions,
     /// not uses. Scalar selectors, paths, access, and identities inside proof
-    /// terms, crash continuations, claims or other evidence stay unchanged.
+    /// terms, crash continuations, claims or other evidence stay unchanged,
+    /// except exact content subjects bound to the renamed transaction operands.
     /// Consumers must separately preserve that evidence and all module-level
     /// catalogs when replacing a place; this method grants no new authority.
     pub fn map_structural_uses(&mut self, map: &mut impl FnMut(PlaceId) -> PlaceId) {
@@ -246,6 +247,27 @@ impl OperationKind {
     ) {
         match self {
             Self::EstablishNativeCodeLayout { .. } => {}
+            Self::TransformContent {
+                source,
+                parents,
+                derivations,
+            } => {
+                let mut bindings = Vec::new();
+                for argument in std::iter::once(source).chain(parents) {
+                    let original = argument.place;
+                    argument.place = map(original, argument.access);
+                    bindings.push((original, argument.place));
+                }
+                for derived in derivations.iter_mut() {
+                    derived.map_places(&mut |place| {
+                        bindings
+                            .iter()
+                            .find(|(source, _)| *source == place)
+                            .map_or(place, |(_, target)| *target)
+                    });
+                }
+                derivations.sort();
+            }
             Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
             | Self::EstablishPlacedReference { source }
@@ -396,6 +418,12 @@ impl OperationKind {
             | Self::ElementViewSubslice { source, .. } => {
                 projections.push(argument_projection(source));
             }
+            Self::TransformContent {
+                source, parents, ..
+            } => {
+                projections.push(argument_projection(source));
+                projections.extend(parents.iter().map(argument_projection));
+            }
             Self::ElementViewWrite { destination, .. } => {
                 // Runtime selectors locate the descriptor. The independent
                 // path inside one element is restricted to static leaves.
@@ -510,6 +538,12 @@ impl OperationKind {
             | Self::ByteSequenceSubslice { source, .. }
             | Self::ElementViewSubslice { source, .. } => {
                 paths.push(&mut source.path);
+            }
+            Self::TransformContent {
+                source, parents, ..
+            } => {
+                paths.push(&mut source.path);
+                paths.extend(parents.iter_mut().map(|parent| &mut parent.path));
             }
             Self::ElementViewWrite { destination, .. } => {
                 paths.push(&mut destination.path);

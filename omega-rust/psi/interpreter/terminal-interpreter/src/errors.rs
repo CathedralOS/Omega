@@ -32,6 +32,15 @@ pub enum TerminalInterpretError {
     /// The artifact's exact affine cleanup transaction does not match the
     /// interpreter's live ownership paths.
     AffineFrontierMismatch,
+    /// A structural return must carry exactly its active claims and leave no
+    /// other owned claim live. Retain both rosters so missing consumption is
+    /// distinguishable from a malformed result binding at the execution site.
+    StructuralReturnClaimsMismatch {
+        source: PlaceId,
+        expected: Vec<terminal_psi::StructuralResultClaimBinding>,
+        actual: Vec<terminal_psi::StructuralResultClaimBinding>,
+        unreturned: Vec<semantic_vocabulary::ClaimId>,
+    },
     /// A projection cannot be represented exactly by the interpreter's current
     /// path-aware structural model, so execution fails closed.
     AffineProjectionNotRepresentable,
@@ -125,6 +134,7 @@ pub enum TerminalInterpretError {
         domain: StructuralDomainId,
     },
     ClaimTransferMismatch,
+    ContentTransformationMismatch(&'static str),
     CompletionReceiptMismatch,
     ProviderInstallationIdentityMismatch,
     TargetMachineSelectionIdentityMismatch,

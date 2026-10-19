@@ -36,6 +36,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | abstract_operations::move_or_store_structural_field_pattern!()
         | O::StructuralLeafCopy { .. }
         | O::MoveStructuralValue { .. }
+        | O::TransformContent { .. }
         | O::EstablishNativeCodeLayout { .. }
         | O::EstablishRecord { .. } => structural::encode(bytes, operation),
 

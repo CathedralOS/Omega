@@ -83,9 +83,11 @@ pub use carry::{
 pub use checked_crash_operator_site::{CheckedCrashOperatorSite, OperatorSiteLocation};
 pub use collection::{CheckFacts, DecidedCallRequires, ProvenAssignmentIndex};
 pub use content::{
-    ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
-    ContentPartitionInputClaimBinding, ContentPartitionPlaceSubstitution,
-    ContentPartitionResultRewrite, ContentProjectionFacts, RetainedBorrowCustodyFact,
+    ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyConservationFact,
+    ContentBodyDerivation, ContentBodyTransformation, ContentIdentityReshuffleFact,
+    ContentPartitionCompositionFact, ContentPartitionInputClaimBinding,
+    ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, ContentProjectionFacts,
+    RetainedBorrowCustodyFact,
 };
 pub use content_classes::{ContentClassFacts, ContentClassRow};
 pub use contextual_cleanup::{

@@ -285,6 +285,8 @@ impl<'program> ShapeCollector<'program> {
         let identity = closed_data_identity(self.program, data, binders);
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
+            owns_linear_claim: data.properties.multiplicity
+                == language_semantics::Multiplicity::Linear,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             identity: identity,
@@ -410,6 +412,7 @@ impl<'program> ShapeCollector<'program> {
         });
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: access != CheckedStructuralAccess::Owned,
             identity: identity,
@@ -603,6 +606,7 @@ impl<'program> ShapeCollector<'program> {
                 // Reference shapes, replacement may retire that descriptor,
                 // never its backing or any still-live child permission.
                 descriptor_cleanup: carrier.is_borrowed(),
+                owns_linear_claim: false,
                 no_code_affine_cleanup: no_code_affine_cleanup
                     && matches!(
                         carrier,
@@ -636,6 +640,7 @@ impl<'program> ShapeCollector<'program> {
             self.in_progress.remove(&identity);
             let plan = CheckedUnitStructuralTypePlan {
                 scalar_restriction: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 // The element type describes borrowed backing, not contents
                 // disposed with this address/extent descriptor.
@@ -691,6 +696,7 @@ impl<'program> ShapeCollector<'program> {
                 identity,
                 CheckedUnitStructuralTypePlan {
                     scalar_restriction,
+                    owns_linear_claim: false,
                     no_code_affine_cleanup,
                     descriptor_cleanup,
                     identity: identity,
@@ -775,6 +781,7 @@ impl<'program> ShapeCollector<'program> {
                 identity,
                 CheckedUnitStructuralTypePlan {
                     scalar_restriction: None,
+                    owns_linear_claim: false,
                     no_code_affine_cleanup,
                     descriptor_cleanup,
                     identity: identity,
@@ -897,6 +904,11 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(identity, plan);
             return Some(identity);
         }
+        // Custody belongs to the nominal declaration even when a selected
+        // representation supplies its geometry. Do not inherit this bit from
+        // fields, array elements, or a borrowed occurrence of the carrier.
+        let owns_linear_claim =
+            data.properties.multiplicity == language_semantics::Multiplicity::Linear;
         // A boundary-opaque datum authors no storage of its own. The
         // authoritative build's exact `OpaqueRepresentation` application picks
         // the concrete carrier, and that carrier alone supplies the physical
@@ -918,12 +930,13 @@ impl<'program> ShapeCollector<'program> {
             };
             data = carrier.clone();
         }
-        let no_code_affine_cleanup = validation::data_has_contents(
-            self.program,
-            &data,
-            &substitutions,
-            validation::ContentsRequirement::RepresentedOwned,
-        );
+        let no_code_affine_cleanup = !owns_linear_claim
+            && validation::data_has_contents(
+                self.program,
+                &data,
+                &substitutions,
+                validation::ContentsRequirement::RepresentedOwned,
+            );
         let descriptor_cleanup = validation::data_has_contents(
             self.program,
             &data,
@@ -1017,6 +1030,7 @@ impl<'program> ShapeCollector<'program> {
                 identity,
                 CheckedUnitStructuralTypePlan {
                     scalar_restriction: None,
+                    owns_linear_claim,
                     no_code_affine_cleanup,
                     descriptor_cleanup,
                     identity: identity,
@@ -1113,6 +1127,7 @@ impl<'program> ShapeCollector<'program> {
             identity,
             CheckedUnitStructuralTypePlan {
                 scalar_restriction: None,
+                owns_linear_claim,
                 no_code_affine_cleanup,
                 descriptor_cleanup,
                 identity: identity,
@@ -1284,6 +1299,8 @@ impl<'program> ShapeCollector<'program> {
         });
         let plan = CheckedUnitStructuralTypePlan {
             scalar_restriction: None,
+            owns_linear_claim: self.program.type_multiplicity(type_reference)
+                == language_semantics::Multiplicity::Linear,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             identity: identity,

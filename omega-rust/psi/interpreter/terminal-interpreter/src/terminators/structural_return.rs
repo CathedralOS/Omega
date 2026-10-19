@@ -139,14 +139,23 @@ impl TerminalExecution<'_> {
                     path: live.path.clone(),
                 })
                 .collect::<Vec<_>>();
-            if actual_claims != active_returned_claims
-                || self.live_claims.keys().any(|claim| {
+            let unreturned = self
+                .live_claims
+                .keys()
+                .filter(|claim| {
                     !active_returned_claims
                         .iter()
-                        .any(|binding| binding.claim == *claim)
+                        .any(|binding| binding.claim == **claim)
                 })
-            {
-                return Err(malformed());
+                .copied()
+                .collect::<Vec<_>>();
+            if actual_claims != active_returned_claims || !unreturned.is_empty() {
+                return Err(TerminalInterpretError::StructuralReturnClaimsMismatch {
+                    source: *source,
+                    expected: active_returned_claims,
+                    actual: actual_claims,
+                    unreturned,
+                });
             }
             // A borrowed descriptor parameter has no owned debt in this
             // activation. Returning its mutable view establishes a result

@@ -59,3 +59,76 @@ pub struct ContentPartitionComposition {
 }
 
 impl ContentPartitionComposition {}
+
+/// One live claim's exact content projection at a transformation occurrence.
+/// A claim identity is independent of its current storage and qualification:
+/// equal geometry alone cannot establish this association.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ContentClaimProjection {
+    pub claim: ClaimId,
+    pub projection: ContentProjectionIdentity,
+    pub subject: ContentStructuralPlace,
+}
+
+/// One equation of an atomic content transformation. All rows of the operation
+/// are checked jointly, including every independent qualification of each
+/// consumed parent. Outputs keep their existing nominal claim identities;
+/// the equation derives membership, not a fresh root or a replacement claim.
+/// Derivations and their input/output rosters are unordered sets encoded in
+/// strict derived `Ord` order. Remapping restores that order before publication.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ContentTransformationDerivation {
+    pub conservation: ContentConservation,
+    /// The retained relation authenticates this current input identity only.
+    /// Equal geometry does not establish shared backing with another claim;
+    /// multi-parent reunion needs additional evidence not represented here.
+    pub lineage_anchor: ClaimId,
+    pub inputs: Vec<ContentClaimProjection>,
+    pub outputs: Vec<ContentClaimProjection>,
+}
+
+impl ContentTransformationDerivation {
+    /// Rebind exact occurrence roots alongside the operation's operand/result
+    /// namespace. Qualification, projection and claim identities are unchanged.
+    pub fn map_places(
+        &mut self,
+        map: &mut impl FnMut(semantic_vocabulary::PlaceId) -> semantic_vocabulary::PlaceId,
+    ) {
+        fn term(
+            value: &semantic_vocabulary::ContentTerm,
+            map: &mut impl FnMut(semantic_vocabulary::PlaceId) -> semantic_vocabulary::PlaceId,
+        ) -> semantic_vocabulary::ContentTerm {
+            match value {
+                semantic_vocabulary::ContentTerm::Projection {
+                    projection,
+                    subject,
+                } => {
+                    let mut subject = subject.clone();
+                    subject.root = map(subject.root);
+                    semantic_vocabulary::ContentTerm::Projection {
+                        projection: *projection,
+                        subject,
+                    }
+                }
+                semantic_vocabulary::ContentTerm::Separate(children) => {
+                    let mut children = children
+                        .iter()
+                        .map(|child| term(child, map))
+                        .collect::<Vec<_>>();
+                    children.sort();
+                    semantic_vocabulary::ContentTerm::Separate(children)
+                }
+            }
+        }
+        self.conservation = ContentConservation::new(
+            self.conservation.algebra().clone(),
+            term(self.conservation.left(), map),
+            term(self.conservation.right(), map),
+        );
+        for binding in self.inputs.iter_mut().chain(&mut self.outputs) {
+            binding.subject.root = map(binding.subject.root);
+        }
+        self.inputs.sort();
+        self.outputs.sort();
+    }
+}

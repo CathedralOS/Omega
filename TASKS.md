@@ -3902,7 +3902,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   physical adapter with a semantic continuation.
 
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Complete checked wrapper
-  theorem propagation and interval-set provider-body judgments under
+  theorem propagation under
   [content conservation](wiki/spec/resources/content_custody.md), using canonical
   `source/library/core/content.omg` identities.
   - A wrapper returning a match-selected completed partition call cannot prove
@@ -3913,9 +3913,6 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     selections and transparent construction. Only proved bodies and admitted
     declarations supply theorem roots; unproved guarantees and recursive cycles
     cannot seed their own evidence.
-  - Interval-set provider bodies have no theorem judgment: the content tier stands
-    down even when the body preserves the authored partition. Counted-quantity
-    body judgment does not discharge interval separation or coverage.
   - `tests/omega/pass/core/content_retained_custody_round_trip` has an empty
     entry; its first claim depends on **BOUNDARY-ISSUANCE**. Existing-input
     conservation proceeds independently.

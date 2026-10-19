@@ -22,8 +22,8 @@ use super::structural_judgment::{StructuralJudge, StructuralJudgment, Structural
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationPlan,
     ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot, ContentPlaceSegment,
-    ContentProjectionExpression, ContentProjectionPlan, ContentScalarExpression,
-    ContentStructuralPlace,
+    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionPlan,
+    ContentScalarExpression, ContentStructuralPlace,
 };
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -100,6 +100,101 @@ pub(super) fn judge_content_conservation(
             evaluator.judge_intervals(plan.equation.left(), plan.equation.right())
         }
     }
+}
+
+/// Judge a normalized equation at the exact completed result occurrence.
+/// This is numeric evidence only: the caller must independently establish
+/// live parent custody, loan exclusion, compatible backing and output claims.
+/// In particular, an eventual ensures verdict cannot authorize this earlier cut.
+pub fn completed_value_proves_content_conservation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
+    plan: &ContentConservationPlan,
+    projections: &[ContentProjectionPlan],
+) -> bool {
+    if plan.owner != machine.symbol {
+        return false;
+    }
+    let mut proven = true;
+    let observed = super::completed_observations::observe_completed_values(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        reference,
+        |judge, value| {
+            proven &= matches!(
+                judge_content_conservation(program, judge, &value, plan, projections),
+                StructuralJudgment::Proven
+            );
+        },
+    );
+    observed == Some(true) && proven
+}
+
+/// The consumed owner's current projection must still equal the input revision
+/// used by the conservation theorem. Evaluate both in the exact completion
+/// frame, including completed call guarantees and intervening writes. Nominal
+/// claim correspondence supplies neither this equality nor permission to read.
+pub fn completed_value_preserves_entry_projection(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    current: &crate::CanonicalPlace,
+    entry: &crate::CanonicalPlace,
+) -> bool {
+    let Some(reference) =
+        crate::expression_result_type_reference(program, machine, state, expression)
+    else {
+        return false;
+    };
+    let (Some(current_reference), Some(entry_reference)) = (
+        crate::canonical_place_type_reference(program, state.symbol, statement_index, current),
+        crate::canonical_place_type_reference(program, state.symbol, statement_index, entry),
+    ) else {
+        return false;
+    };
+    let mut proven = true;
+    let coverage = super::completed_observations::observe_completed_values(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        reference,
+        |judge, _| {
+            let (Some(current), Some(entry)) = (
+                judge.captured_place_projection(current, ContentPlaceVersion::Current),
+                judge.captured_place_projection(entry, ContentPlaceVersion::Entry),
+            ) else {
+                proven = false;
+                return;
+            };
+            let embed = |value, reference| StructuralTerm::IntegerEmbedding {
+                reference,
+                value: Box::new(judge.resolve(value)),
+            };
+            proven &= matches!(
+                judge.judge_observed_predicate(
+                    mathematical(
+                        BinaryOperator::Equal,
+                        embed(current, current_reference),
+                        embed(entry, entry_reference)
+                    ),
+                    0,
+                ),
+                StructuralJudgment::Proven
+            );
+        },
+    );
+    coverage == Some(true) && proven
 }
 
 struct ContentValues<'judge, 'program> {

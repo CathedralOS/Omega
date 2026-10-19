@@ -200,7 +200,8 @@ pub(super) fn validate(
                 indices,
             },
             abstracted @ (AbstractOperation::StructuralLeafCopy { .. }
-            | AbstractOperation::MoveStructuralValue { .. }),
+            | AbstractOperation::MoveStructuralValue { .. }
+            | AbstractOperation::TransformContent { .. }),
         ) => {
             let owned_path;
             let (expected_operation, result, expected_source, expected_path) = match abstracted {
@@ -214,6 +215,12 @@ pub(super) fn validate(
                     psi_operation,
                     result,
                     source,
+                }
+                | AbstractOperation::TransformContent {
+                    psi_operation,
+                    result,
+                    source,
+                    ..
                 } => {
                     owned_path = source.path.clone().into();
                     (psi_operation, result, &source.place, &owned_path)

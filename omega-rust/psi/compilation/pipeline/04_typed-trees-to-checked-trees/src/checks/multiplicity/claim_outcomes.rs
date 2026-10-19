@@ -29,46 +29,163 @@ use language_semantics::{
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
+/// Invocation correspondence is an input to permission preparation, not a
+/// correction to custody after cleanup has already observed it. Only a changed
+/// summary actually read by recording schedules another preparation iteration.
+#[derive(Default)]
+pub(crate) struct ClaimOutcomePreparation {
+    maps: Vec<CheckedClaimOutcomeMap>,
+    dependencies: Vec<SymbolHandle>,
+    joins: joins::CallJoinPreparation,
+    revisions: usize,
+    revision_limit: usize,
+}
+
+impl ClaimOutcomePreparation {
+    pub(crate) fn begin(&mut self) {
+        self.dependencies.clear();
+        self.joins.begin();
+    }
+
+    pub(crate) fn update(
+        &mut self,
+        maps: Vec<CheckedClaimOutcomeMap>,
+        joins: Vec<joins::PreparedCallClaimJoin>,
+    ) -> Result<bool, &'static str> {
+        let dependency_count = maps.len().saturating_add(joins.len());
+        // A corrected summary can remove bindings. That shrinks the current
+        // approximation, not the dependency universe already traversed.
+        self.revision_limit = self
+            .revision_limit
+            .max(dependency_count.saturating_mul(2).saturating_add(2));
+        let maps_changed = self.dependencies.iter().any(|state| {
+            self.maps.iter().find(|map| map.state_symbol == *state)
+                != maps.iter().find(|map| map.state_symbol == *state)
+        });
+        let joins_changed = self.joins.update(joins);
+        let changed = maps_changed || joins_changed;
+        if changed {
+            self.revisions += 1;
+            if self.revisions > self.revision_limit {
+                return Err("call-result custody preparation did not converge");
+            }
+        }
+        self.maps = maps;
+        Ok(changed)
+    }
+
+    pub(crate) fn resolve(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        segments: &arena::Arena<facts::PlaceSegment>,
+        event: &mut FlowPermissionEventFact,
+        permission_events: &[FlowPermissionEventFact],
+    ) {
+        let Some((_, expression, path)) = receiving_value(program, segments, event) else {
+            return;
+        };
+        let Some(call) = program.expression_table.call_node(expression) else {
+            return;
+        };
+        let Some(target) = validation::call_target_state(program, call.target_symbol) else {
+            return;
+        };
+        if !self.dependencies.contains(&target.symbol) {
+            self.dependencies.push(target.symbol);
+        }
+        if let Some(map) = self
+            .maps
+            .iter()
+            .find(|map| map.state_symbol == target.symbol)
+            && !map.entries.iter().any(|entry| entry.output_path == path)
+        {
+            event.obligation_live = false;
+            event.claim_identity = PermissionClaimIdentity::Unknown;
+            return;
+        }
+        if let Some((_, _, provenance, identity)) =
+            call_result_origin_rewrite(program, segments, event, permission_events, &self.maps)
+        {
+            event.provenance = provenance;
+            event.claim_identity = identity;
+        }
+        // Different returning sources can have a complete join without an
+        // invariant outcome map. Missing either summary never means absence.
+        // Forward inputs first; only still-local receiving occurrences join.
+        self.joins.resolve(segments, expression, event);
+    }
+}
+
 pub(crate) fn derive_checked_claim_outcome_maps(
     program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
-) -> Vec<CheckedClaimOutcomeMap> {
+) -> Result<Vec<CheckedClaimOutcomeMap>, &'static str> {
     let state_count = program
         .machines()
         .iter()
         .map(|machine| program.machine_states(machine).len())
         .sum::<usize>();
-    let mut maps = Vec::new();
-    for _ in 0..=state_count {
-        let next = program
+    let derive = |maps: &[CheckedClaimOutcomeMap]| {
+        program
             .machines()
             .iter()
             .flat_map(|machine| {
                 program.machine_states(machine).iter().filter_map(|state| {
-                    derive_checked_claim_outcome_map(
+                    derive_claim_outcome_hypothesis(
                         program,
                         borrow,
                         machine.symbol,
                         state,
                         ownership,
                         permission_events,
-                        &maps,
+                        maps,
                     )
                 })
             })
+            .collect::<Vec<_>>()
+    };
+    let mut maps = Vec::new();
+    for _ in 0..=state_count {
+        let next = derive(&maps)
+            .into_iter()
+            .map(|hypothesis| hypothesis.map)
             .collect::<Vec<_>>();
         if next == maps {
-            return maps;
+            // A direct return can seed a recursive invariant, but a missing
+            // alternative is not evidence that the invariant holds. Close
+            // every return against the retained hypotheses before publishing
+            // any map. Removing a dependency also invalidates its callers;
+            // this decreasing phase cannot invent or resurrect a summary.
+            loop {
+                let supported = derive(&maps)
+                    .into_iter()
+                    .filter(|hypothesis| {
+                        hypothesis.all_returns_covered && maps.contains(&hypothesis.map)
+                    })
+                    .map(|hypothesis| hypothesis.map)
+                    .collect::<Vec<_>>();
+                if supported.len() == maps.len() {
+                    return Ok(supported);
+                }
+                maps = supported;
+            }
         }
         maps = next;
     }
-    maps
+    Err("claim outcome equations did not converge")
+}
+
+/// Private fixed-point hypotheses are not permission or lineage evidence.
+/// Normal-return coverage is checked again after removing unsupported maps.
+struct ClaimOutcomeHypothesis {
+    map: CheckedClaimOutcomeMap,
+    all_returns_covered: bool,
 }
 
 #[allow(clippy::too_many_arguments)]
-fn derive_checked_claim_outcome_map(
+fn derive_claim_outcome_hypothesis(
     program: &dyn ::validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     machine_symbol: SymbolHandle,
@@ -76,7 +193,7 @@ fn derive_checked_claim_outcome_map(
     ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
     known_maps: &[CheckedClaimOutcomeMap],
-) -> Option<CheckedClaimOutcomeMap> {
+) -> Option<ClaimOutcomeHypothesis> {
     let segments = &ownership.segments;
     let expected_paths = linear_claim_frontier(program, state.return_type)
         .into_iter()
@@ -88,56 +205,12 @@ fn derive_checked_claim_outcome_map(
     let statements = typed_trees::statement::reachable_state_statements(
         program.statement_table.statements(state.statement_nodes),
     );
-    // Owned receivers are terminal-consumer inputs and do not enter the
-    // ordinary parameter permission ledger. The exact identity body still
-    // supplies an input/result correspondence: it performs no intervening
-    // operation that could replace or consume the receiver. Do not infer this
-    // from a call's single argument or from its result carrier.
-    if let [StatementNode::Expression(expression)] = statements
-        && let Some(place) = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            0,
-            *expression,
-        )
-        && place.segments.is_empty()
-        && let Some(parameter_symbol) = place.root.as_symbol()
-        && program.state_parameters(state).iter().any(|parameter| {
-            false
-                && (parameter.symbol == parameter_symbol || parameter_symbol == machine_symbol)
-                && (program.normalized_type_identity(parameter.type_reference)
-                    == program.normalized_type_identity(state.return_type)
-                    || program.machines().iter().any(|machine| {
-                        machine.symbol == machine_symbol
-                            && machine.attached_data_symbol.is_valid()
-                            && matches!(program.type_reference_table.type_reference(parameter.type_reference),
-                                typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == machine_symbol)
-                            && matches!(program.type_reference_table.type_reference(state.return_type),
-                                typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == machine.attached_data_symbol)
-                    }))
-        })
-    {
-        return Some(CheckedClaimOutcomeMap {
-            machine_symbol,
-            state_symbol: state.symbol,
-            entries: expected_paths
-                .into_iter()
-                .map(|path| CheckedClaimOutcomeEntry {
-                    output_path: path.clone(),
-                    source: CheckedClaimOutcomeSource::Input {
-                        parameter_symbol,
-                        path,
-                    },
-                })
-                .collect(),
-        });
-    }
     let result_expressions = state_result_expressions(program, statements);
     let named_transitions = state_result_named_transitions(program, statements);
-    let mut entries = result_expressions
+    let return_entries = result_expressions
         .iter()
         .copied()
-        .flat_map(|(statement_index, expression)| {
+        .map(|(statement_index, expression)| {
             claim_outcomes_for_expression(
                 program,
                 state,
@@ -149,7 +222,7 @@ fn derive_checked_claim_outcome_map(
                 &[],
             )
         })
-        .chain(named_transitions.iter().copied().flat_map(
+        .chain(named_transitions.iter().copied().map(
             |(statement_index, target_symbol, arguments)| {
                 claim_outcomes_for_named_transition(
                     program,
@@ -163,12 +236,18 @@ fn derive_checked_claim_outcome_map(
                 )
             },
         ))
-        .fold(Vec::new(), |mut entries, entry| {
-            if !entries.contains(&entry) {
-                entries.push(entry);
-            }
-            entries
-        });
+        .collect::<Vec<_>>();
+    let mut entries =
+        return_entries
+            .iter()
+            .flatten()
+            .cloned()
+            .fold(Vec::new(), |mut entries, entry| {
+                if !entries.contains(&entry) {
+                    entries.push(entry);
+                }
+                entries
+            });
     entries.retain(|entry| expected_paths.contains(&entry.output_path));
     for path in &expected_paths {
         let sources = entries
@@ -215,18 +294,29 @@ fn derive_checked_claim_outcome_map(
             .position(|path| *path == entry.output_path)
             .unwrap_or(usize::MAX)
     });
-    for (index, entry) in entries.iter().enumerate() {
-        if entries[index + 1..].iter().any(|candidate| {
-            candidate.source == entry.source
-                && !claim_paths_are_case_alternatives(&entry.output_path, &candidate.output_path)
-        }) {
-            return None;
-        }
+    let inactive_paths = expected_paths
+        .into_iter()
+        .filter(|path| !entries.iter().any(|entry| entry.output_path == *path))
+        .collect::<Vec<_>>();
+    if !joins::complete_frontier(program, state.return_type, &entries, &inactive_paths) {
+        return None;
     }
-    Some(CheckedClaimOutcomeMap {
-        machine_symbol,
-        state_symbol: state.symbol,
-        entries,
+    // Inactive paths above were independently proved on every return. Each
+    // active path must also appear with the same source on every return;
+    // flattening first would silently erase unresolved/swapped alternatives.
+    let all_returns_covered = !return_entries.is_empty()
+        && return_entries.iter().all(|returned| {
+            joins::complete_frontier(program, state.return_type, returned, &inactive_paths)
+                && returned.len() == entries.len()
+                && returned.iter().all(|entry| entries.contains(entry))
+        });
+    Some(ClaimOutcomeHypothesis {
+        map: CheckedClaimOutcomeMap {
+            machine_symbol,
+            state_symbol: state.symbol,
+            entries,
+        },
+        all_returns_covered,
     })
 }
 
@@ -478,6 +568,11 @@ fn state_result_named_transitions(
                     else {
                         return None;
                     };
+                    if validation::call_target_state(program, path.symbol).is_some_and(|target| {
+                        validation::normal_completion_possible(program, target) == Some(false)
+                    }) {
+                        return None;
+                    }
                     Some((statement_index, path.symbol, *arguments))
                 })
                 .collect()
@@ -1088,86 +1183,89 @@ pub(crate) fn call_result_origin_rewrites(
     PermissionProvenance,
     PermissionClaimIdentity,
 )> {
-    let mut rewrites = Vec::new();
-    for event in permission_events.iter() {
-        if event.kind != PermissionEventKind::Establish
-            || event.access != PermissionAccess::Owned
-            || !event.obligation_live
-        {
-            continue;
-        }
-        let Some((statement_index, result_expression, receiving_path)) =
-            receiving_value(program, segments, event)
-        else {
-            continue;
-        };
-        let locally_minted =
-            established_provenance(event.machine_symbol, event.state_symbol, event.source);
-        if event.provenance != locally_minted
-            || event.claim_identity == PermissionClaimIdentity::Unknown
-        {
-            continue;
-        }
-        let Some(state) = program.state_by_symbol(event.state_symbol) else {
-            continue;
-        };
-        let typed_trees::expression::ExpressionNode::Call(call) =
-            program.expression_table.expression(result_expression)
-        else {
-            continue;
-        };
-        let Some(target_state) = validation::call_target_state(program, call.target_symbol) else {
-            continue;
-        };
-        let Some(map) = maps
-            .iter()
-            .find(|map| map.state_symbol == target_state.symbol)
-        else {
-            continue;
-        };
-        let matching = map
-            .entries
-            .iter()
-            .filter(|entry| entry.output_path == receiving_path)
-            // Only an input correspondence forwards a caller-held identity.
-            // A callee establishment is a template shared by all invocations;
-            // its completed result keeps the receiving occurrence's identity
-            // and joins its exact return source through a call receipt.
-            .filter(|entry| matches!(entry.source, CheckedClaimOutcomeSource::Input { .. }))
-            .filter_map(|entry| {
-                bind_claim_outcome_source_at_call(
-                    program,
-                    state,
-                    statement_index,
-                    call,
-                    target_state,
-                    &entry.source,
-                    segments,
-                    permission_events,
-                )
-            })
-            .fold(Vec::new(), |mut sources, source| {
-                if !sources.contains(&source) {
-                    sources.push(source);
-                }
-                sources
-            });
-        let [source] = matching.as_slice() else {
-            continue;
-        };
-        let Some((provenance, claim_identity)) =
-            claim_origin_for_source(state, source, segments, permission_events)
-        else {
-            continue;
-        };
-        rewrites.push((
-            locally_minted,
-            event.claim_identity,
-            provenance,
-            claim_identity,
-        ));
+    permission_events
+        .iter()
+        .filter_map(|event| {
+            call_result_origin_rewrite(program, segments, event, permission_events, maps)
+        })
+        .collect()
+}
+
+fn call_result_origin_rewrite(
+    program: &dyn validation::CheckingInput,
+    segments: &arena::Arena<facts::PlaceSegment>,
+    event: &FlowPermissionEventFact,
+    permission_events: &[FlowPermissionEventFact],
+    maps: &[CheckedClaimOutcomeMap],
+) -> Option<(
+    PermissionProvenance,
+    PermissionClaimIdentity,
+    PermissionProvenance,
+    PermissionClaimIdentity,
+)> {
+    if event.kind != PermissionEventKind::Establish
+        || event.access != PermissionAccess::Owned
+        || !event.obligation_live
+    {
+        return None;
     }
-    rewrites
+    let (statement_index, result_expression, receiving_path) =
+        receiving_value(program, segments, event)?;
+    let locally_minted =
+        established_provenance(event.machine_symbol, event.state_symbol, event.source);
+    if event.provenance != locally_minted
+        || event.claim_identity == PermissionClaimIdentity::Unknown
+    {
+        return None;
+    }
+    let state = program.state_by_symbol(event.state_symbol)?;
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(result_expression)
+    else {
+        return None;
+    };
+    let target_state = validation::call_target_state(program, call.target_symbol)?;
+    let map = maps
+        .iter()
+        .find(|map| map.state_symbol == target_state.symbol)?;
+    let matching = map
+        .entries
+        .iter()
+        .filter(|entry| entry.output_path == receiving_path)
+        // Only an input correspondence forwards a caller-held identity.
+        // A callee establishment is a template shared by all invocations;
+        // its completed result keeps the receiving occurrence's identity
+        // and joins its exact return source through a call receipt.
+        .filter(|entry| matches!(entry.source, CheckedClaimOutcomeSource::Input { .. }))
+        .filter_map(|entry| {
+            bind_claim_outcome_source_at_call(
+                program,
+                state,
+                statement_index,
+                call,
+                target_state,
+                &entry.source,
+                segments,
+                permission_events,
+            )
+        })
+        .fold(Vec::new(), |mut sources, source| {
+            if !sources.contains(&source) {
+                sources.push(source);
+            }
+            sources
+        });
+    let [source] = matching.as_slice() else {
+        return None;
+    };
+    let (provenance, claim_identity) =
+        claim_origin_for_source(state, source, segments, permission_events)?;
+    Some((
+        locally_minted,
+        event.claim_identity,
+        provenance,
+        claim_identity,
+    ))
 }
 
 pub(crate) fn apply_claim_origin_rewrites(

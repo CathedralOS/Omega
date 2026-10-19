@@ -44,6 +44,7 @@ fn field(
 fn catalog() -> Vec<StructuralTypeDeclaration> {
     let declaration = |raw, shape| StructuralTypeDeclaration {
         quotient_carrier: None,
+        owns_linear_claim: false,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,

@@ -18,6 +18,11 @@ pub(super) fn append_argument_access(
             segments: access_segments.insert_many(access_place.segments),
             kind,
             end_before_access,
+            released_at: if end_before_access.is_some() {
+                expression
+            } else {
+                Default::default()
+            },
         },
     );
 }

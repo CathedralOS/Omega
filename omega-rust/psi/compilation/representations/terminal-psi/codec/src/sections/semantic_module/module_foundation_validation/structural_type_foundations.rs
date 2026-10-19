@@ -647,6 +647,7 @@ mod authored_storage_envelope_tests {
             .structural_types
             .push(terminal_psi::StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -688,6 +689,7 @@ mod authored_storage_envelope_tests {
             .structural_types
             .push(terminal_psi::StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,
@@ -705,6 +707,7 @@ mod authored_storage_envelope_tests {
             .structural_types
             .push(terminal_psi::StructuralTypeDeclaration {
                 quotient_carrier: None,
+                owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 scalar_restriction: None,

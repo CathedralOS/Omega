@@ -79,7 +79,9 @@ use crate::facts::machine_facts::{
 use crate::facts::placed_views_and_uses::{
     build_checked_placed_view_inputs, build_nominal_machine_use_facts,
 };
-use crate::facts::qualification_facts::{build_qualification_facts, build_service_reach_facts};
+use crate::facts::qualification_facts::{
+    build_content_facts, build_qualification_facts, build_service_reach_facts,
+};
 use crate::facts::requirement_call_specializations::build_requirement_call_specialization_facts;
 use crate::flow::{build_domain_facts, build_flow_facts};
 use crate::operators::bind_boundary_operator_application_demands;
@@ -203,14 +205,23 @@ pub(crate) fn build_check_facts(
     // Keep declaration-owned handles stable while each iteration discards its
     // derived flow observations. Only newly bound invocation inputs schedule
     // another pass; selected custody is rebuilt from that pass's live facts.
+    // Call-result correspondence is also a preparation dependency: resolving
+    // it after recording would leave completion and cleanup decisions using
+    // provisional identities. The recorder tracks only summaries it consulted,
+    // so unrelated outcome-map changes do not schedule a rebuild.
     let mut prepared = CheckFacts {
         borrow,
         proof,
         values,
         domains,
         operators,
+        qualifications: checked_trees::QualificationFacts {
+            content: build_content_facts(program),
+            ..Default::default()
+        },
         ..CheckFacts::default()
     };
+    let mut claim_outcomes = crate::checks::ClaimOutcomePreparation::default();
     loop {
         prepared.semantic.clone_from(&semantic);
         contextual_cleanup::entry_flow::seed_entry_requirements(
@@ -236,7 +247,9 @@ pub(crate) fn build_check_facts(
             program,
             &mut prepared.flow,
         )?;
-        crate::checks::prepare_permission_events(program, &mut prepared)?;
+        if crate::checks::prepare_permission_events(program, &mut prepared, &mut claim_outcomes)? {
+            continue;
+        }
         if contextual_cleanup::retain_selected_receiver_loans(
             program,
             &mut prepared.borrow,
@@ -313,6 +326,7 @@ pub(crate) fn build_check_facts(
         operators,
         mut flow,
         contextual_cleanup,
+        qualifications,
         ..
     } = prepared;
     flow.guarded_exits = crate::execution::terminal_scalar::build_checked_guarded_exit_plans(
@@ -326,7 +340,7 @@ pub(crate) fn build_check_facts(
     let capabilities = build_capability_facts(program, &service_reach_inference, &flow);
     let (machine_suspensions, machine_blocking) = project_operational_rows(&operational);
     // STR4 checked plans, slice 2: semantic-domain commitments per machine.
-    let qualifications = build_qualification_facts(program);
+    let qualifications = build_qualification_facts(program, qualifications.content);
     // EFX: direct synchronous invocation is a separately published checked
     // axis, never reconstructed from service reach or flow-call topology.
     let synchronous_invocations = build_synchronous_invocation_facts(program);

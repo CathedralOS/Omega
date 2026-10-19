@@ -81,6 +81,7 @@ mod citations;
 mod collection_bounds;
 pub use collection_bounds::CollectionBoundsObservations;
 mod completed_domains;
+mod completed_observations;
 mod completed_values;
 mod construction_predicates;
 pub use completed_domains::{
@@ -90,6 +91,8 @@ pub(crate) use construction_predicates::construction_predicate_judgments;
 mod call_projection_identity;
 mod const_ranges;
 mod content_conservation;
+pub use content_conservation::completed_value_preserves_entry_projection;
+pub use content_conservation::completed_value_proves_content_conservation;
 mod contract_refinement;
 mod exact_integer_fit;
 mod exit_coverage;

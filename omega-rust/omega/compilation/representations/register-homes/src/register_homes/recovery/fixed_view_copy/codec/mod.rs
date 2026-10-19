@@ -33,7 +33,8 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 70 combines quotient representations with placed-call bindings.
 // Version 71 retains element-view access ceilings in structural declarations.
 // Version 72 retains indexed source evidence on structural edge snapshots.
-const VERSION: u32 = 74;
+// Version 75 retains declaration-owned linear obligations beneath whole claims.
+const VERSION: u32 = 75;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.

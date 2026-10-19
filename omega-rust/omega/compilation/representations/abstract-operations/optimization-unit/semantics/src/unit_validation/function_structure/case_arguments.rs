@@ -133,7 +133,7 @@ pub(crate) fn membership_on_every_path(
             function, types, root, path, operation,
         )
     };
-    super::structural_freshness::established_on_every_path_with_edges(
+    super::structural_freshness::established_on_every_path_with_entry(
         function,
         predecessors,
         use_site,
@@ -214,6 +214,77 @@ pub(crate) fn membership_on_every_path(
             }
             _ => false,
         },
+        |root| entry_membership(function, types, root, path, case, expected),
         invalidates,
     )
+}
+
+/// The caller owes verified entry preconditions. They establish a tag fact at
+/// entry only; the common freshness walk rejects intervening writes, unknown
+/// aliases, or arrivals that do not preserve that same storage.
+fn entry_membership(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    root: PlaceId,
+    path: &[StructuralPathSegment],
+    case: StructuralCaseId,
+    expected: bool,
+) -> bool {
+    use semantic_vocabulary::Proposition;
+    let Some(contract) = &function.verified_contract else {
+        return false;
+    };
+    let Some(parameter) = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == root)
+    else {
+        return false;
+    };
+    let matches_subject = |subject: &semantic_vocabulary::StructuralCaseSubject| {
+        subject.root() == root
+            && terminal_semantics::canonical_structural_storage_path(
+                types.values().copied(),
+                parameter.structural_type,
+                subject.path(),
+            )
+            .as_deref()
+                == Some(path)
+    };
+    fn entails(
+        proposition: &Proposition,
+        matches_subject: &impl Fn(&semantic_vocabulary::StructuralCaseSubject) -> bool,
+        case: StructuralCaseId,
+        expected: bool,
+    ) -> bool {
+        match proposition {
+            Proposition::StructuralCaseMembership {
+                subject,
+                case: selected,
+            } => matches_subject(subject) && (*selected == case) == expected,
+            Proposition::Conjunction(children) => children
+                .iter()
+                .any(|child| entails(child, matches_subject, case, expected)),
+            Proposition::Disjunction(children) => {
+                !children.is_empty()
+                    && children
+                        .iter()
+                        .all(|child| entails(child, matches_subject, case, expected))
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } if matches!(conclusion.as_ref(), Proposition::Falsehood) => {
+                !expected
+                    && matches!(premise.as_ref(),
+                Proposition::StructuralCaseMembership { subject, case: excluded }
+                    if *excluded == case && matches_subject(subject))
+            }
+            _ => false,
+        }
+    }
+    contract
+        .requires
+        .iter()
+        .any(|proposition| entails(proposition, &matches_subject, case, expected))
 }

@@ -158,6 +158,7 @@ pub(crate) fn validate_function_structural_catalog(
                                 // structural operation result like any
                                 // establishment's.
                                 | O::MoveStructuralValue { psi_operation, result, .. }
+                                | O::TransformContent { psi_operation, result, .. }
                                 | O::StructuralLeafCopy {
                                     psi_operation,
                                     result,
@@ -234,6 +235,7 @@ pub(crate) fn validate_function_structural_catalog(
             | O::MoveStructuralField { result, .. }
             | O::StructuralLeafCopy { result, .. }
             | O::MoveStructuralValue { result, .. }
+            | O::TransformContent { result, .. }
             | O::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -287,6 +289,11 @@ pub(crate) fn validate_function_structural_catalog(
                 ..
             }
             | O::MoveStructuralValue {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::TransformContent {
                 psi_operation,
                 result,
                 ..

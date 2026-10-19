@@ -819,7 +819,9 @@ fn adapt(
                         Projection::window(*start, *end, position),
                     );
                 }
-                O::StructuralLeafCopy { .. } | O::MoveStructuralValue { .. } => {
+                O::StructuralLeafCopy { .. }
+                | O::MoveStructuralValue { .. }
+                | O::TransformContent { .. } => {
                     let owned_path;
                     let (result, source, path) = match &node.operation {
                         O::StructuralLeafCopy {
@@ -828,7 +830,8 @@ fn adapt(
                             path,
                             ..
                         } => (result, source, path),
-                        O::MoveStructuralValue { result, source, .. } => {
+                        O::MoveStructuralValue { result, source, .. }
+                        | O::TransformContent { result, source, .. } => {
                             owned_path = StructuralCopyPath::Ordinary(source.path.clone());
                             (result, &source.place, &owned_path)
                         }

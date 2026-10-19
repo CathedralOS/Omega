@@ -52,6 +52,10 @@ pub struct CheckedStructuralPathQualification {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralTypePlan {
     pub identity: TypeIdentityId,
+    /// The normalized nominal carrier owns one whole linear obligation.
+    /// Transparent arrays/aggregates do not inherit this bit from children;
+    /// each child keeps its own obligation even beneath a whole-linear parent.
+    pub owns_linear_claim: bool,
     /// Exact source contents admit affine disposal without executing a hook,
     /// settling a linear claim, or disposing borrowed referent storage. This
     /// is a type capability, not proof that any particular place is live or

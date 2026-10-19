@@ -201,6 +201,12 @@ pub struct BorrowArgumentAccessFact {
     /// A payload a transition arm's dispatch copied out of its saved subject
     /// ended before the target's first access: 0.
     pub end_before_access: Option<usize>,
+    /// Exact completion that releases this access during operand evaluation.
+    /// Zero retains it through invocation (or denotes the already-extracted
+    /// dispatch payload with `end_before_access == Some(0)`). The ordinal
+    /// above compares accesses; this occurrence also locates cuts between
+    /// them, including a final operand with no subsequent access row.
+    pub released_at: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

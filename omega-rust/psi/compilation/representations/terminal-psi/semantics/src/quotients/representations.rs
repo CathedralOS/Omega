@@ -42,6 +42,7 @@ pub fn validate_quotient_representations(
             || !same_carrier_shape(&quotient.shape, &carrier.shape)
             || quotient.scalar_restriction != carrier.scalar_restriction
             || quotient.descriptor_cleanup != carrier.descriptor_cleanup
+            || quotient.owns_linear_claim != carrier.owns_linear_claim
             || quotient.no_code_affine_cleanup != carrier.no_code_affine_cleanup
         {
             return Err("quotient representation identity or retained shape mismatch");
@@ -116,6 +117,9 @@ fn validate_carrier(
         .iter()
         .find(|ty| ty.id == id)
         .ok_or("quotient carrier storage is absent")?;
+    if declaration.owns_linear_claim {
+        return Err("quotient carrier owns a linear obligation");
+    }
     // Descriptor cleanup is a disposition capability also held by plain
     // scalar records. Inspect the retained shape for reference contents.
     active.push(id);

@@ -11,6 +11,11 @@ use terminal_psi::{
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalAffineCleanupAction,
 };
+use terminal_semantics::owned_structure::{
+    contains_owned_boundary as contains_cleanup_boundary,
+    selected_contains_owned_boundary as selected_contains_nominal_cleanup,
+    selected_owned_children as selected_children,
+};
 
 /// A positive result is independently established discriminator membership.
 /// The cleanup roster and the absence of a claim never establish a tag.
@@ -229,148 +234,6 @@ fn cleanup_subjects(
         )?;
     }
     Some(subjects)
-}
-
-fn contains_cleanup_boundary(
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    boundaries: &BTreeSet<StructuralTypeId>,
-    cache: &mut BTreeMap<StructuralTypeId, bool>,
-    active: &mut BTreeSet<StructuralTypeId>,
-    structural_type: StructuralTypeId,
-) -> Option<bool> {
-    if boundaries.contains(&structural_type) {
-        return Some(true);
-    }
-    if let Some(result) = cache.get(&structural_type) {
-        return Some(*result);
-    }
-    if !active.insert(structural_type) {
-        return None;
-    }
-    let mut result = false;
-    match &types.get(&structural_type)?.shape {
-        StructuralTypeShape::Record { fields, .. } => {
-            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                if let Some(child) = field.field_type.as_structural() {
-                    result |= contains_cleanup_boundary(types, boundaries, cache, active, child)?;
-                }
-            }
-        }
-        StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
-            result = contains_cleanup_boundary(types, boundaries, cache, active, *element)?
-        }
-        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-            let common = match &types.get(&structural_type)?.shape {
-                StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
-                _ => &[],
-            };
-            for field in common
-                .iter()
-                .chain(cases.iter().flat_map(|case| &case.fields))
-            {
-                if !field.relevance.is_erased()
-                    && let Some(child) = field.field_type.as_structural()
-                {
-                    result |= contains_cleanup_boundary(types, boundaries, cache, active, child)?;
-                }
-            }
-        }
-        _ => {}
-    }
-    active.remove(&structural_type);
-    cache.insert(structural_type, result);
-    Some(result)
-}
-
-fn selected_contains_nominal_cleanup(
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    nominal: &BTreeSet<StructuralTypeId>,
-    cache: &mut BTreeMap<StructuralTypeId, bool>,
-    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    limit: usize,
-) -> Option<bool> {
-    if nominal.contains(&structural_type) {
-        return Some(true);
-    }
-    // Universal absence needs no discriminator. A possible hook instead
-    // requires the selected occurrence; missing claims do not select it.
-    if !contains_cleanup_boundary(types, nominal, cache, &mut BTreeSet::new(), structural_type)? {
-        return Some(false);
-    }
-    for (child_path, child) in selected_children(types, structural_type, path, limit, selected)? {
-        if selected_contains_nominal_cleanup(
-            types,
-            nominal,
-            cache,
-            selected,
-            child,
-            &child_path,
-            limit,
-        )? {
-            return Some(true);
-        }
-    }
-    Some(false)
-}
-
-/// Expand the selected payload before common fields, in reverse field order.
-/// Selection is tied to this root-relative occurrence, never cached by type.
-fn selected_children(
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    structural_type: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    limit: usize,
-    selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
-) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
-    let mut children = Vec::new();
-    let mut fields = |fields: &[terminal_psi::StructuralFieldDeclaration],
-                      prefix: &[StructuralPathSegment]| {
-        for field in fields
-            .iter()
-            .rev()
-            .filter(|field| !field.relevance.is_erased())
-        {
-            if let Some(child) = field.field_type.as_structural() {
-                let mut child_path = prefix.to_vec();
-                child_path.push(StructuralPathSegment::Field(field.identity.clone()));
-                children.push((child_path, child));
-            }
-        }
-    };
-    match &types.get(&structural_type)?.shape {
-        StructuralTypeShape::Record { fields: common, .. } => fields(common, path),
-        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-            let mut matches = cases.iter().filter(|case| selected(path, case.id));
-            let case = matches.next()?;
-            if matches.next().is_some() {
-                return None;
-            }
-            let mut payload_path = path.to_vec();
-            payload_path.push(StructuralPathSegment::Case(case.id));
-            fields(&case.fields, &payload_path);
-            if let StructuralTypeShape::Mixed { fields: common, .. } =
-                &types.get(&structural_type)?.shape
-            {
-                fields(common, path);
-            }
-        }
-        StructuralTypeShape::FixedArray { element, length } => {
-            // Every untouched child contributes a subject; do not enumerate a
-            // forged dimension beyond the supplied partition's work bound.
-            if u128::from(*length) > limit as u128 {
-                return None;
-            }
-            for index in (0..*length).rev() {
-                let mut child_path = path.to_vec();
-                child_path.push(StructuralPathSegment::FixedIndex(index));
-                children.push((child_path, *element));
-            }
-        }
-        _ => return None,
-    }
-    Some(children)
 }
 
 fn append_cleanup_subjects(

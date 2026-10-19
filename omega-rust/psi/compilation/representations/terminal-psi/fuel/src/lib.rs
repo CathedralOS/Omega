@@ -74,6 +74,7 @@ impl TerminalFuelSchedule {
             | OperationKind::StructuralScalarFieldStore { .. }
             | terminal_psi::move_or_store_structural_field_pattern!()
             | OperationKind::MoveStructuralValue { .. }
+            | OperationKind::TransformContent { .. }
             | OperationKind::ByteSequenceStore { .. }
             | OperationKind::StructuralByteSequenceFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldLength { .. }

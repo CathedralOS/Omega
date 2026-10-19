@@ -2258,6 +2258,12 @@ pub(in crate::legalization) fn apply(
             psi_operation,
             result,
             source,
+        }
+        | AbstractOperation::TransformContent {
+            psi_operation,
+            result,
+            source,
+            ..
         } => {
             relocate_subtree_leaves(
                 custody,

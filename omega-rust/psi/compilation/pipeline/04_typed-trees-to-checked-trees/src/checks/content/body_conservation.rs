@@ -1,0 +1,339 @@
+//! Bind a proved body equation to its exact entry and returned carrier claims.
+//!
+//! A numeric theorem and a custody transaction are separate judgments. This
+//! binding retains the former without granting the latter: an entry claim may
+//! already have moved, and two inputs with adjacent geometry may have unrelated
+//! backing. Consumers must never treat these rows as establishment receipts.
+//! In particular, a returned raw linear carrier already owns its nominal claim;
+//! derived qualification must attach authority to that occurrence, not mint it
+//! again. The shared outgoing capture owns result discovery, including nested
+//! fields and local moves, rather than a constructor-shape recognizer here.
+
+use super::content_paths::{content_segments_to_fact_path, entry_claim_identity};
+use super::partition_wrappers::ordinary_returns;
+use crate::checks::multiplicity::{LinearPlace, ReturnedClaimSource, completed_owned_claims};
+use checked_trees::CheckFacts;
+use checked_trees::facts::{ContentBodyClaimBinding, ContentBodyConservationFact};
+use language_semantics::content::{
+    ContentConservationOwnerKind, ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion,
+    ContentStructuralPlace,
+};
+
+struct PendingBinding {
+    binding: ContentBodyClaimBinding,
+    path: Vec<facts::PlaceSegment>,
+}
+
+pub(crate) fn observe_body_completion(
+    program: &dyn validation::CheckingInput,
+    facts: &mut CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    evaluation: checked_trees::FlowPermissionEvaluation,
+    places: &[LinearPlace],
+    events: &[checked_trees::FlowPermissionEventFact],
+    evaluation_events: &[checked_trees::FlowPermissionEventFact],
+) -> Vec<arena::Handle<ContentBodyConservationFact>> {
+    let mut observed = Vec::new();
+    let plans = facts
+        .qualifications
+        .content
+        .conservation_plans
+        .iter()
+        .enumerate()
+        .filter(|(_, plan)| {
+            plan.owner_kind == ContentConservationOwnerKind::Machine
+                && plan.owner == machine.symbol
+                && plan.callable == state.symbol
+        })
+        .map(|(position, plan)| (position, plan.clone()))
+        .collect::<Vec<_>>();
+    for (plan_index, plan) in plans {
+        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+            continue;
+        }
+        let Some((inputs, outputs)) =
+            owned_return_sides(plan.equation.left(), plan.equation.right())
+        else {
+            // Relations involving current parameters or mixed frontiers still
+            // have their ordinary numeric meaning, but are not this entry-to-
+            // return relation. Do not reinterpret them as owned consumption.
+            continue;
+        };
+        for returned_at in ordinary_returns(program, facts, state) {
+            let outgoing = facts.flow.control.outgoing.get(returned_at);
+            let outgoing_evaluation = if outgoing.statement_index != statement_index {
+                checked_trees::FlowPermissionEvaluation::Statement
+            } else if outgoing.transition_target.is_valid() {
+                checked_trees::FlowPermissionEvaluation::TransitionTarget(
+                    outgoing.transition_target,
+                )
+            } else {
+                checked_trees::FlowPermissionEvaluation::Statement
+            };
+            if !outgoing.returned_value.is_valid() || outgoing_evaluation != evaluation {
+                continue;
+            }
+            for completed_value in
+                completed_producers(program, facts, state, outgoing.returned_value)
+            {
+                let captured = facts.flow.control.operands.get(completed_value);
+                if captured.statement_index != statement_index || captured.expression != expression
+                {
+                    continue;
+                }
+                // The equation must hold at this value's completion, not merely
+                // at an eventual normal return. The query shares observation
+                // order with domain predicates and imports no ensures premise.
+                if !validation::completed_value_proves_content_conservation(
+                    program,
+                    machine,
+                    state,
+                    captured.statement_index,
+                    captured.expression,
+                    captured.type_reference,
+                    &plan,
+                    &facts.qualifications.content.plans,
+                ) {
+                    continue;
+                }
+                let returned =
+                    completed_owned_claims(program, facts, captured, places, evaluation_events);
+                let Ok(returned) = returned else {
+                    // Missing/ambiguous custody has its owning checker error;
+                    // a theorem cannot fill an absent claim occurrence.
+                    continue;
+                };
+                let Some(input_bindings) = bindings(inputs, |subject| {
+                    let ContentPlaceRoot::Parameter { symbol, .. } = subject.root else {
+                        return None;
+                    };
+                    let path = content_segments_to_fact_path(&subject.segments)?;
+                    entry_claim_identity(facts, state.symbol, symbol, &path, events.iter())
+                }) else {
+                    continue;
+                };
+                let Some(output_bindings) = bindings(outputs, |subject| {
+                    let path = content_segments_to_fact_path(&subject.segments)?;
+                    let mut matching = returned.iter().filter(|claim| claim.path == path);
+                    let claim = matching.next()?;
+                    if matching.next().is_some() {
+                        return None;
+                    }
+                    match claim.source {
+                        ReturnedClaimSource::Live(identity) => Some(identity),
+                        ReturnedClaimSource::Inactive => None,
+                    }
+                }) else {
+                    continue;
+                };
+                // Result field annotations ask for these predicates; they do not
+                // prove them. Judge each projected value in the same completed
+                // frame as the conservation equation, before recording a candidate.
+                if !output_bindings.iter().all(|output| {
+                    validation::completed_value_proves_domain_predicate(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        expression,
+                        output.binding.domain,
+                        typed_trees::expression::ExpressionHandle::invalid(),
+                        &output.path,
+                    )
+                }) {
+                    continue;
+                }
+                let input_bindings = finish_paths(facts, input_bindings);
+                let output_bindings = finish_paths(facts, output_bindings);
+                let inputs = facts
+                    .qualifications
+                    .content
+                    .body_claim_bindings
+                    .insert_many(input_bindings);
+                let outputs = facts
+                    .qualifications
+                    .content
+                    .body_claim_bindings
+                    .insert_many(output_bindings);
+                let conservation = ContentBodyConservationFact {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                    returned_at,
+                    completed_value,
+                    evaluation,
+                    plan_index,
+                    inputs,
+                    outputs,
+                    available_inputs: Default::default(),
+                };
+                let available = crate::checks::multiplicity::observe_body_inputs(
+                    program,
+                    facts,
+                    &conservation,
+                    places,
+                );
+                let Ok(available) = available else {
+                    continue;
+                };
+                let conservation = facts
+                    .qualifications
+                    .content
+                    .body_conservations
+                    .insert(conservation);
+                crate::checks::multiplicity::publish_body_inputs(facts, conservation, available);
+                observed.push(conservation);
+            }
+        }
+    }
+    observed
+}
+
+/// Follow exact produced values through unchanged resident storage. This
+/// discovers where a return demand may be proved; each candidate still needs
+/// its own completion-time theorem and live custody. Never use retention
+/// profiles (which describe loans), copyability, or a declaration initializer
+/// as a substitute for the completed store. Alternatives stay distinct.
+fn completed_producers(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    returned: arena::Handle<checked_trees::FlowOperandFact>,
+) -> Vec<arena::Handle<checked_trees::FlowOperandFact>> {
+    let mut pending = vec![(returned, Vec::new())];
+    let mut visited = Vec::new();
+    let mut completed = Vec::new();
+    while let Some((handle, projection)) = pending.pop() {
+        if !facts.flow.control.operands.is_valid(handle)
+            || visited.contains(&(handle, projection.clone()))
+        {
+            continue;
+        }
+        visited.push((handle, projection.clone()));
+        let capture = facts.flow.control.operands.get(handle);
+        if capture.state_symbol != state.symbol {
+            continue;
+        }
+        if projection.is_empty() && !completed.contains(&handle) {
+            completed.push(handle);
+        }
+        if let Some(predecessors) =
+            crate::flow::completed_values::predecessors(program, facts, handle, &projection)
+        {
+            pending.extend(predecessors);
+        }
+    }
+    completed
+}
+
+fn finish_paths(
+    facts: &mut CheckFacts,
+    bindings: Vec<PendingBinding>,
+) -> Vec<ContentBodyClaimBinding> {
+    bindings
+        .into_iter()
+        .map(|mut pending| {
+            pending.binding.segments = facts.flow.ownership.segments.insert_many(pending.path);
+            pending.binding
+        })
+        .collect()
+}
+
+/// Equation canonicalization may reverse the authored sides. Classify by
+/// exact root/revision, not spelling or serialized side order. Empty separate
+/// terms provide no owned input or returned occurrence.
+fn owned_return_sides<'term>(
+    left: &'term ContentConservationTerm,
+    right: &'term ContentConservationTerm,
+) -> Option<(
+    &'term ContentConservationTerm,
+    &'term ContentConservationTerm,
+)> {
+    if side_has_role(left, true) && side_has_role(right, false) {
+        Some((left, right))
+    } else if side_has_role(right, true) && side_has_role(left, false) {
+        Some((right, left))
+    } else {
+        None
+    }
+}
+
+fn side_has_role(term: &ContentConservationTerm, entry: bool) -> bool {
+    match term {
+        ContentConservationTerm::Projection { subject, .. } => {
+            if entry {
+                subject.version == ContentPlaceVersion::Entry
+                    && matches!(subject.root, ContentPlaceRoot::Parameter { .. })
+            } else {
+                subject.version == ContentPlaceVersion::Current
+                    && subject.root == ContentPlaceRoot::Result
+            }
+        }
+        ContentConservationTerm::Separate(children) => {
+            !children.is_empty() && children.iter().all(|child| side_has_role(child, entry))
+        }
+    }
+}
+
+fn bindings(
+    term: &ContentConservationTerm,
+    mut claim_at: impl FnMut(
+        &ContentStructuralPlace,
+    ) -> Option<language_semantics::PermissionClaimIdentity>,
+) -> Option<Vec<PendingBinding>> {
+    fn append(
+        term: &ContentConservationTerm,
+        claim_at: &mut impl FnMut(
+            &ContentStructuralPlace,
+        ) -> Option<language_semantics::PermissionClaimIdentity>,
+        output: &mut Vec<PendingBinding>,
+    ) -> Option<()> {
+        match term {
+            ContentConservationTerm::Projection {
+                domain,
+                semantic_domain,
+                projection_machine,
+                subject,
+                ..
+            } => {
+                let claim_identity = claim_at(subject)?;
+                if claim_identity == language_semantics::PermissionClaimIdentity::Unknown {
+                    return None;
+                }
+                // One projection occurrence cannot stand for two separated
+                // claims. This also catches aliases naming the same claim.
+                if output
+                    .iter()
+                    .any(|pending| pending.binding.claim_identity == claim_identity)
+                {
+                    return None;
+                }
+                output.push(PendingBinding {
+                    binding: ContentBodyClaimBinding {
+                        claim_identity,
+                        domain: *domain,
+                        semantic_domain: *semantic_domain,
+                        projection_machine: *projection_machine,
+                        parameter_symbol: match subject.root {
+                            ContentPlaceRoot::Parameter { symbol, .. } => symbol,
+                            ContentPlaceRoot::Result => Default::default(),
+                        },
+                        segments: Default::default(),
+                    },
+                    path: content_segments_to_fact_path(&subject.segments)?,
+                });
+            }
+            ContentConservationTerm::Separate(children) => {
+                for child in children {
+                    append(child, claim_at, output)?;
+                }
+            }
+        }
+        Some(())
+    }
+    let mut output = Vec::new();
+    append(term, &mut claim_at, &mut output)?;
+    Some(output)
+}

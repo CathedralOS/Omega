@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Guarded-call selections carry argument substitutions.
-        128
+        // Content transformations retain atomic parent consumption and child authority.
+        129
     }
 }

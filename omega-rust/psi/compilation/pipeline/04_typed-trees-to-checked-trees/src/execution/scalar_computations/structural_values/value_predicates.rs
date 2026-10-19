@@ -11,11 +11,11 @@ use super::place_types::{
 use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
 
-/// A call supplies its declared storage carrier; the receiving qualification
+/// A producer supplies its declared storage carrier; the receiving qualification
 /// is a separate occurrence-bound checking judgment. Keeping the full receiving
-/// type on the value node preserves that judgment without requiring the callee
-/// to spell its ensured memberships in its return type as well.
-pub(super) fn structural_call_carrier_matches(
+/// type on the value node preserves that judgment without requiring constructors
+/// or callees to repeat an already checked receiving membership.
+pub(super) fn structural_carriers_match(
     program: &dyn ::validation::CheckingInput,
     returned: TypeReferenceHandle,
     expected: TypeReferenceHandle,
@@ -52,11 +52,7 @@ pub(in crate::execution::scalar_computations) fn is_structural_case_value(
     else {
         return false;
     };
-    let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
-        return false;
-    };
-    program.normalized_type_identity(constructor.type_reference)
-        == program.normalized_type_identity(reference)
+    structural_carriers_match(program, constructor.type_reference, expected)
 }
 
 pub(in crate::execution::scalar_computations) fn is_record_value(
@@ -142,7 +138,7 @@ pub(in crate::execution::scalar_computations) fn is_record_value(
                 ) else {
                     return false;
                 };
-                if !structural_call_carrier_matches(program, returned, expected)
+                if !structural_carriers_match(program, returned, expected)
                     || !(validation::has_contents(
                         program,
                         returned,

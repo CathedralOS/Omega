@@ -95,6 +95,20 @@ fn apply_fact_pruning(
         .content
         .partition_compositions
         .retain(|row| retained.contains(&row.machine_symbol));
+    // Transformation rows are iteration roots, with no inbound handles. Their
+    // derivation/equation/binding arenas are referenced evidence and keep their
+    // original handles, just like the flow and proof arenas below.
+    let transformations = facts
+        .qualifications
+        .content
+        .body_transformations
+        .iter()
+        .filter(|(_, row)| retained.contains(&row.machine_symbol))
+        .map(|(_, row)| row.clone())
+        .collect::<Vec<_>>();
+    let mut retained_transformations = arena::Arena::default();
+    retained_transformations.insert_many(transformations);
+    facts.qualifications.content.body_transformations = retained_transformations;
     facts
         .dynamic_conformances
         .selections

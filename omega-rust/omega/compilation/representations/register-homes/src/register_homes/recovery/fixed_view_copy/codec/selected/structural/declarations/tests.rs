@@ -11,6 +11,33 @@ use crate::register_homes::recovery::fixed_view_copy::codec::selected::structura
 use selected_instructions::effects::program::identity::encode_path;
 
 #[test]
+fn declaration_owned_linearity_round_trips_and_changes_bytes() {
+    let mut encodings = Vec::new();
+    for owns_linear_claim in [false, true] {
+        let declaration = StructuralTypeDeclaration {
+            quotient_carrier: None,
+            owns_linear_claim,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
+            shape: StructuralTypeShape::Record {
+                fields: Vec::new(),
+                storage: terminal_psi::StructuralRecordStorage::Packed,
+            },
+        };
+        let mut bytes = Vec::new();
+        encode_type(&mut bytes, &declaration).unwrap();
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
+        assert_eq!(cursor.remaining(), 0);
+        assert!(!encodings.contains(&bytes));
+        encodings.push(bytes);
+    }
+}
+
+#[test]
 fn element_view_encoding_round_trips_each_access_ceiling() {
     let mut encodings = Vec::new();
     for access in [
@@ -21,6 +48,7 @@ fn element_view_encoding_round_trips_each_access_ceiling() {
     ] {
         let declaration = StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: true,
             scalar_restriction: None,
@@ -51,6 +79,7 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
     );
     let declaration = StructuralTypeDeclaration {
         quotient_carrier: None,
+        owns_linear_claim: false,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
         scalar_restriction: None,
@@ -93,6 +122,7 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
 fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
     let declaration = StructuralTypeDeclaration {
         quotient_carrier: None,
+        owns_linear_claim: false,
         no_code_affine_cleanup: false,
         descriptor_cleanup: false,
         scalar_restriction: None,
@@ -156,6 +186,7 @@ fn reference_type_and_referent_path_round_trip_without_erasing_custody() {
     ] {
         let declaration = StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup,
             scalar_restriction: None,
@@ -242,6 +273,7 @@ fn byte_view_type_round_trip_retains_its_access() {
     ] {
         let declaration = StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             scalar_restriction: None,

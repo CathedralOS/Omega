@@ -26,6 +26,7 @@ pub(crate) fn encode_structural_type(
     }
     writer.id(declaration.id);
     writer.u32(declaration.identity.0);
+    writer.boolean(declaration.owns_linear_claim);
     writer.boolean(declaration.no_code_affine_cleanup);
     writer.boolean(declaration.descriptor_cleanup);
     match &declaration.shape {
@@ -138,6 +139,7 @@ pub(crate) fn decode_structural_type(
     };
     let id = reader.id("StructuralTypeId")?;
     let identity = TerminalIdentityIndex(reader.u32()?);
+    let owns_linear_claim = reader.boolean()?;
     let no_code_affine_cleanup = reader.boolean()?;
     let descriptor_cleanup = reader.boolean()?;
     let mut scalar_restriction = None;
@@ -237,6 +239,7 @@ pub(crate) fn decode_structural_type(
     };
     Ok(StructuralTypeDeclaration {
         quotient_carrier,
+        owns_linear_claim,
         no_code_affine_cleanup,
         descriptor_cleanup,
         scalar_restriction,
@@ -346,11 +349,50 @@ mod tests {
     use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
 
     #[test]
+    fn declaration_owned_linearity_round_trips_and_changes_bytes() {
+        let mut encodings = Vec::new();
+        for owns_linear_claim in [false, true] {
+            let declaration = StructuralTypeDeclaration {
+                quotient_carrier: None,
+                owns_linear_claim,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                scalar_restriction: None,
+                id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                },
+            };
+            let mut writer = Writer::default();
+            encode_structural_type(&mut writer, &declaration).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_structural_type(&mut reader).unwrap(), declaration);
+            assert_eq!(reader.remaining(), 0);
+            assert!(!encodings.contains(&bytes));
+            encodings.push(bytes);
+        }
+    }
+
+    #[test]
+    fn declaration_owned_linearity_rejects_the_previous_module_schema() {
+        let mut bytes = super::super::MAGIC.to_vec();
+        bytes.extend_from_slice(&167_u16.to_le_bytes());
+        assert!(matches!(
+            super::super::decode_module(&bytes),
+            Err(CodecError::UnsupportedFormatMarker(167))
+        ));
+    }
+
+    #[test]
     fn authored_record_geometry_round_trips_without_widening_its_scalar() {
         let stored =
             ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("signed byte"));
         let declaration = StructuralTypeDeclaration {
             quotient_carrier: None,
+            owns_linear_claim: false,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
             scalar_restriction: None,

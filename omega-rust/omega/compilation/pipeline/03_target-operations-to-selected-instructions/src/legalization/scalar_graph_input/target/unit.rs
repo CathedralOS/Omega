@@ -537,6 +537,7 @@ pub(super) fn validate_operation(
             | AbstractOperation::EstablishRecord { .. }
             | AbstractOperation::StructuralLeafCopy { .. }
             | AbstractOperation::MoveStructuralValue { .. }
+            | AbstractOperation::TransformContent { .. }
             | AbstractOperation::EstablishCase { .. },
         ) => {
             aggregate_results::validate(target, abstracted, sources, optimized, plan, unit)?;

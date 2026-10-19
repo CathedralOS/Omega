@@ -362,6 +362,15 @@ The conservation algebra and content-place grammar used by proposition 9.
 | --- | --- |
 | content algebra | `u8` kind (1 IntervalSet, 2 CountedQuantity) + parameter string |
 | content structural place | `u8` version (1 entry, 2 current) + root place id + counted segments; each `u8`: 1 + field-name string, 2 + `u64` fixed index, 3 + case-name string |
+| content transformation claim projection | claim id + projection domain id + `u64` projection report fingerprint + content structural place |
+| content transformation derivation | content conservation (algebra + left term + right term) + lineage-anchor claim id + counted input claim projections + counted output claim projections |
+
+Transformation derivations and their input/output rosters are unordered sets,
+strictly sorted by the representation's lexicographic field order; duplicates
+and alternative ordering reject. Parent arguments retain positional operand
+order. Neither order supplies authority. The reconstructed obligations and
+execution behavior follow the [ownership contract](ownership.md); implementation
+notes live beside [the shared operation semantics](../../../omega-rust/psi/compilation/representations/terminal-psi/semantics/src/content_transformations.rs).
 
 <!-- content-term-tags -->
 | Tag | Content term | Fields after the tag |
@@ -505,6 +514,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 113 | ByteSequenceSubslice | source place id + structural access + structural path + start value id + end value id + length value id + obligation id |
 | 114 | ElementViewSubslice | source place id + structural access + structural path + start value id + end value id + length value id + obligation id |
 | 115 | ByteSequenceLength | source place id + structural access + structural path |
+| 125 | TransformContent | counted structural arguments containing exactly one raw payload + counted parent structural arguments + counted content transformation derivations |
 
 A byte-sequence operand is `u8` 2 + whole source structural argument + length value id,
 or `u8` 1 + source place id + structural access + structural path + field id
@@ -615,8 +625,8 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 151 + `u16` vocabulary
-marker 123 + the entry machine id, followed by the module's counted tables in
+Module bytes are `PSITERM\0` + `u16` format marker 168 + `u16` vocabulary
+marker 129 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
 
 <!-- module-table-order -->
@@ -888,7 +898,7 @@ producer state and rederives every ordering rule.
 
 | Row | Fields |
 | --- | --- |
-| structural type declaration | structural type id + identity string + no-code affine cleanup authority boolean + structural type shape |
+| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + structural type shape |
 | structural referent identity | structural type id + canonical closed-type identity string; no storage shape |
 | structural field | structural field id + identity string + binding relevance + structural field type |
 | structural case | structural case id + identity string + counted payload structural fields |

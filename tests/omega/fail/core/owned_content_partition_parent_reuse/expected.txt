@@ -1,0 +1,2 @@
+cannot use `whole.length`
+after `whole` was transferred or consumed

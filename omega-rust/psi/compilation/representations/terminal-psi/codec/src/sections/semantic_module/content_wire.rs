@@ -84,6 +84,54 @@ pub(crate) fn encode_content_conservation_guarantee(
     encode_content_conservation(writer, &guarantee.conservation)
 }
 
+pub(crate) fn encode_content_transformations(
+    writer: &mut Writer,
+    derivations: &[terminal_psi::ContentTransformationDerivation],
+) -> Result<(), CodecError> {
+    writer.len("content transformation derivations", derivations.len())?;
+    for derived in derivations {
+        encode_content_conservation(writer, &derived.conservation)?;
+        writer.id(derived.lineage_anchor);
+        for bindings in [&derived.inputs, &derived.outputs] {
+            writer.len("content transformation claim projections", bindings.len())?;
+            for binding in bindings {
+                writer.id(binding.claim);
+                writer.id(binding.projection.domain);
+                writer.u64(binding.projection.projection_report_fingerprint);
+                encode_content_structural_place(writer, &binding.subject)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn decode_content_transformations(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<terminal_psi::ContentTransformationDerivation>, CodecError> {
+    fn bindings(
+        reader: &mut Reader<'_>,
+    ) -> Result<Vec<terminal_psi::ContentClaimProjection>, CodecError> {
+        super::wire::decode_counted(reader, |reader| {
+            Ok(terminal_psi::ContentClaimProjection {
+                claim: reader.id("ClaimId")?,
+                projection: ContentProjectionIdentity {
+                    domain: reader.id("ContentDomainId")?,
+                    projection_report_fingerprint: reader.u64()?,
+                },
+                subject: decode_content_structural_place(reader)?,
+            })
+        })
+    }
+    super::wire::decode_counted(reader, |reader| {
+        Ok(terminal_psi::ContentTransformationDerivation {
+            conservation: decode_content_conservation(reader)?,
+            lineage_anchor: reader.id("ClaimId")?,
+            inputs: bindings(reader)?,
+            outputs: bindings(reader)?,
+        })
+    })
+}
+
 fn encode_content_conservation(
     writer: &mut Writer,
     conservation: &ContentConservation,

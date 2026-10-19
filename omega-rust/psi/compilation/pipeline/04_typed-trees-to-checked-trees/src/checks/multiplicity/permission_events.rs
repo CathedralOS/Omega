@@ -53,8 +53,15 @@ pub(crate) fn owned_permission_events(
 pub(crate) fn prepare_permission_events(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
-) -> Result<(), Vec<Diagnostic>> {
+    claim_outcomes: &mut super::claim_outcomes::ClaimOutcomePreparation,
+) -> Result<bool, Vec<Diagnostic>> {
+    claim_outcomes.begin();
     let mut cleanup_dispositions = ContextualCleanupFacts::default();
+    facts.qualifications.content.body_conservations = Default::default();
+    facts.qualifications.content.body_claim_bindings = Default::default();
+    facts.qualifications.content.body_available_inputs = Default::default();
+    facts.qualifications.content.body_transformations = Default::default();
+    facts.qualifications.content.body_derivations = Default::default();
     facts.flow.ownership.instruction_dispositions = arena::Arena::default();
     facts.flow.ownership.instruction_effect_receipts = arena::Arena::default();
     facts.flow.ownership.storage_transfers = arena::Arena::default();
@@ -372,6 +379,7 @@ pub(crate) fn prepare_permission_events(
                             &mut conditional_carrier_transfers,
                             selections,
                             &mut cleanup_dispositions,
+                            claim_outcomes,
                         ) {
                             Ok(establishments) => establishments,
                             Err(diagnostic) => {
@@ -497,7 +505,8 @@ pub(crate) fn prepare_permission_events(
         &facts.borrow,
         &facts.flow.ownership,
         &mut permission_events,
-    );
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
 
     // Reconciliation can prove that a returned sum never establishes a
     // particular payload. The provisional carrier moves recorded above then
@@ -523,7 +532,8 @@ pub(crate) fn prepare_permission_events(
         .permissions
         .insert_many(permission_events);
     publish_claim_outcome_maps(facts, claim_outcome_maps);
-    publish_call_claim_joins(program, facts);
+    let joined_receivers = publish_call_claim_joins(program, facts)
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     let joined_events = facts
         .flow
         .ownership
@@ -536,8 +546,19 @@ pub(crate) fn prepare_permission_events(
         &facts.borrow,
         &facts.flow.ownership,
         &joined_events,
-    );
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
+    let correspondence_changed = claim_outcomes
+        .update(joined_maps.clone(), joined_receivers)
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     publish_claim_outcome_maps(facts, joined_maps);
+    if correspondence_changed {
+        // A provisional receiving identity can itself cause a selected join
+        // to fail. Its diagnostics and cleanup choices belong to this
+        // approximation, not the stable source graph. Rebuild from source
+        // with the newly resolved dependencies before publishing either.
+        return Ok(true);
+    }
     if selection_diagnostics.is_empty() {
         cleanup_dispositions.entry_requirements =
             std::mem::take(&mut facts.contextual_cleanup.entry_requirements);
@@ -554,7 +575,7 @@ pub(crate) fn prepare_permission_events(
             &mut cleanup_dispositions,
         );
         facts.contextual_cleanup = cleanup_dispositions;
-        Ok(())
+        Ok(false)
     } else {
         Err(selection_diagnostics)
     }
@@ -998,11 +1019,12 @@ fn reconcile_state_call_result_origins(
     borrow: &checked_trees::BorrowFacts,
     ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &mut [FlowPermissionEventFact],
-) -> Vec<CheckedClaimOutcomeMap> {
+) -> Result<Vec<CheckedClaimOutcomeMap>, &'static str> {
     let segments = &ownership.segments;
     let iteration_limit = permission_events.len().saturating_add(1);
     for _ in 0..iteration_limit {
-        let maps = derive_checked_claim_outcome_maps(program, borrow, ownership, permission_events);
+        let maps =
+            derive_checked_claim_outcome_maps(program, borrow, ownership, permission_events)?;
         let rewrites = call_result_origin_rewrites(program, segments, permission_events, &maps);
         let origins_changed = apply_claim_origin_rewrites(permission_events, &rewrites);
         let liveness_changed =
@@ -1016,7 +1038,7 @@ fn reconcile_state_call_result_origins(
             );
         }
     }
-    derive_checked_claim_outcome_maps(program, borrow, ownership, permission_events)
+    Err("call-result claim origins did not converge")
 }
 
 fn apply_statically_inactive_call_results(

@@ -327,7 +327,17 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                                 })
                         })
             };
-            root_satisfied || completed_satisfies() || captured_satisfies(&path)
+            root_satisfied
+                || crate::checks::content::completed_membership(
+                    program,
+                    facts,
+                    exit.returned_value,
+                    &path,
+                    domain_symbol,
+                    semantic_domain,
+                )
+                || completed_satisfies()
+                || captured_satisfies(&path)
         };
         if !satisfied {
             let (root, mut segments) = base

@@ -6,11 +6,11 @@
 //! This index supplies obligations only. The child's live completion facts and
 //! authorized provenance must separately establish every membership.
 
+use super::member_domains::initializer_satisfies_indexed_domain;
 use super::{
     CheckFacts, Diagnostic, ExpressionHandle, FlowStateFact, SymbolHandle, record_qualification,
     value_proves_qualification_in_contexts, value_satisfies_domain_predicates_in_contexts,
 };
-use super::member_domains::initializer_satisfies_indexed_domain;
 use crate::labels::{machine_name, symbol_name};
 
 type Occurrence = ((u32, u32), usize, (u32, u32));
@@ -61,7 +61,10 @@ impl<'facts> ConstructorMemberships<'facts> {
         }
         domains.sort_by_key(|constraint| {
             (
-                (constraint.symbol.arena_index(), constraint.symbol.generation()),
+                (
+                    constraint.symbol.arena_index(),
+                    constraint.symbol.generation(),
+                ),
                 constraint.semantic_id.0,
             )
         });
@@ -126,6 +129,18 @@ pub(super) fn check_constructor_membership(
 ) {
     let domain_symbol = constraint.symbol;
     let semantic_domain = constraint.semantic_id;
+    // Completed transformations supply the destination membership; publishing
+    // it on the raw child would invent authority before parent consumption.
+    if facts.qualifications.content.publishes_formation_membership(
+        &facts.flow,
+        state.state_symbol,
+        statement_index,
+        value,
+        domain_symbol,
+        semantic_domain,
+    ) {
+        return;
+    }
     let predicate_only =
         !validation::field_domains::domain_requires_provenance(program, domain_symbol);
     let vacuous = predicate_only

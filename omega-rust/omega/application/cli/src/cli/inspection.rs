@@ -176,13 +176,14 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
     for declaration in &module.structural_domains {
         writeln!(
             output,
-            "domain id=domain:{} identity={} carrier=type:{}",
+            "domain id=domain:{} identity={} carrier=type:{} content_projection={:?}",
             declaration.id.get(),
             module
                 .identities
                 .text(declaration.identity)
                 .unwrap_or_default(),
-            declaration.carrier.get()
+            declaration.carrier.get(),
+            declaration.content_projection
         )
         .expect("writing to a String cannot fail");
     }

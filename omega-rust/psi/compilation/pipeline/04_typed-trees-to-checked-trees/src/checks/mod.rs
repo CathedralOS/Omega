@@ -74,6 +74,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
 
+pub(crate) use multiplicity::ClaimOutcomePreparation;
 pub(crate) use multiplicity::prepare_permission_events;
 pub(crate) use multiplicity::{
     nominal_drop_machine_symbol, owned_temporary_type, type_carries_linear_obligation,
@@ -226,7 +227,7 @@ pub(crate) fn check_checked_facts_recording(
         zero_value_qualifications::record(program, facts);
         facts
             .qualifications
-            .link_value_formations(&mut facts.values.structural_values);
+            .link_value_formations(&mut facts.values.structural_values, &facts.flow);
         Ok(())
     } else {
         Err(diagnostics)

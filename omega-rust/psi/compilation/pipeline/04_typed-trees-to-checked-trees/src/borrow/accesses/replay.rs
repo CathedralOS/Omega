@@ -90,6 +90,7 @@ pub(crate) fn rejoin_call_accesses<'program>(
             || expected.root != actual.root
             || expected.kind != actual.kind
             || expected.end_before_access != actual.end_before_access
+            || expected.released_at != actual.released_at
             || expected_segments.span(expected.segments)?
                 != borrow.access_segments.span(actual.segments)?
         {

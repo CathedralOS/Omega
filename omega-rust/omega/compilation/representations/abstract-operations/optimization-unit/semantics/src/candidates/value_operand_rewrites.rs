@@ -136,6 +136,7 @@ pub(crate) fn rewrite_value_operands(operation: &mut O, mut replace: impl FnMut(
         | abstract_operations::move_or_store_structural_field_pattern!()
         | O::StructuralLeafCopy { .. }
         | O::MoveStructuralValue { .. }
+        | O::TransformContent { .. }
         | O::ReturnUnit { .. }
         | abstract_operations::return_structural_or_crash_pattern!() => {}
     }

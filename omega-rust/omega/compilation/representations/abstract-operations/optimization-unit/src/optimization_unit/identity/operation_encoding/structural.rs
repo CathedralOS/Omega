@@ -397,6 +397,23 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             super::encode_optional_field(bytes, *field);
             encode_structural_argument(bytes, value);
         }
+        O::TransformContent {
+            psi_operation,
+            result,
+            source,
+            parents,
+            derivations,
+        } => {
+            bytes.u8(124);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            encode_structural_argument(bytes, source);
+            bytes.slice(parents, encode_structural_argument);
+            bytes.slice(
+                derivations,
+                super::super::structural_encoding::encode_content_transformation,
+            );
+        }
         O::MoveStructuralValue {
             psi_operation,
             result,

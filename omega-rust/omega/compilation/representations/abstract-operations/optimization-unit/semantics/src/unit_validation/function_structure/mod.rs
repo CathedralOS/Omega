@@ -115,6 +115,7 @@ pub(crate) fn validate_function(
         function,
         structural_types,
         structural_domains,
+        &control_flow.predecessors,
     )?;
     crate::unit_validation::references::validate_function_references(
         function,
@@ -158,6 +159,7 @@ pub(crate) fn validate_function(
     validate_places_and_claims(function)?;
     let requirements = current_ownership::validate_current_ownership_frontier_collecting(
         unit.psi,
+        &unit.identities,
         &unit.dynamic_dispatch,
         function,
         &control_flow.blocks,

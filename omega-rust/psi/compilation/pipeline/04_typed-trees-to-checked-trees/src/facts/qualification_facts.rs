@@ -1,7 +1,25 @@
 //! Qualification facts and service reach facts.
 
+/// Declaration-only content plans are available before the ownership walk.
+/// A normalized equation is an obligation, not a successful body theorem or
+/// permission to consume its inputs. Keep the same table through later
+/// qualification construction so completion-owned evidence retains its indices.
+pub(crate) fn build_content_facts(
+    program: &dyn ::validation::CheckingInput,
+) -> checked_trees::ContentProjectionFacts {
+    checked_trees::ContentProjectionFacts {
+        plans: validation::build_content_projection_plans(program),
+        conservation_plans: validation::content_conservation_plans(program)
+            .iter()
+            .map(|source| source.plan.clone())
+            .collect(),
+        ..Default::default()
+    }
+}
+
 pub(crate) fn build_qualification_facts(
     program: &dyn ::validation::CheckingInput,
+    content: checked_trees::ContentProjectionFacts,
 ) -> checked_trees::QualificationFacts {
     use checked_trees::VacuousQualificationUse;
     use language_semantics::SemanticDomainTable;
@@ -427,16 +445,7 @@ pub(crate) fn build_qualification_facts(
         value_formations: Default::default(),
         machines,
         vacuous_uses,
-        content: checked_trees::ContentProjectionFacts {
-            plans: validation::build_content_projection_plans(program),
-            conservation_plans: validation::content_conservation_plans(program)
-                .iter()
-                .map(|source| source.plan.clone())
-                .collect(),
-            identity_reshuffles: Vec::new(),
-            partition_compositions: Vec::new(),
-            retained_borrow_custodies: Vec::new(),
-        },
+        content,
     }
 }
 

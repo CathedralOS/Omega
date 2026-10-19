@@ -274,7 +274,7 @@ pub(super) fn call_result_has_domain(
     })
 }
 
-pub(in crate::checks::contracts) fn exact_scalar_membership(
+pub(crate) fn exact_scalar_membership(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     contexts: &[FactContextHandle],

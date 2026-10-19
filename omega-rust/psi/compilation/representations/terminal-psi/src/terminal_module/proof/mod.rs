@@ -10,8 +10,8 @@ mod scalar_block_invariants;
 mod values;
 
 pub use content::{
-    ClaimContentProjection, ContentEntryClaim, ContentIdentityReshuffle,
-    ContentPartitionComposition, ContentPlaceSubstitution,
+    ClaimContentProjection, ContentClaimProjection, ContentEntryClaim, ContentIdentityReshuffle,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContentTransformationDerivation,
 };
 pub use contracts::{
     ContractClause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, MachineContract,

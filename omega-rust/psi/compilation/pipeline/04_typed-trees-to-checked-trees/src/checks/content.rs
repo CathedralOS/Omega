@@ -14,10 +14,16 @@
 //! `retained_custody.rs` decides lifetime-bound borrow custody of retained
 //! content.
 
+mod body_conservation;
 mod call_results;
 mod content_paths;
+mod derived_memberships;
 mod partition_wrappers;
 mod retained_custody;
+
+pub(crate) use body_conservation::observe_body_completion;
+pub(crate) use content_paths::projection_observations;
+pub(crate) use derived_memberships::completed_membership;
 
 use crate::checks::content::content_paths::{
     applicable_projection_plans, content_path, projection_term, unique_entry_claim_identity,

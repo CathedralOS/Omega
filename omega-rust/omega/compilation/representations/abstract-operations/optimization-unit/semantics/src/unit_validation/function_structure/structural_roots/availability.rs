@@ -137,6 +137,11 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
         // dominate the copy.
         O::StructuralLeafCopy { source, .. } => vec![*source],
         O::MoveStructuralValue { source, .. } => vec![source.place],
+        O::TransformContent {
+            source, parents, ..
+        } => std::iter::once(source.place)
+            .chain(parents.iter().map(|parent| parent.place))
+            .collect(),
         O::EstablishReference { source, .. }
         | O::EstablishPlacedReference { source, .. }
         | O::EstablishElementView { source, .. }

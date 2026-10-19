@@ -52,6 +52,7 @@ pub(crate) fn apply_statement_permission_production(
     conditional_carrier_transfers: &mut Vec<usize>,
     selections: &mut super::super::owned_selection::SelectionOccurrences,
     cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
+    claim_outcomes: &mut super::super::claim_outcomes::ClaimOutcomePreparation,
 ) -> Result<ProducedStorage, diagnostics::Diagnostic> {
     // Destructure coverage markers are proof-only reads synthesized by the
     // parser; they neither transfer a value nor establish user storage.
@@ -474,6 +475,7 @@ pub(crate) fn apply_statement_permission_production(
                     event_start,
                     &mut checked_through,
                     &mut storage_establishments,
+                    claim_outcomes,
                 )?;
                 let establishments = storage_establishments[first_storage..]
                     .iter()
@@ -490,6 +492,37 @@ pub(crate) fn apply_statement_permission_production(
                     cleanup_dispositions,
                     checked_trees::FlowClaimJoinExit::default(),
                     &establishments,
+                    false,
+                );
+                let body_conservations = crate::checks::content::observe_body_completion(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    statement_index,
+                    expression,
+                    evaluation,
+                    places,
+                    permission_events,
+                    &permission_events[event_start..],
+                );
+                let transformation_start = permission_events.len();
+                // An unavailable transaction grants nothing. Ordinary domain
+                // and custody checks still judge the completed expression.
+                let _ = super::super::content_transformations::commit(
+                    program,
+                    facts,
+                    &body_conservations,
+                    places,
+                    permission_events,
+                );
+                remaining.observe_ordinary(
+                    program,
+                    &permission_events[transformation_start..],
+                    &facts.flow.ownership.segments,
+                    cleanup_dispositions,
+                    checked_trees::FlowClaimJoinExit::default(),
+                    &[],
                     false,
                 );
                 for completion in copy_completions
@@ -717,6 +750,7 @@ pub(crate) fn apply_statement_permission_production(
         event_start,
         &mut checked_through,
         &mut storage_establishments,
+        claim_outcomes,
     )?;
     // Returning a completed expression transfers its established frontier;
     // it is not an implicit cleanup of a freshly created linear value.
@@ -920,6 +954,7 @@ fn establish_targets(
     event_start: usize,
     checked_through: &mut usize,
     storage_establishments: &mut Vec<StorageEstablishment>,
+    claim_outcomes: &mut super::super::claim_outcomes::ClaimOutcomePreparation,
 ) -> Result<(), diagnostics::Diagnostic> {
     for (target, source) in written_targets {
         let place_index = target.place_index;
@@ -1009,21 +1044,7 @@ fn establish_targets(
                 },
             });
         }
-        place.live = obligation_live || place.multiplicity == Multiplicity::Affine;
-        place.case_excluded = place.conditional && !obligation_live;
-        // A linear local's obligation-free whole write is its zero image:
-        // affine storage, not an established value (mirrors `applied_events`).
-        place.zero_image = place.multiplicity == Multiplicity::Linear
-            && !obligation_live
-            && place.path.is_empty()
-            && !place.conditional;
-        place.ever_established |= !place.zero_image;
-        place.claim_identity = Some(claim_identity);
-        place.provenance = Some(
-            provenance
-                .unwrap_or_else(|| established_provenance(machine_symbol, state_symbol, source)),
-        );
-        permission_events.push(FlowPermissionEventFact {
+        let mut establishment = FlowPermissionEventFact {
             expression: target.root.as_expression().unwrap_or_default(),
             evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             machine_symbol,
@@ -1033,13 +1054,34 @@ fn establish_targets(
             multiplicity: place.multiplicity,
             access: PermissionAccess::Owned,
             claim_identity,
-            provenance: place
-                .provenance
-                .expect("an established place has explicit provenance"),
+            provenance: provenance
+                .unwrap_or_else(|| established_provenance(machine_symbol, state_symbol, source)),
             root: target.root,
             segments,
             obligation_live,
-        });
+        };
+        // Allocate the receiving occurrence before forwarding so ordinal
+        // allocation stays stable across preparation iterations. Forwarded
+        // claims retain the actual caller identity, never a callee template.
+        claim_outcomes.resolve(
+            program,
+            &facts.flow.ownership.segments,
+            &mut establishment,
+            permission_events,
+        );
+        let obligation_live = establishment.obligation_live;
+        place.live = obligation_live || place.multiplicity == Multiplicity::Affine;
+        place.case_excluded = place.conditional && !obligation_live;
+        // A linear local's obligation-free whole write is its zero image:
+        // affine storage, not an established value (mirrors `applied_events`).
+        place.zero_image = place.multiplicity == Multiplicity::Linear
+            && !obligation_live
+            && place.path.is_empty()
+            && !place.conditional;
+        place.ever_established |= !place.zero_image;
+        place.claim_identity = Some(establishment.claim_identity);
+        place.provenance = Some(establishment.provenance);
+        permission_events.push(establishment);
     }
 
     Ok(())

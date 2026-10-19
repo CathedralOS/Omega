@@ -103,9 +103,10 @@ impl ConsumedOwners {
         );
     }
 
-    /// Resolve the moved selection to exact owned storage before recording its
-    /// absence on the selected evaluation route.
-    fn record_owned_place(
+    /// Explicit moves and implicit content transformations retire the same
+    /// exact owned storage. An implicit operation supplies its checked parent
+    /// place directly, never an invented expression for the source.
+    pub(super) fn record_owned_place(
         &mut self,
         program: &dyn validation::CheckingInput,
         machine: &typed_trees::machine::Machine,

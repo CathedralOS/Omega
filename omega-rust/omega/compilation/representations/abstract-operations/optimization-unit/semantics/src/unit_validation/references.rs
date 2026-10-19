@@ -652,6 +652,7 @@ fn operation_structural_result(operation: &O) -> Option<&terminal_psi::Structura
         // producer's.
         | O::MoveStructuralField { result, .. }
         | O::MoveStructuralValue { result, .. }
+        | O::TransformContent { result, .. }
         | O::CallStructural {
             result: AbstractStructuralCallResult::Structural { result, .. },
             ..
@@ -687,7 +688,9 @@ pub(crate) fn validate_function_references(
         let Some(result) = operation_structural_result(&node.operation) else {
             continue;
         };
-        if let O::MoveStructuralValue { source, .. } = &node.operation {
+        if let O::MoveStructuralValue { source, .. } | O::TransformContent { source, .. } =
+            &node.operation
+        {
             // This producer moves existing carrier leaves; it does not create
             // references under constructor permission. The root validator
             // checks memberships, multiplicity and the fresh result place;

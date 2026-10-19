@@ -215,6 +215,7 @@ fn claim_path_is_inactive(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_current_ownership_cfg(
     function: &PsiOptimizationFunction,
+    identities: &terminal_psi::TerminalIdentityTable,
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
@@ -490,11 +491,18 @@ pub(super) fn validate_current_ownership_cfg(
             // Construction joins the same whole-value transfer frontier as calls.
             // Heterogeneous field operands need a temporary structural-only roster;
             // ordinary call operands continue borrowing their retained slice.
-            let record_arguments = super::structural::constructor_arguments(&node.operation)
+            let mut record_arguments = super::structural::constructor_arguments(&node.operation)
                 .cloned()
                 .collect::<Vec<_>>();
+            if let O::TransformContent {
+                source, parents, ..
+            } = &node.operation
+            {
+                record_arguments.extend(std::iter::once(source).chain(parents).cloned());
+            }
             let structural_arguments = match &node.operation {
                 abstract_operations::establish_record_or_case_pattern!(..)
+                | O::TransformContent { .. }
                 | O::EstablishStructuralArray { .. } => record_arguments.as_slice(),
                 abstract_operations::call_structural_or_boundary_call_pattern!(
                     structural_arguments
@@ -507,6 +515,7 @@ pub(super) fn validate_current_ownership_cfg(
             };
             let parameter_multiplicities = match &node.operation {
                 abstract_operations::establish_record_or_case_pattern!(..)
+                | O::TransformContent { .. }
                 | O::EstablishStructuralArray { .. } => record_arguments
                     .iter()
                     .map(|argument| {
@@ -810,7 +819,113 @@ pub(super) fn validate_current_ownership_cfg(
                     });
                 }
             }
+            let transformed_parents = if let O::TransformContent {
+                psi_operation,
+                parents,
+                derivations,
+                ..
+            } = &node.operation
+            {
+                let invalid = || OptimizationUnitValidationError::CurrentCleanupMismatch {
+                    machine: function.machine,
+                    block: block_id,
+                };
+                let mut expected = BTreeSet::new();
+                for input in derivations.iter().flat_map(|derived| &derived.inputs) {
+                    let root =
+                        crate::unit_validation::operation_contracts::structural_source_contract(
+                            function,
+                            input.subject.root,
+                        )
+                        .ok_or_else(invalid)?;
+                    let path = terminal_semantics::content_transformations::structural_path(
+                        structural_types.values().copied(),
+                        identities,
+                        root.structural_type,
+                        &input.subject.segments,
+                    )
+                    .ok_or_else(invalid)?;
+                    let claim = frontier.claims.get(&input.claim).ok_or_else(invalid)?;
+                    if claim.input != Some(input.subject.root)
+                        || claim.path != path
+                        || !parents.iter().any(|parent| {
+                            parent.place == input.subject.root && path.starts_with(&parent.path)
+                        })
+                    {
+                        return Err(invalid());
+                    }
+                    expected.insert(input.claim);
+                }
+                let mut actual = BTreeSet::new();
+                let boundaries = structural_types
+                    .values()
+                    .filter_map(|declaration| {
+                        declaration.owns_linear_claim.then_some(declaration.id)
+                    })
+                    .chain(
+                        functions
+                            .values()
+                            .filter_map(|function| function.nominal_cleanup_subject),
+                    )
+                    .collect::<BTreeSet<_>>();
+                for parent in parents {
+                    let root =
+                        crate::unit_validation::operation_contracts::structural_source_contract(
+                            function,
+                            parent.place,
+                        )
+                        .ok_or_else(invalid)?;
+                    let selected = terminal_semantics::runtime_structural_path_tip(
+                        structural_types.values().copied(),
+                        root.structural_type,
+                        &parent.path,
+                    )
+                    .ok_or_else(invalid)?;
+                    let accounted = expected
+                        .iter()
+                        .filter_map(|identity| frontier.claims.get(identity))
+                        .filter(|claim| claim.input == Some(parent.place))
+                        .map(|claim| claim.path.clone())
+                        .collect::<Vec<_>>();
+                    terminal_semantics::owned_structure::validate_accounted_descendants(
+                        structural_types,
+                        &boundaries,
+                        selected.id,
+                        &parent.path,
+                        &accounted,
+                        &|path, case| {
+                            membership_at(node_index as usize, parent.place, path, case, true)
+                        },
+                    )
+                    .map_err(|reason| {
+                        OptimizationUnitValidationError::InvalidOwnedValueTransfer {
+                            machine: function.machine,
+                            operation: *psi_operation,
+                            reason,
+                        }
+                    })?;
+                    for (identity, claim) in &frontier.claims {
+                        if claim.input != Some(parent.place) {
+                            continue;
+                        }
+                        if claim.path.starts_with(&parent.path) {
+                            if !actual.insert(*identity) {
+                                return Err(invalid());
+                            }
+                        } else if parent.path.starts_with(&claim.path) {
+                            return Err(invalid());
+                        }
+                    }
+                }
+                if expected.is_empty() || expected != actual {
+                    return Err(invalid());
+                }
+                expected.into_iter().collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
             let transferred = match &node.operation {
+                O::TransformContent { .. } => transformed_parents,
                 O::CallStructural {
                     claim_transfers, ..
                 } => claim_transfers
@@ -1002,68 +1117,69 @@ pub(super) fn validate_current_ownership_cfg(
                 // A value transfer relocates the original active claims; it
                 // cannot take the fresh-establishment route below. Authenticate
                 // the entire selected roster before removing any identity.
-                let transferred_claims =
-                    if let O::MoveStructuralValue { source, .. } = &node.operation {
-                        let invalid = || OptimizationUnitValidationError::CurrentCleanupMismatch {
-                            machine: function.machine,
-                            block: block_id,
-                        };
-                        let mut selected = BTreeMap::new();
-                        for (identity, claim) in &frontier.claims {
-                            if claim.input != Some(source.place) {
-                                continue;
-                            }
-                            if claim.path.starts_with(&source.path) {
-                                selected.insert(*identity, claim.clone());
-                            } else if source.path.starts_with(&claim.path) {
-                                // A containing nominal claim is indivisible.
-                                return Err(invalid());
-                            }
+                let transferred_claims = if let O::MoveStructuralValue { source, .. }
+                | O::TransformContent { source, .. } = &node.operation
+                {
+                    let invalid = || OptimizationUnitValidationError::CurrentCleanupMismatch {
+                        machine: function.machine,
+                        block: block_id,
+                    };
+                    let mut selected = BTreeMap::new();
+                    for (identity, claim) in &frontier.claims {
+                        if claim.input != Some(source.place) {
+                            continue;
                         }
-                        let mut transferred = BTreeMap::new();
-                        for binding in &result.claims {
-                            if claim_path_is_inactive(
-                                function,
-                                structural_types,
-                                predecessors,
-                                block_id,
-                                node_index as usize,
-                                source,
-                                &binding.path,
-                            ) {
-                                if selected.contains_key(&binding.claim) {
-                                    return Err(invalid());
-                                }
-                                continue;
-                            }
-                            let mut claim = selected.remove(&binding.claim).ok_or_else(invalid)?;
-                            let expected_multiplicity = if binding.path.is_empty() {
-                                result.multiplicity
-                            } else {
-                                StructuralMultiplicity::Linear
-                            };
-                            if claim.path[source.path.len()..] != binding.path
-                                || claim.multiplicity != Some(expected_multiplicity)
-                                || result.multiplicity == StructuralMultiplicity::Unrestricted
-                            {
-                                return Err(invalid());
-                            }
-                            claim.input = Some(result.place);
-                            claim.path = binding.path.clone();
-                            if transferred.insert(binding.claim, claim).is_some() {
-                                return Err(invalid());
-                            }
-                        }
-                        if !selected.is_empty() {
+                        if claim.path.starts_with(&source.path) {
+                            selected.insert(*identity, claim.clone());
+                        } else if source.path.starts_with(&claim.path) {
+                            // A containing nominal claim is indivisible.
                             return Err(invalid());
                         }
-                        for identity in transferred.keys() {
-                            frontier.claims.remove(identity);
+                    }
+                    let mut transferred = BTreeMap::new();
+                    for binding in &result.claims {
+                        if claim_path_is_inactive(
+                            function,
+                            structural_types,
+                            predecessors,
+                            block_id,
+                            node_index as usize,
+                            source,
+                            &binding.path,
+                        ) {
+                            if selected.contains_key(&binding.claim) {
+                                return Err(invalid());
+                            }
+                            continue;
                         }
-                        Some(transferred)
-                    } else {
-                        None
-                    };
+                        let mut claim = selected.remove(&binding.claim).ok_or_else(invalid)?;
+                        let expected_multiplicity = if binding.path.is_empty() {
+                            result.multiplicity
+                        } else {
+                            StructuralMultiplicity::Linear
+                        };
+                        if claim.path[source.path.len()..] != binding.path
+                            || claim.multiplicity != Some(expected_multiplicity)
+                            || result.multiplicity == StructuralMultiplicity::Unrestricted
+                        {
+                            return Err(invalid());
+                        }
+                        claim.input = Some(result.place);
+                        claim.path = binding.path.clone();
+                        if transferred.insert(binding.claim, claim).is_some() {
+                            return Err(invalid());
+                        }
+                    }
+                    if !selected.is_empty() {
+                        return Err(invalid());
+                    }
+                    for identity in transferred.keys() {
+                        frontier.claims.remove(identity);
+                    }
+                    Some(transferred)
+                } else {
+                    None
+                };
                 insert_owned_result(
                     function,
                     block_id,
