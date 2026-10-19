@@ -1,0 +1,26 @@
+// Fact: Writing an element through a mutable slice view (&mut [u64]) whose length is guarded (view.len >= 2u64) proves safe indexed element mutation at view[1u64] while preserving the slice extent lower bound (view.len >= 2u64) to discharge exact subtraction view.len - 2u64 across all nine places.
+// Place: parameter. The guarded mutable slice view is operated on directly through its parameter binding.
+// Invalid control: attempts mutation at index 2 without proving extent exceeds 2.
+// Expected rejection: cannot prove index
+
+machine mutate_parameter(bytes: &mut [u64]) -> u64
+    requires bytes.len >= 2;
+{
+    bytes[2] = 45u64;
+    let diff: u64 = bytes.len - 2u64;
+    diff
+}
+
+machine main() crashes Trap {
+    let mut items: [u64; 3];
+    items[0] = 10u64;
+    items[1] = 20u64;
+    items[2] = 30u64;
+    let diff: u64 = mutate_parameter(&mut items[..]);
+    transition items[1] == 45u64 && diff == 1u64 {
+        true -> pass()
+        _ -> fail()
+    }
+    state pass() {}
+    state fail() { crash Trap; }
+}

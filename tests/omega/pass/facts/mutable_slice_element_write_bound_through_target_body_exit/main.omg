@@ -1,0 +1,49 @@
+// Fact: Writing an element through a mutable slice view (&mut [u64]) whose length is guarded (view.len >= 2u64) proves safe indexed element mutation at view[1u64] while preserving the slice extent lower bound (view.len >= 2u64) to discharge exact subtraction view.len - 2u64 across all nine places.
+// Place: another target body. Target-scoped implementations across all four platforms verify the bound.
+// Expected exit: 0
+
+linux_x86_64 machine mutate_target(bytes: &mut [u64]) -> u64
+    requires bytes.len >= 2;
+{
+    bytes[1] = 45u64;
+    let diff: u64 = bytes.len - 2u64;
+    diff
+}
+
+linux_arm64 machine mutate_target(bytes: &mut [u64]) -> u64
+    requires bytes.len >= 2;
+{
+    bytes[1] = 45u64;
+    let diff: u64 = bytes.len - 2u64;
+    diff
+}
+
+macos_arm64 machine mutate_target(bytes: &mut [u64]) -> u64
+    requires bytes.len >= 2;
+{
+    bytes[1] = 45u64;
+    let diff: u64 = bytes.len - 2u64;
+    diff
+}
+
+windows_x86_64 machine mutate_target(bytes: &mut [u64]) -> u64
+    requires bytes.len >= 2;
+{
+    bytes[1] = 45u64;
+    let diff: u64 = bytes.len - 2u64;
+    diff
+}
+
+machine main() crashes Trap {
+    let mut items: [u64; 3];
+    items[0] = 10u64;
+    items[1] = 20u64;
+    items[2] = 30u64;
+    let diff: u64 = mutate_target(&mut items[..]);
+    transition items[1] == 45u64 && diff == 1u64 {
+        true -> pass()
+        _ -> fail()
+    }
+    state pass() {}
+    state fail() { crash Trap; }
+}
