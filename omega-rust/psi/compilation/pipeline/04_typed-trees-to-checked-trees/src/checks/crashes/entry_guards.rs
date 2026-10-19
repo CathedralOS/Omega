@@ -342,3 +342,70 @@ impl GuardContext<'_> {
 struct RootBinding {
     sensitive: bool,
 }
+
+/// Supplement the exact incoming conjunction with the entry value of a saved
+/// Boolean. This uses the same mutation/alias/all-arrival provenance as call
+/// actuals; source hoisting and user locals therefore share one rule.
+pub(super) fn entry_value_consequences(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    eval_sites: &[(ExpressionHandle, SymbolHandle, usize)],
+    guard: ExpressionHandle,
+    negated: bool,
+) -> Vec<checked_trees::CrashPredicateIdentity> {
+    use checked_trees::{CrashPredicateExpression as Expression, CrashPredicateIdentity};
+    fn collect(value: Expression, negated: bool, output: &mut Vec<CrashPredicateIdentity>) {
+        output.push(CrashPredicateIdentity::from_expression(if negated {
+            Expression::Unary {
+                operator: UnaryOperator::LogicalNot as u8,
+                operand: Box::new(value.clone()),
+            }
+        } else {
+            value.clone()
+        }));
+        match value {
+            Expression::Unary { operator, operand }
+                if operator == UnaryOperator::LogicalNot as u8 =>
+            {
+                collect(*operand, !negated, output)
+            }
+            Expression::Binary {
+                operator,
+                left,
+                right,
+            } => {
+                if (!negated && operator == BinaryOperator::And as u8)
+                    || (negated && operator == BinaryOperator::Or as u8)
+                {
+                    collect(*left, negated, output);
+                    collect(*right, negated, output);
+                } else if operator == BinaryOperator::Equal as u8
+                    || operator == BinaryOperator::NotEqual as u8
+                {
+                    let (operand, literal) = match (*left, *right) {
+                        (Expression::Boolean(literal), operand)
+                        | (operand, Expression::Boolean(literal)) => (operand, literal),
+                        _ => return,
+                    };
+                    collect(
+                        operand,
+                        negated ^ !literal ^ (operator == BinaryOperator::NotEqual as u8),
+                        output,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    let Some((_, state, ordinal)) = eval_sites.iter().find(|(handle, ..)| *handle == guard) else {
+        return Vec::new();
+    };
+    let Some(value) =
+        crate::facts::crash_entry_operand(program, machine.symbol, *state, *ordinal, guard)
+    else {
+        return Vec::new();
+    };
+    let mut output = Vec::new();
+    collect(value, negated, &mut output);
+    output
+}

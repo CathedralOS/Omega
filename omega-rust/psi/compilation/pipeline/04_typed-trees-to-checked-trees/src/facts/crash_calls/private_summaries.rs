@@ -803,7 +803,14 @@ fn summary_published_crash_buckets(
                             .map_or(SummaryCrashRouteGuard::Truth, |identity| {
                                 SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
                                     identity: identity.clone(),
-                                    builtin_meaning: false,
+                                    // The checked scalar annotation owns
+                                    // selected builtin meaning independently of
+                                    // whether this is a family envelope or a
+                                    // direct declaration. Source spelling and
+                                    // provider behavior supply no authority.
+                                    builtin_meaning: predicate.scalar_expression().is_some_and(
+                                        super::summary_predicates::executable_entry_predicate,
+                                    ),
                                     scalar: predicate.scalar_expression().cloned(),
                                 })
                             }),

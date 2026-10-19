@@ -559,11 +559,16 @@ impl Query<'_> {
             }
             // A scalar-only operand still composes its nested structural
             // arguments through the ordinary computation graph.
-            for root in computations.roots.iter().map(|(_, root)| root).filter(|root| {
-                root.state == operand.state_symbol
-                    && root.statement_ordinal == operand.statement_index as u32
-                    && computations.nodes.get(root.root).authored_root == operand.expression
-            }) {
+            for root in computations
+                .roots
+                .iter()
+                .map(|(_, root)| root)
+                .filter(|root| {
+                    root.state == operand.state_symbol
+                        && root.statement_ordinal == operand.statement_index as u32
+                        && computations.nodes.get(root.root).authored_root == operand.expression
+                })
+            {
                 output.append(self.computation(root.root)?);
             }
         }

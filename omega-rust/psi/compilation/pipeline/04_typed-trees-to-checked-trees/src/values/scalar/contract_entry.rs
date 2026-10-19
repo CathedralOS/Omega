@@ -222,6 +222,23 @@ impl EntryOperands<'_> {
                     }
                 }
             }
+            CheckedScalarExpression::StructuralParameterIndexedRead {
+                root,
+                index,
+                element_path,
+                ..
+            } if matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. }) => {
+                // Collection roots retain authored structural positions. Each
+                // selector independently enters the dense scalar namespace;
+                // its occurrence still owns the separate bounds obligation.
+                self.scalar(&mut index.expression)?;
+                for step in element_path {
+                    if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) = step
+                    {
+                        self.scalar(&mut selector.expression)?;
+                    }
+                }
+            }
             CheckedScalarExpression::Local { .. }
             | CheckedScalarExpression::StructuralSequenceLength { .. }
             | CheckedScalarExpression::RepresentationView { .. }

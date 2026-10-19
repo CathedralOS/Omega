@@ -1,12 +1,12 @@
-# Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
-# One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
-# `expected` or `unexpected` when its expected.txt fragments were weighed,
-# then any execution facts such as exit:70 or stdout:match, then
-# `regressed-from:<status>[+fact]*` when the row has lost a success it used
-# to record, then `@<revision>` recording which commit measured the row
-# (`+wt` = dirty tree; rows measured before stamping have no token).
-# Tab-indented lines under a fixture are its diagnostics, in order.
-# A `# context: {...}` line records the conditions of the --record run.
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 # context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 fail/arithmetic/affine_difference_negative_edges rejected 681ms expected @70da601bb299+wt
@@ -948,6 +948,28 @@ fail/contracts/float_field_crash_wrong_field rejected 1014ms expected @c29465709
 fail/contracts/float_field_crash_wrong_order rejected 1015ms expected @c294657097ec+wt
 fail/contracts/float_guard_overlapping_operand_write rejected 1395ms expected @9a1008d23dee+wt
 fail/contracts/float_indexed_crash_wrong_element rejected 1028ms expected @c294657097ec+wt
+fail/contracts/indexed_crash_call_result_missing_identity rejected 3500ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/contracts/indexed_crash_changed_selector rejected 3593ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/contracts/indexed_crash_collection_write rejected 3299ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/contracts/indexed_crash_consumer_sibling_write rejected 3313ms expected @97fca7a18f74+wt
+	call from `read_seven` to `observe` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/contracts/indexed_crash_different_collection rejected 3388ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/contracts/indexed_crash_different_selected_index rejected 3339ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/contracts/indexed_crash_divergent_match rejected 3526ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/contracts/indexed_crash_erased_fact rejected 3226ms expected @b95f72597ce8+wt
+	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/contracts/indexed_crash_match_dispatch_write rejected 3365ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/contracts/indexed_crash_missing_independent_index_bound rejected 4088ms expected @97fca7a18f74+wt
+	cannot prove requires contract for call maybe_zero from read_seven: index < 2 (needs fact `index < 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/indexed_crash_producer_sibling_write rejected 3343ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/contracts/indexed_element_requirement_after_write rejected 447ms expected @6d847e2a233e
 fail/contracts/indexed_element_requirement_effectful_guard rejected 10343ms expected @7912abbc354e
 fail/contracts/indexed_element_requirement_weakened_guard rejected 3500ms expected @7912abbc354e
@@ -1924,6 +1946,24 @@ fail/facts/index_every_width_through_other_machine_rejected rejected 3953ms expe
 fail/facts/index_every_width_through_other_state_rejected rejected 3471ms expected @465f5043822d+wt
 fail/facts/index_every_width_through_parameter_rejected rejected 3426ms expected @465f5043822d+wt
 fail/facts/index_every_width_through_target_body_rejected rejected 13159ms expected @465f5043822d+wt
+fail/facts/indexed_crash_guard_through_call_result rejected 4035ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/indexed_crash_guard_through_const_name rejected 4128ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/indexed_crash_guard_through_field rejected 4249ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/indexed_crash_guard_through_local rejected 4176ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/indexed_crash_guard_through_match_join rejected 4229ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/indexed_crash_guard_through_other_machine rejected 4094ms expected @97fca7a18f74+wt
+	call from `read_seven` to `forward` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/indexed_crash_guard_through_other_state rejected 4135ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/indexed_crash_guard_through_parameter rejected 3576ms expected @97fca7a18f74+wt
+	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/indexed_crash_guard_through_target_body rejected 3443ms expected @97fca7a18f74+wt
+	call from `read_seven` to `forward` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/indexed_element_mut_loan_through_call_result_held rejected 1261ms expected @dee77250b5b9
 fail/facts/indexed_element_mut_loan_through_const_name_held rejected 1181ms expected @dee77250b5b9
 fail/facts/indexed_element_mut_loan_through_field_held rejected 1207ms expected @dee77250b5b9
@@ -2291,7 +2331,7 @@ fail/facts/reference_arrival_handoff_through_call_result_held_source rejected 33
 fail/facts/reference_arrival_handoff_through_const_name_held_source rejected 3207ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_field_held_source rejected 2657ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_local_held_source rejected 2572ms expected @3424ad143d6e
-fail/facts/reference_arrival_handoff_through_match_join_held_source rejected 1522ms expected @4030174fbc4e
+fail/facts/reference_arrival_handoff_through_match_join_held_source rejected 1661ms expected @28774f64507d
 fail/facts/reference_arrival_handoff_through_match_join_held_source rejected 1661ms expected @28774f64507d
 fail/facts/reference_arrival_handoff_through_other_machine_held_source rejected 2460ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_other_state_held_source rejected 2517ms expected @3424ad143d6e
@@ -5133,6 +5173,8 @@ pass/contracts/float_guard_disjoint_operand_write checked 6892ms check-target:ma
 pass/contracts/folded_actual_requires checked 9704ms @5041ef1af684+wt
 pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 2927ms check-target:linux_x86_64 @fce0c29a3681+wt
 pass/contracts/guard_conjunct_survives_disjoint_state_write_exit checked 5761ms check-target:macos_arm64 @a036414cf2c9
+pass/contracts/indexed_crash_dense_scalar_namespace checked 7774ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/contracts/indexed_crash_entry_subfield_arrival checked 7715ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/contracts/invariant_identifier checked 9662ms @5041ef1af684+wt
 pass/contracts/named_tail_return_contract checked 12896ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/contracts/opaque_call_preserves_model checked 7021ms check-target:macos_arm64 @8fd8af53161a+wt
@@ -6088,6 +6130,15 @@ pass/facts/index_every_width_through_other_machine_exit checked 8491ms check-tar
 pass/facts/index_every_width_through_other_state_exit checked 7887ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_parameter_exit checked 8276ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_target_body_exit checked 29484ms check-target:macos_arm64 @465f5043822d+wt
+pass/facts/indexed_crash_guard_through_call_result checked 7702ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/indexed_crash_guard_through_const_name checked 7676ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/indexed_crash_guard_through_field checked 7974ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/indexed_crash_guard_through_local checked 7951ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/indexed_crash_guard_through_match_join checked 7797ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/indexed_crash_guard_through_other_machine checked 7670ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/indexed_crash_guard_through_other_state checked 7829ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/indexed_crash_guard_through_parameter checked 7814ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/indexed_crash_guard_through_target_body checked 8235ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/facts/indexed_element_mut_loan_through_call_result_exit checked 7416ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_const_name_exit checked 7499ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_field_exit checked 7549ms check-target:macos_arm64 @dee77250b5b9

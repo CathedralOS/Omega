@@ -1916,8 +1916,9 @@ defines the complete product bar.
     arithmetic, and nonliteral wrapping operands; keep transitive contracts and
     exact entry versions across joins.
   - Entry-operand normalization: `EntryOperands::scalar`
-    (`src/values/scalar/contract_entry.rs`) declines indexed reads,
-    nonempty-path lengths, policy casts and representation views; keep exact
+    (`src/values/scalar/contract_entry.rs`) retains dynamic indexed integer
+    entry observations through `facts/indexed_crash_guard`'s nine places;
+    nonempty-path lengths, policy casts and representation views remain. Keep exact
     entry coordinates and recursive operand meaning, no source-arrangement
     exceptions, and private/local roots never become public parameters.
     Fixed-array field paths already work for crash-entry float operands.

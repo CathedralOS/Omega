@@ -49,6 +49,7 @@ mod domains;
 mod evaluator;
 pub(in crate::checks) mod prover;
 pub(crate) use prover::boolean_value_at_place;
+pub(crate) use prover::call_guarantees::captured_place as captured_guarantee_place;
 pub(crate) use prover::call_guarantees::current_predicates as current_call_guarantee_predicates;
 pub(crate) use prover::call_guarantees::{GuaranteeUse, proves_captured_predicates};
 pub(crate) use prover::contexts_prove_proposition_label;

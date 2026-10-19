@@ -24,6 +24,7 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
         program,
         operators,
         machine: Some(machine),
+        state: None,
         owner: machine.symbol,
         parameters,
         remaining: 4096,
@@ -52,6 +53,7 @@ pub(crate) fn lower_entry_predicate(
         program,
         operators,
         machine: Some(machine),
+        state: Some(state),
         owner: machine.symbol,
         parameters,
         remaining: 4096,
@@ -105,6 +107,7 @@ pub(crate) fn lower_entry_scalar(
         program,
         operators,
         machine: Some(machine),
+        state: Some(state),
         owner: machine.symbol,
         parameters: super::authored_entry_parameters(program, machine)?,
         remaining: 4096,
@@ -160,6 +163,7 @@ struct Reader<'program> {
     program: &'program dyn ::validation::CheckingInput,
     operators: &'program CheckedOperatorFacts,
     machine: Option<&'program Machine>,
+    state: Option<&'program typed_trees::state::State>,
     owner: symbols::SymbolHandle,
     parameters: &'program [StateParameter],
     remaining: usize,
@@ -197,6 +201,7 @@ pub(crate) fn lower_signature_crash_contract_expression(
         program,
         operators,
         machine: None,
+        state: None,
         owner: signature.symbol,
         parameters,
         remaining: 4096,
@@ -238,6 +243,7 @@ pub(crate) fn lower_operator_crash_contract_expression(
         program,
         operators,
         machine: None,
+        state: None,
         owner: operator.symbol,
         parameters,
         remaining: 4096,
@@ -336,7 +342,8 @@ impl<'program> Reader<'program> {
                         validation::has_builtin_binary_expression_meaning(
                             self.program,
                             machine,
-                            self.program.machine_states(machine).first(),
+                            self.state
+                                .or_else(|| self.program.machine_states(machine).first()),
                             expression,
                         )
                     }) =>
@@ -447,9 +454,9 @@ impl<'program> Reader<'program> {
                 ExpressionNode::Name(_)
                 | ExpressionNode::Member(_)
                 | ExpressionNode::Indexed(_) => {
-                    let subject = self.subject(operand, depth + 1)?;
+                    let (_, reference) = self.numeric_subject(operand, depth + 1)?;
                     if self
-                        .primitive(subject.type_reference, depth + 1)?
+                        .primitive(reference, depth + 1)?
                         .is_some_and(|(_, atom)| fixed_integer_atom(atom))
                     {
                         return Some(true);
@@ -488,14 +495,12 @@ impl<'program> Reader<'program> {
                 ExpressionNode::Name(_)
                 | ExpressionNode::Member(_)
                 | ExpressionNode::Indexed(_) => {
-                    let subject = self.subject(operand, depth + 1)?;
-                    let (primitive_type, atom) =
-                        self.primitive(subject.type_reference, depth + 1)??;
+                    let (value, reference) = self.numeric_subject(operand, depth + 1)?;
+                    let (_, atom) = self.primitive(reference, depth + 1)??;
                     if !fixed_integer_atom(atom) {
                         return None;
                     }
-                    let value = self.subject_scalar(&subject, primitive_type, depth + 1)?;
-                    subjects[position] = Some((value, subject.type_reference));
+                    subjects[position] = Some((value, reference));
                 }
                 ExpressionNode::Integer(_) => {}
                 // This slice establishes no totality for arithmetic, calls,
@@ -591,9 +596,9 @@ impl<'program> Reader<'program> {
                 self.program.expression_table.expression(operand),
                 ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
             ) {
-                let subject = self.subject(operand, depth + 1)?;
+                let (_, reference) = self.numeric_subject(operand, depth + 1)?;
                 if self
-                    .primitive(subject.type_reference, depth + 1)?
+                    .primitive(reference, depth + 1)?
                     .is_some_and(|(_, atom)| ieee_float_atom(atom))
                 {
                     return Some(true);
@@ -601,6 +606,88 @@ impl<'program> Reader<'program> {
             }
         }
         Some(false)
+    }
+
+    /// Read ordered selections with the ordinary scalar projection owner.
+    /// Authenticate the collection and every selector separately: neither a
+    /// stable collection nor a saved selector alone authenticates their read.
+    /// This translation supplies meaning, never an indexing bound.
+    fn numeric_subject(
+        &mut self,
+        expression: ExpressionHandle,
+        depth: usize,
+    ) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
+        self.charge(depth)?;
+        if let Some(subject) = self.subject(expression, depth + 1) {
+            let (primitive, _) = self.primitive(subject.type_reference, depth + 1)??;
+            let value = self.subject_scalar(&subject, primitive, depth + 1)?;
+            return Some((value, subject.type_reference));
+        }
+        let source_parameters = self
+            .state
+            .map(|state| self.program.state_parameters(state))
+            .unwrap_or(self.parameters);
+        let program = self.program;
+        let operators = self.operators;
+        let (mut value, _) = super::super::scalar_lowering::scalar_storage_read_with_selectors(
+            program,
+            operators,
+            expression,
+            source_parameters,
+            |_, selector, _| {
+                self.numeric_subject(selector, depth + 1)
+                    .map(|(value, _)| value)
+                    .or_else(|| {
+                        super::super::scalar_lowering::land_anonymous_scalar_expression(
+                            program,
+                            operators,
+                            selector,
+                            PrimitiveType::U64,
+                        )
+                    })
+            },
+        )?;
+        let CheckedScalarExpression::StructuralParameterIndexedRead {
+            root,
+            path,
+            primitive_type,
+            ..
+        } = &mut value
+        else {
+            return None;
+        };
+        // Find the source root by exact expression identity, then let the
+        // entry-provenance resolver authenticate it at the evaluation site.
+        let mut cursor = expression;
+        loop {
+            self.charge(depth)?;
+            match program.expression_table.expression(cursor) {
+                ExpressionNode::Indexed(indexed) => cursor = indexed.collection,
+                ExpressionNode::Member(member) => cursor = member.receiver,
+                ExpressionNode::Name(_) => break,
+                _ => return None,
+            }
+        }
+        let subject = self.subject(cursor, depth + 1)?;
+        let mut entry_path = subject.path;
+        entry_path.append(path);
+        *path = entry_path;
+        *root = checked_trees::CheckedStorageRoot::Parameter {
+            index: u32::try_from(subject.parameter_position).ok()?,
+        };
+        let reference = if let (Some(machine), Some(state)) = (self.machine, self.state) {
+            validation::declared_place_type_raw(program, machine, Some(state), expression)?
+        } else {
+            validation::parameter_expression_result_type_reference(
+                program,
+                self.owner,
+                source_parameters,
+                expression,
+            )?
+        };
+        let reference = validation::field_domains::readable_type_reference(program, reference)?;
+        let (primitive, _) = self.primitive(reference, depth + 1)??;
+        (primitive == *primitive_type).then_some((value, reference))
     }
 
     // Scalar positions are dense; structural roots retain the authored formal

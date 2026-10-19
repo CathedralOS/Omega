@@ -1044,7 +1044,7 @@ fn bound_place(
     Some(place)
 }
 
-fn captured_place(
+pub(crate) fn captured_place(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],

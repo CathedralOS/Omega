@@ -16,6 +16,8 @@ mod private_summaries;
 mod route_substitution;
 mod summary_predicates;
 
+mod entry_equations;
+
 use crate::facts::crash_calls::private_summaries::{
     infer_private_body_summaries, requirement_signature,
 };
@@ -368,7 +370,7 @@ pub(super) fn attach_checked_crash_calls(
                 continue;
             }
             let arguments = validation::call_site_argument_expressions(program, &call_site);
-            let surviving_summary = match target_routes {
+            let mut surviving_summary = match target_routes {
                 SelectedTargetCrashRoutes::Published { buckets, contracts } => {
                     refine_published_crash_routes(
                         program,
@@ -408,6 +410,9 @@ pub(super) fn attach_checked_crash_calls(
                 }
                 SelectedTargetCrashRoutes::Empty => Vec::new(),
             };
+            if let Some(caller) = program.machine_by_symbol(state_flow.machine_symbol) {
+                entry_equations::refine(program, operators, caller, &mut surviving_summary);
+            }
             let surviving_buckets = surviving_summary
                 .into_iter()
                 .filter_map(SummaryCrashBucket::into_checked)

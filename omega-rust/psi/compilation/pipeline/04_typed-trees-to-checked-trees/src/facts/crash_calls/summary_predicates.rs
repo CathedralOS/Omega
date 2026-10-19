@@ -367,3 +367,72 @@ pub(crate) fn normalize_summary_buckets(
         })
         .collect()
 }
+
+/// A checked annotation can retain proof-only operands. Only the executable
+/// invocation-entry algebra may authorize identity folding; an annotation's
+/// presence alone supplies neither an executable value nor runtime custody.
+pub(super) fn executable_entry_predicate(
+    expression: &checked_trees::CheckedBooleanExpression,
+) -> bool {
+    use checked_trees::{
+        CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
+        CheckedScalarReadProjection as Projection, CheckedStorageRoot as Root,
+    };
+    fn projections(path: &[Projection]) -> bool {
+        path.iter().all(|step| match step {
+            Projection::Static(_) => true,
+            Projection::RuntimeIndex(selector) => scalar(&selector.expression),
+        })
+    }
+    fn scalar(value: &Scalar) -> bool {
+        match value {
+            Scalar::Parameter { .. }
+            | Scalar::StructuralParameterField { .. }
+            | Scalar::IntegerLiteral { .. }
+            | Scalar::IeeeFloatLiteral { .. }
+            | Scalar::ImplementationSelection { .. } => true,
+            Scalar::StructuralParameterIndexedRead {
+                root,
+                index,
+                element_path,
+                ..
+            } => {
+                matches!(root, Root::Parameter { .. })
+                    && scalar(&index.expression)
+                    && projections(element_path)
+            }
+            Scalar::StructuralSequenceLength { root, path } => {
+                matches!(root, Root::Parameter { .. }) && projections(path)
+            }
+            Scalar::IntegerBinary { left, right, .. } => scalar(left) && scalar(right),
+            Scalar::IntegerBitwiseNot { operand, .. }
+            | Scalar::IntegerWiden { operand, .. }
+            | Scalar::IntegerExactCast { operand, .. } => scalar(operand),
+            Scalar::Boolean(value) => executable_entry_predicate(value),
+            Scalar::ErasedParameter { .. }
+            | Scalar::Local { .. }
+            | Scalar::StorageRead { .. }
+            | Scalar::RepresentationView { .. } => false,
+        }
+    }
+    match expression {
+        Boolean::Constant(_)
+        | Boolean::Parameter { .. }
+        | Boolean::StructuralParameterField { .. }
+        | Boolean::IeeeFloatComparison { .. } => true,
+        Boolean::Not(value) => executable_entry_predicate(value),
+        facts::checked_boolean_triple_pattern!(left, right, ..) => {
+            executable_entry_predicate(left) && executable_entry_predicate(right)
+        }
+        Boolean::IntegerComparison { left, right, .. }
+        | Boolean::ScalarIeeeFloatComparison { left, right, .. } => scalar(left) && scalar(right),
+        Boolean::ErasedParameter { .. }
+        | Boolean::Local { .. }
+        | Boolean::StorageRead { .. }
+        | Boolean::IntegerMathComparison { .. }
+        | Boolean::StructuralIdentity { .. }
+        | Boolean::ByteSequenceEqual { .. }
+        | Boolean::ByteSequencePredicate { .. }
+        | Boolean::StructuralCaseMembership { .. } => false,
+    }
+}

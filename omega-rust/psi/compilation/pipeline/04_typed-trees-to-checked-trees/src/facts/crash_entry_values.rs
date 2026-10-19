@@ -288,6 +288,9 @@ fn entry_operand_projected_at(
                 operand_place = member.receiver;
             }
             ExpressionNode::Indexed(indexed) => {
+                if !builtin_index_meaning(program, machine_symbol, state_symbol, operand_place) {
+                    return None;
+                }
                 // A constructed element recovers through the same literal
                 // projection `entry_operand_at` consults first — the saved
                 // initializer supplies the element's entry operand, over
@@ -535,6 +538,29 @@ fn entry_operand_at(
         return Some(value);
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => {
+            // A join carries an invocation operand only when every alternative
+            // delivers that same operand. The containing statement's write
+            // window also covers dispatch/arm effects; no selected arm is
+            // guessed from its source spelling.
+            let mut agreed = None;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let value = entry_operand_at(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    before_statement,
+                    arm.value,
+                    depth + 1,
+                )?;
+                if agreed.as_ref().is_some_and(|known| *known != value) {
+                    return None;
+                }
+                agreed = Some(value);
+            }
+            agreed
+        }
+
         ExpressionNode::Boolean(value) => Some(CrashPredicateExpression::Boolean(*value)),
         ExpressionNode::Integer(value) => {
             Some(CrashPredicateExpression::Integer(value.text().to_owned()))
@@ -671,6 +697,9 @@ fn entry_operand_at(
             }))
         }
         ExpressionNode::Indexed(indexed) => {
+            if !builtin_index_meaning(program, machine_symbol, state_symbol, expression) {
+                return None;
+            }
             // An indexed read is a value projection like `Member`: the
             // operand's entry identity is the collection's entry storage
             // read at the index's entry value. The collection resolves at
@@ -737,9 +766,7 @@ fn entry_operand_at(
                     | typed_trees::expression::BinaryOperator::BitwiseXor
                     | typed_trees::expression::BinaryOperator::ShiftLeft
                     | typed_trees::expression::BinaryOperator::ShiftRight
-            ) || (matches!(
-                binary.operator,
-                typed_trees::expression::BinaryOperator::And
+                    | typed_trees::expression::BinaryOperator::And
                     | typed_trees::expression::BinaryOperator::Or
                     | typed_trees::expression::BinaryOperator::Equal
                     | typed_trees::expression::BinaryOperator::NotEqual
@@ -747,23 +774,11 @@ fn entry_operand_at(
                     | typed_trees::expression::BinaryOperator::LessOrEqual
                     | typed_trees::expression::BinaryOperator::Greater
                     | typed_trees::expression::BinaryOperator::GreaterOrEqual
-            ) && builtin_binary_meaning(
-                program,
-                machine_symbol,
-                state_symbol,
-                expression,
-            )) =>
+            ) && builtin_binary_meaning(program, machine_symbol, state_symbol, expression) =>
         {
-            // Only value-producing arithmetic crosses this boundary
-            // unconditionally. The domain-free predicate reducers can never
-            // fold these operators, so transporting them cannot substitute
-            // builtin meaning for a caller-authored one; the checked scalar
-            // channel remains the only evaluation authority over the
-            // substituted expression. Comparisons and logical connectives are
-            // decidable by those same reducers, so they transport only when
-            // this occurrence already selected builtin meaning — a custom
-            // operator spelled like one would otherwise be folded under laws
-            // its selection rejected.
+            // An entry identity can become a route witness. Authenticate
+            // every operation before erasing its selected meaning; identical
+            // spelling cannot equate an authored operator with a builtin.
             Some(CrashPredicateExpression::Binary {
                 operator: binary.operator as u8,
                 left: Box::new(entry_operand_at(
@@ -920,6 +935,24 @@ fn builtin_binary_meaning(
     };
     let state = validation::find_state_in_machine(program, machine.symbol, state_symbol);
     validation::has_builtin_binary_expression_meaning(program, machine, state, expression)
+}
+
+/// Provenance may retain builtin collection selection only after source
+/// resolution authenticates this occurrence in its actual state namespace.
+fn builtin_index_meaning(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(machine) = program.machine_by_symbol(machine_symbol) else {
+        return false;
+    };
+    let Some(state) = validation::find_state_in_machine(program, machine.symbol, state_symbol)
+    else {
+        return false;
+    };
+    validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
 }
 
 /// A mutable reference can expose an entry observation of stable referent

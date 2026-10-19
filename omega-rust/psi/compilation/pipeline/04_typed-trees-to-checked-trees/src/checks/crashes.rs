@@ -431,7 +431,22 @@ fn classify_state_guards(
             )
         })
         .collect();
-    let mut consequences = Vec::new();
+    // Keep the exact incoming guard identity above. A saved Boolean can
+    // additionally speak about invocation operands when the shared provenance
+    // owner authenticates its complete initializer at the guard's evaluation.
+    let mut consequences = incoming
+        .iter()
+        .filter(|guard| guard.applies_at(state))
+        .flat_map(|guard| {
+            entry_guards::entry_value_consequences(
+                program,
+                machine,
+                eval_sites,
+                guard.guard(),
+                guard.is_negated(),
+            )
+        })
+        .collect::<Vec<_>>();
     let mut order_relations = Vec::new();
     let mut disequalities = Vec::new();
     for &(guard, negated) in &conjuncts {

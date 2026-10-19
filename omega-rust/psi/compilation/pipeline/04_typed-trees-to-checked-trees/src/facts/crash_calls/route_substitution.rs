@@ -136,6 +136,18 @@ pub(crate) fn call_argument_substitution<'program>(
                 argument,
             )
             .or_else(|| {
+                super::entry_equations::completed_operand(
+                    program,
+                    operators,
+                    semantic,
+                    flow,
+                    state_flow,
+                    before_statement,
+                    &entry_contexts,
+                    argument,
+                )
+            })
+            .or_else(|| {
                 crate::facts::crash_entry_values::checked_projected_entry_value(
                     program,
                     operators,
@@ -299,6 +311,15 @@ impl StructuralArgumentSubstitution<'_> {
                 .then(|| whole.get(ordinal).cloned().flatten())
                 .flatten();
         };
+        // A whole captured value may have acquired its entry identity from
+        // checked normal-completion evidence. Preserve that authenticated
+        // channel after the same capture-stability gate; projected reads still
+        // owe their independent exact path replay below.
+        if members.is_empty()
+            && let Some(value) = whole.get(ordinal).cloned().flatten()
+        {
+            return Some(value);
+        }
         let mut expression = crate::facts::crash_entry_values::entry_place_before_statement(
             self.program,
             self.machine,

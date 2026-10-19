@@ -1,0 +1,2 @@
+call from `read_seven` to `maybe_zero`
+uncovered Trap crash route
