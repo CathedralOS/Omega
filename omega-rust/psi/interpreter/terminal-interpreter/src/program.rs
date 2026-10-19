@@ -657,6 +657,9 @@ impl<'artifact> TerminalProgram<'artifact> {
                 .bind_byte_arrays(structural_inputs.byte_arrays)
                 .map_err(TerminalArtifactInterpretError::Execution)?;
         }
+        execution
+            .retain_host_structural_payloads(structural_inputs)
+            .map_err(TerminalArtifactInterpretError::Execution)?;
         execution.external_demands = requirements.external_completions.clone();
         Ok((execution, requirements))
     }

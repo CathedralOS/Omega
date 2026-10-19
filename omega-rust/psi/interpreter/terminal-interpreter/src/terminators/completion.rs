@@ -98,12 +98,15 @@ impl TerminalExecution<'_> {
 
     pub(super) fn finish_return(
         &mut self,
-        completed: CompletedReturn,
+        mut completed: CompletedReturn,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         self.complete_activation_storage()?;
         let Some(caller) = self.call_stack.pop() else {
             if completed.destination.is_some() {
                 return Err(malformed());
+            }
+            if let TerminalExecutionResult::Structural(returned) = &mut completed.value {
+                self.forward_host_atom(&mut returned.value);
             }
             self.result = Some(completed.value.clone());
             return Ok(TerminatorFlow::Yield(TerminalExecutionStatus::Complete(

@@ -4349,10 +4349,14 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns implementation selector
   semantics; private callbacks retain their authored entry ABI and fragment custody.
 
-- **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Selected opaque arguments, results and
-  nested fields are not exchanged at runtime under
-  [representation agreement](wiki/spec/build/opaque_representations.md),
-  building on **NORMALIZED-ABI-LOWERING**.
+- **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Independent Omega components still need
+  complete runtime [representation agreement](wiki/spec/build/opaque_representations.md)
+  for selected opaque arguments, results and nested fields, building on
+  **NORMALIZED-ABI-LOWERING**. The existing host-boundary path supports closed
+  generic Inert carriers, including nested applications and record transport;
+  [closed carrier exchange](samples/cli/facts/opaque_closed_carrier_exchange/README.md)
+  checks actual libc values and cleanup-only rejects. This does not establish
+  independent-component composition or mismatched-component admission.
   `omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
   derives occurrence paths and placements; connect them to provider call-frame
   transport and backend emission. Physical copies preserve one semantic

@@ -965,18 +965,21 @@ impl<'program> ShapeCollector<'program> {
             if validation::activation_claim_byte_carrier(self.program, data.symbol).is_some() {
                 // The descriptor moves with linear custody. Its byte backing
                 // belongs to the caller-site establishment, never this home.
-                self.types.insert(identity, CheckedUnitStructuralTypePlan {
-                    scalar_restriction: None,
-                    owns_linear_claim: true,
-                    no_code_affine_cleanup: false,
-                    descriptor_cleanup: false,
+                self.types.insert(
                     identity,
-                    shape: CheckedUnitStructuralTypeShape::ByteSequence(
-                        checked_trees::CheckedByteSequenceCarrier::BorrowedView {
-                            access: Some(CheckedStructuralAccess::MutableBorrow),
-                        },
-                    ),
-                });
+                    CheckedUnitStructuralTypePlan {
+                        scalar_restriction: None,
+                        owns_linear_claim: true,
+                        no_code_affine_cleanup: false,
+                        descriptor_cleanup: false,
+                        identity,
+                        shape: CheckedUnitStructuralTypeShape::ByteSequence(
+                            checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+                                access: Some(CheckedStructuralAccess::MutableBorrow),
+                            },
+                        ),
+                    },
+                );
                 self.in_progress.remove(&identity);
                 return Some(identity);
             }
@@ -988,7 +991,10 @@ impl<'program> ShapeCollector<'program> {
                 self.unselected_opaque = Some(data.symbol);
                 return None;
             };
-            let Some(carrier) = self.program.data_definition_by_symbol(selection.carrier()) else {
+            let Some(carrier) = self
+                .program
+                .closed_data_definition(selection.carrier_type())
+            else {
                 self.in_progress.remove(&identity);
                 return None;
             };

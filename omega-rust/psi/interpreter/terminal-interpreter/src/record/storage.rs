@@ -253,6 +253,7 @@ impl<'execution> ConstructorValue<'execution> {
 pub(crate) struct ConstructorStorage {
     activation_descriptors:
         BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
+    host_atoms: BTreeMap<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
     scalars: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
     bytes: BTreeMap<
         StructuralByteSequenceRuntimeField,
@@ -727,6 +728,13 @@ impl ConstructorStorage {
                 self.byte_arrays.insert(target, bytes.clone());
             }
         }
+        for (home, atom) in
+            crate::structural_storage::cells(&execution.structural_host_atoms, source)
+        {
+            if let Some(target) = relocate(home) {
+                self.host_atoms.insert(target, *atom);
+            }
+        }
         for (home, case) in crate::structural_storage::cells(&execution.structural_cases, source) {
             if let Some(target) = relocate(home) {
                 self.cases.insert(target, *case);
@@ -760,6 +768,7 @@ impl ConstructorStorage {
             .extend(self.primitives);
         execution.structural_byte_storage.extend(self.byte_arrays);
         execution.structural_cases.extend(self.cases);
+        execution.structural_host_atoms.extend(self.host_atoms);
         Ok(())
     }
 }

@@ -124,6 +124,12 @@ pub struct TerminalExecution<'artifact> {
     /// Entry-provided discriminators remain attached to the original referent
     /// across projected and forwarded calls, independent of machine-local IDs.
     pub(crate) structural_cases: BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+    /// Admitted opaque host payloads at their current typed storage homes.
+    /// A storage relocation changes the key, not the host's forwarding token;
+    /// this table grants no storage, loan, qualification or lifecycle authority.
+    pub(crate) structural_host_atoms:
+        BTreeMap<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
+    pub(crate) next_host_atom_collection_size: usize,
     pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
     /// field loans, rebound to callee parameters. Opaque identities alone do
@@ -430,6 +436,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_byte_sequence_fields: BTreeMap::new(),
             structural_byte_storage: BTreeMap::new(),
             structural_cases: BTreeMap::new(),
+            structural_host_atoms: BTreeMap::new(),
+            next_host_atom_collection_size: 1024,
             scalar_array_values: BTreeMap::new(),
             byte_sequence_values: BTreeMap::new(),
             primitive_loan_values: BTreeMap::new(),
@@ -513,6 +521,69 @@ impl<'artifact> TerminalExecution<'artifact> {
         )?;
         execution.establish_private_entry_ram(private_entry_ram, placed_view_establishments)?;
         Ok(execution)
+    }
+
+    /// Record host payloads after every explicit entry-content lane has been
+    /// admitted. Guest-visible backing retains its storage home at completion;
+    /// an unchanged host import may still use the original forwarding token.
+    pub(crate) fn retain_host_structural_payloads(
+        &mut self,
+        inputs: crate::structural_inputs::TerminalStructuralInputs<'_>,
+    ) -> Result<(), TerminalInterpretError> {
+        let machine = self
+            .program
+            .machines()
+            .get(&self.current_machine)
+            .ok_or_else(malformed)?;
+        for (index, (parameter, value)) in machine
+            .structural_parameters
+            .iter()
+            .zip(inputs.arguments)
+            .enumerate()
+        {
+            let index = index as u32;
+            if parameter.access != terminal_psi::StructuralAccess::Owned
+                || inputs.zero_initialized_arguments.contains(&index)
+                || crate::effects::results::requires_materialized_host_custody(
+                    &self.program.structural_types(),
+                    parameter.structural_type,
+                )
+            {
+                continue;
+            }
+            // Classify each actual root, including partial materialization.
+            // A type shape or another argument's contents cannot supply cells.
+            let materialized = inputs
+                .scalar_fields
+                .iter()
+                .any(|field| field.argument_index == index)
+                || inputs
+                    .boolean_fields
+                    .iter()
+                    .any(|field| field.argument_index == index)
+                || inputs
+                    .primitive_values
+                    .iter()
+                    .any(|value| value.argument_index == index)
+                || inputs
+                    .cases
+                    .iter()
+                    .any(|value| value.argument_index == index)
+                || inputs
+                    .byte_arrays
+                    .iter()
+                    .any(|value| value.argument_index == index);
+            let payload = if materialized {
+                crate::structural_storage::HostStructuralPayload::Materialized(
+                    value.opaque_identity,
+                )
+            } else {
+                crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity)
+            };
+            self.structural_host_atoms
+                .insert(StructuralRuntimePlace::from(value), payload);
+        }
+        Ok(())
     }
 
     pub fn effects(&self) -> &[TerminalEffect] {

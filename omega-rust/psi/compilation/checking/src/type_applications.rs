@@ -20,7 +20,7 @@ pub(crate) type TypeBindings = Vec<(SymbolHandle, TypeReferenceHandle)>;
 /// and value transport share simultaneous substitutions in query-local scopes,
 /// without manufacturing typed rows. Siblings cannot inherit one another's
 /// bindings; each application owns one scope shared by its children.
-pub(crate) struct DeclarationScopes {
+pub struct DeclarationScopes {
     scopes: Vec<DeclarationScope>,
 }
 
@@ -43,7 +43,7 @@ impl Default for DeclarationScopes {
 }
 
 impl DeclarationScopes {
-    pub(crate) fn head(
+    pub fn head(
         &self,
         program: &dyn crate::CheckingInput,
         mut reference: TypeReferenceHandle,
@@ -80,7 +80,7 @@ impl DeclarationScopes {
         }
     }
 
-    pub(crate) fn type_identity(
+    pub fn type_identity(
         &self,
         program: &dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
@@ -96,7 +96,58 @@ impl DeclarationScopes {
         )
     }
 
-    pub(crate) fn definition<'program>(
+    /// A repeated by-value declaration may expand only by descending into a
+    /// finite actual argument, never by growing another application in a field.
+    pub fn is_strict_argument(
+        &self,
+        program: &dyn crate::CheckingInput,
+        parent: TypeReferenceHandle,
+        parent_scope: usize,
+        selected: typed_trees::type_identity::TypeIdentityId,
+    ) -> bool {
+        let (parent, parent_scope) = self.head(program, parent, parent_scope);
+        let TypeReferenceNode::Generic { arguments, .. } =
+            program.type_reference_table.type_reference(parent)
+        else {
+            return false;
+        };
+        let mut pending = program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .iter()
+            .map(|reference| (*reference, parent_scope))
+            .collect::<Vec<_>>();
+        let mut visited = Vec::new();
+        while let Some((reference, scope)) = pending.pop() {
+            let (reference, scope) = self.head(program, reference, scope);
+            if visited.contains(&(reference, scope)) {
+                continue;
+            }
+            visited.push((reference, scope));
+            if self.type_identity(program, reference, scope) == selected {
+                return true;
+            }
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Generic { arguments, .. } => pending.extend(
+                    program
+                        .type_reference_table
+                        .type_reference_handles(*arguments)
+                        .iter()
+                        .map(|reference| (*reference, scope)),
+                ),
+                TypeReferenceNode::Constrained { base_type, .. } => {
+                    pending.push((*base_type, scope))
+                }
+                TypeReferenceNode::FixedArray { element_type, .. } => {
+                    pending.push((*element_type, scope))
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    pub fn definition<'program>(
         &mut self,
         program: &'program dyn crate::CheckingInput,
         reference: TypeReferenceHandle,

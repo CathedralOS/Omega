@@ -360,7 +360,7 @@ impl<'program> LayoutBuilder<'program> {
                 if let Some(selection) =
                     selection_for_opaque(self.opaque_representation_selections, symbol)
                 {
-                    return self.layout_data_definition(selection.carrier());
+                    return self.layout_type_reference_handle(selection.carrier_type(), &[]);
                 }
                 if self.opaque_representation_demand == OpaqueRepresentationDemand::ByValue {
                     return Err(Diagnostic::error(format!(

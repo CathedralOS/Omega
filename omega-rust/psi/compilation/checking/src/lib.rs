@@ -468,6 +468,7 @@ mod program_validation;
 mod proof_contracts;
 pub mod substitutions;
 mod type_applications;
+pub use type_applications::DeclarationScopes;
 mod value_custody;
 
 // The front-end pipeline the tests run, shared with the `suite` integration

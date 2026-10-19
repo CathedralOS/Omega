@@ -78,10 +78,10 @@ impl TerminalExecution<'_> {
         }
         // Sharing immutable backing copies the semantic value. An indexed
         // destination mutation detaches it before changing any byte.
-        self.structural_byte_sequence_fields.insert(
-            destination_field,
-            ByteSequenceBinding::Immutable(bytes.clone()),
-        );
+        let bytes = bytes.clone();
+        self.invalidate_host_atoms(&destination_field.parent);
+        self.structural_byte_sequence_fields
+            .insert(destination_field, ByteSequenceBinding::Immutable(bytes));
         Ok(())
     }
 

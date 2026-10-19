@@ -204,6 +204,7 @@ impl BoundaryByteBufferBinding {
                 }
             }
             ByteSequenceBinding::MutableField { field, .. } => {
+                execution.invalidate_host_atoms(&field.parent);
                 execution.structural_byte_sequence_fields.insert(
                     field,
                     ByteSequenceBinding::Immutable(ByteSequenceView::new(buffer.bytes)),

@@ -2103,9 +2103,11 @@ impl TerminalExecution<'_> {
                 // operation must not require the previous scalar to exist.
                 // Reads still require an initialized cell; this creates no
                 // owner, loan, predicate membership, or implicit zero value.
+                self.invalidate_host_atoms(&storage);
                 self.structural_primitive_storage.insert(storage, scalar);
             }
             PrimitiveStorageEndpoint::ScalarField(field) => {
+                self.invalidate_host_atoms(&field.parent);
                 let stored = self.structural_scalar_fields.get_mut(&field).ok_or(
                     TerminalInterpretError::StructuralScalarFieldMissing {
                         source: destination,

@@ -511,11 +511,24 @@ impl TerminalExecution<'_> {
             completion_receipts,
             &boundary_declaration.structural_parameters,
         )?;
+        // Complete ordinary storage/custody checking above before presenting
+        // exact admitted abstract payloads to the host. Borrowed arguments keep
+        // their original storage/descriptor route; an atom grants no loan.
+        let mut exported_values = std::mem::take(&mut boundary_arguments.values);
+        for (parameter, value) in boundary_declaration
+            .structural_parameters
+            .iter()
+            .zip(&mut exported_values)
+        {
+            if parameter.access == StructuralAccess::Owned {
+                self.export_host_atom(value)?;
+            }
+        }
         let effect = TerminalEffect::BoundaryCall {
             operation: operation.id,
             boundary,
             arguments: scalar_arguments,
-            structural_arguments: std::mem::take(&mut boundary_arguments.values),
+            structural_arguments: exported_values,
             byte_sequence_arguments: std::mem::take(&mut boundary_arguments.bytes),
             completion_receipts: completion_receipts.clone(),
             result: boundary_declaration.result.clone(),

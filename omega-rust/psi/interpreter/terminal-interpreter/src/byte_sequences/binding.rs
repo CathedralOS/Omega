@@ -874,21 +874,50 @@ impl TerminalExecution<'_> {
                 place,
             } => (depth, machine, place),
             ByteOwnerHome::Storage(home) => {
+                if !self.structural_byte_storage.contains_key(home) {
+                    return Err(malformed());
+                }
+                self.invalidate_host_atoms(home);
                 return self
                     .structural_byte_storage
                     .get_mut(home)
                     .ok_or_else(malformed);
             }
         };
-        let (machine, values) = if *depth == self.call_stack.len() {
-            (self.current_machine, &mut self.byte_sequence_values)
+        let (machine, values, structural_values) = if *depth == self.call_stack.len() {
+            (
+                self.current_machine,
+                &self.byte_sequence_values,
+                &self.structural_values,
+            )
         } else {
-            let frame = self.call_stack.get_mut(*depth).ok_or_else(malformed)?;
-            (frame.current_machine, &mut frame.byte_sequence_values)
+            let frame = self.call_stack.get(*depth).ok_or_else(malformed)?;
+            (
+                frame.current_machine,
+                &frame.byte_sequence_values,
+                &frame.structural_values,
+            )
         };
-        if machine != *expected_machine {
+        if machine != *expected_machine
+            || !matches!(values.get(place), Some(ByteSequenceBinding::Immutable(_)))
+        {
             return Err(malformed());
         }
+        let changed = structural_values
+            .get(place)
+            .map(crate::values::StructuralRuntimePlace::from);
+        if let Some(changed) = changed {
+            self.invalidate_host_atoms(&changed);
+        }
+        let values = if *depth == self.call_stack.len() {
+            &mut self.byte_sequence_values
+        } else {
+            &mut self
+                .call_stack
+                .get_mut(*depth)
+                .ok_or_else(malformed)?
+                .byte_sequence_values
+        };
         match values.get_mut(place) {
             Some(ByteSequenceBinding::Immutable(bytes)) => Ok(bytes),
             _ => Err(malformed()),

@@ -235,20 +235,16 @@ fn close_selection(
             carrier_definition.name,
         )));
     }
-    if !typed.data_type_parameters(carrier_definition).is_empty()
-        || !carrier_definition.lifetime_parameters.is_empty()
-    {
-        return Err(Diagnostic::error(format!(
-            "opaque representation carrier `{}` is not target-closed",
-            carrier_definition.name,
-        )));
-    }
-    let copy_disposition =
-        carrier_closure::validate_inert_carrier(typed, opaque_definition, carrier_definition)?;
+    let copy_disposition = carrier_closure::validate_inert_carrier(
+        typed,
+        opaque_definition,
+        *representation_trait_argument,
+    )?;
 
     Ok(OpaqueRepresentationSelection::from_validated_application(
         opaque,
         carrier,
+        *representation_trait_argument,
         application,
         OpaqueRepresentationLifecycleDisposition::Inert,
         copy_disposition,

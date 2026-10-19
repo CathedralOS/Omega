@@ -13,6 +13,8 @@ use crate::fixture_package_inputs::{
     fixture_build_snapshot, reviewed_repository_fixture_package_inputs,
 };
 
+#[path = "terminal_host_provisions.rs"]
+mod host_provisions;
 #[path = "indexed_family_controls.rs"]
 mod indexed_family_controls;
 
@@ -25,11 +27,18 @@ enum InspectionControls {
     IndexedFamily,
 }
 
-pub(super) fn inspect(root: &Path, fixture: &Path) -> Result<(), Vec<Diagnostic>> {
+pub(super) fn inspect(root: &Path, fixture: &Path) -> Result<Vec<String>, Vec<Diagnostic>> {
     inspect_machines(root, fixture).map_err(|message| vec![Diagnostic::error(message)])
 }
 
-fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
+fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> {
+    let host_provisions = match std::env::var("OMEGA_CORPUS_HOST_PROVISIONS") {
+        Ok(value) if value == "1" => true,
+        Ok(value) if value == "0" => false,
+        Err(std::env::VarError::NotPresent) => false,
+        _ => return Err("OMEGA_CORPUS_HOST_PROVISIONS requires 0 or 1".to_owned()),
+    };
+    let mut observations = Vec::new();
     let selections = std::fs::read_to_string(fixture.join(ORACLE))
         .map_err(|error| format!("cannot read {ORACLE}: {error}"))?;
     let selections = selections
@@ -39,7 +48,19 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
     let mut inspected = false;
     for selection in selections {
         let words = selection.split_whitespace().collect::<Vec<_>>();
-        let (machine, requires_debug, conformance_controls) = match words.as_slice() {
+        let (machine, runtime_words) = match words.as_slice() {
+            [machine, "runtime", "linux_x86_64", provisions @ ..] if !provisions.is_empty() => {
+                (*machine, Some(provisions))
+            }
+            [machine, ..] => (*machine, None),
+            _ => return Err(format!("{ORACLE} requires a machine")),
+        };
+        let inspection_words = if runtime_words.is_some() {
+            vec![machine]
+        } else {
+            words.clone()
+        };
+        let (machine, requires_debug, conformance_controls) = match inspection_words.as_slice() {
             [machine] => (*machine, false, None),
             [machine, "debug"] => (*machine, true, None),
             [machine, "closed-conformance-controls"] => (
@@ -89,6 +110,19 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
             || decoded.manifest() != artifact.manifest()
         {
             return Err(format!("inspection {machine} changed during transport"));
+        }
+        if let Some(words) = runtime_words {
+            if !host_provisions {
+                observations.push(format!("terminal-runtime.{machine}:unrequested"));
+            } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+                host_provisions::observe(&decoded, words)
+                    .map_err(|error| format!("inspection {machine} runtime: {error}"))?;
+                observations.push(format!("terminal-runtime.{machine}:match"));
+            } else {
+                observations.push(format!(
+                    "terminal-runtime.{machine}:unavailable-linux_x86_64"
+                ));
+            }
         }
         if let Some(controls) = conformance_controls {
             if let Some(directory) = std::env::var_os("OMEGA_CORPUS_ARTIFACT_DIR") {
@@ -149,7 +183,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
     if !inspected {
         return Err(format!("{ORACLE} needs at least one machine selection"));
     }
-    Ok(())
+    Ok(observations)
 }
 
 /// Mutate actual Source-produced payloads at the public artifact ingress seam.

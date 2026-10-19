@@ -302,6 +302,8 @@ impl TerminalExecution<'_> {
     /// Retire precisely the consumed subtree after its cells have been staged.
     pub(crate) fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
         crate::structural_storage::prune(&mut self.activation_storage.claim_descriptors, from);
+        self.invalidate_host_atoms(from);
+        crate::structural_storage::prune(&mut self.structural_host_atoms, from);
         crate::structural_storage::prune(&mut self.structural_scalar_fields, from);
         crate::structural_storage::prune(&mut self.structural_byte_sequence_fields, from);
         crate::structural_storage::prune(&mut self.structural_byte_storage, from);
@@ -817,6 +819,7 @@ impl TerminalExecution<'_> {
             self.store_primitive_storage(destination, storage, scalar_type, source)?;
             return Ok(OperationFlow::Advance);
         }
+        self.invalidate_host_atoms(&cell.parent);
         self.structural_scalar_fields.insert(cell, source);
         Ok(OperationFlow::Advance)
     }
@@ -1438,6 +1441,10 @@ impl TerminalExecution<'_> {
             crate::structural_storage::cells(&self.structural_byte_storage, from)
                 .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone())))
                 .collect();
+        let staged_atoms: Vec<_> =
+            crate::structural_storage::cells(&self.structural_host_atoms, from)
+                .filter_map(|(home, atom)| retarget(home).map(|home| (home, *atom)))
+                .collect();
         let staged_cases: Vec<_> = crate::structural_storage::cells(&self.structural_cases, from)
             .filter_map(|(carrier, contents)| retarget(carrier).map(|place| (place, *contents)))
             .collect();
@@ -1466,6 +1473,7 @@ impl TerminalExecution<'_> {
             .extend(staged_byte_fields);
         self.structural_byte_storage.extend(staged_arrays);
         self.structural_cases.extend(staged_cases);
+        self.structural_host_atoms.extend(staged_atoms);
         self.reference_referents.extend(staged_referents);
         self.structural_element_view_fields
             .extend(staged_element_views);

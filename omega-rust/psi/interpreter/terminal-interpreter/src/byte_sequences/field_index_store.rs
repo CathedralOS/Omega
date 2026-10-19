@@ -92,7 +92,9 @@ impl TerminalExecution<'_> {
         if u64::try_from(bytes.len()).ok() != Some(live_length) {
             return Err(malformed());
         }
-        bytes.replace_byte(byte_index, byte).ok_or_else(malformed)
+        bytes.replace_byte(byte_index, byte).ok_or_else(malformed)?;
+        self.invalidate_host_atoms(&destination_field.parent);
+        Ok(())
     }
 
     /// Read one byte of the field's live extent. Every operand and the

@@ -136,7 +136,78 @@ mod tests {
     }
 }
 
+/// An actual host value may be forwarded until a guest write changes its
+/// contents. Modified cells cannot silently export the original host token.
+#[derive(Clone, Copy)]
+pub(crate) enum HostStructuralPayload {
+    Opaque(u64),
+    // The host token also has admitted guest-visible payload cells. Root
+    // completion must retain their relocated storage instead of the token.
+    Materialized(u64),
+    Modified,
+}
+
 impl crate::execution::TerminalExecution<'_> {
+    /// Any write invalidates an enclosing abstract host payload. Disjoint
+    /// children retain their own cells; a token cannot describe modified bits.
+    pub(crate) fn invalidate_host_atoms(&mut self, changed: &StructuralRuntimePlace) {
+        for (home, payload) in &mut self.structural_host_atoms {
+            if home.opaque_identity == changed.opaque_identity
+                && changed.path.starts_with(&home.path)
+            {
+                *payload = HostStructuralPayload::Modified;
+            }
+        }
+    }
+
+    /// Export occurs after ordinary argument custody/qualification checks.
+    /// Storage homes remain authoritative throughout the interpreter; only an
+    /// exact admitted atom cell supplies the host's opaque forwarding token.
+    pub(crate) fn export_host_atom(
+        &self,
+        value: &mut crate::values::TerminalStructuralValue,
+    ) -> Result<(), crate::errors::TerminalInterpretError> {
+        let home = StructuralRuntimePlace::from(&*value);
+        if let Some(
+            HostStructuralPayload::Opaque(identity) | HostStructuralPayload::Materialized(identity),
+        ) = self.structural_host_atoms.get(&home)
+        {
+            value.opaque_identity = *identity;
+            value.path.clear();
+            return Ok(());
+        }
+        if self.structural_host_atoms.iter().any(|(parent, payload)| {
+            parent.opaque_identity == home.opaque_identity
+                && home.path.starts_with(&parent.path)
+                && matches!(payload, HostStructuralPayload::Modified)
+        }) {
+            return Err(
+                crate::errors::TerminalInterpretError::UnsupportedSemanticVariant(
+                    "modified host structural payload requires materialized host export",
+                ),
+            );
+        }
+        Ok(())
+    }
+
+    /// Guest completion retains ordinary materialized storage homes. Only an
+    /// unchanged abstract atom has a host token to forward; a modified guest
+    /// result does not perform a host-import export or require serialization.
+    pub(crate) fn forward_host_atom(
+        &self,
+        value: &mut crate::values::TerminalStructuralValue,
+    ) -> bool {
+        let home = StructuralRuntimePlace::from(&*value);
+        if let Some(HostStructuralPayload::Opaque(identity)) = self.structural_host_atoms.get(&home)
+        {
+            value.opaque_identity = *identity;
+            value.path.clear();
+            true
+        } else {
+            false
+        }
+    }
+
     /// Reclaim only scalar-field roots with no remaining placed handle or
     /// non-scalar storage. This is conservative storage liveness, never a
     /// custody judgment: claims, loans, descriptors and non-scalar roots keep
@@ -148,12 +219,15 @@ impl crate::execution::TerminalExecution<'_> {
         let Some(cursor) = self.local_structural_identities.cursor() else {
             return;
         };
-        if cursor < self.next_scalar_collection_identity {
+        let collect_scalars = cursor >= self.next_scalar_collection_identity;
+        let collect_atoms = self.structural_host_atoms.len() >= self.next_host_atom_collection_size;
+        if !collect_scalars && !collect_atoms {
             return;
         }
-        self.next_scalar_collection_identity = cursor.saturating_add(1024);
-        if self.structural_scalar_fields.len() < 4096
-            || !self.primitive_loan_values.is_empty()
+        if collect_scalars {
+            self.next_scalar_collection_identity = cursor.saturating_add(1024);
+        }
+        let hidden_backings = !self.primitive_loan_values.is_empty()
             || !self.byte_sequence_values.is_empty()
             || !self.element_view_values.is_empty()
             || !self.structural_element_view_fields.is_empty()
@@ -161,10 +235,9 @@ impl crate::execution::TerminalExecution<'_> {
                 .aggregate_argument_backings
                 .values()
                 .any(|backing| backing.byte_region.is_some())
-            || self
-                .reference_referents
-                .values()
-                .any(|referent| referent.primitive_loan.is_some() || referent.byte_region.is_some())
+            || self.reference_referents.values().any(|referent| {
+                referent.primitive_loan.is_some() || referent.byte_region.is_some()
+            })
             || self.call_stack.iter().any(|frame| {
                 !frame.primitive_loan_values.is_empty()
                     || frame
@@ -174,8 +247,11 @@ impl crate::execution::TerminalExecution<'_> {
                     || !frame.byte_sequence_values.is_empty()
                     || !frame.element_view_values.is_empty()
                     || matches!(frame.result, SuspendedCallResult::NominalCleanups { .. })
-            })
-        {
+            });
+        let defer_scalars = !collect_scalars || self.structural_scalar_fields.len() < 4096;
+        // Descriptor and cleanup states may retain roots outside the direct
+        // value maps. Defer both collectors until those backings are explicit.
+        if hidden_backings || (defer_scalars && !collect_atoms) {
             return;
         }
         let mut roots = BTreeSet::new();
@@ -219,6 +295,15 @@ impl crate::execution::TerminalExecution<'_> {
         }
         for referent in self.reference_referents.values() {
             roots.insert(referent.view.opaque_identity);
+        }
+        // Abstract payloads are not liveness roots. Only current/suspended
+        // values and their authenticated referents retain a home. Reclaiming
+        // cells neither discharges custody nor changes the typed frontier.
+        self.structural_host_atoms
+            .retain(|home, _| roots.contains(&home.opaque_identity));
+        self.next_host_atom_collection_size = self.structural_host_atoms.len().saturating_add(1024);
+        if defer_scalars {
+            return;
         }
         for key in self
             .reference_referents

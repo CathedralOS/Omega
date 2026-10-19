@@ -1672,6 +1672,10 @@ pass/facts/no_wrap_domain_through_other_machine_exit built 8095ms exit:0 @d2f0e3
 pass/facts/no_wrap_domain_through_other_state_exit built 8896ms exit:0 @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_parameter_exit built 8691ms exit:0 @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_target_body_exit built 8261ms exit:0 @d2f0e31ca0d4+wt
+pass/facts/opaque_closed_carrier_exchange_exit built 105588ms exit:70 terminal-runtime.observe:unrequested terminal-inspections:match @4bae60101579
+pass/facts/opaque_inactive_carrier_payload_exit built 53162ms exit:70 @4bae60101579
+pass/facts/opaque_nested_carrier_exchange_exit built 155651ms exit:70 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @4bae60101579
+pass/facts/opaque_wrapped_carrier_exchange_exit built 64992ms exit:70 terminal-runtime.observe:unrequested terminal-inspections:match @4bae60101579
 pass/facts/returned_write_destination_through_match_join_exit built 7332ms exit:0 @adb7b6ab515b+wt
 pass/facts/selected_native_code_layout_through_call_result_exit built 7797ms exit:0 @b2bd1ba421fd+wt
 pass/facts/selected_native_code_layout_through_const_name_exit built 8132ms exit:0 @b2bd1ba421fd+wt

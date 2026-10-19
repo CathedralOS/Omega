@@ -659,10 +659,18 @@ fail/build/helper_contract_context rejected 2394ms expected @a9ae30e1c334+wt
 fail/build/hosted_program_entry_visible_parameter rejected 5252ms expected @a9ae30e1c334+wt
 fail/build/native_table_non_address_field rejected 2530ms expected @acf418e4dcb4+wt
 fail/build/native_table_write_only_dispatch rejected 1521ms expected @acf418e4dcb4+wt
-fail/build/opaque_by_value_without_selection rejected 13798ms expected @35f5679f7d28
-fail/build/opaque_descriptor_host_type_use rejected 916ms expected @a9ae30e1c334+wt
-fail/build/opaque_descriptor_invalid_carrier rejected 3939ms expected @a9ae30e1c334+wt
-fail/build/opaque_field_without_selection rejected 12358ms expected @35f5679f7d28
+fail/build/opaque_by_value_without_selection rejected 35003ms expected @b48c6f41b5ee
+	`Main::main` uses opaque boundary data `Token` by value, but the build selects no `OpaqueRepresentation<Token, _>` application; add `Build::select_representation<Token, <conformance>>(builder)`
+fail/build/opaque_descriptor_host_type_use rejected 2410ms expected @b48c6f41b5ee
+	opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt
+fail/build/opaque_descriptor_invalid_carrier rejected 10003ms expected @b48c6f41b5ee
+	opaque representation carrier graph at `TokenBytes` is affine; a copyable opaque datum requires every carrier declaration to be structurally `[copy]`; v1 carriers must be inert storage
+fail/build/opaque_field_without_selection rejected 37216ms expected @b48c6f41b5ee
+	`Main::main` uses opaque boundary data `Token` by value, but the build selects no `OpaqueRepresentation<Token, _>` application; add `Build::select_representation<Token, <conformance>>(builder)`
+fail/build/opaque_nested_field_receipt_unadmitted rejected 2169ms expected @b48c6f41b5ee
+	opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt
+fail/build/opaque_representation_double_selection rejected 8618ms expected @b48c6f41b5ee
+	build selects opaque representation `Token` more than once (first selection uses `TokenRepresentation`)
 fail/build/package_local_calling_copy rejected 2099ms expected @a9ae30e1c334+wt
 fail/build/policy_array_entry_context_zero_invalid_element rejected 959ms expected @e7a4cfaa3c51+wt
 fail/build/product_description_forged_provider_path rejected 3123ms expected @a9ae30e1c334+wt
@@ -1336,7 +1344,8 @@ fail/data/match_predicate_domain_needs_default rejected 63ms expected @a9ae30e1c
 fail/data/mixed_payload_field_shadows_common rejected 906ms expected @a9ae30e1c334+wt
 fail/data/mixed_record_literal rejected 866ms expected @a9ae30e1c334+wt
 fail/data/nested_array_literal_inner_length_rejected rejected 2656ms expected @a9ae30e1c334+wt
-fail/data/opaque_copy_unselected rejected 833ms expected @a9ae30e1c334+wt
+fail/data/opaque_copy_unselected rejected 2516ms expected @b48c6f41b5ee
+	opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt
 fail/data/proof_only_runtime_property_rejected rejected 2712ms expected @a9ae30e1c334+wt
 fail/data/property_carry_nested_restrictive_floor rejected 837ms expected @a9ae30e1c334+wt
 fail/data/property_copy_violation rejected 888ms expected @a9ae30e1c334+wt
@@ -3819,6 +3828,16 @@ fail/facts/nominal_reference_cleanup_through_target_body_prerequisite rejected 1
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
+fail/facts/opaque_growing_carrier_family rejected 7637ms expected @1b897a2de67b
+	opaque representation carrier graph at `AddressCarrier<AddressWord>.payload` contains a recursive by-value carrier family; v1 carriers must be inert storage
+fail/facts/opaque_inactive_carrier_payload_cleanup rejected 15976ms expected @1b897a2de67b
+	opaque representation carrier graph at `Carrier<Leaf>::Full(value)` contains independently invoked nominal cleanup; v1 carriers must be inert storage
+fail/facts/opaque_nested_carrier_cleanup rejected 7156ms expected @1b897a2de67b
+	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
+fail/facts/opaque_wrapped_carrier_cleanup rejected 6797ms expected @1b897a2de67b
+	opaque representation carrier graph at `AddressCarrier<AddressWrapper<AddressWord>>.payload.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
+fail/facts/opaque_wrapped_growing_carrier_family rejected 7115ms expected @1b897a2de67b
+	opaque representation carrier graph at `AddressCarrier<AddressWrapper<AddressWord>>.payload.payload` contains a recursive by-value carrier family; v1 carriers must be inert storage
 fail/facts/ordinary_length_field_after_write_rejected rejected 608ms expected @cbdcc23565fb
 	cannot prove requires contract for call equal from main: counter.len == saved (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/outcome_structural_evidence_call_result rejected 2491ms expected @97fca7a18f74+wt
@@ -8705,6 +8724,7 @@ pass/core/generic_content_static_callback checked 8764ms check-target:macos_arm6
 pass/core/interrupt_obligations_surface checked 2415ms @eac8a2f4b8cc+wt
 pass/core/interval_content_length_partition_exit checked 3960ms check-target:macos_arm64 @b794c35ad5f8+wt
 pass/core/interval_content_partition_exit checked 4124ms check-target:macos_arm64 @b794c35ad5f8+wt
+pass/core/materialized_owned_entry_return checked 104223ms terminal-runtime.update:unrequested terminal-runtime.pack:unrequested terminal-inspections:match @1b897a2de67b
 pass/core/named_extent_root_provider_adapter checked 725ms @d75fe4ba5012+wt
 pass/core/numeric_cross_signed_conversion_surface checked 11733ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/numeric_signed_narrowing_policies checked 15095ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8740,6 +8760,7 @@ pass/data/case_membership_union_guard_exit checked 12174ms check-target:macos_ar
 pass/data/match_exhaustive_by_case_union_domain checked 11952ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/data/mixed_record_common_field_and_payload_dispatch_exit checked 11549ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/data/opaque_copy_selected checked 11297ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/data/opaque_nested_field_selected checked 32372ms check-target:macos_arm64 @b48c6f41b5ee
 pass/data/payload_less_case_equality checked 17960ms @39840d33bf1c
 pass/data/property_carry_declared checked 1566ms @a9ae30e1c334+wt
 pass/data/qualified_record_pattern_exit checked 3896ms check-target:macos_arm64 @4e9f61cedcd7+wt
@@ -9934,6 +9955,10 @@ pass/facts/nominal_reference_cleanup_through_other_machine_exit checked 115878ms
 pass/facts/nominal_reference_cleanup_through_other_state_exit checked 141567ms check-target:macos_arm64 @2bee46135da6
 pass/facts/nominal_reference_cleanup_through_parameter_exit checked 142147ms check-target:macos_arm64 @2bee46135da6
 pass/facts/nominal_reference_cleanup_through_target_body_exit checked 146207ms check-target:macos_arm64 @2bee46135da6
+pass/facts/opaque_closed_carrier_exchange_exit checked 79115ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @1b897a2de67b
+pass/facts/opaque_inactive_carrier_payload_exit checked 46275ms check-target:macos_arm64 @1b897a2de67b
+pass/facts/opaque_nested_carrier_exchange_exit checked 144689ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @1b897a2de67b
+pass/facts/opaque_wrapped_carrier_exchange_exit checked 65162ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @1b897a2de67b
 pass/facts/outcome_structural_evidence_call_result checked 8017ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/facts/outcome_structural_evidence_const_name checked 8310ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/facts/outcome_structural_evidence_field checked 8021ms check-target:macos_arm64 @97fca7a18f74+wt

@@ -250,6 +250,13 @@ impl TerminalExecution<'_> {
                     declaration.structural_type,
                 ) =>
             {
+                // The validated response is an actual opaque payload, not
+                // absent scalar cells. Store it only after the complete result
+                // guard and the caller's freshness reservation have succeeded.
+                self.structural_host_atoms.insert(
+                    crate::values::StructuralRuntimePlace::from(&value),
+                    crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
+                );
                 self.structural_values.insert(declaration.place, value);
                 if declaration.multiplicity == StructuralMultiplicity::Affine {
                     self.live_affine_frontier.insert(StructuralAffineDiscard {

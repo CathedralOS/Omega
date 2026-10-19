@@ -352,6 +352,10 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let byte = u8::try_from(byte).map_err(|_| malformed())?;
+        let changed_parent = match &storage {
+            MutableByteSequenceStorage::Field(field) => Some(field.parent.clone()),
+            _ => None,
+        };
         let (bytes, backing_index) = match storage {
             MutableByteSequenceStorage::Owned(home) => {
                 // The payload may also back earlier field snapshots. Detach via
@@ -379,7 +383,11 @@ impl TerminalExecution<'_> {
                 usize::try_from(backing_index).map_err(|_| malformed())?,
                 byte,
             )
-            .ok_or_else(malformed)
+            .ok_or_else(malformed)?;
+        if let Some(parent) = changed_parent {
+            self.invalidate_host_atoms(&parent);
+        }
+        Ok(())
     }
 
     fn byte_sequence_unsigned_operand(

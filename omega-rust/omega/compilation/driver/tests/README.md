@@ -219,3 +219,30 @@ and timestamps across execution (including Unix change time on Unix hosts). The 
 audit, runtime authority, numerical and stream oracles remain unchanged. The
 qualification validator hashes and binds those pre-existing artifacts and the
 compiler build receipts before the verification run.
+
+Inspection oracle rows may append `runtime linux_x86_64` and an explicit trusted
+fixture provision. These host calls require explicit trusted harness opt-in
+`OMEGA_CORPUS_HOST_PROVISIONS=1`. Default source/native inspection still produces
+and decodes every selected artifact, recording host-neutral `unrequested` facts.
+Opted-in runtime observations record `match` on that actual host and
+`unavailable-linux_x86_64` elsewhere; unavailable is not execution acceptance.
+On Linux x86_64, `libc-inet <comma-separated-u32s>` binds exact typed
+imports to actual libc inet_makeaddr/inet_lnaof calls, checks observed host values
+and consumption, and rejects an incompatible adapter signature before effects.
+`opaque-entry` supplies an abstract owned entry value and requires the exact value
+back. `materialized-entry` supplies a record field and requires whole completion;
+`relocated-materialized-entry` additionally requires its relocated guest backing.
+These are corpus-host provisions, not source-selected runtime authority or CLI
+adapters. Missing host support records an unavailable observation.
+
+Run the owned-arrival and libc carrier observations on Linux x86_64:
+
+```sh
+OMEGA_CORPUS_HOST_PROVISIONS=1 python3 tools/corpus_gate.py \
+  --golden tests/omega/corpus_host_provisions_linux_x86_64.txt \
+  --filter pass/facts/opaque_closed_carrier_exchange_exit,pass/facts/opaque_nested_carrier_exchange_exit,pass/facts/opaque_wrapped_carrier_exchange_exit,pass/core/materialized_owned_entry_return
+```
+
+The host-specific golden requires seven machine observations. An unsupported
+host's unavailable record cannot match it. This separate runtime golden keeps
+ordinary source acceptance portable without claiming unavailable executions.

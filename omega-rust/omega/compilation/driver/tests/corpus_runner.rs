@@ -2052,7 +2052,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         }
     }
     if outcome.is_ok() && fixture_dir.join(terminal_inspection::ORACLE).exists() {
-        outcome = terminal_inspection::inspect(main, &fixture_dir);
+        outcome = terminal_inspection::inspect(main, &fixture_dir).map(|observations| {
+            facts.extend(observations);
+        });
         facts.push(if outcome.is_ok() {
             "terminal-inspections:match".to_owned()
         } else {

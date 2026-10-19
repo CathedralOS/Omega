@@ -130,7 +130,7 @@ impl TerminalExecution<'_> {
         index: usize,
         byte: u8,
     ) -> Result<(), TerminalInterpretError> {
-        match storage.home {
+        let result = match storage.home {
             ArrayStorageHome::Runtime => self
                 .structural_byte_storage
                 .get_mut(&storage.referent)
@@ -159,7 +159,11 @@ impl TerminalExecution<'_> {
                     };
                 Ok(())
             }
+        };
+        if result.is_ok() {
+            self.invalidate_host_atoms(&storage.referent);
         }
+        result
     }
 
     pub(crate) fn stored_byte_array_snapshot(

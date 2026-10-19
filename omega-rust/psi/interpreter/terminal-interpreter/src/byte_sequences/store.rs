@@ -84,6 +84,7 @@ impl TerminalExecution<'_> {
         // Immutable backing snapshots the whole input before changing the owner.
         match owner {
             MutableByteSequenceStorage::Field(field) => {
+                self.invalidate_host_atoms(&field.parent);
                 self.structural_byte_sequence_fields
                     .insert(field, ByteSequenceBinding::Immutable(bytes));
             }

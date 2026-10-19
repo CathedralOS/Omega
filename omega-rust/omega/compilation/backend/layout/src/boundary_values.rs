@@ -44,10 +44,16 @@ pub struct BoundaryValueLayout<'input> {
     target: NativeTarget,
     bindings: &'input [BoundaryTypeBinding],
     selections: &'input [OpaqueRepresentationSelection],
-    visiting: Vec<symbols::SymbolHandle>,
+    visiting: Vec<DataApplicationKey>,
     shapes: Vec<BoundaryValueShape>,
     fields: Vec<BoundaryValueField>,
     opaque_representations: Vec<BoundaryOpaqueRepresentationUse>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DataApplicationKey {
+    Nominal(symbols::SymbolHandle),
+    Applied(typed_trees::type_identity::TypeIdentityId),
 }
 
 impl<'input> BoundaryValueLayout<'input> {
@@ -204,10 +210,16 @@ impl<'input> BoundaryValueLayout<'input> {
                     abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
                 Ok((abi, root))
             }
-            TypeReferenceNode::Generic { .. } => Err(format!(
-                "generic value type `{}` is not concrete at the Calling<C> relationship",
-                typed.display_type_reference(type_reference)
-            )),
+            TypeReferenceNode::Generic { .. } => {
+                let definition = typed.closed_data_definition(type_reference).ok_or_else(|| format!(
+                    "generic value type `{}` is not concrete at the Calling<C> relationship",
+                    typed.display_type_reference(type_reference)
+                ))?;
+                self.plain_data_definition(
+                    definition,
+                    DataApplicationKey::Applied(typed.normalized_type_identity(type_reference)),
+                )
+            }
             TypeReferenceNode::FixedArray { .. } => Err(format!(
                 "array type `{}` still has a non-literal length",
                 typed.display_type_reference(type_reference)
@@ -245,7 +257,7 @@ impl<'input> BoundaryValueLayout<'input> {
     ) -> Result<(ValueShape, u16), String> {
         let typed = self.typed;
         let selections = self.selections;
-        if self.visiting.contains(&opaque) {
+        if self.visiting.contains(&DataApplicationKey::Nominal(opaque)) {
             return Err(format!(
                 "opaque representation for `{opaque_name}` recursively contains its own semantic declaration"
             ));
@@ -256,14 +268,14 @@ impl<'input> BoundaryValueLayout<'input> {
         )
     })?;
         let application = selection.application();
-        let carrier = typed.data_definition_by_symbol(selection.carrier())
+        let carrier = typed.closed_data_definition(selection.carrier_type())
         .ok_or_else(|| {
             format!(
                 "selected opaque representation carrier for `{opaque_name}` disappeared before shape closure"
             )
         })?;
-        self.visiting.push(opaque);
-        let shape = self.plain_data(carrier.symbol, carrier.name.as_str());
+        self.visiting.push(DataApplicationKey::Nominal(opaque));
+        let shape = self.value_type(selection.carrier_type());
         self.visiting.pop();
         let (abi, shape_root) = shape.map_err(|reason| {
         format!(
@@ -296,14 +308,24 @@ impl<'input> BoundaryValueLayout<'input> {
         name: &str,
     ) -> Result<(ValueShape, u16), String> {
         let typed = self.typed;
-        if self.visiting.contains(&symbol) {
+        let definition = typed
+            .data_definition_by_symbol(symbol)
+            .ok_or_else(|| format!("named boundary type `{name}` has no data definition"))?;
+        self.plain_data_definition(definition, DataApplicationKey::Nominal(symbol))
+    }
+
+    fn plain_data_definition(
+        &mut self,
+        definition: &'input typed_trees::data::DataDefinition,
+        key: DataApplicationKey,
+    ) -> Result<(ValueShape, u16), String> {
+        let typed = self.typed;
+        let name = definition.name.as_str();
+        if self.visiting.contains(&key) {
             return Err(format!(
                 "recursive by-value data `{name}` has no finite boundary shape"
             ));
         }
-        let definition = typed
-            .data_definition_by_symbol(symbol)
-            .ok_or_else(|| format!("named boundary type `{name}` has no data definition"))?;
         let application = typed.plan_laid_layout(definition.symbol);
         let planned_layout = application.map(|layout| {
             layout.invariant_geometry().ok_or_else(|| format!(
@@ -324,7 +346,7 @@ impl<'input> BoundaryValueLayout<'input> {
                 layout.offsets.len()
             ));
         }
-        self.visiting.push(symbol);
+        self.visiting.push(key);
         let mut size = 0usize;
         let mut alignment = 1usize;
         let mut float_member_size = None;

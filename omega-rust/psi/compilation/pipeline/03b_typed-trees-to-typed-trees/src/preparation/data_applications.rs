@@ -176,27 +176,34 @@ fn elaborate_value_fields(
         TypeReferenceNode::Named { symbol, .. } => *symbol,
         _ => return,
     };
-    if let Some((_, parent)) = active.iter().rev().find(|(ancestor, _)| *ancestor == owner) {
+    // A supplied actual starts its own expansion, even when reached through
+    // another declaration. Retain unrelated origins so wrappers cannot conceal
+    // a growing application of an ancestor's nominal owner.
+    let ancestors = std::mem::take(active);
+    active.extend(ancestors.iter().copied().filter(|(_, parent)| {
         let TypeReferenceNode::Generic { arguments, .. } =
             program.type_reference_table.type_reference(*parent)
         else {
-            return;
+            return true;
         };
-        // A parameter field retains its actual argument handle. This is a
-        // strict descent in the finite source type, unlike a declaration field
-        // that manufactures another application of its own nominal owner.
-        let arguments = program
-            .type_reference_table
-            .type_reference_handles(*arguments);
-        if !contains_actual_type(program, arguments, reference) {
-            return;
-        }
+        !contains_actual_type(
+            program,
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments),
+            reference,
+        )
+    }));
+    if active.iter().any(|(ancestor, _)| *ancestor == owner) {
+        *active = ancestors;
+        return;
     }
     elaborate_application(program, reference);
     let Some(data) = program
         .data_application_definition(reference)
         .or_else(|| program.closed_data_definition(reference))
     else {
+        *active = ancestors;
         return;
     };
     let mut children = Vec::new();
@@ -215,7 +222,7 @@ fn elaborate_value_fields(
     for child in children {
         elaborate_value_fields(program, child, active);
     }
-    active.pop();
+    *active = ancestors;
 }
 
 /// Walk authored type structure, never a nominal declaration's member graph.

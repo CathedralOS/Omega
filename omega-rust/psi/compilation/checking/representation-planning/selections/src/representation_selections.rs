@@ -54,6 +54,7 @@ pub enum OpaqueRepresentationApplicationOrigin {
 pub struct OpaqueRepresentationSelection {
     opaque: SymbolHandle,
     carrier: SymbolHandle,
+    carrier_type: typed_trees::types::TypeReferenceHandle,
     application: ClosedConformanceApplication,
     lifecycle: OpaqueRepresentationLifecycleDisposition,
     copy_disposition: OpaqueRepresentationCopyDisposition,
@@ -68,6 +69,7 @@ impl OpaqueRepresentationSelection {
     pub fn from_validated_application(
         opaque: SymbolHandle,
         carrier: SymbolHandle,
+        carrier_type: typed_trees::types::TypeReferenceHandle,
         application: ClosedConformanceApplication,
         lifecycle: OpaqueRepresentationLifecycleDisposition,
         copy_disposition: OpaqueRepresentationCopyDisposition,
@@ -84,6 +86,7 @@ impl OpaqueRepresentationSelection {
         Self {
             opaque,
             carrier,
+            carrier_type,
             application,
             lifecycle,
             copy_disposition,
@@ -100,6 +103,12 @@ impl OpaqueRepresentationSelection {
 
     pub fn carrier(&self) -> SymbolHandle {
         self.carrier
+    }
+
+    /// Exact closed second trait argument. Its retained-prefix type handle
+    /// belongs to the Product declaration frontier and survives preparation.
+    pub fn carrier_type(&self) -> typed_trees::types::TypeReferenceHandle {
+        self.carrier_type
     }
 
     pub fn application(&self) -> &ClosedConformanceApplication {
@@ -247,6 +256,7 @@ mod tests {
         let honest = OpaqueRepresentationSelection::from_validated_application(
             SymbolHandle::invalid(),
             SymbolHandle::invalid(),
+            Default::default(),
             application,
             OpaqueRepresentationLifecycleDisposition::Inert,
             OpaqueRepresentationCopyDisposition::PlacementOnly,
