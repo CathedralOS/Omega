@@ -10,6 +10,7 @@ use super::{
     CheckFacts, Diagnostic, ExpressionHandle, FlowStateFact, SymbolHandle, record_qualification,
     value_proves_qualification_in_contexts, value_satisfies_domain_predicates_in_contexts,
 };
+use super::member_domains::initializer_satisfies_indexed_domain;
 use crate::labels::{machine_name, symbol_name};
 
 type Occurrence = ((u32, u32), usize, (u32, u32));
@@ -32,13 +33,13 @@ impl<'facts> ConstructorMemberships<'facts> {
         Self { captures }
     }
 
-    pub(super) fn array_element_domains(
+    pub(super) fn array_element_domains<'program>(
         &self,
-        program: &dyn validation::CheckingInput,
+        program: &'program dyn validation::CheckingInput,
         state: SymbolHandle,
         statement: usize,
         expression: ExpressionHandle,
-    ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
+    ) -> Vec<&'program typed_trees::types::DomainConstraint> {
         let mut domains = Vec::new();
         for capture in self.at(state, statement, expression) {
             let Some(reference) =
@@ -51,13 +52,18 @@ impl<'facts> ConstructorMemberships<'facts> {
             else {
                 continue;
             };
-            domains.extend(validation::field_domains::domain_constraint_identities(
-                program,
-                *element_type,
-            ));
+            domains.extend(
+                validation::field_domains::declared_domain_constraint_records(
+                    program,
+                    *element_type,
+                ),
+            );
         }
-        domains.sort_by_key(|(symbol, domain)| {
-            ((symbol.arena_index(), symbol.generation()), domain.0)
+        domains.sort_by_key(|constraint| {
+            (
+                (constraint.symbol.arena_index(), constraint.symbol.generation()),
+                constraint.semantic_id.0,
+            )
         });
         domains.dedup();
         domains
@@ -111,14 +117,15 @@ pub(super) fn check_constructor_membership(
     state: &FlowStateFact,
     statement_index: usize,
     value: ExpressionHandle,
-    domain_symbol: SymbolHandle,
-    semantic_domain: language_semantics::SemanticDomainId,
+    constraint: &typed_trees::types::DomainConstraint,
     contexts: &[facts::FactContextHandle],
     decisions: &mut arena::Arena<checked_trees::CheckedValueQualification>,
     diagnostics: &mut Vec<Diagnostic>,
     frames: Option<&validation::CallFrameResolver<'_>>,
     owner: &str,
 ) {
+    let domain_symbol = constraint.symbol;
+    let semantic_domain = constraint.semantic_id;
     let predicate_only =
         !validation::field_domains::domain_requires_provenance(program, domain_symbol);
     let vacuous = predicate_only
@@ -137,7 +144,7 @@ pub(super) fn check_constructor_membership(
         ) || vacuous
             || (predicate_only
                 && capture.is_some()
-                && value_satisfies_domain_predicates_in_contexts(
+                && (value_satisfies_domain_predicates_in_contexts(
                     program,
                     facts,
                     state,
@@ -148,7 +155,14 @@ pub(super) fn check_constructor_membership(
                     &mut Vec::new(),
                     capture,
                     frames,
-                ))
+                ) || initializer_satisfies_indexed_domain(
+                    program,
+                    facts,
+                    state,
+                    statement_index,
+                    value,
+                    constraint,
+                )))
     };
     let captures = constructor_memberships.at(state.state_symbol, statement_index, value);
     let proven = if captures.is_empty() {

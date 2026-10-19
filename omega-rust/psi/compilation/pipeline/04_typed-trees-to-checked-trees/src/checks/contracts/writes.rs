@@ -42,14 +42,16 @@ pub(super) use member_domains::value_satisfies_domain_predicates_in_contexts;
 /// Receiving obligations of fresh structural constructors, indexed once for
 /// the state's authored expression walk. A row requests a judgment; it never
 /// supplies membership. Successful judgments retain their operand's epoch.
-struct ConstructionQualification {
+struct ConstructionQualification<'program> {
     statement_index: usize,
     expression: ExpressionHandle,
-    domain: SymbolHandle,
-    semantic_domain: language_semantics::SemanticDomainId,
+    /// The exact declared constraint, retaining its closed index roster so a
+    /// constructed value of an indexed family is judged against that instance
+    /// rather than its bare declaration symbol.
+    constraint: &'program typed_trees::types::DomainConstraint,
 }
 
-impl ConstructionQualification {
+impl ConstructionQualification<'_> {
     fn site(&self) -> (usize, u32, u32) {
         (
             self.statement_index,
@@ -100,22 +102,24 @@ pub(super) fn check_domain_field_writes(
         {
             continue;
         }
-        for (domain, semantic_domain) in
-            validation::field_domains::domain_constraint_identities(program, value.type_reference)
+        for domain in
+            validation::field_domains::declared_domain_constraint_records(program, value.type_reference)
         {
+            let domain_symbol = domain.symbol;
+            let semantic_domain = domain.semantic_id;
             // The checked result boundary introduces routed provenance only
             // after proving the returned root's predicates and custody. Requiring
             // that provenance on its fresh constructor would reject the issuer
             // before establishment. Defer only this exact returned root, without
             // recording a construction membership; children and locals still
             // owe their existing evidence at their own completion epochs.
-            let authorized_result = result_domains.contains(&(domain, semantic_domain))
-                && program.domain_definition(domain).is_some_and(|_| {
+            let authorized_result = result_domains.contains(&(domain_symbol, semantic_domain))
+                && program.domain_definition(domain_symbol).is_some_and(|_| {
                     // The result contract above names the closed application;
                     // a family declaration's template ID is not that instance.
-                    validation::field_domains::domain_requires_provenance(program, domain)
+                    validation::field_domains::domain_requires_provenance(program, domain_symbol)
                         && crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
-                            program, machine, domain,
+                            program, machine, domain_symbol,
                         )
                 })
                 && facts.flow.control.exits.span_or_empty(state_flow.exits).iter().any(|exit| {
@@ -138,8 +142,7 @@ pub(super) fn check_domain_field_writes(
             construction_qualifications.push(ConstructionQualification {
                 statement_index: value.statement_index as usize,
                 expression: value.expression,
-                domain,
-                semantic_domain,
+                constraint: domain,
             });
         }
     }
@@ -562,7 +565,7 @@ fn scan_construction_field_domains(
                     diagnostics,
                     frames,
                 );
-                for (domain_symbol, semantic_domain) in construction_field_domain_identities(
+                for constraint in construction_field_domain_identities(
                     program,
                     literal.type_symbol,
                     case_name.as_ref().map(|name| name.as_str()),
@@ -575,8 +578,7 @@ fn scan_construction_field_domains(
                         state_flow,
                         statement_index,
                         field.value,
-                        domain_symbol,
-                        semantic_domain,
+                        constraint,
                         contexts,
                         decisions,
                         diagnostics,
@@ -613,7 +615,7 @@ fn scan_construction_field_domains(
                     diagnostics,
                     frames,
                 );
-                for &(domain_symbol, semantic_domain) in &element_domains {
+                for constraint in &element_domains {
                     check_constructor_membership(
                         program,
                         facts,
@@ -621,8 +623,7 @@ fn scan_construction_field_domains(
                         state_flow,
                         statement_index,
                         *element,
-                        domain_symbol,
-                        semantic_domain,
+                        constraint,
                         contexts,
                         decisions,
                         diagnostics,
@@ -867,8 +868,7 @@ fn scan_construction_field_domains(
             state_flow,
             statement_index,
             expression,
-            row.domain,
-            row.semantic_domain,
+            row.constraint,
             contexts,
             decisions,
             diagnostics,
@@ -883,12 +883,12 @@ fn scan_construction_field_domains(
 /// declared type carries one or more predicate-bearing domain constraints.
 /// `validation::field_domains::construction_field_type` plus domain
 /// extraction.
-fn construction_field_domain_identities(
-    program: &dyn ::validation::CheckingInput,
+fn construction_field_domain_identities<'program>(
+    program: &'program dyn ::validation::CheckingInput,
     type_symbol: SymbolHandle,
     case_name: Option<&str>,
     field_name: &str,
-) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
+) -> Vec<&'program typed_trees::types::DomainConstraint> {
     let Some(data_definition) = program.data_definition_by_symbol(type_symbol) else {
         return Vec::new();
     };
@@ -904,14 +904,16 @@ fn construction_field_domain_identities(
     ) else {
         return Vec::new();
     };
-    validation::field_domains::domain_constraint_identities(program, field_type)
+    // The exact constraint travels with its closed index roster: a constructed
+    // field of an indexed family owes that instance's predicates, and the
+    // declaration symbol alone cannot supply them.
+    validation::field_domains::declared_domain_constraint_records(program, field_type)
         .into_iter()
-        .filter(|(symbol, _)| {
-            validation::field_domains::domain_requires_provenance(program, *symbol)
-                || program
-                    .domain_definitions()
-                    .iter()
-                    .any(|domain| domain.symbol == *symbol && domain.predicate_body.is_present())
+        .filter(|constraint| {
+            validation::field_domains::domain_requires_provenance(program, constraint.symbol)
+                || program.domain_definitions().iter().any(|domain| {
+                    domain.symbol == constraint.symbol && domain.predicate_body.is_present()
+                })
         })
         .collect()
 }
