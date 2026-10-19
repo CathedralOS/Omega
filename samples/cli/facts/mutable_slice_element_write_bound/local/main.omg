@@ -1,0 +1,26 @@
+// Fact: Writing an element through a mutable slice view (&mut [u64]) whose length is guarded (view.len >= 2u64) proves safe indexed element mutation at view[1u64] while preserving the slice extent lower bound (view.len >= 2u64) to discharge exact subtraction view.len - 2u64 across all nine places.
+// Place: local. The mutable slice view is transported through an intermediate local binding.
+// Expected exit: 0
+
+machine mutate_local(view: &mut [u64]) -> u64
+    requires view.len >= 2;
+{
+    let v: &mut [u64] = view;
+    v[1] = 45u64;
+    let diff: u64 = v.len - 2u64;
+    diff
+}
+
+machine main() crashes Trap {
+    let mut items: [u64; 3];
+    items[0] = 10u64;
+    items[1] = 20u64;
+    items[2] = 30u64;
+    let diff: u64 = mutate_local(&mut items[..]);
+    transition items[1] == 45u64 && diff == 1u64 {
+        true -> pass()
+        _ -> fail()
+    }
+    state pass() {}
+    state fail() { crash Trap; }
+}
