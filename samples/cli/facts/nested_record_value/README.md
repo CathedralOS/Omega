@@ -54,15 +54,39 @@ Check all nine invalid twins with:
 omega --check samples/cli/facts/nested_record_value/<place>/invalid/main.omg
 ```
 
+### Measured discrimination
+
+Corrupting the inner member's own value (`header: Header { tag: 7, limit: 20 }` ->
+`limit: 19`) while leaving the outer record and the sibling `tag` untouched changes
+the observed result, so the authored exit 0 is a live oracle rather than a vacuous
+success. Both engines must then trap:
+
+```
+native signal 5
+interp crash: Trap (host presentation agrees)
+```
+
+Measured on `macos_arm64` at `c14e052cf9d` for `local` and `other_machine`; each
+returns exit 255 against the authored exit 0, and both restore to
+`native exit 0` / `interp exit: 0`.
+
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/nested_record_value --jobs 4
+python3 tools/sample_native_gate.py --cli ./target/debug/omega --filter cli/facts/nested_record_value --jobs 4
+python3 tools/corpus_gate.py --native --filter facts/nested_record_value
 ```
 
-`sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
-- 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\`` or `cannot prove ensures contract`).
+`sample_native_gate.py` reports, measured on `macos_arm64` at `c14e052cf9d`:
+- 10/10 samples meet their documented oracle (0 unscored; check 89s, review 206s, run 200s).
+- 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``, or `cannot prove ensures contract` for `const_name`), with no `rejection-failed`.
+
+`corpus_gate.py --native` reports `clean` for the nine
+`tests/omega/pass/facts/nested_record_value_through_<place>_exit` fixtures:
+9 `built`, 9 executed, `exit codes {'0': 9}`. Their golden rows live in
+`tests/omega/corpus_native_macos_arm64.txt`. The matching reject twins are pinned
+under `tests/omega/fail/facts/nested_record_value_through_<place>_rejected/` with
+`expected.txt`.
 
 ## Requirements and Evidence
 
@@ -79,5 +103,7 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
   - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) through companion build declarations without reopening source. Nested structural record layout plans (`size_of`/`align_of`) validate: `Header` (`tag: u64`, `limit: u64`, size 16, align 8) and `Envelope` (`header: Header` at offset 0, `payload: u64` at offset 16, total size 24, align 8), composing outer + inner byte offsets (`envelope.header.limit` at byte offset 8). `CallPlan` and `StatePlan` lower nested record carriers across registers, stack slots, or indirect aggregate return homes (`sret`) per platform ABI.
   - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects composed-offset memory/register loads (`[base + 8]` for `header.limit`, `[base + 16]` for `payload`), register moves, and 64-bit integer addition (`add`). Low-level register allocators assign register homes and disjoint activation stack-frame slots for record copies, and entry prologues and multi-return epilogues honor the `StatePlan` ceiling.
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and nested field offsets resolve into final machine instructions, function basic blocks and conditional transitions relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Native execution and Terminal Psi interpretation agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
+
+- **Pinned evidence:** Nine positive fixtures at `tests/omega/pass/facts/nested_record_value_through_<place>_exit/` (each binding `ProgramEntry` for all four hosted targets with `expected_native_exit.txt` = `0`), with their nine measured golden rows in `tests/omega/corpus_native_macos_arm64.txt`. Nine reject twins at `tests/omega/fail/facts/nested_record_value_through_<place>_rejected/` with authored `expected.txt`. The row was measured, not repaired: all ten places already ran green on both engines, and the gap was that no native golden row had been recorded.
 
 - **What remains open:** Reference and mutable loan transport of nested record fields (`&envelope.header.limit`), partial field assignment invalidation of sibling path facts, and dynamic partition conservation under `core::content`.
