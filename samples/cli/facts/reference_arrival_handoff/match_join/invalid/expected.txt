@@ -1,0 +1,1 @@
+mutates `backing` while local borrow `child` is still active

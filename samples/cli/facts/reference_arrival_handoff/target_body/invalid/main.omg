@@ -1,0 +1,21 @@
+// An exclusive reference moves into another binding. Writing through the receiving binding changes the original backing; the following read must see 41.
+// Place: another target body.
+// Invalid: the source binding is handed to the target body while a derived loan is live.
+linux_x86_64 machine write(child: &mut i64) { child = 41; }
+linux_arm64 machine write(child: &mut i64) { child = 41; }
+macos_arm64 machine write(child: &mut i64) { child = 41; }
+windows_x86_64 machine write(child: &mut i64) { child = 41; }
+machine main() crashes Trap {
+    let mut backing: i64 = 17;
+    let original: &mut i64 = &mut backing;
+    let held: &mut i64 = original;
+    write(original);
+    held = 7;
+    let observed: i64 = backing;
+    transition observed == 41 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

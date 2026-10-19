@@ -1,0 +1,18 @@
+// An exclusive reference moves into another binding. Writing through the receiving binding changes the original backing; the following read must see 41.
+// Place: field.
+// Invalid: the moved-from binding is written while the receiving field loan is live.
+data Holder<'owner> { slot: &'owner mut i64; }
+machine main() crashes Trap {
+    let mut backing: i64 = 17;
+    let original: &mut i64 = &mut backing;
+    let holder: Holder = Holder { slot: original };
+    original = 7;
+    holder.slot = 41;
+    let observed: i64 = holder.slot;
+    transition observed == 41 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
