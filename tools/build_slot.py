@@ -25,6 +25,7 @@ is reclaimed rather than blocking the pool forever.
 """
 
 import argparse
+import contextlib
 import errno
 import os
 from pathlib import Path
@@ -130,6 +131,30 @@ def acquire(directory, slots, timeout):
         time.sleep(POLL_SECONDS)
 
 
+@contextlib.contextmanager
+def hold(repository=".", slots=DEFAULT_SLOTS, timeout=3600.0):
+    """Acquire one build slot for this block unless an ancestor process already holds one."""
+    if os.environ.get("OMEGA_BUILD_SLOT_HELD") == "1":
+        yield None, 0.0
+        return
+    directory = slot_directory(repository)
+    slot, waited = acquire(directory, slots, timeout)
+    previous = os.environ.get("OMEGA_BUILD_SLOT_HELD")
+    os.environ["OMEGA_BUILD_SLOT_HELD"] = "1"
+    try:
+        yield slot, waited
+    finally:
+        if previous is None:
+            os.environ.pop("OMEGA_BUILD_SLOT_HELD", None)
+        else:
+            os.environ["OMEGA_BUILD_SLOT_HELD"] = previous
+        if slot is not None:
+            try:
+                slot.unlink()
+            except OSError:
+                pass
+
+
 def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--slots", type=int, default=DEFAULT_SLOTS)
@@ -147,20 +172,12 @@ def main(arguments=None):
     if options.slots < 1:
         parser.error("--slots must be at least 1")
 
-    directory = slot_directory(options.repository)
-    slot = None
     try:
-        slot, _ = acquire(directory, options.slots, options.timeout)
-        return subprocess.run(command, cwd=options.repository).returncode
+        with hold(options.repository, options.slots, options.timeout):
+            return subprocess.run(command, cwd=options.repository).returncode
     except TimeoutError as error:
         print(f"build_slot: {error}", file=sys.stderr)
         return 75
-    finally:
-        if slot is not None:
-            try:
-                slot.unlink()
-            except OSError:
-                pass
 
 
 if __name__ == "__main__":

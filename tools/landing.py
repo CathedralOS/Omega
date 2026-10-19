@@ -611,24 +611,26 @@ def verify(repository, base, qualification_path=None):
             intermediate = reused.get("intermediate", [])
             reused_from = reused.get("candidate")
         else:
+            import build_slot
             tool = "mbx" if shutil.which("mbx") else "cargo"
             target_kwargs = windows_safe_target_kwargs(repository)
-            for workspace, names in sorted(workspaces.items()):
-                check_command = [tool, "check"]
-                if workspace != ".":
-                    check_command += ["--manifest-path", str(repository / workspace)]
-                for package in sorted(names):
-                    check_command += ["-p", package]
-                check_started = time.monotonic()
-                checked_exit = subprocess.run(check_command, cwd=repository, **target_kwargs).returncode
-                checks.append({"workspace": workspace, "packages": sorted(names),
-                               "command": check_command, "exit_code": checked_exit,
-                               "duration_seconds": time.monotonic() - check_started})
-                if command is None:
-                    command = check_command
-                if checked_exit and not exit_code:
-                    exit_code = checked_exit
-            intermediate = intermediate_checks(repository, base, head, tool)
+            with build_slot.hold(repository):
+                for workspace, names in sorted(workspaces.items()):
+                    check_command = [tool, "check"]
+                    if workspace != ".":
+                        check_command += ["--manifest-path", str(repository / workspace)]
+                    for package in sorted(names):
+                        check_command += ["-p", package]
+                    check_started = time.monotonic()
+                    checked_exit = subprocess.run(check_command, cwd=repository, **target_kwargs).returncode
+                    checks.append({"workspace": workspace, "packages": sorted(names),
+                                   "command": check_command, "exit_code": checked_exit,
+                                   "duration_seconds": time.monotonic() - check_started})
+                    if command is None:
+                        command = check_command
+                    if checked_exit and not exit_code:
+                        exit_code = checked_exit
+                intermediate = intermediate_checks(repository, base, head, tool)
     broken = sorted({check["commit"][:12] for check in intermediate if check["exit_code"]})
     if broken:
         exit_code = exit_code or 1

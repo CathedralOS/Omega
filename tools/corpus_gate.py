@@ -497,8 +497,10 @@ def build_runner(root: Path = ROOT) -> Path:
         safe_target = windows_safe_target_dir(configured)
         if safe_target != configured:
             env["CARGO_TARGET_DIR"] = str(safe_target)
-    proc = subprocess.run(args, cwd=root, capture_output=True, text=True,
-                          stdin=subprocess.DEVNULL, env=env)
+    import build_slot
+    with build_slot.hold(root):
+        proc = subprocess.run(args, cwd=root, capture_output=True, text=True,
+                              stdin=subprocess.DEVNULL, env=env)
     if proc.returncode != 0:
         sys.stderr.write(proc.stdout[-4000:])
         sys.stderr.write(proc.stderr[-4000:])
