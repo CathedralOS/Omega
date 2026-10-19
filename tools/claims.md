@@ -28,6 +28,10 @@ so read the task and its parked status.
   continue isolated work; do not repeatedly wait or claim registration succeeded.
 
 `--path` accepts repeated, comma/whitespace-separated files or directories.
+`claim` also accepts repeated or comma-separated `--item` values to register a
+batch of items in one atomic commit and push, and `--release-ticket` (repeated
+or comma/whitespace-separated) on `claim` and `reserve` releases finished
+tickets in the same atomic commit as the new registration.
 
 Explicit-ticket recovery checks every reachable registry commit before allowing
 an absent ticket to register again. This scan spools commit identities and
@@ -61,14 +65,22 @@ retain priority.
 Default leases last eight hours; `--lease-minutes` accepts 15–1440.
 
 ```text
-python tools/claims.py renew --ticket TICKET
+python tools/claims.py renew --ticket TICKET [--ticket TICKET2 ...]
 python tools/claims.py note --ticket TICKET --text "Outcome; acceptance; failure; next action; dependencies"
-python tools/claims.py release --ticket TICKET
+python tools/claims.py release --ticket TICKET [--ticket TICKET2 ...]
 python tools/claims.py recover --ticket TICKET --reason "Session confirmed stopped"
+python tools/claims.py claim --item NEXT-ITEM --owner "Name / outcome" --release-ticket FINISHED-TICKET
 ```
 
 Renew while working. Release when the work lands or the session stops, not
-every commit. Expiry is not completion. Preserve abandoned work before
+every commit. `renew`, `release`, and `recover` accept repeated or
+comma/whitespace-separated `--ticket` values and apply the entire batch in a
+single registry commit and push (failing atomically if any ticket in the batch
+is absent). When transitioning a worker or wave from finished tickets to new
+items, prefer batch `release --ticket T1,T2,...` or `claim`/`reserve
+--release-ticket T1,T2,...` so all mutations happen in one remote round-trip
+instead of contending on `refs/coordination/omega-claims/main` across sequential
+pushes. Expiry is not completion. Preserve abandoned work before
 recovery; never remove another session's claim merely for overlap.
 
 Notes survive release for a while. Every note on a live claim stays; a

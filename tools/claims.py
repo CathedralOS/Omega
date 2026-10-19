@@ -111,6 +111,31 @@ def split_path_values(values):
                           "leading, trailing, or doubled comma.")
     return [path for piece in pieces for path in piece.split()]
 
+def split_ticket_values(values, flag="--ticket"):
+    """Flatten repeated, comma-joined or whitespace-joined ticket values into
+    validated 32-character ticket IDs, preserving order and deduplicating."""
+    pieces = [piece for value in values for piece in value.split(",")]
+    if any(not piece.strip() for piece in pieces):
+        raise ClaimsError(f"{flag} entries must not be empty; check for a "
+                          "leading, trailing, or doubled comma.")
+    seen = set()
+    tickets = []
+    for piece in pieces:
+        for token in piece.split():
+            ticket_id(token)
+            if token not in seen:
+                seen.add(token)
+                tickets.append(token)
+    return tickets
+
+def split_item_values(values):
+    """Flatten repeated or comma-joined --item values into individual items."""
+    pieces = [piece.strip() for value in values for piece in value.split(",")]
+    if any(not piece for piece in pieces):
+        raise ClaimsError("--item entries must not be empty; check for a "
+                          "leading, trailing, or doubled comma.")
+    return pieces
+
 def path_atoms(value):
     """Explode one stored path field into the individual paths it carries.
 
@@ -450,47 +475,72 @@ class Claims:
                     note["swept_utc"] = stamp
                 result = {"state": "swept", "swept": len(marked),
                           "pending_left": len(pending) - len(marked)}
-            else:
+            elif options.command == "note":
                 ticket_id(options.ticket)
                 claim = next((entry for entry in record["claims"]
                               if entry["ticket"] == options.ticket), None)
-                if options.command == "note":
-                    if claim is None:
-                        raise ClaimsError("No claim holds this ticket. "
-                                          "Notes attach to an existing claim.")
-                    record["notes"].append(
-                        {"ticket": claim["ticket"], "item": claim["item"],
-                         "owner": claim["owner"], "text": options.text.strip(),
-                         "created_utc": now(), "swept_utc": None})
-                    result = {"state": "noted", "ticket": claim["ticket"],
-                              "item": claim["item"]}
-                elif options.command == "renew":
-                    if claim is None:
-                        raise ClaimsError("No claim holds this ticket. Reconcile before claiming again.")
-                    lease = options.lease_minutes or claim["lease_minutes"]
-                    claim["expires_utc"] = (datetime.now(timezone.utc)
-                                            + timedelta(minutes=lease)).isoformat()
-                    claim["renewed_utc"] = now()
-                    result = {"state": "renewed", "ticket": options.ticket,
-                              "item": claim["item"],
-                              "expires_utc": claim["expires_utc"]}
-                elif options.command == "release":
-                    if claim is None:
-                        raise ClaimsError("No claim holds this ticket. Nothing was changed.")
-                    result = {"state": "released", "ticket": options.ticket,
-                              "item": claim["item"]}
-                else:  # recover
+                if claim is None:
+                    raise ClaimsError("No claim holds this ticket. "
+                                      "Notes attach to an existing claim.")
+                record["notes"].append(
+                    {"ticket": claim["ticket"], "item": claim["item"],
+                     "owner": claim["owner"], "text": options.text.strip(),
+                     "created_utc": now(), "swept_utc": None})
+                result = {"state": "noted", "ticket": claim["ticket"],
+                          "item": claim["item"]}
+            else:
+                tickets = getattr(options, "tickets", None) or [options.ticket]
+                matched = []
+                for t in tickets:
+                    ticket_id(t)
                     claim = next((entry for entry in record["claims"]
-                                  if entry["ticket"] == options.ticket), None)
+                                  if entry["ticket"] == t), None)
                     if claim is None:
+                        if options.command == "renew":
+                            raise ClaimsError("No claim holds this ticket. Reconcile before claiming again.")
                         raise ClaimsError("No claim holds this ticket. Nothing was changed.")
-                    result = {"state": "recovered", "ticket": options.ticket,
-                              "item": claim["item"], "reason": options.reason}
-                if options.command in ("renew", "release", "recover"):
-                    record["claims"] = [entry for entry in record["claims"]
-                                        if entry["ticket"] != options.ticket]
+                    matched.append(claim)
+                ticket_set = set(tickets)
+                record["claims"] = [entry for entry in record["claims"]
+                                    if entry["ticket"] not in ticket_set]
                 if options.command == "renew":
-                    record["claims"].append(claim)
+                    stamped = now()
+                    for claim in matched:
+                        lease = options.lease_minutes or claim["lease_minutes"]
+                        claim["expires_utc"] = (datetime.now(timezone.utc)
+                                                + timedelta(minutes=lease)).isoformat()
+                        claim["renewed_utc"] = stamped
+                        record["claims"].append(claim)
+                    result = {"state": "renewed", "ticket": matched[0]["ticket"],
+                              "item": matched[0]["item"],
+                              "expires_utc": matched[0]["expires_utc"]}
+                    if len(matched) > 1:
+                        result.update(
+                            tickets=[c["ticket"] for c in matched],
+                            items=[c["item"] for c in matched],
+                            renewed=[{"ticket": c["ticket"], "item": c["item"],
+                                      "expires_utc": c["expires_utc"]} for c in matched],
+                            count=len(matched))
+                elif options.command == "release":
+                    result = {"state": "released", "ticket": matched[0]["ticket"],
+                              "item": matched[0]["item"]}
+                    if len(matched) > 1:
+                        result.update(
+                            tickets=[c["ticket"] for c in matched],
+                            items=[c["item"] for c in matched],
+                            released=[{"ticket": c["ticket"], "item": c["item"]}
+                                      for c in matched],
+                            count=len(matched))
+                else:  # recover
+                    result = {"state": "recovered", "ticket": matched[0]["ticket"],
+                              "item": matched[0]["item"], "reason": options.reason}
+                    if len(matched) > 1:
+                        result.update(
+                            tickets=[c["ticket"] for c in matched],
+                            items=[c["item"] for c in matched],
+                            recovered=[{"ticket": c["ticket"], "item": c["item"],
+                                        "reason": options.reason} for c in matched],
+                            count=len(matched))
 
             trim_notes(record)
             updated = coordination.commit_record(self.repository, record,
@@ -511,9 +561,16 @@ class Claims:
 
     def prepare_claim(self, options, snapshot, claims):
         record = snapshot["record"]
-        existing = next((entry for entry in record["claims"]
-                         if entry["ticket"] == options.ticket), None)
-        if existing:
+        items = getattr(options, "items", None) or [options.item]
+        tickets = getattr(options, "tickets", None) or [options.ticket]
+        release_tickets = getattr(options, "release_tickets", None) or []
+        if set(release_tickets) & set(tickets):
+            raise ClaimsError("Cannot release and claim the same ticket in one operation.")
+        existing_entries = [next((entry for entry in record["claims"]
+                                  if entry["ticket"] == t), None)
+                            for t in tickets]
+        if len(items) == 1 and existing_entries[0] is not None:
+            existing = existing_entries[0]
             if existing["owner"] != options.owner:
                 raise ClaimsError("This ticket belongs to a different owner.")
             if options.command == "reserve":
@@ -532,6 +589,36 @@ class Claims:
                                "item": existing["item"],
                                "expires_utc": existing["expires_utc"],
                                "idempotent": True}}
+        if len(items) > 1 and all(e is not None for e in existing_entries):
+            if any(e["owner"] != options.owner for e in existing_entries):
+                raise ClaimsError("This ticket belongs to a different owner.")
+            claim_records = [{"state": "claimed", "ticket": e["ticket"],
+                              "item": e["item"], "expires_utc": e["expires_utc"],
+                              "idempotent": True}
+                             for e in existing_entries]
+            return {"code": 0, "proceed": False,
+                    "record": {"state": "claimed",
+                               "ticket": claim_records[0]["ticket"],
+                               "item": claim_records[0]["item"],
+                               "expires_utc": claim_records[0]["expires_utc"],
+                               "tickets": [r["ticket"] for r in claim_records],
+                               "items": [r["item"] for r in claim_records],
+                               "claims": claim_records,
+                               "count": len(claim_records),
+                               "idempotent": True}}
+        if any(e is not None and e["owner"] != options.owner for e in existing_entries):
+            raise ClaimsError("This ticket belongs to a different owner.")
+        released_entries = []
+        for rt in release_tickets:
+            target = next((entry for entry in record["claims"]
+                           if entry["ticket"] == rt), None)
+            if target is None:
+                raise ClaimsError("No claim holds this ticket. Nothing was changed.")
+            released_entries.append({"ticket": target["ticket"], "item": target["item"]})
+        if release_tickets:
+            release_set = set(release_tickets)
+            record["claims"] = [entry for entry in record["claims"]
+                                if entry["ticket"] not in release_set]
         # A new UUID generated by this invocation has no prior lifecycle to
         # search. If an earlier push had an uncertain outcome, check only our
         # attempted commits: an accepted-then-removed claim must not resurrect.
@@ -548,9 +635,11 @@ class Claims:
         # Preserve existing callers supplying fixed/retry tickets. Only this
         # legacy interface needs the historical replay check, within the same
         # wall-clock budget. Ordinary registration never scans commit messages.
-        if not getattr(options, "fresh_ticket", False) and snapshot["version"] and coordination.history_contains_message(
-                self.repository, snapshot["version"], options.ticket, deadline=self.deadline):
-            raise ClaimsError("This ticket was already removed. Claim with a new ticket.")
+        if not getattr(options, "fresh_ticket", False) and snapshot["version"]:
+            for t in tickets:
+                if coordination.history_contains_message(
+                        self.repository, snapshot["version"], t, deadline=self.deadline):
+                    raise ClaimsError("This ticket was already removed. Claim with a new ticket.")
         # A claim makes work visible; it never refuses work. Another live
         # claim on the same item is reported like an overlapping path, and
         # the sessions reconcile their changes at rebase (AGENTS.md).
@@ -559,23 +648,45 @@ class Claims:
             if occupied:
                 return {"code": 2, "proceed": False,
                         "record": {"state": "occupied", "claims": occupied}}
-        found = self.conflicts(record, options.item, options.paths)
         lease = options.lease_minutes
-        entry = {"ticket": options.ticket, "item": options.item,
-                 "board": options.board, "owner": options.owner,
-                 "paths": options.paths, "note": options.note,
-                 "lease_minutes": lease, "claimed_utc": now(),
-                 "expires_utc": (datetime.now(timezone.utc)
-                                 + timedelta(minutes=lease)).isoformat()}
-        if options.provenance:
-            entry["provenance"] = options.provenance
-        if options.command == "reserve":
-            entry["automatic"] = True
-        record["claims"].append(entry)
-        result = {"state": "claimed", "ticket": options.ticket, "item": options.item,
-                  "expires_utc": entry["expires_utc"]}
-        if found:
-            result["overlaps"] = found
+        claimed_stamp = now()
+        expires_stamp = (datetime.now(timezone.utc)
+                         + timedelta(minutes=lease)).isoformat()
+        claim_results = []
+        all_overlaps = []
+        for item, ticket in zip(items, tickets):
+            found = self.conflicts(record, item, options.paths)
+            entry = {"ticket": ticket, "item": item,
+                     "board": options.board, "owner": options.owner,
+                     "paths": options.paths, "note": options.note,
+                     "lease_minutes": lease, "claimed_utc": claimed_stamp,
+                     "expires_utc": expires_stamp}
+            if options.provenance:
+                entry["provenance"] = options.provenance
+            if options.command == "reserve":
+                entry["automatic"] = True
+            record["claims"].append(entry)
+            item_result = {"state": "claimed", "ticket": ticket, "item": item,
+                           "expires_utc": expires_stamp}
+            if found:
+                item_result["overlaps"] = found
+                all_overlaps.extend(found)
+            claim_results.append(item_result)
+        if len(claim_results) == 1:
+            result = claim_results[0]
+        else:
+            result = {"state": "claimed",
+                      "ticket": claim_results[0]["ticket"],
+                      "item": claim_results[0]["item"],
+                      "expires_utc": claim_results[0]["expires_utc"],
+                      "tickets": [r["ticket"] for r in claim_results],
+                      "items": [r["item"] for r in claim_results],
+                      "claims": claim_results,
+                      "count": len(claim_results)}
+            if all_overlaps:
+                result["overlaps"] = all_overlaps
+        if released_entries:
+            result["released"] = released_entries
         return {"code": 0, "proceed": True, "record": result}
 
     def audit(self, options):
@@ -702,24 +813,26 @@ def main(argv=None, *, record_new_ticket=None):
     subparsers.add_parser("status")
     for command in ("claim", "reserve"):
         claim = subparsers.add_parser(command)
-        claim.add_argument("--item", required=True)
+        claim.add_argument("--item", dest="items", action="append", required=True)
         claim.add_argument("--board", choices=BOARDS)
         claim.add_argument("--owner", required=True)
         claim.add_argument("--path", dest="paths", action="append", default=[])
         claim.add_argument("--lease-minutes", type=int, default=DEFAULT_LEASE_MINUTES)
         claim.add_argument("--note")
-        claim.add_argument("--ticket")
+        claim.add_argument("--ticket", dest="tickets", action="append")
+        claim.add_argument("--release-ticket", dest="release_tickets", action="append", default=[],
+                           help="release finished ticket(s) in the same atomic commit")
         claim.add_argument("--allow-overlap", action="store_true",
                            help="compatibility flag; paths always overlap freely, items do not")
         for field in ("session-id", "machine-id", "environment-id", "workspace-id", "dispatch-id"):
             claim.add_argument("--" + field)
     renew = subparsers.add_parser("renew")
-    renew.add_argument("--ticket", required=True)
+    renew.add_argument("--ticket", dest="tickets", action="append", required=True)
     renew.add_argument("--lease-minutes", type=int)
     release = subparsers.add_parser("release")
-    release.add_argument("--ticket", required=True)
+    release.add_argument("--ticket", dest="tickets", action="append", required=True)
     recover = subparsers.add_parser("recover")
-    recover.add_argument("--ticket", required=True)
+    recover.add_argument("--ticket", dest="tickets", action="append", required=True)
     recover.add_argument("--reason", required=True)
     available = subparsers.add_parser("available")
     available.add_argument("--board", required=True, choices=BOARDS)
@@ -753,10 +866,13 @@ def main(argv=None, *, record_new_ticket=None):
     try:
         options = parser.parse_args(argv)
         if record_new_ticket is not None and (
-                options.command != "reserve" or options.ticket is not None):
+                options.command != "reserve" or options.tickets is not None):
             raise ClaimsError("Durable ticket recording requires a newly allocated reservation.")
         if options.timeout_seconds is not None and not 0 < options.timeout_seconds <= 300:
             raise ClaimsError("--timeout-seconds must be greater than zero and at most 300.")
+        if options.command in ("renew", "release", "recover"):
+            options.tickets = split_ticket_values(options.tickets)
+            options.ticket = options.tickets[0]
         if options.command in ("claim", "reserve", "renew"):
             lease = options.lease_minutes or DEFAULT_LEASE_MINUTES
             if not MIN_LEASE_MINUTES <= lease <= MAX_LEASE_MINUTES:
@@ -766,8 +882,15 @@ def main(argv=None, *, record_new_ticket=None):
         if options.command in ("claim", "reserve"):
             if not options.owner.strip() or len(options.owner) > 200:
                 raise ClaimsError("Supply a short, recognizable --owner.")
+            options.items = split_item_values(options.items)
             if options.command == "reserve":
-                options.item = outcome_key(options.item)
+                if len(options.items) > 1:
+                    raise ClaimsError("Reserve accepts a single --item per session.")
+                options.items = [outcome_key(options.items[0])]
+            options.item = options.items[0]
+            options.release_tickets = (
+                split_ticket_values(options.release_tickets, flag="--release-ticket")
+                if options.release_tickets else [])
             options.provenance = {field: getattr(options, field) for field in
                                   ("session_id", "machine_id", "environment_id", "workspace_id", "dispatch_id")
                                   if getattr(options, field) is not None}
@@ -775,9 +898,14 @@ def main(argv=None, *, record_new_ticket=None):
                 raise ClaimsError("Provenance must be nonempty bounded labels; it is not authenticated.")
             if "session_id" in options.provenance:
                 options.provenance["session_id"] = session_key(options.provenance["session_id"])
-            options.fresh_ticket = options.ticket is None
-            options.ticket = options.ticket or uuid.uuid4().hex
-            ticket_id(options.ticket)
+            options.fresh_ticket = options.tickets is None
+            if options.fresh_ticket:
+                options.tickets = [uuid.uuid4().hex for _ in options.items]
+            else:
+                options.tickets = split_ticket_values(options.tickets)
+                if len(options.tickets) != len(options.items):
+                    raise ClaimsError("When --ticket is supplied with multiple --item values, supply one ticket per item.")
+            options.ticket = options.tickets[0]
             if record_new_ticket is not None:
                 # The allocator owns freshness. Dispatch records this identity
                 # before coordination starts; accepting a caller's freshness
@@ -785,10 +913,12 @@ def main(argv=None, *, record_new_ticket=None):
                 options.provenance["dispatch_id"] = options.ticket
             options.paths = [normalize_path(piece)
                              for piece in split_path_values(options.paths)]
-            if options.board and options.item not in board_items(options.repository,
-                                                                 options.board):
-                raise ClaimsError(f"Item {options.item} not found in {options.board} "
-                                  "(no **<item>.** marker).")
+            if options.board:
+                valid_board_items = set(board_items(options.repository, options.board))
+                for candidate_item in options.items:
+                    if candidate_item not in valid_board_items:
+                        raise ClaimsError(f"Item {candidate_item} not found in {options.board} "
+                                          "(no **<item>.** marker).")
             # Paths are estimates. Boards remain shared, not claimable outcomes.
             for path in options.paths:
                 if is_task_board(path):
@@ -815,6 +945,8 @@ def main(argv=None, *, record_new_ticket=None):
         if options.command in ("claim", "reserve"):
             report.update(ticket=options.ticket, item=options.item, owner=options.owner,
                           paths=options.paths)
+            if len(getattr(options, "items", ())) > 1:
+                report.update(tickets=options.tickets, items=options.items)
             pending = Path(options.repository).resolve() / "build" / "claims-pending" / (options.ticket + ".json")
             try:
                 pending.parent.mkdir(parents=True, exist_ok=True)

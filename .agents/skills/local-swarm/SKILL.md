@@ -186,6 +186,12 @@ helper actions before executing them.
   - Always obtain commit hashes from `git rev-parse HEAD` (or resolve the
     worktree's `HEAD` directly in the coordinator) rather than transcribing
     abbreviated `git commit` output by hand.
+  - Batch claim and landing operations into single remote round-trips: when
+    releasing multiple finished tickets, renewing leases, or handing off from
+    finished tickets to new items, pass repeated or comma-separated
+    `--ticket` / `--item` / `--release-ticket` flags to `tools/claims.py` (and
+    batch landed commits into a single `git cherry-pick` + `tools/landing.py`
+    push) rather than running $N$ sequential remote pushes.
   - After launching a background command or subagent, end the turn and let
     reactive wakeup resume execution instead of polling `manage_task`.
 

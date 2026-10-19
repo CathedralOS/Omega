@@ -79,6 +79,22 @@ class PathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as repository:
             self.assertFalse(module.is_directory_fence(repository, name))
 
+    def test_split_ticket_and_item_values_support_batch_lists(self):
+        module = load_claims()
+        t1, t2, t3 = "a" * 32, "b" * 32, "c" * 32
+        self.assertEqual(
+            module.split_ticket_values([f"{t1},{t2} {t3}", t1]),
+            [t1, t2, t3])
+        for bad in (f"{t1},,{t2}", f"{t1},", f",{t1}", "not-a-ticket"):
+            with self.subTest(bad=bad):
+                self.assertRaises(module.ClaimsError, module.split_ticket_values, [bad])
+        self.assertEqual(
+            module.split_item_values(["ALPHA-ITEM, BETA-ITEM", "GAMMA-ITEM"]),
+            ["ALPHA-ITEM", "BETA-ITEM", "GAMMA-ITEM"])
+        for bad in ("ALPHA-ITEM,,BETA-ITEM", "ALPHA-ITEM,", ",ALPHA-ITEM"):
+            with self.subTest(bad=bad):
+                self.assertRaises(module.ClaimsError, module.split_item_values, [bad])
+
 
 class NoteRetentionTests(unittest.TestCase):
     """Every write rewrites the whole registry, so trim_notes bounds it."""
@@ -863,6 +879,69 @@ class ClaimsTests(unittest.TestCase):
         self.assertEqual(self.git(self.a, "ls-remote", "--refs", str(self.remote),
                                   CLAIMS_REF).split("\t")[0], identity)
 
+    def test_batch_release_renew_and_recover_in_single_commit(self):
+        batch = self.run_claims(
+            self.a, "claim",
+            "--item", "ALPHA-ITEM",
+            "--item", "BETA-ITEM",
+            "--item", "GAMMA-ITEM",
+            "--board", "TASKS.md",
+            "--owner", "batch-owner")
+        self.assertEqual(batch["state"], "claimed")
+        self.assertEqual(batch["count"], 3)
+        self.assertEqual(batch["items"], ["ALPHA-ITEM", "BETA-ITEM", "GAMMA-ITEM"])
+        t1, t2, t3 = batch["tickets"]
+        tip_after_claim = self.git(self.remote, "rev-parse", CLAIMS_REF)
+
+        # Renew two tickets in one commit via comma-joined --ticket.
+        renewed = self.run_claims(
+            self.b, "renew",
+            "--ticket", f"{t1},{t2}",
+            "--lease-minutes", "120")
+        self.assertEqual(renewed["state"], "renewed")
+        self.assertEqual(renewed["count"], 2)
+        self.assertEqual(renewed["tickets"], [t1, t2])
+        tip_after_renew = self.git(self.remote, "rev-parse", CLAIMS_REF)
+        self.assertEqual(self.git(self.remote, "rev-parse", tip_after_renew + "^"), tip_after_claim)
+
+        # Missing ticket in a batch fails atomically without mutating live claims.
+        self.run_claims(self.b, "release", "--ticket", t1, "--ticket", "0" * 32, expected=1)
+        self.assertEqual(self.git(self.remote, "rev-parse", CLAIMS_REF), tip_after_renew)
+
+        # Release two tickets in one commit via repeated --ticket.
+        released = self.run_claims(self.b, "release", "--ticket", t1, "--ticket", t2)
+        self.assertEqual(released["state"], "released")
+        self.assertEqual(released["count"], 2)
+        self.assertEqual(released["tickets"], [t1, t2])
+        tip_after_release = self.git(self.remote, "rev-parse", CLAIMS_REF)
+        self.assertEqual(self.git(self.remote, "rev-parse", tip_after_release + "^"), tip_after_renew)
+        remaining = self.run_claims(self.a, "status")["claims"]
+        self.assertEqual([c["ticket"] for c in remaining], [t3])
+
+    def test_batch_claim_and_atomic_release_handoff(self):
+        first = self.run_claims(
+            self.a, "reserve",
+            "--item", "ALPHA-ITEM",
+            "--owner", "worker-1",
+            "--session-id", "local:w1")
+        tip_before = self.git(self.remote, "rev-parse", CLAIMS_REF)
+
+        # Atomic handoff on reserve releases the finished ticket and claims the next
+        # item on the same session_id in a single commit.
+        second = self.run_claims(
+            self.b, "reserve",
+            "--item", "BETA-ITEM",
+            "--owner", "worker-1",
+            "--session-id", "local:w1",
+            "--release-ticket", first["ticket"])
+        self.assertEqual(second["state"], "claimed")
+        self.assertEqual(second["released"], [{"ticket": first["ticket"], "item": "ALPHA-ITEM"}])
+        tip_after = self.git(self.remote, "rev-parse", CLAIMS_REF)
+        self.assertEqual(self.git(self.remote, "rev-parse", tip_after + "^"), tip_before)
+        live = self.run_claims(self.a, "status")["claims"]
+        self.assertEqual([c["ticket"] for c in live], [second["ticket"]])
+
 
 if __name__ == "__main__":
     unittest.main()
+
