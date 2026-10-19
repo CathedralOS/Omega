@@ -1,0 +1,134 @@
+// Fact: matching a 41-variant tagged enum payload FortyOneChoice { V1(u64), V2(u64), V3(u64), V4(u64), V5(u64), V6(u64), V7(u64), V8(u64), V9(u64), V10(u64), V11(u64), V12(u64), V13(u64), V14(u64), V15(u64), V16(u64), V17(u64), V18(u64), V19(u64), V20(u64), V21(u64), V22(u64), V23(u64), V24(u64), V25(u64), V26(u64), V27(u64), V28(u64), V29(u64), V30(u64), V31(u64), V32(u64), V33(u64), V34(u64), V35(u64), V36(u64), V37(u64), V38(u64), V39(u64), V40(u64), V41(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
+
+data FortyOneChoice [copy] {
+    case V1(v: u64) where v >= 40u64 && v <= 80u64;
+    case V2(v: u64) where v >= 40u64 && v <= 80u64;
+    case V3(v: u64) where v >= 40u64 && v <= 80u64;
+    case V4(v: u64) where v >= 40u64 && v <= 80u64;
+    case V5(v: u64) where v >= 40u64 && v <= 80u64;
+    case V6(v: u64) where v >= 40u64 && v <= 80u64;
+    case V7(v: u64) where v >= 40u64 && v <= 80u64;
+    case V8(v: u64) where v >= 40u64 && v <= 80u64;
+    case V9(v: u64) where v >= 40u64 && v <= 80u64;
+    case V10(v: u64) where v >= 40u64 && v <= 80u64;
+    case V11(v: u64) where v >= 40u64 && v <= 80u64;
+    case V12(v: u64) where v >= 40u64 && v <= 80u64;
+    case V13(v: u64) where v >= 40u64 && v <= 80u64;
+    case V14(v: u64) where v >= 40u64 && v <= 80u64;
+    case V15(v: u64) where v >= 40u64 && v <= 80u64;
+    case V16(v: u64) where v >= 40u64 && v <= 80u64;
+    case V17(v: u64) where v >= 40u64 && v <= 80u64;
+    case V18(v: u64) where v >= 40u64 && v <= 80u64;
+    case V19(v: u64) where v >= 40u64 && v <= 80u64;
+    case V20(v: u64) where v >= 40u64 && v <= 80u64;
+    case V21(v: u64) where v >= 40u64 && v <= 80u64;
+    case V22(v: u64) where v >= 40u64 && v <= 80u64;
+    case V23(v: u64) where v >= 40u64 && v <= 80u64;
+    case V24(v: u64) where v >= 40u64 && v <= 80u64;
+    case V25(v: u64) where v >= 40u64 && v <= 80u64;
+    case V26(v: u64) where v >= 40u64 && v <= 80u64;
+    case V27(v: u64) where v >= 40u64 && v <= 80u64;
+    case V28(v: u64) where v >= 40u64 && v <= 80u64;
+    case V29(v: u64) where v >= 40u64 && v <= 80u64;
+    case V30(v: u64) where v >= 40u64 && v <= 80u64;
+    case V31(v: u64) where v >= 40u64 && v <= 80u64;
+    case V32(v: u64) where v >= 40u64 && v <= 80u64;
+    case V33(v: u64) where v >= 40u64 && v <= 80u64;
+    case V34(v: u64) where v >= 40u64 && v <= 80u64;
+    case V35(v: u64) where v >= 40u64 && v <= 80u64;
+    case V36(v: u64) where v >= 40u64 && v <= 80u64;
+    case V37(v: u64) where v >= 40u64 && v <= 80u64;
+    case V38(v: u64) where v >= 40u64 && v <= 80u64;
+    case V39(v: u64) where v >= 40u64 && v <= 80u64;
+    case V40(v: u64) where v >= 40u64 && v <= 80u64;
+    case V41(v: u64) where v >= 39u64 && v <= 80u64;
+}
+
+machine verify_payload(value: u64) -> u64
+    requires value >= 40u64 && value <= 80u64
+{
+    let headroom: u64 = 80u64 - value;
+    let margin: u64 = value - 40u64;
+    headroom + margin
+}
+
+machine extract(choice: FortyOneChoice) -> u64 {
+    transition choice {
+        FortyOneChoice::V1 { v } -> v
+        FortyOneChoice::V2 { v } -> v
+        FortyOneChoice::V3 { v } -> v
+        FortyOneChoice::V4 { v } -> v
+        FortyOneChoice::V5 { v } -> v
+        FortyOneChoice::V6 { v } -> v
+        FortyOneChoice::V7 { v } -> v
+        FortyOneChoice::V8 { v } -> v
+        FortyOneChoice::V9 { v } -> v
+        FortyOneChoice::V10 { v } -> v
+        FortyOneChoice::V11 { v } -> v
+        FortyOneChoice::V12 { v } -> v
+        FortyOneChoice::V13 { v } -> v
+        FortyOneChoice::V14 { v } -> v
+        FortyOneChoice::V15 { v } -> v
+        FortyOneChoice::V16 { v } -> v
+        FortyOneChoice::V17 { v } -> v
+        FortyOneChoice::V18 { v } -> v
+        FortyOneChoice::V19 { v } -> v
+        FortyOneChoice::V20 { v } -> v
+        FortyOneChoice::V21 { v } -> v
+        FortyOneChoice::V22 { v } -> v
+        FortyOneChoice::V23 { v } -> v
+        FortyOneChoice::V24 { v } -> v
+        FortyOneChoice::V25 { v } -> v
+        FortyOneChoice::V26 { v } -> v
+        FortyOneChoice::V27 { v } -> v
+        FortyOneChoice::V28 { v } -> v
+        FortyOneChoice::V29 { v } -> v
+        FortyOneChoice::V30 { v } -> v
+        FortyOneChoice::V31 { v } -> v
+        FortyOneChoice::V32 { v } -> v
+        FortyOneChoice::V33 { v } -> v
+        FortyOneChoice::V34 { v } -> v
+        FortyOneChoice::V35 { v } -> v
+        FortyOneChoice::V36 { v } -> v
+        FortyOneChoice::V37 { v } -> v
+        FortyOneChoice::V38 { v } -> v
+        FortyOneChoice::V39 { v } -> v
+        FortyOneChoice::V40 { v } -> v
+        FortyOneChoice::V41 { v } -> v
+    }
+}
+
+linux_x86_64 machine target_probe(choice: FortyOneChoice) -> u64 {
+    let res: u64 = extract(choice);
+    verify_payload(res)
+}
+
+linux_arm64 machine target_probe(choice: FortyOneChoice) -> u64 {
+    let res: u64 = extract(choice);
+    verify_payload(res)
+}
+
+macos_arm64 machine target_probe(choice: FortyOneChoice) -> u64 {
+    let res: u64 = extract(choice);
+    verify_payload(res)
+}
+
+windows_x86_64 machine target_probe(choice: FortyOneChoice) -> u64 {
+    let res: u64 = extract(choice);
+    verify_payload(res)
+}
+
+machine probe(choice: FortyOneChoice) -> u64 {
+    target_probe(choice)
+}
+
+machine main() crashes Trap {
+    let p: FortyOneChoice = FortyOneChoice::V41 { v: 60u64 };
+    let combined: u64 = probe(p);
+    transition combined == 40u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
