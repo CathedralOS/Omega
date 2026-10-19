@@ -4,6 +4,89 @@ Updating a record field through an exclusive mutable borrow (`&mut Counter`) and
 
 The original root reproduction is preserved in [main.omg](main.omg) and [build.omg](build.omg).
 
+## Mechanism
+
+A `&mut Counter` projection forms an exclusive loan over the *aggregate* `c`,
+naming a reference to the original storage rather than a copy of the field
+([structural access](../../../../wiki/spec/terminal-psi/structural_access.md)).
+The store `r.used = 50u64` therefore writes through that reference into `c`'s
+own storage. When the loan retires, the borrowed-storage restoration window
+re-establishes the refined post-loan fact on the owner, so the aggregate later
+reports `c.used == 50u64` while the never-touched `c.limit == 80u64` is
+preserved. That restored field bound is what proves `80u64 - c.used` in range.
+
+This is distinct from `shared_borrow_field_projection` (a `&` projection grants
+no write authority), from `disjoint_field_borrow_windows` (two distinct fields
+held live at once), and from whole-aggregate mutation (the write is projected
+through the aggregate, not applied to a whole-referent replacement).
+
+## Classification: coverage, not repair
+
+Measured on this baseline, the root program and all nine places already run
+green through both engines:
+
+| Place | `omega run --both` |
+| --- | --- |
+| root | `native exit 0` / `interp exit: 0` |
+| local | `native exit 0` / `interp exit: 0` |
+| field | `native exit 0` / `interp exit: 0` |
+| parameter | `native exit 0` / `interp exit: 0` |
+| call result | `native exit 0` / `interp exit: 0` |
+| match join | `native exit 0` / `interp exit: 0` |
+| const name | `native exit 0` / `interp exit: 0` |
+| another state | `native exit 0` / `interp exit: 0` |
+| another machine | `native exit 0` / `interp exit: 0` |
+| another target body | `native exit 0` / `interp exit: 0` |
+
+No place refused and none produced a wrong result, so this row is a **coverage
+gap**: the places already ran and the missing evidence was the fixtures and
+host-pinned goldens, not a compiler change. No compiler source was edited.
+
+## Discrimination
+
+Both halves of the construct were proved, and the classes are reported per probe.
+
+**Runtime half — the written value is observable through the aggregate.**
+Corrupting the consumer's observation (`transition c.used == 999u64` after the
+loan retires, with the write still `r.used = 50u64`) reached runtime and trapped
+in both engines: `native signal 5` / `interp crash: Trap (host presentation
+agrees)`. The value written through the mutable view is exactly what the
+consumer reads back from the aggregate.
+
+**Static half — the construct's own contract refuses when violated.**
+
+| Probe | Class | Diagnostic |
+| --- | --- | --- |
+| Write `81u64` into a field declared `where used <= 80u64` | static refusal, before native production (`--check` exit 1) | ``machine `main` state `entry` assignment stores a value not provably within its data's `where` facts`` |
+| Construct `Counter { used: 95u64, … }` against `where used <= 80u64` | static refusal at the construction gate, independent of seeding (`ch12: construction is the gate`) | ``data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction`` |
+| Two overlapping `&mut c` loans of the same aggregate | static refusal | ```statement 2 creates local borrow `r2` while local borrow `r1` is still active``` |
+| Write `r.used = 50u64` through a *shared* `&Counter` | static refusal | `assignment requires mutable source access through every reference crossed by its destination` |
+
+The obligation's kind here is a construction/`where`-clause fact plus an exact
+subtraction range obligation, not a value boundary admitting a range, so no
+runtime trap is reachable from the invalid controls: all four refuse statically,
+and the nine twins refuse on the exact-arithmetic obligation. The overlapping
+borrow refusal above is the compiler correctly rejecting a sibling's twin shape
+(two loans of the same field), reported here as static rather than runtime.
+
+## Fixtures
+
+Nine pass fixtures and nine reject twins are pinned under
+[tests/omega/pass/facts](../../../../tests/omega/pass/facts) and
+[tests/omega/fail/facts](../../../../tests/omega/fail/facts) as
+`mutable_borrow_field_writeback_through_<place>_exit` and
+`mutable_borrow_field_writeback_through_<place>_unproved`. Each pass fixture
+binds `ProgramEntry` for the four hosted targets and carries its own
+`expected_native_exit.txt`; each twin breaks only the construct's own bound
+(`used <= 81u64` and writing `81u64`) and authors its diagnostic in
+`expected.txt`.
+
+`python3 tools/corpus_gate.py --native --filter facts/mutable_borrow_field_writeback`
+reports nine `built … exit:0` rows in
+[tests/omega/corpus_native_macos_arm64.txt](../../../../tests/omega/corpus_native_macos_arm64.txt);
+the checked leg reports nine `checked` and nine `rejected` rows, 0 rejected
+without its expected fragment and 0 fail fixtures that did not reject.
+
 ## Places
 
 The nine places carry the post-writeback record bound through each language construct,
@@ -22,7 +105,7 @@ accompanied by `<place>/invalid/` reject twins:
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | post-writeback record forwarded through another machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | post-writeback record consumed across target-scoped machine bodies |
 
-Run each place with `omega run <place>/main.omg`.
+Run each place with `omega run --both <place>/main.omg`.
 
 ## Requirements and Evidence
 
