@@ -2662,15 +2662,28 @@ fail/facts/result_cleanup_guarantee_through_other_machine_rejected rejected 641m
 fail/facts/result_cleanup_guarantee_through_other_state_rejected rejected 641ms expected @76ea4b8c7c50
 fail/facts/result_cleanup_guarantee_through_parameter_rejected rejected 633ms expected @76ea4b8c7c50
 fail/facts/result_cleanup_guarantee_through_target_body_rejected rejected 633ms expected @76ea4b8c7c50
-fail/facts/result_cleanup_guarantees_through_call_result_rejected rejected 931ms expected @ec38c6dfcf45
-fail/facts/result_cleanup_guarantees_through_const_name_rejected rejected 1003ms expected @ec38c6dfcf45
-fail/facts/result_cleanup_guarantees_through_field_rejected rejected 987ms expected @ec38c6dfcf45
-fail/facts/result_cleanup_guarantees_through_local_rejected rejected 931ms expected @ec38c6dfcf45
-fail/facts/result_cleanup_guarantees_through_match_join_rejected rejected 901ms expected @ec38c6dfcf45
-fail/facts/result_cleanup_guarantees_through_other_machine_rejected rejected 882ms expected @ec38c6dfcf45
-fail/facts/result_cleanup_guarantees_through_other_state_rejected rejected 885ms expected @ec38c6dfcf45
-fail/facts/result_cleanup_guarantees_through_parameter_rejected rejected 867ms expected @ec38c6dfcf45
-fail/facts/result_cleanup_guarantees_through_target_body_rejected rejected 874ms expected @ec38c6dfcf45
+fail/facts/result_cleanup_guarantees_through_call_result_rejected rejected 15460ms expected @1b561a4ddcaa
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_const_name_rejected rejected 16407ms expected @1b561a4ddcaa
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_field_rejected rejected 16102ms expected @1b561a4ddcaa
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&holder.seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_local_rejected rejected 15706ms expected @1b561a4ddcaa
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_match_join_rejected rejected 16022ms expected @1b561a4ddcaa
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&first_seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_other_machine_rejected rejected 15908ms expected @1b561a4ddcaa
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_other_state_rejected rejected 16102ms expected @1b561a4ddcaa
+	cannot prove automatic cleanup requires at selected edge from carry state onward after statement 0: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_parameter_rejected rejected 15765ms expected @1b561a4ddcaa
+	cannot prove automatic cleanup requires at selected edge from through_parameter state entry after statement 0: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+fail/facts/result_cleanup_guarantees_through_target_body_rejected rejected 16125ms expected @1b561a4ddcaa
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 fail/facts/returned_write_destination_through_call_result_read rejected 2165ms expected @2ef2ab353498+wt
 fail/facts/returned_write_destination_through_const_name_read rejected 2281ms expected @2ef2ab353498+wt
 fail/facts/returned_write_destination_through_field_read rejected 1980ms expected @2ef2ab353498+wt
