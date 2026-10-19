@@ -173,8 +173,13 @@ def record_cargo_build(binary, output):
         if not isinstance(item, dict) or item.get("reason") != "compiler-artifact":
             continue
         name = item.get("target", {}).get("name")
-        if name == "compiler" or item.get("executable") == str(binary):
-            if name != "compiler" and str(binary) not in item.get("filenames", []):
+        executable = item.get("executable")
+        matches_binary = isinstance(executable, str) and Path(executable).absolute() == binary
+        if name == "compiler" or matches_binary:
+            if name != "compiler" and not any(
+                isinstance(filename, str) and Path(filename).absolute() == binary
+                for filename in item.get("filenames", [])
+            ):
                 raise CompilerProfileError("Cargo executable is not bound to its artifact filenames")
             level = item.get("profile", {}).get("opt_level")
             profiles[name] = level
