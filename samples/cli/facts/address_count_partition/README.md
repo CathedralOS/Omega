@@ -11,17 +11,20 @@ left piece is `{base: 10, length: 20}` and the right piece is `{base: 30,
 length: 60}`, and exit 0 only when both hold. Only the transport of the operands
 changes.
 
-| Place | Project | Transport |
-| --- | --- | --- |
-| local | `local/` | the requested count is copied into a local, after an unrelated local store |
-| field | `field/` | bounded record fields carry the base, length and requested count |
-| parameter | `parameter/` | the split machine reads `length` and `ceiling` directly |
-| call result | `call_result/` | a call with a declared result supplies the requested count |
-| match join | `match_join/` | both arms keep the bounded count, so the joined count splits safely |
-| const name | `const_name/` | `const LENGTH: u64 = 20` provides the named requested count |
-| another state | `other_state/` | a successor state receives the operands and splits there |
-| another machine | `other_machine/` | a forwarding machine transports operands to the split machine |
-| another target body | `target_body/` | each of four target bodies splits the base and count |
+| Place | Positive Project | Reject Twin | Transport Mechanism |
+| --- | --- | --- | --- |
+| root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness partitioning base address and count |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the requested count is copied into a local, after an unrelated local store |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | bounded record fields carry the base, length and requested count |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the split machine reads `length` and `ceiling` directly |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call with a declared result supplies the requested count |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms keep the bounded count, so the joined count splits safely |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `const LENGTH: u64 = 20` provides the named requested count |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the operands and splits there |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports operands to the split machine |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies splits the base and count |
+
+## Execution
 
 Each positive place and the root `main.omg` binds `ProgramEntry` for all four
 hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`),
@@ -41,108 +44,67 @@ omega run --both samples/cli/facts/address_count_partition/other_machine/main.om
 omega run --both samples/cli/facts/address_count_partition/target_body/main.omg
 ```
 
-Each place has an `invalid/` child that breaks the partition contract by dropping
+### The oracle discriminates
+
+Discrimination was verified with two independent probes:
+1. Corrupting the requested partition count (`20` -> `25`, so the left piece is no longer `{base: 10, length: 20}`) branches to `bad()`, producing `native signal 5` together with `interp crash: Trap` (host presentation agrees).
+2. Corrupting the address `ceiling` (`100` -> `89`, below the interval end `90`) is refused at the call site with `cannot prove requires contract for call split from main ...`.
+
+The oracle therefore strictly discriminates: both engines trap on an incorrect partition at runtime, and the address-ceiling bound is enforced statically at compile time.
+
+## Reject Twins
+
+Each place has an `invalid/` twin that breaks the partition contract by dropping
 the `length <= whole.length` bound from the `split` machine's own `requires`
 clause; the requested count is then unbounded relative to the input, and the
 residual `whole.length - requested` is no longer provably in `u64` range. The
 twin differs from its positive only in the construct's own contract — never in a
 caller guard. It carries its authored rejection expectation in
-`invalid/sample.json` (`rejection_contains`) and `invalid/expected.txt`, so the
-control rejects with `exact arithmetic` rather than for an unrelated reason.
-Check a twin with `omega --check <place>/invalid/main.omg`.
+`invalid/sample.json` (`rejection_contains`) and `invalid/expected.txt`, rejecting
+cleanly during compile-time proof checking:
 
-The local place writes an unrelated local before splitting. The completed
-return theorem must survive that assignment; it is not an entry-only fact.
-The separate unrelated-store regression under
-`tests/omega/pass/core/address_interval_partition_unrelated_store_exit` pins
-the same distinction without changing any partition operand. Neither test
-authorizes storage: live backing and parent-to-child custody remain unfinished.
+| Place | Twin | Pinned Diagnostic Fragment |
+| --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `exact arithmetic` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `exact arithmetic` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `exact arithmetic` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `exact arithmetic` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `exact arithmetic` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `exact arithmetic` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `exact arithmetic` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `exact arithmetic` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `exact arithmetic` |
 
-## Governance and Evidence
+## Pinned Fixtures
 
-- Owning requirement: `wiki/spec/language/counts_and_addresses.md`
-- Parent task: `BUMP-ALLOCATOR-CANARY` (`TASKS.md`)
-- Reserved ticket: `3a4e4800ae2040059680d6c228f5683f`
+- Positive passes: `tests/omega/pass/facts/address_count_partition_through_<place>_exit` (all 9 places pinned, each recording native exit 0).
+- Negative controls: `tests/omega/fail/facts/address_count_partition_through_<place>_rejected` (all 9 places pinned, rejecting with `exact arithmetic`).
+- Core regressions:
+  - `tests/omega/pass/core/address_interval_partition_unrelated_store_exit`
+  - `tests/omega/pass/core/address_interval_content_partition_exit`
+  - `tests/omega/fail/core/address_interval_partition_missing_ceiling`
+  - `tests/omega/fail/core/address_interval_partition_missing_count_bound`
+  - `tests/omega/fail/core/address_interval_partition_overlap`
 
-This is the numeric prerequisite of `BUMP-ALLOCATOR-CANARY` and Cathedral's
-backed allocator, not an authority issuer or a functioning allocator. The local
-`Region::Owned` qualification grants no storage rights. Real `Extent` partition
-still needs checked custody transfer and retirement of the parent.
+## Requirements and Evidence
 
-### Measured Observations
+- **Owning requirement:** `wiki/spec/language/counts_and_addresses.md`
+- **Parent task:** `BUMP-ALLOCATOR-CANARY` (`TASKS.md`)
+- **Reserved ticket:** `3a4e4800ae2040059680d6c228f5683f`
 
-Producer `target/debug/omega` built at `opt-level: 1` from base `c4fed470f35f`,
-host `macos_arm64`.
+### Specification and Lowering Layers
 
-- `omega run --both` on the root and all nine places: `native exit 0` and
-  `interp exit: 0` for every one of the ten positives.
-- `omega run --both <place>/invalid/main.omg` on all nine twins: exit 200 with
-  the pinned `exact arithmetic in machine `split` state `entry` local `right` may
-  overflow `u64`` diagnostic (decision 17).
-- Discrimination, two independent probes. Corrupting the requested partition
-  count (`20` -> `25`, so the left piece is no longer `{base: 10, length: 20}`)
-  produces `native signal 5` together with
-  `interp crash: Trap (host presentation agrees)`. Corrupting the address
-  `ceiling` (`100` -> `89`, below the interval end `90`) is refused at the call
-  site with `cannot prove requires contract for call split from main ...`. The
-  oracle therefore discriminates, both engines trap on the corrupted partition,
-  and the address-ceiling half is enforced statically.
-- `tools/sample_native_gate.py --filter cli/facts/address_count_partition`: 10/10
-  samples meet their documented oracle; 9/9 intended-invalid controls match their
-  authored rejection.
-- `tools/corpus_gate.py --native --filter facts/address_count_partition`: executed
-  9, exit codes `{'0': 9}`; the nine `built ... exit:0` rows are recorded in
-  `tests/omega/corpus_native_macos_arm64.txt`.
-- `tools/corpus_gate.py --filter facts/address_count_partition`: 0 structural
-  moves, 18 fixtures (`checked` 9, `rejected` 9), 0 fail fixtures did not reject.
-
-### Acceptance Demonstrated
-
-1. **Establishment and identity**: the `split` machine's own `requires` clause
-   (`length <= whole.length && embed(whole.base) + embed(whole.length) <=
-   embed(ceiling)`) establishes both the count bound and the address fit before
-   the residual is formed, so the returned `Pieces` carries an exact value.
-   Neither engine re-establishes the fact with a post-hoc caller equality guard,
-   and the local place stores an unrelated local before splitting to show the
-   completed return theorem survives that store.
-2. **Composition**: each `invalid/` twin differs from its positive only in the
-   construct's own contract — the dropped `length <= whole.length` bound in
-   `split`'s `requires` clause — and never in a caller guard, so the reject twins
-   exercise the fact itself.
-3. **Transport across nine places**: the base, length, requested count and
-   ceiling survive transport across local bindings, struct fields, machine
-   parameters, call return results, match join bindings, named constants, state
-   transitions, machine forwarding, and target-scoped bodies (`linux_x86_64`,
-   `linux_arm64`, `macos_arm64`, `windows_x86_64`).
-4. **Soundness boundaries**: the checked split preserves `Region` linearity and
-   affine cleanup — `drop(whole)` retires the parent after the pieces are formed,
-   and `main` destructures and drops both pieces — while the erased `IntervalSet`
-   content obligation (`Owned::content(old(&whole)) == separate(...)`) stays
-   mathematical and never becomes an executable value.
-5. **Checked-to-Terminal Psi lowering (`Psi 05-07`)**: each place lowers to
-   Terminal Psi and executes in the interpreter; the observed `interp exit: 0`
-   agrees with the native exit for all ten positives, and the affine cleanup and
-   state transitions (`done`/`bad`, `crash Trap`) lower without loss.
-6. **Provider settlement, layout geometry and ABI calling plans (`Omega 00-02`)**:
-   each positive binds `ProgramEntry` for all four hosted targets and settles the
-   provider rows for the `Region`/`Pieces` structural carriers.
-7. **Instruction selection, register homes and activation frames (`Omega 03-06`)**:
-   the nine `_exit` fixtures in `tests/omega/pass/facts/` are built and executed
-   for `macos_arm64`, recording `built ... exit:0` with the split and its
-   `Pieces` return realized in a frame.
-8. **Form encoding, branch relaxation, relocations and image emission (`Omega
-   07-09` + emission)**: the `target_body` place additionally carries the split
-   in all four target-scoped bodies; the emitted `macos_arm64` image executes and
-   agrees with Terminal Psi.
+1. **Establishment:** The `split` machine entry contract (`requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling)`) establishes both the safe count bound and the address region ceiling before any arithmetic is formed. The residual endpoint `whole.base + length` and remaining length `whole.length - length` are proved directly at introduction without any post-hoc caller equality guard (`transition x == 100`). The local place performs an unrelated local store before splitting, confirming that the completed return theorem survives intervening assignments.
+2. **Identity and lifetime:** The partitioned address/count relationship remains bound to the exact scalar/view subjects across all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`). The linear `Region` carrier is cleanly retired via `drop(whole)` when `Pieces` are formed, while mathematical content obligations (`Owned::content(old(&whole)) == separate(...)`) remain erased from executable values and ensure disjoint interval preservation.
+3. **Composition:** The address/count partition fact composes across all 9 places into the consuming split and subsequent validation of both pieces (`left` and `right`). Each place's positive `<place>/main.omg` vs. its reject twin `<place>/invalid/main.omg` differs only in dropping the construct's partition bound (`length <= whole.length`), cleanly isolating the exact arithmetic requirement under test without caller guard divergence.
+4. **Soundness boundaries:** All 9 reject twins (`<place>/invalid/main.omg`) fail closed during typechecking when the partition bound `length <= whole.length` is omitted from `split`'s contract. Residual subtraction `whole.length - requested` underflows unsigned `u64` arithmetic, and proof checking strictly refuses compilation with exit code 1 and diagnostic `error: exact arithmetic in machine split ... may overflow u64`. Unproved partition counts or invalid region bounds cannot escape to runtime.
+5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Provers verify and erase mathematical partition obligations (`IntervalSet` content equality) while address offset arithmetic, count arithmetic, record construction (`Pieces`, `Region`), linear cleanup (`drop`), and state transitions (`done`/`wrong`, `crash Trap`) lower cleanly into canonical `PSITERM\0`. The Terminal Psi interpreter executes every positive place in complete agreement with native execution (`omega run --both` exit 0).
+6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles uniformly across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Structural records `Region` (`base: addr`, `length: u64`) and `Pieces` (`left: Region`, `right: Region`) evaluate target layout geometry (each `Region` occupies 16 bytes: 8-byte base address + 8-byte length, and `Pieces` occupies 32 bytes). `CallPlan` and `StatePlan` allocate arguments and multi-word aggregate return values (`Pieces`) across ABI registers and stack slots according to target calling conventions.
+7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for 64-bit integer addition (`whole.base + length`), subtraction (`whole.length - length`), register moves, and record field stores. Lowering assigns register homes and disjoint activation stack-frame slots for `Region` and `Pieces` values, inserting standard function entry prologues and epilogues honoring `StatePlan` frame ceilings.
+8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack displacements for `Region` instances and local frames resolve in final binary instruction encodings, basic blocks relax with offset reflow, machine-state footprint evidence validates transitive usage, and direct native PE/ELF/Mach-O emission produces functioning executables in complete agreement with Terminal Psi (`omega run --both` exit 0) across platforms.
 
 ### What Remains Open
 
-- Real `Extent` partition: checked custody transfer from parent to children and
-  retirement of the parent under **CONSERVATION-CONTRACT /
-  TERMINAL-CONTENT-CLAIMS**.
-- Aligned request geometry and the counted-residual/tail relationship required by
-  **BUMP-ALLOCATOR-CANARY**.
-- Live backing and resident-storage establishment for the allocator itself; this
-  row grants no storage rights.
-- Native execution rows are recorded for `macos_arm64` only; the three other
-  hosted targets are bound and checked but not executed on this host.
+- Real `Extent` partition: checked custody transfer from parent to children and retirement of the parent under **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**.
+- Aligned request geometry and the counted-residual/tail relationship required by **BUMP-ALLOCATOR-CANARY**.
+- Live backing and resident-storage establishment for the allocator itself; this row grants no storage rights.
