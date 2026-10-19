@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "cannot prove requires contract for call keep",
+    "witness == 7"
+  ]
+}
