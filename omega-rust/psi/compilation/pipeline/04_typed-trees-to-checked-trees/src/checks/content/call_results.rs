@@ -19,7 +19,6 @@ use language_semantics::{
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::signature::StateParameter;
-use typed_trees::statement::StatementNode;
 
 struct Invocation<'program> {
     machine: SymbolHandle,
@@ -28,6 +27,22 @@ struct Invocation<'program> {
     ordinal: usize,
     expression: ExpressionHandle,
     call: &'program TableCallExpression,
+}
+
+impl Invocation<'_> {
+    fn evaluation(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+    ) -> Option<checked_trees::FlowPermissionEvaluation> {
+        let evaluation = crate::flow::call_permission_evaluation(
+            program,
+            program.machine_by_symbol(self.machine)?,
+            program.state_by_symbol(self.state)?,
+            self.statement,
+            self.ordinal,
+        );
+        (evaluation != checked_trees::FlowPermissionEvaluation::Unknown).then_some(evaluation)
+    }
 }
 
 pub(super) fn check_call_result_qualifications(
@@ -863,38 +878,6 @@ fn input_claim(
 ) -> Option<PermissionClaimIdentity> {
     let parameter = parameters.get(position)?;
     let argument = input_argument(program, invocation, parameters, position)?;
-    let projections = crate::flow::literal_expression_projections(
-        program,
-        argument,
-        parameter.type_reference,
-        path,
-        false,
-    );
-    let actual = if let Some(projections) = projections {
-        let [projection] = projections.as_slice() else {
-            return None;
-        };
-        let mut actual = validation::canonical_place_from_expression_in_state(
-            program,
-            invocation.state,
-            invocation.statement,
-            projection.expression,
-        )?;
-        actual.extend_segments(&projection.remaining);
-        actual
-    } else {
-        let mut actual = validation::canonical_place_from_expression_in_state(
-            program,
-            invocation.state,
-            invocation.statement,
-            argument,
-        )?;
-        actual.extend_segments(path);
-        actual
-    };
-    // Membership is a live pre-call fact about the actual claim, not a
-    // declaration annotation. This also admits qualification expressed solely
-    // by a checked `requires` contract without treating it as new authority.
     let state_flow = facts.flow.control.states.iter().find_map(|(_, state)| {
         (state.machine_symbol == invocation.machine && state.state_symbol == invocation.state)
             .then_some(state)
@@ -910,8 +893,40 @@ fn input_claim(
                 && call.call_ordinal == invocation.ordinal
                 && call.target_symbol == invocation.call.target_symbol
         })?;
-    let qualified = facts.flow.contexts.semantic_context_refs.span_or_empty(call_flow.entry_semantic_contexts).iter().any(|reference| {
-        facts.semantic.context_view(facts.semantic.contexts.get(reference.context)).facts().any(|fact| {
+    let (operands, receiver_offset) =
+        crate::flow::captured_call_operands(program, &facts.flow, state_flow, call_flow)?;
+    let operand = operands.get(position + receiver_offset)?;
+    let values = crate::flow::captured_operand_values(
+        program,
+        &facts.flow,
+        &facts.semantic,
+        state_flow,
+        operand,
+        parameter.type_reference,
+        path,
+    )?;
+    let [value] = values.as_slice() else {
+        return None;
+    };
+    let places = crate::flow::captured_observation_places(program, &facts.flow, value)?;
+    let [place] = places.as_slice() else {
+        return None;
+    };
+    let actual = &place.projected;
+    // A detached owned child was evaluated before its aggregate consumed it.
+    // Use that exact capture's membership epoch, as ordinary call obligations
+    // do. Views retain invocation-live evidence through the same shared rule.
+    // The transfer joins below still owe current custody of this exact claim.
+    let contexts = crate::flow::operand_contexts(
+        program,
+        &facts.flow,
+        &facts.semantic,
+        value.observation,
+        value.observation_type,
+        call_flow.entry_constraints,
+    );
+    let qualified = contexts.iter().any(|context| {
+        facts.semantic.context_view(facts.semantic.contexts.get(*context)).facts().any(|fact| {
             matches!(fact.payload,
                 facts::domain_membership_symbol_and_instance_pattern!(domain_symbol, semantic_domain)
                 if domain_symbol == projection.domain && semantic_domain == projection.semantic_domain)
@@ -923,38 +938,52 @@ fn input_claim(
     if !qualified {
         return None;
     }
-    if let Some(identity) = unique_claim(
-        facts,
-        invocation,
-        PermissionEventKind::Transfer,
-        actual.root,
-        &actual.segments,
-        false,
-    ) {
-        return Some(identity);
-    }
-    // A constructed argument has completed before the invocation. Its operands
-    // carry the membership premises, but ownership transfers their identities
-    // into the anonymous owner's field frontier before the call consumes it.
-    // Join both moves by exact claim identity: an annotation, matching content,
-    // or a source move without this invocation's owner transfer proves nothing.
+    let evaluation = invocation.evaluation(program)?;
+    let mut current = validation::canonical_place_from_expression_in_state(
+        program,
+        invocation.state,
+        invocation.statement,
+        argument,
+    )?;
+    current.extend_segments(path);
     let transferred = unique_claim(
         facts,
         invocation,
+        evaluation,
         PermissionEventKind::Transfer,
-        PlaceRoot::Expression(argument),
-        path,
-        false,
+        current.root,
+        &current.segments,
     )?;
-    let operand = unique_claim(
-        facts,
-        invocation,
-        PermissionEventKind::Transfer,
-        actual.root,
-        &actual.segments,
-        true,
-    )?;
-    (operand == transferred).then_some(transferred)
+    if current == *actual {
+        return Some(transferred);
+    }
+    // A constructed child can be established directly in its destination,
+    // without an intermediate owner to move out of. Join its exact receiving
+    // establishment to the captured producer and the call's current transfer.
+    // A receiving type or an unrelated historical claim supplies neither join.
+    facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .any(|(_, event)| {
+            event.machine_symbol == invocation.machine
+                && event.state_symbol == invocation.state
+                && event.kind == PermissionEventKind::Establish
+                && event.access == PermissionAccess::Owned
+                && event.obligation_live
+                && event.evaluation == evaluation
+                && event.root == current.root
+                && facts.flow.ownership.segments.span_or_empty(event.segments) == current.segments
+                && event.claim_identity == transferred
+                && validation::receiving_value(program, &facts.flow.ownership.segments, event)
+                    == Some((
+                        invocation.statement,
+                        value.observation_projection.expression,
+                        value.observation_projection.remaining.as_slice(),
+                    ))
+        })
+        .then_some(transferred)
 }
 
 fn result_claim(
@@ -963,55 +992,52 @@ fn result_claim(
     invocation: &Invocation<'_>,
     path: &[PlaceSegment],
 ) -> Option<PermissionClaimIdentity> {
-    if let Some(identity) = unique_claim(
-        facts,
-        invocation,
-        PermissionEventKind::Establish,
-        PlaceRoot::Expression(invocation.expression),
-        path,
-        false,
-    ) {
-        return Some(identity);
-    }
-    let state = program.state_by_symbol(invocation.state)?;
-    let statement = program
-        .statement_table
-        .statement_at(state, invocation.statement)?;
-    let mut destination = match statement {
-        StatementNode::LocalData(local) if local.initial_value == invocation.expression => {
-            validation::CanonicalPlace {
-                root: PlaceRoot::Symbol(local.symbol),
-                segments: Vec::new(),
-            }
-        }
-        StatementNode::Assignment(assignment) if assignment.value == invocation.expression => {
-            validation::canonical_place_from_expression_in_state(
-                program,
-                invocation.state,
-                invocation.statement,
-                assignment.target,
-            )?
-        }
-        _ => return None,
+    // Ownership names the actual receiving place, which can be a temporary,
+    // a returned expression, or a child of constructed storage. Join that
+    // establishment back to its producer through the same operation used by
+    // claim reconciliation, not a list of receiving statement spellings.
+    let evaluation = invocation.evaluation(program)?;
+    let call_source = PermissionEventSource::Call {
+        statement_index: invocation.statement,
+        call_ordinal: invocation.ordinal,
+        target_symbol: invocation.call.target_symbol,
     };
-    destination.extend_segments(path);
-    unique_claim(
-        facts,
-        invocation,
-        PermissionEventKind::Establish,
-        destination.root,
-        &destination.segments,
-        true,
-    )
+    let statement_source = PermissionEventSource::Statement {
+        statement_index: invocation.statement,
+    };
+    let mut identity = None;
+    for (_, event) in facts.flow.ownership.permissions.iter() {
+        if event.machine_symbol != invocation.machine
+            || event.state_symbol != invocation.state
+            || event.kind != PermissionEventKind::Establish
+            || event.evaluation != evaluation
+            || event.access != PermissionAccess::Owned
+            || !event.obligation_live
+            || event.claim_identity == PermissionClaimIdentity::Unknown
+            || (event.source != call_source && event.source != statement_source)
+        {
+            continue;
+        }
+        if validation::receiving_value(program, &facts.flow.ownership.segments, event)
+            != Some((invocation.statement, invocation.expression, path))
+        {
+            continue;
+        }
+        if identity.is_some_and(|previous| previous != event.claim_identity) {
+            return None;
+        }
+        identity = Some(event.claim_identity);
+    }
+    identity
 }
 
 fn unique_claim(
     facts: &CheckFacts,
     invocation: &Invocation<'_>,
+    evaluation: checked_trees::FlowPermissionEvaluation,
     kind: PermissionEventKind,
     root: PlaceRoot,
     path: &[PlaceSegment],
-    allow_statement_source: bool,
 ) -> Option<PermissionClaimIdentity> {
     let source = PermissionEventSource::Call {
         statement_index: invocation.statement,
@@ -1023,16 +1049,12 @@ fn unique_claim(
         if event.machine_symbol != invocation.machine
             || event.state_symbol != invocation.state
             || event.kind != kind
+            || event.evaluation != evaluation
             || event.access != PermissionAccess::Owned
             || !event.obligation_live
             || event.root != root
             || facts.flow.ownership.segments.span_or_empty(event.segments) != path
-            || !(event.source == source
-                || (allow_statement_source
-                    && event.source
-                        == PermissionEventSource::Statement {
-                            statement_index: invocation.statement,
-                        }))
+            || event.source != source
             || event.claim_identity == PermissionClaimIdentity::Unknown
         {
             continue;

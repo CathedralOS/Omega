@@ -4845,7 +4845,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   storage still backing that context or the active stack.
   Cathedral's `source/kernel/boot/uefi` is the source customer;
   `tools/boot-harness/run.py` there builds a fresh image and checks the greeting
-  followed by the owned-memory report and `Kernel entered` under QEMU/OVMF.
+  followed by the owned-memory report, `Kernel entered` and `Memory split`
+  under QEMU/OVMF. The last marker retains the checked 4096-byte initial-storage
+  partition; resident initialization and write/readback remain allocator work.
   Preserve free and context-bearing boot oracles while completing returning
   lifecycles. Repair
   general capabilities in their owners; no firmware-protocol intrinsics.

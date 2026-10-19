@@ -95,8 +95,9 @@ pub(crate) fn validate_implicit_domain_weakening(
 ///
 /// `callee_parameter` names the declared parameter an ARGUMENT fills, so the
 /// callee's own `requires` premises about it join the parameter's declared type
-/// as the atom surface the argument lands on. Ordinary stores, returns and
-/// field initializers have no callee contract and pass `None`.
+/// as the atom surface the argument lands on. Ordinary stores and field
+/// initializers have no callee contract and pass `None`; returns use their
+/// own result delivery obligations.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_argument_domain_weakening(
     program: &dyn crate::CheckingInput,
@@ -107,6 +108,60 @@ pub(crate) fn validate_argument_domain_weakening(
     owner: &str,
     retains_float_result_policy: bool,
     callee_parameter: Option<&StateParameter>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let obligations = callee_parameter
+        .map(|parameter| parameter_premise_atoms(program, parameter))
+        .unwrap_or_default();
+    validate_domain_delivery(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        owner,
+        retains_float_result_policy,
+        &obligations,
+        diagnostics,
+    );
+}
+
+/// An explicit result guarantee is a delivery obligation, just like an input
+/// premise at a call. Preserving that atom is not implicit forgetting. The
+/// exit checker must still prove it from the actual returned value.
+pub(crate) fn validate_return_domain_weakening(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    value: ExpressionHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut obligations = Vec::new();
+    append_callable_ensured_domain_atoms(program, state.symbol, &mut obligations);
+    validate_domain_delivery(
+        program,
+        machine,
+        Some(state),
+        value,
+        state.return_type,
+        owner,
+        false,
+        &obligations,
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_domain_delivery(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    value: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    owner: &str,
+    retains_float_result_policy: bool,
+    obligations: &[DomainAtom],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !value.is_valid() || !target_type.is_valid() {
@@ -139,23 +194,17 @@ pub(crate) fn validate_argument_domain_weakening(
             .and_then(|reference| program.primitive_type_reference(reference))
             .and_then(crate::proof_contracts::arithmetic_domains::integer_bit_width)
             .is_some();
-    let premises = callee_parameter
-        .map(|parameter| parameter_premise_atoms(program, parameter))
-        .unwrap_or_default();
-
     let dropped = source
         .iter()
         .filter(|atom| !(integer_delivery && matches!(atom, DomainAtom::Arithmetic(_))))
         .filter(|atom| !(retains_float_result_policy && matches!(atom, DomainAtom::Arithmetic(_))))
         .filter(|atom| atom_requires_explicit_removal(program, atom))
-        // A domain the callee states as a `requires` premise about this exact
-        // parameter is CONSUMED by the call, not erased by it: the caller must
-        // establish that contract for its actual argument at this occurrence,
-        // so a qualified argument discharges the premise instead of forgetting
-        // the atom. Every atom the premises do not name still needs an
-        // explicit `as`.
+        // Exact input premises and result guarantees consume membership at
+        // this delivery; they do not erase it. The corresponding call/exit
+        // checker proves those obligations independently. Other atoms still
+        // require an explicit `as`.
         .filter(|atom| {
-            !premises
+            !obligations
                 .iter()
                 .any(|premise| atoms_equivalent(program, atom, premise))
         })
@@ -308,7 +357,15 @@ fn append_call_ensured_domain_atoms(
             _ => return,
         }
     };
-    let Some(contracts) = callable_signature_contracts(program, call.target_symbol) else {
+    append_callable_ensured_domain_atoms(program, call.target_symbol, atoms);
+}
+
+fn append_callable_ensured_domain_atoms(
+    program: &dyn crate::CheckingInput,
+    callable: SymbolHandle,
+    atoms: &mut Vec<DomainAtom>,
+) {
+    let Some(contracts) = callable_signature_contracts(program, callable) else {
         return;
     };
     for contract in contracts {
@@ -322,11 +379,15 @@ fn append_call_ensured_domain_atoms(
             // Only the whole reserved `result` names the call's result; a
             // projection such as `result.storage` belongs to that field's
             // declared type.
-            if crate::proof_contracts::contract_results::reserved_result_owner(
+            let Some((owner, _)) = crate::proof_contracts::contract_results::reserved_result_owner(
                 program,
                 membership.value,
-            )
-            .is_none()
+            ) else {
+                continue;
+            };
+            if owner != callable
+                && !crate::machine_calls::calls::machine_state_by_symbol(program, callable)
+                    .is_some_and(|(machine, _)| owner == machine.symbol)
             {
                 continue;
             }

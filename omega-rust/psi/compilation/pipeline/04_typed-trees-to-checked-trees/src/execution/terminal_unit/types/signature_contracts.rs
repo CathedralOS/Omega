@@ -288,26 +288,23 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
     Some(output)
 }
 
-/// Fold the domains an authorized `ensures result in <domain>` clause pins on
-/// a boundary requirement into the result's structural qualifications. The
-/// clause only counts when its fact replays the established qualification
-/// authorization (a `BoundaryRequirement` establishment route or carry
-/// permission naming this requirement). Source checking validates the subject
-/// and carrier, while this join must refuse membership whose authorization or
-/// result carrier it cannot retain. Ordinary Boolean guarantees grant no
-/// qualification and do not enter this operation. A scalar or unit result
-/// cannot carry a structural domain qualification, so folding onto one refuses the plan
-/// rather than silently dropping the authored custody.
-pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
+/// Retain a boundary's exact result-membership contract on its carrier. This
+/// is signature transport, not issuance: a crossing may forward existing
+/// custody, derive it by conservation, or introduce it through an authorized
+/// route. The call-result custody checker owns that distinction and provider
+/// installation retains its separate admission obligation. Requiring an
+/// issuance route here incorrectly rejected preserved input qualifications.
+/// Non-result outputs and nonstructural carriers still need their own plans;
+/// never move their obligations onto a different returned value.
+pub(in crate::execution::terminal_unit) fn fold_boundary_result_domains(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
-    owner_symbol: SymbolHandle,
     signature: &typed_trees::signature::StateSignature,
     result_type: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     result: CheckedBoundaryMachineResultPlan,
 ) -> Option<CheckedBoundaryMachineResultPlan> {
-    let mut authorized = Vec::new();
+    let mut guaranteed = Vec::new();
     for contract in program.state_signature_contracts(signature) {
         if contract.kind != SignatureContractKind::Ensures {
             continue;
@@ -316,27 +313,8 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
             let Some(membership) = program.proof_facts.get(fact).as_membership() else {
                 continue;
             };
-            if ::validation::boundary_qualification_authorization(
-                program,
-                owner_symbol,
-                signature,
-                contract.kind.clone(),
-                program.proof_facts.get(fact),
-            )
-            .is_none()
-            {
-                // A source membership guarantee cannot disappear from the
-                // receiving signature or gain issuance authority through a
-                // matching carrier. Retain its exact authorized route or refuse.
-                return None;
-            }
-            // Authorization also admits mutable output parameters, but this
-            // plan carries result qualifications only. Until that separate
-            // output effect is represented, decline rather than moving its
-            // membership onto the unrelated returned value or dropping it.
-            if !program
-                .expression_table
-                .names_reserved_result(membership.value)
+            if validation::reserved_result_owner(program, membership.value)
+                .is_none_or(|(owner, _)| owner != signature.symbol)
             {
                 return None;
             }
@@ -344,15 +322,15 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
                 program,
                 membership.domain_symbol,
             ) else {
-                continue;
+                return None;
             };
-            authorized.push((membership.semantic_domain, domain.symbol));
+            guaranteed.push((membership.semantic_domain, domain.symbol));
         }
     }
-    authorized
+    guaranteed
         .sort_by_key(|(domain, symbol)| (domain.0, symbol.arena_index(), symbol.generation()));
-    authorized.dedup();
-    if authorized.is_empty() {
+    guaranteed.dedup();
+    if guaranteed.is_empty() {
         return Some(result);
     }
     let CheckedBoundaryMachineResultPlan::Structural {
@@ -364,7 +342,7 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
     else {
         return None;
     };
-    for (domain, selected_symbol) in authorized {
+    for (domain, selected_symbol) in guaranteed {
         shapes.add_selected_domain(domain, selected_symbol, result_type, binders, false)?;
         if !qualifications.contains(&domain) {
             qualifications.push(domain);
@@ -384,8 +362,8 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
 /// and every receiving call publish that membership as a qualification of
 /// the returned carrier, and the structural domain catalog can only lower a
 /// domain whose declaration this collector holds. A boundary requirement
-/// registers through `fold_authorized_result_domains`, which also replays
-/// its authorization; a checked body proved its own clause. A membership
+/// registers through `fold_boundary_result_domains`; the call and installation
+/// owners retain its authority obligations. A checked body proved its own clause. A membership
 /// over another value names a different carrier and is skipped, and a scalar,
 /// unit result carries no structural qualification. Borrowed record guarantees
 /// qualify their exact referent path; a domain on the shell retains that shell.

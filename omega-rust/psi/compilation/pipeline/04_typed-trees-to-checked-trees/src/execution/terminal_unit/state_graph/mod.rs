@@ -66,17 +66,10 @@ pub(super) fn result_plan(
         entry,
         &crate::execution::terminal_unit::types::machine_binders(program, machine),
     )?;
-    // Parameter qualifications are transported exactly. Additional authored
-    // value contracts on a linear result need their own retained proof
-    // obligations. A crash ceiling constrains effects, not the returned
-    // value; its checked crash edges use the same graph for every carrier.
-    (!(matches!(&result, checked_trees::CheckedControlResultPlan::Structural(result)
-        if result.multiplicity == Multiplicity::Linear)
-        && program
-            .machine_contracts(machine)
-            .iter()
-            .any(|contract| !contract.is_crashes())))
-    .then_some(result)
+    // Normal-return contracts use the shared checked guarantee owner for
+    // every carrier. Linear results additionally retain exact outgoing claim
+    // custody; their contracts do not turn guarded completion into a sequence.
+    Some(result)
 }
 
 /// Read one retained source observation roster for the authored owners in this

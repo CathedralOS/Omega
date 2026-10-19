@@ -12,7 +12,7 @@ use crate::execution::terminal_unit::calls::{
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, boundary_domain_requirements, fold_authorized_result_domains, is_unit,
+    ShapeCollector, boundary_domain_requirements, fold_boundary_result_domains, is_unit,
     machine_binders, parameter_qualifications, projected_result_qualifications,
     substituted_formal_type,
 };
@@ -327,10 +327,9 @@ pub(crate) fn build_static_boundary_requirements(
             let Some(result) =
                 boundary_result_plan(program, shapes, signature.return_type, &[], &substitutions)
                     .and_then(|result| {
-                        fold_authorized_result_domains(
+                        fold_boundary_result_domains(
                             program,
                             shapes,
-                            definition.symbol,
                             signature,
                             signature.return_type,
                             &[],

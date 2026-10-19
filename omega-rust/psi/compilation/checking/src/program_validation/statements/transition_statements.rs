@@ -208,12 +208,11 @@ pub(super) fn validate(
                     "return value",
                     diagnostics,
                 );
-                domain_weakening::validate_implicit_domain_weakening(
+                domain_weakening::validate_return_domain_weakening(
                     program,
                     machine,
-                    Some(state),
+                    state,
                     *return_expression,
-                    state.return_type,
                     &format!("machine `{}` state `{state_name}`", machine.name),
                     diagnostics,
                 );

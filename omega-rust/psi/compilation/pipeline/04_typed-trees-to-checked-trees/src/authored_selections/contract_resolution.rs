@@ -24,6 +24,15 @@ pub(crate) fn checked_operator_resolution(
     node: &ExpressionNode,
     owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> Option<CheckedContractOperatorResolution> {
+    // Closed content equations select proof algebra equality, not an
+    // executable overload. Their normalized source plan authenticates the
+    // exact equation and its owner; composed terms have no runtime type.
+    if validation::content_conservation_plans(program)
+        .iter()
+        .any(|plan| plan.source_expression == expression)
+    {
+        return Some(CheckedContractOperatorResolution::Builtin);
+    }
     if checked_float_meaning_equality(program, facts, expression, node, owner_index)
         || checked_resultless_law_equality(program, facts, expression, node, owner_index)
     {

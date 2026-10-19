@@ -967,6 +967,7 @@ pass/core/content_conservation_projected_exit built 6326ms exit:70 @7bd69d0648b7
 pass/core/content_conservation_state_arrival_exit built 7020ms exit:70 @94192499b002+wt
 pass/core/content_conservation_unobserved_write_exit built 6931ms exit:70 @94192499b002+wt
 pass/core/content_conservation_wrapper_exit built 3402ms exit:70 @94192499b002+wt
+pass/core/content_membership_return built 12124ms exit:0 @064c5aeb618a+wt
 pass/core/content_retained_custody_round_trip built 311ms
 pass/core/extent_core_surface checked 196ms
 pass/core/extent_root_provider_adapter built 12361ms exit:0 @83314997c2b2

@@ -562,9 +562,9 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
     contexts: &[FactContextHandle],
     requirement: &facts::Fact,
 ) -> bool {
-    let domain_symbol = match requirement.payload {
-        facts::domain_membership_symbol_pattern!(domain_symbol) => domain_symbol,
-        _ => return false,
+    let Some((_, _, domain_symbol, semantic_domain)) = requirement.payload.domain_membership()
+    else {
+        return false;
     };
     let Some(place) = requirement.place.as_place() else {
         return false;
@@ -581,6 +581,19 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
         .is_none_or(|(owner, _)| owner != exit.machine_symbol)
     {
         return false;
+    }
+    // An authored result membership consumes the same completed custody
+    // judgment as a declared result field. The checked transformation binds
+    // exact input and output claims; the postcondition itself supplies none.
+    if crate::checks::content::completed_membership(
+        program,
+        facts,
+        exit.returned_value,
+        facts.semantic.place_segments.span_or_empty(place.segments),
+        domain_symbol,
+        semantic_domain,
+    ) {
+        return true;
     }
     let returned = exit_return_expression(program, exit);
     if !returned.is_valid() {

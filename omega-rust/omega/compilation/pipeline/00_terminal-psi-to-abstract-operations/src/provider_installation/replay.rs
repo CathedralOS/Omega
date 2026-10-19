@@ -244,32 +244,34 @@ pub(super) fn replay_installed_provider_calls(
                 // or a relocated value need not still occupy an entry home.
                 // Installation joins that receipt to the candidate's formal;
                 // it does not reconstruct the caller's ownership judgment.
+                let content_mismatch =
+                    |reason| ProviderInstallationError::InstalledContentClaimMismatch {
+                        caller: caller.machine,
+                        operation: *psi_operation,
+                        boundary: *boundary,
+                        claim: receipt.claim,
+                        reason,
+                    };
+                let required_parameter = boundary_declaration
+                    .structural_parameters
+                    .get(receipt.argument_index as usize)
+                    .ok_or_else(malformed)?;
+                let required_projections =
+                    super::claim_content::projections(module, required_parameter, &receipt.path)
+                        .map_err(content_mismatch)?;
                 if let Some(candidate_content) = terminal_candidate
                     .content_entry_claims
                     .iter()
                     .find(|content| content.claim == *candidate_claim)
                 {
-                    let content_mismatch =
-                        |reason| ProviderInstallationError::InstalledContentClaimMismatch {
-                            caller: caller.machine,
-                            operation: *psi_operation,
-                            boundary: *boundary,
-                            claim: receipt.claim,
-                            reason,
-                        };
-                    let caller_projections = super::claim_content::projections(
-                        module,
-                        terminal_caller,
-                        receipt.claim,
-                        source.and_then(|source| source.content.as_ref()),
-                    )
-                    .map_err(content_mismatch)?;
-                    if caller_projections != candidate_content.projections {
+                    if required_projections != candidate_content.projections {
                         return Err(content_mismatch(
-                            "caller and provider claims have different content projections",
+                            "required and provider claims have different content projections",
                         ));
                     }
-                } else if source.is_some_and(|source| source.content.is_some()) {
+                } else if !required_projections.is_empty()
+                    || source.is_some_and(|source| source.content.is_some())
+                {
                     return Err(malformed());
                 }
             }

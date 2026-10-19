@@ -6,7 +6,7 @@
 //! edge transfers and closed-sum dispatch when it built the plan; lowering
 //! lowers that plan and does not re-derive those judgments from source
 //! (see the lowering ruling in TASKS.md, "Lowering simplification").
-use super::super::super::{CheckedBoundaryMachinePlan, Multiplicity, unsupported};
+use super::super::super::{CheckedBoundaryMachinePlan, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{
     CheckedComposedUnitControlMachinePlan, claims, entry_aliases, exclusive_handoffs, topology,
@@ -59,18 +59,9 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     {
         return unsupported("Unit graph requires a closed checked body");
     }
-    // Whole linear transport retains declaration qualifications and claim
-    // conservation, not an arbitrary authored machine precondition package.
-    // A crash ceiling is an operational effect contract, not a value predicate.
-    if matches!(&plan.result, checked_trees::CheckedControlResultPlan::Structural(result)
-        if result.multiplicity == Multiplicity::Linear)
-        && checked
-            .machine_contracts(machine)
-            .iter()
-            .any(|contract| !contract.is_crashes())
-    {
-        return unsupported("linear structural graph has unrepresented authored machine contracts");
-    }
+    // The ordinary callable contract publishes the checked requirements and
+    // guarantees. Result custody below independently transports linear claims;
+    // a linear carrier does not require a second source-contract admission.
     super::ranking::require_witness_ranks(machine, plan)?;
     super::super::admission::reject_attachment(plan)?;
     // A fused roster admits foreign states: each position resolves its own

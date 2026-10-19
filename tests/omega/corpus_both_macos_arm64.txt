@@ -403,6 +403,7 @@ pass/core/content_conservation_projected_exit built 6369ms exit:70 interpreter-e
 pass/core/content_conservation_state_arrival_exit built 6977ms exit:70 interpreter-exit:70 interpreter:agrees @94192499b002+wt
 pass/core/content_conservation_unobserved_write_exit built 6885ms exit:70 interpreter-exit:70 interpreter:agrees @94192499b002+wt
 pass/core/content_conservation_wrapper_exit built 3354ms exit:70 interpreter-exit:70 interpreter:agrees @94192499b002+wt
+pass/core/content_membership_return built 12725ms exit:0 interpreter-exit:0 interpreter:agrees @064c5aeb618a+wt
 pass/core/numeric_cross_signed_conversion_surface built 3638ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/core/numeric_signed_narrowing_policies built 3673ms exit:0 interpreter-exit:0 interpreter:agrees @20a60bd05eab+wt
 pass/core/numeric_signed_to_unsigned_policies built 3657ms exit:0 interpreter-exit:0 interpreter:agrees @20a60bd05eab+wt

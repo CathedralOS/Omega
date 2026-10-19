@@ -451,16 +451,23 @@ pub(crate) fn lower_boundary_result(
         } => BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
             structural_type: lookup_type_id(type_ids, type_identity)?,
             multiplicity: terminal_multiplicity(*multiplicity),
-            qualifications: qualifications
-                .iter()
-                .map(|domain| {
-                    lookup_domain_id_for_carrier(
-                        domain_ids,
-                        *domain,
-                        lookup_type_id(type_ids, type_identity)?,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?,
+            qualifications: {
+                let mut lowered = qualifications
+                    .iter()
+                    .map(|domain| {
+                        lookup_domain_id_for_carrier(
+                            domain_ids,
+                            *domain,
+                            lookup_type_id(type_ids, type_identity)?,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                // Catalog allocation does not preserve semantic-domain order.
+                // Canonicalize in the destination identity namespace.
+                lowered.sort();
+                lowered.dedup();
+                lowered
+            },
             projected_qualifications: super::parameters::lower_projected_qualifications(
                 identities,
                 projected_qualifications,
