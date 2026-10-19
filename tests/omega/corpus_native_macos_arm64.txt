@@ -1411,6 +1411,15 @@ pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit built 15414ms
 pass/facts/nominal_loan_backing_cleanup_through_other_state_exit built 15824ms exit:0 stdout:match @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_parameter_exit built 15782ms exit:0 stdout:match @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_target_body_exit built 15513ms exit:0 stdout:match @d698b30fd9ab+wt
+pass/facts/record_layout_geometry_through_call_result_exit built 18189ms exit:0 @cd121c638669
+pass/facts/record_layout_geometry_through_const_name_exit built 18274ms exit:0 @cd121c638669
+pass/facts/record_layout_geometry_through_field_exit built 18211ms exit:0 @cd121c638669
+pass/facts/record_layout_geometry_through_local_exit built 18364ms exit:0 @cd121c638669
+pass/facts/record_layout_geometry_through_match_join_exit built 17544ms exit:0 @cd121c638669
+pass/facts/record_layout_geometry_through_other_machine_exit built 18042ms exit:0 @cd121c638669
+pass/facts/record_layout_geometry_through_other_state_exit built 18279ms exit:0 @cd121c638669
+pass/facts/record_layout_geometry_through_parameter_exit built 18244ms exit:0 @cd121c638669
+pass/facts/record_layout_geometry_through_target_body_exit built 18412ms exit:0 @cd121c638669
 pass/facts/reference_arrival_handoff_cleanup_receiver_exit built 3597ms exit:0 @4030174fbc4e
 pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit built 3726ms exit:0 stdout:match @4030174fbc4e
 pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit built 3728ms exit:0 stdout:match @4030174fbc4e
