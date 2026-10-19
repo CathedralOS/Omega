@@ -8538,7 +8538,7 @@ run/proofs/quotient_copy_paths checked 19698ms check-target:macos_arm64 @73e466d
 run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt
 run/providers/target_family_provider_boundary_identity_exit checked 73525ms check-target:macos_arm64 @2775f035db79+wt
 run/slices/call_result_mutable_window_exit checked 13049ms check-target:macos_arm64 @73e11f08dcbb+wt
-run/slices/computed_record_window checked 16529ms check-target:macos_arm64 @dd658fb23eef
+run/slices/computed_record_window checked 8787ms check-target:macos_arm64 @9791764bdb43
 run/slices/disjoint_local_state_windows checked 9595ms check-target:macos_arm64 @1810e541fd15+wt
 run/slices/edge_window_owned_backing checked 3657ms check-target:macos_arm64 @8d0af2d85467+wt
 run/slices/folded_window_endpoint_effects checked 3455ms check-target:macos_arm64 @fa0a8b1267bb+wt
