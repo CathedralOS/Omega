@@ -1,0 +1,31 @@
+// Fact: a 32-bit unsigned u32 exact multiplication of bounded inputs (lhs >= 20u32 && lhs <= 30u32, rhs >= 15u32 && rhs <= 25u32) establishes prod >= 300u32 && prod <= 750u32 so exact 32-bit subtractions 750u32 - prod and prod - 300u32 are proved overflow-free across all nine places.
+// Place: local. The product is transported through intermediate local bindings.
+// Expected exit: 0
+
+machine multiply_local(lhs: u32, rhs: u32) -> i32
+    requires lhs >= 20u32 && lhs <= 30u32;
+    requires rhs >= 15u32 && rhs <= 25u32;
+{
+    let l: u32 = lhs;
+    let r: u32 = rhs;
+    let p: u32 = l * r;
+    let prod: u32 = p;
+    let headroom: u32 = 750u32 - prod;
+    let margin: u32 = prod - 300u32;
+    transition prod == 500u32 && headroom + margin == 450u32 {
+        true -> pass()
+        _ -> fail()
+    }
+    state pass() -> i32 { 0 }
+    state fail() -> i32 { 1 }
+}
+
+machine main() crashes Trap {
+    let res: i32 = multiply_local(25u32, 20u32);
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
