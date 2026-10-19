@@ -122,10 +122,12 @@ repair path.
 
 The nine places carry each language construct end to end—from source checking
 and proof through Terminal Psi semantics to native realization and execution
-(`omega run --both`)—as one row per construct, never a combinatorial matrix,
-a parametric $N+1$ progression, or a stage-isolated task. Fact rows cover the
-full specification surface across
-the nine places: width/signedness scalars, shifts, narrow-to-wide sign/zero
+(`omega run --both`)—as one row per construct, never a combinatorial matrix or
+a stage-isolated task. Each fact folder exists to prove that **one distinct
+compiler mechanism**—one semantic rule, layout representation, ownership or loan
+transition, ABI placement lane, or instruction-lowering path—preserves its
+static meaning and runtime behavior across all nine transport places:
+width/signedness scalars, shifts, narrow-to-wide sign/zero
 extension, signed/unsigned division and remainder, and IEEE floats
 ([numeric values](wiki/spec/language/numeric_values.md)); fixed-size arrays,
 nested structural records, tagged case payloads, slice views, and
@@ -142,13 +144,13 @@ calls, and checked `asm`
 ([dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md),
 [calling plans](wiki/spec/build/calling_plans.md),
 [storage](wiki/spec/resources/storage.md),
-[checked assembly](wiki/spec/language/assembly.md)). Do not add $N+1$ count
-variants of an already-covered construct family (such as $N$-argument stack
-calls, $N$-level nested records, $N$-variant enums, or $N$-call live spills)
-merely to keep worker slots busy; a new size or arity row is valid only when it
-crosses a distinct representation, ABI, or encoding boundary (for example,
-register-to-stack argument transition, 1-byte to 2-byte discriminant tag width,
-or short-to-near branch displacement). When a repair adds or
+[checked assembly](wiki/spec/language/assembly.md)). Once a row proves a
+mechanism across the nine places, repeating that same mechanism at a larger
+count teaches the compiler nothing new; a new row is meaningful only when it
+exercises a different compiler code path or crosses a real physical boundary
+where representation, ABI placement, or instruction encoding changes (such as
+crossing from register arguments into stack slots, widening a discriminant tag,
+or relaxing a short branch into a near displacement). When a repair adds or
 changes a construct, carrier, access mode, cleanup disposition, or target rule,
 complete the entire source-to-native path in the same change rather than
 stopping at an intermediate compiler stage. Completion also follows the

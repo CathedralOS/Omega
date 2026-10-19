@@ -53,8 +53,11 @@ repair path.
 
 The nine places carry each language construct end to end—from source checking
 and proof through Terminal Psi semantics to native realization and execution
-(`omega run --both`)—as one row per construct, never a combinatorial matrix,
-a parametric $N+1$ progression, or a stage-isolated task. Fact rows cover
+(`omega run --both`)—as one row per construct, never a combinatorial matrix or
+a stage-isolated task. Each fact folder exists to prove that **one distinct
+compiler mechanism**—one semantic rule, layout representation, ownership or loan
+transition, ABI placement lane, or instruction-lowering path—preserves its
+static meaning and runtime behavior across all nine transport places:
 width/signedness scalars, shifts,
 narrow-to-wide sign/zero extension, signed/unsigned division and remainder,
 IEEE floats, fixed-size arrays, nested structural records, tagged case
@@ -63,14 +66,14 @@ projections (`&`, `&mut`), `&write` write-only borrows, affine cleanup, linear
 claim retirement, borrowed-storage restoration windows,
 named-implementation/`dyn` dispatch, multi-argument calling plans across
 register and stack slots, live-across-call preservation, disjoint stack-frame
-homes, boundary/provider calls, and checked `asm` through the same nine places.
-Do not add $N+1$ count variants of an already-covered construct family (such as
-$N$-argument stack calls, $N$-level nested records, $N$-variant enums, or
-$N$-call live spills) merely to keep worker slots occupied; a new size or arity
-row is valid only when it crosses a distinct representation, ABI, or encoding
-boundary. When a repair adds or changes a construct, carrier, access mode,
-cleanup disposition, or target rule, complete the entire source-to-native path
-in the same change rather than splitting work by compiler stage.
+homes, boundary/provider calls, and checked `asm`.
+Once a row proves a mechanism across the nine places, repeating that same
+mechanism at a larger count adds no new evidence about the compiler; a new row
+is meaningful only when it exercises a different compiler code path or crosses
+a real physical boundary where representation, ABI placement, or instruction
+encoding changes. When a repair adds or changes a construct, carrier, access
+mode, cleanup disposition, or target rule, complete the entire source-to-native
+path in the same change rather than splitting work by compiler stage.
 
 Read the whole item's acceptance and verify its remaining gap against current
 main. Record the parent task and the exact requirement the next fact will
