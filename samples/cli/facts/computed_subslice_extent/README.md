@@ -51,6 +51,39 @@ weaker premise permits an endpoint of 5 in backing of extent 4.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Target backend lowering selects 64-bit addition for subslice base pointer calculation (`base + low`), offset-1 byte loads (`movzx` or `ldrb`), integer comparisons, assigns register homes and disjoint stack-frame activation storage for `items`, and inserts standard entry prologues and epilogues honoring the `StatePlan` ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve to concrete frame offsets for local array storage and slice views, basic blocks lay out with branch relaxation and offset reflow around conditional branches, transitive machine-state footprint evidence is validated, and direct PE/ELF/Mach-O images are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across host targets including `windows_x86_64` and `macos_arm64`.
 
+## Run record: the oracle discriminates
+
+Recorded on `macos_arm64`, producer `@bcd7c58d3a26`, `opt-level=1`. All ten
+runnable entries (root plus nine places) report `native exit 0` and
+`interp exit: 0` under `omega run --both`. Nine pass fixtures are pinned in
+`tests/omega/corpus_native_macos_arm64.txt` as `built ... exit:0`; nine reject
+twins plus three further controls are pinned in
+`tests/omega/corpus_outcomes.txt` as `rejected ... expected`.
+
+The measured exit is only meaningful if the oracle can fail. Two corruptions
+separate cleanly, and the distinction is the finding:
+
+- **Refused statically (checker, before native production).** Replacing the
+  captured extent with a literal one — `items[low + 0u64..low + 1u64]` while the
+  offset-1 read remains — is rejected during proof checking with
+  `cannot prove requires contract for call index from read: 1 < view.len`, and the
+  out-of-domain call `read(&items, 3u64)` with
+  `cannot prove requires contract for call read from main: can_window(items, 3) == true`.
+  Purely static corruption of the construct therefore yields a proof error, not a
+  runtime trap.
+- **Reached runtime and trapped (both engines).** A runtime discrimination proof
+  needs a value the prover cannot constant-fold, so the base index is seeded from
+  a boundary contract admitting a range: `boundary trait RequiredLow { machine
+  get() -> u64 ensures result <= 2; }` joined by `Build::assume_binding_contract`
+  to a provider returning `1`. The baseline
+  `read(&items, RequiredLow::get()) == 37u8` exits 0 in both engines. Corrupting
+  only the expected observation to `== 53u8` traps both engines identically —
+  `native signal 5` / `interp crash: Trap (host presentation agrees)`, exit 255 —
+  and a provider returning `3u64`, outside its own asserted range, gives
+  `native signal 5` with the interpreter refusing at
+  `cause: VerifiedOperationMalformed` (exit 201). The exact captured length is
+  therefore load-bearing at runtime, not folded away.
+
 ```sh
 python3 tools/sample_native_gate.py --filter cli/facts/computed_subslice_extent
 python3 tools/corpus_gate.py --both --filter computed_subslice_extent
