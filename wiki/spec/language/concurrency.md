@@ -36,6 +36,16 @@ operation requirements; arithmetic capability cannot manufacture hardware
 support. Exact-forwarding wrappers may derive conformance mechanically; other
 realizations need checked proof or admitted evidence.
 
+Representation [recasts preserve access authority](../layouts/recasts.md#access-authority-and-concurrent-observation).
+The shared parameter of an atomic store still carries mutation permission;
+casting an ordinary shared reference cannot manufacture it. Conversely, an
+atomic shared view cannot become an ordinary read view without the backing
+exclusion required for non-atomic observation. Genuine exclusive access may
+support representation-compatible recasts while preserving all validity and
+custody obligations. Atomic-to-atomic views retain their operation and
+observation requirements. This rule does not itself establish a mutex's
+payload-custody protocol.
+
 Observing compare-exchange compares stored representation with `encode(expected)`,
 not user equality. Non-observing exchange uses the selected copyable key's
 encoding law. Fetch proofs cover every provider-readable raw representation,

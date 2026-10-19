@@ -587,6 +587,19 @@ For example, `bool` has representations `{0,1}`. A shared unconstrained byte vie
 forgets a fact. A mutable unconstrained byte view would permit writing `2`, so
 it rejects. Raw bytes cannot establish Boolean validity merely by receiving a type.
 
+Recasts must also preserve access authority. Atomic operations can mutate through
+a shared reference, so `&u32` to `&Atomic<u32>` cannot manufacture permission to
+write. The reverse cannot turn concurrent atomic storage into an ordinary stable
+read: non-atomic observation requires exclusion over the actual backing.
+With genuine exclusive access, ordinary/atomic recasts remain eligible when
+layout, two-way validity, and outstanding obligations permit them. Casting
+through bytes does not bypass these checks.
+
+Atomic-to-atomic casts are not categorically forbidden; they must preserve the
+authorized operations and observation protocol. This is an access-preserving
+cast rule, not a mutex design or a new domain-minting restriction. A mutex still
+has to establish how acquiring and releasing its lock transfers payload custody.
+
 An interior recast borrows its entire target footprint, including padding, not
 only the selected byte. A slice must exactly tile the source region: length is
 byte extent divided by element stride, with no ignored remainder. Bounds alone
