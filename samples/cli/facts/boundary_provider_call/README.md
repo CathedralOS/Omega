@@ -24,6 +24,34 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Pinned Fixtures
+
+The row is pinned by `tests/omega/{pass,fail}/facts/boundary_provider_call_through_*`
+fixtures: nine positives, each with its own `expected_native_exit.txt`, and nine
+reject twins with an authored `expected.txt`. Every positive place and the root
+bind `ProgramEntry` for all four hosted targets, so this construct is not
+target-restricted and the golden row for it belongs on each host's own
+`corpus_native_<target>.txt`; the host recorded here is
+`tests/omega/corpus_native_macos_arm64.txt`.
+
+The fact's obligation class is a **value/arithmetic bound**: the boundary
+contract's interval `[100, 100]` must be strong enough to discharge exact
+subtraction `result - 100u64`. Discriminating that class measured:
+
+- A contract admitting a RANGE (`result >= 99u64 && result <= 101u64`) still
+  refuses statically — `exact arithmetic in machine run state entry terminal
+  expression may overflow u64` — so weakening the interval never reaches
+  runtime. The subtraction obligation is proved, not executed.
+- A `requires`-bounded caller parameter carrying `99u64` likewise refuses at
+  check time, as does a construction fact built from a `99u64`-bounded value.
+  All nine reject twins therefore refuse at the check/construction gate.
+- A runtime trap is reachable only by opting into a defined-overflow domain,
+  which removes the static obligation rather than satisfying the contract:
+  `Provider::get() as u64 in Trapping` subtracted by `100u64` reaches
+  `native signal 5` with `interp crash: Trap (host presentation agrees)`. Both
+  engines agree, and the compiler warns that the trapping computation "ALWAYS
+  overflows `u64` ... traps unconditionally at runtime".
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `PROVIDER-SELECTION` / `TOP-LEVEL-BOUNDARY-REQUIREMENTS` ([TASKS.md](../../../../TASKS.md)).
