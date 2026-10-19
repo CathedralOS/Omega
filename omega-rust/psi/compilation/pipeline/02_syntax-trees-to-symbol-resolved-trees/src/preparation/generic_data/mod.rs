@@ -439,6 +439,36 @@ impl GenericDataRequest<'_> {
 pub fn normalize_generic_data(
     request: GenericDataRequest<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    normalize_generic_data_in_mode(
+        request,
+        crate::resolution::lowerer::ConstResolutionMode::Complete,
+        GenericDataWorkDomain::All {
+            additional_type_roots: &[],
+        },
+    )
+}
+
+/// Private evaluation preparation retains unfinished values while closing data
+/// applications. Complete resolution still owns their mandatory value admission.
+pub fn normalize_initializer_probe_data(
+    request: GenericDataRequest<'_>,
+    declarations: &[syntax_trees::item::ItemHandle],
+) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    normalize_generic_data_in_mode(
+        request,
+        crate::resolution::lowerer::ConstResolutionMode::InitializerSelection,
+        GenericDataWorkDomain::Selected {
+            type_roots: &[],
+            declarations,
+        },
+    )
+}
+
+fn normalize_generic_data_in_mode(
+    request: GenericDataRequest<'_>,
+    mode: crate::resolution::lowerer::ConstResolutionMode,
+    domain: GenericDataWorkDomain<'_>,
+) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let GenericDataRequest {
         mut syntax,
         sources,
@@ -451,7 +481,7 @@ pub fn normalize_generic_data(
                 "generic data normalization against a retained base or scoped bindings requires source custody",
             )]);
         }
-        let (syntax, warnings) = normalize_generic_data_with_warnings(syntax)?;
+        let (syntax, warnings) = normalize_generic_data_with_warnings(syntax, mode, domain)?;
         for warning in warnings {
             eprintln!("{warning}");
         }
@@ -466,13 +496,15 @@ pub fn normalize_generic_data(
     // Module constant admission replays domain obligations too. Bind lexical
     // carrier heads before that admission, not only before data substitution.
     domain_heads::normalize(&mut syntax, Some(&selection))?;
-    crate::preparation::module_normalization::validate_with_selection(&syntax, &selection)?;
+    crate::preparation::module_normalization::validate_with_const_resolution_mode(
+        &syntax, &selection, mode,
+    )?;
     let mut warnings = Vec::new();
-    synthesis::desugar_generic_data_instances_with_selection(
+    synthesis::desugar_generic_data_instances_in(
         &mut syntax,
         &mut warnings,
         Some(&selection),
-        &[],
+        domain,
     )?;
     deduplicate_generic_warnings(&mut warnings);
     for warning in warnings {
@@ -551,11 +583,26 @@ pub(crate) fn validate_direct_const_arguments(
 
 fn normalize_generic_data_with_warnings(
     mut syntax: SyntaxTrees,
+    mode: crate::resolution::lowerer::ConstResolutionMode,
+    domain: GenericDataWorkDomain<'_>,
 ) -> Result<(SyntaxTrees, Vec<Diagnostic>), Vec<Diagnostic>> {
     domain_heads::normalize(&mut syntax, None)?;
-    crate::preparation::module_normalization::validate_module_normalization(&syntax)?;
+    let selection = declaration_selection::ConstantSelection::new(&syntax, None, Vec::new())?;
+    crate::preparation::module_normalization::validate_with_const_resolution_mode(
+        &syntax, &selection, mode,
+    )?;
     let mut warnings = Vec::new();
-    desugar_generic_data_instances(&mut syntax, &mut warnings)?;
+    match domain {
+        GenericDataWorkDomain::All { .. } => {
+            desugar_generic_data_instances(&mut syntax, &mut warnings)?
+        }
+        GenericDataWorkDomain::Selected { .. } => synthesis::desugar_generic_data_instances_in(
+            &mut syntax,
+            &mut warnings,
+            Some(&selection),
+            domain,
+        )?,
+    }
     deduplicate_generic_warnings(&mut warnings);
     Ok((syntax, warnings))
 }

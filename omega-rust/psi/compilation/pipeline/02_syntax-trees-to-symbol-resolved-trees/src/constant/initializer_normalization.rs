@@ -184,6 +184,36 @@ pub(crate) fn retain(
 
 /// Reconstruct the transitive roster from original references, not receipt
 /// membership. Even omitted or unused dependencies must rejoin current values.
+/// Rejoin the receipt to its exact retained owner before traversing geometry.
+/// A same-spelled declaration or a sibling instance cannot supply this type.
+fn declaration_custody(
+    program: &SymbolResolvedTrees,
+    record: &PendingInitializer,
+) -> Result<super::initializer_dependencies::ConstInitializerDependencies, Diagnostic> {
+    let mut owners = program.const_declarations.iter().filter(|declaration| {
+        program.symbols.symbol_source_span(declaration.symbol) == Some(record.declaration)
+            && declaration.initializer == record.materialized
+    });
+    let owner = owners.next().ok_or_else(|| {
+        error(
+            record.declaration,
+            "normalization lost its exact declaration owner",
+        )
+    })?;
+    if owners.next().is_some() {
+        return Err(error(
+            record.declaration,
+            "normalization has ambiguous declaration custody",
+        ));
+    }
+    super::initializer_dependencies::collect_declaration(
+        program,
+        record.authored,
+        &owner.declared_type,
+    )
+    .map_err(|reason| error(record.declaration, &reason))
+}
+
 fn reconstruct(
     program: &SymbolResolvedTrees,
     records: &[PendingInitializer],
@@ -218,8 +248,7 @@ fn reconstruct(
                 })?;
             dependencies.push((*reference, selected));
         }
-        let closure = super::initializer_dependencies::collect(program, record.authored)
-            .map_err(|reason| error(record.declaration, &reason))?;
+        let closure = declaration_custody(program, record)?;
         for (reference, declaration) in closure.constants {
             let selected = program
                 .const_declarations
@@ -442,8 +471,7 @@ pub(crate) fn finalize(
 ) -> Result<(), Diagnostic> {
     for (ordinal, record) in records.iter().enumerate() {
         let (origins, operators) = reconstruct(program, records, ordinal)?;
-        let call_custody = super::initializer_dependencies::collect(program, record.authored)
-            .map_err(|reason| error(record.declaration, &reason))?;
+        let call_custody = declaration_custody(program, record)?;
         let calls = &call_custody.calls;
         if origins.len() != record.receipt.selections.len()
             || origins

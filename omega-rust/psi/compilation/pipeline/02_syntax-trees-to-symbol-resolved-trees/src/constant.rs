@@ -54,7 +54,7 @@
 //!
 //! This file decides which initializers need evaluation and finalizes
 //! constants. `initializer_leaves.rs` collects pending initializer leaves
-//! and aggregate placeholders, `declaration_values.rs` validates and
+//! and their selected destinations, `declaration_values.rs` validates and
 //! retains declaration values, `substitution.rs` substitutes resolved
 //! constants, `selections.rs` finalizes const selections and arguments,
 //! `normalized_expressions.rs` validates normalized expressions,
@@ -78,9 +78,7 @@ pub(crate) use declaration_values::{
     validate_const_definition, validate_scalar_initializer,
 };
 pub use initializer_leaves::PendingConstInitializerLeaf;
-pub(crate) use initializer_leaves::{
-    pending_aggregate_placeholder, pending_const_initializer_leaves,
-};
+pub(crate) use initializer_leaves::pending_const_initializer_leaves;
 pub(crate) use normalized_expressions::{
     normalization_requires_expression, validate_normalized_const_argument,
     validate_normalized_expression,
@@ -224,7 +222,7 @@ pub(crate) fn finalize(
         program,
         &lowerer.pending_authored_expressions,
         &mut lowerer.pending_const_selections,
-        lowerer.const_resolution_mode != crate::resolution::lowerer::ConstResolutionMode::Complete,
+        lowerer.const_resolution_mode,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     finalize_const_selections(program, &lowerer.pending_const_selections)

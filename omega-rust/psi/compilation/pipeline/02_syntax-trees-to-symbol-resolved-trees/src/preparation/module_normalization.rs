@@ -32,15 +32,6 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
 use syntax_trees::types::TypeReferenceNode;
 
-pub(crate) fn validate_module_normalization(syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
-    let selection = crate::preparation::declaration_selection::ConstantSelection::new(
-        syntax,
-        None,
-        Vec::new(),
-    )?;
-    validate_with_selection(syntax, &selection)
-}
-
 pub(crate) fn validate_with_selection(
     syntax: &SyntaxTrees,
     selection: &crate::preparation::declaration_selection::ConstantSelection,
@@ -103,11 +94,11 @@ pub(crate) fn validate_with_const_resolution_mode(
         if !module_sources.contains(&constant.name.source_span().source_id) {
             continue;
         }
-        if mode == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
-            && crate::constant::requires_const_initializer_evaluation(syntax, constant)
-        {
-            // Only value admission is deferred. Ordinary resolution
-            // still validates the declaration's namespace and carrier.
+        if mode == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection {
+            // This is a declaration/dependency frontier, including literal
+            // values whose declared geometry is still pending. Ordinary
+            // resolution selects the namespace and carrier; complete resolution
+            // admits every value after its dependencies have evaluated.
         } else if module_literal_constant(syntax, constant) {
             if matches!(
                 syntax

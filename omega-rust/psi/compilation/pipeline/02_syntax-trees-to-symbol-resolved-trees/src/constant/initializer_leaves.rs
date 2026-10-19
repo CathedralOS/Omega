@@ -1,4 +1,8 @@
-//! Pending const initializer leaves and aggregate placeholders.
+//! Discover authored initializer leaves without demanding unfinished geometry.
+//!
+//! Discovery precedes dependency scheduling. Array cardinality is checked by
+//! completed value encoding, after the exact declared extent has evaluated;
+//! neither the initializer roster nor a probe stand-in supplies that extent.
 
 use crate::constant::requires_const_initializer_evaluation;
 use crate::preparation::declaration_selection::{
@@ -9,7 +13,7 @@ use source::{SourceSpan, Span};
 use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember};
-use syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// One pending initializer leaf: the authored expression and the exact
 /// declared carrier it must produce. `structured` leaves are aggregate-producing
@@ -102,22 +106,13 @@ pub(crate) fn pending_const_initializer_leaves(
         match syntax.type_references.type_reference(type_reference) {
             TypeReferenceNode::DynamicTrait { .. }
                 if crate::constant::direct_selector_literal(syntax, expression) => Ok(()),
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => match syntax.expressions.expression(expression) {
+            TypeReferenceNode::FixedArray { element_type, .. } => match syntax.expressions.expression(expression) {
                 ExpressionNode::ArrayLiteral(elements) => {
-                    let length = crate::preparation::generic_data::closed_fixed_array_length(
-                        syntax, length, substitution, Some(selection),
-                    )?;
                     let element_type =
                         effective_member_type(syntax, *element_type, substitution)?;
                     let values = syntax.expressions.expression_handles(*elements);
-                    if values.len() != elements.len() || values.len() != length {
-                        return Err(
-                            "computed array constant has an incorrect element roster"
-                                .to_owned(),
-                        );
+                    if values.len() != elements.len() {
+                        return Err("computed array constant has a stale element roster".to_owned());
                     }
                     for element in values {
                         collect(
@@ -133,11 +128,10 @@ pub(crate) fn pending_const_initializer_leaves(
                 }
                 // Aggregate-producing leaves keep their authored expression.
                 // The leaf probe's checked interpreter supplies the result and
-                // admission checks it against this exact closed array carrier;
-                // a parameter-spelled length stays on the literal-only path.
+                // admission checks it against this exact array carrier once
+                // its declaration-owned geometry dependencies have completed.
                 ExpressionNode::Call(_) | ExpressionNode::Match(_)
-                    if matches!(length, FixedArrayLength::Literal(_))
-                        && closed_leaf_carrier(syntax, type_reference, substitution) =>
+                    if closed_leaf_carrier(syntax, type_reference, substitution) =>
                 {
                     leaves.push(PendingConstInitializerLeaf {
                         expression,
@@ -147,8 +141,7 @@ pub(crate) fn pending_const_initializer_leaves(
                     Ok(())
                 }
                 ExpressionNode::Name(path)
-                    if matches!(length, FixedArrayLength::Literal(_))
-                        && closed_leaf_carrier(syntax, type_reference, substitution)
+                    if closed_leaf_carrier(syntax, type_reference, substitution)
                         && name_selects_const(syntax, selection, *path) =>
                 {
                     leaves.push(PendingConstInitializerLeaf {
@@ -477,283 +470,8 @@ fn name_selects_const(
     selection.selects_const(&syntax_trees::identifier::Identifier::new(name, reference))
 }
 
-/// Synthesize one closed zero literal standing in for a pending aggregate leaf
-/// so the surrounding probe forest can type. The placeholder exists only for
-/// the non-executing preparation/typing pass; it is replaced by the evaluated
-/// literal before the owning declaration materializes and never becomes a
-/// published value.
-pub(crate) fn pending_aggregate_placeholder(
-    syntax: &mut SyntaxTrees,
-    selection: &crate::preparation::declaration_selection::ConstantSelection,
-    type_reference: TypeReferenceHandle,
-    reference: SourceSpan,
-) -> Result<syntax_trees::expression::ExpressionHandle, String> {
-    pending_aggregate_placeholder_at(
-        syntax,
-        selection,
-        type_reference,
-        &GenericApplicationSubstitution::new(),
-        reference,
-    )
-}
-
-fn pending_aggregate_placeholder_at(
-    syntax: &mut SyntaxTrees,
-    selection: &crate::preparation::declaration_selection::ConstantSelection,
-    type_reference: TypeReferenceHandle,
-    substitution: &GenericApplicationSubstitution,
-    reference: SourceSpan,
-) -> Result<syntax_trees::expression::ExpressionHandle, String> {
-    use syntax_trees::expression::ExpressionNode;
-
-    // A carrier spelled as a bare parameter reselects the enclosing
-    // application's already-closed argument handle.
-    if let Some(name) = syntax
-        .type_references
-        .type_reference(type_reference)
-        .as_named()
-        && let Some(argument) = substitution.get(name.as_str())
-    {
-        return pending_aggregate_placeholder_at(
-            syntax,
-            selection,
-            *argument,
-            substitution,
-            reference,
-        );
-    }
-    // A rewritten `Named` instance spelling resolves through its retained
-    // authored application rather than the synthesized name.
-    let origin = syntax
-        .type_references
-        .generic_application_origin(type_reference);
-    if origin.is_valid() && origin != type_reference {
-        return pending_aggregate_placeholder_at(
-            syntax,
-            selection,
-            origin,
-            substitution,
-            reference,
-        );
-    }
-    // The node is cloned so recursive placeholder construction may insert
-    // into the same syntax forest while this carrier stays borrowed.
-    let destination = syntax
-        .type_references
-        .type_reference(type_reference)
-        .clone();
-    let node = match &destination {
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length,
-        } => {
-            let length = crate::preparation::generic_data::closed_fixed_array_length(
-                syntax,
-                length,
-                substitution,
-                Some(selection),
-            )?;
-            let element_type = effective_member_type(syntax, *element_type, substitution)?;
-            let element = pending_aggregate_placeholder_at(
-                syntax,
-                selection,
-                element_type,
-                substitution,
-                reference,
-            )?;
-            let elements = syntax
-                .expressions
-                .insert_expression_handles(vec![element; length]);
-            ExpressionNode::ArrayLiteral(elements)
-        }
-        TypeReferenceNode::Named(name) => match selection.builtin_type(name) {
-            Some(symbols::BuiltinTypeAtom::Bool) => ExpressionNode::Boolean(false),
-            Some(symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64) => {
-                ExpressionNode::Float(source::SourceText::new(
-                    format!("0.0{}", name.as_str()),
-                    reference,
-                ))
-            }
-            Some(
-                symbols::BuiltinTypeAtom::I8
-                | symbols::BuiltinTypeAtom::I16
-                | symbols::BuiltinTypeAtom::I32
-                | symbols::BuiltinTypeAtom::I64
-                | symbols::BuiltinTypeAtom::U8
-                | symbols::BuiltinTypeAtom::U16
-                | symbols::BuiltinTypeAtom::U32
-                | symbols::BuiltinTypeAtom::U64
-                | symbols::BuiltinTypeAtom::Address,
-            ) => ExpressionNode::Integer(numerics::literals::IntegerLiteral::zero()),
-            Some(_) => {
-                return Err(
-                    "aggregate initializer placeholder has no closed literal carrier".to_owned(),
-                );
-            }
-            None => {
-                let declared = require_closed_data(selection, syntax, name)?;
-                // A nongeneric declaration's members never see an enclosing
-                // application's parameters: a member spelling `T` there
-                // selects whatever `T` resolves to in this declaration's own
-                // scope. The member list is cloned so the declaration borrow
-                // ends before recursive placeholder construction inserts into
-                // the same forest.
-                let members = syntax.items.data_members(declared.members).to_vec();
-                let member_count = declared.members.len();
-                nominal_placeholder_literal(
-                    syntax,
-                    selection,
-                    &members,
-                    member_count,
-                    name.as_str(),
-                    name.source_span(),
-                    &GenericApplicationSubstitution::new(),
-                    reference,
-                )?
-            }
-        },
-        TypeReferenceNode::Generic {
-            base_name,
-            lifetime_arguments,
-            arguments,
-        } => {
-            // A closed application's placeholder is built from the selected
-            // template under its argument bindings; nested applications keep
-            // their authored spelling and resolve one level at a time.
-            let declared = selection.data(syntax, base_name)?;
-            let argument_handles = syntax
-                .type_references
-                .type_reference_handles(*arguments)
-                .to_vec();
-            let parameters = syntax.items.type_parameters(declared.type_parameters);
-            if !lifetime_arguments.is_empty()
-                || !declared.lifetime_parameters.is_empty()
-                || argument_handles.len() != arguments.len()
-                || parameters.len() != declared.type_parameters.len()
-                || parameters.len() != argument_handles.len()
-            {
-                return Err(
-                    "aggregate initializer placeholder requires a closed generic application"
-                        .to_owned(),
-                );
-            }
-            let next_substitution =
-                substituted_generic_arguments(syntax, parameters, &argument_handles, substitution)?;
-            // The member list is cloned so the declaration borrow ends before
-            // recursive placeholder construction inserts into the same forest.
-            let members = syntax.items.data_members(declared.members).to_vec();
-            let member_count = declared.members.len();
-            nominal_placeholder_literal(
-                syntax,
-                selection,
-                &members,
-                member_count,
-                base_name.as_str(),
-                base_name.source_span(),
-                &next_substitution,
-                reference,
-            )?
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            return pending_aggregate_placeholder_at(
-                syntax,
-                selection,
-                *base_type,
-                substitution,
-                reference,
-            );
-        }
-        _ => {
-            return Err(
-                "aggregate initializer placeholder requires a closed nominal or array carrier"
-                    .to_owned(),
-            );
-        }
-    };
-    let placeholder = syntax.expressions.insert(node);
-    syntax.expressions.set_source_span(placeholder, reference);
-    Ok(placeholder)
-}
-
-/// One zero literal for the selected closed declaration: a sum's first case or
-/// a record's fields, each member carrier resolved through the enclosing
-/// application's bindings. `members` is an owned clone so this call may insert
-/// into the same forest.
-fn nominal_placeholder_literal(
-    syntax: &mut SyntaxTrees,
-    selection: &crate::preparation::declaration_selection::ConstantSelection,
-    members: &[DataMember],
-    member_count: usize,
-    constructor: &str,
-    constructor_span: SourceSpan,
-    substitution: &GenericApplicationSubstitution,
-    reference: SourceSpan,
-) -> Result<syntax_trees::expression::ExpressionNode, String> {
-    use syntax_trees::expression::{ExpressionNode, TableStructLiteral, TableStructLiteralField};
-    if members.len() != member_count {
-        return Err("aggregate initializer placeholder has a stale data member span".to_owned());
-    }
-    let (constructor, fields) = if let Some(variant) =
-        members.iter().find_map(|member| match member {
-            DataMember::Variant(variant) => Some(variant),
-            _ => None,
-        }) {
-        let payload = syntax.items.data_payload_fields(variant.payload);
-        if payload.len() != variant.payload.len() {
-            return Err("aggregate initializer placeholder has a stale payload span".to_owned());
-        }
-        (
-            format!("{constructor}::{}", variant.name.as_str()),
-            payload
-                .iter()
-                .map(|field| (field.name.as_str().to_owned(), field.type_reference))
-                .collect::<Vec<_>>(),
-        )
-    } else {
-        (
-            constructor.to_owned(),
-            members
-                .iter()
-                .filter_map(|member| match member {
-                    DataMember::Field(field) => {
-                        Some((field.name.as_str().to_owned(), field.type_reference))
-                    }
-                    _ => None,
-                })
-                .collect::<Vec<_>>(),
-        )
-    };
-    let mut literal_fields = Vec::with_capacity(fields.len());
-    for (field_name, field_type) in fields {
-        let field_type = effective_member_type(syntax, field_type, substitution)?;
-        let value = pending_aggregate_placeholder_at(
-            syntax,
-            selection,
-            field_type,
-            substitution,
-            reference,
-        )?;
-        literal_fields.push(TableStructLiteralField {
-            // Compiler-derived placeholder fields carry no authored
-            // selection token: distinct declared fields must not
-            // alias one source span as copies of a single authored
-            // field selection.
-            name: syntax_trees::identifier::Identifier::generated(field_name),
-            value,
-        });
-    }
-    let fields = syntax.expressions.insert_struct_fields(literal_fields);
-    Ok(ExpressionNode::StructLiteral(TableStructLiteral {
-        constructor_name: syntax_trees::identifier::Identifier::new(constructor, constructor_span),
-        fields,
-    }))
-}
-
-/// `size_of<T>()`/`align_of<T>()` name no declaration the Psi stage can call:
-/// the selected target's validated layout answers them after settlement, so
-/// the leaf retains its authored call and Omega materializes the `u64`
-/// literal there. An authored declaration bearing the same name keeps the
-/// ordinary call leaf.
+/// Layout queries remain deferred until target layout settlement. An authored
+/// declaration with the same spelling retains its ordinary call evaluation.
 pub(crate) fn deferred_layout_query(
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     call: &syntax_trees::expression::TableCallExpression,

@@ -74,6 +74,7 @@ pub(crate) fn prove_ready(
     if pending.is_empty() {
         return Ok(syntax);
     }
+    let declaration_frontier = probe.root_item_handles().len();
     let owners = pending
         .iter()
         .enumerate()
@@ -89,8 +90,22 @@ pub(crate) fn prove_ready(
             )
         })
         .collect::<Vec<_>>();
-    let probe =
-        crate::syntax_probes::normalize_generic_data(probe, sources.clone(), bindings, None)?;
+    let mut probe_declarations = probe.root_item_handles()[declaration_frontier..].to_vec();
+    for (_, definition) in &pending {
+        let dependencies = selection.initializer_dependencies(&syntax, definition)?;
+        crate::syntax_probes::extend_normalization_owners(
+            &probe,
+            &mut probe_declarations,
+            &dependencies.normalization_owners,
+        )?;
+    }
+    let probe = crate::syntax_probes::normalize_initializer_probe_data(
+        probe,
+        sources.clone(),
+        bindings,
+        None,
+        &probe_declarations,
+    )?;
     let frontier =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {

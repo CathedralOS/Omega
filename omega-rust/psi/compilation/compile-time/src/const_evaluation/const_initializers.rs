@@ -7,10 +7,11 @@
 //! scalar probes as index expressions, one per pending scalar leaf. Aggregate
 //! declarations retain their constructors and fields while evaluated leaves
 //! replace only their exact authored expressions. Their identity is encoded from
-//! the complete materialized value. A probe may
-//! stub other pending declarations to type the surrounding forest, but no
-//! selected dependency may use such a stub: every returned origin must rejoin a
-//! completed value and the original selection. Only evaluated leaves and
+//! the complete materialized value. Private probes retain unfinished declarations
+//! without substituting them. Declaration types and authored expressions jointly
+//! order readiness, while each leaf retains only its actual value origins:
+//! scheduling a geometry dependency does not invent a value use in that leaf.
+//! Every returned origin must rejoin a completed value and original selection. Only evaluated leaves and
 //! declaration-owned receipts leave this module.
 //!
 //! A scalar declaration is not a request for runtime bytes. Payloadless NaNs
@@ -51,9 +52,8 @@ use source::{SourceMap, SourceSpan};
 use symbols::SourceScopedTopLevelBinding;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
-use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ConstDefinition, ConstInitializerNormalization, Item, ItemHandle};
-use syntax_trees::types::{ConstArgumentOrigin, TypeReferenceNode};
+use syntax_trees::types::ConstArgumentOrigin;
 
 mod invocations;
 mod materialize;
@@ -77,6 +77,9 @@ struct Declaration {
     definition: ConstDefinition,
     evaluated_value: Option<EvaluatedConstant>,
     leaves: Vec<PendingLeaf>,
+    dependencies: Vec<(SourceSpan, usize)>,
+    calls: Vec<(SourceSpan, SourceSpan)>,
+    normalization_owners: Vec<SourceSpan>,
 }
 
 pub(crate) fn evaluate(
@@ -155,9 +158,28 @@ pub(crate) fn evaluate(
             definition: definition.clone(),
             evaluated_value: retained.evaluated_value.clone(),
             leaves,
+            dependencies: Vec::new(),
+            calls: Vec::new(),
+            normalization_owners: Vec::new(),
         });
     }
     for ordinal in 0..declarations.len() {
+        let selected =
+            preparation.initializer_dependencies(&syntax, &declarations[ordinal].definition)?;
+        declarations[ordinal].calls = selected.calls;
+        declarations[ordinal].normalization_owners = selected.normalization_owners;
+        for (reference, declaration) in selected.constants {
+            let dependency = declarations
+                .iter()
+                .position(|candidate| candidate.definition.name.source_span() == declaration)
+                .ok_or_else(|| {
+                    failure(reference, "selected declaration dependency lost its owner")
+                })?;
+            let selected = (reference, dependency);
+            if !declarations[ordinal].dependencies.contains(&selected) {
+                declarations[ordinal].dependencies.push(selected);
+            }
+        }
         if declarations[ordinal].leaves.is_empty() {
             continue;
         }
@@ -186,27 +208,58 @@ pub(crate) fn evaluate(
             declarations[ordinal].leaves[leaf_ordinal].calls = selected.calls;
         }
     }
+    // Evaluation roots demand their complete declaration graph. A leafless
+    // literal is not ready merely because it has nothing to execute: its
+    // declared geometry may still depend on a pending computation. Keep that
+    // distinction until canonicalization supplies the actual encoded value.
+    let mut demanded = declarations
+        .iter()
+        .map(|declaration| !declaration.leaves.is_empty())
+        .collect::<Vec<_>>();
+    let mut pending = demanded
+        .iter()
+        .enumerate()
+        .filter_map(|(ordinal, demanded)| demanded.then_some(ordinal))
+        .collect::<Vec<_>>();
+    while let Some(ordinal) = pending.pop() {
+        for (_, dependency) in &declarations[ordinal].dependencies {
+            if !demanded[*dependency] {
+                demanded[*dependency] = true;
+                pending.push(*dependency);
+            }
+        }
+    }
     while declarations
         .iter()
-        .any(|declaration| !declaration.leaves.is_empty())
+        .enumerate()
+        .any(|(ordinal, declaration)| {
+            demanded[ordinal]
+                && (!declaration.leaves.is_empty() || declaration.evaluated_value.is_none())
+        })
     {
-        let ready = declarations
+        let mut ready = declarations
             .iter()
             .enumerate()
             .filter_map(|(ordinal, declaration)| {
-                (!declaration.leaves.is_empty()
-                    && declaration.leaves.iter().all(|leaf| {
-                        leaf.dependencies
-                            .iter()
-                            .all(|(_, dependency)| declarations[*dependency].leaves.is_empty())
+                (demanded[ordinal]
+                    && (!declaration.leaves.is_empty() || declaration.evaluated_value.is_none())
+                    && declaration.dependencies.iter().all(|(_, dependency)| {
+                        declarations[*dependency].leaves.is_empty()
+                            && declarations[*dependency].evaluated_value.is_some()
                     }))
                 .then_some(ordinal)
             })
             .collect::<Vec<_>>();
         if ready.is_empty() {
-            let declaration = declarations
+            let ordinal = declarations
                 .iter()
-                .find(|declaration| !declaration.leaves.is_empty())
+                .enumerate()
+                .find_map(|(ordinal, declaration)| {
+                    (demanded[ordinal]
+                        && (!declaration.leaves.is_empty()
+                            || declaration.evaluated_value.is_none()))
+                    .then_some(ordinal)
+                })
                 .ok_or_else(|| {
                     failure(
                         SourceSpan::default(),
@@ -214,143 +267,30 @@ pub(crate) fn evaluate(
                     )
                 })?;
             return Err(failure(
-                declaration.definition.name.source_span(),
+                declarations[ordinal].definition.name.source_span(),
                 "constant initializer dependency cycle",
             ));
         }
-        let ready_dependencies = ready
-            .iter()
-            .flat_map(|ordinal| &declarations[*ordinal].leaves)
-            .flat_map(|leaf| leaf.dependencies.iter().map(|(_, dependency)| *dependency))
-            .collect::<Vec<_>>();
-        for dependency in ready_dependencies {
-            if declarations[dependency].evaluated_value.is_none() {
-                // All transitive initializer and type dependencies have left
-                // the pending frontier before this probe becomes ready. A
-                // retained literal whose extent was pending can now encode its
-                // actual children under that completed declared geometry.
+        for ordinal in &ready {
+            if declarations[*ordinal].leaves.is_empty() {
                 let value = preparation
-                    .canonicalize_initializer_value(&syntax, &declarations[dependency].definition)
+                    .canonicalize_initializer_value(&syntax, &declarations[*ordinal].definition)
                     .map_err(|reason| {
-                        failure(
-                            declarations[dependency].definition.name.source_span(),
-                            reason,
-                        )
+                        failure(declarations[*ordinal].definition.name.source_span(), reason)
                     })?;
-                declarations[dependency].evaluated_value = Some(value.encoding.into());
+                declarations[*ordinal].evaluated_value = Some(value.encoding.into());
             }
+        }
+        ready.retain(|ordinal| !declarations[*ordinal].leaves.is_empty());
+        if ready.is_empty() {
+            continue;
         }
         let mut probe = syntax.clone();
-        for declaration in declarations.iter().filter(|declaration| {
-            declaration.definition.is_public
-                && declaration.leaves.is_empty()
-                && declaration.evaluated_value.is_none()
-        }) {
-            // This private forest cannot publish an identity for a literal
-            // whose declared geometry is still pending. Keep its real value
-            // and type, but defer the public encoding demand here. Dependency
-            // ordering prevents any ready computation from selecting it until
-            // its actual value completes; the returned syntax keeps visibility
-            // and complete resolution still requires the authored public identity.
-            let mut definition = declaration.definition.clone();
-            definition.is_public = false;
-            probe
-                .items
-                .replace_item(declaration.item, Item::Const(definition));
-        }
-        for declaration in declarations
-            .iter()
-            .filter(|declaration| !declaration.leaves.is_empty())
-        {
-            let mut definition = declaration.definition.clone();
-            let mut placeholders = HashMap::new();
-            for leaf in &declaration.leaves {
-                let reference = syntax.expressions.source_span(leaf.expression);
-                let placeholder = if leaf.structured {
-                    // A closed zero literal with the leaf's exact carrier lets
-                    // the non-executing probe forest type; the evaluated value
-                    // replaces it before the declaration materializes.
-                    preparation.pending_value_placeholder(
-                        &mut probe,
-                        leaf.destination,
-                        reference,
-                    )?
-                } else {
-                    let boolean = matches!(
-                        probe.type_references.type_reference(leaf.destination),
-                        TypeReferenceNode::Named(name) if name.as_str() == "bool"
-                    );
-                    let value = if boolean {
-                        ExpressionNode::Boolean(false)
-                    } else {
-                        ExpressionNode::Integer(numerics::literals::IntegerLiteral::zero())
-                    };
-                    let placeholder = probe.expressions.insert(value);
-                    probe.expressions.set_source_span(placeholder, reference);
-                    placeholder
-                };
-                placeholders.insert(leaf.expression, placeholder);
-            }
-            definition.value = materialize_value(&mut probe, definition.value, &placeholders)?;
-            // A provisional zero is only a carrier/layout stand-in, not a
-            // witness of the authored destination's domains. Keep the real
-            // constraints on `declarations` and the returned syntax; complete
-            // resolution checks them after the actual value is materialized.
-            // Dependency readiness and origin replay forbid observing this
-            // unqualified stand-in as a selected constant value.
-            while let TypeReferenceNode::Constrained { base_type, .. } = probe
-                .type_references
-                .type_reference(definition.type_reference)
-            {
-                definition.type_reference = *base_type;
-            }
-            definition.normalization = None;
-            probe
-                .items
-                .replace_item(declaration.item, Item::Const(definition));
-        }
-        // Private layout stand-ins, exactly as in the index-expression probe.
-        // Actual arguments are normalized only after all declaration values exist.
-        let arguments =
-            syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-                &probe,
-                sources.clone(),
-                bindings.to_vec(),
-            )?
-                .into_iter()
-                .chain(
-                    syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-                        &probe,
-                        sources.clone(),
-                        bindings.to_vec(),
-                    )?,
-                )
-                .collect::<Vec<_>>();
-        crate::syntax_probes::defer_pending_const_qualifications(
-            &mut probe,
-            &arguments
-                .iter()
-                .map(|(argument, _, _)| *argument)
-                .collect::<Vec<_>>(),
-        );
-        for (argument, destination, _) in arguments {
-            let placeholder = match probe.type_references.type_reference(destination) {
-                TypeReferenceNode::Named(name) if name.as_str() == "bool" => "false",
-                TypeReferenceNode::Named(name)
-                    if matches!(
-                        name.as_str(),
-                        "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
-                    ) =>
-                {
-                    "0"
-                }
-                _ => continue,
-            };
-            probe.type_references.replace_type_reference(
-                argument,
-                TypeReferenceNode::Named(Identifier::generated(placeholder)),
-            );
-        }
+        // Retain authored pending values through the resolver's existing
+        // initializer frontier. Unproved qualifications remain private and no
+        // unready constant can enter a ready probe's execution closure.
+        super::const_qualifications::defer_unproved(&mut probe);
+        let declaration_frontier = probe.root_item_handles().len();
         let mut probe_sources = Vec::new();
         for ordinal in &ready {
             for leaf in &declarations[*ordinal].leaves {
@@ -363,9 +303,24 @@ pub(crate) fn evaluate(
                 probe_sources.push(syntax.expressions.source_span(leaf.expression));
             }
         }
-        let probe =
-            crate::syntax_probes::normalize_generic_data(probe, sources.clone(), bindings, None)?;
-        let frontier = syntax_trees_to_symbol_resolved_trees::resolve_deferred(
+        let mut probe_declarations = probe.root_item_handles()[declaration_frontier..].to_vec();
+        let owners = ready
+            .iter()
+            .flat_map(|ordinal| declarations[*ordinal].normalization_owners.iter().copied())
+            .collect::<Vec<_>>();
+        crate::syntax_probes::extend_normalization_owners(
+            &probe,
+            &mut probe_declarations,
+            &owners,
+        )?;
+        let probe = crate::syntax_probes::normalize_initializer_probe_data(
+            probe,
+            sources.clone(),
+            bindings,
+            None,
+            &probe_declarations,
+        )?;
+        let frontier = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
                 syntax: probe,
                 sources: sources.clone(),
@@ -616,6 +571,50 @@ pub(crate) fn evaluate(
                     .encoding
                     .into()
             };
+            // A declaration's geometry is part of its normalization custody,
+            // even when a scalar payload leaf never reads that extent. Keep
+            // those completed origins on the declaration receipt, not in the
+            // leaf evaluator's value-use expectations. Only already evaluated
+            // dependency receipts can contribute transitive operator meaning.
+            for (reference, dependency) in &declarations[ordinal].dependencies {
+                let dependency = &declarations[*dependency];
+                let origin = ConstArgumentOrigin {
+                    reference: *reference,
+                    declaration: dependency.definition.name.source_span(),
+                    initializer: syntax.expressions.source_span(dependency.definition.value),
+                    evaluated_value: dependency.evaluated_value.clone().ok_or_else(|| {
+                        failure(
+                            *reference,
+                            "declaration geometry selected an unfinished dependency",
+                        )
+                    })?,
+                };
+                if !selections.contains(&origin) {
+                    selections.push(origin);
+                }
+                if let Some(normalization) = &dependency.definition.normalization {
+                    for origin in &normalization.selections {
+                        if !selections.contains(origin) {
+                            selections.push(origin.clone());
+                        }
+                    }
+                    for operator in &normalization.builtin_operators {
+                        if !builtin_operators.contains(operator) {
+                            builtin_operators.push(*operator);
+                        }
+                    }
+                    for call in &normalization.call_selections {
+                        if !call_selections.contains(call) {
+                            call_selections.push(*call);
+                        }
+                    }
+                }
+            }
+            for call in &declarations[ordinal].calls {
+                if !call_selections.contains(call) {
+                    call_selections.push(*call);
+                }
+            }
             definition.normalization = Some(ConstInitializerNormalization {
                 authored_expression,
                 result_value,

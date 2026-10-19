@@ -71,19 +71,90 @@ pub(crate) fn normalize_generic_data(
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
-    // Scoped bindings and a retained base travel with the source context;
-    // a source-free probe has neither.
-    let has_sources = sources.is_some();
     syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest {
-            syntax: syntax_trees,
+        normalization_request(
+            syntax_trees,
             sources,
-            top_level_bindings: if has_sources {
-                source_scoped_top_level_bindings.to_vec()
-            } else {
-                Vec::new()
-            },
-            retained_base: if has_sources { retained_base } else { None },
-        },
+            source_scoped_top_level_bindings,
+            retained_base,
+        ),
     )
+}
+
+/// Exact probes and their selected dependency owners own normalization work. Unready
+/// surrounding applications remain selected lookup/signature context, never
+/// provisional aggregate const-index identities. The ordinary complete route
+/// above still normalizes and validates every authored application.
+pub(crate) fn normalize_initializer_probe_data(
+    syntax_trees: syntax_trees::SyntaxTrees,
+    sources: Option<Arc<source::SourceMap>>,
+    source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
+    declarations: &[syntax_trees::item::ItemHandle],
+) -> Result<syntax_trees::SyntaxTrees, Vec<diagnostics::Diagnostic>> {
+    syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_initializer_probe_data(
+        normalization_request(
+            syntax_trees,
+            sources,
+            source_scoped_top_level_bindings,
+            retained_base,
+        ),
+        declarations,
+    )
+}
+
+/// Rejoin exact selected declaration coordinates to this private syntax clone.
+/// Missing or ambiguous ownership cannot expand the normalization domain.
+pub(crate) fn extend_normalization_owners(
+    syntax: &syntax_trees::SyntaxTrees,
+    declarations: &mut Vec<syntax_trees::item::ItemHandle>,
+    owners: &[source::SourceSpan],
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    for owner in owners {
+        let matches = syntax
+            .root_item_handles()
+            .iter()
+            .copied()
+            .filter(|item| {
+                let name = match syntax.root_item(*item) {
+                    syntax_trees::item::Item::Const(definition) => &definition.name,
+                    syntax_trees::item::Item::Data(definition) => &definition.name,
+                    syntax_trees::item::Item::Machine(definition) => &definition.name,
+                    _ => return false,
+                };
+                name.source_span() == *owner
+            })
+            .collect::<Vec<_>>();
+        let [item] = matches.as_slice() else {
+            return Err(vec![
+                diagnostics::Diagnostic::error(
+                    "initializer normalization lost exact declaration ownership",
+                )
+                .with_source_span(*owner),
+            ]);
+        };
+        if !declarations.contains(item) {
+            declarations.push(*item);
+        }
+    }
+    Ok(())
+}
+
+fn normalization_request<'base>(
+    syntax: syntax_trees::SyntaxTrees,
+    sources: Option<Arc<source::SourceMap>>,
+    bindings: &[symbols::SourceScopedTopLevelBinding],
+    retained_base: Option<&'base symbol_resolved_trees::SymbolResolvedTrees>,
+) -> syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest<'base> {
+    let has_sources = sources.is_some();
+    syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest {
+        syntax,
+        sources,
+        top_level_bindings: if has_sources {
+            bindings.to_vec()
+        } else {
+            Vec::new()
+        },
+        retained_base: if has_sources { retained_base } else { None },
+    }
 }

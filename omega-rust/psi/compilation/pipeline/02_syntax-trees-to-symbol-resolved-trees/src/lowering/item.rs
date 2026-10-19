@@ -246,7 +246,12 @@ fn lower_item_with_exposure(
                         .with_source_span(definition.name.source_span())
                 })?
                 .is_empty();
-            if !pending {
+            if lowerer.const_resolution_mode
+                != crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
+            {
+                // The private dependency frontier selects identities and types,
+                // not value predicates whose declared geometry may be pending.
+                // Complete resolution validates every declaration, used or not.
                 crate::constant::validate_const_definition(
                     syntax_trees,
                     definition,

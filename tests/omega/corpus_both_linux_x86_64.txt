@@ -262,6 +262,7 @@ pass/facts/as_slice_views_through_other_machine_exit built 14503ms exit:0 interp
 pass/facts/as_slice_views_through_other_state_exit built 17640ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
 pass/facts/as_slice_views_through_parameter_exit built 18887ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
 pass/facts/as_slice_views_through_target_body_exit built 14271ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
+pass/facts/computed_constant_array_extent_exit built 20162ms exit:0 interpreter-exit:0 interpreter:agrees @7ee7ea840945+wt
 pass/facts/computed_record_window_mixed_lifecycle_exit built 23994ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/facts/computed_record_window_through_call_result_exit built 22116ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/facts/computed_record_window_through_const_name_exit built 23097ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
@@ -480,6 +481,9 @@ pass/layouts/runtime_selected_scalar_reference_codec_exit built 8616ms exit:0 in
 pass/layouts/runtime_transition_scalar_reference_codec_exit built 6818ms exit:0 interpreter-exit:0 interpreter:agrees @af604b31614e
 pass/layouts/unused_partial_target_layout_exit built 24172ms exit:0 interpreter-exit:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @c48489ea6ad6
 pass/locals/runtime_unrestricted_record_rebinding_exit built 19341ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6
+pass/modules/computed_array_extent_composition_exit built 27691ms exit:0 interpreter-exit:0 interpreter:agrees @7ee7ea840945+wt
+pass/modules/computed_array_extent_module_owner_exit built 20507ms exit:0 interpreter-exit:0 interpreter:agrees @7ee7ea840945+wt
+pass/modules/computed_array_extent_qualified_element_exit built 20153ms exit:0 interpreter-exit:0 interpreter:agrees @7ee7ea840945+wt
 pass/modules/public_constant_array_computed_extent_body_exit built 92483ms exit:7 interpreter-exit:7 interpreter:agrees @af9b942fa09e+wt
 pass/modules/runtime_foreign_generic_scoped_constant_exit built 1465ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @743851d348c6+wt
 pass/modules/runtime_public_generic_dependency_exit built 32638ms exit:0 interpreter-exit:0 interpreter:agrees @c48489ea6ad6

@@ -208,27 +208,6 @@ pub(super) fn lower_fixed_array_type(
                             Diagnostic::error("array length constant has no resolved declaration")
                                 .with_source_span(name.source_span())
                         })?;
-                let value = declaration
-                    .evaluated_value
-                    .as_ref()
-                    .and_then(|value| value.encoding())
-                    .and_then(|encoding| {
-                        language_semantics::const_value::CanonicalConstValue::new("", encoding, "")
-                            .decode_encoding()
-                    });
-                let Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                    value,
-                    ..
-                }) = value
-                else {
-                    return Err(Diagnostic::error(format!(
-                        "fixed-array length `{name}` requires an evaluated integer constant"
-                    ))
-                    .with_source_span(name.source_span()));
-                };
-                let value = usize::try_from(value).map_err(|_| Diagnostic::error(format!(
-                    "fixed-array length `{name}` must be nonnegative and fit the supported array extent"
-                )).with_source_span(name.source_span()))?;
                 super::retain_type_reference_selection(
                     source_trees,
                     typed_trees,
@@ -241,7 +220,38 @@ pub(super) fn lower_fixed_array_type(
                     declaration: *symbol,
                     reference: name.source_span(),
                 });
-                typed::types::FixedArrayLength::Literal(value)
+                if let Some(evaluated) = &declaration.evaluated_value {
+                    let value = evaluated.encoding().and_then(|encoding| {
+                        language_semantics::const_value::CanonicalConstValue::new("", encoding, "")
+                            .decode_encoding()
+                    });
+                    let Some(
+                        language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                            value,
+                            ..
+                        },
+                    ) = value
+                    else {
+                        return Err(Diagnostic::error(format!(
+                            "fixed-array length `{name}` requires an evaluated integer constant"
+                        ))
+                        .with_source_span(name.source_span()));
+                    };
+                    let value = usize::try_from(value).map_err(|_| Diagnostic::error(format!(
+                        "fixed-array length `{name}` must be nonnegative and fit the supported array extent"
+                    )).with_source_span(name.source_span()))?;
+                    typed::types::FixedArrayLength::Literal(value)
+                } else {
+                    // A private initializer probe types signatures outside its
+                    // execution closure too. Preserve unresolved declaration
+                    // identity, never a guessed extent. Settled checking rejects
+                    // Const-symbol extents still live in its selected domain;
+                    // genuine generic binders retain their separate symbol kind.
+                    typed::types::FixedArrayLength::ConstParameter {
+                        symbol: *symbol,
+                        name: crate::lowerer::name::lower_name(name),
+                    }
+                }
             } else {
                 typed::types::FixedArrayLength::ConstParameter {
                     symbol: *symbol,

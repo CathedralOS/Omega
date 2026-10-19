@@ -20,28 +20,45 @@ pub(super) fn require_evaluated_constants(
         .type_references
         .iter()
         .filter_map(|reference| {
-            let TypeReferenceNode::FixedArray {
-                length:
-                    FixedArrayLength::ConstCall {
-                        name, source_span, ..
-                    },
-                ..
-            } = program.type_reference_table.type_reference(*reference)
+            let TypeReferenceNode::FixedArray { length, .. } =
+                program.type_reference_table.type_reference(*reference)
             else {
                 return None;
             };
-            if program
-                .constant_recipe_for_array_length(*reference)
-                .is_valid()
-            {
-                return None;
-            }
+            let (name, source_span) = match length {
+                FixedArrayLength::ConstCall {
+                    name, source_span, ..
+                } if !program
+                    .constant_recipe_for_array_length(*reference)
+                    .is_valid() =>
+                {
+                    (name.as_str(), *source_span)
+                }
+                // An unresolved declaration is preparation state, not a
+                // generic binder and not geometry for a settled judgment.
+                FixedArrayLength::ConstParameter { symbol, name }
+                    if symbol.is_valid()
+                        && program.symbols.get(*symbol).kind == symbols::SymbolKind::Const =>
+                {
+                    let origins = match program.type_reference_table.constant_origins(*reference) {
+                        Ok(origins) => origins,
+                        Err(reason) => return Some(Diagnostic::error(reason)),
+                    };
+                    let source_span = origins
+                        .iter()
+                        .find(|origin| origin.declaration == *symbol)
+                        .map(|origin| origin.reference)
+                        .or_else(|| program.symbols.symbol_source_span(*symbol))
+                        .unwrap_or_default();
+                    (name.as_str(), source_span)
+                }
+                _ => return None,
+            };
             Some(
                 Diagnostic::error(format!(
-                    "array length `{}` has an unresolved build-time evaluation dependency",
-                    name.as_str()
+                    "array length `{name}` has an unresolved build-time evaluation dependency"
                 ))
-                .with_source_span(*source_span),
+                .with_source_span(source_span),
             )
         })
         .collect::<Vec<_>>();

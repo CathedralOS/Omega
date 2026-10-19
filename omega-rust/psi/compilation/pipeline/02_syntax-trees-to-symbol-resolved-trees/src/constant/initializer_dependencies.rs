@@ -17,6 +17,8 @@ mod types;
 pub struct ConstInitializerDependencies {
     pub constants: Vec<(SourceSpan, SourceSpan)>,
     pub calls: Vec<(SourceSpan, SourceSpan)>,
+    /// Exact authored owners whose type applications belong to this dependency closure.
+    pub normalization_owners: Vec<SourceSpan>,
     pub(crate) call_targets: Vec<(SourceSpan, SymbolHandle)>,
 }
 
@@ -57,6 +59,43 @@ pub(crate) fn collect(
         ..Collector::new(program)
     };
     collector.collect()?;
+    Ok(collector.dependencies)
+}
+
+/// A declaration's destination participates in readiness independently of the
+/// expression leaves. In particular an empty/literal array still demands its
+/// exact extent before its value can be encoded or selected by another job.
+pub(crate) fn collect_declaration(
+    program: &SymbolResolvedTrees,
+    root: ExpressionHandle,
+    destination: &symbol_resolved_trees::types::TypeReference,
+) -> Result<ConstInitializerDependencies, String> {
+    let mut collector = Collector {
+        expressions: vec![root],
+        types: vec![destination],
+        ..Collector::new(program)
+    };
+    collector.collect()?;
+    for symbol in collector
+        .visited_machines
+        .iter()
+        .chain(&collector.visited_type_declarations)
+        .chain(&collector.expanded_constants)
+    {
+        let source = collector
+            .program
+            .symbols
+            .symbol_source_span(*symbol)
+            .ok_or("initializer normalization owner lost its declaration source")?;
+        if !collector
+            .dependencies
+            .normalization_owners
+            .contains(&source)
+        {
+            collector.dependencies.normalization_owners.push(source);
+        }
+    }
+
     Ok(collector.dependencies)
 }
 

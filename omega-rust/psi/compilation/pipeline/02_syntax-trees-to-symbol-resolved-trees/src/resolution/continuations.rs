@@ -80,13 +80,14 @@ impl ConstInitializerSelection {
                     "initializer dependencies lost their exact declaration",
                 )]
             })?;
-        crate::constant::initializer_dependencies::collect(
+        crate::constant::initializer_dependencies::collect_declaration(
             &self.trees,
             if declaration.authored_initializer.is_valid() {
                 declaration.authored_initializer
             } else {
                 declaration.initializer
             },
+            &declaration.declared_type,
         )
         .map_err(|reason| {
             vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
@@ -132,24 +133,6 @@ impl ConstInitializerSelection {
             .map_err(|reason| {
                 vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
             })
-    }
-
-    /// Synthesize one closed zero literal for a pending structured leaf so the
-    /// surrounding probe forest can type. The placeholder is preparation-only:
-    /// it is replaced by the evaluated literal before any value publishes.
-    pub fn pending_value_placeholder(
-        &self,
-        syntax: &mut SyntaxTrees,
-        destination: syntax_trees::types::TypeReferenceHandle,
-        reference: source::SourceSpan,
-    ) -> Result<syntax_trees::expression::ExpressionHandle, Vec<Diagnostic>> {
-        crate::constant::pending_aggregate_placeholder(
-            syntax,
-            &self.selection,
-            destination,
-            reference,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(reference)])
     }
 
     /// Encode completed initializer payloads, without asserting the destination's

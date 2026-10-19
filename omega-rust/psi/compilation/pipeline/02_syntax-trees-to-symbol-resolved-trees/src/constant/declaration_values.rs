@@ -1,7 +1,6 @@
 //! Public declaration value encodings and validated initializers.
 
 use crate::constant::initializer_normalization;
-use crate::constant::requires_const_initializer_evaluation;
 use crate::constant::substitution::semantic_const_name;
 use diagnostics::Diagnostic;
 use source::{SourceSpan, Span};
@@ -289,8 +288,7 @@ pub(crate) fn retain_const_initializer(
     definition: &ConstDefinition,
 ) -> Result<ExpressionHandle, Diagnostic> {
     let pending = lowerer.const_resolution_mode
-        == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
-        && requires_const_initializer_evaluation(syntax, definition);
+        == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection;
     if !pending && !has_scalar_initializer(syntax, definition) {
         if crate::preparation::module_normalization::module_literal_constant(syntax, definition) {
             // Unused private arrays still owe declaration shape and landing.

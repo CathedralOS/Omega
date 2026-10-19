@@ -10,7 +10,7 @@ pub(crate) fn substitute_resolved_constants(
     program: &mut SymbolResolvedTrees,
     authored: &[crate::resolution::lowerer::PendingAuthoredExpression],
     selections: &mut Vec<crate::resolution::lowerer::PendingConstSelection>,
-    retain_selection_only: bool,
+    mode: crate::resolution::lowerer::ConstResolutionMode,
 ) -> Result<(), Diagnostic> {
     use symbol_resolved_trees::expression::ExpressionNode;
     let declarations = program
@@ -139,9 +139,15 @@ pub(crate) fn substitute_resolved_constants(
                 "resolved constant selection has no retained declaration",
             ));
         };
-        if retain_selection_only {
-            // This private prepass publishes declaration custody, not a value
-            // for typing or execution. Leave the resolved expression intact.
+        let declaration = &program.roots.const_declarations[declaration_ordinal];
+        if mode == crate::resolution::lowerer::ConstResolutionMode::ArgumentSelection
+            || (mode == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
+                && declaration.evaluated_value.is_none())
+        {
+            // Selection-only requests retain every authored root. Initializer
+            // probes additionally consume completed dependencies through this
+            // same ordinary substitution route; an unavailable value remains
+            // selected but cannot supply a provisional value or public identity.
             selections.push(crate::resolution::lowerer::PendingConstSelection {
                 expression: occurrence.expression,
                 source_span: reference,
@@ -150,7 +156,6 @@ pub(crate) fn substitute_resolved_constants(
             });
             continue;
         }
-        let declaration = &program.roots.const_declarations[declaration_ordinal];
         let initializer = declaration.initializer;
         if !program
             .tables

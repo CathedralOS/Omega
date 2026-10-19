@@ -1,0 +1,4 @@
+module values;
+pub const SIZE: u64 = 1 + 0;
+pub const SOURCE: [u64; SIZE] = [3 + 0];
+pub const ALIAS: [u64; SIZE] = SOURCE;

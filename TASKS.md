@@ -5207,14 +5207,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     abstract-carrier constraints over explicit named subjects. Keep alias-owned
     bounds/index tuples
     through `omega-rust/psi/compilation/checking/src/proof_contracts/domains.rs`.
-    Computed payloads cannot establish qualifications. Pending leaf collection
-    still requires completed declared geometry: `const SIZE:u64=1+0; const
-    SOURCE:[u64;SIZE]=[3+0]; const ALIAS:[u64;1]=SOURCE; machine main(){}` stops
-    at `array extent constant is not a completed integer literal` on Linux
-    x86_64. Complete the exact extent dependency before collecting computed
-    leaves in `constant/initializer_leaves.rs`; never observe a provisional
-    layout as an evaluated dependency. Module-owned public arrays with computed
-    extents hit the same earlier fence in `preparation/module_normalization.rs`.
+    Computed payloads cannot establish qualifications.
   - Constant invocations share **CRASH-CONTRACT** / **OPERATOR-MACHINE-SUPPLY**
     premise transport through
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`.
