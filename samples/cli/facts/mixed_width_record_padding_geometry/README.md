@@ -54,6 +54,25 @@ Check all nine invalid twins with:
 omega --check samples/cli/facts/mixed_width_record_padding_geometry/<place>/invalid/main.omg
 ```
 
+### Pinned fixtures
+
+The row is pinned under `tests/omega/pass/facts/mixed_width_record_padding_geometry_through_<place>_exit`
+(nine positives with `expected_native_exit.txt`) and
+`tests/omega/fail/facts/mixed_width_record_padding_geometry_unproved_<place>`
+(nine reject twins with `expected.txt`), where `<place>` is `local`, `field`,
+`parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, or `target_body`. Each pass/twin pair differs only in the
+construct's own input: the twin's `Padded` omits `tag: u8`.
+
+```sh
+python3 tools/corpus_gate.py --native --filter facts/mixed_width_record_padding_geometry
+python3 tools/corpus_gate.py --filter facts/mixed_width_record_padding_geometry
+```
+
+The native leg reports `clean` with 9 `built` rows at `exit:0`; the check leg
+reports `clean` with 9 `checked` and 9 `rejected`, 0 rejected without their
+expected fragment.
+
 ### Acceptance Gate
 
 ```sh
@@ -79,5 +98,62 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omegauild\o
   - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) through companion build declarations without reopening source. The mixed-width structural record layout validates: `tag: u8` (offset 0), internal padding (offsets [1..8]), and `value: u64` (offset 8), totaling size 16 with alignment 8. Target `CallPlan`/`StatePlan` assign arguments and return homes across register lanes, stack slots, or indirect aggregate return homes (`sret`) per platform ABI.
   - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA arithmetic instructions (`sub`, `shl`/`imul` or constant-folded subtraction of 16), register moves, and comparison branches. Low-level register allocators assign register homes and disjoint activation stack-frame slots, and entry prologues and multi-return epilogues honor the `StatePlan` ceiling.
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Target ISA instructions and transition displacements encode into machine bytes, basic blocks and jump targets relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi interpretation and native execution agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
+
+### Measurement: interior padding, not a constant
+
+`size_of`/`align_of` for `Padded { tag, value }` were read back on
+`macos_arm64` through assertions carried into a `crashes Trap` transition; a
+wrong assertion is a runtime trap, so each row is a measurement rather than a
+restated constant.
+
+| record | declared payload | size | align | interior padding |
+| --- | --- | --- | --- | --- |
+| `{tag: u8,  value: u8 }` | 2 | 2 | 1 | 0 |
+| `{tag: u8,  value: u16}` | 3 | 4 | 2 | 1 |
+| `{tag: u8,  value: u32}` | 5 | 8 | 4 | 3 |
+| `{tag: u8,  value: u64}` | 9 | 16 | 8 | 7 |
+| `{tag: u16, value: u32}` | 6 | 8 | 4 | 2 |
+| `{tag: u16, value: u64}` | 10 | 16 | 8 | 6 |
+| `{tag: u32, value: u64}` | 12 | 16 | 8 | 4 |
+| `{tag: u64, value: u64}` | 16 | 16 | 8 | 0 |
+
+The padding is non-monotonic in the declared field widths, which is what
+separates interior padding from a size sum:
+
+- Widening the narrow field `tag` from `u8` to `u16`, `u32`, then `u64` while
+  `value: u64` is held fixed leaves `size` at exactly 16 and `align` at exactly
+  8. The 7 bytes reserved by the `u64` field's alignment-1 absorb the widening
+  at no size cost, so an 8x wider narrow field does not move the record.
+- The naive sum `tag_width + value_width` is falsified:
+  `{tag: u32, value: u64}` asserted at `size == 12` (4 + 8) traps.
+- Narrowing the wide field `u64` to `u32` halves the size (16 to 8) while the
+  padding only falls from 7 to 3, so `size` is not linear in declared widths.
+
+### Falsification control
+
+The recorded `exit 0` is measured, not assumed. Corrupting each record's
+assertion by one byte in either direction traps both engines: for
+`{tag: u8, value: u64}`, asserting `size == 15`, `17`, or `24` yields
+`native signal 5` together with `interp crash: Trap`; only `size == 16`
+exits 0. The same one-byte-off pattern traps for `{u8,u32}` (7 and 9),
+`{u8,u16}` (3 and 5), `{u32,u64}` (15 and 17), and `{u16,u32}` (7 and 9).
+Separately, corrupting the discharged oracle itself (`diff == 99` in place of
+`diff == 0`) traps both engines, so the 0-exit is not a constant.
+
+### Static refusal versus runtime trap
+
+- **Static refusal (no execution).** Each reject twin omits `tag`, so
+  `size_of<Padded>()` is 8 while `align_of<Padded>()` stays 8, and the exact
+  subtraction `size - (align * 2u64)` underflows. Checking fails closed before
+  native realization with
+  `exact arithmetic may overflow under target <target>: bounds [-8, -8] lie outside [0, 18446744073709551615]`.
+  A `{tag: u8}`-only record similarly refuses at `bounds [-1, -1]`.
+- **Runtime trap.** Every wrong geometry assertion above compiles and reaches
+  execution, then traps: `native signal 5` with `interp crash: Trap`. These are
+  runtime disagreements, not static refusals.
+
+- **Obligation class:** layout geometry (target resolution of `size_of`/`align_of`
+  under validated structural padding) carried through checking, Terminal Psi
+  interpretation, and native execution.
 
 - **What remains open:** Dynamic variable-length nested DST structures, tail-padding in packed record layouts, and unaligned field access modes.
