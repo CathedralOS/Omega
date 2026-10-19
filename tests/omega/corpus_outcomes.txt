@@ -857,6 +857,10 @@ fail/capabilities/boundary_qualification_subject_rejected rejected 915ms expecte
 fail/capabilities/callback_synchronous_registration_cycle rejected 2590ms expected @1a353f2e117b+wt
 fail/capabilities/cyclic_synchronous_invocation rejected 894ms expected @1a353f2e117b+wt
 fail/capabilities/effect_ceiling_exceeded rejected 1281ms expected @a9ae30e1c334+wt
+fail/capabilities/native_qualified_slice_external_leaf_rejected rejected 704ms expected @52d766727e1e+wt
+	external leaf `send` cannot use safe slice `&[u8][1 constraint]` as a default-native parameter for `NativeSlice::send`; declare the foreign pointer/length/terminator or record shape explicitly in a checked adapter, or select a custom `Calling<C>` policy that publishes a canonical representation
+fail/capabilities/native_record_slice_external_leaf_rejected rejected 736ms expected @52d766727e1e+wt
+	external leaf `send` cannot use safe slice `&Packet` as a default-native parameter for `NativePacket::send`; declare the foreign pointer/length/terminator or record shape explicitly in a checked adapter, or select a custom `Calling<C>` policy that publishes a canonical representation
 fail/capabilities/native_slice_external_leaf_rejected rejected 292ms expected @e6088bf995e6
 fail/capabilities/provider_widens_requirement_ceiling rejected 4446ms expected @a9ae30e1c334+wt
 fail/capabilities/undeclared_synchronous_invocation rejected 1341ms expected @a9ae30e1c334+wt
@@ -3759,6 +3763,8 @@ fail/providers/module_operator_satisfier_signature_mismatch rejected 1977ms expe
 fail/providers/named_boundary_issuance_ordinary_guarantee rejected 312ms expected @d75fe4ba5012+wt
 fail/providers/named_provider_wrong_requirement_owner rejected 27ms expected @a9ae30e1c334+wt
 fail/providers/named_target_family_sibling_guarantee_rejected rejected 587ms expected @d7fd01f47497+wt
+fail/providers/native_fixed_array_unproved_domain rejected 1954ms expected @52d766727e1e+wt
+	cannot prove requires contract for call read from main: words in [u16; N]::TerminatedWords in state `entry`
 fail/providers/nested_binding_missing_establishment rejected 23947ms expected @a9ae30e1c334+wt
 fail/providers/occurrence_region_binding_conflicting_inputs rejected 42ms expected @619f89e4fed6+wt
 fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms expected @1e469c9b15bb
@@ -7835,6 +7841,7 @@ pass/providers/runtime_provider_reference_deep_exit checked 7654ms check-target:
 pass/providers/runtime_provider_reference_nested_exit checked 7272ms check-target:linux_x86_64 @001fe6f26d2c
 pass/providers/runtime_provider_reference_state_exit checked 7267ms check-target:linux_x86_64 @001fe6f26d2c
 pass/providers/runtime_provider_reference_view_exit checked 7059ms check-target:linux_x86_64 @4aceb3a86756
+pass/providers/runtime_qualified_fixed_array_foreign_exit checked 9919ms check-target:macos_arm64 @52d766727e1e+wt
 pass/providers/runtime_result_domain_requirement_overload_exit checked 9458ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/providers/runtime_transitive_provider_slot_exit checked 6816ms check-target:macos_arm64 @aebe0714a499+wt
 pass/providers/same_name_requirement_dispatch_exit checked 9979ms check-target:macos_arm64 @03d6ab4d9d4c

@@ -9,13 +9,16 @@ use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateSignature;
 use typed_trees::trait_definition::TraitDefinition;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Default native leaves may only expose types whose public shape determines
 /// every ABI fact. A source-selected `Calling<C>` policy is the explicit escape
 /// hatch: its checked plan can publish a canonical descriptor representation.
 /// Without one, private slice/text/vector carriers must stop at a checked
 /// adapter rather than silently inheriting the compiler's storage layout.
+/// Predicate domains do not change that classification: a qualified fixed
+/// array still has its public aggregate shape, and a qualified slice still
+/// lacks a foreign descriptor. Qualification admission remains independent.
 pub(crate) fn validate_external_leaf_native_shapes(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -221,7 +224,6 @@ fn producer_entry_state<'program>(
 #[derive(Debug, Clone, Copy)]
 enum PrivateNativeCarrier {
     Slice,
-    Text,
     Vector,
 }
 
@@ -229,7 +231,6 @@ impl PrivateNativeCarrier {
     const fn label(self) -> &'static str {
         match self {
             Self::Slice => "safe slice",
-            Self::Text => "text view or bounded-text carrier",
             Self::Vector => "vector carrier",
         }
     }
@@ -241,19 +242,7 @@ fn private_native_carrier(
     visiting: &mut Vec<SymbolHandle>,
 ) -> Option<PrivateNativeCarrier> {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            if program
-                .type_reference_table
-                .constraints(*constraints)
-                .iter()
-                .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)))
-                && carrier_is_slice_or_fixed_array(program, *base_type)
-            {
-                return Some(PrivateNativeCarrier::Text);
-            }
+        TypeReferenceNode::Constrained { base_type, .. } => {
             private_native_carrier(program, *base_type, visiting)
         }
         TypeReferenceNode::Reference { referee, .. } => {
@@ -306,20 +295,6 @@ fn private_record_carrier(
     });
     visiting.pop();
     carrier
-}
-
-fn carrier_is_slice_or_fixed_array(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } => carrier_is_slice_or_fixed_array(program, *referee),
-        TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. } => true,
-        _ => false,
-    }
 }
 
 fn native_carrier_diagnostic(
