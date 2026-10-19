@@ -1,0 +1,62 @@
+// Fact: a 6-level nested structural record RootRec { l1: Level1 { l2: Level2 { l3: Level3 { l4: Level4 { l5: Level5 { val: u64 } } } } } } preserves the leaf field bound 40u64 <= root.l1.l2.l3.l4.l5.val <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
+// Place: const name. Named constants supply the leaf value of a 6-level nested record before projection and interval discharge.
+// Expected exit: 0
+
+data Level5 [copy] {
+    val: u64;
+}
+
+data Level4 [copy] {
+    l5: Level5;
+}
+
+data Level3 [copy] {
+    l4: Level4;
+}
+
+data Level2 [copy] {
+    l3: Level3;
+}
+
+data Level1 [copy] {
+    l2: Level2;
+}
+
+data RootRec [copy] {
+    l1: Level1;
+}
+
+const VAL_LEAF: u64 = 60u64;
+
+machine check_const() -> u64 {
+    let root: RootRec = RootRec {
+        l1: Level1 {
+            l2: Level2 {
+                l3: Level3 {
+                    l4: Level4 {
+                        l5: Level5 {
+                            val: VAL_LEAF,
+                        },
+                    },
+                },
+            },
+        },
+    };
+    let res: u64 = root.l1.l2.l3.l4.l5.val;
+    let headroom: u64 = 80u64 - res;
+    let margin: u64 = res - 40u64;
+    headroom + margin
+}
+
+machine probe() -> u64 {
+    check_const()
+}
+
+machine main() crashes Trap {
+    transition probe() == 40 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
