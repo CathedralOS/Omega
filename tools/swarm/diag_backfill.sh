@@ -24,7 +24,7 @@ fi
 [ $# -ge 1 ] || { echo "usage: $0 <fact> [more facts...] | --list" >&2; exit 2; }
 
 lost() {
-  python3 - "$1" <<'PY'
+  python3 - <<'PY'
 import subprocess, sys, pathlib
 f = 'tests/omega/corpus_outcomes.txt'
 t = subprocess.run(['git','show',f'origin/main:{f}'],capture_output=True,text=True).stdout
@@ -59,7 +59,10 @@ for fact in "$@"; do
     continue
   fi
   after=$(lost)
-  timeouts=$(grep -c 'timeout' tests/omega/corpus_outcomes.txt 2>/dev/null || echo 0)
+  # grep -c exits 1 when it matches nothing, so `|| echo 0` appended a SECOND
+  # value and made this "0\n0", which then failed the string comparison below and
+  # reverted a perfectly good record. Count with awk instead, which exits 0.
+  timeouts=$(awk '/timeout/{n++} END{print n+0}' tests/omega/corpus_outcomes.txt)
   echo "   post-record LOST=$after timeouts=$timeouts"
   if [ "$after" != "0" ] || [ "$timeouts" != "0" ]; then
     echo "   REVERTING: record lost rows or wrote timeout rows"
