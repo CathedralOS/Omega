@@ -1,0 +1,82 @@
+# Narrow to Wide Signed 16-to-32 Extension
+
+Fact: sign-extending a bounded 16-bit signed i16 value (narrow >= 300i16 && narrow <= 500i16) to i32 (narrow as i32) preserves the exact interval (wide >= 300i32 && wide <= 500i32), discharging exact 32-bit signed subtractions 500i32 - wide and wide - 300i32 across all nine places.
+
+Owning Task: `NARROW-WIDE-SIGNED-16TO32`
+Specification Reference: [Numeric values](wiki/spec/language/numeric_values.md), [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md), and [Instruction selection](wiki/spec/resources/storage.md)
+
+This fact row demonstrates that sign-extending a bounded 16-bit signed `i16` value (`narrow >= 300i16 && narrow <= 500i16`) to `i32` (`narrow as i32`) preserves the exact interval (`wide >= 300i32 && wide <= 500i32`) across all nine standard places. The compiler statically derives that sign-extension preserves interval bounds on signed types, verifying that `wide` falls strictly within `[300, 500]`, which directly discharges exact downstream 32-bit signed subtractions `500i32 - wide` and `wide - 300i32` and downstream contract `requires wide >= 300i32 && wide <= 500i32` of `verify_wide` without underflow, overflow, or runtime guard checks across both Terminal Psi and native targets.
+
+Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
+
+## Places
+
+| Place | Project | Transport | Positive Witness | Reject Twin |
+| --- | --- | --- | --- | --- |
+| root | `.` | canonical root witness sign-extending bounded i16 local into i32 and discharging exact 32-bit subtractions | [`main.omg`](main.omg) | - |
+| local | `local/` | the bounded i16 is sign-extended to an i32 local variable before discharging subtraction | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
+| field | `field/` | the bounded i16 is wrapped in a NarrowCarrier record field before extraction and extension to i32 | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
+| parameter | `parameter/` | a helper machine receives the sign-extended i32 scalar as an explicit parameter under contract | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
+| call result | `call_result/` | a producer machine returns the sign-extended i32 scalar under postcondition ensures result >= 300i32 && result <= 500i32 | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
+| match join | `match_join/` | both branches of a boolean match expression yield the sign-extended i32 scalar before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
+| const name | `const_name/` | a named constant BASE_NARROW defines the bounded i16 operand before sign-extension | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
+| another state | `other_state/` | an internal state transition transfers the sign-extended i32 scalar to a successor state with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
+| another machine | `other_machine/` | an associated Relay machine sign-extends and forwards the i32 scalar to the caller under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
+| another target body | `target_body/` | each of the four hosted target bodies sign-extends the i16 scalar and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+
+## Execution
+
+Run each positive place with `omega run --both`:
+
+```sh
+omega run --both samples/cli/facts/narrow_to_wide_signed_16to32_extension/main.omg
+omega run --both samples/cli/facts/narrow_to_wide_signed_16to32_extension/local/main.omg
+omega run --both samples/cli/facts/narrow_to_wide_signed_16to32_extension/field/main.omg
+omega run --both samples/cli/facts/narrow_to_wide_signed_16to32_extension/parameter/main.omg
+omega run --both samples/cli/facts/narrow_to_wide_signed_16to32_extension/call_result/main.omg
+omega run --both samples/cli/facts/narrow_to_wide_signed_16to32_extension/match_join/main.omg
+omega run --both samples/cli/facts/narrow_to_wide_signed_16to32_extension/const_name/main.omg
+omega run --both samples/cli/facts/narrow_to_wide_signed_16to32_extension/other_state/main.omg
+omega run --both samples/cli/facts/narrow_to_wide_signed_16to32_extension/other_machine/main.omg
+omega run --both samples/cli/facts/narrow_to_wide_signed_16to32_extension/target_body/main.omg
+```
+
+All 10 samples report `native exit 0` and `interp exit: 0`.
+
+Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the narrow bound is widened to `501i16` (`501i32`), failing to discharge `requires wide >= 300i32 && wide <= 500i32`. Check each twin with:
+
+```sh
+omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/local/invalid/main.omg
+omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/field/invalid/main.omg
+omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/parameter/invalid/main.omg
+omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/call_result/invalid/main.omg
+omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/match_join/invalid/main.omg
+omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/const_name/invalid/main.omg
+omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/other_state/invalid/main.omg
+omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/other_machine/invalid/main.omg
+omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/target_body/invalid/main.omg
+```
+
+Every reject twin fails closed with:
+`error: cannot prove requires contract for call verify_wide from ...: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard)`
+
+## Requirements and Evidence
+
+- **Parent outcome:** `NARROW-WIDE-SIGNED-16TO32` (`TASKS.md`).
+- **Requirement established:** End-to-end nine-place fact preservation for narrow-to-wide signed 16-bit to 32-bit sign extension (`narrow as i32`) preserving the exact interval (`wide >= 300i32 && wide <= 500i32`), discharging exact 32-bit signed subtractions `500i32 - wide` and `wide - 300i32` and downstream contract `requires wide >= 300i32 && wide <= 500i32` across all nine language transport places with differential agreement between Terminal Psi and native execution across hosted targets.
+- **Authority:** [Numeric values](wiki/spec/language/numeric_values.md#narrow-to-wide-signzero-extension), [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md), and [Control flow](wiki/spec/terminal-psi/control_flow.md).
+
+Full 8-layer specification and lowering evidence:
+
+- **Establishment:** Sign-extending bounded 16-bit signed integer `narrow in [300, 500]` to `i32` via `narrow as i32` provably preserves the exact signed interval `[300, 500]` on the 32-bit destination. Exact subtractions `500i32 - wide` and `wide - 300i32` evaluate without underflow or overflow. The Omega arithmetic solver derives this exact range certificate directly from the sign-extension operation, verifying that `wide` satisfies `verify_wide(wide)` requires contract `wide >= 300i32 && wide <= 500i32` without requiring manual runtime assertions or post-hoc caller equality guards (`transition x == 100`).
+- **Identity and lifetime:** The sign-extended scalar transitions from a 2-byte stored width representation (`i16`) to a 4-byte stored width representation (`i32`) with sign-extended high bits, maintaining 32-bit signed integer value identity across expression evaluations, local variable assignments, parameter passing, and state transitions without loss of sign or magnitude.
+- **Composition:** Signed extension bound preservation composes through all 9 standard places: local variable assignment (`local`), struct field wrapping (`field`), machine parameter passing (`parameter`), function call return value postcondition (`call_result`), match branch convergence join (`match_join`), named constant operand binding (`const_name`), state transition arrival (`other_state`), forwarding machine delegation (`other_machine`), and target-scoped body candidates (`target_body`). Each `<place>/invalid/main.omg` differs solely in widening the upper bound to `501i16` (`501i32`), causing `verify_wide` to fail closed.
+- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `cannot prove requires contract for call verify_wide` because `501i32` violates the contract upper bound `wide <= 500i32`. The compiler soundly refuses any program where sign-extended bounds cannot guarantee arrival contracts.
+- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Signed extension cast expressions (`as i32`) and integer range certificates lower cleanly into canonical Terminal Psi (`PSITERM\0`). The narrow range `[300, 500]` is preserved in the Terminal Psi integer certificate through intermediate optimization passes, and the Terminal Psi interpreter agrees with native execution on exit code 0 (`omega run --both`).
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout planning evaluates `size_of<i16>() == 2`, `align_of<i16>() == 2`, `size_of<i32>() == 4`, `align_of<i32>() == 4`, and `size_of<NarrowCarrier>() == 2`. In `CallPlan` and `StatePlan`, 16-bit values pass in 16-bit register/stack lanes and widen to 32-bit general-purpose registers (`ecx`/`edi`/`w0`).
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects signed sign-extending instructions: `movsx r32, r/m16` on x86_64 and signed halfword extension (`sxth w, w`) on arm64 architectures. Exact subtraction selects 32-bit `sub`. Disjoint activation frames allocate standard stack slots, honoring worst-case stack usage (WCSU) and bounded activation claims (`committed <= bound`).
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi (`omega run --both`).
+
+## What remains open
+
+Signed 32-to-64 sign extension (`i32 as i64`), signed 8-to-16 extension (`i8 as i16`), narrow-to-wide floating point conversions, and SIMD vector widening remain governed under the wider numeric value roadmap.
