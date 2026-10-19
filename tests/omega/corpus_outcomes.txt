@@ -1920,16 +1920,30 @@ fail/facts/indexed_element_mut_loan_through_other_machine_held rejected 1191ms e
 fail/facts/indexed_element_mut_loan_through_other_state_held rejected 1157ms expected @dee77250b5b9
 fail/facts/indexed_element_mut_loan_through_parameter_held rejected 1179ms expected @dee77250b5b9
 fail/facts/indexed_element_mut_loan_through_target_body_held rejected 1232ms expected @dee77250b5b9
-fail/facts/indexed_storage_address_identity_missing_bound rejected 7244ms expected @78d7769c4441
-fail/facts/indexed_storage_address_identity_through_call_result_held_element rejected 5231ms expected @78d7769c4441
-fail/facts/indexed_storage_address_identity_through_const_name_held_element rejected 6192ms expected @78d7769c4441
-fail/facts/indexed_storage_address_identity_through_field_held_element rejected 7502ms expected @78d7769c4441
-fail/facts/indexed_storage_address_identity_through_local_held_element rejected 6725ms expected @78d7769c4441
-fail/facts/indexed_storage_address_identity_through_match_join_held_element rejected 5318ms expected @78d7769c4441
-fail/facts/indexed_storage_address_identity_through_other_machine_held_element rejected 8557ms expected @78d7769c4441
-fail/facts/indexed_storage_address_identity_through_other_state_held_element rejected 8504ms expected @78d7769c4441
-fail/facts/indexed_storage_address_identity_through_parameter_held_element rejected 5085ms expected @78d7769c4441
-fail/facts/indexed_storage_address_identity_through_target_body_held_element rejected 5311ms expected @78d7769c4441
+fail/facts/indexed_storage_address_identity_missing_bound rejected 2444ms expected @69725a85bb43+wt
+	cannot prove index `index` is within length 2 in probe::entry
+	cannot prove index `index` is within length 2 in probe::entry
+fail/facts/indexed_storage_address_identity_through_call_result_held_element rejected 2447ms expected @69725a85bb43+wt
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/indexed_storage_address_identity_through_const_name_held_element rejected 3450ms expected @69725a85bb43+wt
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/indexed_storage_address_identity_through_field_held_element rejected 3526ms expected @69725a85bb43+wt
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/indexed_storage_address_identity_through_local_held_element rejected 3461ms expected @69725a85bb43+wt
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/indexed_storage_address_identity_through_match_join_held_element rejected 2456ms expected @69725a85bb43+wt
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/facts/indexed_storage_address_identity_through_other_machine_held_element rejected 2428ms expected @69725a85bb43+wt
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/indexed_storage_address_identity_through_other_state_held_element rejected 2445ms expected @69725a85bb43+wt
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/indexed_storage_address_identity_through_parameter_held_element rejected 2461ms expected @69725a85bb43+wt
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
+fail/facts/indexed_storage_address_identity_through_target_body_held_element rejected 2526ms expected @69725a85bb43+wt
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/integer_range_delivery_through_call_result_missing_bound rejected 9302ms expected @a9b427ff556a
 fail/facts/integer_range_delivery_through_const_name_missing_bound rejected 4734ms expected @a9b427ff556a
 fail/facts/integer_range_delivery_through_field_missing_bound rejected 4691ms expected @a9b427ff556a
@@ -5898,15 +5912,15 @@ pass/facts/indexed_element_mut_loan_through_other_machine_exit checked 7395ms ch
 pass/facts/indexed_element_mut_loan_through_other_state_exit checked 7286ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_parameter_exit checked 7060ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_target_body_exit checked 7074ms check-target:macos_arm64 @dee77250b5b9
-pass/facts/indexed_storage_address_identity_through_call_result_exit checked 11133ms check-target:linux_x86_64 @78d7769c4441
-pass/facts/indexed_storage_address_identity_through_const_name_exit checked 11286ms check-target:linux_x86_64 @78d7769c4441
-pass/facts/indexed_storage_address_identity_through_field_exit checked 11715ms check-target:linux_x86_64 @78d7769c4441
-pass/facts/indexed_storage_address_identity_through_local_exit checked 10974ms check-target:linux_x86_64 @78d7769c4441
-pass/facts/indexed_storage_address_identity_through_match_join_exit checked 10903ms check-target:linux_x86_64 @78d7769c4441
-pass/facts/indexed_storage_address_identity_through_other_machine_exit checked 11706ms check-target:linux_x86_64 @78d7769c4441
-pass/facts/indexed_storage_address_identity_through_other_state_exit checked 10395ms check-target:linux_x86_64 @78d7769c4441
-pass/facts/indexed_storage_address_identity_through_parameter_exit checked 10324ms check-target:linux_x86_64 @78d7769c4441
-pass/facts/indexed_storage_address_identity_through_target_body_exit checked 23308ms check-target:linux_x86_64 @78d7769c4441
+pass/facts/indexed_storage_address_identity_through_call_result_exit checked 6365ms check-target:macos_arm64 @69725a85bb43+wt
+pass/facts/indexed_storage_address_identity_through_const_name_exit checked 5314ms check-target:macos_arm64 @69725a85bb43+wt
+pass/facts/indexed_storage_address_identity_through_field_exit checked 6371ms check-target:macos_arm64 @69725a85bb43+wt
+pass/facts/indexed_storage_address_identity_through_local_exit checked 6390ms check-target:macos_arm64 @69725a85bb43+wt
+pass/facts/indexed_storage_address_identity_through_match_join_exit checked 5333ms check-target:macos_arm64 @69725a85bb43+wt
+pass/facts/indexed_storage_address_identity_through_other_machine_exit checked 6369ms check-target:macos_arm64 @69725a85bb43+wt
+pass/facts/indexed_storage_address_identity_through_other_state_exit checked 6323ms check-target:macos_arm64 @69725a85bb43+wt
+pass/facts/indexed_storage_address_identity_through_parameter_exit checked 6351ms check-target:macos_arm64 @69725a85bb43+wt
+pass/facts/indexed_storage_address_identity_through_target_body_exit checked 6531ms check-target:macos_arm64 @69725a85bb43+wt
 pass/facts/integer_range_delivery_through_call_result_exit checked 15483ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_const_name_exit checked 15480ms check-target:macos_arm64 @a9b427ff556a
 pass/facts/integer_range_delivery_through_field_exit checked 11071ms check-target:macos_arm64 @a9b427ff556a
