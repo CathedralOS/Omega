@@ -3,10 +3,13 @@
 use language_semantics::PermissionProvenance;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
-/// Calls, records and arrays retain a common existing operand origin. Operands
+/// Records and arrays retain a common existing operand origin. Operands
 /// without an origin do not contribute; differing origins yield no common one.
 /// The caller resolves live places and decides how a missing origin establishes
 /// a new value. Invalid expression spans and cycles remain errors.
+/// Calls belong to that resolver: their arguments do not establish result
+/// correspondence. In particular an observation of a borrowed owner returns
+/// an independent value, not the argument's owned claim.
 pub fn expression_permission_provenance(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
@@ -51,9 +54,7 @@ fn expression_origin(
     }
     if !matches!(
         node,
-        ExpressionNode::Call(_)
-            | ExpressionNode::StructLiteral(_)
-            | ExpressionNode::ArrayLiteral(_)
+        ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
     ) {
         return resolve_place(expression);
     }
@@ -70,18 +71,6 @@ fn expression_origin(
         Ok(())
     };
     match node {
-        ExpressionNode::Call(call) => {
-            if call.receiver.is_valid() && !static_namespace_receiver(program, call)? {
-                retain(call.receiver)?;
-            }
-            let arguments = program.expression_table.expression_handles(call.arguments);
-            if arguments.len() != call.arguments.len() {
-                return Err("permission provenance call arguments are stale");
-            }
-            for argument in arguments {
-                retain(*argument)?;
-            }
-        }
         ExpressionNode::StructLiteral(literal) => {
             let fields = program.expression_table.struct_fields(literal.fields);
             if fields.len() != literal.fields.len() {
@@ -104,50 +93,4 @@ fn expression_origin(
     }
     active.pop();
     Ok(if different { None } else { common })
-}
-
-fn static_namespace_receiver(
-    program: &dyn crate::CheckingInput,
-    call: &typed_trees::expression::TableCallExpression,
-) -> Result<bool, &'static str> {
-    if !program.expression_table.expression_is_valid(call.receiver) {
-        return Err("permission provenance has a stale call receiver");
-    }
-    let Some(receiver) = program.expression_table.name_path_node(call.receiver) else {
-        return Ok(false);
-    };
-    if !receiver.symbol.is_valid()
-        || program.symbols.get(receiver.symbol).kind != symbols::SymbolKind::Data
-    {
-        return Ok(false);
-    }
-    // A static attachment such as Region::new is a namespace, not a live
-    // operand. Omit it for its exact selected state; arbitrary unresolved
-    // names and value receivers still belong to the place resolver. A
-    // self-taking state spelled through its data namespace, such as
-    // Receipt::forward(issued), keeps the namespace a non-operand while the
-    // explicit self argument supplies the common origin.
-    if program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.symbol == receiver.symbol)
-        .count()
-        != 1
-    {
-        return Err("permission provenance namespace has no unique declaration");
-    }
-    let mut targets = program.machines().iter().flat_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .filter(move |state| state.symbol == call.target_symbol)
-            .map(move |state| (machine, state))
-    });
-    let Some((machine, _state)) = targets.next() else {
-        return Err("permission provenance namespace has no selected state");
-    };
-    if targets.next().is_some() || machine.attached_data_symbol != receiver.symbol {
-        return Err("permission provenance namespace differs from its selected state");
-    }
-    Ok(true)
 }

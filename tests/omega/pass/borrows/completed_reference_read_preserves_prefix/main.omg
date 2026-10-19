@@ -1,5 +1,11 @@
 // Expected exit: 0. Executed field reads preserve independent arrival facts.
 data Cell { value: u64; flag: bool; }
+data Summary { value: u64; }
+
+machine summarize(cell: &Cell) -> Summary ensures result.value == 42 {
+    Summary { value: 42 }
+}
+machine require_answer(value: u64) -> u64 requires value == 42 { value }
 
 machine pick(cells: &[Cell; 2], second: bool) -> &Cell {
     transition second {
@@ -30,7 +36,12 @@ requires addr::Bound == 18446744073709551616
     ];
     let first: u64 = inspect(&cells, false, 0);
     let second: u64 = inspect(&cells, true, 1);
-    transition first == 0 && second == 42 { true -> done() false -> wrong() }
+    let summary: Summary = summarize(&cells[1]);
+    let answer: u64 = require_answer(summary.value);
+    transition first == 0 && second == 42 && answer == 42 {
+        true -> done()
+        false -> wrong()
+    }
     state done() {}
     state wrong() { crash Trap; }
 }

@@ -1390,34 +1390,59 @@ pub(crate) fn validate_call_claim_joins(
             })
         })
         .collect::<Option<Vec<_>>>();
-    let valid = recorded.as_ref() == Some(&expected)
-        && events.iter().all(|event| {
-            if matches!(
-                event.provenance,
-                PermissionProvenance::Joined {
-                    source: PermissionEventSource::Statement { .. },
-                    ..
-                }
-            ) {
-                super::super::owned_selection::selection_claim_origin(
-                    ownership,
-                    event.claim_identity,
-                    event.provenance,
-                )
-            } else if matches!(event.provenance, PermissionProvenance::Joined { .. }) {
-                expected.iter().any(|receipt| {
-                    receipt.identity == event.claim_identity
-                        && join_provenance(receipt) == Some(event.provenance)
-                })
-            } else {
-                !expected
-                    .iter()
-                    .any(|receipt| receipt.identity == event.claim_identity)
+    if recorded.as_ref() != Some(&expected) {
+        let detail = if let Some(recorded) = &recorded {
+            (0..recorded.len().max(expected.len()))
+                .find(|&position| recorded.get(position) != expected.get(position))
+                .and_then(|position| expected.get(position).or_else(|| recorded.get(position)))
+                .map(|receipt| format!(
+                    "in machine `{}` state `{}` statement {} call {} to `{}`: result receipt differs",
+                    program.symbols.name(receipt.machine),
+                    program.symbols.name(receipt.state),
+                    receipt.statement,
+                    receipt.ordinal,
+                    program.symbols.name(receipt.target),
+                ))
+                .unwrap_or_else(|| "receipt roster differs".to_owned())
+        } else {
+            "stored receipt contains an invalid source or span".to_owned()
+        };
+        diagnostics.push(Diagnostic::error(format!(
+            "call claim joins differ from exact source exit and call replay: {detail}"
+        )));
+    }
+    let invalid_event = events.iter().find(|event| {
+        let valid = if matches!(
+            event.provenance,
+            PermissionProvenance::Joined {
+                source: PermissionEventSource::Statement { .. },
+                ..
             }
-        });
-    if !valid {
-        diagnostics.push(Diagnostic::error(
-            "call claim joins differ from exact source exit and call replay",
-        ));
+        ) {
+            super::super::owned_selection::selection_claim_origin(
+                ownership,
+                event.claim_identity,
+                event.provenance,
+            )
+        } else if matches!(event.provenance, PermissionProvenance::Joined { .. }) {
+            expected.iter().any(|receipt| {
+                receipt.identity == event.claim_identity
+                    && join_provenance(receipt) == Some(event.provenance)
+            })
+        } else {
+            !expected
+                .iter()
+                .any(|receipt| receipt.identity == event.claim_identity)
+        };
+        !valid
+    });
+    if let Some(event) = invalid_event {
+        diagnostics.push(Diagnostic::error(format!(
+            "call claim joins differ from exact source exit and call replay in machine `{}` state `{}` at {:?}: {:?} has no matching claim origin",
+            program.symbols.name(event.machine_symbol),
+            program.symbols.name(event.state_symbol),
+            event.source,
+            event.kind,
+        )));
     }
 }

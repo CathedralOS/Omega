@@ -355,6 +355,8 @@ fail/borrows/case_payload_shared_clone_mutation rejected 830ms expected @a9ae30e
 fail/borrows/case_reference_from_immutable_bytes rejected 1037ms expected @a9ae30e1c334+wt
 fail/borrows/case_reference_through_shared_container rejected 790ms expected @a9ae30e1c334+wt
 fail/borrows/clock_out_parameter_mutable_from_shared rejected 3759ms expected @a9ae30e1c334+wt
+fail/borrows/completed_reference_read_cannot_invent_contents rejected 1885ms expected @4f0af8695cfb+wt
+	cannot prove requires contract for call finish from inspect: addr::Bound == 18446744073709551616 && retry <= 1 && selected.value == 42 (needs fact `addr::Bound == 18446744073709551616 && retry <= 1 && value == 42` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/completed_selector_boolean_result_wrong_value rejected 2556ms expected @89bb9e0009e9
 fail/borrows/completed_selector_join_out_of_range_destination rejected 530ms expected @89bb9e0009e9
 fail/borrows/completed_selector_join_requires_all_arms rejected 1669ms expected @89bb9e0009e9
@@ -4543,6 +4545,8 @@ fail/providers/authored_same_stack_without_via rejected 1ms @fa0a8b1267bb+wt
 fail/providers/authored_same_stack_zero rejected 0ms @fa0a8b1267bb+wt
 fail/providers/binding_formal_runtime_operand rejected 243ms expected @a8cedb3946d5+wt
 fail/providers/borrowed_binding_local_fabricated_carrier rejected 123ms expected @619f89e4fed6+wt
+fail/providers/borrowed_claim_report_does_not_discharge_owner rejected 2025ms expected @4f0af8695cfb+wt
+	linear value `token` reaches scope exit without being consumed or transferred
 fail/providers/borrowed_membership_current_subject rejected 686ms expected @d75fe4ba5012+wt
 fail/providers/boundary_address_model_mismatch rejected 683ms expected @d75fe4ba5012+wt
 fail/providers/boundary_issuance_refuted_completed_value rejected 688ms expected @d75fe4ba5012+wt
@@ -5453,6 +5457,7 @@ pass/borrows/carry_property_declared checked 9707ms @5041ef1af684+wt
 pass/borrows/case_payload_shared_transition_exit checked 11172ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/case_payload_state_loan_exit checked 10970ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/collection_element_loans_exit checked 5787ms check-target:macos_arm64 @d840c6ae9019+wt
+pass/borrows/completed_reference_read_preserves_prefix checked 12493ms check-target:macos_arm64 @4f0af8695cfb+wt
 pass/borrows/completed_selector_join_pattern_effect_exit checked 13025ms check-target:macos_arm64 @89bb9e0009e9
 pass/borrows/completed_selector_value_composition_exit checked 13787ms check-target:macos_arm64 @89bb9e0009e9
 pass/borrows/conditional_copied_slot_restores_parent_exit checked 3687ms check-target:macos_arm64 @3ea0aec65b44+wt
@@ -8798,6 +8803,7 @@ pass/providers/bare_byte_array_boundary_argument checked 8204ms check-target:mac
 pass/providers/binding_formal_type_const_operands checked 477ms @a8cedb3946d5+wt
 pass/providers/binding_param_capability checked 9419ms @5041ef1af684+wt
 pass/providers/binding_where_record checked 9340ms @5041ef1af684+wt
+pass/providers/borrowed_claim_observation_returns_independent_owner checked 12902ms check-target:macos_arm64 @4f0af8695cfb+wt
 pass/providers/borrowed_service_field_forward_exit checked 11616ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/boundary_array_snapshot checked 9467ms @5041ef1af684+wt
 pass/providers/boundary_declaration_structural_result_return_exit checked 11322ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8943,6 +8949,7 @@ pass/recast/callee_returned_interior_view_exit checked 6450ms check-target:macos
 pass/recast/callee_returned_mutable_view_exit checked 6274ms check-target:macos_arm64 @22286cb27fcc
 pass/recast/callee_returned_scalar_interpretation_exit checked 5356ms check-target:macos_arm64 @22286cb27fcc
 pass/recast/case_payload_member_view_compile checked 1795ms @a9ae30e1c334+wt
+pass/recast/completed_view_preserves_independent_facts checked 12497ms check-target:macos_arm64 @4f0af8695cfb+wt
 pass/recast/element_bits_view_compile checked 1534ms @a9ae30e1c334+wt
 pass/recast/float32_bits_view_compile checked 1668ms @a9ae30e1c334+wt
 pass/recast/float32_signed_bits_view_compile checked 1590ms @a9ae30e1c334+wt

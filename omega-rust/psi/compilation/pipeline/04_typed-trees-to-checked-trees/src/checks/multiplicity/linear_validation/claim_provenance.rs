@@ -313,32 +313,11 @@ fn expression_permission_claim_identity_for_claim(
 ) -> Option<PermissionClaimIdentity> {
     if relative_path.is_empty() {
         match program.expression_table.expression(expression) {
-            typed_trees::expression::ExpressionNode::Call(call) => {
-                // A checked result is a distinct occurrence until its exact
-                // return map proves forwarding. One owned argument does not
-                // prove that a conditional callee returns that argument.
-                if program.state_by_symbol(call.target_symbol).is_some() {
-                    return None;
-                }
-                let mut candidates = Vec::new();
-                if call.receiver.is_valid() {
-                    candidates.push(call.receiver);
-                }
-                candidates
-                    .extend_from_slice(program.expression_table.expression_handles(call.arguments));
-                return common_permission_claim_identity(candidates.into_iter().filter_map(
-                    |candidate| {
-                        expression_permission_claim_identity_for_claim(
-                            program,
-                            state_symbol,
-                            statement_index,
-                            candidate,
-                            &[],
-                            places,
-                        )
-                    },
-                ));
-            }
+            // Every call result is its own occurrence until an exact result
+            // correspondence proves forwarding. A boundary/signature call
+            // does not inherit a borrowed argument's owned claim merely
+            // because that argument has the only known origin.
+            typed_trees::expression::ExpressionNode::Call(_) => return None,
             typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
                 return common_permission_claim_identity(
                     program
@@ -400,17 +379,13 @@ fn expression_permission_provenance_for_claim(
     relative_path: &[facts::PlaceSegment],
     places: &[LinearPlace],
 ) -> Option<PermissionProvenance> {
-    if let typed_trees::expression::ExpressionNode::Call(call) =
-        program.expression_table.expression(expression)
-        && program.state_by_symbol(call.target_symbol).is_some()
-    {
+    if program.expression_table.call_node(expression).is_some() {
         return None;
     }
     if relative_path.is_empty()
         && matches!(
             program.expression_table.expression(expression),
-            typed_trees::expression::ExpressionNode::Call(_)
-                | typed_trees::expression::ExpressionNode::StructLiteral(_)
+            typed_trees::expression::ExpressionNode::StructLiteral(_)
                 | typed_trees::expression::ExpressionNode::ArrayLiteral(_)
         )
     {
