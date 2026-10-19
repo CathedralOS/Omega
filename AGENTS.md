@@ -241,26 +241,64 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
 - **Soundness boundaries:** proof preserves ownership, access authority and
   termination obligations, tracks transitive assumptions, and respects the
   boundary between erased mathematics and executable values.
-- **Terminal Psi and carrier lowering:** source constructs lower without loss into
-  Terminal Psi and target-neutral operations, preserving scalar/structural/unit
-  result forms, explicit `dyn` selector vs. data lanes, borrow/write-frame
-  custody, strongly connected control/ranking edges, and exact cleanup order
-  ([calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md),
+- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** source constructs lower
+  without loss into canonical target-neutral Terminal Psi (`PSITERM\0`) and
+  execute in the Terminal Psi interpreter (`omega run --both`), erasing
+  mathematical/proof-only bindings while preserving erased proof-formal tag lanes
+  (`proof-term-tags`), materializing explicit affine cleanup actions
+  (`DiscardRoot`, `DiscardResidual`, `InvokeNominal`, `RetireHome`) and
+  borrowed-storage restoration windows (`reborrow restored call uses`), lowering
+  state transitions, crash routes, and strongly connected ranking/scalar-block-invariant
+  edges, separating explicit `dyn` selector vs. data lanes, and retaining
+  boundary-application demands, integer arithmetic modes/certificates, and
+  checked target-scoped body candidates
+  ([product](wiki/spec/terminal-psi/product.md),
+  [encoding](wiki/spec/terminal-psi/encoding.md),
+  [calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md),
   [control flow](wiki/spec/terminal-psi/control_flow.md),
   [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md),
+  [ownership](wiki/spec/terminal-psi/ownership.md),
+  [loans](wiki/spec/terminal-psi/loans.md),
+  [boundary calls](wiki/spec/terminal-psi/boundary_calls.md),
+  [integer certificates](wiki/spec/terminal-psi/integer_certificates.md)).
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
+  target realization joins Build companion rows (`ProgramEntry`, `ProviderPlan`,
+  `CompilerBuiltinExecution`, `BoundaryExecutionBinding`, assumed binding
+  contracts, and target-scoped body selection) to the Terminal catalog without
+  reopening source, evaluates and validates target layout plans (`size_of`/`align_of`,
+  field/bit offsets, variant tags/payloads, `IntegerAt` stored widths,
+  element/byte view descriptors, and erased zero-byte carriers), and lowers
+  calls, returns, and boundary entries into validated
+  `CallPlan`/`StatePlan`/`BoundaryEntryPlan` placements across register vs.
+  stack lanes, indirect `sret` aggregate return homes, and `&write` write-only
+  destination pointers ([provider selection](wiki/spec/build/provider_selection.md),
+  [layout plans](wiki/spec/layouts/plans.md),
+  [calling plans](wiki/spec/build/calling_plans.md),
   [byte views](wiki/spec/terminal-psi/byte_views.md)).
-- **Native realization, frame/layout encoding, and image emission:** target
-  instruction selection, register home assignment and spill/callee-saved
-  preservation, indirect aggregate return homes (`sret`), symbolic frame-address
-  resolution, function-relative block layout and branch relaxation, entry
-  prologue and multi-return epilogue insertion with branch offset reflow,
-  immutable dispatch-table and read-only byte-pool relocations, and direct
-  PE/ELF/Mach-O image emission execute and agree with Terminal Psi
-  (`omega run --both`) across the four hosted targets
-  ([calling plans](wiki/spec/build/calling_plans.md),
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):**
+  backend lowering selects target ISA instructions (`x86_64` / `arm64`,
+  exact/wrapping/saturating integer ops, narrow-to-wide sign/zero extension,
+  shift masks, signed/unsigned division and remainder, IEEE float comparisons,
+  and checked `asm`), assigns register homes and disjoint stack-frame activation
+  storage with live-across-call spill slots, composes worst-case stack usage
+  (WCSU) and bounded activation claims (`committed <= bound`), and inserts entry
+  prologues and multi-return callee-saved restoration epilogues honoring the
+  `StatePlan` ceiling ([storage](wiki/spec/resources/storage.md),
+  [activation storage](wiki/spec/resources/activation_storage.md),
   [machine-state evidence](wiki/spec/build/machine_state_evidence.md),
-  [storage](wiki/spec/resources/storage.md),
-  [layout plans](wiki/spec/layouts/plans.md)).
+  [checked assembly](wiki/spec/language/assembly.md)).
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):**
+  final encoding resolves symbolic stack-frame displacements, lays out
+  function-relative basic blocks with short/near branch relaxation and offset
+  reflow after prologue/epilogue insertion, binds read-only byte-pool, `dyn`
+  dispatch-table, import, and private-callback relocations (`physical children`),
+  validates final instruction bytes and transitive machine-state footprint
+  evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`), and emits
+  direct PE/ELF/Mach-O images or admitted executable placements that execute and
+  agree with Terminal Psi (`omega run --both`) across the four hosted targets
+  ([machine-state evidence](wiki/spec/build/machine_state_evidence.md),
+  [executable installation](wiki/spec/build/executable_installation.md),
+  [calling plans](wiki/spec/build/calling_plans.md)).
 
 These are requirement categories, not a new test matrix or a claim that they
 exhaust the accepted language. Keep the concrete remaining requirements and

@@ -72,21 +72,31 @@ main. Record the parent task and the exact requirement the next fact will
 discharge. Do not attach a task ID to an unrelated program after choosing it.
 Apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence):
 each sample fact README lists how its nine places and reject twins prove out
-the end-to-end specification requirements—**establishment**, **identity and
-lifetime**, **composition**, **soundness boundaries**, **Terminal Psi and
-carrier lowering**, and **native realization, frame/layout encoding, and image
-emission** (including indirect aggregate return homes, symbolic frame addresses,
-block layout and branch relaxation, entry prologue and multi-return epilogue
-insertion with branch reflow, dispatch-table and read-only byte-pool
-relocations, and `omega run --both` execution agreement)—plus linked
-positives/reject twins and remaining open scope. The construct under test must
-establish and carry the static proof fact into the consuming operation itself:
-never re-establish the fact in the caller after the construct completes using a
-post-hoc equality guard (`transition x == 100`), and verify via `git diff` that
-`<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the construct's
-own value, domain, or contract. Keep producer/target-bound run
-records in the existing qualification/claim record or commit. Close only the
-acceptance that evidence actually establishes.
+the eight end-to-end specification requirement layers—**establishment**,
+**identity and lifetime**, **composition**, **soundness boundaries**,
+**checked-to-Terminal Psi lowering (`Psi 05–07`)** (proof-term erasure, affine
+cleanup actions, borrow restoration windows, `dyn` selector vs. data lanes,
+strongly connected ranking/control edges, boundary demands, and `PSITERM\0`
+interpreter execution), **provider settlement, layout geometry, and ABI calling
+plans (`Omega 00–02`)** (Build companion joins, `size_of`/`align_of` and
+field/variant/view layout plans, and `CallPlan`/`StatePlan`/`BoundaryEntryPlan`
+register/stack/`sret`/`&write` placements), **instruction selection, register
+homes, and activation frame realization (`Omega 03–06`)** (target ISA
+selection, register homes, disjoint stack-frame homes, live-across-call spill
+slots, WCSU/bounded activation claims, and entry prologue + multi-return
+epilogue insertion), and **form encoding, branch relaxation, relocations, and
+native image emission (`Omega 07–09` + emission)** (symbolic frame-displacement
+resolution, function-relative block layout and short/near branch relaxation with
+offset reflow, byte-pool/dispatch-table/import relocations, machine-state
+footprint evidence, and direct PE/ELF/Mach-O execution agreement via
+`omega run --both`)—plus linked positives/reject twins and remaining open scope.
+The construct under test must establish and carry the static proof fact into the
+consuming operation itself: never re-establish the fact in the caller after the
+construct completes using a post-hoc equality guard (`transition x == 100`), and
+verify via `git diff` that `<place>/main.omg` vs. `<place>/invalid/main.omg`
+differ only in the construct's own value, domain, or contract. Keep
+producer/target-bound run records in the existing qualification/claim record or
+commit. Close only the acceptance that evidence actually establishes.
 
 Use `python3 tools/sample_queue.py --facts` as witness evidence inside
 `samples/cli/facts`, not a global smallest-first assignment policy and not the
