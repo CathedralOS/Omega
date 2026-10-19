@@ -225,14 +225,19 @@ what must be complete end to end. Read the governing specification and the ownin
 task's full acceptance. Prove out and list these obligations in the sample fact:
 
 - **Establishment:** construction, guards, entry contracts, completed calls or
-  checked theorem evidence justify introducing the fact; an unproved goal does
-  not establish itself.
+  checked theorem evidence on the construct under test justify introducing the
+  fact; an unproved goal does not establish itself, and a post-hoc caller
+  equality guard (`transition x == 100`) after the construct completes does not
+  substitute for the construct establishing or preserving the static fact.
 - **Identity and lifetime:** the fact names an exact value or storage version;
   snapshots retain their meaning, and overlapping writes invalidate facts about
   changed storage without discarding facts about provably unrelated storage.
 - **Composition:** calls substitute exact actuals, joins retain only justified
   facts on every incoming path, and state transitions prove their arrival
-  obligations.
+  obligations; the consuming operation (such as `total - 100u64`) is proved
+  directly from the fact carried through the place, and `<place>/main.omg` vs.
+  `<place>/invalid/main.omg` differ only in the construct's own input, domain,
+  or contract—never in a caller guard.
 - **Soundness boundaries:** proof preserves ownership, access authority and
   termination obligations, tracks transitive assumptions, and respects the
   boundary between erased mathematics and executable values.

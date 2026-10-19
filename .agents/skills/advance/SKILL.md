@@ -79,7 +79,12 @@ emission** (including indirect aggregate return homes, symbolic frame addresses,
 block layout and branch relaxation, entry prologue and multi-return epilogue
 insertion with branch reflow, dispatch-table and read-only byte-pool
 relocations, and `omega run --both` execution agreement)—plus linked
-positives/reject twins and remaining open scope. Keep producer/target-bound run
+positives/reject twins and remaining open scope. The construct under test must
+establish and carry the static proof fact into the consuming operation itself:
+never re-establish the fact in the caller after the construct completes using a
+post-hoc equality guard (`transition x == 100`), and verify via `git diff` that
+`<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the construct's
+own value, domain, or contract. Keep producer/target-bound run
 records in the existing qualification/claim record or commit. Close only the
 acceptance that evidence actually establishes.
 
