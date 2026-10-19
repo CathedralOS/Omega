@@ -1,0 +1,29 @@
+// Fact: an 8-bit signed i8 exact addition of bounded inputs (lhs >= 20i8 && lhs <= 45i8, rhs >= 15i8 && rhs <= 35i8) establishes sum >= 35i8 && sum <= 80i8 so exact 8-bit signed subtraction 80i8 - sum is proved overflow-free across all nine places.
+// Place: field. The sum of the 8-bit signed addition is stored and loaded through a record field.
+// Expected exit: 0
+data Carrier {
+    sum: i8;
+}
+
+machine compute_field(lhs: i8, rhs: i8) -> i8
+    requires lhs >= 20 && lhs <= 45 && rhs >= 15 && rhs <= 90
+{
+    let c: Carrier = Carrier { sum: lhs + rhs };
+    let headroom: i8 = 80 - c.sum;
+    headroom
+}
+
+machine evaluate() -> i32 {
+    let h: i8 = compute_field(30, 25);
+    h as i32
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate();
+    transition res == 25 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
