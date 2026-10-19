@@ -1,0 +1,35 @@
+// Fact: adding two bounded unsigned u64 values (lhs >= 15u64 && lhs <= 40u64 and rhs >= 25u64 && rhs <= 50u64) establishes sum >= 40u64 && sum <= 90u64, discharging both 90u64 - sum and sum - 40u64 across all nine places.
+// Place: match_join. Both match branches produce the sum and join before discharging the subtraction bounds.
+// Expected exit: 0
+
+machine choose_sum(flag: bool, lhs: u64, rhs: u64) -> u64
+requires lhs >= 15 && lhs <= 40 && rhs >= 25 && rhs <= 50
+ensures result >= 40 && result <= 90
+{
+    match flag {
+        true -> lhs + rhs,
+        false -> rhs + lhs,
+    }
+}
+
+machine compute_join(lhs: u64, rhs: u64) -> i32
+requires lhs >= 15 && lhs <= 40 && rhs >= 25 && rhs <= 50
+{
+    let sum: u64 = choose_sum(true, lhs, rhs);
+    let headroom: u64 = 90u64 - sum;
+    let margin: u64 = sum - 40u64;
+    0i32
+}
+
+machine probe() -> i32 {
+    compute_join(25u64, 35u64)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
