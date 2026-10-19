@@ -1,0 +1,4 @@
+owner: ag-w24-facts-6rows
+provenance: model=gemini-4-argon, reasoning_effort=medium (workers: model=gemini-3.8-flash, reasoning_effort=medium)
+ticket: 0cd9b7747ad945a798a5ccf0d350c99f
+published_utc: 2026-10-19T07:00:18.667520+00:00
