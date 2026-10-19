@@ -142,6 +142,58 @@ class ChildDecodingTests(unittest.TestCase):
 
 
 class ReviewAcceptanceTests(unittest.TestCase):
+    def test_already_decided_pending_proposal_is_resumed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            review = Path(directory) / "build/package-manager/review-windows_x86_64.txt"
+            review.parent.mkdir(parents=True)
+            original = b"decision row ab12 accept\ndecision row cd34 reject\n"
+            review.write_bytes(original)
+            results = [
+                subprocess.CompletedProcess([], 0, "", "a package review is pending; use --resume"),
+                subprocess.CompletedProcess([], 0, "Published build.omg and omega.lock", ""),
+                subprocess.CompletedProcess([], 0, "target already accepted", ""),
+            ]
+            with patch.object(gate, "run", side_effect=results) as runner:
+                reason, _ = gate.accept_review("omega", directory, "windows_x86_64", 10)
+            self.assertIsNone(reason)
+            self.assertEqual(runner.call_count, 3)
+            self.assertEqual(runner.call_args.args[0][-2:], ["--target", "windows_x86_64"])
+            self.assertEqual(review.read_bytes(), original)
+
+    def test_resuming_prior_target_still_reviews_requested_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            review = Path(directory) / "build/package-manager/review-macos_arm64.txt"
+            review.parent.mkdir(parents=True)
+
+            def run(command, timeout):
+                if "--resume" in command:
+                    return subprocess.CompletedProcess(command, 0, "published", "")
+                if not review.exists():
+                    review.write_bytes(b"no previous target decisions\n")
+                    return subprocess.CompletedProcess(command, 0, "", "a package review is pending; use --resume")
+                review.write_bytes(b"decision row ab12 pending\n")
+                return subprocess.CompletedProcess(command, 3, "review ready", "")
+
+            with patch.object(gate, "run", side_effect=run) as runner:
+                reason, _ = gate.accept_review("omega", directory, "macos_arm64", 10)
+            self.assertIsNone(reason)
+            self.assertEqual(runner.call_count, 4)
+            self.assertEqual(review.read_bytes(), b"decision row ab12 accept\n")
+
+    def test_stale_already_decided_proposal_is_not_successful_acceptance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            review = Path(directory) / "build/package-manager/review-windows_x86_64.txt"
+            review.parent.mkdir(parents=True)
+            review.write_bytes(b"decision row ab12 accept\n")
+            results = [
+                subprocess.CompletedProcess([], 0, "", "a package review is pending; use --resume"),
+                subprocess.CompletedProcess([], 1, "", "compiler or toolchain library inputs changed after review"),
+            ]
+            with patch.object(gate, "run", side_effect=results):
+                reason, output = gate.accept_review("omega", directory, "windows_x86_64", 10)
+            self.assertEqual(reason, "resume-failed")
+            self.assertIn("inputs changed after review", output)
+
     def test_only_pending_decisions_change(self):
         with tempfile.TemporaryDirectory() as directory:
             review = Path(directory) / "build/package-manager/review-windows_x86_64.txt"

@@ -353,6 +353,22 @@ def accept_review(cli, sample, target, timeout):
     if os.path.exists(review):
         with open(review, "rb") as document:
             text = document.read()
+    if "a package review is pending;" in output and not DECISION.search(text):
+        # A prior resume may have failed after every decision was written.
+        # Preserve those decisions and report any real refusal. A successful
+        # resume may settle another target, so prepare this target again.
+        resumed = run([cli, "update", "--project", sample, "--resume"], timeout)
+        if resumed is None:
+            return "resume-timeout", output
+        if resumed.returncode != 0:
+            return "resume-failed", resumed.stdout + resumed.stderr
+        completed = run([cli, "update", "--project", sample, "--target", target], timeout)
+        if completed is None:
+            return "review-timeout", output
+        output = completed.stdout + completed.stderr
+        if "a package review is pending;" in output:
+            return "review-failed", output
+        text = Path(review).read_bytes() if os.path.exists(review) else b""
     if completed.returncode != 0 and "error:" in output and not DECISION.search(text):
         # The candidate failed checking, for example a binding field without
         # a provider on this target, so no decision awaits acceptance. `omega
