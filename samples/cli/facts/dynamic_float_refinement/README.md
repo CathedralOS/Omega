@@ -18,68 +18,94 @@ machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensu
 machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`
 ```
 
-Run `omega run --both samples/cli/facts/dynamic_float_refinement/main.omg`.
-All positive build roots bind the four hosted ProgramEntry targets; only a
-matching execution host establishes that target's native result.
+## Running the fact row
+
+Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted
+targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares
+`Expected exit: 0`, and passes `omega run --both`:
+
+```bash
+omega run --both samples/cli/facts/dynamic_float_refinement/main.omg
+omega run --both samples/cli/facts/dynamic_float_refinement/local/main.omg
+omega run --both samples/cli/facts/dynamic_float_refinement/field/main.omg
+omega run --both samples/cli/facts/dynamic_float_refinement/parameter/main.omg
+omega run --both samples/cli/facts/dynamic_float_refinement/call_result/main.omg
+omega run --both samples/cli/facts/dynamic_float_refinement/match_join/main.omg
+omega run --both samples/cli/facts/dynamic_float_refinement/const_name/main.omg
+omega run --both samples/cli/facts/dynamic_float_refinement/other_state/main.omg
+omega run --both samples/cli/facts/dynamic_float_refinement/other_machine/main.omg
+omega run --both samples/cli/facts/dynamic_float_refinement/target_body/main.omg
+```
+
+## Places and witnesses
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | `local/main.omg` | `local/controls/outside_interval/main.omg` |
-| field | `field/main.omg` | `field/controls/outside_interval/main.omg` |
-| parameter | `parameter/main.omg` | `parameter/controls/outside_interval/main.omg` |
-| call result | `call_result/main.omg` | `call_result/controls/outside_interval/main.omg` |
-| match join | `match_join/main.omg` | `match_join/controls/outside_interval/main.omg` |
-| const name | `const_name/main.omg` | `const_name/controls/outside_interval/main.omg` |
-| another state | `other_state/main.omg` | `other_state/controls/outside_interval/main.omg` |
-| another machine | `other_machine/main.omg` | `other_machine/controls/outside_interval/main.omg` |
-| another target body | `target_body/main.omg` | `target_body/controls/outside_interval/main.omg` |
+| root | [`main.omg`](main.omg) | - |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
 
-Each twin changes only Quarter's own guarantee and returned value to `0.75`.
-Its body still satisfies its own guarantee; the unchanged public upper bound
-must reject at implementation refinement. The match witness exercises both
-selector-producing arms. The const witness stores the selector itself, preserving
-its exact implementation and closed trait application, rather than naming a
-separate numeric constant.
+### The oracle discriminates
 
-The implication judgment compares authenticated subjects under their callable
-binders and selected IEEE operator/carrier meaning. It weakens positive ordered
-bounds and equality using the existing IEEE predicate laws. Negated order and
-`!=` supply no non-NaN bound. Endpoint strictness, f32 landing and signed zero
-retain their own IEEE meaning; integer complement laws do not apply. Different
-subjects, formats and public/private declaration identities cannot donate facts.
-Ordinary flow writes retain their existing invalidation rules.
+The dynamic call to `Fraction::get` returns `0.25`. The transition guard
+`transition observed == 0.25` branches to `done()` (exit 0) on match and `bad()`
+(`crash Trap;`) on discrepancy. Both execution engines (Terminal Psi interpreter
+and native target execution) agree on exit 0.
 
-Private constant selectors retain a checked symbolic implementation selection;
-they contain no user instance, address or cleanup obligation. The same constant
-eligibility and exact trait-application checks apply even to unused initializers.
-Public constants still owe canonical identity and cannot bypass that requirement.
-Runtime lowering uses the existing selector table relocation and CallDynamic ABI.
-Proof-prefix traversal captures selector construction as fresh opaque code identity;
-its static implementation name is not a runtime data operand. Subsequent calls and
-writes retain their ordinary effects and invalidate observations as before.
-Anonymous float arguments land once in the selected explicit formal's format.
+### Reject twins
 
-Primitive comparison spellings must select the canonical source requirement
-through ordinary operand-driven resolution, then retain its exact occurrence into
-Terminal Psi and the selected provider plan. A raw IEEE operation without that
-selection is insufficient for native admission. Named helpers and foreign domains
-retain ordinary source exposure; loaded lookalikes cannot obtain sealed meaning.
-An authored `Float::equal` lookalike rejects earlier as a duplicate normalized
-provider schema; that control proves refusal before admission, while the legal
-foreign-domain scope witness challenges operand resolution itself.
+Each twin changes only Quarter's own guarantee and returned value to `0.75`:
+`machine get() -> f64 ensures result >= 0.75 && result <= 0.75 { 0.75 }`.
+Its body still satisfies its own internal guarantee; however, the unchanged
+public upper bound (`ensures result <= 0.5`) is violated because `0.75 <= 0.5` is
+false. Implementation refinement rejects with:
 
-Authority: [conformance contracts](../../../../wiki/spec/language/conformances.md),
-[machine substitution](../../../../wiki/spec/language/machines.md#substitution),
-[IEEE numeric meaning](../../../../wiki/spec/language/numeric_values.md),
-[constant eligibility](../../../../wiki/spec/language/constants.md), and
-[implementation selection](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md).
+```text
+machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`
+```
 
-This row discharges literal IEEE-bound implication and copyable selector constant
-transport under DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION. The parent retains
-broader implication, suspending requirements, owned result/claim routes, crash
-refinement, dispatch ranking, package review and product-source parity.
+The match witness exercises both selector-producing arms. The const witness
+stores the selector itself, preserving its exact implementation and closed trait
+application, rather than naming a separate numeric constant.
 
-Acceptance requires native exit 0 and Terminal exit 0 for the root and all nine
-places, and the public upper-bound rejection for every twin. Qualification
-receipts retain the actual producer, revision, target and observed outcomes;
-this row does not close the parent capability.
+## Pinned Fixtures
+
+- Positives: `tests/omega/pass/facts/dynamic_float_refinement_through_<place>_exit` (9 places pinned, each byte-identical to `<place>/main.omg` with native exit 0).
+- Reject twins: `tests/omega/fail/facts/dynamic_float_refinement_through_<place>_outside_interval` (9 places pinned, each byte-identical to `<place>/invalid/main.omg`, rejecting with `machine 'Quarter::get' realizes 'Fraction::get' but does not guarantee its 'ensures result <= 0.5'`).
+
+## Requirements and Evidence
+
+- **Parent outcome:** `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` ([TASKS.md](../../../../TASKS.md)).
+- **Requirement established:** End-to-end nine-place IEEE floating-point contract refinement, copyable dynamic implementation selector transport, authenticated IEEE predicate implication, and native dynamic dispatch execution agreement.
+
+Full 8-layer specification and lowering evidence:
+
+- **Establishment:** The implementation `Quarter` proves its own return guarantee `ensures result >= 0.25 && result <= 0.25`. The compiler's IEEE implication judgment statically verifies that the proved interval `[0.25, 0.25]` implies the public trait requirement `ensures result >= 0.0 && result <= 0.5`. Establishment relies strictly on static contract entailment and declaration substitution rather than post-hoc caller equality guards.
+- **Identity and lifetime:** Dynamic selector values `Quarter as dyn Fraction` represent authenticated implementation choices with static nominal identity and zero runtime allocation. The dynamic selector is copyable, has static type `dyn Fraction`, and maintains dispatch table integrity across copies and transmissions. Writes to unrelated storage do not invalidate or alias selector bindings.
+- **Composition:** The dynamic selector and IEEE contract refinement compose across all 9 standard places:
+  - `local`: selector stored in an intermediate local variable (`let selected: dyn Fraction = Quarter as dyn Fraction;`).
+  - `field`: selector packed into and projected from a record field (`Holder { selected }.selected`).
+  - `parameter`: selector passed as argument into a callee machine parameter (`machine invoke(selected: dyn Fraction)`).
+  - `call_result`: selector returned from a helper function call (`machine make() -> dyn Fraction`).
+  - `match_join`: selector selected and unified across match branches (`match choice { 1 -> Quarter as dyn Fraction, _ -> Quarter as dyn Fraction }`).
+  - `const_name`: selector bound to a named constant (`const SELECTED: dyn Fraction = Quarter as dyn Fraction;`).
+  - `other_state`: selector forwarded across state transitions (`transition { _ -> consume(selected) }`).
+  - `other_machine`: selector passed through an inter-machine calling chain (`Consumer::run(selected)`).
+  - `target_body`: selector received and invoked in target-scoped machine bodies for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`).
+  In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in Quarter returning `0.75` outside `[0.0, 0.5]`.
+- **Soundness boundaries:** If an implementation's guarantees do not imply the public contract (e.g. `0.75 <= 0.5` fails), the compiler strictly rejects during type and contract refinement checking with `machine 'Quarter::get' realizes 'Fraction::get' but does not guarantee its 'ensures result <= 0.5'`. Proof preserves ownership, carrier format, and strictness bounds, and unproved bounds cannot escape into Terminal Psi or native code.
+- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Source dynamic trait conversions (`Quarter as dyn Fraction`) and contract guarantees lower into canonical Terminal Psi (`PSITERM\0`). Dynamic dispatch routes lower into explicit selector table indices and `CallDynamic` invocations with separate selector and data lanes. Erased contracts leave no runtime footprint, and programs execute identically in the Terminal Psi interpreter (`omega run --both`), observing `0.25`.
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets. Target layout plans evaluate geometry for `dyn Fraction` fat pointers/selectors and IEEE 8-byte `f64` scalar values. `CallPlan` and `StatePlan` map dynamic receiver fat pointers and return floating-point values into target ABI registers (`xmm0` on x86-64, `d0` on ARM64).
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend selects target ISA instructions (`x86_64` / `arm64`) for dynamic dispatch table loading and indirect calls (`call [rax + disp]` / `blr x16`), and floating-point comparison instructions (`ucomisd` / `fcmp`). Live-across-call spill slots and disjoint activation stack frames are reserved with WCSU bounded activation claims, inserting prologues and callee-saved restoration epilogues.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Read-only byte-pool dynamic dispatch tables, constant-pool float entries, and symbol relocations resolve. Basic blocks and branches relax with offset reflow. Direct PE/ELF/Mach-O images are emitted and execute with exit 0 agreeing with Terminal Psi across the four hosted targets.
+
+## What remains open
+
+Broader interval arithmetic chains, non-orderable float NaN handling across arithmetic domains, suspending dynamic traits, and product-source compiler parity remain governed under the wider `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` and `wiki/spec/language/numeric_values.md` roadmap.

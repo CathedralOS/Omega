@@ -1,0 +1,1 @@
+machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`
