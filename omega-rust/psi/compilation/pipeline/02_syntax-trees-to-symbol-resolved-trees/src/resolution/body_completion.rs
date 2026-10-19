@@ -113,26 +113,47 @@ impl DeferredResolvedFrontier {
         Arc::clone(&self.trees)
     }
 
-    /// Join a later phase's generated allocation suffix before allocating any
-    /// authored body locals. Source declarations and every existing symbol
-    /// remain the exact predecessor; generated rows reserve their own handles.
-    pub fn with_generated_symbols(
+    /// Reserve the paired typing owner's allocation suffix before resolution
+    /// allocates more symbols, domain identities or service rows. This adds no
+    /// declarations or evidence; existing references retain their exact IDs.
+    pub fn with_prepared_allocations(
         mut self,
         predecessor: &SymbolResolvedTrees,
         symbols: &symbols::SymbolTable,
+        domains: &language_semantics::SemanticDomainTable,
+        service_rows: &language_semantics::ServiceReachRowTable,
     ) -> Result<Self, Vec<Diagnostic>> {
         if self.trees.as_ref() != predecessor {
             return Err(vec![Diagnostic::error(
-                "generated symbol join does not match the exact deferred resolved predecessor",
+                "prepared allocation join does not match the exact deferred resolved predecessor",
             )]);
         }
         if !symbols.is_generated_extension_of(&predecessor.symbols) {
             return Err(vec![Diagnostic::error(
-                "generated symbol join changed retained source custody or appended authored symbols",
+                "prepared allocation join changed retained source custody or appended authored symbols",
             )]);
         }
-        if self.trees.symbols != *symbols {
-            Arc::make_mut(&mut self.trees).symbols = symbols.clone();
+        for ordinal in 1..=predecessor.semantic_domains.len() {
+            let identity = language_semantics::SemanticDomainId(ordinal as u32);
+            if domains.name(identity) != predecessor.semantic_domains.name(identity) {
+                return Err(vec![Diagnostic::error(format!(
+                    "prepared allocation join changed retained semantic domain {ordinal}"
+                ))]);
+            }
+        }
+        if !service_rows.starts_with(&predecessor.service_reach_rows) {
+            return Err(vec![Diagnostic::error(
+                "prepared allocation join changed retained service-row storage",
+            )]);
+        }
+        if self.trees.symbols != *symbols
+            || self.trees.semantic_domains != *domains
+            || self.trees.service_reach_rows != *service_rows
+        {
+            let prepared = Arc::make_mut(&mut self.trees);
+            prepared.symbols = symbols.clone();
+            prepared.semantic_domains = domains.clone();
+            prepared.service_reach_rows = service_rows.clone();
         }
         Ok(self)
     }

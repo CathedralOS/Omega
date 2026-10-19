@@ -1,0 +1,18 @@
+// Expected exit: 0
+// Typing's indexed domain and abstract service row must survive the next
+// deferred-body allocation without being replaced by resolver-local IDs.
+domain<const Limit: u64> u64::Below<Limit>(value) requires value < Limit;
+const INDEX: u64 in Below<4> = 3;
+
+pub boundary trait Access { machine touch(); }
+trait Reader { machine read() -> u64 reaches Access; }
+trait BoundedReader = Reader { machine * reaches _; }
+
+machine main() crashes Trap {
+    transition (INDEX as u64) == 3 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -202,7 +202,7 @@ fn prepare_evaluation_inputs_with_owners(
             break (work, selection);
         }
         execution.extend(requested.iter().copied());
-        frontier = typing.join_generated_symbols(frontier)?;
+        frontier = typing.join_prepared_allocations(frontier)?;
         let completion = frontier.complete_machine_bodies(&requested)?;
         (typing, frontier) = typing.complete_bodies(completion)?;
     };

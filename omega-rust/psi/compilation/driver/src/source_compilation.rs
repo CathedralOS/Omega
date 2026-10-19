@@ -162,7 +162,7 @@ impl SourceContinuation {
         loop {
             // Build may append concrete declarations. Join their exact suffix
             // before body resolution allocates more symbols in the same owner.
-            pending_bodies = typing.join_generated_symbols(pending_bodies)?;
+            pending_bodies = typing.join_prepared_allocations(pending_bodies)?;
             let selected = pending_bodies.pending_machines().collect::<Vec<_>>();
             if selected.is_empty() {
                 break;

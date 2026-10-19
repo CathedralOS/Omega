@@ -26,9 +26,9 @@ pub enum SeededContinuationError {
     Lowering(Diagnostic),
 }
 
-/// Opaque ownership of one exact resolved/typed base pair. Generated symbols
-/// join the resolved allocation frontier before either continuation allocates
-/// further declarations; existing symbols and source selection remain exact.
+/// Opaque ownership of one exact resolved/typed base pair. Prepared symbols,
+/// semantic domains and service rows join the resolved allocation frontier
+/// before either continuation allocates further IDs. Source selection stays exact.
 /// `Clone` copies the owned pair for a caller retaining one frontier while the
 /// original continues into generated-source extension and checking.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,15 +38,20 @@ pub struct SeededTypingBase {
 }
 
 impl SeededTypingBase {
-    /// Synchronize generated symbol custody before the resolver allocates
-    /// deferred body locals. Both continuation owners retain one exact shared
-    /// predecessor; the ordinary completion guards remain unchanged.
-    pub fn join_generated_symbols(
+    /// Both continuation owners reserve typing's prepared allocations before
+    /// resolution resumes. Indexed domains and abstract service rows share ID
+    /// spaces with authored declarations, just as generated symbols do.
+    pub fn join_prepared_allocations(
         &mut self,
         frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     ) -> Result<syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier, Vec<Diagnostic>>
     {
-        let frontier = frontier.with_generated_symbols(&self.resolved, &self.typed.symbols)?;
+        let frontier = frontier.with_prepared_allocations(
+            &self.resolved,
+            &self.typed.symbols,
+            &self.typed.semantic_domains,
+            &self.typed.service_reach_rows,
+        )?;
         self.resolved = frontier.shared_trees();
         Ok(frontier)
     }
@@ -101,9 +106,9 @@ impl SeededTypingBase {
         })
     }
 
-    /// Admit the typed generated-symbol suffix and clone the exact predecessor
-    /// for the append-only seeded resolver. The continuation later compares
-    /// its retained snapshot back to this owned snapshot before any mutation.
+    /// Reserve typing's prepared allocation suffix for a generated stratum.
+    /// Domain instances and abstract service rows must not compete with later
+    /// resolver allocations or be reconstructed from their display payloads.
     pub fn resolved_base_for_extension(&mut self) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
         if !self
             .typed
@@ -114,8 +119,26 @@ impl SeededTypingBase {
                 "generated-source continuation changed retained source custody or appended authored symbols",
             )]);
         }
-        if self.typed.symbols != self.resolved.symbols {
-            Arc::make_mut(&mut self.resolved).symbols = self.typed.symbols.clone();
+        if !domain_table_retains(
+            &self.resolved.semantic_domains,
+            &self.typed.semantic_domains,
+        ) || !self
+            .typed
+            .service_reach_rows
+            .starts_with(&self.resolved.service_reach_rows)
+        {
+            return Err(vec![Diagnostic::error(
+                "generated-source continuation changed retained domain or service-row allocations",
+            )]);
+        }
+        if self.typed.symbols != self.resolved.symbols
+            || self.typed.semantic_domains != self.resolved.semantic_domains
+            || self.typed.service_reach_rows != self.resolved.service_reach_rows
+        {
+            let prepared = Arc::make_mut(&mut self.resolved);
+            prepared.symbols = self.typed.symbols.clone();
+            prepared.semantic_domains = self.typed.semantic_domains.clone();
+            prepared.service_reach_rows = self.typed.service_reach_rows.clone();
         }
         Ok((*self.resolved).clone())
     }

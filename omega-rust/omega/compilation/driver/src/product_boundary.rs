@@ -166,7 +166,7 @@ fn product_consumers_do_not_assemble_source_stages() {
     let source = include_str!("checked/checking/build_continuation.rs");
     for operation in [
         "complete_machine_bodies",
-        "join_generated_symbols",
+        "join_prepared_allocations",
         "resolve_extension",
         "evaluate_pre_resolution",
     ] {

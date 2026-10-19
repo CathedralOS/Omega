@@ -669,6 +669,8 @@ fail/build/program_entry_binding_outside_build rejected 1683ms expected @a9ae30e
 fail/build/program_entry_receiver_not_zii rejected 5617ms expected @a9ae30e1c334+wt
 fail/build/program_entry_returns_value rejected 7190ms expected @a9ae30e1c334+wt
 fail/build/representation_selection_fabricated_activation rejected 3460ms expected @a9ae30e1c334+wt
+fail/build/retained_domain_and_service_rows_invalid_index rejected 129ms expected @a27b9f3d3f39
+	cannot prove scalar result domain for return from @const-qualification-INDEX-0 at statement 0: Below
 fail/build/retired_assumed_binding_receiver rejected 2ms expected @6f94b4f3cae8+wt
 	tests/omega/fail/build/retired_assumed_binding_receiver/main.omg:2:36: receiver-style assumed binding is retired; use Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)
 fail/build/retired_boundary_acceptance_receiver rejected 2ms expected @a9ae30e1c334+wt
@@ -5552,6 +5554,7 @@ pass/build/nested_generated_dependency_dual_purpose checked 8506ms check-target:
 pass/build/policy_array_entry_context_exit checked 11600ms check-target:macos_arm64 @d3f1f22cbb48+wt
 pass/build/product_description_paths_exit checked 10456ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/product_entry_named_user_machine_exit checked 10318ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/build/retained_domain_and_service_rows_exit checked 10463ms check-target:macos_arm64 @a27b9f3d3f39
 pass/build/runtime_calling_register_copy_exit checked 9069ms check-target:macos_arm64 @7c1edd43e7e4+wt
 pass/build/runtime_depend_mapping_exit checked 11118ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/build/runtime_firmware_map_cycle_exit checked 14282ms check-target:macos_arm64 @0a3937c62bdf+wt

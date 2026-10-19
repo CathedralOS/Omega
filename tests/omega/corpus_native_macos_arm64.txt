@@ -373,6 +373,7 @@ pass/build/nested_generated_dependency_dual_purpose built 8795ms exit:0 @5e2a4e6
 pass/build/policy_array_entry_context_exit built 10614ms exit:0 @d3f1f22cbb48+wt
 pass/build/product_description_paths_exit built 953ms exit:0 @5d467687f505+wt
 pass/build/product_entry_named_user_machine_exit built 608ms exit:0 @d7dd90112d31
+pass/build/retained_domain_and_service_rows_exit built 12140ms exit:0 @a27b9f3d3f39
 pass/build/runtime_depend_mapping_exit built 612ms exit:70
 pass/build/runtime_main_source_builder_is_ordinary_exit built 619ms exit:70
 pass/build/runtime_opaque_by_value_selected_exit built 19351ms exit:72 @35f5679f7d28
