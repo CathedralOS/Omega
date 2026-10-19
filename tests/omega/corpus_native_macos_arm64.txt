@@ -1573,6 +1573,15 @@ pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit built 15414ms
 pass/facts/nominal_loan_backing_cleanup_through_other_state_exit built 15824ms exit:0 stdout:match @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_parameter_exit built 15782ms exit:0 stdout:match @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_target_body_exit built 15513ms exit:0 stdout:match @d698b30fd9ab+wt
+pass/facts/outcome_structural_evidence_call_result built 31232ms exit:0 stdout:match @3d4cd69c2bc1
+pass/facts/outcome_structural_evidence_const_name built 31159ms exit:0 stdout:match @3d4cd69c2bc1
+pass/facts/outcome_structural_evidence_field built 31305ms exit:0 stdout:match @3d4cd69c2bc1
+pass/facts/outcome_structural_evidence_local built 31350ms exit:0 stdout:match @3d4cd69c2bc1
+pass/facts/outcome_structural_evidence_match_join built 31272ms exit:0 stdout:match @3d4cd69c2bc1
+pass/facts/outcome_structural_evidence_other_machine built 31484ms exit:0 stdout:match @3d4cd69c2bc1
+pass/facts/outcome_structural_evidence_other_state built 31163ms exit:0 stdout:match @3d4cd69c2bc1
+pass/facts/outcome_structural_evidence_parameter built 31457ms exit:0 stdout:match @3d4cd69c2bc1
+pass/facts/outcome_structural_evidence_target_body built 31207ms exit:0 stdout:match @3d4cd69c2bc1
 pass/facts/readonly_byte_literal_subslice_through_call_result_exit built 67684ms exit:0 @75bef93981f9
 pass/facts/readonly_byte_literal_subslice_through_const_name_exit built 67610ms exit:0 @75bef93981f9
 pass/facts/readonly_byte_literal_subslice_through_field_exit built 67849ms exit:0 @75bef93981f9
