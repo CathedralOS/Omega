@@ -58,8 +58,45 @@ Each place has an `invalid/` twin that breaks only the accumulator obligation by
 
 ## Pinned Fixtures
 
-- Positive passes: `tests/omega/pass/facts/loop_branch_relaxation_ranking_through_<place>_exit` (all 9 places pinned, each recording native exit 0).
+- Positive passes: `tests/omega/pass/facts/loop_branch_relaxation_ranking_through_<place>_exit` (all 9 places pinned, each carrying `expected_native_exit.txt` with `0`).
 - Negative controls: `tests/omega/fail/facts/loop_branch_relaxation_ranking_unproved_<place>` (all 9 places pinned, rejecting with `exact arithmetic`).
+
+### Run Record
+
+Measured on base `70011192ba70` with a freshly built `target/debug/omega`
+(`{"schema":"omega-compiler-build-profile-v1","opt_level":"1"}`):
+
+- `python3 tools/sample_native_gate.py --filter cli/facts/loop_branch_relaxation_ranking`
+  — 10/10 samples meet their documented oracle on `macos_arm64`; 9/9
+  intended-invalid controls match their authored rejection.
+- `python3 tools/corpus_gate.py --native --filter facts/loop_branch_relaxation_ranking`
+  — 9 real `built ... exit:0` rows in
+  `tests/omega/corpus_native_macos_arm64.txt`, all stamped `@70011192ba70`.
+
+All ten programs (root `main.omg` and the nine places) report `native exit 0`
+and `interp exit: 0` under `omega run --both`.
+
+### The Oracle Discriminates
+
+The loop's own accumulator is the fact's own carrier, so the oracle was proved
+discriminating by changing only that carrier's runtime value and leaving every
+other part of the program identical. Seeding the loop's own accumulator from a
+boundary provider whose contract admits a range makes the value a genuine
+runtime value the prover cannot constant-fold, so both programs check and
+execute:
+
+| Program | Observed |
+| --- | --- |
+| control, loop accumulator `100` | `native exit 0` / `interp exit: 0` |
+| corrupted, loop accumulator `99` | `native signal 5` / `interp crash: Trap (host presentation agrees)` |
+
+Both engines agree in both directions, so exit `0` is strictly discriminative
+for this fact. The same experiment showed the checking layer independently
+refuses a construct whose accumulator cannot reach the bound: seeding `99` while
+the loop entry clause requires `100` is rejected with
+``violates required fact `remaining <= 10 && accumulated == 100` ``, and relaxing
+the loop's own postcondition instead is rejected with
+``cannot prove requires contract for call evaluate from main``.
 
 ## Requirements and Evidence
 
