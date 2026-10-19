@@ -2556,6 +2556,27 @@ fail/facts/placed_stable_write/parameter rejected 13169ms expected @3b18b32f7117
 	placed write application: the placement plan does not permit this operation
 fail/facts/placed_stable_write/target_body rejected 13626ms expected @3b18b32f7117+wt
 	placed write application: the placement plan does not permit this operation
+fail/facts/qualified_field_capacity_through_call_result_mismatch rejected 4780ms expected @ca117899bfe3+wt
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/qualified_field_capacity_through_const_name_mismatch rejected 4825ms expected @ca117899bfe3+wt
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/qualified_field_capacity_through_field_mismatch rejected 5501ms expected @ca117899bfe3+wt
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/qualified_field_capacity_through_local_mismatch rejected 5468ms expected @ca117899bfe3+wt
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/qualified_field_capacity_through_match_join_mismatch rejected 5147ms expected @ca117899bfe3+wt
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/qualified_field_capacity_through_other_machine_mismatch rejected 5280ms expected @ca117899bfe3+wt
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/qualified_field_capacity_through_other_state_mismatch rejected 4038ms expected @ca117899bfe3+wt
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/qualified_field_capacity_through_parameter_mismatch rejected 3974ms expected @ca117899bfe3+wt
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/qualified_field_capacity_through_target_body_mismatch rejected 3070ms expected @ca117899bfe3+wt
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/qualified_join_routed_authority rejected 727ms expected @8a884ecc43d5+wt
 fail/facts/qualified_linear_value_reused_after_transfer rejected 391ms expected @ab16f19fe1b1+wt
 fail/facts/qualified_owned_join_missing_arm rejected 267ms expected @8a884ecc43d5+wt
@@ -3381,7 +3402,13 @@ fail/machines/retired_self_transition rejected 0ms expected @a9ae30e1c334+wt
 fail/machines/static_namespace_has_no_fields rejected 802ms expected @a9ae30e1c334+wt
 fail/memory/bump_allocator_cast_minted_vacant rejected 2838ms expected @d012ed8f0bae+wt
 	`as ... in Extent::Vacant` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+fail/memory/bump_allocator_inflated_capacity rejected 5185ms expected @ca117899bfe3+wt
+	data `Bump` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/memory/bump_allocator_live_allocation_dropped rejected 1647ms expected @a9ae30e1c334+wt
+fail/memory/bump_allocator_oversized_partition rejected 7615ms expected @ca117899bfe3+wt
+	cannot prove requires contract for call split from invalid: 32 <= whole.length (needs fact `length <= whole.length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot establish call-result qualification `Extent::Granted` in `invalid`, state `entry` (statement 0, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Extent::Granted` in `invalid`, state `entry` (statement 0, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
 fail/memory/bump_allocator_place_into_occupied rejected 961ms expected @d012ed8f0bae+wt
 	implicit domain weakening in argument `storage` for state `place` drops `Resident<SlotPlacement, Slot>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/memory/bump_allocator_release_with_live_resident rejected 942ms expected @a9ae30e1c334+wt
@@ -3632,6 +3659,8 @@ fail/proofs/collection_predicate_deferred_disjunction_false_rejected rejected 41
 fail/proofs/completed_case_guarantee_keeps_common_fields_unknown rejected 1668ms expected @a9ae30e1c334+wt
 fail/proofs/completed_entry_domain_after_write rejected 745ms expected @4ef5069e9f3b+wt
 fail/proofs/completed_poststate_sibling_overwrite rejected 732ms expected @4ef5069e9f3b+wt
+fail/proofs/completed_qualified_membership_after_write rejected 4317ms expected @ca117899bfe3+wt
+	cannot prove requires contract for call observe from exercise: value in Counter::One (invalidated by prior mutation of value.value; value.value is part of Counter::One) in state `entry`
 fail/proofs/conditional_ih_requires_discharge rejected 1118ms expected @a9ae30e1c334+wt
 fail/proofs/congruence_false_twin rejected 846ms expected @a9ae30e1c334+wt
 fail/proofs/constant_equation_refuted rejected 888ms expected @a9ae30e1c334+wt
@@ -6871,6 +6900,15 @@ pass/facts/placed_stable_write/other_state checked 52020ms check-target:macos_ar
 pass/facts/placed_stable_write/parameter checked 51520ms check-target:macos_arm64 @3b18b32f7117+wt
 pass/facts/placed_stable_write/target_body checked 53045ms check-target:macos_arm64 @3b18b32f7117+wt
 pass/facts/qualified_borrowed_join_exit checked 3994ms check-target:macos_arm64 @8a884ecc43d5+wt
+pass/facts/qualified_field_capacity_through_call_result_exit checked 17493ms check-target:macos_arm64 @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_const_name_exit checked 17487ms check-target:macos_arm64 @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_field_exit checked 17352ms check-target:macos_arm64 @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_local_exit checked 17408ms check-target:macos_arm64 @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_match_join_exit checked 17503ms check-target:macos_arm64 @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_other_machine_exit checked 17445ms check-target:macos_arm64 @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_other_state_exit checked 17339ms check-target:macos_arm64 @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_parameter_exit checked 17610ms check-target:macos_arm64 @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_target_body_exit checked 17415ms check-target:macos_arm64 @ca117899bfe3+wt
 pass/facts/qualified_owned_join_exit checked 4372ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/range_fact_delivery_through_call_result_exit checked 8159ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/range_fact_delivery_through_const_name_exit checked 8249ms check-target:macos_arm64 @ff8be1e0d475
@@ -7876,6 +7914,7 @@ pass/proofs/case_call_premises checked 1644ms @a9ae30e1c334+wt
 pass/proofs/cauchy_predicates_compile checked 2759ms @fedeee648fc7+wt
 pass/proofs/citation_requires_discharged checked 10576ms @b7aaf37278ea+wt
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1240ms @1cb01af2f0bb
+pass/proofs/completed_qualified_membership_exit checked 17375ms check-target:macos_arm64 @ca117899bfe3+wt
 pass/proofs/completed_store_address_and_result_exit checked 3612ms check-target:macos_arm64 @86af356b96fb+wt
 pass/proofs/constructor_aggregate_guarantees_follow_evaluation_exit checked 5417ms check-target:macos_arm64 @86af356b96fb+wt
 pass/proofs/copied_descriptor_keeps_capture_extent checked 678ms @b3d0b7396229+wt

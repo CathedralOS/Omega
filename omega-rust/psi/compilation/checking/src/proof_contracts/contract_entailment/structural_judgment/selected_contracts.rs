@@ -13,6 +13,7 @@ use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
+use typed_trees::types::TypeReferenceHandle;
 
 /// Exact selected carrier and denotational owner, without importing conclusions.
 struct SelectedApplicationCarrier<'program> {
@@ -418,6 +419,46 @@ impl StructuralJudge<'_> {
         let Some(state) = state else {
             return StructuralJudgment::Unknown;
         };
+        // Qualification belongs to the admitted value, including a qualified
+        // field of an owned aggregate. A local annotation is not an admission.
+        // Entry values cease to describe live storage after an overlapping
+        // write; completed calls retain their detached occurrence identities.
+        for parameter in program.state_parameters(state) {
+            if self.declaration_state.is_valid()
+                && !self.storage_binding_invalidated(parameter.symbol)
+                && self.admitted_value_has_membership(
+                    parameter.type_reference,
+                    StructuralTerm::Variable(parameter.name.as_str().to_owned()),
+                    required,
+                    &subject,
+                )
+            {
+                return StructuralJudgment::Proven;
+            }
+        }
+        for (_, value) in self.normal_results.iter() {
+            if let StructuralTerm::CapturedValue {
+                callable,
+                result_type,
+                ..
+            } = value
+                && callable.is_valid()
+                && self.admitted_value_has_membership(
+                    *result_type,
+                    value.clone(),
+                    required,
+                    &subject,
+                )
+            {
+                return StructuralJudgment::Proven;
+            }
+        }
+        // Only a state-prefix judge authenticates entry admission and replays
+        // subsequent writes. A prefix-free runtime judge has no invalidations,
+        // but that absence is not evidence that entry membership survived.
+        if !self.declaration_state.is_valid() {
+            return StructuralJudgment::Unknown;
+        }
         for contract in owner_contracts(program, &SelectedCallContract::Concrete(machine, state))
             .filter(|contract| contract.kind == SignatureContractKind::Requires)
         {
@@ -452,6 +493,51 @@ impl StructuralJudge<'_> {
             }
         }
         StructuralJudgment::Unknown
+    }
+
+    /// An exact declaration row on an independently admitted value transports
+    /// membership, not merely the domain's predicate. Conditional case rows
+    /// require the observed constructor. Reference endpoints also require an
+    /// authenticated referent: projecting a descriptor does not observe it.
+    fn admitted_value_has_membership(
+        &self,
+        reference: TypeReferenceHandle,
+        value: StructuralTerm,
+        required: &typed_trees::domain::ProofMembershipFact,
+        subject: &StructuralTerm,
+    ) -> bool {
+        crate::field_domains::declared_type_domain_rows(self.program, reference)
+            .iter()
+            .filter(|row| {
+                row.domain_symbol == required.domain_symbol
+                    && row.semantic_domain == required.semantic_domain
+            })
+            .any(|row| {
+                let Some(projected) = super::super::observed_projections::project_observed_value(
+                    self.program,
+                    reference,
+                    value.clone(),
+                    &row.path,
+                ) else {
+                    return false;
+                };
+                let Some(projected_type) =
+                    crate::project_type_reference_from_segments(self.program, reference, &row.path)
+                else {
+                    return false;
+                };
+                if let Some(shell) = crate::reference_shell(self.program, projected_type)
+                    && (!shell.access.is_readable()
+                        || !super::super::structural_terms::scalar_operand_is_observed(
+                            self.program,
+                            projected_type,
+                            &projected,
+                        ))
+                {
+                    return false;
+                }
+                &projected == subject
+            })
     }
 }
 

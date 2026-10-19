@@ -4804,7 +4804,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   old buffer.
   - Complete the `ExtentPartition`/conservation route through
     **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**: prove aligned request
-    geometry and the counted-residual/tail relationship.
+    geometry and execute partition/conservation over actual backing.
   - Replace fixture-local `ResidentStorage` with **PLAN-LAID-VIEWS** layout,
     establishment, element transfer and retirement. Execute core's protected
     `Vacant`/`Resident` transfer routes over actual backing; a route declaration

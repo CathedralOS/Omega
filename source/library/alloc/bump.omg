@@ -10,8 +10,10 @@ pub data Split {
 
 pub boundary trait ExtentPartition {
     machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
+    requires length <= whole.length
     ensures
         result.taken.length == length,
+        result.rest.length == whole.length - length,
         embed(result.taken.length) + embed(result.rest.length) == embed(whole.length),
         Granted::content(old(&whole))
         == separate(
@@ -33,8 +35,10 @@ pub boundary trait ExtentPartition {
 // Bump policy: the allocation is the low end of the tail; the rest is the new
 // tail. Nothing about the allocation's later cleanup moves the tail.
 // `remaining` is the counted byte residual summarizing the tail's capacity;
-// it is a separate premise from the tail's placement authority.
-pub data Bump {
+// it is a separate premise from the tail's placement authority. Retain their
+// exact relationship in the strategy itself: a caller-supplied counter must
+// never authorize a request larger than the concrete allocatable tail.
+pub data Bump where remaining == tail.length {
     tail: Extent in Granted & Vacant;
     remaining: u64;
 }

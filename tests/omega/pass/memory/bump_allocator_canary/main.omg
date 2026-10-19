@@ -438,6 +438,7 @@ reaches ExtentPartition
 // kept as the control surface for restating `Split` fields from a boundary
 // result.
 machine exercise_boundary(whole: Extent in Granted & Vacant) -> Extent
+requires 48 <= whole.length
 reaches ExtentPartition
 {
     let first: Split = ExtentPartition::split(whole, 16);

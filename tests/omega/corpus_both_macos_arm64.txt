@@ -697,6 +697,15 @@ pass/facts/placed_stable_write/other_state built 51606ms exit:0 interpreter-exit
 pass/facts/placed_stable_write/parameter built 50903ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/facts/placed_stable_write/target_body built 52424ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/facts/qualified_borrowed_join_exit built 3982ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
+pass/facts/qualified_field_capacity_through_call_result_exit built 10294ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_const_name_exit built 10256ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_field_exit built 10192ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_local_exit built 10224ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_match_join_exit built 10234ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_other_machine_exit built 10216ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_other_state_exit built 10169ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_parameter_exit built 10224ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
+pass/facts/qualified_field_capacity_through_target_body_exit built 10324ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
 pass/facts/qualified_owned_join_exit built 4711ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/reference_arrival_handoff_cleanup_receiver_exit built 3543ms exit:0 interpreter-exit:0 interpreter:agrees @4030174fbc4e
 pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit built 3780ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @4030174fbc4e
@@ -948,6 +957,7 @@ pass/ownership/runtime_whole_borrowed_transform_exit built 1665ms exit:42 interp
 pass/ownership/runtime_whole_borrowed_window_crash_exit built 1874ms exit:signal signal:5 interpreter:trapped @7d761e0fef5f
 pass/proofs/borrowed_descriptor_bound_local_result_exit built 3521ms exit:0 interpreter-exit:0 interpreter:agrees @b3d0b7396229+wt
 pass/proofs/captured_scalar_field_observations built 11598ms exit:0 interpreter-exit:0 interpreter:agrees @f22c0e54a812
+pass/proofs/completed_qualified_membership_exit built 10140ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
 pass/proofs/declaration_predicate_calls_exit built 4308ms exit:0 interpreter-exit:0 interpreter:agrees @4ef5069e9f3b+wt
 pass/proofs/declaration_synthesized_equality_value_context built 3616ms exit:0 interpreter-exit:0 interpreter:agrees @4ef5069e9f3b+wt
 pass/proofs/disjunctive_domain_result_exit built 3681ms exit:0 interpreter-exit:0 interpreter:agrees @93160ec7e266+wt
