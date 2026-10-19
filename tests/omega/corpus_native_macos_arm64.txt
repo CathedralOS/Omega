@@ -1485,6 +1485,15 @@ pass/facts/reference_arrival_handoff_cleanup_receiver_exit built 3597ms exit:0 @
 pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit built 3726ms exit:0 stdout:match @4030174fbc4e
 pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit built 3728ms exit:0 stdout:match @4030174fbc4e
 pass/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_exit built 3735ms exit:0 stdout:match @4030174fbc4e
+pass/facts/reference_arrival_handoff_through_call_result_exit built 6303ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_const_name_exit built 6516ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_field_exit built 6491ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_local_exit built 6491ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_match_join_exit built 6407ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_other_machine_exit built 6277ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_other_state_exit built 6315ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_parameter_exit built 6349ms exit:0 @3424ad143d6e
+pass/facts/reference_arrival_handoff_through_target_body_exit built 6344ms exit:0 @3424ad143d6e
 pass/facts/result_cleanup_guarantee_through_call_result_exit built 3769ms exit:0 @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_const_name_exit built 3788ms exit:0 @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_field_exit built 3786ms exit:0 @76ea4b8c7c50
@@ -1503,15 +1512,6 @@ pass/facts/runtime_count_index_through_other_machine_exit built 15058ms exit:0 @
 pass/facts/runtime_count_index_through_other_state_exit built 15268ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_parameter_exit built 15311ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_target_body_exit built 15184ms exit:0 @ce5f8c9f2f5f
-pass/facts/reference_arrival_handoff_through_call_result_exit built 6303ms exit:0 @3424ad143d6e
-pass/facts/reference_arrival_handoff_through_const_name_exit built 6516ms exit:0 @3424ad143d6e
-pass/facts/reference_arrival_handoff_through_field_exit built 6491ms exit:0 @3424ad143d6e
-pass/facts/reference_arrival_handoff_through_local_exit built 6491ms exit:0 @3424ad143d6e
-pass/facts/reference_arrival_handoff_through_match_join_exit built 6407ms exit:0 @3424ad143d6e
-pass/facts/reference_arrival_handoff_through_other_machine_exit built 6277ms exit:0 @3424ad143d6e
-pass/facts/reference_arrival_handoff_through_other_state_exit built 6315ms exit:0 @3424ad143d6e
-pass/facts/reference_arrival_handoff_through_parameter_exit built 6349ms exit:0 @3424ad143d6e
-pass/facts/reference_arrival_handoff_through_target_body_exit built 6344ms exit:0 @3424ad143d6e
 pass/facts/scalar_domain_call_guarantee/call_result built 22857ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/const_name built 11930ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/field built 11692ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
@@ -1521,6 +1521,15 @@ pass/facts/scalar_domain_call_guarantee/other_machine built 11721ms exit:0 inter
 pass/facts/scalar_domain_call_guarantee/other_state built 11549ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/parameter built 11162ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/target_body built 11278ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
+pass/facts/scalar_sign_zero_extension_through_call_result_exit built 31826ms exit:0 @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_const_name_exit built 30747ms exit:0 @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_field_exit built 31336ms exit:0 @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_local_exit built 31594ms exit:0 @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_match_join_exit built 30761ms exit:0 @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_other_machine_exit built 31310ms exit:0 @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_other_state_exit built 31370ms exit:0 @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_parameter_exit built 31401ms exit:0 @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_target_body_exit built 20215ms exit:0 @48c24b01ebe8
 pass/facts/scalar_width_shifts_through_call_result_exit built 54164ms exit:0 @7c58561f01af
 pass/facts/scalar_width_shifts_through_const_name_exit built 54251ms exit:0 @7c58561f01af
 pass/facts/scalar_width_shifts_through_field_exit built 54325ms exit:0 @7c58561f01af

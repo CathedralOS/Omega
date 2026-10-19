@@ -729,6 +729,15 @@ pass/facts/scalar_domain_call_guarantee/other_machine built 11721ms exit:0 inter
 pass/facts/scalar_domain_call_guarantee/other_state built 11549ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/parameter built 11162ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/target_body built 11278ms exit:0 interpreter-exit:0 interpreter:agrees @83f47d8fae73
+pass/facts/scalar_sign_zero_extension_through_call_result_exit built 19168ms exit:0 interpreter-exit:0 interpreter:agrees @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_const_name_exit built 18992ms exit:0 interpreter-exit:0 interpreter:agrees @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_field_exit built 19178ms exit:0 interpreter-exit:0 interpreter:agrees @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_local_exit built 19124ms exit:0 interpreter-exit:0 interpreter:agrees @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_match_join_exit built 19205ms exit:0 interpreter-exit:0 interpreter:agrees @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_other_machine_exit built 19008ms exit:0 interpreter-exit:0 interpreter:agrees @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_other_state_exit built 18999ms exit:0 interpreter-exit:0 interpreter:agrees @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_parameter_exit built 19122ms exit:0 interpreter-exit:0 interpreter:agrees @48c24b01ebe8
+pass/facts/scalar_sign_zero_extension_through_target_body_exit built 10508ms exit:0 interpreter-exit:0 interpreter:agrees @48c24b01ebe8
 pass/facts/selected_scalar_initializer_through_call_result_exit built 21327ms exit:0 interpreter-exit:0 interpreter:agrees @67b7c6dfba3d
 pass/facts/selected_scalar_initializer_through_const_name_exit built 21322ms exit:0 interpreter-exit:0 interpreter:agrees @67b7c6dfba3d
 pass/facts/selected_scalar_initializer_through_field_exit built 21825ms exit:0 interpreter-exit:0 interpreter:agrees @67b7c6dfba3d
