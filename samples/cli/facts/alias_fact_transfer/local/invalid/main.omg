@@ -1,0 +1,24 @@
+// A local alias of a player with no Alive fact does not satisfy inspect.
+
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive(player)
+requires
+    player.health > 0;
+
+data Main {
+    player: Player;
+}
+
+machine Main::inspect(player: Player)
+requires
+    player in Player::Alive
+{
+}
+
+machine Main::main(main: &mut Main) {
+    let mut copy: Player = main.player;
+    Main::inspect(copy);
+}

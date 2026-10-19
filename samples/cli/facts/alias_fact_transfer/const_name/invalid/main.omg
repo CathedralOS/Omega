@@ -1,0 +1,26 @@
+// A const player that is not Alive does not satisfy inspect through an alias.
+
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive(player)
+requires
+    player.health > 0;
+
+const HERO: Player = Player { health: 0 };
+
+data Main {
+    player: Player;
+}
+
+machine Main::inspect(player: Player)
+requires
+    player in Player::Alive
+{
+}
+
+machine Main::main(main: &mut Main) {
+    let mut copy: Player = HERO;
+    Main::inspect(copy);
+}

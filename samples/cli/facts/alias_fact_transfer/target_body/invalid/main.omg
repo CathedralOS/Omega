@@ -1,0 +1,43 @@
+// A target body cannot pass a bare parameter to inspect without Alive.
+
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive(player)
+requires
+    player.health > 0;
+
+data Main {
+    player: Player;
+}
+
+machine Main::inspect(player: Player)
+requires
+    player in Player::Alive
+{
+}
+
+linux_x86_64 machine inspect_target(player: Player) {
+    Main::inspect(player);
+}
+
+linux_arm64 machine inspect_target(player: Player) {
+    Main::inspect(player);
+}
+
+macos_arm64 machine inspect_target(player: Player) {
+    Main::inspect(player);
+}
+
+windows_x86_64 machine inspect_target(player: Player) {
+    Main::inspect(player);
+}
+
+machine Main::main(main: &mut Main)
+requires
+    main.player in Player::Alive
+{
+    let mut copy: Player = main.player;
+    inspect_target(copy);
+}
