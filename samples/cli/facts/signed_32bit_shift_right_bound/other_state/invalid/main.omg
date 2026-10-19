@@ -1,0 +1,32 @@
+// Fact: a 32-bit signed i32 arithmetic right shift of a bounded input (val >= 300i32 && val <= 300i32) by 2u32 bits establishes shifted >= 75i32 && shifted <= 75i32 so exact 32-bit signed subtraction shifted - 75i32 is proved overflow-free across all nine places.
+// Invalid: weakened val produces shifted == 74, failing verify_shifted requires contract in successor state.
+
+machine compute_shift(val: i32) -> i32
+    requires val >= 296 && val <= 300
+{
+    val >> 2u32
+}
+
+machine verify_shifted(shifted: i32) -> i32
+    requires shifted >= 75 && shifted <= 75
+{
+    shifted - 75
+}
+
+machine main() crashes Trap {
+    let val: i32 = 296;
+    let shifted: i32 = compute_shift(val);
+    transition true {
+        true -> step(shifted)
+        _ -> bad()
+    }
+    state step(forwarded: i32) {
+        let check: i32 = verify_shifted(forwarded);
+        transition check == 0 {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
