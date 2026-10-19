@@ -1,0 +1,34 @@
+// Fact: an 8-bit unsigned u8 exact addition of bounded inputs (lhs >= 30u8 && lhs <= 80u8, rhs >= 40u8 && rhs <= 100u8) establishes sum >= 70u8 && sum <= 180u8 so exact 8-bit subtractions 180u8 - sum and sum - 70u8 are proved overflow-free across all nine places.
+// Place: other_machine. A forwarding machine sends the 8-bit sum to the verifying machine.
+// Expected exit: 0
+
+machine forward(sum: u8) -> i32
+requires sum >= 70u8 && sum <= 180u8
+{
+    let headroom: u8 = 180u8 - sum;
+    let margin: u8 = sum - 70u8;
+    let total: u8 = headroom + margin;
+    match total == 110u8 {
+        true -> 0i32,
+        false -> 1i32,
+    }
+}
+
+machine compute_forward(lhs: u8, rhs: u8) -> i32
+requires lhs >= 30u8 && lhs <= 80u8 && rhs >= 40u8 && rhs <= 100u8
+{
+    forward(lhs + rhs)
+}
+
+machine probe() -> i32 {
+    compute_forward(50u8, 70u8)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
