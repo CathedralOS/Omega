@@ -1,0 +1,4 @@
+owner: Codex six-medium slot5 / inferred-array equation call
+provenance: agent=codex model=unverified requested_model=gpt-6.1-sol requested_effort=medium actual_effort=unverified fact=inferred_array_equation_call wave=six-medium-20261019 slot=5 qualified_producer=f2117223be937c5d23e453421290d8b0a50c8cfa independent_review=accepted
+ticket: 1f9447a6ac3e42358b7e9d42a924b39f
+published_utc: 2026-10-19T03:32:23.674997+00:00
