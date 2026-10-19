@@ -43,3 +43,4 @@ __pycache__/
 
 # Local compiler crash reports are diagnostic artifacts, not source.
 rustc-ice-*.txt
+/.omega-pinned/

@@ -1366,6 +1366,15 @@ pass/facts/borrowed_projection_cleanup_through_other_machine_exit built 25574ms 
 pass/facts/borrowed_projection_cleanup_through_other_state_exit built 25183ms exit:0 @eea752b31480
 pass/facts/borrowed_projection_cleanup_through_parameter_exit built 25463ms exit:0 @eea752b31480
 pass/facts/borrowed_projection_cleanup_through_target_body_exit built 25456ms exit:0 @eea752b31480
+pass/facts/boundary_provider_call_through_call_result_exit built 58697ms exit:0 @2f87a2fd7fac+wt
+pass/facts/boundary_provider_call_through_const_name_exit built 59009ms exit:0 @2f87a2fd7fac+wt
+pass/facts/boundary_provider_call_through_field_exit built 59729ms exit:0 @2f87a2fd7fac+wt
+pass/facts/boundary_provider_call_through_local_exit built 59460ms exit:0 @2f87a2fd7fac+wt
+pass/facts/boundary_provider_call_through_match_join_exit built 59238ms exit:0 @2f87a2fd7fac+wt
+pass/facts/boundary_provider_call_through_other_machine_exit built 59348ms exit:0 @2f87a2fd7fac+wt
+pass/facts/boundary_provider_call_through_other_state_exit built 58880ms exit:0 @2f87a2fd7fac+wt
+pass/facts/boundary_provider_call_through_parameter_exit built 59124ms exit:0 @2f87a2fd7fac+wt
+pass/facts/boundary_provider_call_through_target_body_exit built 58915ms exit:0 @2f87a2fd7fac+wt
 pass/facts/bounded_scalar_sums_through_call_result_exit built 19916ms exit:0 @91ca9a02874b
 pass/facts/bounded_scalar_sums_through_const_name_exit built 19930ms exit:0 @91ca9a02874b
 pass/facts/bounded_scalar_sums_through_field_exit built 20190ms exit:0 @91ca9a02874b
