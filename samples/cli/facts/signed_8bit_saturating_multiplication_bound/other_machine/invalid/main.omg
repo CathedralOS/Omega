@@ -1,0 +1,38 @@
+// Fact: 8-bit signed saturating multiplication lhs *| rhs with bounded interval 40i8 <= prod <= 96i8 establishes 40i8 <= prod <= 96i8 across all nine places so exact subtractions 96i8 - prod and prod - 40i8 are safe.
+// Place: another machine (invalid twin). The lhs upper bound is widened to 13i8 so prod reaches 104i8 > 96i8, failing contract for verify_prod.
+// Expected diagnostic: cannot prove requires contract for call
+
+machine verify_prod(value: i8) -> i8 requires value >= 40i8 && value <= 96i8 {
+    let headroom: i8 = 96i8 - value;
+    let margin: i8 = value - 40i8;
+    headroom + margin
+}
+
+machine sat_worker(lhs: i8, rhs: i8) -> i8
+requires lhs >= 8 && lhs <= 13 && rhs >= 5 && rhs <= 8
+{
+    let a: i8 in Saturating = lhs as i8 in Saturating;
+    let b: i8 in Saturating = rhs as i8 in Saturating;
+    let sat_prod: i8 in Saturating = a * b;
+    let prod: i8 = sat_prod as i8;
+    verify_prod(prod)
+}
+
+machine forward(lhs: i8, rhs: i8) -> i8
+requires lhs >= 8 && lhs <= 13 && rhs >= 5 && rhs <= 8
+{
+    sat_worker(lhs, rhs)
+}
+
+machine probe() -> i8 {
+    forward(10i8, 7i8)
+}
+
+machine main() crashes Trap {
+    transition probe() == 56 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

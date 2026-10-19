@@ -1,0 +1,38 @@
+// Fact: 8-bit signed saturating multiplication lhs *| rhs with bounded interval 40i8 <= prod <= 96i8 establishes 40i8 <= prod <= 96i8 across all nine places so exact subtractions 96i8 - prod and prod - 40i8 are safe.
+// Place: field. The 8-bit operands are stored in record fields before saturating multiplication and interval discharge.
+// Expected exit: 0
+
+machine verify_prod(value: i8) -> i8 requires value >= 40i8 && value <= 96i8 {
+    let headroom: i8 = 96i8 - value;
+    let margin: i8 = value - 40i8;
+    headroom + margin
+}
+
+data SatPacket {
+    lhs: i8;
+    rhs: i8;
+}
+
+machine sat_field(packet: SatPacket) -> i8
+requires packet.lhs >= 8 && packet.lhs <= 12 && packet.rhs >= 5 && packet.rhs <= 8
+{
+    let a: i8 in Saturating = packet.lhs as i8 in Saturating;
+    let b: i8 in Saturating = packet.rhs as i8 in Saturating;
+    let sat_prod: i8 in Saturating = a * b;
+    let prod: i8 = sat_prod as i8;
+    verify_prod(prod)
+}
+
+machine probe() -> i8 {
+    let packet: SatPacket = SatPacket { lhs: 10i8, rhs: 7i8 };
+    sat_field(packet)
+}
+
+machine main() crashes Trap {
+    transition probe() == 56 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
