@@ -1650,15 +1650,27 @@ fail/facts/bounded_products_through_other_machine_rejected rejected 2387ms expec
 fail/facts/bounded_products_through_other_state_rejected rejected 2311ms expected @77c924b0deb6
 fail/facts/bounded_products_through_parameter_rejected rejected 2383ms expected @77c924b0deb6
 fail/facts/bounded_products_through_target_body_rejected rejected 2301ms expected @77c924b0deb6
-fail/facts/bounded_scalar_sums_through_call_result_rejected rejected 687ms expected @7f2341031b3c
-fail/facts/bounded_scalar_sums_through_const_name_rejected rejected 671ms expected @7f2341031b3c
-fail/facts/bounded_scalar_sums_through_field_rejected rejected 658ms expected @7f2341031b3c
-fail/facts/bounded_scalar_sums_through_local_rejected rejected 488ms expected @7f2341031b3c
-fail/facts/bounded_scalar_sums_through_match_join_rejected rejected 475ms expected @7f2341031b3c
-fail/facts/bounded_scalar_sums_through_other_machine_rejected rejected 492ms expected @7f2341031b3c
-fail/facts/bounded_scalar_sums_through_other_state_rejected rejected 481ms expected @7f2341031b3c
-fail/facts/bounded_scalar_sums_through_parameter_rejected rejected 488ms expected @7f2341031b3c
-fail/facts/bounded_scalar_sums_through_target_body_rejected rejected 458ms expected @7f2341031b3c
+fail/facts/bounded_scalar_sums_through_call_result_rejected rejected 903ms expected @91ca9a02874b
+	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `supply(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/bounded_scalar_sums_through_const_name_rejected rejected 649ms expected @91ca9a02874b
+	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_scalar_sums_through_field_rejected rejected 558ms expected @91ca9a02874b
+	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_scalar_sums_through_local_rejected rejected 699ms expected @91ca9a02874b
+	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_scalar_sums_through_match_join_rejected rejected 664ms expected @91ca9a02874b
+	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_scalar_sums_through_other_machine_rejected rejected 656ms expected @91ca9a02874b
+	exact arithmetic in machine `combine` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_scalar_sums_through_other_state_rejected rejected 659ms expected @91ca9a02874b
+	exact arithmetic in machine `add` state `sum` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_scalar_sums_through_parameter_rejected rejected 692ms expected @91ca9a02874b
+	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_scalar_sums_through_target_body_rejected rejected 675ms expected @91ca9a02874b
+	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/call_result_bound_discharge_through_call_result_rejected rejected 575ms expected @7f2341031b3c
 fail/facts/call_result_bound_discharge_through_const_name_rejected rejected 673ms expected @7f2341031b3c
 fail/facts/call_result_bound_discharge_through_field_rejected rejected 1764ms expected @7f2341031b3c
@@ -5951,15 +5963,15 @@ pass/facts/bounded_products_through_other_machine_exit checked 7421ms check-targ
 pass/facts/bounded_products_through_other_state_exit checked 7507ms check-target:macos_arm64 @77c924b0deb6
 pass/facts/bounded_products_through_parameter_exit checked 7565ms check-target:macos_arm64 @77c924b0deb6
 pass/facts/bounded_products_through_target_body_exit checked 7561ms check-target:macos_arm64 @77c924b0deb6
-pass/facts/bounded_scalar_sums_through_call_result_compile checked 1734ms @7f2341031b3c
-pass/facts/bounded_scalar_sums_through_const_name_compile checked 1843ms @7f2341031b3c
-pass/facts/bounded_scalar_sums_through_field_compile checked 1793ms @7f2341031b3c
-pass/facts/bounded_scalar_sums_through_local_compile checked 1677ms @7f2341031b3c
-pass/facts/bounded_scalar_sums_through_match_join_compile checked 1779ms @7f2341031b3c
-pass/facts/bounded_scalar_sums_through_other_machine_compile checked 1757ms @7f2341031b3c
-pass/facts/bounded_scalar_sums_through_other_state_compile checked 1691ms @7f2341031b3c
-pass/facts/bounded_scalar_sums_through_parameter_compile checked 1617ms @7f2341031b3c
-pass/facts/bounded_scalar_sums_through_target_body_compile checked 1816ms @7f2341031b3c
+pass/facts/bounded_scalar_sums_through_call_result_exit checked 14592ms check-target:macos_arm64 @91ca9a02874b
+pass/facts/bounded_scalar_sums_through_const_name_exit checked 14540ms check-target:macos_arm64 @91ca9a02874b
+pass/facts/bounded_scalar_sums_through_field_exit checked 14683ms check-target:macos_arm64 @91ca9a02874b
+pass/facts/bounded_scalar_sums_through_local_exit checked 14753ms check-target:macos_arm64 @91ca9a02874b
+pass/facts/bounded_scalar_sums_through_match_join_exit checked 14696ms check-target:macos_arm64 @91ca9a02874b
+pass/facts/bounded_scalar_sums_through_other_machine_exit checked 14403ms check-target:macos_arm64 @91ca9a02874b
+pass/facts/bounded_scalar_sums_through_other_state_exit checked 14798ms check-target:macos_arm64 @91ca9a02874b
+pass/facts/bounded_scalar_sums_through_parameter_exit checked 14453ms check-target:macos_arm64 @91ca9a02874b
+pass/facts/bounded_scalar_sums_through_target_body_exit checked 14481ms check-target:macos_arm64 @91ca9a02874b
 pass/facts/call_result_bound_discharge_through_call_result_compile checked 1737ms @7f2341031b3c
 pass/facts/call_result_bound_discharge_through_const_name_compile checked 3420ms @7f2341031b3c
 pass/facts/call_result_bound_discharge_through_field_compile checked 1800ms @7f2341031b3c
