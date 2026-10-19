@@ -1,0 +1,38 @@
+// Fact: Subtracting two bounded unsigned u64 values (minuend >= 80u64 && minuend <= 100u64 and subtrahend >= 20u64 && subtrahend <= 30u64) establishes the exact post-subtraction interval (diff >= 50u64 && diff <= 80u64), discharging both diff - 50u64 and 80u64 - diff across all nine places.
+// Place: other_machine. A forwarding machine transports the difference through an intermediate machine call.
+// Expected exit: 0
+machine target_machine(val: u64) -> u64
+    ensures result == val
+{
+    val
+}
+
+machine forwarder(val: u64) -> u64
+    ensures result == val
+{
+    target_machine(val)
+}
+
+machine subtract_other_machine(minuend: u64, subtrahend: u64) -> i32
+    requires minuend >= 80 && minuend <= 100 && subtrahend >= 20 && subtrahend <= 30
+{
+    let diff: u64 = forwarder(minuend - subtrahend);
+    let lower: u64 = diff - 50;
+    let upper: u64 = 80 - diff;
+    let sum: u64 = lower + upper;
+    sum as i32
+}
+
+machine evaluate() -> i32 {
+    subtract_other_machine(90, 25)
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate();
+    transition res == 30 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
