@@ -83,10 +83,9 @@ write through that returned field is observable at runtime.
   hosted targets are checked; the row's eleven fixtures are recorded at
   `exit:0` in the native golden.
 
-Open: `tests/omega/run/slices/computed_record_window` binds all four hosted
-targets but carries no `expected_native_exit.txt`, so it contributes checking
-coverage only and is absent from the native golden. The eleven `_exit` fixtures
-above carry the row's recorded runtime evidence.
+`tests/omega/run/slices/computed_record_window` binds all four hosted targets
+and now carries its own exit 0 oracle, recorded as `built ... exit:0` in the
+native golden alongside the eleven `_exit` fixtures.
 
 The match-join witness exposed `hold(view)` rejecting its own supplying view:
 `creates local borrow leading while local borrow view is still active`.
