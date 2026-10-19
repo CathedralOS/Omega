@@ -1009,6 +1009,11 @@ fail/contracts/named_state_prefix_does_not_inherit_machine_entry_facts rejected 
 fail/contracts/named_tail_return_contract rejected 1599ms expected @a9ae30e1c334+wt
 fail/contracts/negated_edge_guard_unproven_bound rejected 1542ms expected @a9ae30e1c334+wt
 fail/contracts/nested_array_boolean_requires rejected 1551ms expected @a9ae30e1c334+wt
+fail/contracts/normal_return_contextual_call_argument_bound rejected 1656ms expected @c4fed470f35f+wt
+	cannot prove index `end` is within length 146 in Main::main::main
+	cannot prove index `end` is within length 146 in Main::main::main
+fail/contracts/normal_return_contextual_call_argument_requires rejected 1618ms expected @c4fed470f35f+wt
+	cannot prove requires contract for call requires_pair from main: [46].len == 2 (needs fact `path.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/normal_return_written_premise rejected 9914ms expected @46f9e865d179+wt
 fail/contracts/normal_return_written_state_premise rejected 1752ms expected @7c5ee11ecfb7+wt
 fail/contracts/observed_borrowed_scalar_bound rejected 624ms expected @7e164e32caf5+wt
@@ -5334,6 +5339,7 @@ pass/contracts/indexed_crash_dense_scalar_namespace checked 7774ms check-target:
 pass/contracts/indexed_crash_entry_subfield_arrival checked 7715ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/contracts/invariant_identifier checked 9662ms @5041ef1af684+wt
 pass/contracts/named_tail_return_contract checked 12896ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/contracts/normal_return_contextual_call_arguments_exit checked 8560ms check-target:macos_arm64 @c4fed470f35f+wt
 pass/contracts/opaque_call_preserves_model checked 7021ms check-target:macos_arm64 @8fd8af53161a+wt
 pass/contracts/policy_field_ensures checked 9605ms @5041ef1af684+wt
 pass/contracts/proof_fact_indexed_domain_application checked 1913ms @a9ae30e1c334+wt

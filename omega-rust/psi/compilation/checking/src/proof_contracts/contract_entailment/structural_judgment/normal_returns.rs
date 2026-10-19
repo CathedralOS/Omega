@@ -6,6 +6,8 @@
 //! This environment belongs to one executed normal-return path; it is neither
 //! a loop invariant nor permission to replay mutable storage observations.
 
+mod operand_types;
+
 use super::super::specification_calls::{
     SelectedCallContract, owner_contracts, owner_leading_operands, owner_parameter_scope,
     owner_return_type, owner_symbol, selected_call_contract,
@@ -819,6 +821,7 @@ impl<'program> StructuralJudge<'program> {
             )
             .is_some();
         let mut children_to_evaluate = Vec::new();
+        let child_references = operand_types::receiving_types(program, scope.0, node, scope.2);
         let namespace_receiver = program
             .expression_table
             .call_node(expression)
@@ -835,39 +838,29 @@ impl<'program> StructuralJudge<'program> {
             children_to_evaluate.extend(
                 [indexed.collection, range.start, range.end]
                     .into_iter()
-                    .filter(|child| child.is_valid()),
+                    .filter(|child| child.is_valid())
+                    .map(|child| (child, scope.2)),
             );
         } else {
+            let mut position = 0;
             children(program, node, |child| {
+                // Keep the shared roster's positions, including an absent
+                // receiver and repeated edges, before pruning non-values.
+                let reference = child_references
+                    .as_ref()
+                    .and_then(|references| references.get(position))
+                    .copied()
+                    .filter(|reference| reference.is_valid())
+                    .unwrap_or(scope.2);
+                position += 1;
                 if child.is_valid() && Some(child) != namespace_receiver {
-                    children_to_evaluate.push(child);
+                    children_to_evaluate.push((child, reference));
                 }
             });
         }
         let operands = children_to_evaluate
             .into_iter()
-            .map(|child| {
-                // Constructor operands land in their selected field declaration,
-                // rather than inheriting the aggregate's carrier. This is the
-                // same qualification retained by the construction owner and lets
-                // anonymous arithmetic form under its actual receiving field.
-                let child_reference = if let ExpressionNode::StructLiteral(literal) = node {
-                    program
-                        .expression_table
-                        .struct_fields(literal.fields)
-                        .iter()
-                        .find(|field| field.value == child)
-                        .and_then(|field| {
-                            crate::value_custody::struct_literals::selected_construction_field_type(
-                                program,
-                                literal,
-                                field.field_symbol,
-                            )
-                        })
-                        .unwrap_or(scope.2)
-                } else {
-                    scope.2
-                };
+            .map(|(child, child_reference)| {
                 let child_demand = match node {
                     ExpressionNode::Member(member)
                         if (integer_field_read

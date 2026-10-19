@@ -341,6 +341,7 @@ pass/concurrency/runtime_suspension_repeated_actual_exit built 3401ms exit:0 int
 pass/contracts/current_computed_scalar_guard_exit built 5270ms exit:70 interpreter-exit:70 interpreter:agrees @635eb3f2e180+wt
 pass/contracts/float_guard_disjoint_operand_write built 6882ms exit:0 interpreter-exit:0 interpreter:agrees @9a1008d23dee+wt
 pass/contracts/named_tail_return_contract built 1356ms exit:70 interpreter-exit:70 interpreter:agrees @43a77116e58+wt
+pass/contracts/normal_return_contextual_call_arguments_exit built 8308ms exit:0 interpreter-exit:0 interpreter:agrees @c4fed470f35f+wt
 pass/contracts/opaque_call_preserves_model built 6930ms exit:0 interpreter-exit:0 interpreter:agrees @8fd8af53161a+wt
 pass/contracts/runtime_literal_view_extent_calls_exit built 5611ms exit:0 interpreter-exit:0 interpreter:agrees @81a0434130f9bfb47b3bec8ac9b47181a4ae96d2+wt
 pass/control_flow/borrowed_case_dispatch_payload_arguments_exit built 2895ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35

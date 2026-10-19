@@ -34,11 +34,13 @@ impl super::TypedTrees {
             .traits()
             .iter()
             .filter(|owner| slot.is_none_or(|slot| slot.declaring_trait == owner.symbol))
-            .flat_map(|owner| {
-                self.trait_machine_signatures(owner)
-                    .iter()
-                    .filter(move |signature| signature.symbol == requirement)
-                    .map(move |signature| (owner, signature))
+            .filter_map(|owner| {
+                // Authored and closed applied requirements have the same
+                // declaration namespace. The owner query retains that exact
+                // correspondence; scanning authored rows alone invented a
+                // runtime read of a generic requirement's qualifier.
+                self.trait_machine_signature_by_symbol(owner, requirement)
+                    .map(|signature| (owner, signature))
             });
         let Some((owner, signature)) = requirements.next() else {
             return false;
