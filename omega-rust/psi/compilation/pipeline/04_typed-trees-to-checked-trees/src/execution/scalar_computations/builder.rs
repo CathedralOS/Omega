@@ -482,6 +482,9 @@ impl Builder<'_, '_> {
                 return self.scalar_coordinate(expression, &coordinate, expected_type);
             }
         }
+        if validation::atomic_load_carrier(self.program, expression).is_some() {
+            return self.atomic_load(expression, expected_type);
+        }
         if let Some(field) = self.structural_scalar_field(expression) {
             return (field.primitive_type == expected_type)
                 .then(|| self.structural_field(expression, field))

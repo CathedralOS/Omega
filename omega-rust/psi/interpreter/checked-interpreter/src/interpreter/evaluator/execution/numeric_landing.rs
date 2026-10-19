@@ -16,6 +16,66 @@ impl Evaluator<'_> {
         destination: TypeReferenceHandle,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
+        if let Some(carrier) = validation::atomic_once_carrier(self.program, expression) {
+            // A complete local result supplies the type; an outcome value is
+            // not authority for the attempt. Retain the actual cell before
+            // evaluating operands, then observe it once after their effects.
+            self.tick()?;
+            let declared = self
+                .expression_type_reference(carrier.place, frame)
+                .ok_or_else(|| {
+                    crate::interpreter::evaluator::Halt::Unsupported(
+                        "atomic attempt lost its cell type".to_owned(),
+                    )
+                })?;
+            let TypeReferenceNode::Named { symbol, .. } =
+                self.program.type_reference_table.type_reference(declared)
+            else {
+                return unsupported("atomic attempt needs a dedicated atomic cell");
+            };
+            if !self
+                .program
+                .symbols
+                .builtin_type_atom(*symbol)
+                .is_some_and(|atom| atom.is_atomic())
+            {
+                return unsupported("atomic attempt needs a dedicated atomic cell");
+            }
+            let Some(primitive) = self.program.primitive_type_reference(declared) else {
+                return unsupported("atomic attempt lost its scalar resident");
+            };
+            if !validation::atomic_once_result_type(self.program, destination, primitive) {
+                return unsupported("atomic attempt has no exact canonical outcome type");
+            }
+            let Some(data) = self.program.closed_data_definition(destination) else {
+                return unsupported("atomic outcome type is absent");
+            };
+            let type_symbol = data.symbol;
+            let cell = self.resolve_place(carrier.place, frame)?;
+            let cell = self.deref_cell(cell);
+            let expected = self.eval_expression_at_type(carrier.operands[0], declared, frame)?;
+            let replacement = self.eval_expression_at_type(carrier.operands[1], declared, frame)?;
+            let prior = cell.borrow().clone();
+            let (Value::Int(observed), Value::Int(expected), Value::Int(_)) =
+                (&prior, &expected, &replacement)
+            else {
+                return unsupported("atomic attempt needs integer resident and operands");
+            };
+            let matched = observed == expected;
+            let payload = if matched {
+                Vec::new()
+            } else {
+                vec![("observed".into(), self.allocate_cell(prior)?)]
+            };
+            if matched {
+                *cell.borrow_mut() = replacement;
+            }
+            return Ok(Value::Enum {
+                type_symbol,
+                variant_name: if matched { "Exchanged" } else { "Mismatched" }.into(),
+                payload,
+            });
+        }
         if let ExpressionNode::Match(dispatch) =
             self.program.expression_table.expression(expression).clone()
         {

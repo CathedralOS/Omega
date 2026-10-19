@@ -2,7 +2,7 @@
 //! and aligned field locations. Splitting a fetch into a read and a store
 //! would lose the instruction-observed prior before instruction selection.
 //! Fences retain their location-free ordering event; single-attempt exchange
-//! retains its explicit unsupported boundary.
+//! retains its complete structural result and independently derived home.
 
 use super::{KnownUnitInteger, LiveDefinitions};
 use crate::LoweringError;
@@ -95,7 +95,22 @@ pub(super) fn lower(
             },
             Some(*observed),
         ),
-        AbstractAtomicEvent::CompareExchangeOnce { .. } | AbstractAtomicEvent::Fence { .. } => {
+        AbstractAtomicEvent::CompareExchangeOnce {
+            success,
+            failure,
+            expected,
+            replacement,
+            ..
+        } => (
+            AtomicAccessEvent::CompareExchangeOnce {
+                success: *success,
+                failure: *failure,
+                expected: *expected,
+                replacement: *replacement,
+            },
+            None,
+        ),
+        AbstractAtomicEvent::Fence { .. } => {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     };
@@ -177,6 +192,35 @@ pub(super) fn lower(
             KnownUnitInteger::Home(home),
         )?;
     }
+    let outcome_home = if let AbstractAtomicEvent::CompareExchangeOnce { outcome, .. } = event {
+        if !event.custody_is_consistent()
+            || !outcome.is_unrestricted_plain()
+            || !outcome.qualification_establishments.is_empty()
+        {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        let layout = types
+            .get(&outcome.structural_type)
+            .and_then(|row| target_operations::conventional_atomic_once_layout(row, integer))
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+        let home = target_operations::TargetStructuralHomeRequirement {
+            origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+                operation,
+                result: outcome.clone(),
+            },
+            layout: target_operations::TargetStructuralHomeLayout::Sum(layout),
+        };
+        if live
+            .structural_homes
+            .insert(outcome.place, home.clone())
+            .is_some()
+        {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        Some(home)
+    } else {
+        None
+    };
     operations.push(TargetUnitOperation::AtomicAccess {
         psi_operation: operation,
         location: terminal_psi::StructuralArgument {
@@ -190,6 +234,7 @@ pub(super) fn lower(
         event: access,
         operands,
         result_home,
+        outcome_home,
     });
     provenance.operations.push(operation);
     Ok(())

@@ -236,8 +236,8 @@ pub struct TableBorrowExpression {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableAtomicExpression {
     pub value: ExpressionHandle,
-    /// Compiler-authored destination for operations that return the value
-    /// observed by the atomic instruction. Invalid for load/store.
+    /// Scalar observed-prior destination. Invalid for loads, stores and whole
+    /// structural outcomes, whose receiving binding supplies their type.
     pub result: ExpressionHandle,
     pub ordering: language_core::atomic::AtomicOrderingPlan,
     pub result_custody: language_core::atomic::AtomicExpressionResultCustody,

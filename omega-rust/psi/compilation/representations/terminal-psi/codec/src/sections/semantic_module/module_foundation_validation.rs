@@ -873,19 +873,67 @@ fn validate_operation_foundation(
                 return malformed("scalar call declares a Unit result");
             }
         }
-        // The result shape follows the event: an observing event defines the
-        // observed prior and a store defines nothing. The independent verifier
-        // reconstructs location, authority, orderings, and types.
+        // Admission preserves the event's exact result and resident join.
         OperationKind::AtomicFence { .. } => {
             if operation.result != OperationResult::Unit {
                 return malformed("atomic fence must define no value");
             }
         }
-        OperationKind::AtomicAccess { event, .. } => {
+        OperationKind::AtomicAccess {
+            place,
+            path,
+            field,
+            event,
+        } => {
+            if !event.ordering_is_legal() {
+                return malformed("atomic access has an illegal ordering");
+            }
+            let root = structural_place_type(machine, *place).ok_or_else(|| {
+                CodecError::MalformedStructuralFoundation(
+                    "atomic location has no declared root".into(),
+                )
+            })?;
+            let resident = terminal_semantics::projected_field_declaration(
+                module.structural_types.iter(),
+                root,
+                path,
+                *field,
+            )
+            .and_then(|field| field.field_type.atomic_scalar_type())
+            .ok_or_else(|| {
+                CodecError::MalformedStructuralFoundation(
+                    "atomic location is not an atomic cell".into(),
+                )
+            })?;
+            if event
+                .operands()
+                .iter()
+                .any(|value| declared_scalar_type(machine, *value) != Some(resident))
+            {
+                return malformed("atomic operand differs from the exact resident type");
+            }
+            let once = matches!(
+                event,
+                terminal_psi::AtomicAccessEvent::CompareExchangeOnce { .. }
+            );
             let shape_matches = match &operation.result {
-                OperationResult::Scalar(_) => event.observes_resident(),
+                OperationResult::Scalar(result) => {
+                    !once && event.observes_resident() && result.scalar_type == resident
+                }
                 OperationResult::Unit => !event.observes_resident(),
-                OperationResult::Structural(_) => false,
+                OperationResult::Structural(result) => {
+                    once && result.is_unrestricted_plain()
+                        && result.qualification_establishments.is_empty()
+                        && module.structural_type(result.structural_type).is_some_and(
+                            |declaration| {
+                                terminal_psi::types::atomic_once_outcome_cases(
+                                    declaration,
+                                    resident,
+                                )
+                                .is_some()
+                            },
+                        )
+                }
             };
             if !shape_matches {
                 return malformed("atomic access result disagrees with its event");

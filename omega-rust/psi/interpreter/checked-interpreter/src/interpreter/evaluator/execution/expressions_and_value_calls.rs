@@ -162,7 +162,14 @@ impl<'program> Evaluator<'program> {
                 let selected = self.select_match_arm(handle, &dispatch, frame)?;
                 self.eval_expression(selected, frame)
             }
-            ExpressionNode::Atomic(atomic) => self.eval_expression(atomic.value, frame),
+            ExpressionNode::Atomic(atomic) => {
+                if atomic.result_custody.has_structural_result() {
+                    return unsupported(
+                        "single-attempt outcome requires its exact structural receiving type",
+                    );
+                }
+                self.eval_expression(atomic.value, frame)
+            }
             ExpressionNode::Integer(value) => match value.bits_u64() {
                 // Value::Int carries the 8-byte two's-complement pattern; u64
                 // semantics ride the bits. The literal-width gate guarantees an

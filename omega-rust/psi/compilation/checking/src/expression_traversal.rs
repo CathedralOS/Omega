@@ -201,8 +201,17 @@ pub fn children(
         ExpressionNode::Borrow(borrow) => child(borrow.target),
         ExpressionNode::Cast(cast) => child(cast.value),
         ExpressionNode::Atomic(atomic) => {
-            child(atomic.value);
-            child(atomic.result);
+            if let Some(once) =
+                crate::value_custody::atomic_operations::atomic_once_operands(program, atomic)
+            {
+                child(once.place);
+                for operand in once.operands {
+                    child(operand);
+                }
+            } else {
+                child(atomic.value);
+                child(atomic.result);
+            }
         }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
@@ -243,7 +252,16 @@ pub(crate) fn executable_children(
     mut child: impl FnMut(ExpressionHandle),
 ) {
     if let ExpressionNode::Atomic(atomic) = node {
-        child(atomic.value);
+        if let Some(once) =
+            crate::value_custody::atomic_operations::atomic_once_operands(program, atomic)
+        {
+            child(once.place);
+            for operand in once.operands {
+                child(operand);
+            }
+        } else {
+            child(atomic.value);
+        }
     } else {
         children(program, node, child);
     }

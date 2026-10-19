@@ -1,14 +1,15 @@
 //! Checked atomic access plans: one normalized atomic event on an exact
 //! primitive leaf, planned from the source carrier.
 //!
-//! The source carrier spells a fetch, swap, or compare-exchange as two
+//! The source carrier spells a fetch, swap, or decisive compare-exchange as two
 //! statements: the result local (`let prior: T = 0;`, a placeholder) and the
 //! carrier assignment (`place = Atomic { model }`). The plan joins them into
 //! one event: the result binding is the placeholder local's dense scalar
 //! binding, and the operands are the carrier's authored operand expressions,
 //! each retained as its own scalar row (`AtomicOperand`) at the carrier
-//! statement. A load is one statement, `let v: T = place.load(o);`, and a store
-//! is one carrier assignment with no result.
+//! statement. Once instead establishes a complete structural result in one
+//! local initializer. Loads are shared scalar-computation observations at their
+//! authored evaluation point; a store is a carrier assignment with no result.
 //!
 //! The plan names the operation the carrier denotes, never the arithmetic
 //! model the checked interpreter replays; lowering emits one Terminal
@@ -18,7 +19,7 @@
 use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
     CheckedCallScalarArgument, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralResultBindingPlan,
 };
 use language_core::atomic::MemoryOrdering;
 use typed_trees::types::PrimitiveType;
@@ -60,6 +61,12 @@ pub enum CheckedAtomicEvent {
         expected: CheckedCallScalarArgument,
         replacement: CheckedCallScalarArgument,
     },
+    CompareExchangeOnce {
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+        expected: CheckedCallScalarArgument,
+        replacement: CheckedCallScalarArgument,
+    },
 }
 
 impl CheckedAtomicEvent {
@@ -80,6 +87,11 @@ impl CheckedAtomicEvent {
             Self::Store { value, .. } | Self::Swap { value, .. } => vec![value],
             Self::ReadModifyWrite { operand, .. } => vec![operand],
             Self::CompareExchange {
+                expected,
+                replacement,
+                ..
+            }
+            | Self::CompareExchangeOnce {
                 expected,
                 replacement,
                 ..
@@ -113,4 +125,7 @@ pub struct CheckedAtomicAccessPlan {
     /// the event observes. Its statement is the placeholder local for a
     /// writing event and the carrier itself for a load.
     pub result: Option<CheckedUnitScalarResultBindingPlan>,
+    /// A single attempt establishes this whole canonical outcome. It never
+    /// binds an observed-prior scalar in place of its three-case result.
+    pub structural_result: Option<CheckedUnitStructuralResultBindingPlan>,
 }

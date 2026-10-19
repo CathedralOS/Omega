@@ -1106,7 +1106,12 @@ impl<'program> CallFrameResolver<'program> {
         let Some(machine_symbols) = self.machine_symbols(current_machine) else {
             return NormalizedWriteFrame::opaque();
         };
-        if !expression_has_calls(self.program, expression) {
+        if !expression_has_calls(self.program, expression)
+            && !super::caller_aliases::expression_any(self.program, expression, |child| {
+                crate::value_custody::atomic_operations::atomic_once_carrier(self.program, child)
+                    .is_some()
+            })
+        {
             return NormalizedWriteFrame::complete(Vec::new());
         }
         with_caller_origins(
@@ -1357,7 +1362,44 @@ pub(super) fn collect_expression_call_written_paths(
                 visit(arm.value)?;
             }
         }
-        ExpressionNode::Atomic(atomic) => visit(atomic.value)?,
+        ExpressionNode::Atomic(atomic) => {
+            if let Some(carrier) =
+                crate::value_custody::atomic_operations::atomic_once_operands(program, atomic)
+            {
+                visit(carrier.place)?;
+                for operand in carrier.operands {
+                    visit(operand)?;
+                }
+                // Operand calls complete before the attempt. This is a may-write
+                // footprint only; even a publishing success ordering proves no
+                // successful exchange on the mismatch/uncommitted paths.
+                let (state, _, _) = super::caller_aliases::caller_statement_owner(
+                    program,
+                    current_machine,
+                    CallerWriteSite::Expression(expression),
+                )?;
+                let place = crate::value_custody::atomic_operations::atomic_once_write_place(
+                    program,
+                    current_machine,
+                    state,
+                    expression,
+                )?;
+                let path = coarse_place_path(program, place)?;
+                let paths = super::stored_origins::expand_write_paths(
+                    program,
+                    &[path],
+                    origins.aliases,
+                    origins.stored,
+                )?;
+                for path in origins.close_paths(program, paths) {
+                    if !written.contains(&path) {
+                        written.push(path);
+                    }
+                }
+            } else {
+                visit(atomic.value)?;
+            }
+        }
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
                 visit(call.receiver)?;

@@ -86,6 +86,33 @@ pub(super) fn collect_atomic_write_reads<'a, 'b>(
     bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     use language_core::atomic::AtomicOrderingPlan;
+    if let Some(carrier) = validation::atomic_once_carrier(program, expression) {
+        return collect_place_read(
+            program,
+            machine,
+            state,
+            statement_index,
+            carrier.place,
+            calls,
+            operators,
+            reads,
+            depth + 1,
+            bound_lookup,
+        ) && carrier.operands.iter().all(|operand| {
+            collect_operand_reads(
+                program,
+                machine,
+                state,
+                statement_index,
+                *operand,
+                calls,
+                operators,
+                reads,
+                depth + 1,
+                bound_lookup,
+            )
+        });
+    }
     let Some(resident) = atomic_carrier_target(program, state, statement_index, expression) else {
         return false;
     };

@@ -49,6 +49,8 @@ use terminal_psi::{StructuralOperationResult, StructuralPathSegment};
 
 use crate::{AbstractOperation, AbstractResult};
 
+mod scalar_owned_storage;
+
 /// The fetch-family arithmetic one normalized atomic read-modify-write
 /// performs. `AtomicOrderingPlan::ReadModifyWrite` deliberately erases this
 /// distinction into one ordering class; the event retains it because each
@@ -238,9 +240,10 @@ pub struct AbstractAtomicLocation {
 /// rename the same home. A stored-reference crossing leaves its carrier storage,
 /// so exclusive carrier roots do not establish disjoint referents. The producer
 /// naming each event's reaching write and its independent replay share this judgment.
-pub fn atomic_projections_may_alias<'parameters>(
+pub fn atomic_projections_may_alias<'parameters, 'types>(
     places: &[terminal_psi::StructuralPlaceDeclaration],
     arrivals: impl Iterator<Item = &'parameters [terminal_psi::StructuralParameterDeclaration]>,
+    types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     left: PlaceId,
     left_path: &[StructuralPathSegment],
     right: PlaceId,
@@ -255,9 +258,31 @@ pub fn atomic_projections_may_alias<'parameters>(
                 )
         })
     };
+    // A fresh owned scalar-only value holds neither an atomic cell nor a
+    // descriptor reaching one. Passing its value cannot lend another root's
+    // atomic backing. Do not extend this to borrowed, unknown, or reference-
+    // bearing storage merely because the roots have different names.
+    let scalar_owned = |root, path: &[StructuralPathSegment]| {
+        !path.contains(&StructuralPathSegment::Referent)
+            && places.iter().any(|place| {
+                place.id == root
+                    && match place.kind {
+                        semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                            structural_type,
+                            ..
+                        } => scalar_owned_storage::contains_only_scalars(
+                            types.clone(),
+                            structural_type,
+                        ),
+                        _ => false,
+                    }
+            })
+    };
     left == right
         || (!immutable_image(left)
             && !immutable_image(right)
+            && !scalar_owned(left, left_path)
+            && !scalar_owned(right, right_path)
             && (left_path.contains(&StructuralPathSegment::Referent)
                 || right_path.contains(&StructuralPathSegment::Referent)
                 || !arrivals.into_iter().any(|parameters| {

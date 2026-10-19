@@ -715,6 +715,7 @@ impl CheckedUnitEffectOperationPlan {
             | Self::EstablishViewSubslice { result, .. }
             | Self::MoveStructuralField { result, .. } => Some(result),
             Self::EstablishLocal(binding) => binding.structural_result_binding(),
+            Self::AtomicAccess(access) => access.structural_result.as_ref(),
             Self::Call(call) => call.structural_result(),
             _ => None,
         }

@@ -41,15 +41,13 @@
 //! - The operation result is the observed prior for every observing event
 //!   (load, read-modify-write, swap, decisive compare-exchange) and Unit for a
 //!   store. A decisive compare-exchange's outcome is therefore
-//!   `observed == expected`; the single-attempt form with its `Uncommitted`
-//!   case has no Terminal producer yet and stays unrepresentable here rather
-//!   than erased into this scalar carrier.
+//!   `observed == expected`. Single-attempt exchange instead defines a whole
+//!   canonical three-case structural outcome, retaining both observing failure
+//!   cases and the payloadless success case.
 //! - Access custody is the root's own: an observing event needs readable
 //!   authority, a modifying event writable authority, and an event that does
-//!   both needs both. Terminal structural types do not yet record which
-//!   primitive leaves are atomic cells, so a modifying event through a shared
-//!   borrow is refused; admitting the shared-receiver form needs that cell
-//!   identity first.
+//!   both needs both. The field must retain dedicated atomic-cell identity;
+//!   a shared receiver authorizes this event without authorizing ordinary writes.
 //!
 //! `OperationKind::AtomicFence` is a separate place-free ordering event. It
 //! defines no resident observation and remains present through target selection.
@@ -105,9 +103,26 @@ pub enum AtomicAccessEvent {
         success: MemoryOrdering,
         failure: MemoryOrdering,
     },
+    /// One observing attempt returning the canonical structural outcome,
+    /// including Uncommitted. It has no scalar observed-prior result.
+    CompareExchangeOnce {
+        expected: ValueId,
+        replacement: ValueId,
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+    },
 }
 
 impl AtomicAccessEvent {
+    pub const fn single_attempt_custody(
+        self,
+    ) -> Option<language_core::atomic::AtomicCompareExchangeOnceResultCustody> {
+        if matches!(self, Self::CompareExchangeOnce { .. }) {
+            Some(language_core::atomic::AtomicCompareExchangeOnceResultCustody::CANONICAL)
+        } else {
+            None
+        }
+    }
     /// The proof-static ordering plan this event retains.
     pub const fn ordering_plan(self) -> AtomicOrderingPlan {
         match self {
@@ -118,6 +133,9 @@ impl AtomicAccessEvent {
             Self::CompareExchange {
                 success, failure, ..
             } => AtomicOrderingPlan::CompareExchange { success, failure },
+            Self::CompareExchangeOnce {
+                success, failure, ..
+            } => AtomicOrderingPlan::CompareExchangeOnce { success, failure },
         }
     }
 
@@ -128,6 +146,9 @@ impl AtomicAccessEvent {
             Self::Store { ordering, .. } => ordering.valid_for_store(),
             Self::ReadModifyWrite { .. } | Self::Swap { .. } => true,
             Self::CompareExchange {
+                success, failure, ..
+            }
+            | Self::CompareExchangeOnce {
                 success, failure, ..
             } => failure.valid_compare_exchange_failure(success),
         }
@@ -156,6 +177,11 @@ impl AtomicAccessEvent {
                 expected,
                 replacement,
                 ..
+            }
+            | Self::CompareExchangeOnce {
+                expected,
+                replacement,
+                ..
             } => vec![expected, replacement],
         }
     }
@@ -167,6 +193,11 @@ impl AtomicAccessEvent {
             Self::Store { value, .. } | Self::Swap { value, .. } => *value = map(*value),
             Self::ReadModifyWrite { operand, .. } => *operand = map(*operand),
             Self::CompareExchange {
+                expected,
+                replacement,
+                ..
+            }
+            | Self::CompareExchangeOnce {
                 expected,
                 replacement,
                 ..

@@ -564,6 +564,29 @@ fn collect_state_mutation_summary_places(
             }
             continue;
         }
+        if let Some(local) = statement.as_local_data()
+            && validation::atomic_once_carrier(program, local.initial_value).is_some()
+        {
+            for place in super::atomic_once_storage_writes(
+                program,
+                machine_symbol,
+                state.symbol,
+                statement_index,
+                local.initial_value,
+                call_frames,
+            )? {
+                let write = MutationWrite {
+                    place,
+                    requires_exclusive_access: false,
+                };
+                if state_summary_exposes_place(program, state, &write.place, call_frames)
+                    && !writes.contains(&write)
+                {
+                    writes.push(write);
+                }
+            }
+            continue;
+        }
         let Some(assignment) = statement.as_assignment() else {
             continue;
         };

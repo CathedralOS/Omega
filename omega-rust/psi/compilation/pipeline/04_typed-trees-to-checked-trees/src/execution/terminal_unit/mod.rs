@@ -781,6 +781,9 @@ pub(crate) fn build_checked_unit_effect_plans(
         match operation {
             CheckedUnitEffectOperationPlan::AtomicAccess(access) => {
                 retained_type_identities.insert(access.receiver_root_type_identity);
+                if let Some(result) = &access.structural_result {
+                    retained_type_identities.insert(result.type_identity);
+                }
             }
             CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
                 destination, ..

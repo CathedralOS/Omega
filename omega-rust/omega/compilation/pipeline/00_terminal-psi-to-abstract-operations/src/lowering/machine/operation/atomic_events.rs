@@ -122,11 +122,42 @@ pub(super) fn lower(
             replacement,
             observed: prior()?,
         },
+        AtomicAccessEvent::CompareExchangeOnce {
+            expected,
+            replacement,
+            success,
+            failure,
+        } => {
+            let outcome = operation
+                .result
+                .as_structural()
+                .filter(|result| {
+                    result.is_unrestricted_plain() && result.qualification_establishments.is_empty()
+                })
+                .ok_or_else(malformed)?;
+            terminal_psi::types::atomic_once_outcome_cases(
+                structural_types
+                    .iter()
+                    .find(|row| row.id == outcome.structural_type)
+                    .ok_or_else(malformed)?,
+                leaf,
+            )
+            .ok_or_else(malformed)?;
+            AbstractAtomicEvent::CompareExchangeOnce {
+                location,
+                success,
+                failure,
+                expected,
+                replacement,
+                outcome: outcome.clone(),
+                custody: event.single_attempt_custody().ok_or_else(malformed)?,
+            }
+        }
     };
     if !lowered.ordering_is_legal() || !lowered.custody_is_consistent() {
         return Err(malformed());
     }
-    let reached = reaching_fact(machine, operation.id)?;
+    let reached = reaching_fact(machine, operation.id, structural_types)?;
     let edge = |fact: &BTreeSet<Reaching>| match fact.iter().collect::<Vec<_>>().as_slice() {
         [reaching @ (Reaching::Initial | Reaching::Atomic(_) | Reaching::Effect(_))] => {
             Ok(**reaching)
@@ -193,6 +224,7 @@ enum Reaching {
 fn reaching_fact(
     machine: &TerminalMachine,
     target: OperationId,
+    structural_types: &[StructuralTypeDeclaration],
 ) -> Result<BTreeSet<Reaching>, LoweringError> {
     let unsupported = || LoweringError::UnsupportedAtomicCoherence(target);
     let (target_block, target_index, location) = machine
@@ -247,7 +279,7 @@ fn reaching_fact(
         if let Some(write) = declaration.operations[..before]
             .iter()
             .rev()
-            .find_map(|operation| latest_write(operation, &local, machine))
+            .find_map(|operation| latest_write(operation, &local, machine, structural_types))
         {
             reached.insert(write);
             continue;
@@ -314,6 +346,7 @@ fn latest_write(
     operation: &Operation,
     location: &Location,
     machine: &TerminalMachine,
+    structural_types: &[StructuralTypeDeclaration],
 ) -> Option<Reaching> {
     let (root, path, field) = location;
     if operation
@@ -332,6 +365,7 @@ fn latest_write(
                     .iter()
                     .map(|block| block.structural_parameters.as_slice()),
             ),
+            structural_types.iter(),
             *root,
             path,
             other,

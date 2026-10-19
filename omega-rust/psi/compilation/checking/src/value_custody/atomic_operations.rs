@@ -120,6 +120,178 @@ pub struct AtomicCarrierAccess {
     pub result: ExpressionHandle,
 }
 
+/// A single attempt is one structural local initializer. Its retained call is
+/// a source operand roster, not an ordinary invocation or a scalar update
+/// formula. Only the local's checked event plan may establish its result.
+pub fn atomic_once_carrier(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<AtomicCarrierAccess> {
+    let ExpressionNode::Atomic(atomic) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    atomic_once_operands(program, atomic)
+}
+
+pub fn atomic_once_operands(
+    program: &dyn crate::CheckingInput,
+    atomic: &TableAtomicExpression,
+) -> Option<AtomicCarrierAccess> {
+    let AtomicOrderingPlan::CompareExchangeOnce { success, failure } = atomic.ordering else {
+        return None;
+    };
+    if !atomic.result_custody.is_valid_for(atomic.ordering)
+        || atomic.result.is_valid()
+        || !failure.valid_compare_exchange_failure(success)
+    {
+        return None;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(atomic.value) else {
+        return None;
+    };
+    let [expected, replacement] = program.expression_table.expression_handles(call.arguments)
+    else {
+        return None;
+    };
+    if !call.receiver.is_valid()
+        || call.target.as_str() != "compare_exchange_once"
+        || !call.machine_arguments.is_empty()
+        || !call.evidence_arguments.is_empty()
+    {
+        return None;
+    }
+    Some(AtomicCarrierAccess {
+        operation: AtomicAccessOperation::CompareExchangeOnce { success, failure },
+        place: call.receiver,
+        operands: vec![*expected, *replacement],
+        result: ExpressionHandle::invalid(),
+    })
+}
+
+/// Executable children of an atomic source carrier. The Once call node is
+/// retained data, never a callable declaration; authored operand calls remain
+/// ordinary children in receiver/expected/replacement order.
+pub fn atomic_execution_children(
+    program: &dyn crate::CheckingInput,
+    atomic: &TableAtomicExpression,
+) -> Vec<ExpressionHandle> {
+    atomic_once_operands(program, atomic)
+        .map(|carrier| {
+            std::iter::once(carrier.place)
+                .chain(carrier.operands)
+                .collect()
+        })
+        .unwrap_or_else(|| vec![atomic.value])
+}
+
+/// The exact source place a checked single-attempt operation may replace.
+/// This query supplies a storage effect, not an exchange-success or publication
+/// fact. A same-spelled member on ordinary storage grants no atomic effect.
+pub fn atomic_once_write_place(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let carrier = atomic_once_carrier(program, expression)?;
+    place_is_atomic_storage(program, machine, Some(state), carrier.place).then_some(carrier.place)
+}
+
+/// The receiving sum must be the actual sealed core application, including
+/// its exact payloads. A same-spelled authored type or a custody enum alone
+/// cannot establish this join. Restricting the resident to a plain builtin
+/// scalar also prevents an event from inventing a bounded-value proof.
+pub fn atomic_once_result_type(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    primitive: typed_trees::types::PrimitiveType,
+) -> bool {
+    fn check(
+        program: &dyn crate::CheckingInput,
+        reference: typed_trees::types::TypeReferenceHandle,
+        primitive: typed_trees::types::PrimitiveType,
+    ) -> Option<()> {
+        let data = program.closed_data_definition(reference)?;
+        let origin = data.generic_instance.unwrap_or(reference);
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            lifetime_arguments,
+            ..
+        } = program.type_reference_table.type_reference(origin)
+        else {
+            return None;
+        };
+        if !lifetime_arguments.is_empty()
+            || program
+                .normalized_hermetic_symbol_identity(*base_symbol)
+                .ok()
+                .as_deref()
+                != Some("toolchain::AtomicCompareExchangeOnceOutcome")
+            || program.symbol_toolchain_relative_path(*base_symbol)
+                != Some(std::path::Path::new("layout.omg"))
+            || data.properties.multiplicity != language_semantics::Multiplicity::Unrestricted
+            || !data.where_facts.is_empty()
+            || data.zero_gated
+            || data.quotient.is_some()
+        {
+            return None;
+        }
+        let [resident] = program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+        else {
+            return None;
+        };
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(*resident)
+        else {
+            return None;
+        };
+        if program.symbols.builtin_type_atom(*symbol)?.is_atomic()
+            || program.primitive_type_reference(*resident)? != primitive
+        {
+            return None;
+        }
+        let members = program.data_members(data);
+        if members.len() != 3 {
+            return None;
+        }
+        for (index, member) in members.iter().enumerate() {
+            let typed_trees::data::DataMember::Variant(case) = member else {
+                return None;
+            };
+            let (name, payload) = [
+                ("Mismatched", true),
+                ("Exchanged", false),
+                ("Uncommitted", true),
+            ][index];
+            if case.name.as_str() != name || !case.where_facts.is_empty() {
+                return None;
+            }
+            let fields = program.data_payload_fields(case);
+            if !payload {
+                if !fields.is_empty() {
+                    return None;
+                }
+            } else {
+                let [field] = fields else {
+                    return None;
+                };
+                if field.name.as_str() != "observed"
+                    || field.relevance.is_erased()
+                    || program.normalized_type_identity(field.type_reference)
+                        != program.normalized_type_identity(*resident)
+                {
+                    return None;
+                }
+            }
+        }
+        Some(())
+    }
+    check(program, reference, primitive).is_some()
+}
+
 /// Decode a load carrier: `place.load(ordering)` in value position.
 pub fn atomic_load_carrier(
     program: &dyn crate::CheckingInput,
@@ -133,7 +305,7 @@ pub fn atomic_load_carrier(
     };
     (ordering.valid_for_load()
         && atomic.result_custody.is_valid_for(atomic.ordering)
-        && !atomic.result_custody.requires_result_destination()
+        && !atomic.result_custody.has_structural_result()
         && !atomic.result.is_valid())
     .then_some(AtomicCarrierAccess {
         operation: AtomicAccessOperation::Load(ordering),
@@ -173,6 +345,9 @@ pub fn atomic_value_operands(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<Vec<ExpressionHandle>> {
+    if let Some(once) = atomic_once_carrier(program, expression) {
+        return Some(std::iter::once(once.place).chain(once.operands).collect());
+    }
     if let Some(load) = atomic_load_carrier(program, expression) {
         return Some(vec![load.place]);
     }
@@ -221,7 +396,7 @@ fn atomic_write_operands(
     atomic: &TableAtomicExpression,
 ) -> Option<(AtomicAccessOperation, Vec<ExpressionHandle>)> {
     if !atomic.result_custody.is_valid_for(atomic.ordering)
-        || atomic.result_custody.requires_result_destination()
+        || atomic.result_custody.has_structural_result()
     {
         return None;
     }

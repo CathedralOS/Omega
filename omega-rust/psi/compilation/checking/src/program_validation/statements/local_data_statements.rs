@@ -79,6 +79,23 @@ pub(super) fn validate(
         machine.name,
         local_data.name.as_str()
     );
+    if let Some(carrier) = crate::atomic_once_carrier(program, local_data.initial_value) {
+        let resident = crate::value_custody::places::declared_place_type(
+            program,
+            machine,
+            current_state,
+            carrier.place,
+        )
+        .filter(|_| crate::place_is_atomic_storage(program, machine, current_state, carrier.place))
+        .and_then(|cell| program.primitive_type_reference(cell));
+        if !resident.is_some_and(|primitive| {
+            crate::atomic_once_result_type(program, local_data.type_reference, primitive)
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type"
+            )));
+        }
+    }
     // Unit is not storage for an initializer's value. Generated
     // bindings can retain an inference sentinel, but an authored
     // annotation must never silently discard a produced value.

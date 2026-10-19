@@ -99,6 +99,7 @@ pub(crate) fn validate_direct_parameter_types(
         LoweredDirectExpression::IntegerLiteral { .. }
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
+        | LoweredDirectExpression::AtomicLoad { .. }
         | LoweredDirectExpression::IeeeFloatLiteral { .. }
         | LoweredDirectExpression::ImplementationSelection { .. } => Ok(()),
         LoweredDirectExpression::IndexedPrimitiveRead {

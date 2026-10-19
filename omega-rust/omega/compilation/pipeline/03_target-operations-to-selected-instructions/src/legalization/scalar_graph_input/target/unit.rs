@@ -365,6 +365,7 @@ pub(super) fn validate_operation(
                 event,
                 operands,
                 result_home,
+                outcome_home,
             },
             AbstractOperation::AtomicEvent {
                 psi_operation: expected_operation,
@@ -409,6 +410,13 @@ pub(super) fn validate_operation(
                 {
                     sources.push((result.value, Source::Home(*home)));
                 }
+                _ => return Err(LegalizationError::custody()),
+            }
+            match (outcome_home, &expected.outcome) {
+                (None, None) => {}
+                (Some(home), Some((result, layout)))
+                    if home.operation_result() == Some((*psi_operation, result))
+                        && home.layout.sum() == Some(layout) => {}
                 _ => return Err(LegalizationError::custody()),
             }
         }

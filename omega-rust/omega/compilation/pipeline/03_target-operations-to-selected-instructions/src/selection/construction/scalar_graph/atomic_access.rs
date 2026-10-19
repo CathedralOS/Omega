@@ -24,6 +24,7 @@ pub(super) fn emit(
         scalar_type,
         field_byte_offset,
         event,
+        outcome,
         ..
     } = &row.kind
     else {
@@ -73,6 +74,14 @@ pub(super) fn emit(
     }
     let raw = if let Some(result) = row.result {
         let register = builder.register(result.value, result.definition_site, scalar_type)?;
+        registers.push(register);
+        Some(register)
+    } else if let Some((result, layout)) = outcome {
+        let register = super::structural::transport_register(
+            builder,
+            result.place,
+            layout.cases[0].fields[0].byte_offset,
+        )?;
         registers.push(register);
         Some(register)
     } else {
@@ -144,5 +153,28 @@ pub(super) fn emit(
             .definitions
             .push((result.value, output, result.definition_site, scalar_type));
     }
+    if outcome.is_some() {
+        let raw = raw.ok_or(SelectedInstructionError::custody())?;
+        let (_, expected, _, _) = builder
+            .resolve(values_for_outcome(event)?)
+            .ok_or(SelectedInstructionError::custody())?;
+        super::structural::establish_atomic_outcome(
+            source,
+            row,
+            builder,
+            raw,
+            expected,
+            scalar_type,
+        )?;
+    }
     Ok(true)
+}
+
+fn values_for_outcome(
+    event: &terminal_psi::AtomicAccessEvent,
+) -> Result<semantic_vocabulary::ValueId, SelectedInstructionError> {
+    match event {
+        terminal_psi::AtomicAccessEvent::CompareExchangeOnce { expected, .. } => Ok(*expected),
+        _ => Err(SelectedInstructionError::custody()),
+    }
 }

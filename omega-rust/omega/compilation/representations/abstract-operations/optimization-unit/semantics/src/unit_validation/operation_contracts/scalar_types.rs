@@ -152,8 +152,12 @@ pub(crate) fn operation_scalar_types_match(
                     E::CompareExchangeOnce {
                         expected,
                         replacement,
+                        outcome,
                         ..
-                    } => scalar(*expected).is_some() && scalar(*expected) == scalar(*replacement),
+                    } => scalar(*expected).is_some() && scalar(*expected) == scalar(*replacement)
+                        && outcome.is_unrestricted_plain() && outcome.qualification_establishments.is_empty()
+                        && unit.structural_types.iter().find(|row| row.id == outcome.structural_type)
+                            .is_some_and(|declaration| terminal_psi::types::atomic_once_outcome_cases(declaration, scalar(*expected).unwrap()).is_some()),
                     E::Fence { .. } => true,
                 }
         }

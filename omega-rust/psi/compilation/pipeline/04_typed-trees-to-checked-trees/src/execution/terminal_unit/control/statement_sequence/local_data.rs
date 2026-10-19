@@ -243,6 +243,30 @@ pub(super) fn plan(
     // An atomic carrier's result placeholder plans nothing: it
     // reserves the dense binding the next statement's event binds
     // to the observed prior. A load local plans its event here.
+    if validation::atomic_once_carrier(program, local.initial_value).is_some() {
+        local_phase("statement sequence: local data: single-attempt atomic result");
+        let mut result =
+            checked_structural_result_type(program, shapes, local.type_reference, binders)?;
+        result.statement_index = statement_index;
+        result.binding_ordinal = u32::try_from(*structural_count).ok()?;
+        result.local = initialized_local(program, machine, state, local);
+        let access = super::super::super::atomic_operations::once_event(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            local,
+            result.clone(),
+            trace,
+            shapes,
+        )?;
+        operations.push(CheckedUnitEffectOperationPlan::AtomicAccess(access));
+        *structural_count = structural_count.checked_add(1)?;
+        structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
+        structural_local_symbols.push(local.symbol);
+        return Some(LocalPlan::Planned);
+    }
     if let Some(primitive_type) = program.primitive_type_reference(local.type_reference)
         && super::super::super::atomic_operations::result_placeholder(program, state, index, local)
     {
@@ -252,25 +276,6 @@ pub(super) fn plan(
             binding_ordinal: u32::try_from(*scalar_count).ok()?,
             primitive_type,
         });
-        *scalar_count = scalar_count.checked_add(1)?;
-        return Some(LocalPlan::Planned);
-    }
-    if validation::atomic_load_carrier(program, local.initial_value).is_some() {
-        local_phase("statement sequence: local data: atomic load");
-        let binding_ordinal = u32::try_from(*scalar_count).ok()?;
-        operations.push(CheckedUnitEffectOperationPlan::AtomicAccess(
-            super::super::super::atomic_operations::load_event(
-                program,
-                facts,
-                machine,
-                state,
-                statement_index,
-                local,
-                binding_ordinal,
-                trace,
-                shapes,
-            )?,
-        ));
         *scalar_count = scalar_count.checked_add(1)?;
         return Some(LocalPlan::Planned);
     }

@@ -45,6 +45,12 @@ pass/calls/outcome_specific_snapshot_runtime built 10804ms exit:0 interpreter-ex
 pass/calls/outcome_specific_snapshot_subject checked 12479ms @97fca7a18f74+wt
 pass/constants/mathematical_constant_domain_selection checked 8982ms @d2f0e31ca0d4+wt
 pass/constants/qualified_variant_constant checked 1449ms @d2f0e31ca0d4+wt
+pass/facts/atomic_compare_exchange_once_composition_exit built 23656ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
+pass/facts/atomic_compare_exchange_once_high_bit_exit built 23385ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
+pass/facts/atomic_compare_exchange_once_local_exit built 21653ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
+pass/facts/atomic_compare_exchange_once_operand_effect_exit built 21627ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
+pass/facts/atomic_compare_exchange_once_target_body_exit built 23126ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
+pass/facts/atomic_compare_exchange_once_wide_exit built 22737ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
 pass/facts/checked_asm_countdown_call_result_exit built 8806ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_const_name_exit built 11075ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_field_exit built 13616ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt

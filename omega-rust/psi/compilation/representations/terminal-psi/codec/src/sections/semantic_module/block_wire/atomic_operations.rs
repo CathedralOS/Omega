@@ -24,6 +24,7 @@ const STORE: u8 = 2;
 const READ_MODIFY_WRITE: u8 = 3;
 const SWAP: u8 = 4;
 const COMPARE_EXCHANGE: u8 = 5;
+const COMPARE_EXCHANGE_ONCE: u8 = 6;
 
 pub(super) fn encode_atomic_access(
     writer: &mut Writer,
@@ -79,6 +80,18 @@ pub(super) fn encode_atomic_access(
             encode_ordering(writer, success);
             encode_ordering(writer, failure);
         }
+        AtomicAccessEvent::CompareExchangeOnce {
+            expected,
+            replacement,
+            success,
+            failure,
+        } => {
+            writer.u8(COMPARE_EXCHANGE_ONCE);
+            writer.id(expected);
+            writer.id(replacement);
+            encode_ordering(writer, success);
+            encode_ordering(writer, failure);
+        }
     }
     Ok(())
 }
@@ -115,6 +128,12 @@ pub(super) fn decode_atomic_access(reader: &mut Reader<'_>) -> Result<OperationK
             ordering: decode_ordering(reader)?,
         },
         COMPARE_EXCHANGE => AtomicAccessEvent::CompareExchange {
+            expected: reader.id("ValueId")?,
+            replacement: reader.id("ValueId")?,
+            success: decode_ordering(reader)?,
+            failure: decode_ordering(reader)?,
+        },
+        COMPARE_EXCHANGE_ONCE => AtomicAccessEvent::CompareExchangeOnce {
             expected: reader.id("ValueId")?,
             replacement: reader.id("ValueId")?,
             success: decode_ordering(reader)?,

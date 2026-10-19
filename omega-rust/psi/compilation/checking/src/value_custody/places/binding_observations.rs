@@ -181,6 +181,14 @@ pub(crate) fn binding_is_written(
                     && call_receiver_is_mutable(program, call.target_symbol)
             }
             ExpressionNode::Atomic(atomic) => {
+                if let Some(carrier) =
+                    crate::value_custody::atomic_operations::atomic_once_operands(program, atomic)
+                {
+                    // A resident update cannot replace the descriptor home used
+                    // to reach it. Whole-value observations still see the write.
+                    return observation != BindingObservation::Descriptor
+                        && borrow_root_symbol(program, carrier.place) == Some(symbol);
+                }
                 borrow_root_symbol(program, atomic.value) == Some(symbol)
                     || borrow_root_symbol(program, atomic.result) == Some(symbol)
             }

@@ -432,14 +432,18 @@ fn collect_expression_calls(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
-            collect_expression_calls(
-                signature_effects,
-                program,
-                atomic.value,
-                statement_index,
-                call_ordinal,
-                calls,
-            );
+            let inputs =
+                crate::value_custody::atomic_operations::atomic_execution_children(program, atomic);
+            for input in inputs {
+                collect_expression_calls(
+                    signature_effects,
+                    program,
+                    input,
+                    statement_index,
+                    call_ordinal,
+                    calls,
+                );
+            }
         }
         ExpressionNode::Call(call) => {
             push_expression_call(

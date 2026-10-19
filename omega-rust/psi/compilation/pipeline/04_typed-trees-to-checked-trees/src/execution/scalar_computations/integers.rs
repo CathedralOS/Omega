@@ -126,6 +126,24 @@ impl Builder<'_, '_> {
                 computation: self.expression(expression, observation.primitive_type)?,
             });
         }
+        if let Some(carrier) = validation::atomic_load_carrier(self.program, expression) {
+            let declared = validation::declared_place_type_raw(
+                self.program,
+                self.program.machine_by_symbol(self.machine)?,
+                Some(self.program.state_by_symbol(self.state)?),
+                carrier.place,
+            )?;
+            let primitive = self.program.primitive_type_reference(declared)?;
+            if !is_integer(primitive) || expected.is_some_and(|expected| expected != primitive) {
+                return None;
+            }
+            return Some(IntegerOperand {
+                value: parameter(0, primitive),
+                value_source: ExpressionHandle::invalid(),
+                domain: ArithmeticDomain::Exact,
+                computation: self.atomic_load(expression, primitive)?,
+            });
+        }
         if let Some(field) = self.structural_scalar_field(expression) {
             if !is_integer(field.primitive_type) {
                 return None;

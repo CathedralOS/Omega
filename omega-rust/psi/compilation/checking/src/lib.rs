@@ -160,7 +160,8 @@ pub use value_custody::{
 /// The sealed operation an [`AtomicCarrierAccess`] names.
 pub use access_plans::AtomicAccessOperation;
 pub use value_custody::atomic_operations::{
-    AtomicCarrierAccess, atomic_assignment_carrier, atomic_load_carrier,
+    AtomicCarrierAccess, atomic_assignment_carrier, atomic_execution_children, atomic_load_carrier,
+    atomic_once_carrier, atomic_once_operands, atomic_once_result_type, atomic_once_write_place,
     atomic_resident_type_reference, atomic_value_operands, place_is_atomic_storage,
 };
 pub use value_custody::places::{
@@ -171,7 +172,7 @@ pub use value_custody::places::{
     expression_names_attached_storage, fixed_array_type_length, has_builtin_subslice_meaning,
     indexed_operation_has_builtin_meaning, mutable_byte_slice_parameter_element,
     place_has_builtin_coordinates, saved_dispatch_call, saved_dispatch_subject,
-    structural_scalar_field, structural_scalar_field_at_coordinate,
+    structural_atomic_field, structural_scalar_field, structural_scalar_field_at_coordinate,
     structural_scalar_field_in_parameters, structural_source, subslice_expression,
     value_element_has_builtin_coordinate, value_has_builtin_coordinates,
 };

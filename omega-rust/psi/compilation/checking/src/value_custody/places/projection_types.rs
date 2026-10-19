@@ -45,12 +45,31 @@ pub fn observed_storage_type_references(
     source_type: typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
 ) -> Option<Vec<typed_trees::types::TypeReferenceHandle>> {
+    let atomic = crate::value_custody::atomic_operations::atomic_load_carrier(program, expression);
+    let expression = atomic.as_ref().map_or(expression, |carrier| carrier.place);
     let place = super::canonical_projection::canonical_place_from_expression(program, expression)?;
-    (0..=place.segments.len())
+    let mut references = (0..=place.segments.len())
         .map(|length| {
             project_type_reference_from_segments(program, source_type, &place.segments[..length])
         })
-        .collect()
+        .collect::<Option<Vec<_>>>()?;
+    if atomic.is_some() {
+        // The selected atomic field is represented by Atomic(ScalarType) in
+        // its containing declaration, not by a standalone structural wrapper.
+        // Keep every carrier/reference crossing; rooting AtomicU32 itself
+        // would demand a nonexistent structural type and lose this distinction.
+        let leaf = *references.last()?;
+        let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(leaf)
+        else {
+            return None;
+        };
+        if !program.symbols.builtin_type_atom(*symbol)?.is_atomic() {
+            return None;
+        }
+        references.pop();
+    }
+    Some(references)
 }
 
 pub fn canonical_place_type_reference(

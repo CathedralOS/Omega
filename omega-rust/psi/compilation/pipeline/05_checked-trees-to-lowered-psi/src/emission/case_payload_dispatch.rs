@@ -456,6 +456,9 @@ pub(crate) fn substitute_direct(
 ) -> LoweredDirectExpression {
     use LoweredDirectExpression as Direct;
     match expression {
+        // An atomic event must read its live location at execution. Captured
+        // case payload parameters are snapshots, never its observed resident.
+        atomic @ Direct::AtomicLoad { .. } => atomic,
         Direct::StructuralField {
             source,
             path,
@@ -710,6 +713,9 @@ fn collect_direct_case_reads(
 ) {
     use LoweredDirectExpression as Direct;
     match expression {
+        // AtomicAccess independently verifies its active-case path; do not
+        // request a copied case carrier for an instruction-observed load.
+        Direct::AtomicLoad { .. } => {}
         Direct::PrimitiveRead { source, .. } => collect_source_case_reads(source, &[], reads),
         Direct::StructuralField { source, path, .. } => {
             collect_source_case_reads(source, path, reads);

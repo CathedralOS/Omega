@@ -186,14 +186,27 @@ fn lower_nonbinary_expression_node_into_table(
         }
         syntax::expression::ExpressionNode::Atomic(atomic) => {
             if !atomic.result_custody.is_valid_for(atomic.ordering)
-                || (atomic.result_custody.requires_result_destination()
-                    && !atomic.result.is_valid())
+                || (atomic.result_custody.has_structural_result() && atomic.result.is_valid())
             {
                 return Err(Diagnostic::error(
                     "atomic expression result custody does not match its operation axis",
                 ));
             }
-            let value = lower_expression_into_table(lowerer, syntax_trees, atomic.value)?;
+            // The retained Once Call is an operand roster, not an authored
+            // invocation. Lower its children under the authored context, but
+            // do not create a declaration-selection occurrence for the carrier.
+            let value = if matches!(
+                atomic.ordering,
+                language_core::atomic::AtomicOrderingPlan::CompareExchangeOnce { .. }
+            ) {
+                lower_expression_node_into_table(
+                    lowerer,
+                    syntax_trees,
+                    syntax_trees.expressions.expression(atomic.value),
+                )?
+            } else {
+                lower_expression_into_table(lowerer, syntax_trees, atomic.value)?
+            };
             let result = if atomic.result.is_valid() {
                 lower_expression_into_table(lowerer, syntax_trees, atomic.result)?
             } else {

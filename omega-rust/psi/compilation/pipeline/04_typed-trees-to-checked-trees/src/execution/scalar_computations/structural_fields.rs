@@ -92,6 +92,7 @@ impl Builder<'_, '_> {
         Some(self.insert(
             expected,
             CheckedScalarComputationKind::StructuralField {
+                atomic_ordering: None,
                 source_expression: expression,
                 receiver_expression: expression,
                 source_type: reference,
@@ -281,6 +282,7 @@ impl Builder<'_, '_> {
         Some(self.insert(
             field.primitive_type,
             CheckedScalarComputationKind::StructuralField {
+                atomic_ordering: None,
                 source_expression: expression,
                 receiver_expression: match self.program.expression_table.expression(expression) {
                     ExpressionNode::Member(member) => member.receiver,

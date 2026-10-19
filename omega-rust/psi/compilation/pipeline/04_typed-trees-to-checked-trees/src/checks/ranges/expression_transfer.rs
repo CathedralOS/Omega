@@ -265,7 +265,17 @@ impl ExpressionTransfer<'_, '_> {
                 self.transfer(facts, indexed.index, sink);
                 sink.indexed_access(facts, expression, indexed);
             }
-            ExpressionNode::Atomic(atomic) => self.transfer(facts, atomic.value, sink),
+            ExpressionNode::Atomic(atomic) => {
+                if let Some(carrier) = validation::atomic_once_carrier(self.program, expression) {
+                    self.transfer(facts, carrier.place, sink);
+                    for operand in carrier.operands {
+                        self.transfer(facts, operand, sink);
+                    }
+                    self.invalidate_writes(facts, expression);
+                } else {
+                    self.transfer(facts, atomic.value, sink);
+                }
+            }
             ExpressionNode::ArrayLiteral(values) => {
                 for value in self.program.expression_table.expression_handles(*values) {
                     self.transfer(facts, *value, sink);

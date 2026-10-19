@@ -368,7 +368,11 @@ fn collect_expression_dependency_symbols(
             }
         }
         ExpressionNode::Atomic(atomic) => {
-            collect_expression_dependency_symbols(program, atomic.value, symbols)
+            for child in
+                crate::value_custody::atomic_operations::atomic_execution_children(program, atomic)
+            {
+                collect_expression_dependency_symbols(program, child, symbols);
+            }
         }
         ExpressionNode::Call(call) => {
             push_dependency_symbol(symbols, call.target_symbol);
@@ -1003,7 +1007,13 @@ fn collect_exact_proof_expression_edges(
         };
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => recurse!(atomic.value),
+        ExpressionNode::Atomic(atomic) => {
+            for child in
+                crate::value_custody::atomic_operations::atomic_execution_children(program, atomic)
+            {
+                recurse!(child);
+            }
+        }
         ExpressionNode::Call(call) => {
             let receiver_is_selfish = !call.receiver.is_valid()
                 || matches!(

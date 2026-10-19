@@ -72,9 +72,8 @@ pub enum AtomicObservingCompareExchangeResultShape {
 ///
 /// The legacy scalar form covers atomic operations whose current checked node
 /// writes one primitive observation. The distinct single-attempt form retains
-/// the complete three-arm public outcome identity before execution support is
-/// admitted. Naming this carrier grants no atomic, provider, Terminal, or
-/// native authority.
+/// the complete three-arm public outcome identity through execution. Naming
+/// this carrier grants no atomic, provider, Terminal, or native authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AtomicExpressionResultCustody {
     Scalar,
@@ -398,9 +397,10 @@ impl AtomicExpressionResultCustody {
         }
     }
 
-    /// Whether this custody form requires a compiler-authored result
-    /// destination in the expression table.
-    pub const fn requires_result_destination(self) -> bool {
+    /// Whether the operation returns a whole structural outcome. Its receiving
+    /// type belongs to the enclosing binding; the scalar observed-prior slot
+    /// in the expression carrier remains invalid.
+    pub const fn has_structural_result(self) -> bool {
         matches!(self, Self::ObservingCompareExchangeOnce(_))
     }
 }

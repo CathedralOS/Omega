@@ -100,6 +100,15 @@ pub(crate) enum LoweredElementPathSegment {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredDirectExpression {
+    /// One event on an exact atomic leaf, retained at the computation's
+    /// authored evaluation point rather than reinterpreted as an ordinary read.
+    AtomicLoad {
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: StructuralFieldId,
+        ordering: terminal_psi::MemoryOrdering,
+        scalar_type: ScalarType,
+    },
     PrimitiveRead {
         source: PrimitiveReadSource,
         path: Vec<terminal_psi::StructuralPathSegment>,
@@ -285,6 +294,7 @@ impl LoweredDirectExpression {
             | Self::ErasedParameter { scalar_type, .. }
             | Self::PrimitiveRead { scalar_type, .. }
             | Self::StructuralField { scalar_type, .. }
+            | Self::AtomicLoad { scalar_type, .. }
             | Self::ByteSequenceLength { scalar_type, .. }
             | Self::ByteSequenceFieldLength { scalar_type, .. }
             | Self::ByteSequenceFieldRead { scalar_type, .. }
@@ -610,6 +620,25 @@ pub(crate) fn emit_direct_expression(
     operations: &mut OperationBuffer,
 ) -> ValueId {
     match expression {
+        LoweredDirectExpression::AtomicLoad {
+            source,
+            path,
+            field,
+            ordering,
+            scalar_type,
+        } => emit_scalar_leaf(
+            OperationKind::AtomicAccess {
+                place: *source,
+                path: path.clone(),
+                field: *field,
+                event: terminal_psi::AtomicAccessEvent::Load {
+                    ordering: *ordering,
+                },
+            },
+            *scalar_type,
+            next_value_identity,
+            operations,
+        ),
         LoweredDirectExpression::PrimitiveRead {
             source,
             path,

@@ -686,6 +686,7 @@ impl<'a> Expansion<'a> {
                 active,
             )?,
             CheckedScalarComputationKind::StructuralField {
+                atomic_ordering,
                 receiver_expression,
                 receiver_value,
                 subject,
@@ -697,6 +698,7 @@ impl<'a> Expansion<'a> {
                 receiver_value,
                 &subject,
                 field,
+                atomic_ordering,
                 node.primitive_type,
                 node.normal_cleanup_actions,
                 input_types,

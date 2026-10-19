@@ -120,6 +120,11 @@ impl TerminalExecution<'_> {
                 expected,
                 replacement,
                 ..
+            }
+            | AtomicAccessEvent::CompareExchangeOnce {
+                expected,
+                replacement,
+                ..
             } => {
                 // Representation equality of the resident against the
                 // expected value, never a user-defined equality.
@@ -128,7 +133,42 @@ impl TerminalExecution<'_> {
             }
         };
         match (prior, &operation.result) {
+            (Some(prior), OperationResult::Structural(result))
+                if matches!(event, AtomicAccessEvent::CompareExchangeOnce { .. }) =>
+            {
+                if !result.is_unrestricted_plain()
+                    || !result.qualification_establishments.is_empty()
+                {
+                    return Err(malformed());
+                }
+                let types = self.program.structural_types();
+                let cases = terminal_psi::types::atomic_once_outcome_cases(
+                    types.get(&result.structural_type).ok_or_else(malformed)?,
+                    scalar_type,
+                )
+                .ok_or_else(malformed)?;
+                // The serial engine has no interfering activation or failed
+                // conditional-store attempt. It never invents Uncommitted.
+                let index = usize::from(replacement.is_some());
+                let result_case = cases[index].id;
+                let fields = if index == 0 {
+                    vec![(cases[0].fields[0].id, prior)]
+                } else {
+                    Vec::new()
+                };
+                self.publish_scalar_case(
+                    result,
+                    crate::values::TerminalScalarCaseValue {
+                        structural_type: result.structural_type,
+                        result_case,
+                        fields,
+                    },
+                )?;
+            }
             (Some(prior), OperationResult::Scalar(result)) if result.scalar_type == scalar_type => {
+                if matches!(event, AtomicAccessEvent::CompareExchangeOnce { .. }) {
+                    return Err(malformed());
+                }
                 self.values.insert(result.id, prior);
             }
             (None, OperationResult::Unit) => {}

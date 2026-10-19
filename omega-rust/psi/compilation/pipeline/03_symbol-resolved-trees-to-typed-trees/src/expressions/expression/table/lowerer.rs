@@ -290,8 +290,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             }
             resolved::expression::ExpressionNode::Atomic(atomic) => {
                 if !atomic.result_custody.is_valid_for(atomic.ordering)
-                    || (atomic.result_custody.requires_result_destination()
-                        && !atomic.result.is_valid())
+                    || (atomic.result_custody.has_structural_result() && atomic.result.is_valid())
                 {
                     return Err(Diagnostic::error(
                         "atomic expression result custody does not match its operation axis",

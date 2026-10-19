@@ -189,7 +189,7 @@ pub data AtomicCompareExchangeOutcome<T> {
     case Exchanged;
 }
 
-pub data AtomicCompareExchangeOnceOutcome<T> {
+pub data AtomicCompareExchangeOnceOutcome<T [copy]> [copy] {
     case Mismatched(observed: T);
     case Exchanged;
     case Uncommitted(observed: T);

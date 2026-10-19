@@ -36,8 +36,8 @@ pub use target_operations::{
     TargetStructuralReturnSource, TargetStructuralRuntimeIndex, TargetUnitOperation,
     TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
     TargetUnitWriteOnlyPrimitiveStoreSource, TargetViewExtent, TerminalPsiProvenance, boundary,
-    calls, control_flow, conventional_float_class_layout, operations, provenance,
-    selector_carrier_type, storage, values,
+    calls, control_flow, conventional_atomic_once_layout, conventional_float_class_layout,
+    operations, provenance, selector_carrier_type, storage, values,
 };
 
 pub use installation_evidence::InstalledAssumedBindingEvidence;

@@ -174,6 +174,7 @@ impl AtomicForm {
             AtomicAccessEvent::Store { .. } => AtomicOperation::Store,
             AtomicAccessEvent::Swap { .. } => AtomicOperation::Swap,
             AtomicAccessEvent::CompareExchange { .. } => AtomicOperation::CompareExchange,
+            AtomicAccessEvent::CompareExchangeOnce { .. } => AtomicOperation::CompareExchange,
             AtomicAccessEvent::ReadModifyWrite { operation, .. } => match operation {
                 AtomicReadModifyWrite::FetchAdd => AtomicOperation::FetchAdd,
                 AtomicReadModifyWrite::FetchSub => AtomicOperation::FetchSub,

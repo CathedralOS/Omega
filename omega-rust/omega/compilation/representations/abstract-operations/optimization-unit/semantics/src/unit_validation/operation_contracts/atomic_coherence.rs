@@ -23,6 +23,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn validate_function_atomic_coherence(
     function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<
+        semantic_vocabulary::StructuralTypeId,
+        &terminal_psi::StructuralTypeDeclaration,
+    >,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
 ) -> Result<(), OptimizationUnitValidationError> {
@@ -81,6 +85,7 @@ pub(crate) fn validate_function_atomic_coherence(
                         .iter()
                         .map(|block| block.structural_parameters.as_slice()),
                 ),
+                structural_types.values().copied(),
                 left,
                 left_path,
                 right,

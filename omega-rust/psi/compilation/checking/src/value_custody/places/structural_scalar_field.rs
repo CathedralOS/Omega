@@ -256,6 +256,54 @@ pub fn structural_scalar_field(
     state: SymbolHandle,
     expression: ExpressionHandle,
     bindings: &[(SymbolHandle, ExpressionHandle)],
+    source: impl FnMut(ExpressionHandle) -> Option<StructuralSource>,
+) -> Option<StructuralScalarField> {
+    structural_field_observation(
+        program,
+        machine,
+        state,
+        expression,
+        bindings,
+        ScalarObservationAccess::Ordinary,
+        source,
+    )
+}
+
+/// Geometry for an already selected atomic observation. The shared field walk
+/// retains every receiver/reference/case coordinate; only its final leaf rule
+/// differs. This grants no ordinary-read permission over an atomic resident.
+pub fn structural_atomic_field(
+    program: &dyn crate::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    expression: ExpressionHandle,
+    bindings: &[(SymbolHandle, ExpressionHandle)],
+    source: impl FnMut(ExpressionHandle) -> Option<StructuralSource>,
+) -> Option<StructuralScalarField> {
+    structural_field_observation(
+        program,
+        machine,
+        state,
+        expression,
+        bindings,
+        ScalarObservationAccess::Atomic,
+        source,
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ScalarObservationAccess {
+    Ordinary,
+    Atomic,
+}
+
+fn structural_field_observation(
+    program: &dyn crate::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    expression: ExpressionHandle,
+    bindings: &[(SymbolHandle, ExpressionHandle)],
+    access: ScalarObservationAccess,
     mut source: impl FnMut(ExpressionHandle) -> Option<StructuralSource>,
 ) -> Option<StructuralScalarField> {
     let mut steps = Vec::new();
@@ -380,6 +428,9 @@ pub fn structural_scalar_field(
         // same constant selection an intermediate step takes, ending at its
         // element's declared scalar carrier.
         Step::Element { occurrence, index } => {
+            if access == ScalarObservationAccess::Atomic {
+                return None;
+            }
             let TypeReferenceNode::FixedArray {
                 element_type,
                 length: typed_trees::types::FixedArrayLength::Literal(length),
@@ -423,8 +474,28 @@ pub fn structural_scalar_field(
     let declaration_carrier = crate::peel_declared_constraints(program, carrier);
     let record = program.closed_data_definition(declaration_carrier)?;
     let field = selected_member_field(program, declaration_carrier, record, leaf, &mut path)?;
-    let primitive_type =
-        observable_scalar(realized_scalar_carrier(program, field.type_reference)?)?;
+    let primitive_type = match access {
+        ScalarObservationAccess::Ordinary => {
+            observable_scalar(realized_scalar_carrier(program, field.type_reference)?)?
+        }
+        ScalarObservationAccess::Atomic => {
+            let TypeReferenceNode::Named { symbol, .. } = program
+                .type_reference_table
+                .type_reference(field.type_reference)
+            else {
+                return None;
+            };
+            if !program.symbols.builtin_type_atom(*symbol)?.is_atomic() {
+                return None;
+            }
+            observable_scalar(
+                crate::value_custody::recasts::exact_scalar_representation_type(
+                    program,
+                    field.type_reference,
+                )?,
+            )?
+        }
+    };
     Some(StructuralScalarField {
         root: local.root,
         receiver_value: local.receiver_value,
@@ -532,10 +603,32 @@ fn selected_member_field<'program>(
     {
         return None;
     }
-    let owner = if let Some(case_name) = &member.case_variant {
+    // An unqualified payload selection still belongs to its exact case.
+    // `exact_data_member_field` already resolved a unique declaration; recover
+    // that declaration's owner rather than treating absence of a source case
+    // spelling as evidence that this is a common field. This retains geometry
+    // only: the performed observation must independently prove live membership.
+    let selected_case = member.case_variant.as_ref().map(|name| name.as_str());
+    let mut payload_owners = program.data_members(record).iter().filter_map(|member| {
+        let variant = member.as_variant()?;
+        program
+            .data_payload_fields(variant)
+            .iter()
+            .any(|candidate| candidate.symbol == field.symbol)
+            .then_some(variant)
+    });
+    let payload_owner = payload_owners.next();
+    if payload_owners.next().is_some() {
+        return None;
+    }
+    let owner = if selected_case.is_some() || payload_owner.is_some() {
         let mut variants = program.data_members(record).iter().filter_map(|member| {
             let variant = member.as_variant()?;
-            (variant.name == *case_name).then_some(variant)
+            (selected_case.map_or_else(
+                || payload_owner.is_some_and(|owner| owner.symbol == variant.symbol),
+                |name| variant.name.as_str() == name,
+            ))
+            .then_some(variant)
         });
         let variant = variants.next()?;
         if variants.next().is_some()

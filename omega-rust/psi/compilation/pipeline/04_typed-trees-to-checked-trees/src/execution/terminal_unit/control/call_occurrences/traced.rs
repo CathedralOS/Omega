@@ -361,6 +361,36 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
             }
             continue;
         }
+        if let Some(local) = statement.as_local_data()
+            && let Some(carrier) = validation::atomic_once_carrier(program, local.initial_value)
+        {
+            let primitive =
+                validation::declared_place_type_raw(program, owner, Some(state), carrier.place)
+                    .and_then(|cell| program.primitive_type_reference(cell))?;
+            let plans = &facts.values.scalar_computations;
+            for (ordinal, expression) in carrier.operands.into_iter().enumerate() {
+                let role = CheckedScalarExpressionRole::AtomicOperand {
+                    operand_ordinal: u32::try_from(ordinal).ok()?,
+                };
+                if let Some(root) =
+                    plans.root_at(state.symbol, u32::try_from(statement_index).ok()?, role)
+                {
+                    if !plans.is_authored_root(root, machine, expression, primitive) {
+                        return None;
+                    }
+                    collect_root_calls(
+                        program,
+                        facts,
+                        state.symbol,
+                        statement_index,
+                        root.root,
+                        calls,
+                        0,
+                        &mut consumed,
+                    )?;
+                }
+            }
+        }
         // A primitive local's initializer computation owns the calls it
         // evaluates, whether it binds an immutable local or initializes
         // mutable storage; only immutable locals take a binding ordinal.

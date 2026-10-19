@@ -124,6 +124,7 @@ pub(super) fn project(
                     scalar_type: access.scalar_type,
                     field_byte_offset: access.field_byte_offset,
                     event: access.event,
+                    outcome: access.outcome,
                 }
             }
             AbstractOperation::StructuralByteSequenceFieldLength { .. } => {

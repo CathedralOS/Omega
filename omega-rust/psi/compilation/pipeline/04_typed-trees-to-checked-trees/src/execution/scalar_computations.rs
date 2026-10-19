@@ -30,6 +30,7 @@ use typed_trees::statement::TransitionTargetNode;
 use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceNode;
 
+mod atomic_loads;
 mod boundary_calls;
 mod byte_comparisons;
 mod call_arguments;
@@ -324,6 +325,31 @@ pub(crate) fn build_checked_value_computation_plans(
                     );
                 }
                 if let Some(local) = statement.as_local_data() {
+                    // The structural outcome local owns its authored scalar
+                    // operands, including nested calls, at the cell's carrier.
+                    if let Some(carrier) =
+                        validation::atomic_once_carrier(program, local.initial_value)
+                        && let Some(primitive_type) = validation::declared_place_type_raw(
+                            program,
+                            machine,
+                            Some(state),
+                            carrier.place,
+                        )
+                        .and_then(|cell| program.primitive_type_reference(cell))
+                    {
+                        for (ordinal, operand) in carrier.operands.into_iter().enumerate() {
+                            let Ok(operand_ordinal) = u32::try_from(ordinal) else {
+                                break;
+                            };
+                            builder.record_root(
+                                pure,
+                                statement_ordinal,
+                                CheckedScalarExpressionRole::AtomicOperand { operand_ordinal },
+                                operand,
+                                primitive_type,
+                            );
+                        }
+                    }
                     let structural_destination = program
                         .primitive_type_reference(local.type_reference)
                         .is_none();

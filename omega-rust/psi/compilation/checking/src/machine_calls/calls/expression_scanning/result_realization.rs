@@ -465,7 +465,11 @@ pub fn nested_boundary_applications_compose(
                         .iter()
                         .all(|argument| composes(program, *argument))
             }
-            ExpressionNode::Atomic(atomic) => composes(program, atomic.value),
+            ExpressionNode::Atomic(atomic) => {
+                crate::value_custody::atomic_operations::atomic_once_operands(program, atomic)
+                    .is_none()
+                    && composes(program, atomic.value)
+            }
             ExpressionNode::Binary(binary) => {
                 composes(program, binary.left) && composes(program, binary.right)
             }
@@ -494,7 +498,11 @@ fn first_nested_call(
         return None;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => first_nested_call(program, atomic.value),
+        ExpressionNode::Atomic(atomic) => {
+            crate::value_custody::atomic_operations::atomic_execution_children(program, atomic)
+                .into_iter()
+                .find_map(|child| first_nested_call(program, child))
+        }
         ExpressionNode::Call(call) => Some(call.target.clone()),
         ExpressionNode::Binary(binary) => first_nested_call(program, binary.left)
             .or_else(|| first_nested_call(program, binary.right)),

@@ -363,9 +363,9 @@ pub enum AbstractOperation {
     /// independent coherence recheck
     /// `abstract_operations::happens_before_atomic_coherence_violation`
     /// under the activation's bounded `happens_before` derivation.
-    /// Terminal Psi produces the serial scalar-result access families.
-    /// Fences and single-attempt outcomes remain outside that producer;
-    /// native consumers additionally require an admitted target encoding.
+    /// Terminal Psi produces scalar-result and single-attempt structural-result
+    /// access families. Native consumers additionally require an admitted target
+    /// encoding and exact result placement.
     AtomicEvent {
         psi_operation: OperationId,
         event: AbstractAtomicEvent,
@@ -915,7 +915,14 @@ impl AbstractOperation {
     /// which results need a physical home.
     pub fn structural_result(&self) -> Option<(OperationId, &StructuralOperationResult)> {
         let result = match self {
-            Self::EstablishScalarArray { result, .. }
+            Self::AtomicEvent {
+                event:
+                    crate::AbstractAtomicEvent::CompareExchangeOnce {
+                        outcome: result, ..
+                    },
+                ..
+            }
+            | Self::EstablishScalarArray { result, .. }
             | Self::EstablishStructuralArray { result, .. }
             | Self::EstablishPrimitiveLocal { result, .. }
             | Self::ByteSequenceSubslice { result, .. }

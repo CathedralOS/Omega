@@ -708,24 +708,6 @@ fn interpret_on_current_thread(
             "selected operator crash invocations have no checked execution support".to_owned(),
         );
     }
-    if checked
-        .expression_table
-        .iter_expressions()
-        .any(|(_, expression)| {
-            matches!(
-                expression,
-                checked_trees::expression::ExpressionNode::Atomic(atomic)
-                    if matches!(
-                        atomic.ordering,
-                        language_core::AtomicOrderingPlan::CompareExchangeOnce { .. }
-                    )
-            )
-        })
-    {
-        return evaluator.error_outcome(
-            "observing single-attempt compare-exchange has no runtime result carrier".to_owned(),
-        );
-    }
     for (position, binding) in options.virtual_clock_bindings.iter().enumerate() {
         let validity = binding.validate_for(checked).and_then(|()| {
             if options.virtual_clock_bindings[..position]

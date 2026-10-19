@@ -23,7 +23,11 @@ pub(super) fn recurse_shared_children(
                 visit(arm.value);
             }
         }
-        ExpressionNode::Atomic(atomic) => visit(atomic.value),
+        ExpressionNode::Atomic(atomic) => {
+            for child in validation::atomic_execution_children(program, atomic) {
+                visit(child);
+            }
+        }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
                 visit(*value);

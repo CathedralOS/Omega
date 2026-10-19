@@ -3,15 +3,15 @@
 //! The parser's carrier (`validation::atomic_assignment_carrier`) spells a
 //! fetch, swap, or compare-exchange as two statements — a result placeholder
 //! `let prior: T = 0;` and the carrier assignment `place = Atomic { model }` —
-//! and a store as the carrier assignment alone. A load is the value
-//! `place.load(o)` of an immutable local. The sequence plans them as follows:
+//! and a store as the carrier assignment alone. Once instead establishes a
+//! complete structural local. The sequence plans these events as follows:
 //!
 //! - the placeholder local reserves the next dense scalar binding and plans
 //!   nothing ([`result_placeholder`]); its literal initializer is not a value
 //!   the program observes;
 //! - the carrier assignment plans the event ([`writing_event`]), binding the
 //!   reserved ordinal to the instruction-observed prior;
-//! - a load local plans the event with its own binding ([`load_event`]).
+//! - loads are ordered scalar computations, whether inline or local-bound.
 //!
 //! The place is an atomic field reached through an ordinary shared structural
 //! receiver, retaining its actual home and stored-reference crossings. Static
@@ -78,56 +78,6 @@ fn names_local(
         program.expression_table.name_path_members(path.members),
         [member] if *member == local.name
     )
-}
-
-/// The load `let v: T = place.load(o);` at `statement_index`, binding `v`.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn load_event(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    local: &typed_trees::statement::TableLocalData,
-    binding_ordinal: u32,
-    trace: &LocalConstructionTrace,
-    shapes: &mut super::types::ShapeCollector<'_>,
-) -> Option<CheckedAtomicAccessPlan> {
-    let carrier = validation::atomic_load_carrier(program, local.initial_value)?;
-    let AtomicAccessOperation::Load(ordering) = carrier.operation else {
-        return None;
-    };
-    trace.phase("atomic access: load place");
-    let place = place(
-        program,
-        facts,
-        machine,
-        state,
-        statement_index,
-        carrier.place,
-        trace,
-        shapes,
-    )?;
-    trace.phase("atomic access: load result binding");
-    if local.is_mutable
-        || program.primitive_type_reference(local.type_reference)? != place.primitive_type
-    {
-        return None;
-    }
-    Some(CheckedAtomicAccessPlan {
-        statement_index,
-        receiver: place.receiver,
-        receiver_root_type_identity: place.receiver_root_type_identity,
-        field_case: place.field_case,
-        field_identity: place.field_identity,
-        primitive_type: place.primitive_type,
-        event: CheckedAtomicEvent::Load { ordering },
-        result: Some(CheckedUnitScalarResultBindingPlan {
-            statement_index,
-            binding_ordinal,
-            primitive_type: place.primitive_type,
-        }),
-    })
 }
 
 /// The writing event the carrier assignment at `statement_index` denotes.
@@ -242,6 +192,79 @@ pub(super) fn writing_event(
         primitive_type,
         event,
         result,
+        structural_result: None,
+    })
+}
+
+/// Plan a whole-outcome local using the same exact-cell and operand joins as
+/// scalar atomic events. Its receiving type is independently checked against
+/// the sealed core family before any result storage is published.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn once_event(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    local: &typed_trees::statement::TableLocalData,
+    result: checked_trees::CheckedUnitStructuralResultBindingPlan,
+    trace: &LocalConstructionTrace,
+    shapes: &mut super::types::ShapeCollector<'_>,
+) -> Option<CheckedAtomicAccessPlan> {
+    let carrier = validation::atomic_once_carrier(program, local.initial_value)?;
+    let AtomicAccessOperation::CompareExchangeOnce { success, failure } = carrier.operation else {
+        return None;
+    };
+    let place = place(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        carrier.place,
+        trace,
+        shapes,
+    )?;
+    if !validation::atomic_once_result_type(program, local.type_reference, place.primitive_type) {
+        return None;
+    }
+    let [expected, replacement] =
+        <[typed_trees::expression::ExpressionHandle; 2]>::try_from(carrier.operands).ok()?;
+    let expected = operand_row(
+        program,
+        facts,
+        machine.symbol,
+        state,
+        statement_index,
+        0,
+        expected,
+        place.primitive_type,
+    )?;
+    let replacement = operand_row(
+        program,
+        facts,
+        machine.symbol,
+        state,
+        statement_index,
+        1,
+        replacement,
+        place.primitive_type,
+    )?;
+    Some(CheckedAtomicAccessPlan {
+        statement_index,
+        receiver: place.receiver,
+        receiver_root_type_identity: place.receiver_root_type_identity,
+        field_case: place.field_case,
+        field_identity: place.field_identity,
+        primitive_type: place.primitive_type,
+        event: CheckedAtomicEvent::CompareExchangeOnce {
+            success,
+            failure,
+            expected,
+            replacement,
+        },
+        result: None,
+        structural_result: Some(result),
     })
 }
 

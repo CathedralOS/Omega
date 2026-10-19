@@ -437,6 +437,10 @@ pub enum LegalizedScalarInstructionKind {
         scalar_type: semantic_vocabulary::IntegerType,
         field_byte_offset: u32,
         event: terminal_psi::AtomicAccessEvent,
+        outcome: Option<(
+            terminal_psi::StructuralOperationResult,
+            calling_conventions::ConventionalSumLayout,
+        )>,
     },
     IeeeFloatCompare {
         comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
@@ -1015,6 +1019,7 @@ impl LegalizedScalarInstructionKind {
             | Self::EstablishElementView { result, .. }
             | Self::ElementViewSubslice { result, .. } => Some(result),
             Self::Call(call) => call.structural_result.as_ref(),
+            Self::AtomicAccess { outcome, .. } => outcome.as_ref().map(|(result, _)| result),
             Self::NormalizedForeignCall(call) => match &call.result {
                 target_operations::TargetBoundaryResult::Structural(home) => {
                     home.operation_result().map(|(_, result)| result)
@@ -1028,7 +1033,6 @@ impl LegalizedScalarInstructionKind {
             | Self::PortWrite { .. }
             | Self::RegisterAccess { .. }
             | Self::AtomicFence { .. }
-            | Self::AtomicAccess { .. }
             | Self::PlacedScalarAccess { .. }
             | Self::IeeeFloatCompare { .. }
             | Self::NearestIeeeFloatArithmetic { .. }

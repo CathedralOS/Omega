@@ -27,7 +27,18 @@ pub(super) fn find_call_site_in_expression<'program>(
             }
             None
         }
-        ExpressionNode::Atomic(atomic) => find_call_site_in_expression(traversal, atomic.value),
+        ExpressionNode::Atomic(atomic) => {
+            let inputs = crate::value_custody::atomic_operations::atomic_execution_children(
+                traversal.program,
+                atomic,
+            );
+            for input in inputs {
+                if let Some(site) = find_call_site_in_expression(traversal, input) {
+                    return Some(site);
+                }
+            }
+            None
+        }
         ExpressionNode::ArrayLiteral(values) => {
             for value in traversal
                 .program

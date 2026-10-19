@@ -1000,7 +1000,13 @@ fn push_expected_call(
             push_expected_call(program, inner.target, expected_type, expected)
         }
         ExpressionNode::Atomic(atomic) => {
-            push_expected_call(program, atomic.value, expected_type, expected)
+            // A whole Once result is not an ordinary callee result. Its
+            // operands receive the resident type in atomic operand planning.
+            if crate::value_custody::atomic_operations::atomic_once_operands(program, atomic)
+                .is_none()
+            {
+                push_expected_call(program, atomic.value, expected_type, expected);
+            }
         }
         ExpressionNode::Call(_) => {
             if let Some((_, existing)) = expected

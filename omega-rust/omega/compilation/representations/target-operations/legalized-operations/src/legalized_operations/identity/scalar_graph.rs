@@ -157,6 +157,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     scalar_type,
                     field_byte_offset,
                     event,
+                    outcome,
                 } => {
                     // 95..166 are the existing trapping forms.
                     bytes.push(167);
@@ -165,6 +166,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     encode_integer_type(bytes, *scalar_type);
                     crate::codec_bytes::push_encoded(bytes, field_byte_offset.to_le_bytes());
                     encode_atomic_event(bytes, *event);
+                    bytes.push(u8::from(outcome.is_some()));
+                    if let Some((result, layout)) = outcome {
+                        super::structural_result::encode_operation_result(bytes, result);
+                        super::read_byte::encode_layout(bytes, layout);
+                    }
                 }
                 LegalizedScalarInstructionKind::IeeeFloatCompare {
                     comparison,
@@ -1160,6 +1166,13 @@ fn encode_atomic_event(bytes: &mut Vec<u8>, event: terminal_psi::AtomicAccessEve
             success, failure, ..
         } => {
             bytes.push(4);
+            ordering(bytes, success);
+            ordering(bytes, failure);
+        }
+        Event::CompareExchangeOnce {
+            success, failure, ..
+        } => {
+            bytes.push(5);
             ordering(bytes, success);
             ordering(bytes, failure);
         }

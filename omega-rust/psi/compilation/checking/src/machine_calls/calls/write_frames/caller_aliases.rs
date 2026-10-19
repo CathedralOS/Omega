@@ -1138,7 +1138,9 @@ pub(super) fn expression_any(
             ExpressionNode::Match(dispatch) => {
                 pending.extend(program.expression_table.match_pending(dispatch));
             }
-            ExpressionNode::Atomic(atomic) => pending.push(atomic.value),
+            ExpressionNode::Atomic(atomic) => pending.extend(
+                crate::value_custody::atomic_operations::atomic_execution_children(program, atomic),
+            ),
             ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
             ExpressionNode::Unary(unary) => pending.push(unary.operand),
             ExpressionNode::Cast(cast) => pending.push(cast.value),

@@ -138,6 +138,7 @@ pub enum TargetUnitOperation {
         event: terminal_psi::AtomicAccessEvent,
         operands: Vec<TargetUnitScalarArgumentSource>,
         result_home: Option<TargetUnitScalarHomeRequirement>,
+        outcome_home: Option<TargetStructuralHomeRequirement>,
     },
     IeeeFloatCompare {
         result_home: TargetUnitScalarHomeRequirement,
@@ -720,6 +721,11 @@ impl TargetUnitOperation {
         &self,
     ) -> Option<(OperationId, &TargetStructuralHomeRequirement)> {
         match self {
+            Self::AtomicAccess {
+                psi_operation,
+                outcome_home: Some(home),
+                ..
+            } => Some((*psi_operation, home)),
             Self::IeeeFloatClassify {
                 psi_operation,
                 result_home,

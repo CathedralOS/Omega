@@ -200,7 +200,8 @@ pub(crate) fn lowered_direct_scalar_term(
                 "primitive storage read requires an occurrence-bound crash predicate",
             );
         }
-        LoweredDirectExpression::StructuralField { .. } => {
+        LoweredDirectExpression::StructuralField { .. }
+        | LoweredDirectExpression::AtomicLoad { .. } => {
             return unsupported("runtime field read requires an occurrence-bound crash predicate");
         }
         LoweredDirectExpression::ImplementationSelection { .. } => {

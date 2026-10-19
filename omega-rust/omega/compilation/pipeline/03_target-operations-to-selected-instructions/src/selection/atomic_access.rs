@@ -22,6 +22,7 @@ pub(super) fn form(
         scalar_type,
         field_byte_offset,
         event,
+        outcome,
     } = &row.kind
     else {
         return None;
@@ -39,12 +40,29 @@ pub(super) fn form(
     };
     if root_access != location.access
         || event.observes_resident() && root_access == StructuralAccess::WriteOnlyBorrow
-        || row.result.is_some() != event.observes_resident()
+        || row.result.is_some()
+            != (event.observes_resident() && event.single_attempt_custody().is_none())
         || row
             .result
             .is_some_and(|result| result.scalar_type != ScalarType::Integer(*scalar_type))
     {
         return None;
+    }
+    match (event.single_attempt_custody(), outcome) {
+        (None, None) => {}
+        (Some(_), Some((result, layout)))
+            if result.is_unrestricted_plain()
+                && result.qualification_establishments.is_empty()
+                && signature
+                    .structural_types
+                    .iter()
+                    .find(|row| row.id == result.structural_type)
+                    .and_then(|row| {
+                        target_operations::conventional_atomic_once_layout(row, *scalar_type)
+                    })
+                    .as_ref()
+                    == Some(layout) => {}
+        _ => return None,
     }
     let declaration = terminal_semantics::projected_field_declaration(
         signature.structural_types.iter(),

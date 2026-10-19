@@ -693,6 +693,39 @@ pub(crate) fn statement_mutated_place(
     Some(place)
 }
 
+/// A single attempt may replace one atomic resident after its operands finish.
+/// Resolve incoming/local reference origins before alias closure; an unresolved
+/// origin stays opaque. Shared atomic authority never becomes exclusive access.
+pub(crate) fn atomic_once_storage_writes(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CanonicalPlace>> {
+    let machine = program.machine_by_symbol(machine_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
+    let target = validation::atomic_once_write_place(program, machine, state, expression)?;
+    let place =
+        canonical_place_from_expression_in_state(program, state_symbol, statement_index, target)?;
+    let places = local_origins::rebase_local_write_places(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        call_frames,
+    )?;
+    local_origins::close_storage_places_over_aliases(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        places,
+        call_frames,
+    )
+}
+
 /// Storage writes for fact invalidation, including compiler-owned operations
 /// on borrowed receivers. An unresolved origin requires full invalidation.
 pub(crate) fn statement_storage_writes(
@@ -703,6 +736,18 @@ pub(crate) fn statement_storage_writes(
     statement: &StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
+    if let Some(local) = statement.as_local_data()
+        && validation::atomic_once_carrier(program, local.initial_value).is_some()
+    {
+        return atomic_once_storage_writes(
+            program,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            local.initial_value,
+            call_frames,
+        );
+    }
     if !matches!(
         statement,
         StatementNode::Assignment(_) | StatementNode::RootBinding(_)

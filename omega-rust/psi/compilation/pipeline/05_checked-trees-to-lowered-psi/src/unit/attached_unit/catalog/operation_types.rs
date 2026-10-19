@@ -23,6 +23,9 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
     }
     match operation {
         CheckedUnitEffectOperationPlan::AtomicAccess(access) => {
+            if let Some(result) = &access.structural_result {
+                roots.push(result.type_identity);
+            }
             collect_projection_type_roots(
                 plans,
                 access.receiver_root_type_identity,

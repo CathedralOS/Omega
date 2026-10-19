@@ -21,6 +21,7 @@ mod block_views;
 mod entry;
 pub(super) use block_views::block_entry;
 pub(super) use entry::entry;
+mod atomic_outcome;
 mod byte_concatenation;
 mod byte_field_read;
 mod byte_field_store;
@@ -30,6 +31,17 @@ mod descriptor_operands;
 mod leaf_copy;
 mod literals;
 mod local_storage;
+
+pub(super) fn establish_atomic_outcome(
+    source: &LegalizedScalarFunction,
+    row: &LegalizedScalarInstruction,
+    builder: &mut Builder<'_>,
+    observed: VirtualRegisterId,
+    expected: VirtualRegisterId,
+    scalar: ScalarType,
+) -> Result<(), SelectedInstructionError> {
+    atomic_outcome::establish(source, row, builder, observed, expected, scalar)
+}
 mod native_code_layout;
 pub(super) use local_storage::{byte_field_argument, fixed_array_argument};
 mod case_membership;

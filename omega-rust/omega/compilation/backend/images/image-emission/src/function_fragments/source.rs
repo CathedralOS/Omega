@@ -305,6 +305,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         | AbstractAtomicEvent::ReadModifyWrite { .. }
                         | AbstractAtomicEvent::Swap { .. }
                         | AbstractAtomicEvent::CompareExchange { .. }
+                        | AbstractAtomicEvent::CompareExchangeOnce { .. }
                         | AbstractAtomicEvent::Fence { .. },
                     ..
                 } => {

@@ -33,7 +33,10 @@ pub(crate) fn try_desugar_atomic_let(
     syntax_trees: &mut SyntaxTrees,
     binding: &TableLocalData,
 ) -> Option<HandleSpan<StatementHandle>> {
-    let ExpressionNode::Call(call) = syntax_trees.expressions.expression(binding.initial_value)
+    let ExpressionNode::Call(call) = syntax_trees
+        .expressions
+        .expression(binding.initial_value)
+        .clone()
     else {
         return None;
     };
@@ -44,6 +47,41 @@ pub(crate) fn try_desugar_atomic_let(
         return None;
     }
     let arguments = syntax_trees.expressions.expression_handles(call.arguments);
+    // A single attempt establishes a whole sum value, not an observed-prior
+    // scalar placeholder. Keep the authored receiver and value operands in
+    // one local initializer; the ordering arguments become proof-static data.
+    if call.target.as_str() == "compare_exchange_once" {
+        let [expected, replacement, success, failure] = arguments else {
+            return None;
+        };
+        let ordering = AtomicOrderingPlan::CompareExchangeOnce {
+            success: memory_ordering_from_expression(syntax_trees, *success).ok()?,
+            failure: memory_ordering_from_expression(syntax_trees, *failure).ok()?,
+        };
+        let operands = [*expected, *replacement];
+        let mut carrier = call;
+        carrier.arguments = syntax_trees.expressions.insert_expression_handles(operands);
+        let value = syntax_trees
+            .expressions
+            .insert(ExpressionNode::Call(carrier));
+        let mut local = binding.clone();
+        local.initial_value = syntax_trees
+            .expressions
+            .insert(ExpressionNode::Atomic(TableAtomicExpression {
+            value,
+            result: ExpressionHandle::invalid(),
+            ordering,
+            result_custody:
+                language_core::atomic::AtomicExpressionResultCustody::ObservingCompareExchangeOnce(
+                    language_core::atomic::AtomicCompareExchangeOnceResultCustody::CANONICAL,
+                ),
+        }));
+        let statement = syntax_trees
+            .statements
+            .insert(StatementNode::LocalData(local));
+        let first = syntax_trees.items.append_statement_handle(statement);
+        return Some(HandleSpan::from_parts(first, 1));
+    }
     let (update, ordering) = match (call.target.as_str(), arguments) {
         (
             "fetch_add" | "fetch_sub" | "fetch_xor" | "fetch_or" | "fetch_and",

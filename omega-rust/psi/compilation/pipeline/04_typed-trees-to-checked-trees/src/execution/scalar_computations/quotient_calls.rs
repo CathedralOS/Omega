@@ -40,6 +40,7 @@ impl Builder<'_, '_> {
                 root: receiver_value,
             });
         Some(self.insert(expected, checked_trees::CheckedScalarComputationKind::StructuralField {
+            atomic_ordering: None,
             source_expression: expression, receiver_expression: expression, source_type: result_type, receiver_value,
             subject: checked_trees::CheckedUnitStructuralArgumentPlan {
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },

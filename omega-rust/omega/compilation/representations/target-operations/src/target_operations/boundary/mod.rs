@@ -30,3 +30,5 @@ pub(crate) use fma::TargetX86ScalarFmaSettlement;
 
 mod float_class;
 pub use float_class::conventional_float_class_layout;
+mod atomic_outcome;
+pub use atomic_outcome::conventional_atomic_once_layout;

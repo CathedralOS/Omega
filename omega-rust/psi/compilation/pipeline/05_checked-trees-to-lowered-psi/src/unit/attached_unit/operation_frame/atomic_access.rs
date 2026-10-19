@@ -152,9 +152,62 @@ impl OperationFrame<'_, '_> {
                 success: *success,
                 failure: *failure,
             },
+            CheckedAtomicEvent::CompareExchangeOnce {
+                success, failure, ..
+            } => AtomicAccessEvent::CompareExchangeOnce {
+                expected: operand(0)?,
+                replacement: operand(1)?,
+                success: *success,
+                failure: *failure,
+            },
         };
         if !event.ordering_is_legal() {
             return unsupported("atomic event orderings are not source-legal");
+        }
+        if matches!(event, AtomicAccessEvent::CompareExchangeOnce { .. }) {
+            let result = access
+                .structural_result
+                .as_ref()
+                .ok_or(LoweringError::Unsupported(
+                    "single-attempt event lost its structural result",
+                ))?;
+            if access.result.is_some() {
+                return unsupported("single-attempt event cannot bind a scalar prior");
+            }
+            self.results
+                .require_next(result, "atomic outcome result is not dense")?;
+            let structural_type =
+                crate::unit::lookup_type_id(self.type_ids, &result.type_identity)?;
+            let (produced_place, producer) = super::allocate_structural_result(
+                self.operations,
+                self.next_place,
+                structural_type,
+                crate::terminal_identities::structural_multiplicity(result.multiplicity),
+                Vec::new(),
+                OperationKind::AtomicAccess {
+                    place,
+                    path,
+                    field,
+                    event,
+                },
+            )?;
+            let produced = self
+                .operations
+                .operations
+                .last()
+                .and_then(|row| row.result.as_structural())
+                .cloned()
+                .ok_or(LoweringError::Unsupported(
+                    "single-attempt event did not establish its outcome",
+                ))?;
+            return self.register_structural_result(
+                super::operation_result_declaration(produced_place, producer, structural_type),
+                result,
+                produced,
+            );
+        }
+        if access.structural_result.is_some() {
+            return unsupported("scalar atomic event has a structural outcome");
         }
         let result = match (&access.result, event.observes_resident()) {
             (Some(_), true) => {

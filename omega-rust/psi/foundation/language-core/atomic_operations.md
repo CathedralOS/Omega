@@ -41,7 +41,12 @@ events on ordinary scalar storage.
 `StructuralFieldType::Atomic` retains dedicated-cell identity separately from
 its scalar carrier. Shared loans authorize these events, not ordinary stores
 or non-atomic snapshots. Atomic fields do not expose a plain scalar reference.
-Single-attempt compare-exchange has no producer yet.
+Single-attempt compare-exchange binds one structural local directly. Its retained
+receiver and two operands are an evaluation roster, not an ordinary call. The
+source checker requires the sealed canonical outcome with the exact resident
+type; Terminal admission rejoins its three-case schema, operand types and legal
+orderings. Serial execution and bounded CMPXCHG/LSE CAS retain the third case
+without inventing spurious failure.
 
 Omega's terminal-to-abstract lowering (`machine/operation/atomic_events.rs`)
 keeps each Terminal event as one `AbstractOperation::AtomicEvent` at the same

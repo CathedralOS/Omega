@@ -866,7 +866,10 @@ fn expression_is_inert_or_calls(
         ExpressionNode::Match(dispatch) => program
             .expression_table
             .match_deep_all(dispatch, &mut inert),
-        ExpressionNode::Atomic(atomic) => inert(atomic.value),
+        ExpressionNode::Atomic(atomic) => {
+            crate::value_custody::atomic_operations::atomic_once_operands(program, atomic).is_none()
+                && inert(atomic.value)
+        }
         typed_trees::literal_expression_pattern!() => true,
         ExpressionNode::Member(member) => inert(member.receiver),
         ExpressionNode::Binary(binary) => {

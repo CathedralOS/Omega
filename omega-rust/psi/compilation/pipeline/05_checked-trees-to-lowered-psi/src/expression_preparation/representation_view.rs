@@ -234,6 +234,7 @@ fn observes_one_place(operand: &LoweredDirectExpression) -> bool {
     match operand {
         LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
+        | LoweredDirectExpression::AtomicLoad { .. }
         | LoweredDirectExpression::IndexedPrimitiveRead { .. }
         | LoweredDirectExpression::ElementViewRead { .. }
         | LoweredDirectExpression::Parameter { .. }

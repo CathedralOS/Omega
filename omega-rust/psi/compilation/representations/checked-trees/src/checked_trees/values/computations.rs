@@ -301,6 +301,10 @@ pub enum CheckedScalarComputationKind {
     /// authored evaluation point without moving the containing owner or
     /// assigning it a scalar parameter position.
     StructuralField {
+        /// Atomic loads use this same exact receiver/projection carrier, but
+        /// preserve their ordering and emit AtomicAccess rather than a plain
+        /// field read. None is an ordinary observation, never an atomic read.
+        atomic_ordering: Option<language_core::atomic::MemoryOrdering>,
         source_expression: typed_trees::expression::ExpressionHandle,
         /// Exact receiver occurrence before place normalization. Zero for a
         /// synthesized formal coordinate; lowering never reopens the member AST

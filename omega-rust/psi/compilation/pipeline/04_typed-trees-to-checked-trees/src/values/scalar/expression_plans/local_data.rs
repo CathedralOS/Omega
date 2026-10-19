@@ -33,6 +33,37 @@ pub(super) fn plan(
         binding_symbols,
         ..
     } = planner;
+    if let Some(carrier) = validation::atomic_once_carrier(program, local.initial_value) {
+        if let Some(operands) = super::super::atomic_operands::lower_carrier(
+            program,
+            operators,
+            machine,
+            state,
+            carrier,
+            scalar_parameters,
+            parameters,
+            parameter_types,
+            locals,
+            exact_integer_casts,
+        ) {
+            for (source, role, value) in operands {
+                super::record_scalar_value_pair(
+                    source_bindings,
+                    expressions,
+                    binding_symbols,
+                    scalar_parameters,
+                    locals,
+                    state.symbol,
+                    statement_ordinal,
+                    role,
+                    symbols::SymbolHandle::invalid(),
+                    source,
+                    value,
+                );
+            }
+        }
+        return;
+    }
     // A selected boundary operator's scalar operands carry
     // the same source custody as call arguments, whether
     // its result is scalar or structural.

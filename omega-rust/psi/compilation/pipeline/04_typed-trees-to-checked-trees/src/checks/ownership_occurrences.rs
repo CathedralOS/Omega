@@ -483,7 +483,11 @@ impl StatementOrder<'_> {
             }
             ExpressionNode::Unary(unary) => self.expression(unary.operand, conditional),
             ExpressionNode::Cast(cast) => self.expression(cast.value, conditional),
-            ExpressionNode::Atomic(atomic) => self.expression(atomic.value, conditional),
+            ExpressionNode::Atomic(atomic) => {
+                for child in validation::atomic_execution_children(self.program, atomic) {
+                    self.expression(child, conditional);
+                }
+            }
             ExpressionNode::ArrayLiteral(values) => {
                 for value in self.program.expression_table.expression_handles(*values) {
                     self.expression(*value, conditional);

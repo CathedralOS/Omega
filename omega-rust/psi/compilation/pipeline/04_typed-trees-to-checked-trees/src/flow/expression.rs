@@ -1432,6 +1432,17 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 }
             }
             ExpressionNode::Atomic(_) => {
+                let own_writes =
+                    validation::atomic_once_carrier(self.program, expression).map(|_| {
+                        super::mutation::atomic_once_storage_writes(
+                            self.program,
+                            self.machine.symbol,
+                            self.state.symbol,
+                            self.statement_index,
+                            expression,
+                            self.context.call_frames,
+                        )
+                    });
                 if let Some(inputs) = validation::atomic_value_operands(self.program, expression) {
                     let load = validation::atomic_load_carrier(self.program, expression).is_some();
                     let resident =
@@ -1463,6 +1474,15 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                             operands,
                         },
                     );
+                }
+                if let Some(writes) = own_writes {
+                    self.record_operand_writes(writes.clone());
+                    if let Some(writes) = writes {
+                        self.filter_captured_sources(&writes, contexts, constraints);
+                    } else {
+                        *contexts = HandleSpan::empty();
+                        *constraints = HandleSpan::empty();
+                    }
                 }
             }
             ExpressionNode::Cast(cast) => {

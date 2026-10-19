@@ -784,9 +784,15 @@ impl<'program> StructuralJudge<'program> {
             }
             return Some(outcomes);
         }
-        let writes = if let ExpressionNode::Call(call) = node
-            && !call_has_mathematical_denotation(program, call)
-        {
+        let has_own_effect = match node {
+            ExpressionNode::Call(call) => !call_has_mathematical_denotation(program, call),
+            ExpressionNode::Atomic(_) => {
+                crate::value_custody::atomic_operations::atomic_once_carrier(program, expression)
+                    .is_some()
+            }
+            _ => false,
+        };
+        let writes = if has_own_effect {
             let machine = program.machine(scope.0.symbol)?;
             let writes = self
                 .frame_resolver()?
@@ -1025,9 +1031,9 @@ impl<'program> StructuralJudge<'program> {
                     // The atomic owner distinguishes an observed load from
                     // update carriers. Its value is a fresh event, not the
                     // place's prior initializer or the modeled new resident.
-                    crate::value_custody::atomic_operations::atomic_load_carrier(
-                        program, expression,
-                    )?;
+                    if crate::value_custody::atomic_operations::atomic_load_carrier(program, expression).is_none()
+                        && crate::value_custody::atomic_operations::atomic_once_carrier(program, expression).is_none()
+                    { return None; }
                     judge.capture_unknown_value(expression, scope)?
                 } else if let Some(value) =
                     judge.callee_term_in_scope(Some(scope), expression, environment, 0)

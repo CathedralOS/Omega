@@ -257,14 +257,19 @@ fn validate_expression(
                 );
             }
         }
-        ExpressionNode::Atomic(atomic) => validate_child(
-            program,
-            atomic.value,
-            statement_index,
-            operational_calls,
-            call_ordinal,
-            diagnostics,
-        ),
+        ExpressionNode::Atomic(atomic) => {
+            let inputs = validation::atomic_execution_children(program, atomic);
+            for input in inputs {
+                validate_child(
+                    program,
+                    input,
+                    statement_index,
+                    operational_calls,
+                    call_ordinal,
+                    diagnostics,
+                );
+            }
+        }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
                 validate_child(

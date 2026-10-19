@@ -1006,8 +1006,8 @@ defines the complete product bar.
     observing/non-observing and decisive/single-attempt behavior, failure
     ordering, `Uncommitted` custody and target retry-work attribution.
   - Source/Terminal event production for bounded atomic fields and
-    single-attempt exchange: the abstract single-attempt carrier has no
-    Terminal producer. Preserve the location-free fence event and its ordering
+    non-observing single-attempt exchange. Preserve the location-free fence
+    event and its ordering
     through target refinement, including any future instruction-free realization.
   - Checked `sequenced_before`, `reads_from`, `modification_order`,
     `synchronizes_with`, `happens_before` and `global_sequential_order`,

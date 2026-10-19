@@ -40,8 +40,42 @@ pub(crate) fn lower(
     )>,
 > {
     let carrier = validation::atomic_assignment_carrier(program, assignment)?;
+    lower_carrier(
+        program,
+        operators,
+        machine,
+        state,
+        carrier,
+        scalar_parameters,
+        parameters,
+        parameter_types,
+        locals,
+        exact_integer_casts,
+    )
+}
+
+/// Both writing statements and structural-result locals share operand rows.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn lower_carrier(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    carrier: validation::AtomicCarrierAccess,
+    scalar_parameters: &[StateParameter],
+    parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<
+    Vec<(
+        ExpressionHandle,
+        CheckedScalarExpressionRole,
+        CheckedScalarExpression,
+    )>,
+> {
     let primitive_type =
-        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
+        validation::declared_place_type_raw(program, machine, Some(state), carrier.place)
             .and_then(|declared| program.primitive_type_reference(declared));
     let mut rows = Vec::new();
     for (ordinal, operand) in carrier.operands.iter().copied().enumerate() {

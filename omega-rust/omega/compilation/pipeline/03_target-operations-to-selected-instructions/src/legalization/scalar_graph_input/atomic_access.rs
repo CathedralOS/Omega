@@ -17,6 +17,10 @@ pub(in crate::legalization) struct Access {
     pub field_byte_offset: u32,
     pub event: AtomicAccessEvent,
     pub result: Option<AbstractResult>,
+    pub outcome: Option<(
+        terminal_psi::StructuralOperationResult,
+        calling_conventions::ConventionalSumLayout,
+    )>,
 }
 
 /// Fences and single-attempt exchange need distinct native contracts. Do not
@@ -85,7 +89,22 @@ pub(super) fn event(
             },
             Some(*observed),
         ),
-        Source::CompareExchangeOnce { .. } | Source::Fence { .. } => return None,
+        Source::CompareExchangeOnce {
+            success,
+            failure,
+            expected,
+            replacement,
+            ..
+        } => (
+            AtomicAccessEvent::CompareExchangeOnce {
+                success: *success,
+                failure: *failure,
+                expected: *expected,
+                replacement: *replacement,
+            },
+            None,
+        ),
+        Source::Fence { .. } => return None,
     })
 }
 
@@ -144,6 +163,21 @@ pub(in crate::legalization) fn access(
     if byte_size != u32::from(integer.bits() / 8) || offset % byte_size != 0 {
         return None;
     }
+    let outcome = if let AbstractAtomicEvent::CompareExchangeOnce { outcome, .. } = source {
+        if !source.custody_is_consistent()
+            || !outcome.is_unrestricted_plain()
+            || !outcome.qualification_establishments.is_empty()
+        {
+            return None;
+        }
+        let declaration = types.iter().find(|row| row.id == outcome.structural_type)?;
+        Some((
+            outcome.clone(),
+            target_operations::conventional_atomic_once_layout(declaration, integer)?,
+        ))
+    } else {
+        None
+    };
     Some(Access {
         location: StructuralArgument {
             place: location.root,
@@ -155,5 +189,6 @@ pub(in crate::legalization) fn access(
         field_byte_offset: offset,
         event,
         result,
+        outcome,
     })
 }
