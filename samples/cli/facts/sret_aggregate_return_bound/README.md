@@ -65,3 +65,43 @@ This row establishes that returning a 24-byte three-field structural record (`Tr
 
 The row is verified by `samples/cli/facts/sret_aggregate_return_bound` where every positive records native exit 0 and Terminal Psi execution agreement (`omega run --both`), and every invalid twin rejects with `may overflow `u64``.
 What remains open: Dynamic stack frame elision for tail-call forwarded indirect aggregate return destinations.
+
+## Measured evidence
+
+Producer revision `ab9a94dfb6a5` (fixture commit), macOS arm64 host, optimized dev-profile `omega`.
+All ten projects (root plus nine places) were measured with `omega run --both` and reported
+`native exit 0` with `interp exit: 0`; no place refused or disagreed.
+
+- `python3 tools/sample_native_gate.py --filter cli/facts/sret_aggregate_return_bound` —
+  10/10 samples meet their documented oracle on `macos_arm64` (0 unscored),
+  9/9 intended-invalid controls match their authored rejection.
+- `python3 tools/corpus_gate.py --native --filter facts/sret_aggregate_return_bound` —
+  nine fixtures, all `built` with `exit:0`, executed 9 (`exit codes {'0': 9}`),
+  0 rejected without the expected fragment, 0 fail fixtures failing to reject.
+  The nine rows are recorded in `tests/omega/corpus_native_macos_arm64.txt`.
+
+### Oracle discrimination
+
+The oracle was proved to discriminate before it was recorded. The positive place shape
+returns its `Triple` through a caller-supplied member and consumes it in the
+defined-overflow `Trapping` domain, so the value that crosses the indirect `sret` home
+determines the observed result without any caller equality guard:
+
+- `probe(40u64)` — `native exit 0`, `interp exit: 0`.
+- `probe(41u64)` — only the crossing value changed: `native signal 5`,
+  `interp crash: Trap (host presentation agrees)`.
+
+Being a static layer on top, the `where` domain gate and the body-derived postcondition
+also reject member corruption at compile time: a caller-visible member changed to a value
+outside the callee's declared postcondition is reported as
+`the instantiated fact is structurally false (500 == 40)`. The proof therefore derives the
+returned member from the callee's body rather than trusting the declared `ensures`.
+
+### Fixtures
+
+Nine positive places are pinned under `tests/omega/pass/facts/sret_aggregate_return_bound_through_<place>_exit`
+(with `expected_native_exit.txt` `0`), and nine reject twins under
+`tests/omega/fail/facts/sret_aggregate_return_bound_through_<place>_rejected`
+(with `expected.txt` `may overflow `u64``). Each twin differs from its positive only in the
+construct's own returned member value and declared bound (`40u64` versus `91u64`), never in a
+caller guard.
