@@ -5,13 +5,13 @@ use std::io;
 pub fn optimization_level() -> io::Result<String> {
     let mut optimization = std::env::var("OPT_LEVEL").map_err(io::Error::other)?;
     let flags = std::env::var("CARGO_ENCODED_RUSTFLAGS").unwrap_or_default();
+    if flags.split('\u{1f}').any(|option| option.starts_with('@')) {
+        return Err(io::Error::other(
+            "cannot verify compiler optimization through a rustflags response file",
+        ));
+    }
     let mut options = flags.split('\u{1f}');
     while let Some(option) = options.next() {
-        if option.starts_with('@') {
-            return Err(io::Error::other(
-                "cannot verify compiler optimization through a rustflags response file",
-            ));
-        }
         let codegen = match option {
             "-C" | "--codegen" => options.next(),
             _ => option

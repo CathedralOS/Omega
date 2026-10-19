@@ -34,10 +34,15 @@ class QualificationTests(unittest.TestCase):
         self.library = self.root / "producer.rlib"
         self.library.write_bytes(b"pinned compiler dependency")
         import compiler_profile
-        compiler_profile.record_cargo_build(self.library, "\n".join(json.dumps(dict(
-            reason="compiler-artifact", target=dict(name=name), profile=dict(opt_level="1"),
-            executable=str(self.library) if name == "fixture_compiler" else None))
-            for name in ["compiler", "fixture_compiler"]))
+        Path(str(self.library) + ".compiler-profile.json").write_text(json.dumps(dict(
+            schema=compiler_profile.CARGO_RECEIPT_SCHEMA,
+            binary_sha256=qualification.file_digest(self.library),
+            profile=dict(schema=compiler_profile.SCHEMA, opt_level="1"),
+            cargo_profiles=dict(compiler="1", fixture_compiler="1"),
+            effective_codegen={name:dict(opt_level="1", rustflags=[],
+                fingerprint=dict(path="unit-fixture",contents='{"rustflags": []}',
+                    sha256=compiler_profile.hashlib.sha256(b'{"rustflags": []}').hexdigest()))
+                for name in ["compiler", "fixture_compiler"]})))
         self.state = self.root / "evidence.json"
         self.config = dict(context=dict(host="local-fixture", target="fixture", toolchain="python"), checks=[
             dict(id="values", kind="tests", command=[sys.executable, "check.py"],
@@ -85,6 +90,10 @@ class QualificationTests(unittest.TestCase):
         self.assertEqual(run["compiler_profiles"][0]["sha256"], run["artifacts"][str(self.library)])
         legacy = copy.deepcopy(run)
         legacy.pop("compiler_profiles")
+        self.assertIn("compiler_build_profile_missing_or_unbound", qualification.reasons(
+            self.repository, result, result["config"]["checks"][0], legacy, self.base))
+        legacy = copy.deepcopy(run)
+        legacy["compiler_profiles"][0]["build_receipt"].pop("schema")
         self.assertIn("compiler_build_profile_missing_or_unbound", qualification.reasons(
             self.repository, result, result["config"]["checks"][0], legacy, self.base))
 
@@ -475,11 +484,6 @@ class QualificationTests(unittest.TestCase):
         row = self.assess(incoming)["assessments"][-1]["checks"][0]
         self.assertIn("compiler_or_artifact_changed", row["reasons"])
         self.library.write_bytes(b"pinned compiler dependency")
-        import compiler_profile
-        compiler_profile.record_cargo_build(self.library, "\n".join(json.dumps(dict(
-            reason="compiler-artifact", target=dict(name=name), profile=dict(opt_level="1"),
-            executable=str(self.library) if name == "fixture_compiler" else None))
-            for name in ["compiler", "fixture_compiler"]))
         with mock.patch.dict(os.environ, {"CARGO_PROFILE_DEV_OPT_LEVEL": "changed"}):
             row = self.assess(incoming)["assessments"][-1]["checks"][0]
         self.assertIn("environment_changed", row["reasons"])

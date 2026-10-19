@@ -72,12 +72,30 @@ class CompilerProfileTests(unittest.TestCase):
                 profile.require_optimized(self.binary)
 
     def test_fresh_cargo_receipt_supports_historical_comparison_and_checks_digest(self):
+        root = Path(self.temporary.name)
+        self.binary = root / "runner/out/corpus_runner-0123456789abcdef"
+        library = root / "library/out/libcompiler-0123456789abcdef.rlib"
+        for artifact, name in [(self.binary, "corpus_runner"), (library, "compiler")]:
+            artifact.parent.mkdir(parents=True)
+            artifact.write_bytes(b"historical compiler artifact")
+            fingerprint = artifact.parent.parent / "fingerprint"
+            fingerprint.mkdir()
+            (fingerprint / ("lib-" + name + ".json")).write_text(json.dumps(dict(rustflags=[])))
         self.binary.write_bytes(b"historical runner")
         def message(name, level, executable=None):
             return json.dumps(dict(reason="compiler-artifact", target=dict(name=name),
-                                   profile=dict(opt_level=level), fresh=True, executable=executable))
+                                   profile=dict(opt_level=level), fresh=True, executable=executable,
+                                   filenames=[str(library if name == "compiler" else self.binary)]))
         records = "\n".join([message("compiler", "1"), message("corpus_runner", "1", str(self.binary))])
         profile.record_cargo_build(self.binary, records)
+        receipt_path = Path(str(self.binary) + ".compiler-profile.json")
+        original_receipt = receipt_path.read_bytes()
+        damaged = json.loads(original_receipt)
+        damaged["effective_codegen"]["compiler"]["fingerprint"]["contents"] = '{"rustflags": ["-Copt-level=0"]}'
+        receipt_path.write_text(json.dumps(damaged))
+        with self.assertRaisesRegex(profile.CompilerProfileError, "fingerprint evidence changed"):
+            profile.require_optimized(self.binary)
+        receipt_path.write_bytes(original_receipt)
         with patch.object(profile.subprocess, "run") as query:
             self.assertEqual(profile.require_optimized(self.binary)["profile"]["opt_level"], "1")
             query.assert_not_called()
@@ -87,6 +105,14 @@ class CompilerProfileTests(unittest.TestCase):
         for invalid in [records.replace('"1"', '"0"'), message("corpus_runner", "1", str(self.binary))]:
             with self.assertRaises(profile.CompilerProfileError):
                 profile.record_cargo_build(self.binary, invalid)
+        with self.assertRaisesRegex(profile.CompilerProfileError, "fingerprint"):
+            profile.artifact_codegen(dict(target=dict(name="compiler"), profile=dict(opt_level="1"), filenames=[]))
+        receipt = json.loads(Path(str(self.binary) + ".compiler-profile.json").read_text())
+        receipt.pop("effective_codegen")
+        receipt["binary_sha256"] = profile.hashlib.sha256(self.binary.read_bytes()).hexdigest()
+        Path(str(self.binary) + ".compiler-profile.json").write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(profile.CompilerProfileError, "effective Cargo"):
+            profile.require_optimized(self.binary)
 
 
 class GateCompilerAdmissionTests(unittest.TestCase):
@@ -120,6 +146,53 @@ class GateCompilerAdmissionTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("cargo"), "Cargo is needed to exercise the actual build guard")
 class CargoOptimizationGuardTests(unittest.TestCase):
+    def test_actual_cargo_fingerprints_override_the_misleading_profile_label(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "src").mkdir()
+            (root / "tests").mkdir()
+            (root / "Cargo.toml").write_text(
+                '[package]\nname="compiler"\nversion="0.0.0"\nedition="2024"\n'
+                '[[test]]\nname="corpus_runner"\nharness=false\n'
+                '[profile.test]\nopt-level=1\n')
+            (root / "src/lib.rs").write_text('pub fn fixture() {}\n')
+            (root / "tests/corpus_runner.rs").write_text('fn main() { compiler::fixture(); }\n')
+            for level in ["0", "2"]:
+                environment = dict(os.environ, CARGO_TARGET_DIR=str(root / "target"),
+                                   CARGO_PROFILE_TEST_OPT_LEVEL="1", RUSTFLAGS="-C opt-level=" + level)
+                environment.pop("CARGO_ENCODED_RUSTFLAGS", None)
+                run = subprocess.run(["cargo", "test", "--no-run", "--test", "corpus_runner",
+                                      "--offline", "--message-format=json"], cwd=root,
+                                     env=environment, capture_output=True, text=True, timeout=90)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                messages = [json.loads(line) for line in run.stdout.splitlines() if line.startswith("{")]
+                item = next(item for item in messages if item.get("executable"))
+                self.assertEqual(item["profile"]["opt_level"], "1")
+                binary = Path(item["executable"])
+                if level == "0":
+                    with self.assertRaisesRegex(profile.CompilerProfileError, "effective opt-level"):
+                        profile.record_cargo_build(binary, run.stdout)
+                    self.assertFalse(Path(str(binary) + ".compiler-profile.json").exists())
+                else:
+                    profile.record_cargo_build(binary, run.stdout)
+                    self.assertEqual(profile.require_optimized(binary)["profile"]["opt_level"], "2")
+            (root / ".cargo").mkdir()
+            (root / ".cargo/config.toml").write_text('[build]\nrustflags=["--codegen=opt-level=0"]\n')
+            environment.pop("RUSTFLAGS")
+            run = subprocess.run(["cargo", "test", "--no-run", "--test", "corpus_runner",
+                                  "--offline", "--message-format=json"], cwd=root,
+                                 env=environment, capture_output=True, text=True, timeout=90)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            messages = [json.loads(line) for line in run.stdout.splitlines() if line.startswith("{")]
+            item = next(item for item in messages if item.get("executable"))
+            self.assertEqual(item["profile"]["opt_level"], "1")
+            with self.assertRaisesRegex(profile.CompilerProfileError, "effective opt-level"):
+                profile.record_cargo_build(Path(item["executable"]), run.stdout)
+            with self.assertRaisesRegex(profile.CompilerProfileError, "response file"):
+                profile.effective_optimization("1", ["@uninspected-flags"])
+            with self.assertRaisesRegex(profile.CompilerProfileError, "response file"):
+                profile.effective_optimization("1", ["-C", "@uninspected-flags"])
+
     def test_cargo_profiles_and_rustflags_cannot_produce_an_unoptimized_compiler(self):
         guard = Path(__file__).resolve().parents[2] / "omega-rust/omega/compilation/driver/build_profile.rs"
         with tempfile.TemporaryDirectory() as directory:
@@ -154,6 +227,11 @@ class CargoOptimizationGuardTests(unittest.TestCase):
             refused = run("test", "--no-run", CARGO_PROFILE_TEST_OPT_LEVEL="0")
             self.assertNotEqual(refused.returncode, 0)
             self.assertIn("requires an optimized compiler", refused.stderr)
+            response = root / "flags.rsp"
+            response.write_text("opt-level=0\n")
+            refused = run("build", CARGO_ENCODED_RUSTFLAGS="-C\x1f@" + str(response))
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertIn("response file", refused.stderr)
 
 
 if __name__ == "__main__":

@@ -10,10 +10,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 
 
 SCHEMA = "omega-compiler-build-profile-v1"
+CARGO_RECEIPT_SCHEMA = "omega-cargo-effective-profile-v1"
 OPTIMIZED = {"1", "2", "3", "s", "z"}
 
 
@@ -29,6 +31,66 @@ def optimized_environment():
 def is_optimized_profile(profile):
     return (isinstance(profile, dict) and profile.get("schema") == SCHEMA
             and isinstance(profile.get("opt_level"), str) and profile["opt_level"] in OPTIMIZED)
+
+
+def effective_optimization(level, flags):
+    """Cargo's profile label precedes the actual Rust codegen flag overrides."""
+    if not isinstance(flags, list) or not all(isinstance(flag, str) for flag in flags):
+        raise CompilerProfileError("compiler fingerprint lacks actual Rust flags")
+    if any(option.startswith("@") for option in flags):
+        raise CompilerProfileError("cannot verify compiler optimization through a rustflags response file")
+    options = iter(flags)
+    for option in options:
+        if option in {"-C", "--codegen"}:
+            codegen = next(options, "")
+        elif option.startswith("-C"):
+            codegen = option[2:]
+        elif option.startswith("--codegen="):
+            codegen = option[len("--codegen="):]
+        else:
+            codegen = ""
+        if codegen.startswith("opt-level="):
+            level = codegen[len("opt-level="):]
+    if not isinstance(level, str) or level not in OPTIMIZED:
+        raise CompilerProfileError(f"compiler has unoptimized or unknown effective opt-level ({level})")
+    return level
+
+
+def artifact_codegen(item):
+    """Find the exact artifact's flags in Cargo or mbx's fingerprint layout.
+
+    Cargo's artifact JSON reports the profile before RUSTFLAGS/config overrides.
+    Only its matching fingerprint records those effective flags, including for
+    cached builds. An unfamiliar/missing fingerprint refuses rather than guessing.
+    """
+    name = item["target"]["name"].replace("-", "_")
+    candidates = set()
+    for filename in item.get("filenames", []):
+        artifact = Path(filename)
+        if artifact.parent.name == "out":
+            directory = artifact.parent.parent / "fingerprint"
+            candidates.update(directory.glob("*-" + name + ".json"))
+        elif artifact.parent.name == "deps":
+            suffix = re.search(r"-([0-9a-f]+)(?:\.[^.]+)?$", artifact.name)
+            if suffix:
+                fingerprints = artifact.parent.parent / ".fingerprint"
+                for directory in fingerprints.glob("*-" + suffix.group(1)):
+                    candidates.update(directory.glob("*-" + name + ".json"))
+    if len(candidates) != 1:
+        raise CompilerProfileError(f"{name}: cannot identify the exact Cargo compiler fingerprint")
+    path = candidates.pop()
+    try:
+        contents = path.read_bytes()
+        fingerprint = json.loads(contents)
+    except (OSError, ValueError) as error:
+        raise CompilerProfileError(f"{name}: cannot read Cargo compiler fingerprint: {error}") from error
+    if not isinstance(fingerprint, dict):
+        raise CompilerProfileError(f"{name}: invalid Cargo compiler fingerprint")
+    flags = fingerprint.get("rustflags")
+    level = effective_optimization(item.get("profile", {}).get("opt_level"), flags)
+    return dict(opt_level=level, rustflags=flags,
+                fingerprint=dict(path=str(path), sha256=hashlib.sha256(contents).hexdigest(),
+                                 contents=contents.decode("utf-8")))
 
 
 def require_optimized(binary):
@@ -55,14 +117,30 @@ def require_optimized(binary):
             receipt = json.loads(receipt_bytes)
             if not isinstance(receipt, dict) or receipt.get("binary_sha256") != identity:
                 raise CompilerProfileError(f"{binary}: compiler profile receipt has a different binary digest")
+            if receipt.get("schema") != CARGO_RECEIPT_SCHEMA:
+                raise CompilerProfileError(f"{binary}: unknown Cargo effective profile receipt schema")
             profile = receipt["profile"]
             cargo_profiles = receipt.get("cargo_profiles")
+            codegen = receipt.get("effective_codegen")
             if (not isinstance(cargo_profiles, dict) or len(cargo_profiles) < 2
                     or not is_optimized_profile(profile)
-                    or cargo_profiles.get("compiler") != profile["opt_level"]
-                    or not all(isinstance(level, str) and level in OPTIMIZED for level in cargo_profiles.values())):
-                raise CompilerProfileError(f"{binary}: missing optimized Cargo library/executable profile evidence")
-            bound_receipt = dict(path=str(receipt_path), sha256=hashlib.sha256(receipt_bytes).hexdigest())
+                    or not isinstance(codegen, dict) or set(codegen) != set(cargo_profiles)
+                    or not isinstance(codegen.get("compiler"), dict)
+                    or codegen["compiler"].get("opt_level") != profile["opt_level"]):
+                raise CompilerProfileError(f"{binary}: missing effective Cargo library/executable profile evidence")
+            for name, artifact in codegen.items():
+                if (not isinstance(artifact, dict) or not isinstance(artifact.get("fingerprint"), dict)
+                        or not artifact["fingerprint"].get("sha256")
+                        or effective_optimization(cargo_profiles[name], artifact.get("rustflags")) != artifact.get("opt_level")):
+                    raise CompilerProfileError(f"{binary}: Cargo effective profile evidence does not agree")
+                fingerprint = artifact["fingerprint"]
+                contents = fingerprint.get("contents")
+                if (not isinstance(contents, str)
+                        or hashlib.sha256(contents.encode("utf-8")).hexdigest() != fingerprint["sha256"]
+                        or json.loads(contents).get("rustflags") != artifact["rustflags"]):
+                    raise CompilerProfileError(f"{binary}: captured compiler fingerprint evidence changed")
+            bound_receipt = dict(path=str(receipt_path), sha256=hashlib.sha256(receipt_bytes).hexdigest(),
+                                 schema=CARGO_RECEIPT_SCHEMA)
         if not is_optimized_profile(profile):
             raise CompilerProfileError(f"{binary}: unoptimized or unknown compiler build profile")
         if hashlib.sha256(binary.read_bytes()).hexdigest() != identity:
@@ -86,7 +164,7 @@ def record_cargo_build(binary, output):
     Host build-script dependencies are deliberately not runtime compiler inputs.
     """
     binary = Path(binary).absolute()
-    profiles = {}
+    profiles, codegen = {}, {}
     for line in output.splitlines():
         try:
             item = json.loads(line)
@@ -96,13 +174,15 @@ def record_cargo_build(binary, output):
             continue
         name = item.get("target", {}).get("name")
         if name == "compiler" or item.get("executable") == str(binary):
+            if name != "compiler" and str(binary) not in item.get("filenames", []):
+                raise CompilerProfileError("Cargo executable is not bound to its artifact filenames")
             level = item.get("profile", {}).get("opt_level")
-            if not isinstance(level, str) or level not in OPTIMIZED:
-                raise CompilerProfileError(f"{name}: Cargo built an unoptimized or unknown compiler profile ({level})")
             profiles[name] = level
+            codegen[name] = artifact_codegen(item)
     if "compiler" not in profiles or len(profiles) < 2:
         raise CompilerProfileError("Cargo did not identify both the compiler library and executable profiles")
-    receipt = dict(binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
-                   profile=dict(schema=SCHEMA, opt_level=profiles["compiler"]), cargo_profiles=profiles)
+    receipt = dict(schema=CARGO_RECEIPT_SCHEMA, binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
+                   profile=dict(schema=SCHEMA, opt_level=codegen["compiler"]["opt_level"]),
+                   cargo_profiles=profiles, effective_codegen=codegen)
     Path(str(binary) + ".compiler-profile.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
     return receipt

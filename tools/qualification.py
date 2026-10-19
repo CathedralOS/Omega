@@ -28,7 +28,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent / "swarm"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from recovery_state import RecoveryError, atomic_json, exclusive, read_json
-from compiler_profile import CompilerProfileError, is_optimized_profile, require_optimized
+from compiler_profile import CARGO_RECEIPT_SCHEMA, CompilerProfileError, is_optimized_profile, require_optimized
 
 SCHEMA = "omega-qualification-v1"
 PROFILE_KEYS = ("CARGO_TARGET_DIR", "CARGO_BUILD_JOBS", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS",
@@ -675,6 +675,8 @@ def reasons(repository, record, check, run, candidate):
         profiles = run.get("compiler_profiles", [])
         if (not isinstance(profiles, list) or not profiles
                 or any(not isinstance(row, dict) or not is_optimized_profile(row.get("profile")) for row in profiles)
+                or any("build_receipt" in row and (not isinstance(row["build_receipt"], dict)
+                       or row["build_receipt"].get("schema") != CARGO_RECEIPT_SCHEMA) for row in profiles)
                 or {row.get("binary") for row in profiles}
                 != set(check["producer"].get("executables", []))
                 or any(run.get("artifacts", {}).get(row.get("binary")) != row.get("sha256") for row in profiles)):

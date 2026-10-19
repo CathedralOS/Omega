@@ -60,7 +60,13 @@ built binary. The preflight checks its digest before and after querying it.
 
 Historical corpus comparisons remain possible: the automatic builder forces
 optimized dev/test profiles and records Cargo's compiler-library/executable
-profiles against the exact binary digest. An old runner without the query
+profiles and matching Cargo/mbx fingerprint flags against the exact binary digest.
+The receipt retains the fingerprint contents and digest for later inspection.
+The effective-profile receipt schema is also captured in qualification evidence;
+older legacy observations lacking this proof require requalification.
+The profile label alone is insufficient: `RUSTFLAGS` or Cargo configuration may
+override it. Missing fingerprints, response-file flags and effective opt-level 0
+refuse; cached builds use the same exact artifact fingerprints. An old runner without the query
 protocol is never launched just to probe an unknown flag, which historical
 runners could ignore and start the whole corpus. It requires that fresh build
 receipt; a missing, stale or unoptimized receipt refuses before execution.
