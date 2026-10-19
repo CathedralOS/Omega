@@ -68,7 +68,13 @@ for fact in "$@"; do
   #
   # Gate on FREE MEMORY as well as load, and take a global record slot so records
   # serialize across lanes. Held only for the duration of this fact's record.
-  free_mb=$(vm_stat 2>/dev/null | awk '/Pages free/{gsub(/\./,"",$3); print int($3)*4096/1048576}')
+  # Integerize INSIDE awk. `print int($3)*4096/1048576` is awk floating-point
+  # division and printed e.g. "85.3828"; `[ "$free_mb" -lt 512 ]` then errored
+  # ("integer expression expected") and evaluated FALSE, so this guard always took
+  # the else branch and never fired -- inert exactly when it was needed. awk's int()
+  # returns an integer-formatted number, and a belt-and-braces truncation follows.
+  free_mb=$(vm_stat 2>/dev/null | awk '/Pages free/{gsub(/\./,"",$3); print int(int($3)*4096/1048576)}')
+  free_mb=${free_mb%%.*}
   if [ "${free_mb:-999}" -lt 512 ]; then
     echo "   ABORT: only ${free_mb} MB free; a record here risks an OOM kill. Retry later."
     continue
