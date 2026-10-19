@@ -43,6 +43,36 @@ The mirrored corpus pairs are
 `tests/omega/pass/facts/as_slice_views_through_<place>_exit/` and
 `tests/omega/fail/facts/as_slice_views_through_<place>_short_extent/`.
 
+## Requirement accounting
+
+Owning task: **TERMINAL-SLICE-VIEW-VOCABULARY** (TASKS.md, P3). This row
+discharges one requirement of its acceptance: a consuming non-byte `&[T]` view
+call executes natively with Terminal interpreter agreement across the nine
+places. The task's wider acceptance (restricted scalar-array constructors,
+cyclic view forwarding, and its named sample obligations) remains open there.
+
+- **Establishment:** the four-entry extent is established by construction of
+  the fixed array and carried by the view's stored length; the reject twins
+  break only that extent and fail at the `require_four` requirement.
+- **Identity and lifetime:** the view borrows `entries` under its shared loan;
+  descriptor construction cannot waive the backing loan. The anonymous
+  provider call product inside the direct `&entries[..]` argument keeps its
+  own evaluation custody: retirement planning answers its transfers from the
+  authored call's retained operand facts when no established local carries its
+  schedule.
+- **Composition:** each place substitutes the view through its carrier (local,
+  field, parameter, call result, match arms, const name, state arrival,
+  machine parameter, target body) into the same `require_four` call.
+- **Soundness boundaries:** the twins' weakened extent is a proof failure
+  (`cannot prove requires contract`), distinct from a lowering refusal;
+  authority and ownership obligations are unchanged by the transfer repair.
+- **Terminal Psi and carrier lowering:** the view lowers as a borrowed
+  descriptor with its stored extent; the anonymous `Slice::range` call
+  evaluates through the ordinary structural value-call schedule.
+- **Native realization:** every place binds `ProgramEntry` for the four hosted
+  targets and agrees between engines on the matching host
+  (`omega run --both`, exit 0). Foreign-target execution is not claimed.
+
 Canonical anchors: [borrowed range access and endpoints](../../../../wiki/spec/language/expressions.md#borrowed-range-access),
 [exact dependency transport](../../../../wiki/spec/language/dependent_values.md#establishment-and-witness-loans),
 and [call requirements](../../../../wiki/spec/proofs/contracts.md#machines-and-bundles).

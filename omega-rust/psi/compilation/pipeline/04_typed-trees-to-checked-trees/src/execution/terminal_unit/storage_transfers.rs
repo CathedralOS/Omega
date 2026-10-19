@@ -499,6 +499,77 @@ impl Query<'_> {
         )
     }
 
+    /// Transfers performed while evaluating a call product no `EstablishLocal`
+    /// carries a retained schedule for at this point: finalization publishes
+    /// those rows after retirement planning. The authored call's retained
+    /// operand facts name every evaluated actual: each operand's structural
+    /// value composes exactly as it does inside a named construction, and each
+    /// scalar operand composes through its ordinary computation graph. The
+    /// consumed product's own landing keeps the retained row's rule: the
+    /// queried source transfers into the receiver only when it is this call's
+    /// result binding, identified by the binding's authored occurrence.
+    fn anonymous_call_transfers(
+        &self,
+        source_call: arena::Handle<checked_trees::FlowCallFact>,
+        selection: &[CheckedUnitStructuralPathSegment],
+        consumes_selection: bool,
+        receiver: ValueReceiver<'_>,
+        destination: &[OwnerSegment],
+        active: &mut Vec<CheckedStructuralValueHandle>,
+    ) -> Option<Transfers> {
+        let calls = &self.facts.flow.control;
+        if !calls.calls.is_valid(source_call) {
+            return None;
+        }
+        let fact = calls.calls.get(source_call);
+        let values = &self.facts.values.structural_values;
+        let computations = &self.facts.values.scalar_computations;
+        let mut output = Transfers::default();
+        if consumes_selection
+            && let CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } =
+                self.source
+            && self.results.iter().any(|(result, root)| {
+                result.binding_ordinal == binding_ordinal
+                    && *root == facts::PlaceRoot::Expression(fact.authored_expression)
+            })
+        {
+            // The queried source is this call's own product: consuming the
+            // value transfers it into the receiver. Operand moves answer a
+            // different query, exactly as in the retained row's rule.
+            return Some(self.leaf(selection.to_vec(), receiver.destination(destination)));
+        }
+        for operand in calls.operands.span(fact.operands)? {
+            let mut structural = values
+                .roots
+                .iter()
+                .map(|(_, root)| root)
+                .filter(|root| root.expression == operand.expression);
+            if let Some(root) = structural.next() {
+                if structural.next().is_some() {
+                    return None;
+                }
+                output.append(self.value(
+                    root.root,
+                    &[],
+                    true,
+                    ValueReceiver::Unbound,
+                    &[],
+                    active,
+                )?);
+            }
+            // A scalar-only operand still composes its nested structural
+            // arguments through the ordinary computation graph.
+            for root in computations.roots.iter().map(|(_, root)| root).filter(|root| {
+                root.state == operand.state_symbol
+                    && root.statement_ordinal == operand.statement_index as u32
+                    && computations.nodes.get(root.root).authored_root == operand.expression
+            }) {
+                output.append(self.computation(root.root)?);
+            }
+        }
+        Some(output)
+    }
+
     fn value(
         &self,
         value: CheckedStructuralValueHandle,
@@ -568,7 +639,21 @@ impl Query<'_> {
                             CheckedStructuralValueKind::Call { source_call: captured }
                                 if captured == *source_call)
                     });
-                let call = matching.next()?;
+                let Some(call) = matching.next() else {
+                    // A call product owns no EstablishLocal-carried schedule at
+                    // this point when it is anonymous (or established by an
+                    // operation outside this roster): finalization publishes
+                    // those rows after retirement planning. Answer from the
+                    // authored call's retained operand facts instead.
+                    return self.anonymous_call_transfers(
+                        *source_call,
+                        selection,
+                        consumes_selection,
+                        receiver,
+                        destination,
+                        active,
+                    );
+                };
                 if matching.next().is_some() {
                     return None;
                 }
