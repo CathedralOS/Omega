@@ -1463,6 +1463,15 @@ pass/facts/matched_field_windows_through_other_machine_exit built 11913ms exit:0
 pass/facts/matched_field_windows_through_other_state_exit built 11879ms exit:0 @6950e9f0e0c8
 pass/facts/matched_field_windows_through_parameter_exit built 11778ms exit:0 @6950e9f0e0c8
 pass/facts/matched_field_windows_through_target_body_exit built 11730ms exit:0 @6950e9f0e0c8
+pass/facts/named_conformance_dispatch_through_call_result_exit built 67720ms exit:0 @7fc0404c1bcc
+pass/facts/named_conformance_dispatch_through_const_name_exit built 67464ms exit:0 @7fc0404c1bcc
+pass/facts/named_conformance_dispatch_through_field_exit built 68024ms exit:0 @7fc0404c1bcc
+pass/facts/named_conformance_dispatch_through_local_exit built 67937ms exit:0 @7fc0404c1bcc
+pass/facts/named_conformance_dispatch_through_match_join_exit built 68086ms exit:0 @7fc0404c1bcc
+pass/facts/named_conformance_dispatch_through_other_machine_exit built 67319ms exit:0 @7fc0404c1bcc
+pass/facts/named_conformance_dispatch_through_other_state_exit built 67744ms exit:0 @7fc0404c1bcc
+pass/facts/named_conformance_dispatch_through_parameter_exit built 67277ms exit:0 @7fc0404c1bcc
+pass/facts/named_conformance_dispatch_through_target_body_exit built 68741ms exit:0 @7fc0404c1bcc
 pass/facts/nested_record_value_through_call_result_exit built 68755ms exit:0 @c14e052cf9d9
 pass/facts/nested_record_value_through_const_name_exit built 68469ms exit:0 @c14e052cf9d9
 pass/facts/nested_record_value_through_field_exit built 68819ms exit:0 @c14e052cf9d9
