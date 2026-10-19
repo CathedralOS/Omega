@@ -1,0 +1,15 @@
+// A returned write-only loan permits replacing caller storage 7 with 42 while preserving neighboring 19.
+// Invalid: reading the write-only destination to compute its replacement.
+linux_x86_64 machine lend_write(destination: &write i32) -> &write i32 { &write destination }
+linux_arm64 machine lend_write(destination: &write i32) -> &write i32 { &write destination }
+macos_x86_64 machine lend_write(destination: &write i32) -> &write i32 { &write destination }
+macos_arm64 machine lend_write(destination: &write i32) -> &write i32 { &write destination }
+windows_x86_64 machine lend_write(destination: &write i32) -> &write i32 { &write destination }
+machine main() crashes Trap {
+ let mut value: i32 = 7;
+ let neighbor: i32 = 19;
+ let destination: &write i32 = lend_write(&write value);
+ destination = destination;
+ transition value == 42 && neighbor == 19 { true -> done() false -> wrong() }
+ state done() {} state wrong() { crash Trap; }
+}
