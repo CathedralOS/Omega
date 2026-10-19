@@ -25,9 +25,68 @@ python3 tools/sample_native_gate.py --filter cli/facts/computed_record_window
 python3 tools/corpus_gate.py --both --filter computed_record_window
 ```
 
+## Measured oracle
+
+The root, all nine places, and `case_payload` each carry
+`expected_native_exit.txt` containing `0` beside an empty `input.txt`. Both
+files are required: `tools/sample_native_gate.py` honors authored `expected_*`
+files only for a project that carries `input.txt`, and otherwise scores the
+header alone. Measured on `macos_arm64` with the gate CLI: 11/11 samples meet
+their documented oracle with 0 unscored, and 10/10 intended-invalid controls
+match their authored rejection.
+
+The oracle discriminates on both halves of the fact. Against a byte-identical
+copy of `local/main.omg`:
+
+| Probe | Result |
+| --- | --- |
+| unmodified source | `native exit 0`, `interp exit: 0`, exit 0 |
+| `write_pair` writes 5.0/7.0 instead of 0.0/1.0, every contract intact | native signal 5, interp crash Trap, exit 255 |
+| zero arm becomes `samples[1..index + 3]` with the length-2 promise intact | native signal 5, interp crash Trap, exit 255 |
+
+The second row shows the write through the returned record field is observable
+rather than assumed; the third shows a wrong window endpoint traps even when
+the promised length is unchanged.
+
 The matching regression pairs live under `tests/omega/{pass,fail}/facts`.
-A separate nonhost-body control weakens only the Windows body. Borrow controls
+`corpus_native_macos_arm64.txt` records all eleven positive fixtures at
+`exit:0`, and the nine `_rejected` rows pin the refuse diagnostics. A separate
+nonhost-body control weakens only the Windows body. Borrow controls
 also retain live-parent and detached-child exclusions.
+
+## Requirement coverage
+
+Owning task: the **Computed calls and state transfers** item under
+`TASKS.md` **SAMPLE-CORPUS**. The requirement discharged is that a window end
+computed at runtime and carried out through a returned record field is proved
+from the matched arm rather than from a literal `[0..2]` spelling, and that the
+write through that returned field is observable at runtime.
+
+- **Establishment.** The `ensures result.len == 2` contract on each window
+  machine is what supplies the extent; `hold` consumes it as
+  `requires samples.len == 2` and republishes `result.values.len == 2`. No
+  caller-side guard substitutes for it — `exercise` branches only on the
+  observed backing values.
+- **Identity and lifetime.** `Held.values` is the returned record field and the
+  sole write path to the backing; the four `f64` elements are read after the
+  write in the same state.
+- **Composition.** Each place moves the same computed length through a
+  different carrier (local, field, parameter, call result, match join, const
+  name, successor state, forwarding machine, target body). The positive and its
+  twin differ only in the matched endpoint, never in a caller guard.
+- **Soundness boundaries.** `hold` transfers the view into the record and
+  `write_pair` consumes it; the borrow that supplies the window stays live
+  across the call, which is the property the match-join witness pinned.
+- **Terminal Psi and carrier lowering.** `omega run --both` requires native and
+  Terminal Psi to agree on every place; both report exit 0.
+- **Native realization, frame/layout encoding, and image emission.** All four
+  hosted targets are checked; the row's eleven fixtures are recorded at
+  `exit:0` in the native golden.
+
+Open: `tests/omega/run/slices/computed_record_window` binds all four hosted
+targets but carries no `expected_native_exit.txt`, so it contributes checking
+coverage only and is absent from the native golden. The eleven `_exit` fixtures
+above carry the row's recorded runtime evidence.
 
 The match-join witness exposed `hold(view)` rejecting its own supplying view:
 `creates local borrow leading while local borrow view is still active`.
