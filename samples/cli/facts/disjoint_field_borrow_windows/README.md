@@ -60,6 +60,61 @@ omega --check samples/cli/facts/disjoint_field_borrow_windows/target_body/invali
 Every reject twin fails closed with:
 `error: exact arithmetic in machine ... may overflow \`u64\``
 
+## Negative coverage and the recorded reject diagnostic
+
+The nine reject twins are pinned twice: as `<place>/invalid/main.omg` under this
+sample, and as `tests/omega/fail/facts/disjoint_windows_through_<place>_overlap`.
+The pinned corpus rows for those nine fixtures previously recorded `rejected`
+with **no diagnostic lines at all**. A row whose recorded outcome does not name
+its diagnostic is not evidence that the fact is enforced: the check leg reported
+`(no diagnostics)` against every one of them and scored them as `diagnostics
+moved`. This change re-recorded all nine rows so each carries its real overlap
+obligation, for example:
+
+```text
+statement 2 creates local borrow `b` while local borrow `a` is still active
+statement 2 borrows `items[split..4]` while local borrow `a` is still active
+statement 2 mutates `a[0]` while local borrow `b` is still active
+```
+
+The persisted twins differ from their positive sibling in exactly one scalar:
+`let split: u64 = 2;` becomes `let split: u64 = 1;`. With `split == 2` the two
+half-open windows `[0, 2)` and `[split, 4)` are disjoint and both exclusive
+loans may be held; with `split == 1` the second window overlaps the first and
+formation is refused. That is the construct's own domain changing, not a caller
+guard.
+
+## Discrimination: the oracle rejects the overlapping borrow
+
+Two independent directions establish that the recorded outcome measures the
+loan-disjointness mechanism rather than a coincidental exit code.
+
+- **Refused at checking (the overlap direction).** Holding two exclusive
+  projections of the *same* field is rejected statically, never by a runtime
+  trap. `let a: &mut u64 = &mut pair.left; let b: &mut u64 = &mut pair.left;`
+  yields 3 diagnostics, including
+  `statement 2 borrows \`pair.left\` while local borrow \`a\` is still active`.
+  Holding a whole-struct exclusive loan while projecting a field of it is also
+  refused statically: `statement 2 mutates \`pair.left\` while local borrow
+  \`whole\` is still active`. Both are checking refusals with a borrow
+  diagnostic, so the mechanism's negative side is enforced before execution.
+- **Trapped at runtime (the write-through direction).** Two simultaneous `&mut`
+  projections of *distinct* fields are admitted and both writes land:
+  `let a: &mut u64 = &mut pair.left; let b: &mut u64 = &mut pair.right;`
+  followed by two writes and a readback returns `native exit 0` with
+  `interp exit: 0`. Seeding the written value from a boundary contract that
+  admits a range (`ensures result >= 20u64 && result <= 40u64`) keeps the
+  prover from constant-folding it; writing through `&mut pair.left` then leaves
+  the sibling `pair.right` observation at `25u64`, and both engines agree at
+  exit 0. Corrupting only that runtime value inside its still-admitted contract
+  range (provider returns `33u64` instead of `25u64`) reaches execution and
+  trips the authored guard: `native signal 5` and
+  `interp crash: Trap (host presentation agrees)`.
+
+A purely static corruption of the source does not reach runtime here: the
+checker refuses it first, which is why the runtime proof above seeds the value
+from a range-valued provider contract.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `FIELD-BORROW-DISJOINTNESS` (`TASKS.md`).
@@ -71,7 +126,7 @@ Full 8-layer specification and lowering evidence:
 - **Establishment:** The structural record `Pair { left: u64, right: u64 }` introduces disjoint field storage locations. Binding or constraining `pair.right <= 75u64` (e.g. `25u64`) establishes an exact upper bound. Mutating or mutably borrowing `pair.left` via `touch_left(&mut pair.left)` creates a borrow window restricted strictly to path `.left`. Because the projection paths `.left` and `.right` are provably disjoint, the static knowledge and contract bound on `pair.right <= 75u64` survives the write without invalidation or alias pollution, establishing `75u64 - pair.right` without runtime checks or caller equality guards (`transition x == 100`).
 - **Identity and lifetime:** Field projection maintains distinct identity for disjoint fields within the same composite record allocation. Mutating `.left` modifies only its own 8-byte slice of the activation record or memory buffer, leaving `.right`'s storage identity and value intact throughout the lifetime of the borrow and after borrow release.
 - **Composition:** Disjoint field preservation composes through all 9 standard places: local variable record mutation (`local`), nested record field wrapping (`field`), machine parameter mutable borrow passing (`parameter`), function call return value binding (`call_result`), match branch convergence join (`match_join`), named constant initialization (`const_name`), state transition arrival (`other_state`), forwarding machine delegation (`other_machine`), and target-scoped body candidates (`target_body`). Each `<place>/invalid/main.omg` differs solely in supplying an out-of-range value (`76u64`) for `pair.right`.
-- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `exact arithmetic in machine ... may overflow \`u64\`` because `75u64 - 76u64` is provably out of range for unsigned subtraction. The compiler soundly refuses any program where disjoint field facts cannot guarantee non-negative results for exact subtraction.
+- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `exact arithmetic in machine ... may overflow \`u64\`` because `75u64 - 76u64` is provably out of range for unsigned subtraction. The compiler soundly refuses any program where disjoint field facts cannot guarantee non-negative results for exact subtraction. The persisted `tests/omega/fail/facts/disjoint_windows_through_<place>_overlap` twins enforce the complementary loan obligation directly: they widen the second exclusive window to overlap the first, and checking refuses each with a borrow diagnostic rather than a runtime trap. Their nine recorded rows now carry those diagnostics; before this change the rows were pinned as bare `rejected` outcomes with no diagnostic text, which AGENTS.md does not accept as evidence that the fact is enforced.
 - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Disjoint projection paths lower cleanly into canonical Terminal Psi (`PSITERM\0`) with explicit path-based borrow windows (`BorrowPath` / `FieldProject`). Proof-term tags (`proof-term-tags`) retain field bounds across the borrow boundary. Both engines (`omega run --both`) execute identically and agree on exit code 0.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout planning assigns 16 bytes for `Pair` (two sequential 8-byte `u64` scalars at 8-byte alignment) with `left` at offset 0 and `right` at offset 8. In `CallPlan` and `StatePlan`, mutable references pass in target ABI pointer registers (`rcx`/`rdi`/`x0`), and field offsets are directly addressable.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects 64-bit memory writes (`mov [reg], val` / `str val, [reg]`) for `.left` and 64-bit subtraction (`sub`) for `.right`. Disjoint activation storage ensures no spill slot collision between independent field registers. Worst-case stack usage (WCSU) and bounded activation claims (`committed <= bound`) are satisfied.
