@@ -63,4 +63,30 @@ This row establishes that named implementation conformance dispatch (`Selected s
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct function call relocations to `Selected::combine` and symbolic stack-frame displacements resolve, basic blocks lay out with branch relaxation and offset reflow around exit transitions, transitive machine-state footprint evidence is validated, and direct PE/ELF/Mach-O images are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across host targets including `windows_x86_64` and `macos_arm64`.
 
 The row is pinned by `tests/omega/{pass,fail}/facts/named_conformance_dispatch_through_*` fixtures; every positive records native exit 0.
+
+## Run record
+
+Producer `7fc0404c1bcc`, target `macos_arm64`. Fresh: `omega run --both` on the
+root and all nine places returns native `exit 0` with interpreter `exit: 0`;
+`sample_native_gate --programs-only --facts` scores 10/10 against their
+documented oracles (259s wall). `corpus_gate --native --filter
+facts/named_conformance_dispatch` measures nine `built ... exit:0` rows and
+records them in `tests/omega/corpus_native_macos_arm64.txt`; the same filter on
+the check tier measures `{'checked': 9, 'rejected': 9}` with 0 structural moves
+and 0 fixtures rejected without their expected fragment.
+
+The oracle discriminates three ways under `omega run --both`: the authored
+`apply<Selected>(20, 22)` exits 0; the same caller and operands against a
+different named implementation whose member computes `left + right + 1` (43)
+diverges in both engines (native signal 5, interpreter `crash: Trap`, host
+presentation agrees); the same swapped implementation against an oracle of 43
+exits 0, so the oracle is not always-trap; and moving only the operand to
+`apply<Selected>(20, 23)` also diverges.
+
+Retained: the nine reject twins were pinned before this record and their
+`expected.txt` fragment `cannot prove requires contract for call apply` still
+matches today's diagnostic. The check-tier timings in the golden are noise from
+a loaded host (run started at load 125.93 on 10 CPUs); they are not a
+regression.
+
 Remaining open under `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`: dynamic trait object dispatch (`dyn Trait`), cross-package visibility export of named conformances, and complex mixed lifetime telescopes.
