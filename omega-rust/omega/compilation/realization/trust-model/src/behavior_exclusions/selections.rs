@@ -119,18 +119,28 @@ fn authored_service_exclusion(
             "service exclusion must retain its checked static Build call",
         ));
     };
-    validation::compiler_operations::resolve_build_declaration_operand(typed, expression, 0, occurrence)
-        .and_then(|symbol| {
-            typed.product_declarations().trait_definition_by_symbol(symbol)
-                .filter(|definition| definition.is_boundary)
-                .and_then(|definition| {
-                    let identity = typed.normalized_hermetic_symbol_identity(definition.symbol).ok()?;
-                    Some((identity, definition.name.as_str().to_owned()))
-                })
-        })
+    let selected = validation::compiler_operations::resolve_build_static_operand(
+        typed, expression, 0, occurrence,
+    )
+    .map_err(Diagnostic::error)?;
+    let validation::selection_resolution::AuthoredSelectionResolutionTarget::Declaration(symbol) =
+        selected
+    else {
+        return Err(Diagnostic::error(
+            "service exclusion operand is not a Product declaration",
+        ));
+    };
+    let definition = typed.product_declarations().trait_definition_by_symbol(symbol)
+        .filter(|definition| definition.is_boundary)
         .ok_or_else(|| Diagnostic::error(
             "service exclusion does not resolve to an exact visible product boundary trait declaration",
-        ))
+        ))?;
+    let identity = typed
+        .normalized_hermetic_symbol_identity(definition.symbol)
+        .map_err(|error| {
+            Diagnostic::error(format!("service exclusion declaration identity: {error}"))
+        })?;
+    Ok((identity, definition.name.as_str().to_owned()))
 }
 
 /// Map the `CrashCause` variant one EXECUTED `exclude_crash` selection

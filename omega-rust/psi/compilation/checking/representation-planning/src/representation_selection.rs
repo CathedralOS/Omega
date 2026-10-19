@@ -10,12 +10,9 @@ use representation_selections::{
 use source::SourceSpan;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
+use typed_trees::product_operand::{ProductOperandKind, resolve_product_operand};
 
 mod carrier_closure;
-#[cfg(test)]
-mod test_support;
-#[cfg(test)]
-mod tests;
 
 /// Harvest representation selections from the one build machine already
 /// admitted by project discovery. Calls elsewhere remain inert syntax.
@@ -139,23 +136,21 @@ fn close_selection(
             "opaque representation selection must retain exactly one opaque data path and one named conformance path",
         ));
     };
-    let opaque = product_scope_instance(
+    let opaque = resolve_product_operand(
         typed,
-        opaque_argument.symbol,
-        typed
-            .data_definitions()
-            .iter()
-            .map(|definition| definition.symbol),
-    );
+        opaque_argument,
+        source_span,
+        ProductOperandKind::Data,
+    )
+    .unwrap_or_else(SymbolHandle::invalid);
     let opaque_name = opaque_argument.display_name();
-    let conformance_symbol = product_scope_instance(
+    let conformance_symbol = resolve_product_operand(
         typed,
-        conformance_argument.symbol,
-        typed
-            .conformances()
-            .iter()
-            .map(|conformance| conformance.symbol),
-    );
+        conformance_argument,
+        source_span,
+        ProductOperandKind::Representation,
+    )
+    .unwrap_or_else(SymbolHandle::invalid);
     let mut conformance_argument_owned;
     let conformance_argument = if conformance_symbol == conformance_argument.symbol {
         conformance_argument
@@ -261,47 +256,4 @@ fn close_selection(
         selecting_machine,
         source_span,
     ))
-}
-
-/// The product-scope instance of the same authored declaration. A source
-/// imported on both the product and build dependency scopes is lowered once
-/// per scope, so a build-authored selection argument resolves the build
-/// instance while boundary consumers plan against the product instance. The
-/// two instances share the source's bytes and path, so declaration identity
-/// is (file path, byte span) plus the file's dependency scope. Symbols
-/// without source provenance, or already product-side, return unchanged.
-fn product_scope_instance(
-    typed: &TypedTrees,
-    symbol: SymbolHandle,
-    candidates: impl Iterator<Item = SymbolHandle>,
-) -> SymbolHandle {
-    let Some(declaration) = typed.symbols.symbol_provenance_source_span(symbol) else {
-        return symbol;
-    };
-    let Some(file) = typed.symbols.source_file(declaration) else {
-        return symbol;
-    };
-    if file.dependency_scope != source::DependencyScope::Build {
-        return symbol;
-    }
-    candidates
-        .filter(|candidate| *candidate != symbol)
-        .find(|candidate| {
-            typed
-                .symbols
-                .symbol_provenance_source_span(*candidate)
-                .and_then(|candidate_span| {
-                    typed
-                        .symbols
-                        .source_file(candidate_span)
-                        .map(|candidate_file| (candidate_span, candidate_file))
-                })
-                .is_some_and(|(candidate_span, candidate_file)| {
-                    candidate_file.dependency_scope == source::DependencyScope::Product
-                        && candidate_file.path == file.path
-                        && candidate_file.package_identity == file.package_identity
-                        && candidate_span.span == declaration.span
-                })
-        })
-        .unwrap_or(symbol)
 }

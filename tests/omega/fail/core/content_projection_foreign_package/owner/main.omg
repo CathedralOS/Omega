@@ -1,0 +1,3 @@
+pub data ByteUnit {}
+pub data Region [linear] {}
+pub domain Region::Owned;

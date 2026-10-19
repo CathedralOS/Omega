@@ -38,12 +38,13 @@ impl From<SelectionViolation> for String {
 
 pub(super) fn selection_authority_violation(
     call_edges: &[BuildTimeCallEdge],
-    program: &TypedTrees,
+    input: &dyn validation::CheckingInput,
     root: &Machine,
     custody: Option<BuildTimeInvocationCustody>,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
     selected: &[crate::SelectedBuildTimeBinaryOperator],
 ) -> Option<SelectionViolation> {
+    let program = input.typed_program();
     if let Some(authority) = authority {
         let Some(custody) = custody else {
             return Some(SelectionViolation::unlocated(
@@ -73,7 +74,7 @@ pub(super) fn selection_authority_violation(
         }
         completed.push(source_machine);
         if let Some(violation) =
-            machine_selection_violation(program, source_machine, authority, selected)
+            machine_selection_violation(input, source_machine, authority, selected)
         {
             return Some(violation);
         }
@@ -130,11 +131,12 @@ pub(super) fn selection_authority_violation(
 }
 
 fn machine_selection_violation(
-    program: &TypedTrees,
+    input: &dyn validation::CheckingInput,
     machine_symbol: SymbolHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
     selected: &[crate::SelectedBuildTimeBinaryOperator],
 ) -> Option<SelectionViolation> {
+    let program = input.typed_program();
     let machine = program.machine(machine_symbol)?;
     for state in program.machine_states(machine) {
         let mut expressions = Vec::new();
@@ -145,7 +147,7 @@ fn machine_selection_violation(
         let mut visited = Vec::new();
         for expression in expressions {
             if let Some(violation) = expression_selection_violation(
-                program,
+                input,
                 machine,
                 state,
                 expression,
@@ -224,7 +226,7 @@ fn collect_transition_expressions(
 }
 
 fn expression_selection_violation(
-    program: &TypedTrees,
+    input: &dyn validation::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -232,6 +234,7 @@ fn expression_selection_violation(
     selected: &[crate::SelectedBuildTimeBinaryOperator],
     visited: &mut Vec<ExpressionHandle>,
 ) -> Option<SelectionViolation> {
+    let program = input.typed_program();
     if !expression.is_valid() || visited.contains(&expression) {
         return None;
     }
@@ -241,7 +244,7 @@ fn expression_selection_violation(
         program.expression_table.expression(expression),
         ExpressionNode::Binary(_)
     ) && !validation::has_builtin_binary_expression_meaning(
-        program,
+        input,
         machine,
         Some(state),
         expression,
@@ -254,14 +257,14 @@ fn expression_selection_violation(
         });
     }
 
-    if let Some(violation) = expression_occurrence_violation(program, expression, authority) {
+    if let Some(violation) = expression_occurrence_violation(input, expression, authority) {
         return Some(violation);
     }
 
     let children = expression_children(program, expression);
     for child in children {
         if let Some(violation) = expression_selection_violation(
-            program, machine, state, child, authority, selected, visited,
+            input, machine, state, child, authority, selected, visited,
         ) {
             return Some(violation);
         }
@@ -346,17 +349,18 @@ pub(crate) fn require_closed_expression_custody(
 }
 
 fn expression_occurrence_violation(
-    program: &TypedTrees,
+    input: &dyn validation::CheckingInput,
     expression: ExpressionHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
 ) -> Option<SelectionViolation> {
+    let program = input.typed_program();
     if let Some(authority) = authority {
         let occurrences = program
             .expression_table
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
         for (occurrence_offset, occurrence) in occurrences.iter().copied().enumerate() {
-            let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+            let Some(selection) = input.authored_declaration_selections().get(occurrence) else {
                 return Some(SelectionViolation {
                     message: format!(
                         "build-time expression retains unknown authored declaration selection occurrence {}",
@@ -373,36 +377,36 @@ fn expression_occurrence_violation(
             // not host generic arguments. Keep every authored occurrence, but
             // establish its lexical product authority without consulting the
             // caller's Build-import namespace or executing the declaration.
-            if validation::compiler_operations::is_build_declaration_selection(program, expression)
-            {
+            if validation::compiler_operations::is_build_declaration_selection(input, expression) {
                 use typed_trees::AuthoredDeclarationSelectionKind as Kind;
                 if selection.kind() == Kind::Call {
                     continue;
                 }
-                if selection.kind() == Kind::StaticArgument {
-                    let argument_index = occurrences[..occurrence_offset]
-                        .iter()
-                        .filter(|occurrence| {
-                            program
-                                .authored_declaration_selections()
-                                .get(**occurrence)
-                                .is_some_and(|earlier| earlier.kind() == Kind::StaticArgument)
-                        })
-                        .count();
-                    let selected =
-                        validation::compiler_operations::resolve_build_declaration_operand(
-                            program,
-                            expression,
-                            argument_index,
-                            selection.source_span(),
-                        );
-                    if selected.is_none() {
-                        return Some(located("Build declaration operand does not resolve to one visible product declaration in this occurrence's package scope".to_owned()));
-                    }
-                    if let Some(retained) = selection.target().as_resolved()
-                        && Some(retained.selected_symbol()) != selected
-                    {
-                        return Some(located("Build declaration occurrence does not retain its exact product declaration".to_owned()));
+                if matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance)
+                    && let Some(argument_index) = selection.top_level_static_argument_position()
+                {
+                    let expected = validation::compiler_operations::resolve_build_static_operand(
+                        input,
+                        expression,
+                        argument_index,
+                        selection.source_span(),
+                    );
+                    let expected = match expected {
+                        Ok(expected) => expected,
+                        Err(message) => return Some(located(message)),
+                    };
+                    use validation::selection_resolution::AuthoredSelectionResolutionTarget as Resolution;
+                    let retained = match selection.target() {
+                        typed_trees::AuthoredDeclarationSelectionTarget::Resolved(target) => {
+                            Some(Resolution::Declaration(target.selected_symbol()))
+                        }
+                        typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic) => {
+                            Some(Resolution::Intrinsic(intrinsic))
+                        }
+                        typed_trees::AuthoredDeclarationSelectionTarget::LateBound(_) => None,
+                    };
+                    if retained != Some(expected) {
+                        return Some(located("Build static operand occurrence does not retain its exact checked meaning".to_owned()));
                     }
                     continue;
                 }
@@ -422,7 +426,7 @@ fn expression_occurrence_violation(
                         continue;
                     } else {
                         match late_bound_selection_symbol(
-                            program,
+                            input,
                             expression,
                             &occurrences[..occurrence_offset],
                             binding,
@@ -612,17 +616,18 @@ fn candidate_kind_matches_binding(
 }
 
 fn late_bound_selection_symbol(
-    program: &TypedTrees,
+    input: &dyn validation::CheckingInput,
     expression: ExpressionHandle,
     prior_occurrences: &[typed_trees::AuthoredDeclarationSelectionOccurrenceId],
     binding: typed_trees::AuthoredDeclarationSelectionLateBinding,
 ) -> Option<SymbolHandle> {
+    let program = input.typed_program();
     use typed_trees::AuthoredDeclarationSelectionLateBinding as Binding;
 
     let ordinal = prior_occurrences
         .iter()
         .filter(|occurrence| {
-            program
+            input
                 .authored_declaration_selections()
                 .get(**occurrence)
                 .is_some_and(|selection| {

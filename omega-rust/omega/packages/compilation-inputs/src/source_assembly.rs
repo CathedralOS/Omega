@@ -222,7 +222,7 @@ impl ImmutableSourceParseCheckpoint {
                     path: PathBuf::from("<build-prelude>"),
                     source: Arc::from(prelude.source.as_str()),
                     origin: Some(SourceOrigin::Toolchain),
-                    scope: source::DependencyScope::Product,
+                    scope: source::DependencyScope::Build,
                 }]
                 .into_iter()
                 .collect(),

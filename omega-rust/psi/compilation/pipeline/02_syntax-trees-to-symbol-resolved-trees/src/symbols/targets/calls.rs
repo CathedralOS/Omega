@@ -533,28 +533,8 @@ pub(in crate::symbols) fn build_operand_route(
     target: &str,
     target_symbol: SymbolHandle,
 ) -> Option<BuildOperation> {
-    match BuildOperation::from_call_target(target)? {
-        BuildOperation::ProviderSelection
-        | BuildOperation::ServiceExclusion
-        | BuildOperation::BoundaryAcceptance
-        | BuildOperation::WireCompatibilityRequest
-        | BuildOperation::RepresentationSelection
-        | BuildOperation::AssumedBindingContract
-            if target_symbol.is_valid() =>
-        {
-            None
-        }
-        operation @ (BuildOperation::ProviderSelection
-        | BuildOperation::ServiceExclusion
-        | BuildOperation::BoundaryAcceptance
-        | BuildOperation::WireCompatibilityRequest
-        | BuildOperation::RepresentationSelection
-        | BuildOperation::AssumedBindingContract) => Some(operation),
-        BuildOperation::OptimizationSelection
-        | BuildOperation::OptimizationReportRequest
-        | BuildOperation::IncludedSourceHandoff
-        | BuildOperation::LogWriteLine => None,
-    }
+    let operation = BuildOperation::from_call_target(target)?;
+    (!target_symbol.is_valid() && operation.selects_product_declarations()).then_some(operation)
 }
 
 /// A bound selection argument (already carrying a type reference, evidence,
@@ -689,29 +669,22 @@ pub(in crate::symbols) fn assign_representation_selection_argument_symbol(
     } else {
         &[SymbolKind::Conformance][..]
     };
-    let exact = argument.path.last().and_then(|name| {
-        symbols.find_top_level_by_name_and_kinds_from_source(&rendered, kinds, name.source_span())
-    });
-    // A qualified operand (`producer::types::Token`) may name a declaration in
-    // the product-scope checked instance of a dependency — the scope a build
-    // occurrence cannot reach through `use`. Mirror the provider-selection
-    // product bridge with the candidates this stage can enumerate.
-    let exact = exact.or_else(|| {
-        if argument.path.len() < 2 {
-            return None;
-        }
-        let occurrence = argument.path.last().map(|name| name.source_span())?;
-        let candidates = symbols
-            .symbols()
-            .nodes()
-            .iter()
-            .filter(|(handle, _)| kinds.contains(&symbols.get(*handle).kind))
-            .map(|(handle, _)| (handle, true))
-            .collect::<Vec<_>>();
-        symbols.find_product_declaration_from_source(&rendered, occurrence, candidates)
-    });
-    argument.symbol =
-        exact.unwrap_or_else(|| descendant_selection_symbol(symbols, argument, kinds));
+    // Every spelling names the Product instance, including an unqualified
+    // same-package declaration. A Build-local homonym is not a fallback.
+    let candidates = symbols
+        .symbols()
+        .nodes()
+        .iter()
+        .filter(|(handle, _)| kinds.contains(&symbols.get(*handle).kind))
+        .map(|(handle, _)| (handle, true))
+        .collect::<Vec<_>>();
+    argument.symbol = argument
+        .path
+        .last()
+        .and_then(|name| {
+            symbols.find_product_declaration_from_source(&rendered, name.source_span(), candidates)
+        })
+        .unwrap_or_else(SymbolHandle::invalid);
 }
 
 /// Resolve a proof-static proposition-family binder argument. Unlike an

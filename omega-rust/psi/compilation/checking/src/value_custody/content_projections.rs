@@ -624,6 +624,17 @@ fn projection_domain_candidates<'program>(
         .domain_definitions()
         .iter()
         .filter_map(|domain| {
+            // Only the qualification's actual checked owner may publish its
+            // projection. A matching core carrier/name in the other purpose,
+            // or a foreign package's domain, supplies no ownership authority.
+            // Source-free tables keep their existing single-owner model.
+            if program.symbols.has_source_metadata()
+                && !program
+                    .symbols
+                    .same_symbol_source_package(machine.symbol, domain.symbol)
+            {
+                return None;
+            }
             let name = domain.name.as_str();
             let leaf = name.rsplit("::").next().unwrap_or(name);
             if (name != owner && leaf != owner_leaf)

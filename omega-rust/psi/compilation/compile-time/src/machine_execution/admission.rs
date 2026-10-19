@@ -112,11 +112,15 @@ pub enum BuildTimeProgram<'program> {
 }
 
 impl<'program> BuildTimeProgram<'program> {
-    fn typed(self) -> &'program TypedTrees {
+    fn checking_input(self) -> &'program dyn validation::CheckingInput {
         match self {
             Self::Typed(program) => program,
-            Self::Checked(program) => &program.typed,
+            Self::Checked(program) => program,
         }
+    }
+
+    fn typed(self) -> &'program TypedTrees {
+        self.checking_input().typed_program()
     }
 }
 
@@ -445,7 +449,7 @@ impl BuildTimeAdmissionPlan {
         );
         let selection_violation = selection_authority_violation(
             &self.call_edges,
-            program,
+            input.checking_input(),
             machine,
             custody,
             self.selection_authority.as_deref(),

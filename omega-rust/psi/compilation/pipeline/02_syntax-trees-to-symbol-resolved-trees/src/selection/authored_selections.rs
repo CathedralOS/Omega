@@ -1037,7 +1037,7 @@ fn expression_candidates(
                 expression,
                 &call.machine_arguments,
                 BuildOperation::from_call_target(call.target.as_str())
-                    == Some(BuildOperation::ProviderSelection)
+                    .is_some_and(BuildOperation::selects_product_declarations)
                     && !call.target_symbol.is_valid(),
                 &mut candidates,
             );

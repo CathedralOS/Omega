@@ -1019,7 +1019,7 @@ impl SymbolTable {
     }
 
     /// Whether a source-backed reference may use this exact declaration under
-    /// the current activation's resolution-stratum boundary.
+    /// checked-purpose and current activation resolution-stratum boundaries.
     ///
     /// Source-free consumers retain their existing behavior. Compiler-generated
     /// symbols inherit the visibility of their exact authored derivation.

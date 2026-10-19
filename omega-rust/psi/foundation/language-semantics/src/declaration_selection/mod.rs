@@ -205,6 +205,21 @@ pub fn is_unresolved_provider_selection_call(
 }
 
 impl BuildOperation {
+    /// These operations describe Product declarations or closed demand facts;
+    /// their static operands are not executable host generic arguments. This
+    /// classification alone grants no authority to an untyped call spelling.
+    pub const fn selects_product_declarations(self) -> bool {
+        matches!(
+            self,
+            Self::ProviderSelection
+                | Self::ServiceExclusion
+                | Self::BoundaryAcceptance
+                | Self::WireCompatibilityRequest
+                | Self::RepresentationSelection
+                | Self::AssumedBindingContract
+        )
+    }
+
     /// Every toolchain-owned build operation. Adding a variant without its
     /// spelling stops compiling here rather than silently dropping out of
     /// the map.

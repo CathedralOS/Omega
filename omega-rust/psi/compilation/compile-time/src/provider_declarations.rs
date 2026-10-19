@@ -244,7 +244,11 @@ fn collect_provider_selections<'a>(
                         typed,
                         argument,
                         source_span,
-                        !is_provider,
+                        if is_provider {
+                            typed_trees::product_operand::ProductOperandKind::Provider
+                        } else {
+                            typed_trees::product_operand::ProductOperandKind::BoundarySubject
+                        },
                     )
                     .unwrap_or_else(SymbolHandle::invalid)
                 } else {

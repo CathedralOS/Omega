@@ -6,68 +6,96 @@
 //! Build cannot acquire authority merely by passing this type-level check.
 
 use super::exact_build_prelude_data;
+use crate::selection_resolution::AuthoredSelectionResolutionTarget;
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
 use language_semantics::declaration_selection::BuildOperation;
-use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use symbols::JoinedPath;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::product_operand::ProductOperandKind;
 
 pub fn is_build_declaration_selection(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
     let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
-    matches!(
-        super::classify_expression_call_intrinsic(program, call),
-        Some(
-            Intrinsic::BuildProviderSelection
-                | Intrinsic::BuildServiceExclusion
-                | Intrinsic::BuildAssumedBindingContract
-        )
-    )
+    BuildOperation::from_call_target(call.target.as_str()).is_some_and(|operation| {
+        operation.selects_product_declarations()
+            && super::classify_expression_call_intrinsic(program, call)
+                == Some(operation.intrinsic())
+    })
 }
 
 /// Rejoin a designated product operand only after exact operation admission.
 /// Provider slots admit boundary requirements and operator families; service
 /// exclusions admit only a boundary trait, never its implementation.
-pub fn resolve_build_declaration_operand(
+pub fn resolve_build_static_operand(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     argument_index: usize,
     occurrence: source::SourceSpan,
-) -> Option<SymbolHandle> {
+) -> Result<AuthoredSelectionResolutionTarget, String> {
     if !is_build_declaration_selection(program, expression) {
-        return None;
+        return Err("static operand does not belong to an authenticated Build operation".into());
     }
-    let call = program.expression_table.call_node(expression)?;
-    if BuildOperation::from_call_target(call.target.as_str())
-        == Some(BuildOperation::AssumedBindingContract)
-    {
-        return typed_trees::product_operand::resolve_requirement_operand(
-            program.typed_program(),
-            call.machine_arguments.get(argument_index)?,
-            occurrence,
-        );
+    let call = program
+        .expression_table
+        .call_node(expression)
+        .ok_or("Build static operand has no retained call")?;
+    let operation = BuildOperation::from_call_target(call.target.as_str())
+        .ok_or("Build static operand has no retained operation")?;
+    let argument = call
+        .machine_arguments
+        .get(argument_index)
+        .ok_or("Build static operand is absent")?;
+    if operation == BuildOperation::WireCompatibilityRequest && argument_index >= 4 {
+        let fact = argument
+            .path
+            .first()
+            .filter(|_| argument.path.len() == 1)
+            .filter(|_| typed_trees::product_operand::is_declaration_operand(argument))
+            .and_then(|name| {
+                language_semantics::wire::WireCompatibilityFact::from_name(name.as_str())
+            })
+            .ok_or_else(|| {
+                format!(
+                    "unknown wire compatibility fact `{}`",
+                    argument.path.joined_path()
+                )
+            })?;
+        return Ok(AuthoredSelectionResolutionTarget::Intrinsic(
+            AuthoredDeclarationSelectionIntrinsic::WireCompatibilityFact(fact),
+        ));
     }
-    let service = BuildOperation::from_call_target(call.target.as_str())
-        == Some(BuildOperation::ServiceExclusion);
-    let selected = resolve_product_operand(
-        program,
-        call.machine_arguments.get(argument_index)?,
+    let kind = match (operation, argument_index) {
+        (BuildOperation::ProviderSelection, 0)
+        | (BuildOperation::ServiceExclusion | BuildOperation::BoundaryAcceptance, 0) => {
+            ProductOperandKind::BoundarySubject
+        }
+        (BuildOperation::ProviderSelection, 1) => ProductOperandKind::Provider,
+        (BuildOperation::AssumedBindingContract, 0 | 1) => ProductOperandKind::Requirement,
+        (BuildOperation::WireCompatibilityRequest, 0..=3)
+        | (BuildOperation::RepresentationSelection, 0) => ProductOperandKind::Data,
+        (BuildOperation::RepresentationSelection, 1) => ProductOperandKind::Representation,
+        _ => return Err("Build static operand has no declaration role at this position".into()),
+    };
+    let selected = typed_trees::product_operand::resolve_product_operand(
+        program.typed_program(),
+        argument,
         occurrence,
-        service || argument_index == 0,
-    )?;
-    if service
+        kind,
+    ).ok_or("Build declaration operand does not resolve to one visible product declaration of the required kind")?;
+    if operation == BuildOperation::ServiceExclusion
         && !program
             .product_declarations()
             .traits()
             .iter()
             .any(|definition| definition.symbol == selected && definition.is_boundary)
     {
-        return None;
+        return Err("Build service exclusion operand must name a boundary trait".into());
     }
-    Some(selected)
+    Ok(AuthoredSelectionResolutionTarget::Declaration(selected))
 }
 
 pub fn provider_selection_expressions(
@@ -155,22 +183,6 @@ fn exact_mutable_build_argument(
                 if *access == language_semantics::ReferenceAccess::Mutable
                     && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
     })
-}
-
-/// Resolve an already classified product operand, never an ordinary static use.
-/// The collector of an executed selection independently rejoins the same path.
-pub fn resolve_product_operand(
-    program: &dyn crate::CheckingInput,
-    argument: &StaticMachineArgument,
-    occurrence: source::SourceSpan,
-    subject: bool,
-) -> Option<SymbolHandle> {
-    typed_trees::product_operand::resolve_product_operand(
-        program.typed_program(),
-        argument,
-        occurrence,
-        subject,
-    )
 }
 
 /// Classify the exact compiler Build operation, not an ordinary same-named call.

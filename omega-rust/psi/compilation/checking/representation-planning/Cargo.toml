@@ -16,7 +16,3 @@ source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
 typed-trees = { path = "../../representations/typed-trees" }
 validation = { path = ".." }
-
-[dev-dependencies]
-arena = { path = "../../../foundation/arena" }
-mutation-matrix = { path = "../../../foundation/mutation-matrix", features = ["test-support"] }

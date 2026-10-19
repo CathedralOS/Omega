@@ -132,8 +132,14 @@ impl SymbolTable {
                             })
                             || (admit_toolchain
                                 && is_public
-                                && self.symbol_source_origin(symbol)
-                                    == Some(SourceOrigin::Toolchain))
+                                && self
+                                    .symbol_provenance_source_span(symbol)
+                                    .and_then(|span| self.source_file(span))
+                                    .is_some_and(|file| {
+                                        file.origin == SourceOrigin::Toolchain
+                                            && file.dependency_scope
+                                                == source::DependencyScope::Product
+                                    }))
                             || !self.has_source_metadata()
                     }
                 }

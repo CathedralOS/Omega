@@ -55,18 +55,20 @@ pub fn collect_executed_assumed_bindings(
         {
             return Err(reject("does not rejoin its typed Build operation"));
         }
-        let required = typed_trees::product_operand::resolve_requirement_operand(
+        let required = typed_trees::product_operand::resolve_product_operand(
             typed,
             &call.machine_arguments[0],
             span,
+            typed_trees::product_operand::ProductOperandKind::Requirement,
         )
         .ok_or_else(|| {
             reject("required operand must name an exact visible boundary requirement")
         })?;
-        let supplied = typed_trees::product_operand::resolve_requirement_operand(
+        let supplied = typed_trees::product_operand::resolve_product_operand(
             typed,
             &call.machine_arguments[1],
             span,
+            typed_trees::product_operand::ProductOperandKind::Requirement,
         )
         .ok_or_else(|| {
             reject("supplied operand must name an exact visible boundary requirement")
