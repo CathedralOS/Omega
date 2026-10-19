@@ -40,6 +40,17 @@ real backed allocator, custody and conservation, exclusive strategy borrowing,
 coexisting allocations, failure preservation, cleanup and return, reset only
 after every allocation returns, and lifecycle/authority rejection controls.
 
+## Requirements and Evidence
+
+Owning task: **BUMP-ALLOCATOR-CANARY** ([TASKS.md](../../../../TASKS.md), P1). This row discharges the numeric address-geometry prerequisite (`base + requested` in `addr` proved from `Region in Bounded` and `requested < length`) across all nine transport places.
+
+- **Establishment:** `region(base, length, endpoint)` establishes `Region in Bounded` (`no_wrap(region.base, region.length)`) from the checked precondition `embed(base) + embed(length) <= embed(endpoint)`, and `const NAMED: Region in Bounded` establishes it via the declaration-site typed result judgment. Each `<place>/invalid/main.omg` twin weakens only `domain Region::Bounded` to `embed(region.base) <= addr::Bound`, leaving `base + requested` unproved at the exact addition site, with zero post-hoc caller equality guards.
+- **Identity and lifetime:** `Region` carries exact `base: addr` and `length: u64` fields; owned moves, record-field projections (`Envelope.region`), and `[copy]` constant substitution retain the `Bounded` domain membership on the exact value identity.
+- **Composition:** `cut` and `forward` substitute the actual `Region in Bounded` across parameters, `keep(whole)` result postconditions, `match` arm roster intersections, successor state transitions (`finish`), and all four target-qualified `cut` bodies to discharge `base + requested` directly from `requested < length`.
+- **Soundness boundaries:** `no_wrap` is a mathematical `let` definition (`core::Strict<0>`) erased before runtime; domain membership proves numeric non-overflow without manufacturing storage custody or `Granted` authority.
+- **Terminal Psi and carrier lowering:** `Region` lowers as a two-field structural aggregate (`addr`, `u64`), and the proved `base + requested` addition lowers to target-neutral exact address arithmetic in Terminal Psi.
+- **Native realization, frame/layout encoding, and image emission:** Every positive place and root `main.omg` binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, and executes with `omega run --both` exit `0` agreement on both `linux_x86_64` and `windows_x86_64`.
+
 The match repair retains predicate-qualified ownership sources and intersects
 the actual incoming membership rosters at the join. Distinct-source and nested
 local joins, three distinct incoming owners, and shared-reference joins also run
@@ -52,3 +63,4 @@ The real `Extent` split now passes address formation but still rejects child
 `Granted` construction and untransferred parent custody. It remains the customer
 after this numeric repair; neither domain geometry nor this sample creates a
 storage grant.
+
