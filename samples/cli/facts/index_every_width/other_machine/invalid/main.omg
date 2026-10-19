@@ -1,0 +1,51 @@
+// Every integer width with a proved bound 0 <= index <= 3 indexes a four-element array and XORs the selected u64 values.
+// Rejected: the widened i64 bound admits 4, which is not within length 4.
+machine read_indices(
+    values: [u64; 4],
+    index_u8: u8,
+    index_u16: u16,
+    index_u32: u32,
+    index_u64: u64,
+    index_i8: i8,
+    index_i16: i16,
+    index_i32: i32,
+    index_i64: i64
+) -> u64
+requires 0 <= index_u8 && index_u8 <= 3
+    && 0 <= index_u16 && index_u16 <= 3
+    && 0 <= index_u32 && index_u32 <= 3
+    && 0 <= index_u64 && index_u64 <= 3
+    && 0 <= index_i8 && index_i8 <= 3
+    && 0 <= index_i16 && index_i16 <= 3
+    && 0 <= index_i32 && index_i32 <= 3
+    && 0 <= index_i64 && index_i64 <= 4
+{ values[index_u8] ^ values[index_u16] ^ values[index_u32] ^ values[index_u64]
+        ^ values[index_i8] ^ values[index_i16] ^ values[index_i32] ^ values[index_i64] }
+machine read_all(
+    values: [u64; 4],
+    index_u8: u8,
+    index_u16: u16,
+    index_u32: u32,
+    index_u64: u64,
+    index_i8: i8,
+    index_i16: i16,
+    index_i32: i32,
+    index_i64: i64
+) -> u64
+requires 0 <= index_u8 && index_u8 <= 3
+    && 0 <= index_u16 && index_u16 <= 3
+    && 0 <= index_u32 && index_u32 <= 3
+    && 0 <= index_u64 && index_u64 <= 3
+    && 0 <= index_i8 && index_i8 <= 3
+    && 0 <= index_i16 && index_i16 <= 3
+    && 0 <= index_i32 && index_i32 <= 3
+    && 0 <= index_i64 && index_i64 <= 4
+{
+    read_indices(values, index_u8, index_u16, index_u32, index_u64, index_i8, index_i16, index_i32, index_i64)
+}
+machine main() crashes Trap {
+    let values: [u64; 4] = [1, 2, 4, 8];
+    transition read_all(values, 0, 1, 2, 3, 0, 1, 2, 2) == 12 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

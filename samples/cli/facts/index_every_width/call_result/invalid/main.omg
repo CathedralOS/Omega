@@ -1,0 +1,71 @@
+// Every integer width with a proved bound 0 <= index <= 3 indexes a four-element array and XORs the selected u64 values.
+// Rejected: the widened i64 bound admits 4, which is not within length 4.
+machine pick_u8(index: u8) -> u8
+requires 0 <= index && index <= 3
+ensures 0 <= result && result <= 3
+{ index }
+machine pick_u16(index: u16) -> u16
+requires 0 <= index && index <= 3
+ensures 0 <= result && result <= 3
+{ index }
+machine pick_u32(index: u32) -> u32
+requires 0 <= index && index <= 3
+ensures 0 <= result && result <= 3
+{ index }
+machine pick_u64(index: u64) -> u64
+requires 0 <= index && index <= 3
+ensures 0 <= result && result <= 3
+{ index }
+machine pick_i8(index: i8) -> i8
+requires 0 <= index && index <= 3
+ensures 0 <= result && result <= 3
+{ index }
+machine pick_i16(index: i16) -> i16
+requires 0 <= index && index <= 3
+ensures 0 <= result && result <= 3
+{ index }
+machine pick_i32(index: i32) -> i32
+requires 0 <= index && index <= 3
+ensures 0 <= result && result <= 3
+{ index }
+machine pick_i64(index: i64) -> i64
+requires 0 <= index && index <= 4
+ensures 0 <= result && result <= 4
+{ index }
+machine read_all(
+    values: [u64; 4],
+    index_u8: u8,
+    index_u16: u16,
+    index_u32: u32,
+    index_u64: u64,
+    index_i8: i8,
+    index_i16: i16,
+    index_i32: i32,
+    index_i64: i64
+) -> u64
+requires 0 <= index_u8 && index_u8 <= 3
+    && 0 <= index_u16 && index_u16 <= 3
+    && 0 <= index_u32 && index_u32 <= 3
+    && 0 <= index_u64 && index_u64 <= 3
+    && 0 <= index_i8 && index_i8 <= 3
+    && 0 <= index_i16 && index_i16 <= 3
+    && 0 <= index_i32 && index_i32 <= 3
+    && 0 <= index_i64 && index_i64 <= 4
+{
+    let picked_u8: u8 = pick_u8(index_u8);
+    let picked_u16: u16 = pick_u16(index_u16);
+    let picked_u32: u32 = pick_u32(index_u32);
+    let picked_u64: u64 = pick_u64(index_u64);
+    let picked_i8: i8 = pick_i8(index_i8);
+    let picked_i16: i16 = pick_i16(index_i16);
+    let picked_i32: i32 = pick_i32(index_i32);
+    let picked_i64: i64 = pick_i64(index_i64);
+    values[picked_u8] ^ values[picked_u16] ^ values[picked_u32] ^ values[picked_u64]
+        ^ values[picked_i8] ^ values[picked_i16] ^ values[picked_i32] ^ values[picked_i64]
+}
+machine main() crashes Trap {
+    let values: [u64; 4] = [1, 2, 4, 8];
+    transition read_all(values, 0, 1, 2, 3, 0, 1, 2, 2) == 12 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
