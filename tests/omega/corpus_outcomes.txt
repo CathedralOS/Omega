@@ -2098,15 +2098,27 @@ fail/facts/integer_range_delivery_through_target_body_missing_bound rejected 336
 	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/length_through_call_result_rejected rejected 893ms expected @b2d507c5ddab+wt
-fail/facts/length_through_const_name_rejected rejected 910ms expected @b2d507c5ddab+wt
-fail/facts/length_through_field_rejected rejected 924ms expected @b2d507c5ddab+wt
-fail/facts/length_through_local_rejected rejected 901ms expected @b2d507c5ddab+wt
-fail/facts/length_through_match_join_rejected rejected 894ms expected @b2d507c5ddab+wt
-fail/facts/length_through_other_machine_rejected rejected 897ms expected @b2d507c5ddab+wt
-fail/facts/length_through_other_state_rejected rejected 888ms expected @b2d507c5ddab+wt
-fail/facts/length_through_parameter_rejected rejected 900ms expected @b2d507c5ddab+wt
-fail/facts/length_through_target_body_rejected rejected 932ms expected @b2d507c5ddab+wt
+fail/facts/length_through_call_result_rejected rejected 3427ms expected @2798e08167b2
+	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::entry
+fail/facts/length_through_const_name_rejected rejected 3591ms expected @2798e08167b2
+	cannot prove index `3 - 1` is within length 2
+fail/facts/length_through_field_rejected rejected 3440ms expected @2798e08167b2
+	cannot prove index `meter.length - 1` is within unknown slice length of `window` in last_byte::entry
+fail/facts/length_through_local_rejected rejected 3206ms expected @2798e08167b2
+	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::entry
+fail/facts/length_through_match_join_rejected rejected 2652ms expected @2798e08167b2
+	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::entry
+fail/facts/length_through_other_machine_rejected rejected 2431ms expected @2798e08167b2
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
+fail/facts/length_through_other_state_rejected rejected 2911ms expected @2798e08167b2
+	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::pick
+fail/facts/length_through_parameter_rejected rejected 2340ms expected @2798e08167b2
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
+fail/facts/length_through_target_body_rejected rejected 2175ms expected @2798e08167b2
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
+	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
 fail/facts/linear_claim_retirement_through_call_result_rejected rejected 2519ms expected @45cbafd80d9c
 	cannot use `token` in machine `probe` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/facts/linear_claim_retirement_through_const_name_rejected rejected 2587ms expected @45cbafd80d9c
@@ -6321,6 +6333,15 @@ pass/facts/integer_range_delivery_through_other_machine_exit checked 7865ms chec
 pass/facts/integer_range_delivery_through_other_state_exit checked 8021ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/integer_range_delivery_through_parameter_exit checked 8029ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/integer_range_delivery_through_target_body_exit checked 8025ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/length_through_call_result_exit checked 21678ms check-target:macos_arm64 @2798e08167b2
+pass/facts/length_through_const_name_exit checked 21571ms check-target:macos_arm64 @2798e08167b2
+pass/facts/length_through_field_exit checked 21647ms check-target:macos_arm64 @2798e08167b2
+pass/facts/length_through_local_exit checked 21966ms check-target:macos_arm64 @2798e08167b2
+pass/facts/length_through_match_join_exit checked 21842ms check-target:macos_arm64 @2798e08167b2
+pass/facts/length_through_other_machine_exit checked 22307ms check-target:macos_arm64 @2798e08167b2
+pass/facts/length_through_other_state_exit checked 22444ms check-target:macos_arm64 @2798e08167b2
+pass/facts/length_through_parameter_exit checked 22062ms check-target:macos_arm64 @2798e08167b2
+pass/facts/length_through_target_body_exit checked 22048ms check-target:macos_arm64 @2798e08167b2
 pass/facts/linear_claim_retirement_through_call_result_exit checked 8038ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/linear_claim_retirement_through_const_name_exit checked 7984ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/linear_claim_retirement_through_field_exit checked 8047ms check-target:macos_arm64 @45cbafd80d9c
