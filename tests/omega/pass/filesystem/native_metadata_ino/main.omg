@@ -1,3 +1,7 @@
+// Expected exit: 0 (macos_arm64).
+// Expected output contains: PASS: uid/gid consistent; distinct files distinct ino; hard link shares ino
+// The runtime oracle is host-specific; Linux entries retain publication
+// coverage and are not qualified by this macOS observation.
 use omega::language::core::filesystem_authority;
 // NATIVE MetadataExt::ino/uid/gid via stat (Rust os::unix::fs::MetadataExt). Two
 // distinct files share an owner (same st_uid/st_gid) but have DIFFERENT inodes;
@@ -24,7 +28,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation crashes Trap {
     main.mode = 420;
     main.fd = PosixFilesystemHost::create("/tmp/omega_ino_a.txt", main.mode);
     main.n = PosixFilesystemHost::write(main.fd, "aa");
@@ -112,5 +116,8 @@ machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemCo
         transition main.ino_a == main.ino_link { true -> good(main) _ -> fail(main) }
     }
     state good(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "PASS: uid/gid consistent; distinct files distinct ino; hard link shares ino\n"); }
-    state fail(main: &mut Main) { main.n = PosixFilesystemHost::write(1, "FAIL: ino/uid/gid\n"); }
+    state fail(main: &mut Main) {
+        main.n = PosixFilesystemHost::write(1, "FAIL: ino/uid/gid\n");
+        crash Trap;
+    }
 }

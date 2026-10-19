@@ -5520,9 +5520,6 @@ wait for Cathedral's instruction coverage. The interpreter is
     x86-64 (exit 70). Foreign artifact production does not establish those
     outcomes. Preserve oversized-read, asynchronous-handle, invalid UTF-8 and
     failed-time-query controls.
-  - `native_metadata_ino` still reaches the proof-search budget
-    (`proof_search_result_guarantee_work`);
-    **CHECKER-CARRIES-OPERATION-DECISIONS** owns that prerequisite.
   - Retain every nested raw requirement/provider identity in artifact/cache
     identity, cycle detection, review, authority evidence, replacement admission
     and live-era custody. Missing, ambiguous, cyclic, wrong-target, stale or
