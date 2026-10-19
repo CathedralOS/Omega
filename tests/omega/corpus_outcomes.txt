@@ -1867,15 +1867,27 @@ fail/facts/float_delivery_through_other_machine_rejected rejected 5361ms expecte
 fail/facts/float_delivery_through_other_state_rejected rejected 3583ms expected @1dcced2fa00f+wt
 fail/facts/float_delivery_through_parameter_rejected rejected 3954ms expected @1dcced2fa00f+wt
 fail/facts/float_delivery_through_target_body_rejected rejected 3820ms expected @1dcced2fa00f+wt
-fail/facts/float_range_delivery_through_call_result_rejected rejected 2463ms expected @ec38c6dfcf45
-fail/facts/float_range_delivery_through_const_name_rejected rejected 2507ms expected @ec38c6dfcf45
-fail/facts/float_range_delivery_through_field_rejected rejected 2480ms expected @ec38c6dfcf45
-fail/facts/float_range_delivery_through_local_rejected rejected 2515ms expected @ec38c6dfcf45
-fail/facts/float_range_delivery_through_match_join_rejected rejected 2723ms expected @ec38c6dfcf45
-fail/facts/float_range_delivery_through_other_machine_rejected rejected 2495ms expected @ec38c6dfcf45
-fail/facts/float_range_delivery_through_other_state_rejected rejected 2551ms expected @ec38c6dfcf45
-fail/facts/float_range_delivery_through_parameter_rejected rejected 2535ms expected @ec38c6dfcf45
-fail/facts/float_range_delivery_through_target_body_rejected rejected 2648ms expected @ec38c6dfcf45
+fail/facts/float_range_delivery_through_call_result_rejected rejected 3772ms expected @ff8be1e0d475
+	cannot prove requires contract for call admit from probe: source(reading) >= 0.0 && source(reading) <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_const_name_rejected rejected 3826ms expected @ff8be1e0d475
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_field_rejected rejected 3715ms expected @ff8be1e0d475
+	cannot prove requires contract for call admit from probe: holder.reading.value >= 0.0 && holder.reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_local_rejected rejected 3639ms expected @ff8be1e0d475
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_match_join_rejected rejected 3781ms expected @ff8be1e0d475
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_other_machine_rejected rejected 3939ms expected @ff8be1e0d475
+	cannot prove requires contract for call admit from deliver: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_other_state_rejected rejected 3776ms expected @ff8be1e0d475
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
+fail/facts/float_range_delivery_through_parameter_rejected rejected 3697ms expected @ff8be1e0d475
+	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_range_delivery_through_target_body_rejected rejected 3388ms expected @ff8be1e0d475
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/guarded_line_loan_through_call_result_held rejected 2713ms expected @866a955e52f8
 fail/facts/guarded_line_loan_through_const_name_held rejected 2738ms expected @866a955e52f8
 fail/facts/guarded_line_loan_through_field_held rejected 2710ms expected @866a955e52f8
@@ -1945,15 +1957,27 @@ fail/facts/indexed_storage_address_identity_through_target_body_held_element rej
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	state `unknown` receives `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/integer_range_delivery_through_call_result_missing_bound rejected 9302ms expected @a9b427ff556a
-fail/facts/integer_range_delivery_through_const_name_missing_bound rejected 4734ms expected @a9b427ff556a
-fail/facts/integer_range_delivery_through_field_missing_bound rejected 4691ms expected @a9b427ff556a
-fail/facts/integer_range_delivery_through_local_missing_bound rejected 4712ms expected @a9b427ff556a
-fail/facts/integer_range_delivery_through_match_join_missing_bound rejected 4465ms expected @a9b427ff556a
-fail/facts/integer_range_delivery_through_other_machine_missing_bound rejected 6009ms expected @a9b427ff556a
-fail/facts/integer_range_delivery_through_other_state_missing_bound rejected 4711ms expected @a9b427ff556a
-fail/facts/integer_range_delivery_through_parameter_missing_bound rejected 5294ms expected @a9b427ff556a
-fail/facts/integer_range_delivery_through_target_body_missing_bound rejected 4786ms expected @a9b427ff556a
+fail/facts/integer_range_delivery_through_call_result_missing_bound rejected 3488ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from probe: source(input) <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_const_name_missing_bound rejected 3482ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_field_missing_bound rejected 3568ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from read: reading.index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_local_missing_bound rejected 3416ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_match_join_missing_bound rejected 3391ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from choose: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_other_machine_missing_bound rejected 3367ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from forward: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_other_state_missing_bound rejected 3318ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
+fail/facts/integer_range_delivery_through_parameter_missing_bound rejected 3306ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/integer_range_delivery_through_target_body_missing_bound rejected 3365ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/length_through_call_result_rejected rejected 893ms expected @b2d507c5ddab+wt
 fail/facts/length_through_const_name_rejected rejected 910ms expected @b2d507c5ddab+wt
 fail/facts/length_through_field_rejected rejected 924ms expected @b2d507c5ddab+wt
@@ -2180,15 +2204,27 @@ fail/facts/qualified_join_routed_authority rejected 727ms expected @8a884ecc43d5
 fail/facts/qualified_linear_value_reused_after_transfer rejected 391ms expected @ab16f19fe1b1+wt
 fail/facts/qualified_owned_join_missing_arm rejected 267ms expected @8a884ecc43d5+wt
 fail/facts/qualified_owned_join_reused_source rejected 336ms expected @8a884ecc43d5+wt
-fail/facts/range_fact_delivery_through_call_result_rejected rejected 961ms expected @ec38c6dfcf45
-fail/facts/range_fact_delivery_through_const_name_rejected rejected 879ms expected @ec38c6dfcf45
-fail/facts/range_fact_delivery_through_field_rejected rejected 897ms expected @ec38c6dfcf45
-fail/facts/range_fact_delivery_through_local_rejected rejected 928ms expected @ec38c6dfcf45
-fail/facts/range_fact_delivery_through_match_join_rejected rejected 947ms expected @ec38c6dfcf45
-fail/facts/range_fact_delivery_through_other_machine_rejected rejected 1011ms expected @ec38c6dfcf45
-fail/facts/range_fact_delivery_through_other_state_rejected rejected 1122ms expected @ec38c6dfcf45
-fail/facts/range_fact_delivery_through_parameter_rejected rejected 1105ms expected @ec38c6dfcf45
-fail/facts/range_fact_delivery_through_target_body_rejected rejected 992ms expected @ec38c6dfcf45
+fail/facts/range_fact_delivery_through_call_result_rejected rejected 1093ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from probe: source(input) <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_const_name_rejected rejected 1136ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_field_rejected rejected 1073ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from read: reading.index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_local_rejected rejected 1057ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_match_join_rejected rejected 974ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from choose: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_other_machine_rejected rejected 983ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from forward: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_other_state_rejected rejected 949ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
+fail/facts/range_fact_delivery_through_parameter_rejected rejected 858ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/range_fact_delivery_through_target_body_rejected rejected 855ms expected @ff8be1e0d475
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/readonly_byte_literal_subslice_unproved_call_result rejected 2714ms expected @69725a85bb43
 	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/readonly_byte_literal_subslice_unproved_const_name rejected 2808ms expected @69725a85bb43
@@ -4532,7 +4568,7 @@ pass/calls/cyclic_copy_arguments_exit checked 12218ms check-target:macos_arm64 @
 pass/calls/cyclic_mutable_borrow_block_parameter_call checked 13621ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/cyclic_projected_borrow_call_exit checked 14024ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/cyclic_scalar_query_reborrow_exit checked 14055ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/calls/declared_range_delivery_proven checked 1955ms @a9ae30e1c334+wt
+pass/calls/declared_range_delivery_proven checked 1839ms @ff8be1e0d475
 pass/calls/ensures_result_membership_state_graph_issuer_exit checked 12418ms check-target:macos_arm64 @faebfb62fb37
 pass/calls/field_path_byte_subslice_exit checked 11714ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/generic_operator_guard_result checked 3794ms @cd5a3c1ae981+wt
@@ -5941,15 +5977,15 @@ pass/facts/float_delivery_through_other_machine_exit checked 35130ms check-targe
 pass/facts/float_delivery_through_other_state_exit checked 25066ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/facts/float_delivery_through_parameter_exit checked 37382ms check-target:macos_arm64 @1dcced2fa00f+wt
 pass/facts/float_delivery_through_target_body_exit checked 30769ms check-target:macos_arm64 @1dcced2fa00f+wt
-pass/facts/float_range_delivery_through_call_result_exit checked 16564ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/float_range_delivery_through_const_name_exit checked 16059ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/float_range_delivery_through_field_exit checked 16548ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/float_range_delivery_through_local_exit checked 16220ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/float_range_delivery_through_match_join_exit checked 16315ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/float_range_delivery_through_other_machine_exit checked 16309ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/float_range_delivery_through_other_state_exit checked 16491ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/float_range_delivery_through_parameter_exit checked 15637ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/float_range_delivery_through_target_body_exit checked 15758ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/float_range_delivery_through_call_result_exit checked 18761ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/float_range_delivery_through_const_name_exit checked 18707ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/float_range_delivery_through_field_exit checked 18250ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/float_range_delivery_through_local_exit checked 18399ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/float_range_delivery_through_match_join_exit checked 18482ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/float_range_delivery_through_other_machine_exit checked 18710ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/float_range_delivery_through_other_state_exit checked 18219ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/float_range_delivery_through_parameter_exit checked 18101ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/float_range_delivery_through_target_body_exit checked 18235ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/guarded_line_loan_through_call_result_exit checked 5835ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_const_name_exit checked 5825ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_field_exit checked 5857ms check-target:macos_arm64 @866a955e52f8
@@ -6004,15 +6040,15 @@ pass/facts/indexed_storage_address_identity_through_other_machine_exit checked 6
 pass/facts/indexed_storage_address_identity_through_other_state_exit checked 6323ms check-target:macos_arm64 @69725a85bb43+wt
 pass/facts/indexed_storage_address_identity_through_parameter_exit checked 6351ms check-target:macos_arm64 @69725a85bb43+wt
 pass/facts/indexed_storage_address_identity_through_target_body_exit checked 6531ms check-target:macos_arm64 @69725a85bb43+wt
-pass/facts/integer_range_delivery_through_call_result_exit checked 15483ms check-target:macos_arm64 @a9b427ff556a
-pass/facts/integer_range_delivery_through_const_name_exit checked 15480ms check-target:macos_arm64 @a9b427ff556a
-pass/facts/integer_range_delivery_through_field_exit checked 11071ms check-target:macos_arm64 @a9b427ff556a
-pass/facts/integer_range_delivery_through_local_exit checked 10527ms check-target:macos_arm64 @a9b427ff556a
-pass/facts/integer_range_delivery_through_match_join_exit checked 21683ms check-target:macos_arm64 @a9b427ff556a
-pass/facts/integer_range_delivery_through_other_machine_exit checked 23468ms check-target:macos_arm64 @a9b427ff556a
-pass/facts/integer_range_delivery_through_other_state_exit checked 14796ms check-target:macos_arm64 @a9b427ff556a
-pass/facts/integer_range_delivery_through_parameter_exit checked 12770ms check-target:macos_arm64 @a9b427ff556a
-pass/facts/integer_range_delivery_through_target_body_exit checked 14948ms check-target:macos_arm64 @a9b427ff556a
+pass/facts/integer_range_delivery_through_call_result_exit checked 8927ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/integer_range_delivery_through_const_name_exit checked 7937ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/integer_range_delivery_through_field_exit checked 8077ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/integer_range_delivery_through_local_exit checked 7919ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/integer_range_delivery_through_match_join_exit checked 8065ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/integer_range_delivery_through_other_machine_exit checked 7865ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/integer_range_delivery_through_other_state_exit checked 8021ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/integer_range_delivery_through_parameter_exit checked 8029ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/integer_range_delivery_through_target_body_exit checked 8025ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/linear_claim_retirement_through_call_result_exit checked 8038ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/linear_claim_retirement_through_const_name_exit checked 7984ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/linear_claim_retirement_through_field_exit checked 8047ms check-target:macos_arm64 @45cbafd80d9c
@@ -6129,15 +6165,15 @@ pass/facts/owned_qualified_reference_result_exit checked 3797ms check-target:mac
 pass/facts/owned_qualified_reference_selection_exit checked 3821ms check-target:macos_arm64 @ab16f19fe1b1+wt
 pass/facts/qualified_borrowed_join_exit checked 3994ms check-target:macos_arm64 @8a884ecc43d5+wt
 pass/facts/qualified_owned_join_exit checked 4372ms check-target:macos_arm64 @8a884ecc43d5+wt
-pass/facts/range_fact_delivery_through_call_result_exit checked 7349ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/range_fact_delivery_through_const_name_exit checked 7081ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/range_fact_delivery_through_field_exit checked 7689ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/range_fact_delivery_through_local_exit checked 7403ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/range_fact_delivery_through_match_join_exit checked 7635ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/range_fact_delivery_through_other_machine_exit checked 6765ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/range_fact_delivery_through_other_state_exit checked 7380ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/range_fact_delivery_through_parameter_exit checked 6810ms check-target:macos_arm64 @ec38c6dfcf45
-pass/facts/range_fact_delivery_through_target_body_exit checked 7265ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/range_fact_delivery_through_call_result_exit checked 8159ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/range_fact_delivery_through_const_name_exit checked 8249ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/range_fact_delivery_through_field_exit checked 8527ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/range_fact_delivery_through_local_exit checked 8933ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/range_fact_delivery_through_match_join_exit checked 8930ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/range_fact_delivery_through_other_machine_exit checked 9164ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/range_fact_delivery_through_other_state_exit checked 8744ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/range_fact_delivery_through_parameter_exit checked 8955ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/range_fact_delivery_through_target_body_exit checked 8820ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/readonly_byte_literal_subslice_through_call_result_exit checked 8513ms check-target:macos_arm64 @69725a85bb43
 pass/facts/readonly_byte_literal_subslice_through_const_name_exit checked 8389ms check-target:macos_arm64 @69725a85bb43
 pass/facts/readonly_byte_literal_subslice_through_field_exit checked 8424ms check-target:macos_arm64 @69725a85bb43
