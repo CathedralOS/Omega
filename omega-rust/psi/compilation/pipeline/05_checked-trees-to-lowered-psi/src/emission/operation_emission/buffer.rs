@@ -227,6 +227,9 @@ pub(crate) struct OperationBuffer {
         ComputedValueBinding,
     )>,
     pub(crate) claim_introductions: Vec<crate::emission::claim_bindings::ClaimIntroduction>,
+    /// Checked destination names for custody arriving at private value joins.
+    /// These bind incoming obligations; they never establish new claims.
+    pub(crate) block_entry_claims: Vec<terminal_psi::EntryClaim>,
     pub(crate) selected_cleanup_groups:
         Vec<crate::emission::selected_continuations::SelectedCleanupGroup>,
     pub(crate) external_completion: Option<PendingExternalCompletion>,
@@ -417,6 +420,7 @@ impl OperationBuffer {
             selected_integer_comparisons: Vec::new(),
             source_checked_obligations: Vec::new(),
             claim_introductions: Vec::new(),
+            block_entry_claims: Vec::new(),
             selected_cleanup_groups: Vec::new(),
         }
     }

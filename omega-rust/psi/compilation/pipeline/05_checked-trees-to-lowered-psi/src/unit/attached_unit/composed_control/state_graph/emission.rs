@@ -56,6 +56,7 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     content_entry_claims: Vec<terminal_psi::ContentEntryClaim>,
     content_identity_reshuffles: Vec<terminal_psi::ContentIdentityReshuffle>,
     loan_completions: Vec<terminal_psi::LoanCompletion>,
+    block_entry_claims: Vec<terminal_psi::EntryClaim>,
     entry_reentered: bool,
     state_ids: Vec<BlockId>,
     state_views: Vec<Vec<StructuralParameterDeclaration>>,
@@ -460,7 +461,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             block_entry_claims.push(binding);
         }
     }
-    block_entry_claims.sort_by_key(|binding| binding.claim);
     let mut blocks = Vec::new();
     let mut arrival_edges = BTreeMap::new();
     if let Some(entry) = invocation_entry {
@@ -606,6 +606,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         content_entry_claims,
         content_identity_reshuffles,
         loan_completions: Vec::new(),
+        block_entry_claims,
         entry_reentered,
         state_ids,
         state_views,
@@ -642,6 +643,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         content_entry_claims,
         content_identity_reshuffles,
         loan_completions,
+        mut block_entry_claims,
         state_ids,
         state_views: _,
         state_values,
@@ -860,7 +862,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         structural_places,
         structural_parameters: parameters,
         entry_claims: claims.entry_claims,
-        block_entry_claims,
+        block_entry_claims: {
+            block_entry_claims.sort_by_key(|binding| binding.claim);
+            block_entry_claims
+        },
         loan_completions,
         ranked_scc: None,
         result: machine_result,

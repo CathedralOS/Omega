@@ -9,18 +9,6 @@ pub data Split {
 }
 
 pub boundary trait ExtentPartition {
-    machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
-    requires length <= whole.length
-    ensures
-        result.taken.length == length,
-        result.rest.length == whole.length - length,
-        embed(result.taken.length) + embed(result.rest.length) == embed(whole.length),
-        Granted::content(old(&whole))
-        == separate(
-            Granted::content(&result.taken),
-            Granted::content(&result.rest),
-        );
-
     machine merge(parts: Split) -> Extent
     ensures
         embed(result.length) == embed(parts.taken.length) + embed(parts.rest.length),
@@ -29,7 +17,12 @@ pub boundary trait ExtentPartition {
             Granted::content(old(&parts.taken)),
             Granted::content(old(&parts.rest)),
         )
-        == Granted::content(&result);
+        == Granted::content(&result),
+        separate(
+            Vacant::content(old(&parts.taken)),
+            Vacant::content(old(&parts.rest)),
+        )
+        == Vacant::content(&result);
 }
 
 // Bump policy: the allocation is the low end of the tail; the rest is the new
@@ -55,8 +48,6 @@ pub data Attempt {
 
 // Failure returns the unchanged strategy; success returns its exact partition.
 pub machine try_allocate(strategy: Bump, length: u64) -> Attempt
-reaches ExtentPartition
-    invokes ExtentPartition;
 {
     transition length <= strategy.remaining {
         true -> Attempt::Allocated { issued: allocate(strategy, length) }
@@ -75,11 +66,9 @@ ensures
     result.strategy.remaining == strategy.remaining - length;
     result.allocation.length == length;
     embed(result.strategy.tail.length) + embed(result.allocation.length) == embed(strategy.tail.length)
-reaches ExtentPartition
-    invokes ExtentPartition;
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
-    let parts: Split = ExtentPartition::split(tail, length);
+    let parts: VacantExtentParts = split_vacant_extent(tail, length);
     check_extent_length(&parts.taken, length);
     Issued {
         strategy: Bump {
@@ -280,7 +269,7 @@ ensures
 reaches ExtentPartition
     invokes ExtentPartition;
 {
-    let parts: Split = ExtentPartition::split(vec.buffer, kept);
+    let parts: VacantExtentParts = split_vacant_extent(vec.buffer, kept);
     let shrunk: Extent in Granted & Vacant = parts.taken;
     let freed: Extent in Granted & Vacant = parts.rest;
     let grown_tail: Extent in Granted & Vacant = ExtentPartition::merge(Split {

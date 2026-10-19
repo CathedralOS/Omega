@@ -1142,6 +1142,8 @@ fail/core/content_projected_duplicate_consumption rejected 287ms expected @7bd69
 fail/core/content_projection_arbitrary_call rejected 922ms expected @a9ae30e1c334+wt
 fail/core/content_projection_foreign_owner rejected 827ms expected @a9ae30e1c334+wt
 fail/core/content_retained_custody_from_borrow rejected 1571ms expected @a9ae30e1c334+wt
+fail/core/content_target_family_unselected_body rejected 2672ms expected @61fab13095e7+wt
+	machine `exercise` state `entry` value call to `partition` violates required fact `whole.base == 10 && whole.length == 48 && requested == 16`: the instantiated fact is structurally false (`whole.base == 10 && whole.length == 48 && 17 == 16`)
 fail/core/content_transform_active_payload rejected 1926ms expected @42423ab60d61+wt
 	linear value `whole` reaches scope exit without being consumed or transferred
 fail/core/content_transform_live_parent_loan rejected 2233ms expected @42423ab60d61+wt
@@ -1180,6 +1182,26 @@ fail/core/guarded_trap_ceiling_other_site_rejected rejected 5301ms expected @a9a
 fail/core/guarded_trap_ceiling_unbounded_addend_rejected rejected 2772ms expected @a9ae30e1c334+wt
 fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 5338ms expected @a9ae30e1c334+wt
 fail/core/image_address_observation_does_not_grant rejected 1565ms expected @8fd8af53161a+wt
+fail/core/independent_content_duplicate_owner rejected 2657ms expected @61fab13095e7+wt
+	callable `partition` publishes more than one content-conservation equation for the same qualification owner and algebra (facts `First.content(old(&whole)) == separate(First.content(&result.left), First.content(&result.right))` and `First.content(old(&whole)) == separate(First.content(&result.left), First.content(&result.right))`); author one normalized equation per outcome row and qualification owner
+fail/core/independent_content_partition_missing_input rejected 2665ms expected @61fab13095e7+wt
+	callable `partition` has an invalid content-conservation contract: projection `Second::content` requires exact qualification `Region::Second`, but `old(&whole)` is not qualified by its type or an ordinary callable contract
+	implicit domain weakening in argument `whole` for state `partition::entry` drops `Second`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/core/independent_content_partition_overlap rejected 4159ms expected @61fab13095e7+wt
+	cannot prove ensures contract for exit from partition at statement 3: First.content(old(&whole)) == separate(First.content(&result.left), First.content(&result.right))
+	cannot prove ensures contract for exit from partition at statement 3: Second.content(old(&whole)) == separate(Second.content(&result.left), Second.content(&result.right))
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::Second
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 fail/core/interrupt_obligation_construction_rejected rejected 885ms expected @a9ae30e1c334+wt
 fail/core/interval_content_partition_gap rejected 729ms expected @b794c35ad5f8+wt
 fail/core/interval_content_partition_overlap rejected 715ms expected @b794c35ad5f8+wt
@@ -1243,6 +1265,13 @@ fail/core/terminal_call_wrong_selected_crash_guard rejected 633ms expected @45cb
 fail/core/terminal_private_call_crash_ceiling rejected 637ms expected @45cbafd80d9c+wt
 	call from `main` to `relay` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/core/translation_unmap_before_activation rejected 887ms expected @a9ae30e1c334+wt
+fail/core/vacant_partition_missing_input rejected 3956ms expected @61fab13095e7+wt
+	cannot prove default-domain field requirement for return from invalid at statement 3: VacantExtentParts.taken requires Extent::Vacant
+	cannot prove default-domain field requirement for return from invalid at statement 3: VacantExtentParts.rest requires Extent::Vacant
+	construction value is not proven in domain `Extent::Vacant` in invalid state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `VacantExtentParts` field `taken` is not proven in domain `Extent::Vacant` in invalid state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Extent::Vacant` in invalid state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `VacantExtentParts` field `rest` is not proven in domain `Extent::Vacant` in invalid state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 fail/data/bare_payload_case_equality_suggests_in rejected 43ms expected @a9ae30e1c334+wt
 fail/data/boundary_data_construction_rejected rejected 871ms expected @a9ae30e1c334+wt
 fail/data/boundary_data_relaxed_carry_unadmitted rejected 831ms expected @a9ae30e1c334+wt
@@ -2156,6 +2185,123 @@ fail/facts/ieee_guard_i32_from_f64_other_machine_invalid rejected 3892ms expecte
 fail/facts/ieee_guard_i32_from_f64_other_state_invalid rejected 3820ms expected @1cf00aa9ba90+wt
 fail/facts/ieee_guard_i32_from_f64_parameter_invalid rejected 3841ms expected @1cf00aa9ba90+wt
 fail/facts/ieee_guard_i32_from_f64_target_body_invalid rejected 3775ms expected @1cf00aa9ba90+wt
+fail/facts/independent_content_partition_through_call_result rejected 4134ms expected @61fab13095e7+wt
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::Second
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+fail/facts/independent_content_partition_through_const_name rejected 4147ms expected @61fab13095e7+wt
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::Second
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+fail/facts/independent_content_partition_through_field rejected 4136ms expected @61fab13095e7+wt
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::Second
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+fail/facts/independent_content_partition_through_local rejected 4150ms expected @61fab13095e7+wt
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::Second
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+fail/facts/independent_content_partition_through_match_join rejected 4135ms expected @61fab13095e7+wt
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::Second
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+fail/facts/independent_content_partition_through_other_machine rejected 4146ms expected @61fab13095e7+wt
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::Second
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+fail/facts/independent_content_partition_through_other_state rejected 4138ms expected @61fab13095e7+wt
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::Second
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+fail/facts/independent_content_partition_through_parameter rejected 4145ms expected @61fab13095e7+wt
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::Second
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+fail/facts/independent_content_partition_through_target_body rejected 4135ms expected @61fab13095e7+wt
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.left requires Region::Second
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::First
+	cannot prove default-domain field requirement for return from partition at statement 3: Parts.right requires Region::Second
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `left` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 fail/facts/index_every_width_through_call_result_rejected rejected 4857ms expected @465f5043822d+wt
 fail/facts/index_every_width_through_const_name_rejected rejected 2801ms expected @465f5043822d+wt
 fail/facts/index_every_width_through_field_rejected rejected 3006ms expected @465f5043822d+wt
@@ -3425,15 +3571,16 @@ fail/memory/bump_allocator_cast_minted_vacant rejected 2838ms expected @d012ed8f
 	`as ... in Extent::Vacant` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/memory/bump_allocator_inflated_capacity rejected 5185ms expected @ca117899bfe3+wt
 	data `Bump` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/memory/bump_allocator_live_allocation_dropped rejected 1647ms expected @a9ae30e1c334+wt
-fail/memory/bump_allocator_oversized_partition rejected 7615ms expected @ca117899bfe3+wt
-	cannot prove requires contract for call split from invalid: 32 <= whole.length (needs fact `length <= whole.length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot establish call-result qualification `Extent::Granted` in `invalid`, state `entry` (statement 0, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Extent::Granted` in `invalid`, state `entry` (statement 0, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-fail/memory/bump_allocator_place_into_occupied rejected 961ms expected @d012ed8f0bae+wt
+fail/memory/bump_allocator_live_allocation_dropped rejected 1892ms expected @61fab13095e7+wt
+	linear value `issued.allocation` reaches scope exit without being consumed or transferred
+fail/memory/bump_allocator_oversized_partition rejected 4543ms expected @61fab13095e7+wt
+	cannot prove requires contract for call split_vacant_extent from invalid: 32 <= whole.length (needs fact `requested <= whole.length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/memory/bump_allocator_place_into_occupied rejected 612ms expected @61fab13095e7+wt
 	implicit domain weakening in argument `storage` for state `place` drops `Resident<SlotPlacement, Slot>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/memory/bump_allocator_release_with_live_resident rejected 942ms expected @a9ae30e1c334+wt
-fail/memory/bump_allocator_restated_resident_index_mismatch rejected 1316ms expected @a9ae30e1c334+wt
+fail/memory/bump_allocator_release_with_live_resident rejected 658ms expected @61fab13095e7+wt
+	implicit domain weakening in argument `returned` for state `release::entry` drops `Resident<SlotPlacement, Slot>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/memory/bump_allocator_restated_resident_index_mismatch rejected 827ms expected @61fab13095e7+wt
+	index compatibility condition `index-equality:Resident:exercise::entry:statement-4:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/memory/indexed_resident_bodyless_handback rejected 1707ms expected @226fbdd49549+wt
 	cannot prove requires contract for call read from exercise: storage.resident in Resident<type:named(name(First))> (invalidated by prior mutation of storage; storage.resident is part of Resident) in state `entry`
 	cannot prove default-domain field requirement for return from exercise at statement 2: storage.resident requires Resident
@@ -5987,6 +6134,7 @@ pass/core/scoped_integer_call_guarantees_composed_exit checked 7828ms check-targ
 pass/core/scoped_integer_call_unrelated_trait_operator_requires_formation checked 8077ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/self_read_only_receiver_compile checked 1631ms @a9ae30e1c334+wt
 pass/core/task_lifecycle_operations rejected 11000ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/core/vacant_extent_partition_endpoints checked 2333ms @61fab13095e7+wt
 pass/core/zii_default_composite_exit checked 11731ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/data/case_first_payload_zero_established checked 1779ms @a9ae30e1c334+wt
 pass/data/case_membership_union_guard_exit checked 12174ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -6400,6 +6548,7 @@ pass/expressions/runtime_temporary_record_field_call_exit checked 10564ms check-
 pass/expressions/runtime_widened_comparison_exit checked 11140ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/scalar_match_boundary_composition_exit checked 12777ms check-target:macos_arm64 @9c4d1c444502
 pass/expressions/seq_consuming_combinators checked 10030ms @fcc053dc7014+wt
+pass/expressions/sequential_fresh_linear_selection checked 9303ms check-target:macos_arm64 @61fab13095e7+wt
 pass/expressions/unit_case_return_call_product checked 5467ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/facts/abi_multi_arg_spill_through_call_result_exit checked 8142ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/abi_multi_arg_spill_through_const_name_exit checked 8496ms check-target:macos_arm64 @45cbafd80d9c
@@ -6716,6 +6865,15 @@ pass/facts/ieee_guard_i32_from_f64_other_machine checked 13508ms check-target:ma
 pass/facts/ieee_guard_i32_from_f64_other_state checked 13529ms check-target:macos_arm64 @1cf00aa9ba90+wt
 pass/facts/ieee_guard_i32_from_f64_parameter checked 13491ms check-target:macos_arm64 @1cf00aa9ba90+wt
 pass/facts/ieee_guard_i32_from_f64_target_body checked 13497ms check-target:macos_arm64 @1cf00aa9ba90+wt
+pass/facts/independent_content_partition_through_call_result checked 9518ms check-target:macos_arm64 @61fab13095e7+wt
+pass/facts/independent_content_partition_through_const_name checked 9516ms check-target:macos_arm64 @61fab13095e7+wt
+pass/facts/independent_content_partition_through_field checked 9257ms check-target:macos_arm64 @61fab13095e7+wt
+pass/facts/independent_content_partition_through_local checked 9500ms check-target:macos_arm64 @61fab13095e7+wt
+pass/facts/independent_content_partition_through_match_join checked 9439ms check-target:macos_arm64 @61fab13095e7+wt
+pass/facts/independent_content_partition_through_other_machine checked 9474ms check-target:macos_arm64 @61fab13095e7+wt
+pass/facts/independent_content_partition_through_other_state checked 9443ms check-target:macos_arm64 @61fab13095e7+wt
+pass/facts/independent_content_partition_through_parameter checked 9301ms check-target:macos_arm64 @61fab13095e7+wt
+pass/facts/independent_content_partition_through_target_body checked 9288ms check-target:macos_arm64 @61fab13095e7+wt
 pass/facts/index_every_width_through_call_result_exit checked 11535ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_const_name_exit checked 7146ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_field_exit checked 6839ms check-target:macos_arm64 @465f5043822d+wt
@@ -7645,7 +7803,7 @@ pass/machines/static_namespace_constant_exit checked 11111ms check-target:macos_
 pass/machines/write_state_forward checked 9672ms @5041ef1af684+wt
 pass/math/extent_no_wrap_requires_denotation checked 1688ms @a9ae30e1c334+wt
 pass/memory/address_translation_canary checked 2016ms @a9ae30e1c334+wt
-pass/memory/bump_allocator_canary checked 11661ms check-target:linux_x86_64 @83314997c2b2
+pass/memory/bump_allocator_canary checked 13436ms check-target:linux_x86_64 @61fab13095e7+wt
 pass/memory/interrupt_table_canary checked 13186ms @eac8a2f4b8cc+wt
 pass/memory/runtime_indexed_resident_exchange_exit checked 9214ms check-target:macos_arm64 @226fbdd49549+wt
 pass/memory/runtime_large_entry_record_field_exit checked 12386ms check-target:macos_arm64 @a9ae30e1c334+wt

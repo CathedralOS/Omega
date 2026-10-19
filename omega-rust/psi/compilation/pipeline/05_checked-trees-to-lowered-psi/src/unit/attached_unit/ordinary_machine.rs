@@ -1089,6 +1089,7 @@ pub(super) fn emit(
     let OperationBuffer {
         mut source_returns,
         mut claim_introductions,
+        mut block_entry_claims,
         selected_cleanup_groups,
         mut scalar_block_invariants,
         mut source_calls,
@@ -1165,6 +1166,7 @@ pub(super) fn emit(
     let nominal_cleanup_subject =
         crate::machine_lowering::nominal_cleanup_subject(checked, plan.machine, type_ids)?;
     let attachment = attachment.or(nominal_cleanup_subject);
+    block_entry_claims.sort_by_key(|binding| binding.claim);
     let mut machine = TerminalMachine {
         assembly_target_requirement: checked
             .typed
@@ -1185,7 +1187,7 @@ pub(super) fn emit(
         result: declared_result,
         structural_places,
         entry_claims: entry_claims.clone(),
-        block_entry_claims: Vec::new(),
+        block_entry_claims,
         loan_completions,
         published_service_ceiling: if let Some(provider) = provider_candidate_plans
             .iter()

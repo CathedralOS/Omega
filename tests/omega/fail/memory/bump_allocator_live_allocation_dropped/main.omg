@@ -19,7 +19,9 @@ pub boundary trait ExtentPartition {
         == separate(
             Granted::content(&result.taken),
             Granted::content(&result.rest),
-        );
+        ),
+        Vacant::content(old(&whole))
+        == separate(Vacant::content(&result.taken), Vacant::content(&result.rest));
 }
 
 data Bump {

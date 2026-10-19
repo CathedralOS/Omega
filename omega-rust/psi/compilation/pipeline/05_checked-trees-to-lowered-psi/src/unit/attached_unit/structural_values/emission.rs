@@ -2712,6 +2712,21 @@ impl Emission<'_, '_, '_> {
         // still have a result even when they have no residual input owners.
         self.arrival_claims
             .push((continuation.place, self.completion_claims.clone()));
+        // Each incoming arm owns its actual producer's claims. Bind them to
+        // the checked result's destination names at the join, before later
+        // consumers use that result. Reporting the destination roster alone
+        // would leave the runtime holding an arm-local identity.
+        self.operations
+            .block_entry_claims
+            .extend(
+                self.completion_claims
+                    .iter()
+                    .map(|binding| terminal_psi::EntryClaim {
+                        claim: binding.claim,
+                        input: continuation.place,
+                        path: binding.path.clone(),
+                    }),
+            );
         if self.sources.is_empty() {
             return Ok(());
         }

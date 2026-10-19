@@ -470,7 +470,10 @@ pub(crate) fn check_retained_content_custody(
             &mut diagnostics,
             &mut retained_borrow_custodies,
         );
-        if !machine.body_is_present {
+        // Target families have a bodyless common interface, but every member
+        // discharges its returned custody through checked source. Only a truly
+        // abstract promise needs a declaration-level partition equation.
+        if !validation::call_target_has_checked_body_contract(program, machine.symbol) {
             check_boundary_partition_results(
                 program,
                 facts,

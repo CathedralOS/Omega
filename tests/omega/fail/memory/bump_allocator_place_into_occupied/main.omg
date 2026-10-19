@@ -19,7 +19,9 @@ pub boundary trait ExtentPartition {
         == separate(
             Granted::content(&result.taken),
             Granted::content(&result.rest),
-        );
+        ),
+        Vacant::content(old(&whole))
+        == separate(Vacant::content(&result.taken), Vacant::content(&result.rest));
 
     machine merge(parts: Split) -> Extent
     ensures
@@ -28,7 +30,9 @@ pub boundary trait ExtentPartition {
             Granted::content(old(&parts.taken)),
             Granted::content(old(&parts.rest)),
         )
-        == Granted::content(&result);
+        == Granted::content(&result),
+        separate(Vacant::content(old(&parts.taken)), Vacant::content(old(&parts.rest)))
+        == Vacant::content(&result);
 }
 
 pub data Slot [copy] {

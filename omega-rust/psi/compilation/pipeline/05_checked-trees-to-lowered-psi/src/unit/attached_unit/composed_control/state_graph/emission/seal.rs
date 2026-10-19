@@ -274,6 +274,8 @@ impl StateGraphEmission<'_, '_> {
             .append(&mut operations.scalar_block_invariants);
         self.loan_completions
             .append(&mut operations.loan_completions);
+        self.block_entry_claims
+            .append(&mut operations.block_entry_claims);
         self.occurrences.retain(operations);
         Ok(())
     }

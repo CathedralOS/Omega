@@ -63,10 +63,9 @@
 //   move-out is tracked but no boundary call may run while `strategy.tail`
 //   is absent, and the surviving result still derives its custody from a
 //   borrowed parameter (`fail/memory/bump_allocator_borrowed_strategy_carve`
-//   pins both refusals). Partitioning is a boundary requirement: the package
-//   authors the exact `separate` law, and the selected provider is what
-//   establishes the two qualified sub-ranges. No ordinary machine here
-//   constructs `Extent` geometry.
+//   pins both refusals). Partitioning is an ordinary checked core operation:
+//   its two independent `separate` laws transfer existing Granted and Vacant
+//   custody into exact children. No split provider or new grant is required.
 // - Recomposition takes one `Split` record rather than two `Extent`
 //   parameters: a boundary returning `Granted` custody from two consumed
 //   qualified inputs is rejected as ambiguous, and the checker's exact
@@ -441,10 +440,10 @@ machine exercise_boundary(whole: Extent in Granted & Vacant) -> Extent
 requires 48 <= whole.length
 reaches ExtentPartition
 {
-    let first: Split = ExtentPartition::split(whole, 16);
+    let first: VacantExtentParts = split_vacant_extent(whole, 16);
     let first_allocation: Extent in Granted & Vacant = first.taken;
     let after_first: Extent in Granted & Vacant = first.rest;
-    let second: Split = ExtentPartition::split(after_first, 32);
+    let second: VacantExtentParts = split_vacant_extent(after_first, 32);
     let second_allocation: Extent in Granted & Vacant = second.taken;
     let tail: Extent in Granted & Vacant = second.rest;
     let upper_and_tail: Extent in Granted & Vacant = ExtentPartition::merge(Split {
@@ -473,9 +472,11 @@ pub data Occupied {
     storage: Extent in Granted & Resident<SlotPlacement, Slot>;
 }
 
-// Owned retirement: the storage returns to `Vacant` and the value moves out.
+// The abstract retirement returns the grant and moved-out value. Only the
+// core-authorized vacancy provider may establish absence of live contents;
+// the retirement's Granted conservation law alone does not establish Vacant.
 pub data Retired {
-    storage: Extent in Granted & Vacant;
+    storage: Extent in Granted;
     value: Slot;
 }
 
@@ -508,7 +509,7 @@ machine exercise_resident(whole: Extent in Granted & Vacant, capacity: u64) -> E
 requires
     16 <= capacity;
     capacity == whole.length
-reaches ExtentPartition, ResidentStorage
+reaches ExtentPartition, ResidentStorage, VacantContentTransfer
 {
     let issued: Issued = allocate(Bump { tail: whole, remaining: capacity }, 16);
     let tail: Extent in Granted & Vacant = issued.strategy.tail;
@@ -516,7 +517,7 @@ reaches ExtentPartition, ResidentStorage
     let placed: Occupied = ResidentStorage::place(vacant, Slot { value: 7 });
     let observed: Slot = ResidentStorage::read(&placed);
     let retired: Retired = ResidentStorage::retire(placed);
-    let released: Extent in Granted & Vacant = retired.storage;
+    let released: Extent in Granted & Vacant = VacantContentTransfer::transfer(retired.storage);
     let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: released,
         rest: tail,
@@ -531,7 +532,7 @@ machine exercise_resident_restated(whole: Extent in Granted & Vacant, capacity: 
 requires
     16 <= capacity;
     capacity == whole.length
-reaches ExtentPartition, ResidentStorage
+reaches ExtentPartition, ResidentStorage, VacantContentTransfer
 {
     let issued: Issued = allocate(Bump { tail: whole, remaining: capacity }, 16);
     let tail: Extent in Granted & Vacant = issued.strategy.tail;
@@ -540,7 +541,7 @@ reaches ExtentPartition, ResidentStorage
     let resident: Extent in Granted & Resident<SlotPlacement, Slot> = placed.storage;
     let observed: Slot = ResidentStorage::view(&resident);
     let retired: Retired = ResidentStorage::retire_view(resident);
-    let released: Extent in Granted & Vacant = retired.storage;
+    let released: Extent in Granted & Vacant = VacantContentTransfer::transfer(retired.storage);
     let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
         taken: released,
         rest: tail,

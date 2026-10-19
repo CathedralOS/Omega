@@ -37,6 +37,49 @@ pub boundary trait VacantContentTransfer {
         Granted::content(old(&storage)) == Granted::content(&result);
 }
 
+// Vacancy is absence of live content over an exact range, independently of
+// the backing grant. Its own content equation transfers that existing absence
+// across a partition; conservation of Granted alone cannot introduce vacancy.
+pub machine Vacant::content(extent: &Extent) -> IntervalSet<Nat>
+satisfies Content<Extent, IntervalSet<Nat>>::project
+{
+    IntervalSet {
+        start: embed(extent.base) as Nat,
+        end: (embed(extent.base) + embed(extent.length)) as Nat
+    }
+}
+
+// Both independently conserved claims follow the exact disjoint partition.
+// This checked transformation is not another issuance or backing provider.
+pub data VacantExtentParts {
+    taken: Extent in Granted & Vacant;
+    rest: Extent in Granted & Vacant;
+}
+
+pub machine split_vacant_extent(whole: Extent in Granted & Vacant, requested: u64)
+    -> VacantExtentParts
+requires requested <= whole.length
+ensures
+    result.taken.length == requested,
+    result.rest.length == whole.length - requested,
+    Granted::content(old(&whole)) == separate(
+        Granted::content(&result.taken), Granted::content(&result.rest)),
+    Vacant::content(old(&whole)) == separate(
+        Vacant::content(&result.taken), Vacant::content(&result.rest))
+{
+    let { base, length } = whole;
+    // An exhausted range has no one-past address: that endpoint may equal
+    // addr::Bound. Keep an existing representable base for the empty tail.
+    let rest_base: addr = match requested < length {
+        true -> base + requested,
+        false -> base,
+    };
+    VacantExtentParts {
+        taken: Extent { base: base, length: requested },
+        rest: Extent { base: rest_base, length: length - requested },
+    }
+}
+
 // Import already-established resident content from an admitted provider.
 // Every closed P/T application shares this exact route. The provider must bind
 // complete value custody, placement identity and backing; equal addresses or a

@@ -16,10 +16,10 @@ use arena::Arena;
 use diagnostics::Diagnostic;
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentConservationOwnerKind, ContentConservationPlan,
-    ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionPlan,
-    ContentStructuralPlace, conservation_report_fingerprint,
+    ContentConservationTerm, ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion,
+    ContentProjectionPlan, ContentStructuralPlace, conservation_report_fingerprint,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 use symbols::{BuiltinFunction, SymbolHandle};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -257,7 +257,7 @@ fn collect_callable_plans(
         }
     }
 
-    let mut by_algebra: HashMap<String, ExpressionHandle> = HashMap::new();
+    let first_callable_plan = plans.len();
     for contract in contracts {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             let Some(expression) = fact.as_expression() else {
@@ -297,11 +297,27 @@ fn collect_callable_plans(
                     continue;
                 }
             };
-            let algebra_key = algebra_key(&algebra);
-            if let Some(first) = by_algebra.insert(algebra_key, *expression) {
+            // An algebra defines how content combines, not which qualification
+            // owns it. Several independent claims on one carrier may use the
+            // same interval or count algebra and must conserve independently.
+            // Repeated equations for an overlapping owner remain ambiguous;
+            // the later joint transaction still proves exact parent spending.
+            if let Some(first) = plans[first_callable_plan..].iter().find(|previous| {
+                previous.plan.algebra == algebra
+                    && [
+                        previous.plan.equation.left(),
+                        previous.plan.equation.right(),
+                    ]
+                    .into_iter()
+                    .any(|previous_term| {
+                        [equation.left(), equation.right()]
+                            .into_iter()
+                            .any(|term| share_projection_owner(previous_term, term))
+                    })
+            }) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "callable `{label}` publishes more than one content-conservation equation for the same algebra (facts `{}` and `{}`); author one normalized equation per outcome row and algebra",
-                    program.expression_table.display_name(first),
+                    "callable `{label}` publishes more than one content-conservation equation for the same qualification owner and algebra (facts `{}` and `{}`); author one normalized equation per outcome row and qualification owner",
+                    program.expression_table.display_name(first.source_expression),
                     program.expression_table.display_name(*expression),
                 )));
                 continue;
@@ -320,6 +336,33 @@ fn collect_callable_plans(
                     report_fingerprint,
                 },
             });
+        }
+    }
+}
+
+fn share_projection_owner(left: &ContentConservationTerm, right: &ContentConservationTerm) -> bool {
+    match (left, right) {
+        (ContentConservationTerm::Separate(children), other)
+        | (other, ContentConservationTerm::Separate(children)) => children
+            .iter()
+            .any(|child| share_projection_owner(child, other)),
+        (
+            ContentConservationTerm::Projection {
+                domain: left_domain,
+                semantic_domain: left_instance,
+                projection_machine: left_projection,
+                ..
+            },
+            ContentConservationTerm::Projection {
+                domain: right_domain,
+                semantic_domain: right_instance,
+                projection_machine: right_projection,
+                ..
+            },
+        ) => {
+            left_domain == right_domain
+                && left_instance == right_instance
+                && left_projection == right_projection
         }
     }
 }
