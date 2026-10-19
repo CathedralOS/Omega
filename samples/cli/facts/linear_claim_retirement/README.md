@@ -49,7 +49,24 @@ In accordance with `AGENTS.md#requirements-and-evidence`:
 - **Establishment**: Explicit construction of `Token { value: 42 }` (or `EXPECTED` in `const_name`) establishes the linear obligation.
 - **Identity and lifetime / invalidation**: Linear values track exact unique ownership; consuming the `Token` transfers it to `retire`, which consumes it via explicit `drop(token)` and invalidates the source place.
 - **Composition**: Across calls, record fields, function parameters, match branches, successor states, forwarding machines, and target-scoped bodies, linear conservation holds. Reconverging branches agree on live ownership frontiers.
-- **Soundness boundaries**: The reject twins demonstrate that attempting duplicate consumption after retirement is soundly refused with a precise diagnostic naming the consumed place.
+- **Soundness boundaries**: The reject twins demonstrate that attempting duplicate consumption after retirement is soundly refused with a precise diagnostic naming the consumed place. Each twin names the claim its own place transports (`place_token`, `holder.item`, `received`, `forwarded`, or `token`), and differs from its positive witness only by a second retirement of that transported claim -- no caller guard and no weakened contract.
+- **Checked-to-Terminal Psi lowering (`Psi 05–07`)**: Each place executes in the Terminal Psi interpreter, which reports `interp exit: 0` for all nine. The retired claim lowers to an explicit affine cleanup action with no implicit discard, and the source proof-only binding is erased while the runtime `drop(token)` call remains as `InvokeNominal`.
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Every place binds `ProgramEntry` for `linux_x86_64`, `linux_arm64`, `macos_arm64`, and `windows_x86_64`, so each target's provider row joins the Terminal catalog. `Token` is a one-field `u64` record whose scalar carrier crosses the `retire` call boundary by value.
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: The `retire` call and the `drop` nominal invocation each realize a prologue/epilogue and return, with the `u64` payload held in a register home.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Each place emits a direct Mach-O image on this host and executes it under `omega run --both`, agreeing with Terminal Psi.
+- **Discrimination**: The oracle is not vacuous. Changing the retired claim's own payload in `local/main.omg` from `Token { value: 42 }` to `Token { value: 41 }` survives checking and reaches runtime, where both engines observe the failure: native reports `signal 5` (SIGTRAP) and the Terminal Psi interpreter reports `crash: Trap (host presentation agrees)`. This is the corruption the instruction asks for -- the claim's own value, not a caller guard. Corrupting the retire operation's input instead (`retire(place_token) + 1`) is refused earlier by the static arithmetic proof obligation, so it cannot serve as a runtime discriminator.
 - **Acceptance status**: This completed 9-place fact row proves transport and explicit retirement of linear claims across all carrier places under static machine semantics. Remaining open in `STATIC-MACHINE-MIGRATION` are the legacy `Binding<R>` receiver carrier removals, memory canaries, and static provider slot demands.
 
-The row is pinned by `tests/omega/{pass,fail}/facts/linear_claim_retirement_through_*` fixtures; every positive records native exit 0.
+## Recorded evidence
+
+Every positive place ran native and Terminal Psi on base `cc2f948d148e` (rebased onto `f3ea3cca357` before landing) with `native exit 0` and `interp exit: 0`:
+
+```sh
+OMEGA_LIBRARY_ROOT=<worktree>/source/library omega run --both samples/cli/facts/linear_claim_retirement/<place>/main.omg
+```
+
+- `python3 tools/sample_native_gate.py --facts --filter linear_claim_retirement`: 9/9 samples meet their documented oracle on `macos_arm64`, and 9/9 intended-invalid controls match their authored rejection.
+- `python3 tools/corpus_gate.py --native --filter facts/linear_claim_retirement`: clean, 9 fixtures `{'built': 9}`, executed 9 with exit codes `{'0': 9}`, 9 rows stamped.
+- `python3 tools/corpus_gate.py --filter facts/linear_claim_retirement`: 0 structural moves, 18 fixtures `{'checked': 9, 'rejected': 9}`.
+
+The row is pinned by `tests/omega/{pass,fail}/facts/linear_claim_retirement_through_*` fixtures. Each of the nine positives carries `expected_native_exit.txt` reading `0`; its nine native rows are recorded in `tests/omega/corpus_native_macos_arm64.txt` as `built ... exit:0`.
