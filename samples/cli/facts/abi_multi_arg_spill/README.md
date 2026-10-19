@@ -65,6 +65,38 @@ The `invalid/` twins below also discriminate in the other direction: they are
 refused during proof checking rather than run, so they can never be mistaken
 for a passing positive.
 
+The control above moves the entry guard, not the argument. Corrupting the
+tenth argument itself isolates the ABI lane under test, and the two spellings
+separate cleanly:
+
+- **A purely static corruption refuses before native production.** Replacing
+  the tenth actual `40u64` with `39u64` is caught by the checker while
+  instantiating the callee's `requires` clause, with `the instantiated fact is
+  structurally false` naming `39 == 40`. No executable is produced, so this
+  spelling cannot show that the stack lane is realized; it only shows the
+  contract is enforced.
+- **A boundary-seeded corruption reaches runtime and traps there.** Seeding
+  the tenth argument from a boundary provider whose checked contract admits
+  `result >= 39u64 && result <= 40u64` while its body returns `39u64` keeps the
+  argument a genuine runtime operand the prover cannot constant-fold. The
+  provided value is admissible at check time and wrong after the call, so the
+  call returns `99u64` instead of `100u64`, the transition takes `bad()`, and
+  both engines trap — `native signal 5` and
+  `interp crash: Trap (host presentation agrees)`. A register-lane control
+  built the same way (first argument seeded from a provider admitting
+  `0u64..=1u64` and returning `0u64`) traps identically, so the differential
+  covers both sides of the register/stack partition this fact crosses.
+
+| Corruption of the value under test | Reaches native? | Native engine | Terminal Psi |
+| --- | --- | --- | --- |
+| tenth actual `40u64` → `39u64`, written statically | no, checker refuses | — | — |
+| tenth argument seeded by a `39..=40` provider returning `39` | yes | `native signal 5` | `interp crash: Trap` |
+| first argument seeded by a `0..=1` provider returning `0` | yes | `native signal 5` | `interp crash: Trap` |
+
+Only the runtime rows count as discrimination. The static row is recorded
+because it is the trap a reader falls into first, and because it explains why
+the twin's diagnostic is a checker refusal rather than an execution result.
+
 Each place has an `invalid/` twin whose 10th argument is `39u64` instead of `40u64` (summing to `99u64`), causing exact subtraction `total - 100u64` to fail proof checking with `may overflow \`u64\`` (`exact subtraction underflow`). All nine twins were observed refused with `checked compilation failed for package \`abi_multi_arg_spill_<place>_invalid\`` and the `may overflow \`u64\`` diagnostic naming that place's own entry point; none reaches native execution.
 Check each twin with:
 
@@ -79,12 +111,14 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/abi_multi_arg_spill --jobs 4
+python3 tools/sample_native_gate.py --filter cli/facts/abi_multi_arg_spill
+python3 tools/corpus_gate.py --native --filter facts/abi_multi_arg_spill
 ```
 
-`sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
-- 18/18 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
+`sample_native_gate.py` scores each sample on the targets it authors. `corpus_gate.py`
+scores the pinned fixtures directly: nine `built ... exit:0` rows for the positives
+and nine `rejected ... expected` rows for the twins, recorded in
+`tests/omega/corpus_native_macos_arm64.txt`.
 
 ## Pinned Fixtures
 
