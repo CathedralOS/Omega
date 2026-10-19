@@ -1,0 +1,39 @@
+// Fact: a 16-bit signed i16 remainder operation (dividend % divisor where dividend >= 0i16 && dividend <= 100i16, divisor >= 16i16 && divisor <= 16i16) establishes rem >= 0i16 && rem <= 15i16 so exact 16-bit signed subtraction 15i16 - rem is proved overflow-free across all nine places.
+// Invalid: widening divisor <= 17i16 allows result 16i16, violating ensures contract in choose_rem. Place: match_join.
+// Expected diagnostic: cannot prove ensures contract for exit from choose_rem
+
+machine verify_rem(rem: i16) -> i32
+requires rem >= 0i16 && rem <= 15i16
+{
+    let headroom: i16 = 15i16 - rem;
+    0i32
+}
+
+machine choose_rem(flag: bool, dividend: i16, divisor: i16) -> i16
+requires dividend >= 0i16 && dividend <= 100i16 && divisor >= 16i16 && divisor <= 17i16
+ensures result >= 0i16 && result <= 15i16
+{
+    match flag {
+        true -> dividend % divisor,
+        false -> dividend % divisor,
+    }
+}
+
+machine compute_join(dividend: i16, divisor: i16) -> i32
+requires dividend >= 0i16 && dividend <= 100i16 && divisor >= 16i16 && divisor <= 17i16
+{
+    verify_rem(choose_rem(true, dividend, divisor))
+}
+
+machine probe() -> i32 {
+    compute_join(43i16, 16i16)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
