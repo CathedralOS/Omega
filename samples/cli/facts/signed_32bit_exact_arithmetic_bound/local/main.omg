@@ -1,0 +1,27 @@
+// Adding two bounded 32-bit signed i32 values (base >= 20i32 && base <= 35i32 and delta >= 15i32 && delta <= 25i32) establishes the exact post-addition interval (sum >= 35i32 && sum <= 60i32), discharging exact subtraction 60i32 - sum across all nine places.
+// Expected exit: 0
+
+machine consume_i32_margin(m: i32) -> i32
+    requires m >= 0i32 && m <= 25i32
+{
+    m
+}
+
+machine probe(base: i32, delta: i32) -> i32
+    requires base >= 20i32 && base <= 35i32 && delta >= 15i32 && delta <= 25i32
+{
+    let sum: i32 = base + delta;
+    let local_sum: i32 = sum;
+    let margin: i32 = 60i32 - local_sum;
+    consume_i32_margin(margin)
+}
+
+machine main() crashes Trap {
+    let diff: i32 = probe(25i32, 20i32);
+    transition diff == 15i32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

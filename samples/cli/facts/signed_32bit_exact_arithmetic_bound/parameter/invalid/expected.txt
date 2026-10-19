@@ -1,0 +1,1 @@
+cannot prove requires contract for call subtract_and_consume from probe: sum >= 35 && sum <= 60
