@@ -1,0 +1,254 @@
+// Fact: a value live across twenty-eight sequential machine calls preserves its static bound 40u64 <= saved <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
+// Place: local. A local binding preserves its static bound across twenty-eight sequential calls.
+// Expected exit: 0
+machine step1(x: u64) -> u64
+    requires x == 10
+    ensures result == 11
+{
+    11
+}
+
+machine step2(x: u64) -> u64
+    requires x == 11
+    ensures result == 12
+{
+    12
+}
+
+machine step3(x: u64) -> u64
+    requires x == 12
+    ensures result == 13
+{
+    13
+}
+
+machine step4(x: u64) -> u64
+    requires x == 13
+    ensures result == 14
+{
+    14
+}
+
+machine step5(x: u64) -> u64
+    requires x == 14
+    ensures result == 15
+{
+    15
+}
+
+machine step6(x: u64) -> u64
+    requires x == 15
+    ensures result == 16
+{
+    16
+}
+
+machine step7(x: u64) -> u64
+    requires x == 16
+    ensures result == 17
+{
+    17
+}
+
+machine step8(x: u64) -> u64
+    requires x == 17
+    ensures result == 18
+{
+    18
+}
+
+machine step9(x: u64) -> u64
+    requires x == 18
+    ensures result == 19
+{
+    19
+}
+
+machine step10(x: u64) -> u64
+    requires x == 19
+    ensures result == 20
+{
+    20
+}
+
+machine step11(x: u64) -> u64
+    requires x == 20
+    ensures result == 21
+{
+    21
+}
+
+machine step12(x: u64) -> u64
+    requires x == 21
+    ensures result == 22
+{
+    22
+}
+
+machine step13(x: u64) -> u64
+    requires x == 22
+    ensures result == 23
+{
+    23
+}
+
+machine step14(x: u64) -> u64
+    requires x == 23
+    ensures result == 24
+{
+    24
+}
+
+machine step15(x: u64) -> u64
+    requires x == 24
+    ensures result == 25
+{
+    25
+}
+
+machine step16(x: u64) -> u64
+    requires x == 25
+    ensures result == 26
+{
+    26
+}
+
+machine step17(x: u64) -> u64
+    requires x == 26
+    ensures result == 27
+{
+    27
+}
+
+machine step18(x: u64) -> u64
+    requires x == 27
+    ensures result == 28
+{
+    28
+}
+
+machine step19(x: u64) -> u64
+    requires x == 28
+    ensures result == 29
+{
+    29
+}
+
+machine step20(x: u64) -> u64
+    requires x == 29
+    ensures result == 30
+{
+    30
+}
+
+machine step21(x: u64) -> u64
+    requires x == 30
+    ensures result == 31
+{
+    31
+}
+
+machine step22(x: u64) -> u64
+    requires x == 31
+    ensures result == 32
+{
+    32
+}
+
+machine step23(x: u64) -> u64
+    requires x == 32
+    ensures result == 33
+{
+    33
+}
+
+machine step24(x: u64) -> u64
+    requires x == 33
+    ensures result == 34
+{
+    34
+}
+
+machine step25(x: u64) -> u64
+    requires x == 34
+    ensures result == 35
+{
+    35
+}
+
+machine step26(x: u64) -> u64
+    requires x == 35
+    ensures result == 36
+{
+    36
+}
+
+machine step27(x: u64) -> u64
+    requires x == 36
+    ensures result == 37
+{
+    37
+}
+
+machine step28(x: u64) -> u64
+    requires x == 37
+    ensures result == 38
+{
+    38
+}
+
+machine compute_local(saved: u64) -> i32
+    requires saved >= 40 && saved <= 80
+{
+    let c1: u64 = step1(10);
+    let c2: u64 = step2(c1);
+    let c3: u64 = step3(c2);
+    let c4: u64 = step4(c3);
+    let c5: u64 = step5(c4);
+    let c6: u64 = step6(c5);
+    let c7: u64 = step7(c6);
+    let c8: u64 = step8(c7);
+    let c9: u64 = step9(c8);
+    let c10: u64 = step10(c9);
+    let c11: u64 = step11(c10);
+    let c12: u64 = step12(c11);
+    let c13: u64 = step13(c12);
+    let c14: u64 = step14(c13);
+    let c15: u64 = step15(c14);
+    let c16: u64 = step16(c15);
+    let c17: u64 = step17(c16);
+    let c18: u64 = step18(c17);
+    let c19: u64 = step19(c18);
+    let c20: u64 = step20(c19);
+    let c21: u64 = step21(c20);
+    let c22: u64 = step22(c21);
+    let c23: u64 = step23(c22);
+    let c24: u64 = step24(c23);
+    let c25: u64 = step25(c24);
+    let c26: u64 = step26(c25);
+    let c27: u64 = step27(c26);
+    let c28: u64 = step28(c27);
+    let res: u64 = saved;
+    let head: u64 = 80 - res;
+    let underflow: u64 = res - 40;
+    transition head + underflow == 40 && c28 == 38 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() -> i32 { 0 }
+    state bad() -> i32 { 1 }
+}
+
+machine evaluate() -> i32 {
+    compute_local(60)
+}
+
+machine main() crashes Trap {
+    let outcome: i32 = evaluate();
+    transition outcome == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
