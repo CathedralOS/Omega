@@ -1,0 +1,36 @@
+// Fact: 8-bit unsigned wrapping subtraction lhs -% rhs with bounded interval 60u8 <= diff <= 160u8 establishes 60u8 <= diff <= 160u8 across all nine places so exact subtractions 160u8 - diff and diff - 60u8 are safe.
+// Place: parameter. Machine parameter receives the 8-bit unsigned wrapping difference before verification.
+// Expected exit: 0
+
+machine verify_diff(value: u8) -> u8 requires value >= 60u8 && value <= 160u8 {
+    let headroom: u8 = 160u8 - value;
+    let margin: u8 = value - 60u8;
+    headroom + margin
+}
+
+machine consume_param(param: u8) -> u8 requires param >= 60u8 && param <= 160u8 {
+    verify_diff(param)
+}
+
+machine wrap_param(lhs: u8, rhs: u8) -> u8
+requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
+{
+    let a: u8 in Wrapping = lhs as u8 in Wrapping;
+    let b: u8 in Wrapping = rhs as u8 in Wrapping;
+    let wrap_diff: u8 in Wrapping = a - b;
+    let diff: u8 = wrap_diff as u8;
+    consume_param(diff)
+}
+
+machine probe() -> u8 {
+    wrap_param(140u8, 30u8)
+}
+
+machine main() crashes Trap {
+    transition probe() == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
