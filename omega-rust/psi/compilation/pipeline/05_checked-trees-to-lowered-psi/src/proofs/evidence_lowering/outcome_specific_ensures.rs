@@ -175,6 +175,15 @@ pub(crate) fn outcome_specific_ensure_rows(
                         Some(OutcomeSpecificEvidence {
                             term,
                             output_field: selector.clone(),
+                            argument_subjects:
+                                super::outcome_specific_calls::lower_argument_subjects(
+                                    identities,
+                                    checked,
+                                    selected_machine,
+                                    terminal_machine,
+                                    module,
+                                    &guarantee.argument_roots,
+                                )?,
                         }),
                     )
                 }

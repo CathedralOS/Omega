@@ -320,6 +320,13 @@ fn encode_selected_evidence(
         for substitution in &binding.argument_substitutions {
             writer.u32(substitution.argument_position);
             writer.u32(substitution.parameter_position);
+            match &substitution.structural_path {
+                None => writer.u8(0),
+                Some(path) => {
+                    writer.u8(1);
+                    encode_structural_path(writer, "guarded call argument projection", path)?;
+                }
+            }
         }
         writer.id(binding.validity.result);
         writer.len(
@@ -387,6 +394,16 @@ fn decode_selected_evidence(
                 Ok(terminal_psi::OutcomeSpecificCallArgumentSubstitution {
                     argument_position: reader.u32()?,
                     parameter_position: reader.u32()?,
+                    structural_path: match reader.u8()? {
+                        0 => None,
+                        1 => Some(decode_structural_path(reader)?),
+                        tag => {
+                            return Err(CodecError::InvalidTag(
+                                "OutcomeSpecificCallArgumentSubstitution",
+                                tag,
+                            ));
+                        }
+                    },
                 })
             })?,
             validity: OutcomeSpecificCallEvidenceValidity {

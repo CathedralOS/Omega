@@ -793,6 +793,26 @@ fail/calls/numeric_operand_exclusive_arguments_overlap rejected 3486ms expected 
 fail/calls/numeric_scalar_call_boolean_guard rejected 1879ms expected @1f63ee648905+wt
 fail/calls/ordered_bound_requires_argument_rejected rejected 2758ms expected @a9ae30e1c334+wt
 fail/calls/ordered_terminal_skipped_arm_type_rejected rejected 152ms expected @7c138f5545aa
+fail/calls/outcome_specific_computed_mutated rejected 3242ms expected @97fca7a18f74+wt
+	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
+	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold + 1) in state `entry`
+fail/calls/outcome_specific_failure_selector rejected 2385ms expected @97fca7a18f74+wt
+	outcome proof selector `selected` is not a named guarantee of the matching result case
+fail/calls/outcome_specific_later_mutated rejected 3543ms expected @97fca7a18f74+wt
+	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
+	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold) in state `entry`
+fail/calls/outcome_specific_mixed_mutated rejected 4167ms expected @97fca7a18f74+wt
+	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
+	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:pair(gate.threshold,count) in state `entry`
+fail/calls/outcome_specific_mutated_subject rejected 4260ms expected @97fca7a18f74+wt
+	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
+	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold) in state `entry`
+fail/calls/outcome_specific_nonmatching_scope rejected 4494ms expected @97fca7a18f74+wt
+	unknown incoming evidence term `proof` in call `accepted`; erased arguments must name an explicit requires binding
+	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(before.threshold) in state `entry`
+fail/calls/outcome_specific_primary_expression_mutated rejected 3638ms expected @97fca7a18f74+wt
+	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
+	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold) in state `entry`
 fail/calls/outcome_specific_witness_on_nonmatching_exit rejected 5994ms expected @d9bcab492255+wt
 fail/calls/plain_let_reassign_rejected rejected 2932ms expected @a9ae30e1c334+wt
 fail/calls/qualified_nontail_self_call_rejected rejected 978ms expected @a9ae30e1c334+wt
@@ -2254,6 +2274,24 @@ fail/facts/nominal_reference_cleanup_through_other_state_prerequisite rejected 6
 fail/facts/nominal_reference_cleanup_through_parameter_prerequisite rejected 633ms expected @d7a10cf8ff64+wt
 fail/facts/nominal_reference_cleanup_through_target_body_prerequisite rejected 624ms expected @d7a10cf8ff64+wt
 fail/facts/ordinary_length_field_after_write_rejected rejected 608ms expected @cbdcc23565fb
+fail/facts/outcome_structural_evidence_call_result rejected 2491ms expected @97fca7a18f74+wt
+	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
+fail/facts/outcome_structural_evidence_const_name rejected 2541ms expected @97fca7a18f74+wt
+	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
+fail/facts/outcome_structural_evidence_field rejected 2880ms expected @97fca7a18f74+wt
+	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
+fail/facts/outcome_structural_evidence_local rejected 2851ms expected @97fca7a18f74+wt
+	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
+fail/facts/outcome_structural_evidence_match_join rejected 2482ms expected @97fca7a18f74+wt
+	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
+fail/facts/outcome_structural_evidence_other_machine rejected 2511ms expected @97fca7a18f74+wt
+	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
+fail/facts/outcome_structural_evidence_other_state rejected 3203ms expected @97fca7a18f74+wt
+	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
+fail/facts/outcome_structural_evidence_parameter rejected 3617ms expected @97fca7a18f74+wt
+	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
+fail/facts/outcome_structural_evidence_target_body rejected 3179ms expected @97fca7a18f74+wt
+	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
 fail/facts/owned_qualified_reference_carrier_reuse rejected 369ms expected @ab16f19fe1b1+wt
 fail/facts/owned_qualified_reference_field_reuse rejected 1316ms expected @ab16f19fe1b1+wt
 fail/facts/owned_qualified_reference_result_reuse rejected 1305ms expected @ab16f19fe1b1+wt
@@ -4731,6 +4769,14 @@ pass/calls/nested_subject_call_operand checked 1560ms @a9ae30e1c334+wt
 pass/calls/nested_value_call_arg_compile checked 10987ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/nested_where_binding checked 9496ms @5041ef1af684+wt
 pass/calls/ordered_field_selector_calls_exit checked 11035ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/calls/outcome_specific_closed_argument checked 8711ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/calls/outcome_specific_later_snapshot checked 7864ms @97fca7a18f74+wt
+pass/calls/outcome_specific_mixed_snapshot checked 8209ms @97fca7a18f74+wt
+pass/calls/outcome_specific_nested_formals checked 8514ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/calls/outcome_specific_primary_expression checked 8572ms @97fca7a18f74+wt
+pass/calls/outcome_specific_root_exit checked 8189ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/calls/outcome_specific_snapshot_runtime checked 8894ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/calls/outcome_specific_snapshot_subject checked 8563ms @97fca7a18f74+wt
 pass/calls/owned_indirect_argument_complete_forwarding_exit checked 10331ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/calls/owned_mixed_overaligned_call checked 6057ms check-target:macos_arm64 @559de7cca73d
 pass/calls/owned_overaligned_local_call checked 5291ms check-target:macos_arm64 @6d4927c3710+wt
@@ -6285,6 +6331,15 @@ pass/facts/nominal_reference_cleanup_through_other_machine_exit checked 3528ms c
 pass/facts/nominal_reference_cleanup_through_other_state_exit checked 3553ms check-target:macos_arm64 @d7a10cf8ff64+wt
 pass/facts/nominal_reference_cleanup_through_parameter_exit checked 3552ms check-target:macos_arm64 @d7a10cf8ff64+wt
 pass/facts/nominal_reference_cleanup_through_target_body_exit checked 3569ms check-target:macos_arm64 @d7a10cf8ff64+wt
+pass/facts/outcome_structural_evidence_call_result checked 8017ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_const_name checked 8310ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_field checked 8021ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_local checked 7801ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_match_join checked 7707ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_other_machine checked 7677ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_other_state checked 8043ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_parameter checked 7633ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_target_body checked 8782ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/facts/owned_qualified_reference_carrier_exit checked 3812ms check-target:macos_arm64 @ab16f19fe1b1+wt
 pass/facts/owned_qualified_reference_field_exit checked 3796ms check-target:macos_arm64 @ab16f19fe1b1+wt
 pass/facts/owned_qualified_reference_result_exit checked 3797ms check-target:macos_arm64 @ab16f19fe1b1+wt

@@ -77,6 +77,9 @@ pub struct OutcomeSpecificEnsure {
 pub struct OutcomeSpecificEvidence {
     pub term: EvidenceTermId,
     pub output_field: String,
+    /// Declaration-owned formal subjects. A selected call must retain this
+    /// complete roster, even if caller and callee labels happen to be equal.
+    pub argument_subjects: Vec<OutcomeSpecificCallArgumentSubstitution>,
 }
 
 /// One caller-local evidence term selected from an exact guarded callee row.
@@ -127,13 +130,19 @@ pub struct OutcomeSpecificEvidenceUse {
     pub caller_result: PlaceId,
 }
 
-/// One proposition argument of a selected guarantee that the callee declares
-/// over its scalar input at `parameter_position` and the caller instantiates
-/// with the call's argument at that position.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// An exact selected proposition argument anchored in a callee formal. The
+/// namespace tag distinguishes scalar values from structural projections of
+/// evaluated owned snapshots; the actual call retains its root/prefix operand.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OutcomeSpecificCallArgumentSubstitution {
     pub argument_position: u32,
+    /// Dense position in the scalar roster when `structural_path` is absent,
+    /// otherwise in the structural roster. The tag keeps these namespaces apart.
     pub parameter_position: u32,
+    /// Exact formal projection of an evaluated owned argument snapshot. The
+    /// call's structural operand supplies its actual root and prefix path;
+    /// neither this row nor erased evidence creates executable storage.
+    pub structural_path: Option<Vec<crate::StructuralPathSegment>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -145,10 +154,10 @@ pub struct OutcomeSpecificCallResultSubstitution {
 
 /// Source-handle-free roots of the checked guarded-term validity intersection.
 ///
-/// The bounded payloadless call has no structural arguments or payload
-/// projections, so every retained occurrence can name only its exact
-/// structural result root; its scalar arguments decide the returned case
-/// and enter no retained occurrence.
+/// The result is occurrence-scoped. Scalar and unrestricted owned structural
+/// actuals are evaluated value snapshots and add no borrowed-place dependency.
+/// Borrowed structural actuals require their own intersected scope and are not
+/// admitted by this lane.
 /// Interface identity is repeated deliberately so codec and verifier replay
 /// cannot silently detach validity from the selected witness carrier.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -233,6 +233,11 @@ pub(super) fn append_contract_semantic_facts(
             statement_index: arm.statement_index,
         };
         for row in &arm.rows {
+            // Unknown operand completion must not fall back to a live label.
+            if row.instantiated_proposition.is_some() && row.captured_argument_identities.is_none()
+            {
+                continue;
+            }
             // Each guarantee has its own validity intersection. Copies rooted
             // at that row's result/reference/interface dependencies belong to
             // one context so a write to any dependency invalidates the row,

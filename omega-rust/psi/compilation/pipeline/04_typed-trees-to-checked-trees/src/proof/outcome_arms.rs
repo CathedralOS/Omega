@@ -91,10 +91,12 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                             return None;
                         }
                         let call = program.expression_table.call_node(local.initial_value)?;
-                        Some((index, call))
+                        Some((index, local.initial_value, call))
                     })
                     .collect::<Vec<_>>();
-                let [(result_call_statement_index, result_call)] = result_calls.as_slice() else {
+                let [(result_call_statement_index, result_call_expression, result_call)] =
+                    result_calls.as_slice()
+                else {
                     if !selectors.is_empty() {
                         diagnostics.push(diagnostics::Diagnostic::error(
                             "outcome proof selectors are currently limited to one unambiguous direct call captured in an immutable local",
@@ -171,8 +173,22 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                 );
                 let mut arm_rows = Vec::with_capacity(matching_rows.len());
                 for (guarantee, row) in matching_rows {
-                    let (instantiated_proposition, instantiated_label) =
-                        instantiate_outcome_arm_fact(program, row.fact, &substitutions);
+                    let (
+                        instantiated_proposition,
+                        instantiated_label,
+                        captured_argument_identities,
+                    ) = instantiate_outcome_arm_fact(
+                        program,
+                        row.fact,
+                        &substitutions,
+                        caller_state.symbol,
+                        *result_call_statement_index,
+                        validation::CallSite::Expression {
+                            expression: *result_call_expression,
+                            call: result_call,
+                        },
+                        target_state,
+                    );
                     let referenced_occurrences =
                         crate::facts::contract_occurrences::fact_referenced_occurrences(
                             program, row.fact,
@@ -183,15 +199,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                             root: occurrence_root(program, target_state, occurrence),
                         })
                         .collect::<Vec<_>>();
-                    let argument_roots = match program.proof_facts.get(row.fact) {
-                        typed_trees::domain::ProofFact::Proposition(application) => program
-                            .expression_table
-                            .expression_handles(application.arguments)
-                            .iter()
-                            .map(|argument| occurrence_root(program, target_state, *argument))
-                            .collect(),
-                        _ => Vec::new(),
-                    };
+                    let argument_roots = row.argument_roots.clone();
                     let validity = checked_trees::OutcomeSpecificValidityFact {
                         result_occurrence: result_expression,
                         evidence_interface_scope: instantiated_proposition.as_ref().and_then(
@@ -227,6 +235,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                         guarantee,
                         instantiated_proposition,
                         instantiated_label,
+                        captured_argument_identities,
                         argument_roots,
                         validity,
                         selected_term,
@@ -375,7 +384,7 @@ pub(crate) fn exact_outcome_case_test(
 /// The root a guaranteeing contract's occurrence re-anchors to at the caller:
 /// the callee's reserved `result`, a bare occurrence of one of the target
 /// state's parameters (by authored position), or anything else.
-fn occurrence_root(
+pub(super) fn occurrence_root(
     program: &dyn ::validation::CheckingInput,
     target_state: &typed_trees::state::State,
     occurrence: typed_trees::expression::ExpressionHandle,
@@ -393,6 +402,38 @@ fn occurrence_root(
         && let Ok(source_position) = u32::try_from(position)
     {
         return checked_trees::OutcomeOccurrenceRoot::CalleeParameter { source_position };
+    }
+    if let typed_trees::expression::ExpressionNode::Member(member) =
+        program.expression_table.expression(occurrence)
+        && member.member_symbol.is_valid()
+        && member.case_variant.is_none()
+    {
+        let (source_position, mut fields) =
+            match occurrence_root(program, target_state, member.receiver) {
+                checked_trees::OutcomeOccurrenceRoot::CalleeParameter { source_position } => {
+                    (source_position, Vec::new())
+                }
+                checked_trees::OutcomeOccurrenceRoot::CalleeParameterProjection {
+                    source_position,
+                    fields,
+                } => (source_position, fields),
+                _ => return checked_trees::OutcomeOccurrenceRoot::Other,
+            };
+        fields.push(member.member_symbol);
+        return checked_trees::OutcomeOccurrenceRoot::CalleeParameterProjection {
+            source_position,
+            fields,
+        };
+    }
+    if program
+        .closed_integer_value_in(occurrence, target_state.symbol)
+        .is_some()
+        || matches!(
+            program.expression_table.expression(occurrence),
+            typed_trees::expression::ExpressionNode::Boolean(_)
+        )
+    {
+        return checked_trees::OutcomeOccurrenceRoot::ClosedValue;
     }
     checked_trees::OutcomeOccurrenceRoot::Other
 }
@@ -433,9 +474,14 @@ fn instantiate_outcome_arm_fact(
     program: &dyn ::validation::CheckingInput,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     substitutions: &[(SymbolHandle, String, String)],
+    caller_state: SymbolHandle,
+    statement_index: usize,
+    call: validation::CallSite<'_>,
+    target_state: &typed_trees::state::State,
 ) -> (
     Option<checked_trees::CheckedPropositionApplication>,
     Option<String>,
+    Option<Vec<Option<String>>>,
 ) {
     let Some(application) = program.proof_facts.get(fact).as_proposition() else {
         let identity = match program.proof_facts.get(fact) {
@@ -448,10 +494,40 @@ fn instantiate_outcome_arm_fact(
             typed_trees::domain::ProofFact::Membership(_) => None,
             typed_trees::domain::ProofFact::Proposition(_) => unreachable!(),
         };
-        return (None, identity);
+        return (None, identity, Some(Vec::new()));
     };
+    let parameters = program.state_parameters(target_state);
     let (binder_labels, argument_labels) =
         proposition_label_parts(program, application, substitutions);
+    // Internal capture keys compare checked values. The public proposition
+    // retains its canonical source vocabulary; Terminal joins typed formal
+    // subjects with evaluated call operands, never source arena handles.
+    let captured_argument_identities = program
+        .expression_table
+        .expression_handles(application.arguments)
+        .iter()
+        .map(|argument| {
+            if validation::owned_contract_subject(program, parameters, *argument).is_some() {
+                validation::captured_call_subject_identity(
+                    program,
+                    caller_state,
+                    statement_index,
+                    call,
+                    parameters,
+                    *argument,
+                )
+                .map(Some)
+            } else if matches!(
+                occurrence_root(program, target_state, *argument),
+                checked_trees::OutcomeOccurrenceRoot::CalleeResult
+                    | checked_trees::OutcomeOccurrenceRoot::ClosedValue
+            ) {
+                Some(None)
+            } else {
+                None
+            }
+        })
+        .collect::<Option<Vec<_>>>();
     let proposition = program
         .normalize_nominal_proposition_application(
             application,
@@ -461,8 +537,15 @@ fn instantiate_outcome_arm_fact(
             }),
         )
         .map(lower_checked_proposition_application);
-    let identity = program.normalized_identity_label(application, &binder_labels, &argument_labels);
-    (proposition, identity)
+    let identity = captured_argument_identities.as_ref().and_then(|captures| {
+        let labels = argument_labels
+            .iter()
+            .zip(captures)
+            .map(|(label, capture)| capture.clone().unwrap_or_else(|| label.clone()))
+            .collect::<Vec<_>>();
+        program.normalized_identity_label(application, &binder_labels, &labels)
+    });
+    (proposition, identity, captured_argument_identities)
 }
 
 pub(crate) fn exact_result_case(

@@ -29,6 +29,7 @@ pub(super) fn validate_machine(
         return malformed("machine has an unknown attachment type");
     }
     validate_structural_parameters(module, &machine.structural_parameters)?;
+    super::call_foundations::validate_outcome_subjects(module, machine)?;
     super::scalar_observations::machine(module, machine)?;
     structural_result_wire::validate_reference_sources(module, machine)?;
     for block in &machine.blocks {

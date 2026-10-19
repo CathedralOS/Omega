@@ -92,7 +92,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Reference results distinguish invocation-established storage from formal inputs.
 // Boundary completion retains reference destinations and lifetime anchors.
 // Owned value transfers retain occurrence-bound memberships and original custody.
-pub(crate) const FORMAT_MARKER: u16 = 166;
+// Guarded selections retain the exact structural formal projection and its
+// distinct dense argument namespace; older bytes have no projection tag.
+pub(crate) const FORMAT_MARKER: u16 = 167;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

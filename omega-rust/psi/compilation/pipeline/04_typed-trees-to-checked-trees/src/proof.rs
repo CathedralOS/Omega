@@ -125,6 +125,27 @@ pub(crate) fn build_proof_facts(
                                 typed_trees::expression::ExpressionNode::Boolean(true)
                             )
                     ),
+                    argument_roots: program
+                        .proof_facts
+                        .get(fact)
+                        .as_proposition()
+                        .and_then(|application| {
+                            program
+                                .machine_states(machine)
+                                .first()
+                                .map(|state| (application, state))
+                        })
+                        .map(|(application, state)| {
+                            program
+                                .expression_table
+                                .expression_handles(application.arguments)
+                                .iter()
+                                .map(|argument| {
+                                    outcome_arms::occurrence_root(program, state, *argument)
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                     evidence_term,
                 });
             }

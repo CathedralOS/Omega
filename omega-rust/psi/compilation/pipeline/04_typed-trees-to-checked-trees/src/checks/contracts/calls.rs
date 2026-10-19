@@ -97,33 +97,37 @@ pub(super) fn check_call_requires(
                 expression_intervals,
                 call_frames,
             );
-            let satisfied = captured_judgment.unwrap_or_else(|| match fact.payload {
-                FactPayload::ContractBooleanExpression { expression, .. } => {
-                    boolean_requirements::proves(
-                        program,
-                        facts,
-                        state_flow,
-                        call_flow,
-                        requirement_contexts,
-                        expression,
-                        incoming_guards,
-                        call_frames,
-                    )
-                }
-                _ => {
-                    semantic_contexts_prove_contract_fact(
-                        program,
-                        facts,
-                        facts::ProgramPoint::Statement {
-                            machine_symbol: state_flow.machine_symbol,
-                            state_symbol: state_flow.state_symbol,
-                            statement_index: call_flow.statement_index,
-                        },
-                        requirement_contexts,
-                        fact,
-                    ) || transparent_requirement_proves(program, facts, state_flow, call_flow, fact)
-                }
-            });
+            let satisfied =
+                selected_evidence_proves_requirement(facts, state_flow, call_flow, fact)
+                    || captured_judgment.unwrap_or_else(|| match fact.payload {
+                        FactPayload::ContractBooleanExpression { expression, .. } => {
+                            boolean_requirements::proves(
+                                program,
+                                facts,
+                                state_flow,
+                                call_flow,
+                                requirement_contexts,
+                                expression,
+                                incoming_guards,
+                                call_frames,
+                            )
+                        }
+                        _ => {
+                            semantic_contexts_prove_contract_fact(
+                                program,
+                                facts,
+                                facts::ProgramPoint::Statement {
+                                    machine_symbol: state_flow.machine_symbol,
+                                    state_symbol: state_flow.state_symbol,
+                                    statement_index: call_flow.statement_index,
+                                },
+                                requirement_contexts,
+                                fact,
+                            ) || transparent_requirement_proves(
+                                program, facts, state_flow, call_flow, fact,
+                            )
+                        }
+                    });
             // ch8 construction-grant: a string literal whose compile-time bytes
             // satisfy a domain's declared byte-predicate fact grants that
             // domain without a validating boundary call -- this is how a literal
@@ -775,4 +779,48 @@ fn incoming_guard_proves_requires(
             &mentioned,
             call_frames,
         )
+}
+
+/// A selected Type witness already inhabited this exact requires lane after
+/// completed-operand substitution in `evidence`. Re-rendering its subject as a
+/// current storage label would discard the call snapshot and reject preserved
+/// copies (or accept a later write). This consumes only the bound lane of this
+/// exact call; it imports no unconditional proposition or runtime authority.
+fn selected_evidence_proves_requirement(
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    requirement: &facts::Fact,
+) -> bool {
+    let FactPayload::ContractPropositionApplication { fact, .. } = requirement.payload else {
+        return false;
+    };
+    facts.proof.contract_calls.iter().any(|(_, candidate)| {
+        candidate.caller_machine_symbol == state.machine_symbol
+            && candidate.caller_state_symbol == state.state_symbol
+            && candidate.statement_index == call.statement_index
+            && candidate.call_ordinal == call.call_ordinal
+            && candidate.target_state_symbol == call.target_symbol
+            && facts
+                .proof
+                .contract_evidence_arguments
+                .span_or_empty(candidate.evidence_arguments)
+                .iter()
+                .any(|binding| {
+                    facts.proof.outcome_specific_arms.iter().any(|(_, arm)| {
+                        arm.rows
+                            .iter()
+                            .any(|row| row.selected_term == Some(binding.source))
+                    }) && facts
+                        .proof
+                        .contract_fact_refs
+                        .span_or_empty(candidate.requires)
+                        .iter()
+                        .any(|reference| {
+                            let contract = facts.proof.contract_facts.get(reference.fact);
+                            contract.fact == fact
+                                && contract.evidence_term == Some(binding.parameter)
+                        })
+                })
+    })
 }

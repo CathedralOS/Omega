@@ -9,7 +9,6 @@ use super::{
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use std::collections::BTreeSet;
-use std::ops::Not;
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration, ClaimTransfer, Operation,
     OperationKind, OperationResult, StructuralArgument, StructuralMultiplicity,
@@ -377,11 +376,19 @@ pub(super) fn validate_call_structural(
     let Some(actual_result) = operation.result.structural() else {
         return malformed("structural call has no structural operation result");
     };
-    // Scalar parameters decide which payloadless case the callee returns and
-    // carry no custody, so they leave the guarded-selection surface intact;
-    // the arity check below still binds them to the call's arguments.
-    let exact_payloadless = callee.structural_parameters.is_empty()
-        && callee.entry_claims.is_empty()
+    // Guarded evidence does not change result custody. Scalar values and
+    // unrestricted owned structural snapshots use ordinary argument validation;
+    // the selected proposition path is declaration-relative metadata only.
+    let exact_payloadless = callee.structural_parameters.iter().all(|parameter| {
+        parameter.access == terminal_psi::StructuralAccess::Owned
+            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && !terminal_psi::structural_type_has_borrowed_storage_by(
+                |id| module.structural_type(id),
+                parameter.structural_type,
+            )
+    }) && callee.entry_claims.is_empty()
         && callee.content_entry_claims.is_empty()
         && callee.contract.requires.is_empty()
         && callee.contract.ensures.is_empty()
@@ -390,7 +397,6 @@ pub(super) fn validate_call_structural(
             .evidence_contract_lanes
             .iter()
             .all(|lane| lane.machine != callee.id)
-        && structural_arguments.is_empty()
         && claim_transfers.is_empty()
         && requirement_obligations.is_empty()
         && crash_continuations.is_empty()
@@ -411,19 +417,34 @@ pub(super) fn validate_call_structural(
         return malformed("structural call has the wrong callee signature or structural arity");
     }
     if selected_evidence.iter().any(|binding| {
-        binding.argument_substitutions.iter().any(|substitution| {
-            usize::try_from(substitution.parameter_position)
-                .is_ok_and(|position| position < callee.parameters.len())
-                .not()
+        !callee.contract.outcome_specific_ensures.iter().any(|row| {
+            row.guard == binding.guard
+                && row.position == binding.position
+                && row.obligation == binding.callee_obligation
+                && row.proposition
+                    == semantic_vocabulary::Proposition::Atom(binding.callee_proposition)
+                && row.evidence.as_ref().is_some_and(|evidence| {
+                    evidence.term == binding.callee_term
+                        && evidence.output_field == binding.output_field
+                        && evidence.argument_subjects == binding.argument_substitutions
+                })
         })
     }) {
         return malformed(
-            "guarded call argument substitution names no scalar parameter of its callee",
+            "guarded call argument substitution disagrees with its callee declaration",
         );
     }
     validate_structural_call_result_declaration(module, machine, operation, actual_result)?;
     if exact_payloadless {
-        return Ok(());
+        // The selected proof row cannot bypass ordinary actual/formal shape,
+        // projection and custody checks, including a nonempty actual prefix.
+        return validate_call_tail(
+            module,
+            machine,
+            structural_arguments,
+            &callee.structural_parameters,
+            claim_transfers,
+        );
     }
     // Input claims cross at their owned arguments; the result binds the
     // claims the callee's returning edge holds, one per result path. The
@@ -762,6 +783,69 @@ pub(super) fn validate_register_access(
             })
     {
         return malformed("register access disagrees with its exact scalar signature");
+    }
+    Ok(())
+}
+
+/// Declaration-only shape is checked even when no caller selects the row.
+/// This authenticates positions and carrier geometry, never source truth or
+/// proof search; the checked producer remains the semantic authority.
+pub(super) fn validate_outcome_subjects(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Result<(), CodecError> {
+    for row in &machine.contract.outcome_specific_ensures {
+        let Some(evidence) = &row.evidence else {
+            continue;
+        };
+        let semantic_vocabulary::Proposition::Atom(proposition) = row.proposition else {
+            return malformed("guarded evidence subjects require a nominal proposition");
+        };
+        let Some(application) = module
+            .proposition_applications
+            .iter()
+            .find(|application| application.id == proposition)
+        else {
+            return malformed("guarded evidence subjects have no proposition application");
+        };
+        let mut previous = None;
+        for subject in &evidence.argument_subjects {
+            if previous.is_some_and(|position| position >= subject.argument_position)
+                || usize::try_from(subject.argument_position)
+                    .ok()
+                    .is_none_or(|position| position >= application.arguments.len())
+            {
+                return malformed(
+                    "guarded evidence subjects repeat or exceed their proposition argument positions",
+                );
+            }
+            previous = Some(subject.argument_position);
+            let valid = match &subject.structural_path {
+                None => usize::try_from(subject.parameter_position)
+                    .ok()
+                    .is_some_and(|position| position < machine.parameters.len()),
+                Some(path) => usize::try_from(subject.parameter_position)
+                    .ok()
+                    .and_then(|position| machine.structural_parameters.get(position))
+                    .is_some_and(|parameter| {
+                        !path.is_empty()
+                            && path
+                                .iter()
+                                .all(|step| matches!(step, StructuralPathSegment::Field(_)))
+                            && terminal_semantics::primitive_read_projection_type(
+                                module.structural_types.iter(),
+                                parameter.structural_type,
+                                path,
+                            )
+                            .is_some()
+                    }),
+            };
+            if !valid {
+                return malformed(
+                    "guarded evidence subject has no exact formal parameter projection",
+                );
+            }
+        }
     }
     Ok(())
 }

@@ -97,6 +97,8 @@ pub struct OutcomeSpecificGuaranteeFact {
     /// `fact` is the literal `true`, the one unnamed guarantee lowering
     /// emits (as a truth proposition).
     pub fact_is_truth: bool,
+    /// Exact formal subjects, retained once by the declaring checked row.
+    pub argument_roots: Vec<OutcomeOccurrenceRoot>,
     pub evidence_term: Option<Handle<CheckedEvidenceTerm>>,
 }
 
@@ -122,6 +124,11 @@ pub struct OutcomeSpecificArmRowFact {
     /// saved result occurrence have been substituted.
     pub instantiated_proposition: Option<crate::CheckedPropositionApplication>,
     pub instantiated_label: Option<String>,
+    /// Checking-only completed-value identities. Never serialized as Terminal
+    /// proposition strings: lowering uses the declaration-owned typed subject
+    /// roster and the ordinary call operands. None means capture was unknown;
+    /// an inner None is an argument outside the owned formal subject roster.
+    pub captured_argument_identities: Option<Vec<Option<String>>>,
     /// The root of each argument of the guarantee's proposition, in argument
     /// order; empty for a fact that is not a proposition. Lowering turns a
     /// callee-result or callee-parameter root whose instantiated argument
@@ -161,13 +168,13 @@ pub struct OutcomeSpecificEvidenceInterfaceScopeFact {
 /// validity depends on, classified by the root the caller re-anchors it to.
 /// Lowering publishes the root's place as a validity dependency; it never
 /// reads the occurrence itself.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutcomeReferencedOccurrence {
     pub occurrence: ExpressionHandle,
     pub root: OutcomeOccurrenceRoot,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OutcomeOccurrenceRoot {
     /// The callee's reserved `result`, which the caller's call result
     /// replaces under contract import.
@@ -175,8 +182,15 @@ pub enum OutcomeOccurrenceRoot {
     /// A bare occurrence of the callee's parameter at this authored
     /// position, which the call's argument there replaces.
     CalleeParameter { source_position: u32 },
-    /// Any other occurrence (a projection or a computed value); no Terminal
-    /// lane re-anchors it at the caller yet.
+    /// A record projection rooted at an exact formal. Resolved field symbols
+    /// preserve the complete declaration path; lowering never parses labels.
+    CalleeParameterProjection {
+        source_position: u32,
+        fields: Vec<SymbolHandle>,
+    },
+    /// Authenticated closed value, independent of caller storage and formals.
+    ClosedValue,
+    /// A computed value or another root with no retained substitution lane.
     Other,
 }
 

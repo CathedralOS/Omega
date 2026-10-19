@@ -412,10 +412,35 @@ pub(super) fn bind_call_evidence_arguments(
                 continue;
             };
 
-            let expected =
-                instantiated_parameter_proposition(program, facts, &call, &call_site, parameter);
+            let selected_row = facts
+                .proof
+                .outcome_specific_arms
+                .iter()
+                .flat_map(|(_, arm)| &arm.rows)
+                .find(|row| row.selected_term == Some(source));
+            let expected = instantiated_parameter_proposition(
+                program,
+                facts,
+                &call,
+                &call_site,
+                parameter,
+                selected_row.is_some(),
+            );
             let source_term = facts.proof.evidence_terms.get(source);
-            if expected.as_ref() != Some(&source_term.proposition) {
+            let source_proposition = if let Some(row) = selected_row {
+                row.captured_argument_identities.as_ref().map(|captures| {
+                    let mut proposition = source_term.proposition.clone();
+                    for (argument, capture) in proposition.arguments.iter_mut().zip(captures) {
+                        if let Some(identity) = capture {
+                            *argument = identity.clone();
+                        }
+                    }
+                    proposition
+                })
+            } else {
+                Some(source_term.proposition.clone())
+            };
+            if expected.is_none() || expected != source_proposition {
                 diagnostics.push(Diagnostic::error(format!(
                     "evidence term `{}` does not inhabit erased requires position {} of call `{}`",
                     name,
@@ -485,6 +510,7 @@ fn instantiated_parameter_proposition(
     call: &checked_trees::ContractCallFact,
     call_site: &validation::CallSite<'_>,
     parameter: Handle<CheckedEvidenceTerm>,
+    captured_outcome: bool,
 ) -> Option<CheckedPropositionApplication> {
     let parameter_term = facts.proof.evidence_terms.get(parameter);
     let contract = facts
@@ -510,16 +536,29 @@ fn instantiated_parameter_proposition(
         .expression_handles(application.arguments)
         .iter()
         .map(|argument| {
-            super::labels::instantiate_call_contract_expression_label(
+            if captured_outcome
+                && validation::owned_contract_subject(program, target_parameters, *argument)
+                    .is_some()
+            {
+                return validation::captured_call_subject_identity(
+                    program,
+                    call.caller_state_symbol,
+                    call.statement_index,
+                    *call_site,
+                    target_parameters,
+                    *argument,
+                );
+            }
+            Some(super::labels::instantiate_call_contract_expression_label(
                 program,
                 call.caller_state_symbol,
                 call.statement_index,
                 call_site,
                 target_parameters,
                 *argument,
-            )
+            ))
         })
-        .collect();
+        .collect::<Option<Vec<_>>>()?;
     let mut proposition = parameter_term.proposition.clone();
     proposition.arguments = argument_labels;
     Some(proposition)

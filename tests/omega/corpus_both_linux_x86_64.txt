@@ -35,6 +35,14 @@ pass/arithmetic/runtime_unbounded_zero_product_exit built 6821ms exit:0 interpre
 pass/arithmetic/saturating_signed_divide_min_by_neg_one built 4409ms exit:70 interpreter-exit:70 interpreter:agrees @5906e5ec7c81
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one built 4542ms exit:70 interpreter-exit:70 interpreter:agrees @5906e5ec7c81
 pass/arrays/runtime_completed_array_window_replacement_exit built 30405ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @c48489ea6ad6
+pass/calls/outcome_specific_closed_argument built 12733ms exit:0 interpreter-exit:0 interpreter:agrees @97fca7a18f74+wt
+pass/calls/outcome_specific_later_snapshot checked 12409ms @97fca7a18f74+wt
+pass/calls/outcome_specific_mixed_snapshot checked 11457ms @97fca7a18f74+wt
+pass/calls/outcome_specific_nested_formals built 11229ms exit:0 interpreter-exit:0 interpreter:agrees @97fca7a18f74+wt
+pass/calls/outcome_specific_primary_expression checked 15361ms @97fca7a18f74+wt
+pass/calls/outcome_specific_root_exit built 13928ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
+pass/calls/outcome_specific_snapshot_runtime built 10804ms exit:0 interpreter-exit:0 interpreter:agrees @97fca7a18f74+wt
+pass/calls/outcome_specific_snapshot_subject checked 12479ms @97fca7a18f74+wt
 pass/constants/mathematical_constant_domain_selection checked 8982ms @d2f0e31ca0d4+wt
 pass/constants/qualified_variant_constant checked 1449ms @d2f0e31ca0d4+wt
 pass/facts/checked_asm_countdown_call_result_exit built 8806ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
@@ -345,6 +353,15 @@ pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit built 15599ms
 pass/facts/nominal_loan_backing_cleanup_through_other_state_exit built 9915ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @753e7ce7a36e+wt
 pass/facts/nominal_loan_backing_cleanup_through_parameter_exit built 12180ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @753e7ce7a36e+wt
 pass/facts/nominal_loan_backing_cleanup_through_target_body_exit built 10346ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @753e7ce7a36e+wt
+pass/facts/outcome_structural_evidence_call_result built 8033ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_const_name built 9592ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_field built 9176ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_local built 11147ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_match_join built 11283ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_other_machine built 8488ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_other_state built 7390ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_parameter built 8683ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
+pass/facts/outcome_structural_evidence_target_body built 9164ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @97fca7a18f74+wt
 pass/facts/returned_write_destination_through_call_result_exit built 7646ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_const_name_exit built 6783ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
 pass/facts/returned_write_destination_through_field_exit built 7535ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt

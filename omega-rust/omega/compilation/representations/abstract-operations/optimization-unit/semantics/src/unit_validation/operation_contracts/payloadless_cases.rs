@@ -256,13 +256,21 @@ pub(crate) fn exact_payloadless_structural_call(
     };
     // Scalar parameters decide the returned case and carry no custody; the
     // ordinary call contract binds them to the arguments.
-    callee.structural_parameters.is_empty()
-        && callee.entry_claim_declarations.is_empty()
+    callee.structural_parameters.iter().all(|parameter| {
+        parameter.access == terminal_psi::StructuralAccess::Owned
+            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && !terminal_psi::structural_type_has_borrowed_storage_by(
+                |id| types.get(&id).copied(),
+                parameter.structural_type,
+            )
+    }) && callee.entry_claim_declarations.is_empty()
         && callee.content_entry_claims.is_empty()
         && contract.requires.is_empty()
         && contract.ensures.is_empty()
         && callee.evidence_contract_lanes.is_empty()
-        && structural_arguments.is_empty()
+        && structural_arguments.len() == callee.structural_parameters.len()
         && claim_transfers.is_empty()
         && requirement_obligations.is_empty()
         && *crash_continuations == contract.crash_routes

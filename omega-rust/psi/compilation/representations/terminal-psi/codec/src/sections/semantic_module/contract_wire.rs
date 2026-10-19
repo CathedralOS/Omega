@@ -20,8 +20,8 @@ use crate::sections::semantic_module::scalar_term_wire::{
     decode_scalar_terms, encode_scalar_terms,
 };
 use crate::sections::semantic_module::structural_place_wire::{
-    decode_affine_cleanup_action, decode_structural_arguments, encode_affine_cleanup_action,
-    encode_structural_arguments,
+    decode_affine_cleanup_action, decode_structural_arguments, decode_structural_path,
+    encode_affine_cleanup_action, encode_structural_arguments, encode_structural_path,
 };
 use crate::sections::semantic_module::wire::decode_counted;
 
@@ -89,6 +89,21 @@ pub(crate) fn encode_contract(
                 "outcome-specific evidence output field",
                 &evidence.output_field,
             )?;
+            writer.len(
+                "outcome-specific argument subjects",
+                evidence.argument_subjects.len(),
+            )?;
+            for subject in &evidence.argument_subjects {
+                writer.u32(subject.argument_position);
+                writer.u32(subject.parameter_position);
+                match &subject.structural_path {
+                    None => writer.u8(0),
+                    Some(path) => {
+                        writer.u8(1);
+                        encode_structural_path(writer, "guarded formal projection", path)?;
+                    }
+                }
+            }
         }
     }
     Ok(())
@@ -186,6 +201,22 @@ pub(crate) fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract
                 Ok(OutcomeSpecificEvidence {
                     term: reader.id("EvidenceTermId")?,
                     output_field: reader.string("outcome-specific evidence output field")?,
+                    argument_subjects: decode_counted(reader, |reader| {
+                        Ok(terminal_psi::OutcomeSpecificCallArgumentSubstitution {
+                            argument_position: reader.u32()?,
+                            parameter_position: reader.u32()?,
+                            structural_path: match reader.u8()? {
+                                0 => None,
+                                1 => Some(decode_structural_path(reader)?),
+                                tag => {
+                                    return Err(CodecError::InvalidTag(
+                                        "OutcomeSpecificArgumentSubject",
+                                        tag,
+                                    ));
+                                }
+                            },
+                        })
+                    })?,
                 })
             })
             .transpose()?;

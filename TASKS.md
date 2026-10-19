@@ -3261,13 +3261,12 @@ code and preserve check/native behavior for the named customer slices.
   both engines), and one that names a scalar input carries an argument
   substitution to the call's argument
   (`run/calls/outcome_specific_selected_guarantee_input_exit`, exit 0 in both
-  engines). Frontier: a callee with structural inputs, entry claims, other
-  contract rows or crash routes, and a proposition argument or dependency
-  rooted at anything but the callee's `result` or a bare scalar parameter
-  (a projection, a computed value) are refused by name ("... with structural
-  inputs or other contracts is unimplemented", "... names neither the
-  callee's result nor a scalar input is unimplemented", "... beyond the call
-  result are unimplemented"). Coordinate operator returns with
+  engines). Frontier: entry claims, other contract rows, crash routes,
+  borrowed/reference-bearing structural inputs, and proposition arguments or
+  dependencies beyond exact owned scalar formals, reference-free structural
+  formal primitive projections, closed values and the callee's `result` remain
+  refused. Computed dependent arguments retain no substitution lane. Broader
+  witness scope transport remains open. Coordinate operator returns with
   **OPERATOR-BOUNDARY-CALLS**.
 
 ## Checker simplification

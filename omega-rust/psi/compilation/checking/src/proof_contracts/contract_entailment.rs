@@ -87,6 +87,7 @@ pub use completed_domains::{
     completed_value_proves_domain_predicate, completed_value_refutes_domain,
 };
 pub(crate) use construction_predicates::construction_predicate_judgments;
+mod call_projection_identity;
 mod const_ranges;
 mod content_conservation;
 mod contract_refinement;
@@ -103,6 +104,7 @@ mod ranking_range;
 mod refuted_requires;
 mod result_bounds;
 mod scalar_observations;
+pub use call_projection_identity::{captured_call_subject_identity, owned_contract_subject};
 mod scoped_arithmetic;
 mod self_induction;
 pub(crate) mod specification_calls;

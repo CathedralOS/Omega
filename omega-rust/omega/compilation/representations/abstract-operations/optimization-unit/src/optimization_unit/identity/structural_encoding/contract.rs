@@ -5,7 +5,9 @@ use super::super::{
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity, MachineContract,
     OutcomeSpecificCallEvidence,
 };
-use crate::optimization_unit::identity::carrier_encoding::{encode_ids, encode_optional};
+use crate::optimization_unit::identity::carrier_encoding::{
+    encode_ids, encode_optional, encode_structural_path_segment,
+};
 
 use crate::optimization_unit::identity::proposition_encoding::encode_proposition;
 
@@ -82,6 +84,13 @@ pub(in crate::optimization_unit::identity) fn encode_outcome_specific_call_evide
     bytes.slice(&evidence.argument_substitutions, |bytes, substitution| {
         bytes.u32(substitution.argument_position);
         bytes.u32(substitution.parameter_position);
+        encode_optional(
+            bytes,
+            substitution.structural_path.as_ref(),
+            |bytes, path| {
+                bytes.slice(path, encode_structural_path_segment);
+            },
+        );
     });
     bytes.id(evidence.validity.result);
     encode_ids(bytes, &evidence.validity.proposition_dependencies);
@@ -109,6 +118,13 @@ pub(in crate::optimization_unit::identity) fn encode_machine_contract(
         encode_optional(bytes, row.evidence.as_ref(), |bytes, evidence| {
             bytes.id(evidence.term);
             bytes.string(&evidence.output_field);
+            bytes.slice(&evidence.argument_subjects, |bytes, subject| {
+                bytes.u32(subject.argument_position);
+                bytes.u32(subject.parameter_position);
+                encode_optional(bytes, subject.structural_path.as_ref(), |bytes, path| {
+                    bytes.slice(path, encode_structural_path_segment);
+                });
+            });
         });
     });
 }
