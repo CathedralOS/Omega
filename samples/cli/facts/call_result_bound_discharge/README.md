@@ -80,8 +80,13 @@ instantiations, and it does not close the parent capability.
 
 ## Measured evidence
 
-Producer: `target/debug/omega`, `omega --build-profile` reports
-`opt_level 1`. Target: `macos_arm64`. Revision recorded in each golden row.
+Producer: `target/debug/omega`, rebuilt from this candidate, `omega
+--build-profile` reports `opt_level 1`. Target: `macos_arm64`. The compiler
+was rebuilt rather than reused because an incoming Psi change to call
+evidence transport landed while this row was in flight, and a binary built
+before it cannot establish behavior on the changed checker. Reusing the
+older binary produced `compiler identity changed; run omega update`, which is
+the documented signal that the lock belongs to a different producer.
 
 Sample gate, `python3 tools/sample_native_gate.py --facts --filter
 call_result_bound_discharge`:
@@ -91,12 +96,11 @@ sample_native_gate: 9/9 samples meet their documented oracle on macos_arm64
 sample_native_gate: 9/9 intended-invalid controls match their authored rejection
 ```
 
-Corpus gate, `python3 tools/corpus_gate.py --both --filter
-call_result_bound_discharge`:
+Outcome leg, `python3 tools/corpus_gate.py --filter call_result_bound_discharge`:
 
 ```
-corpus_gate: 18 fixtures ({'checked': 9, 'rejected': 9})
-executed 9 (exit codes {'0': 9}), 0 with stdout differing from expected
+corpus_gate: clean — 18 fixtures ({'checked': 9, 'rejected': 9}), 0 rejected
+without their expected fragment, 0 fail fixtures did not reject
 ```
 
 Native leg, `python3 tools/corpus_gate.py --native --filter
@@ -106,6 +110,17 @@ call_result_bound_discharge`:
 corpus_gate: clean — 9 fixtures ({'built': 9})
 executed 9 (exit codes {'0': 9}), 0 with stdout differing from expected
 ```
+
+Both-engine leg, `python3 tools/corpus_gate.py --both --filter
+call_result_bound_discharge`:
+
+```
+corpus_gate: clean — 9 fixtures ({'built': 9})
+executed 9 (exit codes {'0': 9}), 0 with stdout differing from expected
+```
+
+That leg's golden rows record `exit:0 interpreter-exit:0 interpreter:agrees`,
+which is the machine-readable form of native and Terminal agreement.
 
 Each place also runs directly, and both engines agree:
 
