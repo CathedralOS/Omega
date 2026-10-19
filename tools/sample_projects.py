@@ -19,6 +19,12 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 ROLES = ("program", "example", "library-consumer", "library", "check-only", "intended-invalid")
+# `invalid-control` names the same disposition as `intended-invalid`. Eighteen
+# sample.json files under generic_content_transfer and linear_routed_label use it,
+# and an unrecognized role aborts the unfiltered facts gate at discovery for every
+# lane. Accepting the spelling here keeps those controls scored instead of
+# crashing the gate; it is not a second role.
+ROLE_SYNONYMS = {"invalid-control": "intended-invalid"}
 REJECTION_FILES = ("expected_diagnostic.txt", "expected_error.txt", "expected.txt")
 
 
@@ -98,7 +104,7 @@ def project_at(directory: Path, repository: Path = ROOT) -> Project:
         inferred = "program"
     else:
         inferred = "example"
-    role = metadata.get("role", inferred)
+    role = ROLE_SYNONYMS.get(metadata.get("role", inferred), metadata.get("role", inferred))
     if role not in ROLES:
         raise ValueError(f"{metadata_file}: unknown role {role!r}")
     fragments = metadata.get("rejection_contains")
