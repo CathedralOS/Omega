@@ -183,22 +183,17 @@ helper actions before executing them.
   conversation on the same clean worktree so the workbench stays warm while the
   context window stays light.
 - **Simple mechanical invariants:**
-  - Always obtain commit hashes from `git rev-parse HEAD` (or resolve the
-    worktree's `HEAD` directly in the coordinator) rather than transcribing
-    abbreviated `git commit` output by hand.
-  - Batch claim and landing operations into single remote round-trips: when
-    releasing multiple finished tickets, renewing leases, or handing off from
-    finished tickets to new items, pass repeated or comma-separated
-    `--ticket` / `--item` / `--release-ticket` flags to `tools/claims.py` (and
-    batch landed commits into a single `git cherry-pick` + `tools/landing.py`
-    push) rather than running $N$ sequential remote pushes.
-  - Batch shared golden recording (`corpus_gate.py --record`) at the coordinator
-    on `main` rather than inside isolated worker worktrees: workers write only
-    their disjoint `samples/cli/facts/<row>/` and `tests/omega/{pass,fail}/facts/<row>_*`
-    directories and validate with warm `omega-latest.exe run --both` and
-    `--check`, avoiding per-worktree `corpus_runner` builds (`build_slot`
-    serialization) and overlapping diff hunks in
-    `tests/omega/corpus_native_*.txt` and `tests/omega/corpus_outcomes.txt`.
+  - Each worker owns its assignment end to end through validation, golden
+    recording, and authorized `tools/landing.py` publication on `main`—never
+    split work into stages where workers return partial unlanded candidates for
+    the coordinator to record or land.
+  - Batch claim registry mutations into single remote round-trips: use
+    `--release-ticket` on `tools/claims.py claim` / `reserve` for atomic
+    single-push handoffs when transitioning to the next slice, and pass repeated
+    or comma-separated `--ticket` / `--item` flags when registering an initial
+    wave, renewing leases, or draining finished claims.
+  - Always obtain commit hashes from `git rev-parse HEAD` rather than
+    transcribing abbreviated `git commit` output by hand.
   - After launching a background command or subagent, end the turn and let
     reactive wakeup resume execution instead of polling `manage_task`.
 
