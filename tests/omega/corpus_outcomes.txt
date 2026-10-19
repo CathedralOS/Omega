@@ -3445,15 +3445,27 @@ fail/facts/register_stack_arg_calling_plan_through_target_body_rejected rejected
 	exact arithmetic in machine `calling_plan_seven` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `calling_plan_seven` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `calling_plan_seven` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/remainder_width_through_call_result_rejected rejected 3201ms expected @d070d134851d+wt
-fail/facts/remainder_width_through_const_name_rejected rejected 3244ms expected @d070d134851d+wt
-fail/facts/remainder_width_through_field_rejected rejected 3194ms expected @d070d134851d+wt
-fail/facts/remainder_width_through_local_rejected rejected 3142ms expected @d070d134851d+wt
-fail/facts/remainder_width_through_match_join_rejected rejected 3199ms expected @d070d134851d+wt
-fail/facts/remainder_width_through_other_machine_rejected rejected 3172ms expected @d070d134851d+wt
-fail/facts/remainder_width_through_other_state_rejected rejected 3192ms expected @d070d134851d+wt
-fail/facts/remainder_width_through_parameter_rejected rejected 3149ms expected @d070d134851d+wt
-fail/facts/remainder_width_through_target_body_rejected rejected 3256ms expected @d070d134851d+wt
+fail/facts/remainder_width_through_call_result_rejected rejected 34066ms expected @ba5340d9c6b3
+	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_const_name_rejected rejected 32663ms expected @ba5340d9c6b3
+	cannot prove index `value % 5` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_field_rejected rejected 34031ms expected @ba5340d9c6b3
+	cannot prove index `value % window.width` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_local_rejected rejected 36235ms expected @ba5340d9c6b3
+	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_match_join_rejected rejected 36217ms expected @ba5340d9c6b3
+	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_other_machine_rejected rejected 35913ms expected @ba5340d9c6b3
+	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
+fail/facts/remainder_width_through_other_state_rejected rejected 33856ms expected @ba5340d9c6b3
+	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::land
+fail/facts/remainder_width_through_parameter_rejected rejected 34511ms expected @ba5340d9c6b3
+	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
+fail/facts/remainder_width_through_target_body_rejected rejected 33644ms expected @ba5340d9c6b3
+	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
+	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
+	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
+	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
 fail/facts/repro_through_call_result_rejected rejected 1297ms expected @73ea0eccebbc
 fail/facts/repro_through_const_name_rejected rejected 1309ms expected @73ea0eccebbc
 fail/facts/repro_through_field_rejected rejected 1317ms expected @73ea0eccebbc
@@ -8254,15 +8266,15 @@ pass/facts/register_stack_arg_calling_plan_through_other_machine_exit checked 34
 pass/facts/register_stack_arg_calling_plan_through_other_state_exit checked 34042ms check-target:macos_arm64 @4d66d6851894
 pass/facts/register_stack_arg_calling_plan_through_parameter_exit checked 34387ms check-target:macos_arm64 @4d66d6851894
 pass/facts/register_stack_arg_calling_plan_through_target_body_exit checked 42524ms check-target:macos_arm64 @4d66d6851894
-pass/facts/remainder_width_through_call_result_exit checked 7565ms check-target:macos_arm64 @d070d134851d+wt
-pass/facts/remainder_width_through_const_name_exit checked 7523ms check-target:macos_arm64 @d070d134851d+wt
-pass/facts/remainder_width_through_field_exit checked 7512ms check-target:macos_arm64 @d070d134851d+wt
-pass/facts/remainder_width_through_local_exit checked 7480ms check-target:macos_arm64 @d070d134851d+wt
-pass/facts/remainder_width_through_match_join_exit checked 7476ms check-target:macos_arm64 @d070d134851d+wt
-pass/facts/remainder_width_through_other_machine_exit checked 7462ms check-target:macos_arm64 @d070d134851d+wt
-pass/facts/remainder_width_through_other_state_exit checked 7481ms check-target:macos_arm64 @d070d134851d+wt
-pass/facts/remainder_width_through_parameter_exit checked 7460ms check-target:macos_arm64 @d070d134851d+wt
-pass/facts/remainder_width_through_target_body_exit checked 7459ms check-target:macos_arm64 @d070d134851d+wt
+pass/facts/remainder_width_through_call_result_exit checked 90320ms check-target:macos_arm64 @ba5340d9c6b3
+pass/facts/remainder_width_through_const_name_exit checked 90321ms check-target:macos_arm64 @ba5340d9c6b3
+pass/facts/remainder_width_through_field_exit checked 90366ms check-target:macos_arm64 @ba5340d9c6b3
+pass/facts/remainder_width_through_local_exit checked 78194ms check-target:macos_arm64 @ba5340d9c6b3
+pass/facts/remainder_width_through_match_join_exit checked 77283ms check-target:macos_arm64 @ba5340d9c6b3
+pass/facts/remainder_width_through_other_machine_exit checked 78615ms check-target:macos_arm64 @ba5340d9c6b3
+pass/facts/remainder_width_through_other_state_exit checked 82614ms check-target:macos_arm64 @ba5340d9c6b3
+pass/facts/remainder_width_through_parameter_exit checked 82355ms check-target:macos_arm64 @ba5340d9c6b3
+pass/facts/remainder_width_through_target_body_exit checked 83073ms check-target:macos_arm64 @ba5340d9c6b3
 pass/facts/repro_through_call_result_exit checked 14899ms check-target:macos_arm64 @73ea0eccebbc
 pass/facts/repro_through_const_name_exit checked 15319ms check-target:macos_arm64 @73ea0eccebbc
 pass/facts/repro_through_field_exit checked 15223ms check-target:macos_arm64 @73ea0eccebbc
