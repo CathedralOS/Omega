@@ -192,6 +192,13 @@ helper actions before executing them.
     `--ticket` / `--item` / `--release-ticket` flags to `tools/claims.py` (and
     batch landed commits into a single `git cherry-pick` + `tools/landing.py`
     push) rather than running $N$ sequential remote pushes.
+  - Batch shared golden recording (`corpus_gate.py --record`) at the coordinator
+    on `main` rather than inside isolated worker worktrees: workers write only
+    their disjoint `samples/cli/facts/<row>/` and `tests/omega/{pass,fail}/facts/<row>_*`
+    directories and validate with warm `omega-latest.exe run --both` and
+    `--check`, avoiding per-worktree `corpus_runner` builds (`build_slot`
+    serialization) and overlapping diff hunks in
+    `tests/omega/corpus_native_*.txt` and `tests/omega/corpus_outcomes.txt`.
   - After launching a background command or subagent, end the turn and let
     reactive wakeup resume execution instead of polling `manage_task`.
 
