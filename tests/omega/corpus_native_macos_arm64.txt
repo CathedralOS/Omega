@@ -1300,6 +1300,15 @@ pass/expressions/runtime_widened_comparison_exit built 853ms exit:70
 pass/expressions/scalar_match_boundary_composition_exit built 1964ms exit:70 @de036fe72b0b
 pass/expressions/seq_consuming_combinators checked 9993ms @fcc053dc7014+wt
 pass/expressions/unit_case_return_call_product built 17056ms exit:70 @589aedee8ebc+wt
+pass/facts/abi_multi_arg_spill_through_call_result_exit built 24606ms exit:0 @0d6aec34caa1
+pass/facts/abi_multi_arg_spill_through_const_name_exit built 25123ms exit:0 @0d6aec34caa1
+pass/facts/abi_multi_arg_spill_through_field_exit built 25658ms exit:0 @0d6aec34caa1
+pass/facts/abi_multi_arg_spill_through_local_exit built 25926ms exit:0 @0d6aec34caa1
+pass/facts/abi_multi_arg_spill_through_match_join_exit built 27698ms exit:0 @0d6aec34caa1
+pass/facts/abi_multi_arg_spill_through_other_machine_exit built 27549ms exit:0 @0d6aec34caa1
+pass/facts/abi_multi_arg_spill_through_other_state_exit built 26305ms exit:0 @0d6aec34caa1
+pass/facts/abi_multi_arg_spill_through_parameter_exit built 27719ms exit:0 @0d6aec34caa1
+pass/facts/abi_multi_arg_spill_through_target_body_exit built 48884ms exit:0 @0d6aec34caa1
 pass/facts/address_count_partition_through_call_result_exit built 31798ms exit:0 @9d27f400f753
 pass/facts/address_count_partition_through_const_name_exit built 31906ms exit:0 @9d27f400f753
 pass/facts/address_count_partition_through_field_exit built 31845ms exit:0 @9d27f400f753
