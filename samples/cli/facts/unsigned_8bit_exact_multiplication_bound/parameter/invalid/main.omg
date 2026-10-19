@@ -1,0 +1,26 @@
+// Fact: an 8-bit unsigned u8 exact multiplication of bounded inputs (lhs >= 10u8 && lhs <= 15u8, rhs >= 8u8 && rhs <= 12u8) establishes prod >= 80u8 && prod <= 180u8 so exact 8-bit subtractions 180u8 - prod and prod - 80u8 are proved overflow-free across all nine places.
+
+machine consume_bounds(forwarded: u8) -> u8
+    requires forwarded >= 80u8 && forwarded <= 180u8
+{
+    let headroom: u8 = 180u8 - forwarded;
+    let margin: u8 = forwarded - 80u8;
+    headroom + margin
+}
+
+machine probe(lhs: u8, rhs: u8) -> u8
+    requires lhs >= 10u8 && lhs <= 15u8 && rhs >= 8u8 && rhs <= 13u8
+{
+    let prod: u8 = lhs * rhs;
+    consume_bounds(prod)
+}
+
+machine main() crashes Trap {
+    let combined: u8 = probe(12u8, 10u8);
+    transition combined == 100u8 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
