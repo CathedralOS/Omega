@@ -62,9 +62,24 @@ for fact in "$@"; do
   git checkout origin/main -- tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt 2>/dev/null
   before=$(lost)
   [ "$before" = "0" ] || { echo "   ABORT: pre-record LOST=$before (rebase first)"; continue; }
-  echo "   pre-record LOST=0; recording with jobs=3"
-  OMEGA_CORPUS_JOBS=3 OMEGA_CORPUS_FIXTURE_SECS=600 \
-    python3 tools/corpus_gate.py --filter "$fact" --record >/dev/null 2>&1
+  echo "   pre-record LOST=0"
+  # Refuse to record while the host is too loaded. A --record with compiles in
+  # flight silently writes `timeout` rows instead of real outcomes, and those rows
+  # look like recorded evidence. Two lanes lost a full record cycle to this.
+  load=$(sysctl -n vm.loadavg 2>/dev/null | awk '{print int($2)}')
+  if [ "${load:-0}" -gt 60 ]; then
+    echo "   ABORT: load ${load} is too high to record (timeout rows). Re-run when load < 60."
+    continue
+  fi
+  echo "   load ${load}; recording with jobs=3"
+  out=$(OMEGA_CORPUS_JOBS=3 OMEGA_CORPUS_FIXTURE_SECS=600 \
+    python3 tools/corpus_gate.py --filter "$fact" --record 2>&1)
+  # A record is only trustworthy if no compile was still in flight when it ended.
+  if echo "$out" | grep -qE '[1-9][0-9]* compile\(s\) in flight'; then
+    echo "   ABORT: compiles were still in flight; that record wrote timeout rows."
+    git checkout origin/main -- tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt
+    continue
+  fi
   after=$(lost)
   timeouts=$(grep -c 'timeout' tests/omega/corpus_outcomes.txt 2>/dev/null || echo 0)
   echo "   post-record LOST=$after timeouts=$timeouts"
