@@ -1,0 +1,3 @@
+cannot prove requires contract for call range from read
+end <= items.len
+in state `entry`
