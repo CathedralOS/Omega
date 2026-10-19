@@ -1,0 +1,2 @@
+exact arithmetic in machine `main` state `evaluate` local `diff` may overflow `u64`
+the operands are not provably in range
