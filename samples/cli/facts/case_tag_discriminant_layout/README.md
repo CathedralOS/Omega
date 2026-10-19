@@ -20,6 +20,66 @@ Claim Ticket: `c4a52019b8e2444391e6dc698f2b3a10`
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | the multi-variant Packet value is forwarded through an intermediate helper machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | the multi-variant Packet value is realized across four target-scoped machine bodies |
 
+## Pinned fixtures
+
+The nine positive places and their nine reject twins are pinned as host-pinned
+golden rows:
+
+- `tests/omega/pass/facts/case_tag_discriminant_layout_through_<place>_exit`
+- `tests/omega/fail/facts/case_tag_discriminant_layout_through_<place>_rejected`
+
+Each pass fixture carries `build.omg` binding `ProgramEntry` for all four
+hosted targets and its own `expected_native_exit.txt` (`0`). Each fail twin
+carries `sample.json` with `rejection_contains` for the decision-17 refusal.
+
+## Tag discriminant geometry (measured)
+
+The mechanism under test is the **discriminant tag of a closed case-bearing
+value**: its width and offset in the constructed/matched representation. This
+is distinct from `case_payload_layout_geometry` (payload packing) and from
+record layout. The reference implementation fixes the tag at `tag_offset = 0`,
+`tag_size = 4`, `tag_align = 4`
+(`CONVENTIONAL_TAG_SIZE`/`CONVENTIONAL_TAG_ALIGN` in
+`omega-rust/psi/compilation/compile-time/src/layouts/materialization/const_sum_materializable.rs`),
+so `size_of`/`align_of` are the tag's observable footprint: the width is the
+floor under total size and the alignment is the tag alignment floor.
+
+Measured on `macos_arm64` with the opt-level-1 compiler, `omega run --both`:
+
+| probe | cases | payload | `size_of` | `align_of` | native | interp |
+| --- | --- | --- | --- | --- | --- | --- |
+| nullary pair | 2 | — | 4 | — | exit 0 | exit 0 |
+| `u32` payload | 2 | `u32` | 8 | — | exit 0 | exit 0 |
+| `u64` payload | 2 | `u64` | 16 | 8 | exit 0 | exit 0 |
+| `u16` payload | 2 | `u16` | 8 | 4 | exit 0 | exit 0 |
+| single case | 1 | — | 4 | — | exit 0 | exit 0 |
+| wide fan-out | 128 | — | 4 | — | exit 0 | exit 0 |
+| wide fan-out | 300 | — | 4 | — | exit 0 | exit 0 |
+
+The geometry responds to the tag: 2 nullary cases measure 4 bytes (tag alone,
+no payload), a `u32` payload grows the value to 8 (tag 4 + aligned payload 4),
+and a `u64` payload grows it to 16 with `align_of` 8 (tag alignment 4 raised by
+payload alignment 8). The value is not a constant.
+
+### Falsification control
+
+The measured geometry is the value the compilers actually observe, not a
+fabricated constant. Corrupting the oracle so the guard can never hold traps
+in **both** engines, and the two engines agree on the presentation:
+
+| falsified claim | native | interp |
+| --- | --- | --- |
+| 2-case `u64` sum claims `size_of == 100` | signal 5 | `crash: Trap (host presentation agrees)` |
+| 300-case sum claims `size_of == 8` | signal 5 | `crash: Trap (host presentation agrees)` |
+| 260-case sum claims `C256 == C000` (aliasing) | signal 5 | `crash: Trap (host presentation agrees)` |
+
+The aliasing control is the sharpest one: it asserts the tag is a one-byte
+discriminator and that ordinal 256 collapses onto ordinal 0. Both engines trap,
+establishing that the 4-byte tag preserves the full discriminant range. A
+matching probe that constructs case ordinal 255, 256, and 299 and matches the
+last case exits 0 in both engines, so discriminants above 255 are carried
+without loss.
+
 ## Execution
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted
