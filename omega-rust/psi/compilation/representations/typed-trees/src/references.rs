@@ -109,6 +109,9 @@ pub type StaticArgumentClassifier = fn(&TypedTrees, StaticArgumentCall<'_>) -> S
 /// A consumer of exact typed references. Return false from an arena callback
 /// when a node was already visited; symbol consumers may preserve repeated edges.
 pub trait TypedReferences: Extend<SymbolHandle> {
+    /// A callable's exact parameter/result scope, before its nested telescope
+    /// and contract facts are visited. This describes ownership, not admission.
+    fn callable_signature(&mut self, _: &crate::signature::StateSignature) {}
     /// Nested callable telescopes own their fresh binders independently of
     /// the surrounding declaration. Ordinary dependency sinks need no scope.
     fn enter_lexical_scope(&mut self, _: SymbolHandle) {}
@@ -532,7 +535,9 @@ pub fn collect_program_references_with_roles(
     }
 }
 
-fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
+/// Visit the current declaration roots and their owned references. Detached
+/// backing-arena nodes are not additional source or executable occurrences.
+pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
     visit_declarations(program, roots);
     for machine in program.machines() {
         if roots.declaration(machine.symbol) {
@@ -1097,11 +1102,12 @@ fn visit_proposition_formula(
 
 /// Retain machines referenced by one state signature or operator signature:
 /// parameter types, return type, invokes targets, and contract facts.
-fn visit_signature(
+pub fn visit_signature(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     signature: &crate::signature::StateSignature,
 ) {
+    retained.callable_signature(signature);
     retained.enter_lexical_scope(signature.symbol);
     visit_type_parameters(program, retained, signature.type_parameters);
     visit_proof_facts(program, retained, signature.where_facts);
@@ -1579,7 +1585,14 @@ fn visit_type_parameters(
                 visit_type_reference(program, retained, *type_reference)
             }
             TypeParameterKind::Machine { contract } => {
-                if let Some(signature) = contract.structural() {
+                let signature = match contract {
+                    crate::data::MachineParameterContract::Structural(signature) => Some(signature),
+                    crate::data::MachineParameterContract::Nominal { instantiated, .. } => {
+                        instantiated.as_deref()
+                    }
+                    crate::data::MachineParameterContract::RequirementIdentity => None,
+                };
+                if let Some(signature) = signature {
                     visit_signature(program, retained, signature);
                 }
             }

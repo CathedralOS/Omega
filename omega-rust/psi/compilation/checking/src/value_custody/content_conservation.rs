@@ -5,6 +5,7 @@
 //! This module normalizes authored equations for checked facts and semantic
 //! identity; it does not infer sealed introductions or custody exits.
 
+mod contexts;
 mod normalization;
 
 pub use normalization::{data_variant_name, push_structural_field};
@@ -36,6 +37,7 @@ pub struct ContentConservationSourcePlan {
 #[derive(Debug)]
 pub(crate) struct ContentConservationInputs {
     plans: Arc<Vec<ContentConservationSourcePlan>>,
+    checking_plans: Vec<ContentConservationSourcePlan>,
     diagnostics: Vec<Diagnostic>,
     formations: Arena<ContentProjectionFormation>,
 }
@@ -65,6 +67,7 @@ impl ContentConservationInputs {
     ) -> Option<ContentDeclarationFormation<'_>> {
         self.plans
             .iter()
+            .chain(&self.checking_plans)
             .any(|plan| {
                 plan.plan.callable == callable && plan.source_expression == source_expression
             })
@@ -115,14 +118,17 @@ pub(crate) fn content_conservation_inputs(
                 crate::value_custody::content_projections::build_content_projection_plans(program);
             let mut diagnostics = Vec::new();
             let mut formations = Arena::default();
+            let mut checking_plans = Vec::new();
             let plans = collect_content_conservation_plans(
                 program,
                 &projections,
                 &mut diagnostics,
                 &mut formations,
+                &mut checking_plans,
             );
             ContentConservationInputs {
                 plans: Arc::new(plans),
+                checking_plans,
                 diagnostics,
                 formations,
             }
@@ -142,6 +148,7 @@ fn collect_content_conservation_plans(
     projections: &[ContentProjectionPlan],
     diagnostics: &mut Vec<Diagnostic>,
     formations: &mut Arena<ContentProjectionFormation>,
+    checking_plans: &mut Vec<ContentConservationSourcePlan>,
 ) -> Vec<ContentConservationSourcePlan> {
     let mut plans = Vec::new();
     let mut proof_nodes = HashSet::new();
@@ -190,13 +197,23 @@ fn collect_content_conservation_plans(
         );
     });
 
-    // These calls erase completely. Any occurrence outside a proof fact is a
-    // runtime-use attempt, including a direct call to a projection machine.
+    let non_contract_nodes = contexts::non_contract_expression_nodes(
+        program,
+        projections,
+        &mut proof_nodes,
+        diagnostics,
+        checking_plans,
+        formations,
+    );
+
+    // Arena allocation is not executable ownership: callable application can
+    // leave replaced proof copies behind. Inspect live non-contract uses;
+    // sharing a handle with a proof occurrence does not excuse an executable use.
     for (handle, node) in program.expression_table.iter_expressions() {
         let ExpressionNode::Call(call) = node else {
             continue;
         };
-        if proof_nodes.contains(&(handle.arena_index(), handle.generation())) {
+        if !non_contract_nodes.contains(&handle) {
             continue;
         }
         if is_old_call(program, call)

@@ -3,7 +3,7 @@
 
 use crate::proof_contracts::contract_entailment::{Diagnostic, StructuralTerm, TraitDefinition};
 
-/// The CARRIER's op-slot bindings: for each requirement of the trait, the
+/// The CARRIER's op-slot bindings: for each used requirement of the trait, the
 /// machine conforming to it whose carrier type matches. Alias preference
 /// (plural algebras): a binding sharing the checking conformance's alias
 /// wins; otherwise unaliased bindings win; a remaining tie is ambiguous and
@@ -13,11 +13,18 @@ pub(crate) fn carrier_slot_bindings(
     trait_definition: &TraitDefinition,
     carrier: typed_trees::types::TypeReferenceHandle,
     prefer_alias: Option<&str>,
+    required_slots: &[String],
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<(String, (String, symbols::SymbolHandle))> {
     let mut bindings: Vec<(String, (String, symbols::SymbolHandle))> = Vec::new();
 
     for requirement in program.trait_machine_signatures(trait_definition) {
+        if !required_slots
+            .iter()
+            .any(|name| name == requirement.name.as_str())
+        {
+            continue;
+        }
         // (slot machine name, alias) candidates for this carrier.
         let mut candidates: Vec<((String, symbols::SymbolHandle), Option<String>)> = Vec::new();
         for candidate in program.machines() {

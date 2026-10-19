@@ -1159,6 +1159,21 @@ fail/core/content_transform_retagged_parent rejected 2406ms expected @42423ab60d
 	linear value `whole` reaches scope exit without being consumed or transferred
 fail/core/extent_root_adapter_direct_call_does_not_grant rejected 1719ms expected @a9ae30e1c334+wt
 fail/core/extent_scope_loss rejected 1569ms expected @a9ae30e1c334+wt
+fail/core/generic_content_distinct_application_guarantee rejected 3171ms expected @4c6fa0c02bf5+wt
+	machine `Second::transfer` realizes `Transfer::transfer` but does not guarantee its `ensures result.marker == 30`; callers of the requirement assume it
+fail/core/generic_content_inherited_loss rejected 3026ms expected @4c6fa0c02bf5+wt
+	machine `retain` satisfies `Transfer::transfer` but proves no ensures matching the declared law `Owned.content(old(&region)) == Owned.content(&result)` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
+fail/core/generic_content_runtime_projection rejected 2516ms expected @4c6fa0c02bf5+wt
+	proof-only content operation `content` is used in executable expression position; `old`, `separate`, and exact `Content<Owner, A>::project` machines are contract-only
+	machine call has no resolved declaration namespace; its head is unavailable or ambiguous
+	machine `main` state `entry` uses `Owned`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/core/generic_content_unselected_target_loss rejected 3786ms expected @4c6fa0c02bf5+wt
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/core/generic_resident_adapter_no_authority rejected 3720ms expected @4c6fa0c02bf5+wt
+	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Granted
+	cannot prove ensures contract for exit from pretend at statement 0: result in toolchain::Resident<type:named(name(nominal\\(package-owner\\(32:0101010101010101010101010101010101010101010101010101010101010101\\)\\,path\\(pretend::P\\)\\))),type:named(name(nominal\\(package-owner\\(32:0101010101010101010101010101010101010101010101010101010101010101\\)\\,path\\(pretend::T\\)\\)))>
+	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Granted
 fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 5239ms expected @a9ae30e1c334+wt
 fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 5272ms expected @a9ae30e1c334+wt
 fail/core/guarded_trap_ceiling_other_site_rejected rejected 5301ms expected @a9ae30e1c334+wt
@@ -2081,6 +2096,39 @@ fail/facts/float_range_delivery_through_target_body_rejected rejected 3388ms exp
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/generic_content_transfer_call_result rejected 3883ms expected @4c6fa0c02bf5+wt
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_const_name rejected 3890ms expected @4c6fa0c02bf5+wt
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_field rejected 3876ms expected @4c6fa0c02bf5+wt
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_local rejected 3889ms expected @4c6fa0c02bf5+wt
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_match_join rejected 3904ms expected @4c6fa0c02bf5+wt
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_other_machine rejected 3880ms expected @4c6fa0c02bf5+wt
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_other_state rejected 3890ms expected @4c6fa0c02bf5+wt
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_parameter rejected 3863ms expected @4c6fa0c02bf5+wt
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_target_body rejected 3775ms expected @4c6fa0c02bf5+wt
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 fail/facts/guarded_line_loan_through_call_result_held rejected 2713ms expected @866a955e52f8
 fail/facts/guarded_line_loan_through_const_name_held rejected 2738ms expected @866a955e52f8
 fail/facts/guarded_line_loan_through_field_held rejected 2710ms expected @866a955e52f8
@@ -3750,6 +3798,9 @@ fail/proofs/ranked_accumulator_guarantee_wrong_step_twin rejected 2835ms expecte
 fail/proofs/recursive_formals_do_not_read_caller_constants rejected 548ms expected @a80b1ee9811e+wt
 	machine `recurse` ensures contract proof fact `result == value + 1` is disproved by constant arithmetic on the transition arm guarded by `remaining > 0 && value == 0 == true`
 fail/proofs/recursive_terminal_missing_erased_evidence rejected 1037ms expected @5acf32321f42+wt
+fail/proofs/referenced_law_slot_ambiguous rejected 2865ms expected @4c6fa0c02bf5+wt
+	trait `Operations` requirement `identity` has AMBIGUOUS satisfiers for this carrier -- name the family with `as <Alias>` on each conformance so the law check (and the judge) can pick one
+	machine `witness` satisfies `Operations::law`, whose law mentions `identity` -- but no machine satisfies that requirement for this carrier (conform the op first; the law check resolves op slots through the carrier's own conformances)
 fail/proofs/remainder_range_false_twin rejected 809ms expected @a9ae30e1c334+wt
 fail/proofs/replaced_descriptor_retires_bound rejected 585ms expected @b3d0b7396229+wt
 fail/proofs/replaced_scalar_cannot_reuse_prior_bound rejected 586ms expected @b3d0b7396229+wt
@@ -5840,6 +5891,8 @@ pass/core/content_transform_inactive_payload checked 2707ms @42423ab60d61+wt
 pass/core/content_transform_predicate_array checked 2775ms @42423ab60d61+wt
 pass/core/extent_core_surface checked 1673ms @a9ae30e1c334+wt
 pass/core/extent_root_provider_adapter checked 11044ms check-target:macos_arm64 @83314997c2b2
+pass/core/generic_content_distinct_applications checked 8776ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/core/generic_content_static_callback checked 8764ms check-target:macos_arm64 @4c6fa0c02bf5+wt
 pass/core/interrupt_obligations_surface checked 2415ms @eac8a2f4b8cc+wt
 pass/core/interval_content_length_partition_exit checked 3960ms check-target:macos_arm64 @b794c35ad5f8+wt
 pass/core/interval_content_partition_exit checked 4124ms check-target:macos_arm64 @b794c35ad5f8+wt
@@ -6564,6 +6617,15 @@ pass/facts/float_range_delivery_through_other_machine_exit checked 18710ms check
 pass/facts/float_range_delivery_through_other_state_exit checked 18219ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/float_range_delivery_through_parameter_exit checked 18101ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/float_range_delivery_through_target_body_exit checked 18235ms check-target:macos_arm64 @ff8be1e0d475
+pass/facts/generic_content_transfer_call_result checked 8723ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_const_name checked 8744ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_field checked 8719ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_local checked 8708ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_match_join checked 8707ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_other_machine checked 8692ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_other_state checked 8692ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_parameter checked 8924ms check-target:macos_arm64 @4c6fa0c02bf5+wt
+pass/facts/generic_content_transfer_target_body checked 8743ms check-target:macos_arm64 @4c6fa0c02bf5+wt
 pass/facts/guarded_line_loan_through_call_result_exit checked 5835ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_const_name_exit checked 5825ms check-target:macos_arm64 @866a955e52f8
 pass/facts/guarded_line_loan_through_field_exit checked 5857ms check-target:macos_arm64 @866a955e52f8

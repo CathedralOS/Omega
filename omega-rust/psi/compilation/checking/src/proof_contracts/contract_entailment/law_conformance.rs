@@ -124,13 +124,6 @@ pub(crate) fn check_law_conformance(
         .iter()
         .map(|signature| signature.name.as_str().to_owned())
         .collect();
-    let slot_bindings = carrier_slot_bindings(
-        program,
-        trait_definition,
-        carrier,
-        conformance_alias,
-        diagnostics,
-    );
 
     // The satisfier's own PROVEN ensures conjuncts (machine-checked by this
     // engine before this point -- compiling means proven).
@@ -166,6 +159,21 @@ pub(crate) fn check_law_conformance(
         {
             continue; // a functional spec, not a law conjunct
         }
+
+        // A law selects only operation slots it actually uses. Other members
+        // may have several legitimate realizations (including target bodies);
+        // their existence cannot make an unrelated equation ambiguous.
+        let mut required_slots = Vec::new();
+        rewrite_slot_applications(&law_left, &slot_names, &[], &mut required_slots);
+        rewrite_slot_applications(&law_right, &slot_names, &[], &mut required_slots);
+        let slot_bindings = carrier_slot_bindings(
+            program,
+            trait_definition,
+            carrier,
+            conformance_alias,
+            &required_slots,
+            diagnostics,
+        );
 
         // Resolve the law's op-slot applications to the carrier's machines.
         let mut missing_slots: Vec<String> = Vec::new();

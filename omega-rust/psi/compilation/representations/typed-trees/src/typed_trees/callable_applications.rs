@@ -28,7 +28,19 @@ impl TypedTrees {
     pub fn prepared_callable_signatures(&self) -> impl Iterator<Item = &signature::StateSignature> {
         self.applied_callable_signatures
             .iter()
-            .map(|(_, prepared)| &prepared.signature)
+            .flat_map(|(_, prepared)| {
+                let counterparts = match &prepared.owner {
+                    AppliedCallableOwner::MachineSelection {
+                        required,
+                        source_required,
+                        ..
+                    } => [Some(required), Some(source_required)],
+                    _ => [None, None],
+                };
+                [Some(&prepared.signature), counterparts[0], counterparts[1]]
+                    .into_iter()
+                    .flatten()
+            })
     }
 
     /// Project declaration-owned application rows with the declaration roster.
