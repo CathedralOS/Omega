@@ -1,0 +1,1 @@
+state `receive` receives `holder.line` while local borrow `held` is still active

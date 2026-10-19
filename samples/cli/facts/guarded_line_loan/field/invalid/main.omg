@@ -1,0 +1,34 @@
+// A byte owner written through a mutable loan and read through a shared loan after a selected case edge observes the written byte.
+// Place: field.
+// Invalid: the first exclusive loan is still live when the owner is loaned again.
+data Holder { line: [u8; 64]; }
+data ReadOutcome {
+    case Complete(count: u64);
+    case End(count: u64);
+    case Full(count: u64);
+    case Invalid;
+}
+machine receive(line: &mut [u8; 64]) -> ReadOutcome {
+    line[0] = 37;
+    ReadOutcome::Complete { count: 5 }
+}
+machine main() crashes Trap {
+    let mut holder: Holder;
+    let held: &mut [u8; 64] = &mut holder.line;
+    let result: ReadOutcome = receive(&mut holder.line);
+    held[1] = 9;
+    transition result {
+        ReadOutcome::Complete { count } -> observe(&holder.line, count)
+        ReadOutcome::End { count } -> observe(&holder.line, count)
+        ReadOutcome::Full { count } -> done()
+        ReadOutcome::Invalid -> done()
+    }
+    state observe(line: &[u8; 64], count: u64) {
+        transition (line[0] as u64 in Wrapping + count as u64 in Wrapping) == 42 {
+            true -> done()
+            false -> wrong()
+        }
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
