@@ -1,0 +1,44 @@
+// Fact: a 3-level nested structural record Outer { mid: Middle { inner: Inner { val: u64 } } } preserves the leaf field bound 40u64 <= outer.mid.inner.val <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
+// Place: parameter (invalid twin). The leaf upper bound is widened to 81u64 so res reaches 81u64, underflowing 80u64 - res.
+// Expected diagnostic: may overflow `u64`
+
+data Inner [copy] {
+    val: u64;
+}
+
+data Middle [copy] {
+    inner: Inner;
+}
+
+data Outer [copy] {
+    mid: Middle;
+}
+
+machine check_param(outer: Outer) -> u64
+requires outer.mid.inner.val >= 40 && outer.mid.inner.val <= 81
+{
+    let res: u64 = outer.mid.inner.val;
+    let headroom: u64 = 80u64 - res;
+    let margin: u64 = res - 40u64;
+    headroom + margin
+}
+
+machine probe() -> u64 {
+    let outer: Outer = Outer {
+        mid: Middle {
+            inner: Inner {
+                val: 60u64,
+            },
+        },
+    };
+    check_param(outer)
+}
+
+machine main() crashes Trap {
+    transition probe() == 40 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
