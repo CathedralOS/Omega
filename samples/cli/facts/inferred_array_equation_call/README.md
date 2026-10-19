@@ -1,40 +1,35 @@
-# Inferred array equation call
+# Inferred Array Equation Call
 
-Fact: an omitted Capacity is inferred as 2 from the actual [u8; 2] type and Length == [u8; Capacity], independently of element values.
+Fact: an omitted `Capacity` is inferred as 2 from the actual `[u8; 2]` type and `Length == [u8; Capacity]`, independently of element values.
 
-The frozen root calls `capacity(items)` with a declared `[u8; 2]` actual. It
-previously failed before ordinary argument inference could anchor `Length`.
-Its SHA-256 is `a03068442c4021bdb12f1cf6e784f6b91d3167944159783d882cfc2dfb46c4b3`.
-The compiler now combines closed declaration-backed actual/result types with
-where equations in the existing structural solver. Explicit static arguments
-remain fixed, and ordinary compatibility and specialization bounds still apply.
+The root witness and nine place witnesses call `capacity(items)` with a declared `[u8; 2]` actual.
+The compiler combines closed declaration-backed actual/result types with where equations in the
+structural solver to infer `Capacity == 2`. No runtime narrowing assertions or bounds checks are needed.
 
-| Place | Positive Project | Reject Twin | Establishment and transport |
+Every positive place (and the root `main.omg`) binds `ProgramEntry` for all four hosted targets
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`,
+and carries an authored `expected_native_exit.txt` containing `0` beside its entry. Both engines
+(`omega run --both`) agree: Terminal Psi and native execution report exit 0.
+
+## Places
+
+| Place | Positive Program | Fact-sensitive Reject Twin | Carrier / Transport Mechanism |
 | --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | declared array local |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | selected nominal record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | declared ordinary parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | declared array return type |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms carry the same declared type; both branches execute |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | declared array constant |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | state arrival parameter |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | ordinary call forwarding |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | four hosted implementations perform the same call |
-
-Each positive declares `Expected exit: 0` and binds ProgramEntry on
-windows_x86_64, linux_x86_64, macos_arm64 and linux_arm64. Each `invalid/` twin
-changes exactly one consuming call to `capacity<[u8; 2], 3>(items)` (using that
-place's original actual expression). The required rejection is
-`where equation binds Capacity to 2 but its explicit argument is 3`, with the
-compiler's backticks. Package errors or unrelated typing errors do not count.
-Mirrored fixtures live under `tests/omega/{pass,fail}/facts/` with prefix
-`inferred_array_equation_call_through_`.
+| root | [`main.omg`](main.omg) | [`invalid/main.omg`](invalid/main.omg) | canonical root witness passing `[u8; 2]` actual directly to `capacity` |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | declared `[u8; 2]` array copied to local variable before `capacity` call |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | `[u8; 2]` array stored in and projected from `Holder::items` nominal field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | declared ordinary `[u8; 2]` parameter passed to `capacity` |
+| call_result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | declared `[u8; 2]` array return value from helper function |
+| match_join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms return `[u8; 2]`; joined array passed to `capacity` |
+| const_name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | declared array constant `BASE: [u8; 2]` passed to `capacity` |
+| other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | state arrival parameter `step(items: [u8; 2])` forwards to `capacity` |
+| other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine routes `[u8; 2]` array to `capacity` |
+| target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | four hosted target implementations perform the same inferred call |
 
 ## Execution
 
-Every positive place is an application that exits 0, and each carries an
-authored `expected_native_exit.txt` containing `0` beside its entry.
-`omega run --both` must report Terminal Psi and native execution agreeing:
+Every positive place has an authored native exit oracle of zero and verifies `observed == 2`,
+crashing `Trap` otherwise. Run with `omega run --both`:
 
 ```sh
 omega run --both samples/cli/facts/inferred_array_equation_call/main.omg
@@ -49,121 +44,38 @@ omega run --both samples/cli/facts/inferred_array_equation_call/other_machine/ma
 omega run --both samples/cli/facts/inferred_array_equation_call/target_body/main.omg
 ```
 
-All ten places, root included, were observed with `native exit 0` and
-`interp exit: 0`. `python3 tools/sample_native_gate.py --facts --filter
-inferred_array_equation_call` reports 10/10 samples meeting their documented
-oracle on macos_arm64 and 10/10 intended-invalid controls matching their
-authored rejection. The nine pinned positive fixtures score
-`pass/facts/inferred_array_equation_call_through_<place>_exit built ... exit:0`
-in `python3 tools/corpus_gate.py --native --filter
-facts/inferred_array_equation_call`.
+All 10 samples report `native exit 0` and `interp exit: 0`.
 
-### The oracle discriminates
-
-The authored `0` is not assumed. Two probes on the `local` place change the
-construct's own input and make the carried result differ, so the consumer's
-`transition observed == 2` must take `bad()` and trap:
-
-| Program | Native engine | Terminal Psi | wrapper exit |
-| --- | --- | --- | --- |
-| `local/main.omg` (authored) | `native exit 0` | `interp exit: 0` | 0 |
-| same place, `capacity(items) + 1u64` | `native signal 5` | `interp crash: Trap` | 255 |
-| same place, actual widened to `[u8; 3]` | `native signal 5` | `interp crash: Trap` | 255 |
-
-Probe one corrupts the carried result; probe two corrupts the equation's own
-input, so `Length == [u8; Capacity]` binds `Capacity` to 3 and the returned
-value leaves 2. Both engines trap together in both probes, so the recorded
-oracle separates a correct inferred `Capacity` from a wrong one.
-
-The `invalid/` twins discriminate in the other direction: they are refused
-during checking rather than run, so they cannot be mistaken for a passing
-positive. Each twin was observed at checking exit 1 with the exact
-`where equation binds \`Capacity\` to 2 but its explicit argument is 3`
-diagnostic naming that place's own entry point:
+Each place carries a fact-sensitive reject twin at `<place>/invalid/` (and root `invalid/`) that
+changes the call to `capacity<[u8; 2], 3>(items)` with explicit `Capacity = 3`, conflicting with
+`Length == [u8; Capacity]` since `Length` is `[u8; 2]`. All reject twins fail closed at proof checking
+before native execution:
 
 ```sh
 omega --check samples/cli/facts/inferred_array_equation_call/<place>/invalid/main.omg
 ```
 
-The authority is [structural equations and inference](../../../../wiki/spec/language/generics.md#structural-type-equations-and-inference),
-canonical Git blob `e3d20c0c1f44d36ac6221811e46446975bea57e8`:
-
-> For ordinary data and machine applications, omitted arguments can be recovered
-> only when the combined structural equations and existing argument/result
-> inference determine one substitution.
-
-> All applicable occurrences must be consistent, not just the first one visited.
-
-> Inference selects arguments before checking ordinary compatibility.
-
-The implementation/review context fingerprint is
-`9e16129bdad951e9ebf98419ff1ca28ef66c9f6ca656895fbc3ab28b8d299be8`.
-Resolved declaration handles retain identity through deferred body completion;
-receiver projections select fields only within the exact declared nominal owner.
-Literals, element values, private flow facts and storage-size coincidences do
-not select generic arguments. Focused controls cover differing element values,
-same-named const/type declarations, partial explicit calls, repeated conflicts
-in both orders, incompatible match arms/results, constructor identity, missing
-anchors, occurs cycles, copy bounds, nested/generic owner fields and deferred
-bodies. A typed result may anchor inference; its argument must still satisfy
-the selected array extent.
-
-Terminal Psi and native lowering consume the ordinary completed specialization
-and its concrete array carrier. This repair changes no carrier, loan lifetime,
-ABI, frame allocation, image emission or backend semantics. Native/Terminal
-exit agreement exercises the existing call, state transport, branch layout,
-frame and image path. The witnesses assert Capacity==2 rather than merely
-compiling; the join executes both arms. Linux x86-64 supplies matching-host
-execution evidence. Checks for the other hosted targets supply source evidence
-only; they do not establish execution on absent hosts.
+Every twin rejects with:
+`where equation binds \`Capacity\` to 2 but its explicit argument is 3`
 
 ## Requirements and Evidence
 
 - **Parent outcome:** `STRUCTURAL-GENERIC-MATCHING` (`TASKS.md`).
-- **Ticket:** `a9cb6a50914145348064fec720014cd4` (owner `DeepSeek / w24 pump16`).
-- **Requirement established:** declaration-backed closed array-call inference.
-  An omitted `Capacity` is recovered as 2 from a declared `[u8; 2]` actual
-  combined with the `where Length == [u8; Capacity]` equation, independently of
-  element values, and that recovered argument survives all nine places into a
-  consuming operation that observes the value.
-- **Pinned fixtures:** the nine positive places are pinned as
-  `tests/omega/pass/facts/inferred_array_equation_call_through_<place>_exit/`,
-  each carrying `main.omg`, `expected_native_exit.txt` with `0` and
-  `expected_interpreter_exit.txt` with `0`. The nine reject twins are pinned as
-  `tests/omega/fail/facts/inferred_array_equation_call_through_<place>_rejected/`,
-  each binding `ProgramEntry` for all four hosted targets and carrying
-  `expected.txt` with the required diagnostic. Every `<place>/invalid/main.omg`
-  differs from its positive by the construct's own explicit argument only.
-- **Obligations accounted for:**
-  - *Establishment:* the declared `[u8; 2]` actual and the `where` equation
-    together determine `Capacity`; the call is not guarded by a post-hoc caller
-    equality and the recovery happens before compatibility checking.
-  - *Identity and lifetime:* the selected `Capacity` is the exact inferred
-    argument for that call, retained through the ordinary completed
-    specialization and its concrete array carrier.
-  - *Composition:* the call substitutes its exact actual in every place, the
-    match join retains the fact on both incoming arms, and the consuming
-    transition is proved from the carried value.
-  - *Soundness boundaries:* the reject twins show an explicit argument that
-    contradicts the inferred one is refused, so inference never silently
-    overrides an authored argument.
-  - *Checked-to-Terminal Psi lowering (`Psi 05–07`):* every place lowers to
-    Terminal Psi and executes in the interpreter, and the discriminating probes
-    show both engines leave the authored outcome together.
-  - *Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):*
-    the `target_body` place checks the call in each target-scoped body, so the
-    specialization is settled per target rather than once for the host.
-  - *Instruction selection, register homes, and activation frame realization
-    (`Omega 03–06`):* the call, its `u64` result and the transition guard are
-    realized on the hosted target, with the frame and image path unchanged.
-  - *Form encoding, branch relaxation, relocations, and native image emission
-    (`Omega 07–09`):* the nine pinned fixtures emit and execute a Mach-O image
-    that agrees with Terminal Psi.
-- **What remains open:** open schemas, late receiver/extension selection,
-  operator/conformance/machine/evidence/value binders, other const-index kinds,
-  unspecialized alternatives and computed structured equations.
+- **Requirement established:** End-to-end nine-place fact preservation and structural type equation inference for generic array calls. An omitted const generic argument `Capacity` is solved as 2 from the actual array type `Length = [u8; 2]` and the where equation `Length == [u8; Capacity]`, preserving the inferred value across all nine places with exact agreement between Terminal Psi and native execution across hosted targets.
+- **Pinned fixtures:** positive places and reject twins under `tests/omega/pass/facts/inferred_array_equation_call_through_*_exit` and `tests/omega/fail/facts/inferred_array_equation_call_through_*_rejected`.
+- **Authority:** [Structural type equations and inference](../../../../wiki/spec/language/generics.md#structural-type-equations-and-inference) (omitted arguments are recovered when structural equations and argument/result inference determine one substitution; all occurrences must be consistent).
 
-This closes only the declaration-backed closed array-call inference slice of
-STRUCTURAL-GENERIC-MATCHING. The Std-backed exit-92 and exit-7 customers retain
-their existing Console/entry dependencies. No parent capability closure is
-claimed.
+Full 8-layer specification and lowering evidence:
+
+- **Establishment:** Calling the equation-constrained array helper `capacity<Length [copy], const Capacity: u64>(items: Length) where Length == [u8; Capacity]` infers `Capacity = 2` directly from the caller's `[u8; 2]` actual type signature. The structural type equation solver unifies `[u8; 2]` with `[u8; Capacity]`, establishing `Capacity = 2` directly at the call edge without any post-hoc caller equality guard (`transition x == 100`).
+- **Identity and lifetime:** The inferred array equation and resulting capacity value remain tied to the exact array and scalar subjects across local copy (`local`), nominal record field projection (`field`), explicit parameter passing (`parameter`), completed call return (`call_result`), match convergence join (`match_join`), named const bound equality (`const_name`), state transition arrival (`other_state`), forwarding machine calls (`other_machine`), and target-scoped body candidates (`target_body`). No mutation, alias clobbering, or invalidating write intervenes between array creation and consumption.
+- **Composition:** The inferred array equation fact composes through all nine places into the consuming call and transition check (`observed == 2`). Calls substitute exact actuals, match joins retain the unified type on both incoming branches, and state transitions prove arrival obligations on incoming edges. Each `<place>/main.omg` vs. `<place>/invalid/main.omg` differs only in supplying an explicit conflicting const generic argument `3` (`capacity<[u8; 2], 3>(items)`), never in a caller guard.
+- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins (and root `invalid/main.omg`) fail closed with `where equation binds \`Capacity\` to 2 but its explicit argument is 3` when the caller supplies a mismatched array extent or conflicting generic argument. The checker strictly refuses incompatible equation bindings during type checking, preventing invalid programs from reaching Terminal Psi or native code emission.
+- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Inferred compile-time array length equations and proof-formal const parameters erase cleanly after verification, while monomorphized fixed-size array carriers and element operations lower without loss into canonical target-neutral Terminal Psi (`PSITERM\0`). The resulting programs execute identically in the Terminal Psi interpreter (`omega run --both`), observing `observed == 2`.
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Concrete layout geometry for `[u8; 2]` contiguous arrays (2 bytes, 1-byte alignment) and `Holder` records validates element stride and alignment. `CallPlan` and `StatePlan` place scalar `u64` return values in target ABI integer registers (`rax` on x86-64 / `x0` on ARM64) and pass array arguments according to target calling conventions.
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions for immediate moves, array loads/stores, and integer comparisons (`cmp`/`sete` on x86-64 / `cmp`/`cset` on ARM64). Backend assigns register homes and disjoint stack-frame activation storage for array locals, inserting entry prologues and multi-return epilogues.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and function call targets resolve, basic blocks and conditional branches relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across `windows_x86_64` and `macos_arm64`.
+
+## What remains open
+
+Open generic schemas, late receiver/extension selection, operator/conformance/evidence binders, non-array structural equations, and computed equation solving remain governed under the wider `STRUCTURAL-GENERIC-MATCHING` roadmap.
