@@ -321,8 +321,21 @@ pub(super) fn check_call_result_qualifications(
         })()
         .is_some();
         if !valid {
+            let location = match fact.point {
+                ProgramPoint::CallEnsures {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                    call_ordinal,
+                } => format!(
+                    " in `{}`, state `{}` (statement {statement_index}, call {call_ordinal})",
+                    crate::labels::symbol_name(program, machine_symbol),
+                    crate::labels::symbol_name(program, state_symbol),
+                ),
+                _ => String::new(),
+            };
             diagnostics.push(Diagnostic::error(format!(
-                "cannot establish call-result qualification `{}`: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved",
+                "cannot establish call-result qualification `{}`{location}: the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved",
                 domain.name,
             )));
         }
@@ -331,12 +344,12 @@ pub(super) fn check_call_result_qualifications(
 
 /// The out-parameter direction of the call-ensures join: a routed
 /// `DomainMembership` claim rooted at an exact argument place rather than the
-/// result expression. The claim joins when the callable declares
-/// `ensures <parameter> in <domain>` for the exact non-self parameter whose
-/// completed argument denotes this place and the claim is either owed by the
-/// callee's checked body or minted through an `established by` boundary
-/// requirement on an exact mutable parameter — immutable parameters stay
-/// caller premises, so no boundary route may establish into them.
+/// result expression. Checked bodies owe their exclusive referents' declared
+/// root and field memberships at every normal exit. Authored parameter
+/// guarantees also join here. Each promise must name the exact domain instance
+/// and project onto the completed argument's captured storage. A bodyless
+/// boundary still needs an authorized `established by` route; its declarations
+/// alone do not mint routed field membership.
 #[allow(clippy::too_many_arguments)]
 fn call_parameter_qualification_join(
     program: &dyn ::validation::CheckingInput,
@@ -401,23 +414,43 @@ fn call_parameter_qualification_join(
     {
         return None;
     }
+    let checked_body = validation::find_state(program, call_target)
+        .is_some_and(|(machine, _)| machine.body_is_present);
     let identities = crate::flow::call_parameter_qualification_identities(program, call_target);
     let position = parameters
         .iter()
         .enumerate()
         .find_map(|(position, parameter)| {
-            // Declared mutable domains are validity obligations, not new routed
-            // authority. Only an authored ensures can rejoin content provenance.
-            if !identities
+            // Both authored ensures and declared exclusive-referent fields are
+            // normal-return obligations of a checked body. The latter must be
+            // proved from live membership at every exit; they are propagation,
+            // not permission for a bodyless boundary to introduce authority.
+            let mut promised_paths = Vec::new();
+            if identities
                 .iter()
                 .any(|(declared, symbol, identity, from_declared_type)| {
-                    !*from_declared_type
+                    (checked_body || !*from_declared_type)
                         && *declared == position
                         && *symbol == domain_symbol
                         && *identity == semantic_domain
                 })
             {
-                return None;
+                promised_paths.push(Vec::new());
+            }
+            let referent = crate::checks::contracts::exclusive_referent_type(
+                program,
+                parameter.type_reference,
+            );
+            if checked_body && referent.is_valid() {
+                promised_paths.extend(
+                    validation::field_domains::declared_result_field_domain_paths(
+                        program, referent,
+                    )
+                    .into_iter()
+                    .filter_map(|(path, domain, identity)| {
+                        (domain == domain_symbol && identity == semantic_domain).then_some(path)
+                    }),
+                );
             }
             let argument = arguments.get(position)?;
             if crate::flow::operand_binds_live_view(program, parameter.type_reference) {
@@ -432,13 +465,24 @@ fn call_parameter_qualification_join(
                     .span(operand.referents)?
                     .iter()
                     .any(|referent| {
-                        referent.root == root
-                            && facts
-                                .flow
-                                .control
-                                .operand_referent_segments
-                                .span(referent.segments)
-                                .is_some_and(|segments| segments == path)
+                        let Some(segments) = facts
+                            .flow
+                            .control
+                            .operand_referent_segments
+                            .span(referent.segments)
+                        else {
+                            return false;
+                        };
+                        let storage = validation::CanonicalPlace {
+                            root: referent.root,
+                            segments: segments.to_vec(),
+                        };
+                        promised_paths.iter().any(|promised| {
+                            crate::flow::project_captured_view_place(storage.clone(), promised)
+                                .is_some_and(|subject| {
+                                    subject.root == root && subject.segments.as_slice() == path
+                                })
+                        })
                     })
                     .then_some(position);
             }
@@ -448,12 +492,18 @@ fn call_parameter_qualification_join(
                 statement_index,
                 *argument,
             )?;
-            (canonical.root == root && canonical.segments.as_slice() == path).then_some(position)
+            promised_paths
+                .iter()
+                .any(|promised| {
+                    crate::flow::project_captured_view_place(canonical.clone(), promised)
+                        .is_some_and(|subject| {
+                            subject.root == root && subject.segments.as_slice() == path
+                        })
+                })
+                .then_some(position)
         })?;
-    // Checked bodies owe their authored parameter claims at every exit.
-    if validation::find_state(program, call_target)
-        .is_some_and(|(machine, _)| machine.body_is_present)
-    {
+    // The same exit checker owes every selected normal-return promise.
+    if checked_body {
         return Some(());
     }
     let parameter = parameters.iter().nth(position)?;

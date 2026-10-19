@@ -20,7 +20,7 @@ use validation::{CallSite, find_call_site, find_state_in_machine};
 use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::mutation::{WritePlaceNamespace, instantiate_call_relative_places};
 
-use checked_trees::{BorrowCallFact, BorrowFacts};
+use checked_trees::BorrowCallFact;
 use facts::PlaceRoot;
 use symbols::SymbolHandle;
 
@@ -148,7 +148,6 @@ pub(super) fn target_run(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    borrow: &BorrowFacts,
     call: &BorrowCallFact,
 ) -> TargetRun {
     let Some(target) = find_state_in_machine(program, machine_symbol, call.target_symbol) else {
@@ -184,7 +183,6 @@ pub(super) fn target_run(
                     program,
                     machine_symbol,
                     state_symbol,
-                    borrow,
                     call,
                     &CanonicalPlace {
                         root: PlaceRoot::Symbol(parameter),

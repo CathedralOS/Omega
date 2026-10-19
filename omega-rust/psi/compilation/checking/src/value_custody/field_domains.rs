@@ -381,7 +381,14 @@ pub fn readable_nominal_definition(
     reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let reference = readable_type_reference(program, reference)?;
-    owned_nominal_data_definition(program, reference)
+    // Declaration obligations use the exact prepared field substitution even
+    // while a generic body is still universally checked. Requiring a closed
+    // runtime layout here loses the entry promises of Storage<P>; reopening
+    // its template instead would confuse that P with the caller's binder.
+    program
+        .data_application_definition(reference)
+        .or_else(|| program.closed_data_definition(reference))
+        .or_else(|| owned_nominal_data_definition(program, reference))
 }
 
 /// The non-generic nominal data definition an OWNED value of `type_reference`

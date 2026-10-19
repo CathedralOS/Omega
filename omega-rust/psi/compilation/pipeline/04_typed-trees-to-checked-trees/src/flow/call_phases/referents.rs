@@ -63,15 +63,15 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 if !referent.is_valid() {
                     return None;
                 }
-                let paths = validation::field_domains::declared_result_field_domain_paths(
+                let mut paths = validation::field_domains::declared_result_field_domain_paths(
                     program, referent,
                 );
-                let mut paths = paths
-                    .into_iter()
-                    .filter(|(_, domain_symbol, _)| {
-                        crate::checks::contracts::value_provable_domain(program, *domain_symbol)
-                    })
-                    .collect::<Vec<_>>();
+                // Normal-return checking proves these exact field obligations
+                // from live evidence, including routed memberships. A checked
+                // replacement may carry a different owned value; the caller
+                // receives its restored field promise, not a resurrection of
+                // the value removed on entry. Captured referents below bind
+                // that promise to the actual storage passed to this call.
                 // Root and field handback share the same normal-return
                 // obligation. The declaration is a callee obligation, not
                 // permission to repair an unrelated caller occurrence.
@@ -92,6 +92,15 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             .clone()
             .unwrap_or_default();
         let mut paths = paths.as_ref().clone();
+        // A bodyless boundary still needs its admitted authored guarantee for
+        // routed output authority. A field declaration alone cannot grant it.
+        if !validation::find_state(program, borrow_call.target_symbol)
+            .is_some_and(|(machine, _)| machine.body_is_present)
+        {
+            paths.retain(|(_, domain, _)| {
+                crate::checks::contracts::value_provable_domain(program, *domain)
+            });
+        }
         if argument_sources
             .is_some_and(|sources| sources.observation_survives(argument_position, &[]))
         {

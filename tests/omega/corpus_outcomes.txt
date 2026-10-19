@@ -3213,6 +3213,25 @@ fail/memory/bump_allocator_live_allocation_dropped rejected 1647ms expected @a9a
 fail/memory/bump_allocator_place_into_occupied rejected 811ms expected @a9ae30e1c334+wt
 fail/memory/bump_allocator_release_with_live_resident rejected 942ms expected @a9ae30e1c334+wt
 fail/memory/bump_allocator_restated_resident_index_mismatch rejected 1316ms expected @a9ae30e1c334+wt
+fail/memory/indexed_resident_bodyless_handback rejected 1707ms expected @226fbdd49549+wt
+	cannot prove requires contract for call read from exercise: storage.resident in Resident<type:named(name(First))> (invalidated by prior mutation of storage; storage.resident is part of Resident) in state `entry`
+	cannot prove default-domain field requirement for return from exercise at statement 2: storage.resident requires Resident
+fail/memory/indexed_resident_corrupt_handback rejected 1677ms expected @226fbdd49549+wt
+	cannot prove default-domain field requirement for return from corrupt at statement 1: storage.resident requires Resident
+	construction value is not proven in domain `Resident` in corrupt state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/memory/indexed_resident_double_extraction rejected 794ms expected @226fbdd49549+wt
+	cannot use `storage.resident` while `storage.resident` is absent from borrowed storage: the value moved out at statement 0 must be restored first
+	cannot transfer `storage.resident` out of borrowed storage while `storage.resident` is absent: the value moved at statement 0 has not been replaced
+fail/memory/indexed_resident_mutation_after_handback rejected 1755ms expected @226fbdd49549+wt
+	cannot prove requires contract for call read from exercise: storage.resident in Resident<type:named(name(First))> (invalidated by prior mutation of storage.resident.value; storage.resident is part of Resident) in state `entry`
+fail/memory/indexed_resident_other_writer rejected 1753ms expected @226fbdd49549+wt
+	cannot prove requires contract for call read from exercise: third.resident in Resident<type:named(name(First))> (invalidated by prior mutation of third.resident.value; third.resident is part of Resident) in state `entry`
+fail/memory/indexed_resident_unissued_replacement rejected 754ms expected @226fbdd49549+wt
+	cannot restore `storage.resident` from this value: the place must regain a value of the exact type statement 0 moved out of borrowed storage
+fail/memory/indexed_resident_unrestored_extraction rejected 797ms expected @226fbdd49549+wt
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `replace`, state `entry` (statement 0): `storage.resident` must hold a value again before this state's exits consume the borrow
+fail/memory/indexed_resident_wrong_replacement rejected 770ms expected @226fbdd49549+wt
+	cannot restore `storage.resident` from this value: the place must regain a value of the exact type statement 0 moved out of borrowed storage
 fail/memory/native_allocation_direct_issuance_rejected rejected 339ms expected @d7fd01f47497+wt
 fail/memory/native_allocation_double_release_rejected rejected 496ms expected @d7fd01f47497+wt
 fail/memory/native_allocation_unissued_release_rejected rejected 1267ms expected @d7fd01f47497+wt
@@ -7291,11 +7310,13 @@ pass/math/extent_no_wrap_requires_denotation checked 1688ms @a9ae30e1c334+wt
 pass/memory/address_translation_canary checked 2016ms @a9ae30e1c334+wt
 pass/memory/bump_allocator_canary checked 11661ms check-target:linux_x86_64 @83314997c2b2
 pass/memory/interrupt_table_canary checked 13186ms @eac8a2f4b8cc+wt
+pass/memory/runtime_indexed_resident_exchange_exit checked 9214ms check-target:macos_arm64 @226fbdd49549+wt
 pass/memory/runtime_large_entry_record_field_exit checked 12386ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/memory/runtime_large_frame_console_byte_homes_exit checked 11752ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/memory/runtime_large_local_record_exit checked 11731ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/memory/runtime_linear_native_allocation_call_result_exit checked 8179ms check-target:linux_x86_64 @d7fd01f47497+wt
 pass/memory/runtime_linear_native_allocation_exit checked 8274ms check-target:linux_x86_64 @d7fd01f47497+wt
+pass/memory/runtime_selected_resident_exchange_exit checked 9239ms check-target:macos_arm64 @226fbdd49549+wt
 pass/memory/secondary_processor_canary checked 11102ms check-target:macos_arm64 @735568789750+wt
 pass/memory/weak_vacant_qualifier_satisfied checked 1690ms @a9ae30e1c334+wt
 pass/modules/aggregate_machine_indices checked 1624ms @a9ae30e1c334+wt

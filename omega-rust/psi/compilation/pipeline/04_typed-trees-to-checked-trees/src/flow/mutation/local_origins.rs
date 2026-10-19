@@ -24,7 +24,9 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 mod coordinates;
-pub(crate) use coordinates::{OriginPrecision, origin_place, sole_local_referent_origin};
+pub(crate) use coordinates::{
+    OriginPrecision, origin_place, sole_local_referent_origin, structural_origin,
+};
 
 pub(crate) fn close_storage_places_over_aliases(
     program: &dyn ::validation::CheckingInput,

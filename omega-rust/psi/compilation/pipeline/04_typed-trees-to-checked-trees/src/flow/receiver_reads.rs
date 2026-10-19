@@ -121,7 +121,6 @@ pub(crate) fn call_receiver_read_accesses(
         program,
         caller_machine_symbol,
         caller_state_symbol,
-        borrow,
         borrow_call,
     );
     let reads = run.accesses(program, &footprint.reads, &footprint.held_reads, loan);
@@ -131,7 +130,6 @@ pub(crate) fn call_receiver_read_accesses(
             program,
             caller_machine_symbol,
             caller_state_symbol,
-            borrow,
             borrow_call,
             read,
             WritePlaceNamespace::AccessRoute,
@@ -233,7 +231,7 @@ fn build_state_receiver_reads(
                     call,
                     receiver,
                     target: None,
-                    run: target_run(program, machine.symbol, state.symbol, borrow, call),
+                    run: target_run(program, machine.symbol, state.symbol, call),
                 });
             }
         }
@@ -268,7 +266,7 @@ fn build_state_receiver_reads(
                 });
         }
     }
-    settle_receiver_call_reads(program, borrow, &owners, &receiver_calls, &mut footprints);
+    settle_receiver_call_reads(program, &owners, &receiver_calls, &mut footprints);
     footprints
 }
 
@@ -277,7 +275,6 @@ fn build_state_receiver_reads(
 /// change the settled sets.
 fn settle_receiver_call_reads(
     program: &dyn ::validation::CheckingInput,
-    borrow: &BorrowFacts,
     owners: &[FootprintOwner<'_>],
     receiver_calls: &[Vec<ReceiverCall<'_>>],
     footprints: &mut [StateReceiverReads],
@@ -297,7 +294,6 @@ fn settle_receiver_call_reads(
                     .filter(|target| target.complete);
                 let whole = owner.instantiate(
                     program,
-                    borrow,
                     receiver_call,
                     target.map(|target| target.reads.as_slice()),
                 );
@@ -317,7 +313,6 @@ fn settle_receiver_call_reads(
                     });
                     additions.extend(owner.instantiate(
                         program,
-                        borrow,
                         receiver_call,
                         selected.as_deref(),
                     ));
@@ -356,7 +351,6 @@ impl FootprintOwner<'_> {
     fn instantiate(
         &self,
         program: &dyn ::validation::CheckingInput,
-        borrow: &BorrowFacts,
         receiver_call: &ReceiverCall<'_>,
         target_reads: Option<&[CanonicalPlace]>,
     ) -> Vec<CanonicalPlace> {
@@ -367,7 +361,6 @@ impl FootprintOwner<'_> {
                     program,
                     self.machine_symbol,
                     self.state.symbol,
-                    borrow,
                     receiver_call.call,
                     read,
                     WritePlaceNamespace::AccessRoute,

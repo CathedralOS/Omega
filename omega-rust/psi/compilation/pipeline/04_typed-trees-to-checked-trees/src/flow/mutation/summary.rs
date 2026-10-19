@@ -86,7 +86,6 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
         program,
         caller_machine_symbol,
         caller_state_symbol,
-        borrow,
         borrow_call,
     );
     let summary_places = run.accesses(program, &summary.writes, &summary.held_writes, loan);
@@ -101,7 +100,6 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
             program,
             caller_machine_symbol,
             caller_state_symbol,
-            borrow,
             borrow_call,
             &write.place,
             namespace,
@@ -141,7 +139,6 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
         program,
         caller_machine_symbol,
         caller_state_symbol,
-        borrow,
         borrow_call,
     );
     let summary_places = run.accesses(program, &summary.writes, &summary.held_writes, Some(loan));
@@ -162,7 +159,6 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
             program,
             caller_machine_symbol,
             caller_state_symbol,
-            borrow,
             borrow_call,
             summary_place,
             WritePlaceNamespace::AccessRoute,
@@ -263,7 +259,7 @@ fn propagate_state_mutation_summaries(
                 .iter()
                 .map(|call| {
                     let run = owner.map_or(TargetRun::Whole, |(_, machine_symbol)| {
-                        target_run(program, machine_symbol, state.state_symbol, borrow, call)
+                        target_run(program, machine_symbol, state.state_symbol, call)
                     });
                     // A declaration can own a state identity without owning a body.
                     // Its admitted frame belongs to the shared resolver, not
@@ -370,7 +366,6 @@ fn propagate_state_mutation_summaries(
                         program,
                         caller_machine,
                         caller_symbol,
-                        borrow,
                         call,
                         writes,
                         call_frames,
@@ -441,7 +436,6 @@ fn instantiate_target_writes(
     program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
-    borrow: &BorrowFacts,
     call: &BorrowCallFact,
     writes: &[MutationWrite],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -452,7 +446,6 @@ fn instantiate_target_writes(
             program,
             caller_machine_symbol,
             caller_state_symbol,
-            borrow,
             call,
             &write.place,
             WritePlaceNamespace::Storage,
@@ -610,7 +603,6 @@ pub(in crate::flow) fn instantiate_call_relative_places(
     program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
-    borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     relative_place: &CanonicalPlace,
     namespace: WritePlaceNamespace,
@@ -620,7 +612,6 @@ pub(in crate::flow) fn instantiate_call_relative_places(
         program,
         caller_machine_symbol,
         caller_state_symbol,
-        borrow,
         borrow_call,
         relative_place,
         namespace,
@@ -633,7 +624,6 @@ fn instantiate_call_relative_writes(
     program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
-    borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     relative_place: &CanonicalPlace,
     namespace: WritePlaceNamespace,
@@ -722,18 +712,22 @@ fn instantiate_call_relative_writes(
         return match namespace {
             WritePlaceNamespace::AccessRoute => Some(attributed(vec![instantiated])),
             WritePlaceNamespace::Storage if !storage_place_has_declared_identity(&instantiated) => {
-                // Expression identity describes evaluation, not storage. The
-                // shared complete frame owns origins of literal/computed
-                // actuals, including their reference-bearing leaves.
-                super::shared_call_storage_places(
+                // Expression identity describes evaluation, not storage. Bind
+                // this formal's write to its own captured actual origins; a
+                // whole-call footprint loses which formal wrote each place.
+                // Unknown origins still make the summary unavailable, so the
+                // caller retains its conservative unattributed frame.
+                captured_argument_write_places(
                     program,
                     caller_machine_symbol,
                     caller_state_symbol,
-                    borrow,
-                    borrow_call,
+                    borrow_call.statement_index,
+                    &call_site,
+                    argument_index.checked_sub(1)?,
+                    &relative_place.segments,
                     call_frames,
                 )
-                .map(super::unattributed_writes)
+                .map(attributed)
             }
             WritePlaceNamespace::Storage => rebase_local_write_places(
                 program,
@@ -747,6 +741,61 @@ fn instantiate_call_relative_writes(
     }
 
     None
+}
+
+fn captured_argument_write_places(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    site: &validation::CallSite<'_>,
+    position: usize,
+    relative: &[facts::PlaceSegment],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CanonicalPlace>> {
+    let machine = program.machine_by_symbol(machine_symbol)?;
+    let state = program.state_by_symbol(state_symbol)?;
+    let resolver = call_frames?;
+    let origins = match site {
+        validation::CallSite::Statement(call) => resolver.call_write_origins(machine, call),
+        validation::CallSite::Expression { expression, .. } => {
+            resolver.expression_call_write_origins(machine, *expression)
+        }
+        validation::CallSite::TransitionNamed { .. } => return None,
+    }?;
+    let mut places = Vec::new();
+    for source in origins.arguments.get(position)?.as_ref()? {
+        // A recast's logical selectors are not the raw backing's selectors.
+        // The coarse frame remains responsible when exact projection is absent.
+        if !source.root.is_valid() || !source.recasts.is_empty() || source.representation.is_some()
+        {
+            return None;
+        }
+        // Normalize captured windows and unknown indexes before appending
+        // callee selectors. An enclosing footprint has lost the dimension
+        // needed for descendant projection and cannot carry this attribution.
+        let (place, precision) =
+            super::local_origins::structural_origin(program, state, statement_index, source)?;
+        if precision == super::local_origins::OriginPrecision::Enclosing {
+            return None;
+        }
+        let projected = crate::flow::project_captured_view_place(place, relative)?;
+        if !storage_place_has_declared_identity(&projected) {
+            return None;
+        }
+        for place in rebase_local_write_places(
+            program,
+            state_symbol,
+            statement_index,
+            projected,
+            call_frames,
+        )? {
+            if !places.contains(&place) {
+                places.push(place);
+            }
+        }
+    }
+    Some(places)
 }
 
 fn storage_place_has_declared_identity(place: &CanonicalPlace) -> bool {

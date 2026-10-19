@@ -45,7 +45,7 @@ pub(crate) fn origin_place(
     })
 }
 
-fn structural_origin(
+pub(crate) fn structural_origin(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,
