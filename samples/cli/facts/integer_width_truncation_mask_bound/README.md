@@ -9,6 +9,34 @@ This fact row demonstrates that masking an unsigned 64-bit integer to its low by
 
 Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
 
+## Pinned fixtures
+
+The nine positive places and nine reject twins are pinned as
+`tests/omega/pass/facts/integer_width_truncation_mask_bound_through_<place>_exit`
+and `tests/omega/fail/facts/integer_width_truncation_mask_bound_through_<place>_rejected`.
+Each twin authors `expected.txt` carrying the fragment ``may overflow `u64` ``.
+`tests/omega/corpus_native_macos_arm64.txt` records nine real
+`built ... exit:0` rows, one per place.
+
+### The oracle discriminates
+
+`0` is strictly discriminative in both directions, and the two directions
+differ in kind:
+
+- **Runtime trap.** Holding the mask at `255u64` (so the bound and its proof
+  still hold) and changing only the input (`466u64` to `467u64`) makes the
+  observed `diff` 44 rather than 45. Both engines abort: `native signal 5` and
+  `interp crash: Trap`, and the two agree.
+- **Static refusal.** Using the masked value where `256u64 <= masked` is
+  required refuses at compile time: `cannot prove requires contract for call
+  needs_wide from exercise: 256 <= masked`. The bound the mask establishes is
+  therefore load-bearing, not decorative.
+- **Static refusal on a widened mask or range-admitting contract.** Widening the
+  mask to `256u64`/`511u64`, or admitting a `requires`/`ensures` range up to
+  `511u64`, defeats the certificate and refuses with
+  `exact arithmetic in machine ... may overflow \`u64\``. All nine reject twins
+  use this class.
+
 ## Places
 
 | Place | Project | Transport | Positive Witness | Reject Twin |
