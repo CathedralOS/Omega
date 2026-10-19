@@ -287,7 +287,8 @@ pub enum ScalarTerm {
         path: Vec<CanonicalStructuralPathSegment>,
         scalar_type: IntegerType,
     },
-    /// Exact IEEE interchange bits at a nonempty canonical structural path.
+    /// Exact IEEE interchange bits at a canonical structural path. An empty
+    /// path observes a whole primitive root, not an untyped storage address.
     /// The verifier independently checks the relevant leaf and its format.
     /// This observation is not FloatMeaning or an IEEE comparison: payload
     /// identity preserves NaN payloads and distinguishes signed zeros.

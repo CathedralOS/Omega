@@ -270,10 +270,20 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                 &owner,
                 diagnostics,
             );
-            crate::proof_contracts::contract_entailment::validate_proof_fact_integer_casts(
+            crate::proof_contracts::contract_entailment::validate_proof_fact_integer_formation(
                 program,
+                machine.symbol,
                 fact,
                 &machine_prior_facts,
+                &owner,
+                &|candidate| {
+                    crate::proof_contracts::bound_expression_meaning::builtin_arithmetic(
+                        program,
+                        machine,
+                        entry_state,
+                        candidate,
+                    )
+                },
                 diagnostics,
             );
             if let Some(expression) = fact.as_expression() {
@@ -319,10 +329,20 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                 crate::proof_contracts::contract_entailment::validate_specification_call_requirements(
                     program, machine, Some(state), fact, &state_prior_facts, &owner, diagnostics,
                 );
-                crate::proof_contracts::contract_entailment::validate_proof_fact_integer_casts(
+                crate::proof_contracts::contract_entailment::validate_proof_fact_integer_formation(
                     program,
+                    state.symbol,
                     fact,
                     &state_prior_facts,
+                    &owner,
+                    &|candidate| {
+                        crate::proof_contracts::bound_expression_meaning::builtin_arithmetic(
+                            program,
+                            machine,
+                            Some(state),
+                            candidate,
+                        )
+                    },
                     diagnostics,
                 );
                 if let Some(expression) = fact.as_expression() {
@@ -874,10 +894,15 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
             crate::proof_contracts::contract_entailment::specification_calls::validate_declaration_call_requirements(
                 program, bindings.owner_symbol, &parameters, fact, prior_facts, owner, diagnostics,
             );
-            crate::proof_contracts::contract_entailment::validate_proof_fact_integer_casts(
+            crate::proof_contracts::contract_entailment::validate_proof_fact_integer_formation(
                 program,
+                bindings.owner_symbol,
                 fact,
                 prior_facts,
+                owner,
+                &|candidate| {
+                    abstract_specification_builtin_arithmetic(program, bindings, candidate)
+                },
                 diagnostics,
             );
             let Some(expression) = fact.as_expression() else {

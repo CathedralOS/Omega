@@ -6,7 +6,7 @@
 //! This index supplies obligations only. The child's live completion facts and
 //! authorized provenance must separately establish every membership.
 
-use super::member_domains::initializer_satisfies_indexed_domain;
+use super::member_domains::captured_value_satisfies_indexed_domain;
 use super::{
     CheckFacts, Diagnostic, ExpressionHandle, FlowStateFact, SymbolHandle, record_qualification,
     value_proves_qualification_in_contexts, value_satisfies_domain_predicates_in_contexts,
@@ -170,14 +170,11 @@ pub(super) fn check_constructor_membership(
                     &mut Vec::new(),
                     capture,
                     frames,
-                ) || initializer_satisfies_indexed_domain(
-                    program,
-                    facts,
-                    state,
-                    statement_index,
-                    value,
-                    constraint,
-                )))
+                ) || capture.is_some_and(|capture| {
+                    captured_value_satisfies_indexed_domain(
+                        program, facts, state, capture, constraint, frames,
+                    )
+                })))
     };
     let captures = constructor_memberships.at(state.state_symbol, statement_index, value);
     let proven = if captures.is_empty() {

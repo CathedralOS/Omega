@@ -206,14 +206,23 @@ pub(super) fn check_domain_field_writes(
                         domain_symbol,
                         &mut Vec::new(),
                         frames,
-                    ) || member_domains::initializer_satisfies_indexed_domain(
-                        program,
-                        facts,
-                        state_flow,
-                        statement_index,
-                        local.initial_value,
-                        constraint,
-                    )))
+                    ) || facts
+                        .flow
+                        .state_statement(state_flow, statement_index)
+                        .filter(|statement| {
+                            facts.flow.control.operands.is_valid(statement.stored_value)
+                        })
+                        .map(|statement| facts.flow.control.operands.get(statement.stored_value))
+                        .filter(|capture| {
+                            capture.expression == local.initial_value
+                                && capture.statement_index == statement_index
+                                && capture.state_symbol == state_flow.state_symbol
+                        })
+                        .is_some_and(|capture| {
+                            member_domains::captured_value_satisfies_indexed_domain(
+                                program, facts, state_flow, capture, constraint, frames,
+                            )
+                        })))
                 {
                     diagnostics.push(Diagnostic::error(format!(
                         "cannot prove initializer of `{}` in {} is in domain `{}`; an annotation cannot establish routed qualification",

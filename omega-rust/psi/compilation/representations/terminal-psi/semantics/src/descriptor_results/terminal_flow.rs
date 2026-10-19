@@ -103,12 +103,17 @@ pub(super) fn adapt(
         );
         for (index, operation) in block.operations.iter().enumerate() {
             let position = (block.id, u32::try_from(index).ok()?);
-            if let Some(guarantees) =
-                super::scalar_contracts::terminal_guarantees(module, machine, operation)
+            if let Some(postconditions) =
+                super::scalar_contracts::terminal_postconditions(module, machine, operation)
             {
                 graph
                     .payload_scalar_postconditions
-                    .insert(position, guarantees);
+                    .insert(position, postconditions.scalar);
+                graph
+                    .scalar_payload_writes
+                    .entry(position)
+                    .or_default()
+                    .extend(postconditions.stored);
             }
             if let Some(result) = operation.result.scalar_ref() {
                 graph
@@ -681,6 +686,19 @@ pub(super) fn adapt(
                         step.may_escape = true;
                     }
                     step.inputs = vec![DescriptorLocation::whole(*source)];
+                }
+                OperationKind::EstablishPrimitiveLocal { value, .. } => {
+                    // A new home captures its actual initializer, not a
+                    // receiving qualification or an equation for future reads.
+                    if let Some(value) =
+                        super::payload_predicates::terminal_scalar_expression(machine, *value)
+                    {
+                        graph
+                            .scalar_payload_writes
+                            .entry(position)
+                            .or_default()
+                            .push((location(result?.place, &[], None)?, value));
+                    }
                 }
                 OperationKind::EstablishScalarArray { elements } => {
                     let result = result?;

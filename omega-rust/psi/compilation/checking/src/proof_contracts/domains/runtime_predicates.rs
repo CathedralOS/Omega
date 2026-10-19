@@ -9,16 +9,47 @@ use checked_trees::{
 };
 use typed_trees::domain::{DomainDefinition, ProofFact, ProofMembershipFact};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
-use typed_trees::types::PrimitiveType;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// The exact declared carrier of a membership whose complete meaning fits this
-/// predicate package. Indexed and routed theory needs its separate evidence
-/// transport; declining it here must never drop only the unsupported rows.
+/// predicate package. Closed indices retain their exact application. Routed
+/// theory needs separate evidence; declining never drops unsupported rows.
 pub fn scalar_membership_carrier(
     program: &dyn crate::CheckingInput,
     membership: &ProofMembershipFact,
 ) -> Option<PrimitiveType> {
-    let domain = typed_trees::domain::domain_by_symbol(program, membership.domain_symbol)?;
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(membership.domain_arguments);
+    if arguments.len() != membership.domain_arguments.len() {
+        return None;
+    }
+    Some(
+        scalar_application(
+            program,
+            membership.domain_symbol,
+            membership.semantic_domain,
+            arguments,
+        )?
+        .primitive,
+    )
+}
+
+struct ScalarApplication<'program> {
+    declaration: &'program DomainDefinition,
+    primitive: PrimitiveType,
+    indices: Vec<(symbols::SymbolHandle, numerics::bignum::BigInt)>,
+}
+
+/// Select the exact application once before projecting any of its predicates.
+/// Closed index values keep their declaration identities and primitive bounds.
+fn scalar_application<'program>(
+    program: &'program dyn crate::CheckingInput,
+    symbol: symbols::SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+    arguments: &[TypeReferenceHandle],
+) -> Option<ScalarApplication<'program>> {
+    let domain = typed_trees::domain::domain_by_symbol(program, symbol)?;
     if program
         .domain_definitions()
         .iter()
@@ -27,16 +58,25 @@ pub fn scalar_membership_carrier(
         != 1
         || !domain.symbol.is_valid()
         || program.symbols.get(domain.symbol).kind != symbols::SymbolKind::Domain
-        || !membership.domain_arguments.is_empty()
-        || !typed_trees::domain::index_parameters(program, domain).is_empty()
-        || !domain.index_arguments.is_empty()
         || domain.alias.is_some()
-        || !domain.establishment_routes.is_empty()
-        || !super::scalar_tags::exact_instance(program, domain, &[], membership.semantic_domain)
+        || crate::field_domains::domain_requires_provenance(program, domain.symbol)
+        || !super::scalar_tags::exact_instance(program, domain, arguments, semantic_domain)
     {
         return None;
     }
-    crate::value_custody::recasts::exact_primitive_type(program, domain.target_type)
+    let indices = if arguments.is_empty() {
+        Vec::new()
+    } else {
+        super::closed_integer_index_bindings(program, domain, arguments, semantic_domain)?
+    };
+    Some(ScalarApplication {
+        declaration: domain,
+        primitive: crate::value_custody::recasts::exact_primitive_type(
+            program,
+            domain.target_type,
+        )?,
+        indices,
+    })
 }
 
 /// Project every authored predicate, in declaration order, under one already
@@ -47,27 +87,42 @@ pub fn scalar_membership_predicates(
     membership: &ProofMembershipFact,
     subject: &Scalar,
 ) -> Option<Vec<Boolean>> {
-    let mut active = Vec::new();
-    project(program, membership, subject, &mut active)
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(membership.domain_arguments);
+    if arguments.len() != membership.domain_arguments.len() {
+        return None;
+    }
+    project(
+        program,
+        membership.domain_symbol,
+        membership.semantic_domain,
+        arguments,
+        subject,
+        &mut Vec::new(),
+    )
 }
 
 fn project(
     program: &dyn crate::CheckingInput,
-    membership: &ProofMembershipFact,
+    symbol: symbols::SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+    arguments: &[TypeReferenceHandle],
     subject: &Scalar,
     active: &mut Vec<symbols::SymbolHandle>,
 ) -> Option<Vec<Boolean>> {
-    let primitive = scalar_membership_carrier(program, membership)?;
-    if subject.primitive_type() != Some(primitive) || active.contains(&membership.domain_symbol) {
+    let application = scalar_application(program, symbol, semantic_domain, arguments)?;
+    if subject.primitive_type() != Some(application.primitive) || active.contains(&symbol) {
         return None;
     }
-    active.push(membership.domain_symbol);
-    let domain = typed_trees::domain::domain_by_symbol(program, membership.domain_symbol)?;
+    active.push(symbol);
+    let domain = application.declaration;
     let spelling = Predicate {
         program,
         domain,
         subject,
-        primitive,
+        primitive: application.primitive,
+        indices: application.indices,
     };
     let mut predicates = Vec::new();
     for fact in program.proof_facts.span(domain.facts)? {
@@ -77,7 +132,20 @@ fn project(
                 if crate::exact_domain_subject_type(program, domain, nested.value).is_none() {
                     return None;
                 }
-                predicates.extend(project(program, nested, subject, active)?);
+                let arguments = program
+                    .type_reference_table
+                    .type_reference_handles(nested.domain_arguments);
+                if arguments.len() != nested.domain_arguments.len() {
+                    return None;
+                }
+                predicates.extend(project(
+                    program,
+                    nested.domain_symbol,
+                    nested.semantic_domain,
+                    arguments,
+                    subject,
+                    active,
+                )?);
             }
             ProofFact::Proposition(_) => return None,
         }
@@ -91,6 +159,7 @@ struct Predicate<'program> {
     domain: &'program DomainDefinition,
     subject: &'program Scalar,
     primitive: PrimitiveType,
+    indices: Vec<(symbols::SymbolHandle, numerics::bignum::BigInt)>,
 }
 
 impl Predicate<'_> {
@@ -334,6 +403,26 @@ impl Predicate<'_> {
         if crate::exact_domain_subject_type(self.program, self.domain, expression).is_some() {
             return Some(self.subject.clone());
         }
+        if let Some(symbol) = crate::single_segment_name_symbol(self.program, expression)
+            && let Some((_, value)) = self.indices.iter().find(|(index, _)| *index == symbol)
+        {
+            // Static values come from the exact canonical application, not a
+            // same-spelled runtime name or the receiving field's restriction.
+            // Keep the index's own carrier; this projector cannot relabel an
+            // incompatible landed value as the subject's primitive.
+            let reference =
+                crate::value_custody::expression_types::domain_expression_result_type_reference(
+                    self.program,
+                    self.domain,
+                    expression,
+                )?;
+            if self.program.primitive_type_reference(reference) != Some(self.primitive) {
+                return None;
+            }
+            return Some(Scalar::IntegerLiteral {
+                literal: crate::land_integer_value(value, self.primitive)?,
+            });
+        }
         if let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
         {
             // These operators have no authored overload and are total at the
@@ -446,20 +535,18 @@ pub fn scalar_domain_predicate(
         return Some(Boolean::Constant(true));
     }
     if constraint.subject != typed_trees::types::DomainConstraintSubject::Declared
-        || !constraint.arguments.is_empty()
         || !constraint.establishment_routes.is_empty()
     {
         return None;
     }
-    let membership = ProofMembershipFact {
-        domain_symbol: constraint.symbol,
-        semantic_domain: constraint.semantic_id,
-        ..ProofMembershipFact::default()
-    };
-    if scalar_membership_carrier(program, &membership)? != primitive {
-        return None;
-    }
-    let predicates = project(program, &membership, &subject, &mut Vec::new())?;
+    let predicates = project(
+        program,
+        constraint.symbol,
+        constraint.semantic_id,
+        &constraint.arguments,
+        &subject,
+        &mut Vec::new(),
+    )?;
     Some(
         predicates
             .into_iter()

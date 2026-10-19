@@ -40,12 +40,15 @@ pub use call_result_measures::normal_return_length_collection;
 mod cast_ranges;
 mod dispatch_environments;
 pub(crate) use dispatch_environments::dispatch_arm_environments;
+pub(in crate::proof_contracts) use dispatch_environments::{
+    DispatchSelection, dispatch_arm_contexts,
+};
 mod cited_element_bounds;
 mod copied_values;
 pub(crate) use copied_values::CopiedIntegerValue;
 mod dependent_products;
 mod dependent_relations;
-mod division_definedness;
+pub(super) mod division_definedness;
 mod domain_exclusions;
 pub(crate) mod domain_intervals;
 mod expression_analysis;

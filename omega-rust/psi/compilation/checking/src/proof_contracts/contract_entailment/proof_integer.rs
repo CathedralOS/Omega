@@ -1,8 +1,9 @@
-//! Mathematical integer recognition and ordered Exact proof coercion.
+//! Mathematical integer recognition and ordered proof-term formation.
 
 use super::{
     BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode, ProofFact,
 };
+use crate::proof_contracts::arithmetic_domains::{DispatchSelection, dispatch_arm_contexts};
 fn proof_builtin_type(
     program: &dyn crate::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
@@ -149,98 +150,231 @@ pub(crate) fn proof_nat_cast(
 /// unknown is not proof, and callers supply only facts preceding this term.
 pub(crate) fn proof_integer_nonnegative(
     program: &dyn crate::CheckingInput,
+    owner_symbol: symbols::SymbolHandle,
     expression: ExpressionHandle,
     hypotheses: &[ExpressionHandle],
+    selections: &[DispatchSelection],
 ) -> bool {
     if !proof_integer_expression(program, expression) {
         return false;
     }
-    let mut engine = Engine::for_proof_integer_formation(program);
+    let mut engine =
+        Engine::for_proof_integer_formation(program, owner_symbol, hypotheses, selections);
     let Some(polynomial) = engine.normalize(expression) else {
         return false;
     };
-    let mut comparisons = Vec::new();
-    engine.collect_comparisons(hypotheses, &mut comparisons);
-    engine.install_hypotheses(comparisons);
     let polynomial = engine.substituted(&polynomial);
     engine.requires_unsatisfiable || engine.prove_at_least(&polynomial, &BigInt::zero())
 }
 
-pub(crate) fn validate_proof_integer_casts(
+/// Nonzero is a formation premise, not a theorem the containing term may
+/// establish for itself. Only independently admitted preceding facts enter.
+pub(crate) fn proof_integer_nonzero(
     program: &dyn crate::CheckingInput,
+    owner_symbol: symbols::SymbolHandle,
     expression: ExpressionHandle,
     hypotheses: &[ExpressionHandle],
+    selections: &[DispatchSelection],
+) -> bool {
+    let mut engine =
+        Engine::for_proof_integer_formation(program, owner_symbol, hypotheses, selections);
+    let Some(polynomial) = engine.normalize(expression) else {
+        return false;
+    };
+    let polynomial = engine.substituted(&polynomial);
+    engine.requires_unsatisfiable || engine.proves_nonzero(&polynomial)
+}
+
+fn validate_proof_integer_formation(
+    program: &dyn crate::CheckingInput,
+    owner_symbol: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    hypotheses: &[ExpressionHandle],
+    selections: &[DispatchSelection],
+    owner: &str,
+    builtin_arithmetic: &impl Fn(ExpressionHandle) -> bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
         return;
     }
-    let mut children = Vec::new();
+    if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+        let diagnostics_before = diagnostics.len();
+        validate_proof_integer_formation(
+            program,
+            owner_symbol,
+            dispatch.subject,
+            hypotheses,
+            selections,
+            owner,
+            builtin_arithmetic,
+            diagnostics,
+        );
+        let subject_formed = diagnostics.len() == diagnostics_before;
+        // A proof position does not itself establish an empty write frame.
+        // Consume the same selected callees' complete frames, including for
+        // abstract owners which have no executable caller to fabricate.
+        let meaning =
+            Engine::for_proof_integer_formation(program, owner_symbol, hypotheses, selections);
+        let stable = subject_formed
+            && crate::CallFrameResolver::new(program).is_some_and(|frames| {
+                frames.declaration_expression_has_empty_write_frame(expression, &|expression| {
+                    program
+                        .expression_table
+                        .binary_node(expression)
+                        .is_some_and(|binary| meaning.selected_binary_meaning(expression, binary))
+                })
+            });
+        let initial = if stable {
+            selections.to_vec()
+        } else {
+            Vec::new()
+        };
+        let contexts = dispatch_arm_contexts(
+            program,
+            expression,
+            dispatch,
+            &initial,
+            |context, pattern| {
+                let diagnostics_before = diagnostics.len();
+                validate_proof_integer_formation(
+                    program,
+                    owner_symbol,
+                    pattern,
+                    hypotheses,
+                    context,
+                    owner,
+                    builtin_arithmetic,
+                    diagnostics,
+                );
+                subject_formed && diagnostics.len() == diagnostics_before
+            },
+            |context, selection| {
+                if stable {
+                    context.push(selection);
+                }
+            },
+        );
+        for (arm, context) in program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .zip(&contexts)
+        {
+            validate_proof_integer_formation(
+                program,
+                owner_symbol,
+                arm.value,
+                hypotheses,
+                context,
+                owner,
+                builtin_arithmetic,
+                diagnostics,
+            );
+        }
+        return;
+    }
+    // Formation is child-first even when a parent is reflexive or its proof
+    // does not normalize the child (notably integer quotient and remainder).
+    crate::expression_traversal::children(
+        program,
+        program.expression_table.expression(expression),
+        |child| {
+            validate_proof_integer_formation(
+                program,
+                owner_symbol,
+                child,
+                hypotheses,
+                selections,
+                owner,
+                builtin_arithmetic,
+                diagnostics,
+            );
+        },
+    );
     match program.expression_table.expression(expression) {
         ExpressionNode::Cast(cast) => {
-            children.push(cast.value);
             if program
                 .named_type_reference(cast.target_type)
                 .is_some_and(|name| name.as_str() == "Nat")
                 && proof_integer_expression(program, cast.value)
                 && (!proof_nat_cast(program, cast)
-                    || !proof_integer_nonnegative(program, cast.value, hypotheses))
+                    || !proof_integer_nonnegative(
+                        program,
+                        owner_symbol,
+                        cast.value,
+                        hypotheses,
+                        selections,
+                    ))
             {
                 diagnostics.push(Diagnostic::error(
                     "Exact proof Int-to-Nat conversion requires a previously proven nonnegative value",
                 ));
             }
         }
-        ExpressionNode::Binary(binary) => children.extend([binary.left, binary.right]),
-        ExpressionNode::Unary(unary) => children.push(unary.operand),
-        ExpressionNode::Call(call) => {
-            children.push(call.receiver);
-            children.extend_from_slice(program.expression_table.expression_handles(call.arguments));
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Divide | BinaryOperator::Modulo
+            ) && mathematical_integer_operands(program, [binary.left, binary.right])
+                && builtin_arithmetic(expression) =>
+        {
+            crate::proof_contracts::arithmetic_domains::division_definedness::validate_proof_integer(
+                program, owner_symbol, binary, hypotheses, selections, owner, diagnostics,
+            );
         }
-        ExpressionNode::Borrow(value) => children.push(value.target),
-        ExpressionNode::Member(member) => children.push(member.receiver),
-        ExpressionNode::Indexed(indexed) => children.extend([indexed.collection, indexed.index]),
-        ExpressionNode::Atomic(atomic) => children.extend([atomic.value, atomic.result]),
-        ExpressionNode::Range(range) => children.extend([range.start, range.end]),
-        ExpressionNode::ArrayLiteral(elements) => {
-            children.extend_from_slice(program.expression_table.expression_handles(*elements))
-        }
-        ExpressionNode::StructLiteral(literal) => children.extend(
-            program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-                .map(|field| field.value),
-        ),
         _ => {}
-    }
-    for child in children {
-        validate_proof_integer_casts(program, child, hypotheses, diagnostics);
     }
 }
 
 /// Non-expression proof facts still contain proof-value arguments. Their
-/// casts need formation checking even though the fact is not an arithmetic
+/// terms need formation checking even though the fact is not an arithmetic
 /// hypothesis understood by this producer.
-pub(crate) fn validate_proof_fact_integer_casts(
+pub(crate) fn validate_proof_fact_integer_formation(
     program: &dyn crate::CheckingInput,
+    owner_symbol: symbols::SymbolHandle,
     fact: &ProofFact,
     hypotheses: &[ExpressionHandle],
+    owner: &str,
+    builtin_arithmetic: &impl Fn(ExpressionHandle) -> bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match fact {
-        ProofFact::Expression(expression) => {
-            validate_proof_integer_casts(program, *expression, hypotheses, diagnostics)
-        }
-        ProofFact::Membership(membership) => {
-            validate_proof_integer_casts(program, membership.value, hypotheses, diagnostics)
-        }
+        ProofFact::Expression(expression) => validate_proof_integer_formation(
+            program,
+            owner_symbol,
+            *expression,
+            hypotheses,
+            &[],
+            owner,
+            builtin_arithmetic,
+            diagnostics,
+        ),
+        ProofFact::Membership(membership) => validate_proof_integer_formation(
+            program,
+            owner_symbol,
+            membership.value,
+            hypotheses,
+            &[],
+            owner,
+            builtin_arithmetic,
+            diagnostics,
+        ),
         ProofFact::Proposition(application) => {
             for argument in program
                 .expression_table
                 .expression_handles(application.arguments)
             {
-                validate_proof_integer_casts(program, *argument, hypotheses, diagnostics);
+                validate_proof_integer_formation(
+                    program,
+                    owner_symbol,
+                    *argument,
+                    hypotheses,
+                    &[],
+                    owner,
+                    builtin_arithmetic,
+                    diagnostics,
+                );
             }
         }
     }

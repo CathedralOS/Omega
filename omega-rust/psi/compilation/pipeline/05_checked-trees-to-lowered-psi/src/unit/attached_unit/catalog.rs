@@ -1207,61 +1207,128 @@ pub(super) fn lower_unit_structural_domains(
             )?;
             let establishment_routes =
                 lower_establishment_routes(identities, checked, &plan.establishment_routes)?;
-            let predicate = plan.predicate.as_ref().and_then(|predicate| {
-                // A distinct declared domain-local namespace, not ambient machine storage.
-                let subject = semantic_vocabulary::PlaceId::new(1)?;
-                let formal = terminal_psi::StructuralParameterDeclaration {
-                    place: subject,
-                    position: 0,
-                    structural_type: lookup_type_id(type_ids, &plan.carrier_type_identity).ok()?,
-                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                    access: terminal_psi::StructuralAccess::SharedBorrow,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                };
-                let mut propositions =
-                    crate::proofs::crash_routes::lower_structural_crash_predicates(
-                        identities,
-                        std::slice::from_ref(predicate),
-                        &[],
-                        std::slice::from_ref(&formal),
-                        structural_types,
+            let carrier = lookup_type_id(type_ids, &plan.carrier_type_identity)?;
+            // None is an intentionally opaque declaration. A supplied complete
+            // theory must lower intact; failure cannot erase its obligations.
+            let predicate = plan
+                .predicate
+                .as_ref()
+                .map(|predicate| {
+                    // A distinct declared domain-local namespace, not ambient machine storage.
+                    let subject = semantic_vocabulary::PlaceId::new(1).ok_or(
+                        LoweringError::Unsupported("domain predicate subject identity is null"),
+                    )?;
+                    let formal = terminal_psi::StructuralParameterDeclaration {
+                        place: subject,
+                        position: 0,
+                        structural_type: carrier,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                    };
+                    // Checked scalar subjects and structural subjects occupy
+                    // separate formal namespaces. Bind both at this declaration
+                    // owner, then publish only its typed storage observation.
+                    let scalar = terminal_semantics::primitive_place_type(
+                        structural_types.iter(),
+                        carrier,
                         &[],
                     )
-                    .ok()?;
-                let proposition = match predicate {
-                    checked_trees::CheckedBooleanExpression::Constant(true) => {
-                        semantic_vocabulary::Proposition::Truth
+                    .map(|scalar_type| {
+                        Ok(terminal_psi::ValueDeclaration {
+                            id: semantic_vocabulary::ValueId::new(1).ok_or(
+                                LoweringError::Unsupported(
+                                    "domain scalar subject identity is null",
+                                ),
+                            )?,
+                            scalar_type,
+                            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                        })
+                    })
+                    .transpose()?;
+                    let mut propositions =
+                        crate::proofs::crash_routes::lower_structural_crash_predicates(
+                            identities,
+                            std::slice::from_ref(predicate),
+                            scalar.as_slice(),
+                            std::slice::from_ref(&formal),
+                            structural_types,
+                            &[],
+                        )?;
+                    let lowered = propositions.pop().ok_or(LoweringError::Unsupported(
+                        "domain predicate lowering produced no proposition",
+                    ))?;
+                    let mut proposition = match predicate {
+                        checked_trees::CheckedBooleanExpression::Constant(true) => {
+                            semantic_vocabulary::Proposition::Truth
+                        }
+                        checked_trees::CheckedBooleanExpression::Constant(false) => {
+                            semantic_vocabulary::Proposition::Falsehood
+                        }
+                        _ => lowered.proposition().clone(),
+                    };
+                    if !propositions.is_empty() {
+                        return unsupported(
+                            "domain predicate lowering produced extra propositions",
+                        );
                     }
-                    checked_trees::CheckedBooleanExpression::Constant(false) => {
-                        semantic_vocabulary::Proposition::Falsehood
+                    if let Some(scalar) = scalar {
+                        let observed = match scalar.scalar_type {
+                            semantic_vocabulary::ScalarType::Boolean => {
+                                semantic_vocabulary::ScalarTerm::boolean_field_path(
+                                    subject,
+                                    Vec::new(),
+                                )
+                            }
+                            semantic_vocabulary::ScalarType::Integer(integer) => {
+                                semantic_vocabulary::ScalarTerm::integer_field_path(
+                                    subject,
+                                    Vec::new(),
+                                    integer,
+                                )
+                            }
+                            semantic_vocabulary::ScalarType::IeeeFloat(format) => {
+                                semantic_vocabulary::ScalarTerm::ieee_float_field_path(
+                                    subject,
+                                    Vec::new(),
+                                    format,
+                                )
+                            }
+                        };
+                        proposition =
+                            terminal_semantics::substitution::substitute_proposition_values(
+                                &proposition,
+                                &std::collections::BTreeMap::from([(scalar.id, observed)]),
+                            );
                     }
-                    _ => propositions.last()?.proposition().clone(),
-                };
-                propositions.pop()?;
-                if !propositions.is_empty() {
-                    return None;
-                }
-                let predicate = terminal_psi::StructuralDomainPredicate {
-                    subject,
-                    proposition,
-                };
-                terminal_semantics::domain_predicate_is_closed(
-                    structural_types.iter(),
-                    formal.structural_type,
-                    &predicate,
-                )
-                .then_some(predicate)
-            });
+                    let predicate = terminal_psi::StructuralDomainPredicate {
+                        subject,
+                        proposition,
+                    };
+                    if !terminal_semantics::domain_predicate_is_closed(
+                        structural_types.iter(),
+                        formal.structural_type,
+                        &predicate,
+                    ) {
+                        return unsupported(
+                            "lowered domain predicate is not closed over its subject",
+                        );
+                    }
+                    Ok(predicate)
+                })
+                .transpose()
+                .map_err(|cause| LoweringError::InvalidUnitDomainPredicate {
+                    domain: plan.domain,
+                    name: plan.name.clone(),
+                    carrier,
+                    cause: Box::new(cause),
+                })?;
             Ok(StructuralDomainDeclaration {
                 predicate,
                 byte_predicate: plan.byte_predicate,
                 establishment_routes,
-                id: lookup_domain_id_for_carrier(
-                    &domain_ids,
-                    plan.domain,
-                    lookup_type_id(type_ids, &plan.carrier_type_identity)?,
-                )?,
+                id: lookup_domain_id_for_carrier(&domain_ids, plan.domain, carrier)?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,
                 identity: identities.intern(&structural_domain_identity(
@@ -1270,7 +1337,7 @@ pub(super) fn lower_unit_structural_domains(
                         .type_identity_text(plan.carrier_type_identity)
                         .unwrap_or_default(),
                 )),
-                carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+                carrier,
                 content_projection,
             })
         })

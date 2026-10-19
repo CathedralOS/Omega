@@ -29,9 +29,13 @@ fn ieee_float_field_terms_retain_format_and_structural_dependencies() {
             PropositionContext::default().validate(&proposition),
             Err(PropositionError::UnknownStructuralPlace(root))
         );
+        let whole = ScalarTerm::ieee_float_field_path(root, vec![], format);
+        assert_eq!(whole.validate(), Ok(()));
+        assert_eq!(whole.scalar_type(), ScalarType::IeeeFloat(format));
+        let proposition = Proposition::Equal(whole.clone(), whole);
         assert_eq!(
-            ScalarTerm::ieee_float_field_path(root, vec![], format).validate(),
-            Err(PropositionError::EmptyIeeeFloatStructuralFieldPath)
+            PropositionContext::default().validate(&proposition),
+            Err(PropositionError::UnknownStructuralPlace(root))
         );
     }
 }

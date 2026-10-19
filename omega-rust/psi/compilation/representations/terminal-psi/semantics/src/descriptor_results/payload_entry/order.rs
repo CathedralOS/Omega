@@ -12,6 +12,40 @@ pub(super) fn derive(
     premise: &ProofNode,
     assumptions: usize,
 ) -> Option<ProofNode> {
+    if matches!(
+        (&premise.conclusion, goal),
+        (Proposition::LessOrEqual(..), Proposition::LessThan(..))
+            | (Proposition::LessThan(..), Proposition::LessOrEqual(..))
+    ) {
+        // Ask the existing kernel whether these exact endpoints admit discrete
+        // conversion. The provisional assumption selects only the rule; the
+        // returned proof still cites the actual established relation.
+        let conversion = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::IntegerOrderDiscreteness {
+                relation: Box::new(ProofNode {
+                    conclusion: premise.conclusion.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+            },
+        };
+        if proof_admission::check_certificate(
+            context,
+            goal,
+            std::slice::from_ref(&premise.conclusion),
+            &[],
+            &conversion,
+        )
+        .is_ok()
+        {
+            return Some(ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::IntegerOrderDiscreteness {
+                    relation: Box::new(premise.clone()),
+                },
+            });
+        }
+    }
     let Proposition::IntegerMathLessOrEqual(goal_left, goal_right) = goal else {
         return None;
     };

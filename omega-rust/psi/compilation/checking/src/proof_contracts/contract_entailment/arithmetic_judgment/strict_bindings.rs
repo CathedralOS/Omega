@@ -9,6 +9,30 @@ use super::super::{
 use super::{Engine, OpaqueTerm, Polynomial};
 
 impl<'program> Engine<'program> {
+    /// Actuals are completed in the caller before this complete formal roster
+    /// becomes visible. Source operations then simplify their applied values,
+    /// never a callee binder read through caller facts. Occurrence bindings
+    /// belong to the caller invocation and cannot enter the formal syntax.
+    pub(in crate::proof_contracts::contract_entailment) fn with_formal_arguments<Output>(
+        &mut self,
+        owner: SymbolHandle,
+        arguments: &[(SymbolHandle, Polynomial)],
+        query: impl FnOnce(&mut Self) -> Option<Output>,
+    ) -> Option<Output> {
+        if !owner.is_valid() || arguments.iter().any(|(symbol, _)| !symbol.is_valid()) {
+            return None;
+        }
+        let previous_owner = self.source_owner;
+        let previous_arguments = self.formal_arguments.replace(arguments.to_vec());
+        let previous_occurrences = std::mem::take(&mut self.strict_occurrences);
+        self.source_owner = owner;
+        let value = query(self);
+        self.source_owner = previous_owner;
+        self.formal_arguments = previous_arguments;
+        self.strict_occurrences = previous_occurrences;
+        value
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn strict_for_declaration(
         program: &'program dyn crate::CheckingInput,
         owner: SymbolHandle,
@@ -294,19 +318,15 @@ impl<'program> Engine<'program> {
 
     /// Interpret only the selected builtin operation. Fixed-carrier arithmetic
     /// additionally retains its actual policy: an Exact `+ - *` result is
-    /// its mathematical value, a Wrapping or Saturating one is that value only
-    /// under the carrier-landing proof `selected_policy_result` owes, and a
-    /// Trapping one can transfer control and forms no term. Division keeps
-    /// its Exact requirement. A coercion around a Wrapping or Saturating
-    /// result cannot replace the operation's payload.
-    pub(super) fn strict_binary_meaning(
+    /// its mathematical value; Wrapping and Saturating retain their completed
+    /// carrier representatives in `selected_policy_result`. Trapping can
+    /// transfer control and forms no term. Primitive formation remains an
+    /// independent obligation; a coercion cannot replace a source payload.
+    pub(in crate::proof_contracts::contract_entailment) fn selected_binary_meaning(
         &self,
         expression: ExpressionHandle,
         binary: &typed_trees::expression::TableBinaryExpression,
     ) -> bool {
-        if self.strict_symbol_bindings.is_none() || self.proof_integer_formation {
-            return true;
-        }
         let owner = self.source_owner;
         let operands = [binary.left, binary.right].map(|operand| self.source_result_type(operand));
         if matches!(
@@ -327,18 +347,11 @@ impl<'program> Engine<'program> {
                     .source_result_type(expression)
                     .is_some_and(|reference| {
                         use numerics::arithmetic::ArithmeticDomain;
-                        let admitted_policies: &[ArithmeticDomain] = if matches!(
-                            binary.operator,
-                            BinaryOperator::Divide | BinaryOperator::Modulo
-                        ) {
-                            &[ArithmeticDomain::Exact]
-                        } else {
-                            &[
-                                ArithmeticDomain::Exact,
-                                ArithmeticDomain::Wrapping,
-                                ArithmeticDomain::Saturating,
-                            ]
-                        };
+                        let admitted_policies = [
+                            ArithmeticDomain::Exact,
+                            ArithmeticDomain::Wrapping,
+                            ArithmeticDomain::Saturating,
+                        ];
                         self.program
                             .primitive_type_reference(reference)
                             .is_some_and(|primitive| {
@@ -368,6 +381,111 @@ impl<'program> Engine<'program> {
                 spelling,
                 &operands,
             )
+        }
+    }
+
+    /// Import an already formed pattern observation under its own declaration.
+    /// Boolean patterns select a condition's truth; integer patterns contribute
+    /// exact equality or its integer complement. Neither spelling nor a shared
+    /// runtime carrier supplies the selected equality law.
+    pub(super) fn install_dispatch_selection(
+        &mut self,
+        selection: crate::proof_contracts::arithmetic_domains::DispatchSelection,
+    ) {
+        let operands =
+            [selection.subject, selection.pattern].map(|operand| self.source_result_type(operand));
+        if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+            self.program,
+            self.source_owner,
+            selection.expression,
+            language_core::OperatorSpelling::Equal,
+            &operands,
+        ) {
+            return;
+        }
+        let mut comparisons = Vec::new();
+        if let ExpressionNode::Boolean(value) =
+            self.program.expression_table.expression(selection.pattern)
+        {
+            self.collect_condition_comparisons(
+                selection.subject,
+                selection.matched == *value,
+                &mut comparisons,
+            );
+        } else if let (Some(left), Some(right)) = (
+            self.normalize(selection.subject),
+            self.normalize(selection.pattern),
+        ) {
+            comparisons.push((
+                if selection.matched {
+                    BinaryOperator::Equal
+                } else {
+                    BinaryOperator::NotEqual
+                },
+                left,
+                right,
+            ));
+        }
+        self.install_hypotheses(comparisons);
+    }
+
+    fn collect_condition_comparisons(
+        &mut self,
+        expression: ExpressionHandle,
+        positive: bool,
+        comparisons: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
+    ) {
+        match self.program.expression_table.expression(expression).clone() {
+            ExpressionNode::Boolean(value) => {
+                self.requires_unsatisfiable |= value != positive;
+                return;
+            }
+            ExpressionNode::Unary(unary)
+                if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
+            {
+                self.collect_condition_comparisons(unary.operand, !positive, comparisons);
+                return;
+            }
+            ExpressionNode::Binary(binary) if self.selected_binary_meaning(expression, &binary) => {
+                if binary.operator == BinaryOperator::And && positive
+                    || binary.operator == BinaryOperator::Or && !positive
+                {
+                    self.collect_condition_comparisons(binary.left, positive, comparisons);
+                    self.collect_condition_comparisons(binary.right, positive, comparisons);
+                    return;
+                }
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) {
+                    let wrapped = match (
+                        self.program.expression_table.expression(binary.left),
+                        self.program.expression_table.expression(binary.right),
+                    ) {
+                        (_, ExpressionNode::Boolean(value)) => Some((binary.left, *value)),
+                        (ExpressionNode::Boolean(value), _) => Some((binary.right, *value)),
+                        _ => None,
+                    };
+                    if let Some((operand, value)) = wrapped {
+                        self.collect_condition_comparisons(
+                            operand,
+                            positive == (value == (binary.operator == BinaryOperator::Equal)),
+                            comparisons,
+                        );
+                        return;
+                    }
+                }
+            }
+            _ => {}
+        }
+        if let Some((operator, left, right)) = self.comparison_polynomials(expression)
+            && let Some(operator) = if positive {
+                Some(operator)
+            } else {
+                operator.complement()
+            }
+        {
+            comparisons.push((operator, left, right));
         }
     }
 

@@ -1071,6 +1071,7 @@ pass/domains/executable_domain_membership_expression_exit built 689ms exit:81
 pass/domains/executable_domain_membership_union_guard_exit built 669ms exit:241
 pass/domains/explicit_domain_erasure checked 136ms
 pass/domains/indexed_domain_fact checked 9962ms @5041ef1af684+wt
+pass/domains/indexed_membership_follows_completed_values built 12736ms exit:0 @a80b1ee9811e+wt
 pass/domains/intersected_qualifiers checked 9305ms @5041ef1af684+wt
 pass/domains/local_alias_domain_transfer checked 148ms
 pass/domains/match_domain_patterns checked 177ms
@@ -1666,6 +1667,7 @@ pass/float/nan_match_fallthrough checked 18657ms @5041ef1af684+wt
 pass/float/nearest_even_binary_arithmetic_exit built 7862ms exit:70 @48008365d839
 pass/float/nested_float_operator_applications_exit built 15621ms exit:70 @48008365d839
 pass/float/owned_local_computed_float_store_exit built 34618ms exit:70 @589aedee8ebc+wt
+pass/float/primitive_storage_predicate_keeps_ieee_meaning built 12386ms exit:0 @a80b1ee9811e+wt
 pass/float/returned_record_computed_fields_exit built 35081ms exit:70 @589aedee8ebc+wt
 pass/float/runtime_absolute_return_sum_exit built 37171ms exit:70 @589aedee8ebc+wt
 pass/float/runtime_absolute_shared_call_operands_exit built 36252ms exit:70 @589aedee8ebc+wt
@@ -2135,7 +2137,7 @@ pass/proofs/proof_data_cycle checked 9497ms @5041ef1af684+wt
 pass/proofs/proof_inductive_climbing_sum checked 205ms
 pass/proofs/proof_inductive_gauss_sum checked 1623ms @3e63a17a5fea+wt
 pass/proofs/proof_integer_embedding checked 187ms
-pass/proofs/proof_integer_quotient_remainder checked 186ms
+pass/proofs/proof_integer_quotient_remainder built 12817ms exit:0 @a80b1ee9811e+wt
 pass/proofs/proof_linear_range_sum checked 182ms
 pass/proofs/proof_multiplication_distributivity checked 172ms
 pass/proofs/proof_nat_structural_lemmas checked 257ms

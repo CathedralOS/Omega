@@ -141,9 +141,34 @@ fn predicate_dependencies<'a>(
             }
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
+            | Proposition::LessOrEqual(left, right)
+            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                 term_dependencies(types.clone(), carrier, subject, left, output, 0)?;
                 term_dependencies(types, carrier, subject, right, output, 0)
+            }
+            Proposition::IeeeFloatComparison {
+                format,
+                left,
+                right,
+                ..
+            } => {
+                // This older field-only spelling has the same dependencies;
+                // neither traversal grants truth or changes IEEE comparison.
+                for field in [left, right] {
+                    term_dependencies(
+                        types.clone(),
+                        carrier,
+                        subject,
+                        &ScalarTerm::ieee_float_field_path(
+                            field.root(),
+                            field.path().to_vec(),
+                            *format,
+                        ),
+                        output,
+                        depth + 1,
+                    )?;
+                }
+                Some(())
             }
             Proposition::Conjunction(clauses) | Proposition::Disjunction(clauses) => {
                 for clause in clauses {

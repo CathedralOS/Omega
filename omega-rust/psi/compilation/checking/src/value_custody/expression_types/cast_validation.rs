@@ -59,8 +59,10 @@ pub(crate) fn validate_cast_types(
         // Ordered contract formation is handled by total_specification.
         if !crate::proof_contracts::contract_entailment::proof_integer_nonnegative(
             program,
+            state.map_or(machine.symbol, |state| state.symbol),
             cast.value,
             &hypotheses,
+            &[],
         ) {
             diagnostics.push(Diagnostic::error(
                 "Exact proof Int-to-Nat conversion requires a previously proven nonnegative value",

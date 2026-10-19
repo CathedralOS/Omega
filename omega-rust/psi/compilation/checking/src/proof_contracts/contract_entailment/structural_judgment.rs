@@ -2366,8 +2366,16 @@ impl<'program> StructuralJudge<'program> {
             // Mathematical facts consume their prepared term in the same
             // judgment entrance, including proof-only Strict results. A result
             // carrier or source call shape does not select another body walk.
-            let mut engine =
-                super::arithmetic_judgment::Engine::for_proof_integer_formation(self.program);
+            let mut engine = super::arithmetic_judgment::Engine::for_proof_integer_formation(
+                self.program,
+                if self.declaration_state.is_valid() {
+                    self.declaration_state
+                } else {
+                    self.machine_symbol
+                },
+                &[],
+                &[],
+            );
             return match engine.judge_mathematical_application(fact) {
                 super::arithmetic_judgment::Judgment::Proven => StructuralJudgment::Proven,
                 super::arithmetic_judgment::Judgment::Refuted

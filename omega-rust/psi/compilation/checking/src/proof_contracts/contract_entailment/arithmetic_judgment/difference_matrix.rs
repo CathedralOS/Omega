@@ -6,6 +6,18 @@ use super::{Engine, Polynomial, SUBSTITUTION_ROUNDS, ZERO_ATOM};
 use crate::proof_contracts::arithmetic_domains::BigIntInterval as Interval;
 
 impl<'program> Engine<'program> {
+    /// Integer disequality follows from a retained unequal difference or a
+    /// strict bound in either direction. Unknown is not nonzero evidence.
+    pub(in crate::proof_contracts::contract_entailment) fn proves_nonzero(
+        &self,
+        polynomial: &Polynomial,
+    ) -> bool {
+        let one = BigInt::from_i64(1);
+        self.is_known_nonzero(polynomial)
+            || self.prove_at_least(polynomial, &one)
+            || self.prove_at_least(&polynomial.neg(), &one)
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn is_known_nonzero(
         &self,
         difference: &Polynomial,

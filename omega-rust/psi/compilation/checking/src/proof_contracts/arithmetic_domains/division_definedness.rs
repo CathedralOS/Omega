@@ -1,6 +1,6 @@
 //! Division/remainder formation under the selected integer policy.
 //!
-//! Exact, Wrapping and Saturating require a proven nonzero divisor. Exact
+//! Mathematical Int, Exact, Wrapping and Saturating require a proven nonzero divisor. Exact
 //! signed operations additionally exclude `MIN / -1` and `MIN % -1`. Trapping
 //! retains those conditions as runtime crash predicates. The same live
 //! integer proof supplies the selected policy's formation conditions.
@@ -227,5 +227,36 @@ pub(super) fn validate_abstract(
                 diagnostics,
             );
         },
+    );
+}
+
+/// Mathematical integers have the same nonzero obligation but no finite
+/// signed overflow pair. The containing fact has not yet entered hypotheses.
+pub(in crate::proof_contracts) fn validate_proof_integer(
+    program: &dyn crate::CheckingInput,
+    owner_symbol: symbols::SymbolHandle,
+    binary: &TableBinaryExpression,
+    hypotheses: &[ExpressionHandle],
+    selections: &[super::DispatchSelection],
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    _ = report_partial(
+        binary.operator,
+        ArithmeticDomain::Exact,
+        ProvenDefinedness {
+            nonzero_divisor: crate::proof_contracts::contract_entailment::proof_integer_nonzero(
+                program,
+                owner_symbol,
+                binary.right,
+                hypotheses,
+                selections,
+            ),
+            provably_zero_divisor: false,
+            signed_pair_excluded: true,
+        },
+        owner,
+        false,
+        diagnostics,
     );
 }

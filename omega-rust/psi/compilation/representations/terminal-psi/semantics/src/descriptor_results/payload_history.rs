@@ -245,6 +245,25 @@ pub fn current_payload_contract(
             }
             if let Some(writes) = machine.scalar_payload_writes.get(&current) {
                 for (destination, value) in writes {
+                    // New result storage has no pre-operation backing. Every
+                    // other observation, including a borrowed call actual,
+                    // must resolve to one exact current storage coordinate.
+                    let resolved;
+                    let destination =
+                        if machine.payload_producers.get(&current) == Some(&destination.root) {
+                            destination
+                        } else {
+                            let Some(destinations) =
+                                analysis.storage_origins(identity, current, destination)
+                            else {
+                                continue;
+                            };
+                            if destinations.len() != 1 {
+                                continue;
+                            }
+                            resolved = destinations.into_iter().next()?;
+                            &resolved
+                        };
                     let Some(contract) = after.values.get_mut(&destination.root) else {
                         continue;
                     };

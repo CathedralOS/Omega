@@ -191,6 +191,14 @@ impl Polynomial {
 /// transported operands rather than dropping the term.
 #[derive(Clone)]
 pub(super) enum OpaqueTerm {
+    /// A completed finite-carrier value, distinct from its unbounded
+    /// mathematical calculation. Wrapping retains its residue polynomial;
+    /// saturation retains the calculation to clamp after substitution.
+    IntegerPolicy {
+        primitive: typed_trees::types::PrimitiveType,
+        domain: numerics::arithmetic::ArithmeticDomain,
+        value: Polynomial,
+    },
     /// A truncating remainder keeps both inputs, including a runtime modulus;
     /// equal result intervals do not establish conserved endpoint identity.
     Remainder {
@@ -250,6 +258,9 @@ pub(super) struct Engine<'program> {
     /// is `Some`, an unbound name is outside the language rather than falling
     /// back to its display spelling.
     strict_symbol_bindings: Option<Vec<(SymbolHandle, Polynomial)>>,
+    /// A callee telescope denotes completed caller values before any operation
+    /// simplifies. This overlays symbol identity, not arithmetic capabilities.
+    formal_arguments: Option<Vec<(SymbolHandle, Polynomial)>>,
     strict_symbol_bindings_valid: bool,
     /// Only the exact-meaning call adapter licenses widening while capturing
     /// actuals. Other strict readers (ranges and saved locals) have not checked
@@ -269,10 +280,6 @@ pub(super) struct Engine<'program> {
     /// mathematical arithmetic. It must not inherit the legacy proof
     /// machine adapter's interpretation of arbitrary executable operators.
     proof_integer_formation: bool,
-    /// Policy-safe normalization is required by the new embedding lane.
-    /// The pre-existing raw wrapping induction producer is migrated
-    /// separately; unrelated machines must not select a different prover.
-    integer_embedding_policy: bool,
     /// Parameters whose primitive type is unsigned carry an implicit `>= 0`.
     unsigned_atoms: Vec<String>,
     /// Directed substitutions from requires equations (`atom := polynomial`),
@@ -329,15 +336,12 @@ impl<'program> Engine<'program> {
             source_owner: machine.symbol,
             parameter_atoms,
             strict_symbol_bindings: None,
+            formal_arguments: None,
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_occurrences: Vec::new(),
             captured_calls: None,
             proof_integer_formation: false,
-            integer_embedding_policy:
-                crate::proof_contracts::proof_embeddings::machine_contains_integer_embedding(
-                    program, machine,
-                ),
             unsigned_atoms,
             substitutions: BTreeMap::new(),
             bounds: Vec::new(),
@@ -367,6 +371,11 @@ impl<'program> Engine<'program> {
                 _ => None,
             };
             let interval = match term {
+                OpaqueTerm::IntegerPolicy {
+                    primitive,
+                    domain,
+                    value,
+                } => self.integer_policy_interval(primitive, domain, &value),
                 OpaqueTerm::Quotient { dividend, divisor } => {
                     self.quotient_interval(&dividend, &divisor)
                 }
@@ -434,6 +443,22 @@ impl<'program> Engine<'program> {
         for index in 0..self.opaque_terms.len() {
             let (atom, term) = self.opaque_terms[index].clone();
             let (next_atom, interval) = match term {
+                OpaqueTerm::IntegerPolicy {
+                    primitive,
+                    domain,
+                    value,
+                } => {
+                    let Some(value) =
+                        super::inductive_judgment::apply_argument_map(&value, argument_map)
+                    else {
+                        continue;
+                    };
+                    let Some(value) = self.integer_policy_value(primitive, domain, value) else {
+                        continue;
+                    };
+                    argument_map.insert(atom, value);
+                    continue;
+                }
                 OpaqueTerm::Remainder {
                     operand,
                     modulus,
@@ -522,7 +547,12 @@ impl<'program> Engine<'program> {
         }
     }
 
-    pub(super) fn for_proof_integer_formation(program: &'program dyn crate::CheckingInput) -> Self {
+    pub(super) fn for_proof_integer_formation(
+        program: &'program dyn crate::CheckingInput,
+        owner: SymbolHandle,
+        hypotheses: &[ExpressionHandle],
+        selections: &[crate::proof_contracts::arithmetic_domains::DispatchSelection],
+    ) -> Self {
         let mut bindings = Vec::new();
         for (handle, expression) in program.expression_table.iter_expressions() {
             let ExpressionNode::Name(path) = expression else {
@@ -540,9 +570,13 @@ impl<'program> Engine<'program> {
                 ));
             }
         }
-        let mut engine = Self::for_explicit_bindings(program);
+        let mut engine = Self::strict_for_declaration(program, owner);
         engine.strict_symbol_bindings = Some(bindings);
         engine.proof_integer_formation = true;
+        engine.install_source_hypotheses(hypotheses);
+        for selection in selections {
+            engine.install_dispatch_selection(*selection);
+        }
         engine
     }
 
@@ -556,12 +590,12 @@ impl<'program> Engine<'program> {
             source_owner: SymbolHandle::default(),
             parameter_atoms: Vec::new(),
             strict_symbol_bindings: Some(Vec::new()),
+            formal_arguments: None,
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_occurrences: Vec::new(),
             captured_calls: None,
             proof_integer_formation: false,
-            integer_embedding_policy: true,
             unsigned_atoms: Vec::new(),
             substitutions: BTreeMap::new(),
             bounds: Vec::new(),
@@ -609,16 +643,91 @@ impl<'program> Engine<'program> {
     /// caller-discharged, so the callee's contract proofs may assume it).
     pub(super) fn add_requires(&mut self, facts: &[ExpressionHandle]) -> bool {
         let mut comparisons = Vec::new();
-        let mut fully_visible = self.collect_comparisons(facts, &mut comparisons);
         self.collect_entry_range_hypotheses(&mut comparisons);
-        fully_visible &= self.install_hypotheses(comparisons);
+        let mut fully_visible = self.install_hypotheses(comparisons);
+        fully_visible &= self.install_source_hypotheses(facts);
         fully_visible
     }
 
-    /// The bracket-as-sugar hypotheses: for each ENTRY-state (machine
-    /// signature) parameter whose type carries a LITERAL `[a..=b]` range,
-    /// push `param >= a` and `param <= b`. Entry-only: sub-state params are
-    /// different binders that may reuse names.
+    /// These facts have independently formed. Install their comparisons in
+    /// order so a later quotient can consume an earlier nonzero premise.
+    /// Legacy scalar readers also admit floats: retain unoriented differences
+    /// only for the exact selected integer relation, not arbitrary disequality.
+    fn install_source_hypotheses(&mut self, facts: &[ExpressionHandle]) -> bool {
+        let mut fully_visible = true;
+        for fact in facts {
+            let mut comparisons = Vec::new();
+            let mut integer_differences = Vec::new();
+            for conjunct in self.conjuncts(*fact) {
+                // Prepared comparisons come from retained IntegerRelation
+                // meanings (and integer/address identity), never IEEE values.
+                let retain_integer_differences = self.strict_symbol_bindings.is_none()
+                    && (self.is_mathematical_application(conjunct)
+                        || self.source_integer_disequality(conjunct));
+                let first_comparison = comparisons.len();
+                fully_visible &= self.collect_comparisons(&[conjunct], &mut comparisons);
+                if retain_integer_differences {
+                    integer_differences.extend(
+                        comparisons[first_comparison..]
+                            .iter()
+                            .filter(|(operator, _, _)| *operator == BinaryOperator::NotEqual)
+                            .map(|(_, left, right)| left.sub(right)),
+                    );
+                }
+            }
+            // Normalize the whole fact before publishing any of its premises.
+            fully_visible &= self.install_hypotheses(comparisons);
+            for difference in integer_differences {
+                let difference = self.substituted(&difference);
+                if !self.nonzero_differences.contains(&difference) {
+                    self.nonzero_differences.push(difference);
+                }
+            }
+        }
+        fully_visible
+    }
+
+    fn source_integer_disequality(&self, expression: ExpressionHandle) -> bool {
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        else {
+            return false;
+        };
+        if binary.operator != BinaryOperator::NotEqual {
+            return false;
+        }
+        let operands = [binary.left, binary.right];
+        let references = operands.map(|operand| self.source_result_type(operand));
+        operands
+            .into_iter()
+            .zip(references)
+            .all(|(operand, reference)| {
+                proof_integer_expression(self.program, operand)
+                    || match reference
+                        .and_then(|reference| self.program.primitive_type_reference(reference))
+                    {
+                        Some(primitive) => {
+                            primitive.is_integer()
+                                || primitive == typed_trees::types::PrimitiveType::Addr
+                        }
+                        None => {
+                            super::proof_integer::anonymous_integer_value(self.program, operand)
+                                .is_some()
+                        }
+                    }
+            })
+            && typed_trees::operator::has_builtin_spelled_expression_meaning(
+                self.program,
+                self.source_owner,
+                expression,
+                language_core::OperatorSpelling::NotEqual,
+                &references,
+            )
+    }
+
+    /// Entry parameters retain their intrinsic finite carrier bounds and
+    /// caller-discharged literal ranges. Install these before normalizing
+    /// arguments: a guarded wrapping predecessor can then prove no-wrap.
+    /// Sub-state parameters are different binders that may reuse names.
     pub(super) fn collect_entry_range_hypotheses(
         &mut self,
         comparisons: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
@@ -630,6 +739,24 @@ impl<'program> Engine<'program> {
             return;
         };
         for parameter in self.program.state_parameters(entry) {
+            let atom = Polynomial::atom(parameter.name.as_str().to_owned());
+            if let Some((minimum, maximum)) = self
+                .program
+                .primitive_type_reference(parameter.type_reference)
+                .filter(|primitive| primitive.is_fixed_integer())
+                .and_then(|primitive| primitive.integer_bounds())
+            {
+                comparisons.push((
+                    BinaryOperator::GreaterOrEqual,
+                    atom.clone(),
+                    Polynomial::constant(BigInt::from_i128(minimum)),
+                ));
+                comparisons.push((
+                    BinaryOperator::LessOrEqual,
+                    atom.clone(),
+                    Polynomial::constant(BigInt::from_i128(maximum)),
+                ));
+            }
             let Some(interval) =
                 crate::proof_contracts::arithmetic_domains::range_constraint_interval(
                     self.program,
@@ -638,7 +765,6 @@ impl<'program> Engine<'program> {
             else {
                 continue;
             };
-            let atom = Polynomial::atom(parameter.name.as_str().to_owned());
             if let Some(low) = interval.low() {
                 comparisons.push((
                     BinaryOperator::GreaterOrEqual,
@@ -893,11 +1019,7 @@ impl<'program> Engine<'program> {
                 self.prove_at_least(&difference_rl, &zero)
                     && self.prove_at_least(&difference_lr, &zero)
             }
-            BinaryOperator::NotEqual => {
-                self.is_known_nonzero(&difference_lr)
-                    || self.prove_at_least(&difference_rl, &one)
-                    || self.prove_at_least(&difference_lr, &one)
-            }
+            BinaryOperator::NotEqual => self.proves_nonzero(&difference_lr),
             _ => {
                 return Judgment::Unknown {
                     goal_in_language: false,
@@ -914,11 +1036,7 @@ impl<'program> Engine<'program> {
             BinaryOperator::LessOrEqual => self.prove_at_least(&difference_lr, &one),
             BinaryOperator::Greater => self.prove_at_least(&difference_rl, &zero),
             BinaryOperator::GreaterOrEqual => self.prove_at_least(&difference_rl, &one),
-            BinaryOperator::Equal => {
-                self.is_known_nonzero(&difference_lr)
-                    || self.prove_at_least(&difference_rl, &one)
-                    || self.prove_at_least(&difference_lr, &one)
-            }
+            BinaryOperator::Equal => self.proves_nonzero(&difference_lr),
             BinaryOperator::NotEqual => {
                 self.prove_at_least(&difference_rl, &zero)
                     && self.prove_at_least(&difference_lr, &zero)
@@ -938,7 +1056,10 @@ impl<'program> Engine<'program> {
     pub(super) fn conjuncts(&self, fact: ExpressionHandle) -> Vec<ExpressionHandle> {
         let node = self.program.expression_table.expression(fact).clone();
         match node {
-            ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
+            ExpressionNode::Binary(binary)
+                if binary.operator == BinaryOperator::And
+                    && self.selected_binary_meaning(fact, &binary) =>
+            {
                 let mut left = self.conjuncts(binary.left);
                 left.extend(self.conjuncts(binary.right));
                 left
@@ -961,7 +1082,7 @@ impl<'program> Engine<'program> {
         let ExpressionNode::Binary(binary) = node else {
             return None;
         };
-        if !self.strict_binary_meaning(fact, &binary) {
+        if !self.selected_binary_meaning(fact, &binary) {
             return None;
         }
         match binary.operator {
@@ -1019,7 +1140,9 @@ impl<'program> Engine<'program> {
         let node = self.program.expression_table.expression(expression).clone();
         match node {
             ExpressionNode::Member(_)
-                if self.strict_symbol_bindings.is_some() && !self.proof_integer_formation =>
+                if self.strict_symbol_bindings.is_some()
+                    && !self.proof_integer_formation
+                    && self.formal_arguments.is_none() =>
             {
                 // A resolved member place names the value its storage holds
                 // at this occurrence: every store enforced the declared
@@ -1084,10 +1207,30 @@ impl<'program> Engine<'program> {
             ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_bignum()?)),
             ExpressionNode::Borrow(inner) => self.normalize(inner.target),
             ExpressionNode::Name(path) => {
+                if let Some((_, value)) = self
+                    .formal_arguments
+                    .iter()
+                    .flatten()
+                    .find(|(symbol, _)| *symbol == path.symbol)
+                {
+                    return Some(value.clone());
+                }
                 if self.program.symbols.builtin_type_member(path.symbol)
                     == Some(symbols::BuiltinTypeMember::AddressBound)
                 {
-                    return Some(self.address_model_bound()?);
+                    return self.address_model_bound();
+                }
+                if self.formal_arguments.is_some()
+                    && !crate::reserved_result_place(self.program, expression)
+                        .is_some_and(|place| place.machine_symbol == self.source_owner)
+                {
+                    // Unbound callee names cannot borrow a same-spelled caller
+                    // atom. Closed declarations keep their existing evaluator;
+                    // only the recursive result is shared across these scopes.
+                    return self
+                        .program
+                        .closed_integer_value_in(expression, self.source_owner)
+                        .map(|value| Polynomial::constant(value.value));
                 }
                 if let Some(bindings) = &self.strict_symbol_bindings {
                     let [member] = self
@@ -1136,20 +1279,35 @@ impl<'program> Engine<'program> {
             {
                 self.selected_closed_bitwise_value(expression, &binary)
             }
-            ExpressionNode::Binary(binary) if !self.strict_binary_meaning(expression, &binary) => {
+            ExpressionNode::Binary(binary)
+                if !self.selected_binary_meaning(expression, &binary) =>
+            {
                 None
             }
-            ExpressionNode::Binary(_)
+            ExpressionNode::Binary(binary)
                 if !proof_integer_expression(self.program, expression)
-                    && ((self.proof_integer_formation
-                        && !exact_integer_source(self.program, expression))
-                        || (self.integer_embedding_policy
-                            && nonexact_integer_source(self.program, expression))) =>
+                    && matches!(
+                        binary.operator,
+                        BinaryOperator::Add
+                            | BinaryOperator::Subtract
+                            | BinaryOperator::Multiply
+                            | BinaryOperator::Divide
+                            | BinaryOperator::Modulo
+                    )
+                    && self
+                        .source_result_type(expression)
+                        .is_some_and(|reference| {
+                            matches!(
+                                self.program.arithmetic_domain_for_type_reference(reference),
+                                numerics::arithmetic::ArithmeticDomain::Wrapping
+                                    | numerics::arithmetic::ArithmeticDomain::Saturating
+                            )
+                        }) =>
             {
-                if self.strict_symbol_bindings.is_some() && !self.proof_integer_formation {
-                    return None;
-                }
-                self.normalize_integer_embedding(expression)
+                let left = self.normalize(binary.left)?;
+                let right = self.normalize(binary.right)?;
+                let value = self.integer_binary_value(binary.operator, left, right)?;
+                self.selected_policy_result(expression, value)
             }
             ExpressionNode::Binary(binary) => match binary.operator {
                 BinaryOperator::Add => {
@@ -1225,25 +1383,28 @@ impl<'program> Engine<'program> {
                             },
                         ));
                     }
-                    if binary.operator == BinaryOperator::Divide {
-                        if !builtin_proof_integer
-                            || (self.strict_symbol_bindings.is_some()
-                                && !self.proof_integer_formation)
-                        {
+                    if builtin_proof_integer {
+                        let divisor = self.substituted(&divisor);
+                        if !self.proves_nonzero(&divisor) {
                             return None;
                         }
-                        let divisor = self.substituted(&divisor).constant_value()?;
-                        // Structural polynomial identity keeps distinct dividends
-                        // separate; the private prefix cannot be an authored name.
-                        return self.integer_quotient(dividend, Polynomial::constant(divisor));
+                        // The same admitted integer operation retains both
+                        // symbolic operands. A result interval or reflexivity
+                        // cannot supply its own nonzero formation premise.
+                        return self.integer_binary_value(
+                            binary.operator,
+                            self.substituted(&dividend),
+                            divisor,
+                        );
+                    }
+                    if binary.operator == BinaryOperator::Divide {
+                        return None;
                     }
                     let modulus = self.substituted(&divisor).constant_value()?;
                     if modulus.is_zero() {
                         return None;
                     }
-                    let tight_interval = builtin_proof_integer
-                        && (self.strict_symbol_bindings.is_none() || self.proof_integer_formation);
-                    self.integer_remainder(dividend, Polynomial::constant(modulus), tight_interval)
+                    self.integer_remainder(dividend, Polynomial::constant(modulus), false)
                 }
                 _ => None,
             },
@@ -1272,6 +1433,7 @@ impl<'program> Engine<'program> {
                 // judgment the produced term is an opaque atom carrying the
                 // declared return carrier intersected with those conjuncts.
                 if self.strict_symbol_bindings.is_some()
+                    && self.formal_arguments.is_none()
                     && let Some(interval) =
                         crate::proof_contracts::arithmetic_domains::call_result_interval(
                             self.program,
@@ -1353,19 +1515,16 @@ impl<'program> Engine<'program> {
     /// `n > 0` beside the formal's carrier bounds), never assumed from the
     /// descent or contract the engine is asked to establish
     /// (`numeric_values.md`: "Wrapping loop updates need an independent
-    /// no-wrap proof before monotonicity can be inferred"). A value that may
-    /// cross the carrier stays outside the engine's language. Strict binary
-    /// meaning already refused Trapping results and non-integer carriers.
+    /// no-wrap proof before monotonicity can be inferred"). Otherwise retain
+    /// the completed policy value as an opaque bounded representative.
+    /// Selected binary meaning already refused Trapping and noninteger results.
     fn selected_policy_result(
-        &self,
+        &mut self,
         expression: ExpressionHandle,
         value: Polynomial,
     ) -> Option<Polynomial> {
         use numerics::arithmetic::ArithmeticDomain;
-        if self.strict_symbol_bindings.is_none()
-            || self.proof_integer_formation
-            || proof_integer_expression(self.program, expression)
-        {
+        if proof_integer_expression(self.program, expression) {
             return Some(value);
         }
         let reference = self.source_result_type(expression)?;
@@ -1373,14 +1532,11 @@ impl<'program> Engine<'program> {
             ArithmeticDomain::Exact => Some(value),
             ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating => {
                 let primitive = self.program.primitive_type_reference(reference)?;
-                let (minimum, maximum) = super::ranking_range::integer_carrier_bounds(primitive)?;
-                let landed = self.substituted(&value);
-                let lands = self.prove_at_least(&landed, &minimum)
-                    && self.prove_at_least(
-                        &Polynomial::constant(maximum).sub(&landed),
-                        &BigInt::zero(),
-                    );
-                lands.then_some(value)
+                self.integer_policy_value(
+                    primitive,
+                    self.program.arithmetic_domain_for_type_reference(reference),
+                    value,
+                )
             }
             ArithmeticDomain::Trapping => None,
         }
@@ -1438,25 +1594,16 @@ impl<'program> Engine<'program> {
         if let Some(literal) = self.program.expression_table.integer_node(expression) {
             return Some(Polynomial::constant(literal.value_bignum()?));
         }
-        // A direct binding denotes its payload regardless of its arithmetic
-        // qualification. Exact member occurrences use the same roster as raw
-        // projections; structural spelling cannot replace a missing binding.
-        // Computed sources remain opaque: normalizing their written arithmetic
-        // would erase wrapping or saturation semantics.
-        let direct = if matches!(
-            self.program.expression_table.expression(expression),
-            ExpressionNode::Name(_) | ExpressionNode::Member(_)
-        ) {
-            self.normalize(expression)
-        } else {
-            None
-        };
+        // Embedding projects the same selected, policy-correct value used by
+        // ordinary comparisons. Unsupported denotations stay opaque; there is
+        // no second arithmetic interpretation of the written computation.
+        let direct = self.normalize(expression);
         // A scoped implication may read only values its owner captured. The
         // formation query separately owns opaque source denotations; importing
         // those here would equate occurrences across distinct scoped rosters.
-        if self.strict_symbol_bindings.is_some()
-            && !self.proof_integer_formation
-            && direct.is_none()
+        if direct.is_none()
+            && (self.formal_arguments.is_some()
+                || self.strict_symbol_bindings.is_some() && !self.proof_integer_formation)
         {
             return None;
         }
@@ -1587,51 +1734,4 @@ pub fn integer_embedding_sources_equal(
     };
     left_carrier.primitive == right_carrier.primitive
         && integer_source_identity(program, left) == integer_source_identity(program, right)
-}
-
-fn exact_integer_source(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
-    use numerics::arithmetic::ArithmeticDomain;
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => literal
-            .landing()
-            .is_none_or(|landing| landing.domain == ArithmeticDomain::Exact),
-        ExpressionNode::Binary(binary) => {
-            exact_integer_source(program, binary.left)
-                && exact_integer_source(program, binary.right)
-        }
-        ExpressionNode::Cast(cast) => cast.domain == ArithmeticDomain::Exact,
-        ExpressionNode::Name(path) => {
-            crate::value_custody::expression_types::named_value_type_reference(program, path)
-                .is_some_and(|reference| {
-                    program.arithmetic_domain_for_type_reference(reference)
-                        == ArithmeticDomain::Exact
-                })
-        }
-        _ => false,
-    }
-}
-
-fn nonexact_integer_source(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> bool {
-    use numerics::arithmetic::ArithmeticDomain;
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => literal
-            .landing()
-            .is_some_and(|landing| landing.domain != ArithmeticDomain::Exact),
-        ExpressionNode::Binary(binary) => {
-            nonexact_integer_source(program, binary.left)
-                || nonexact_integer_source(program, binary.right)
-        }
-        ExpressionNode::Cast(cast) => cast.domain != ArithmeticDomain::Exact,
-        ExpressionNode::Call(_) => false,
-        _ => {
-            crate::proof_contracts::proof_embeddings::expression_type_reference(program, expression)
-                .is_some_and(|reference| {
-                    program.arithmetic_domain_for_type_reference(reference)
-                        != ArithmeticDomain::Exact
-                })
-        }
-    }
 }

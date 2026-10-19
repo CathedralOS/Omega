@@ -275,13 +275,8 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
                     // The carrier is already peeled of this constraint, so
                     // name the declaration typing selected rather than let
                     // registration fall back to the family's first one.
-                    let carrier_identity = shapes.add_selected_domain(
-                        domain.semantic_id,
-                        domain.symbol,
-                        carrier,
-                        binders,
-                        false,
-                    )?;
+                    let carrier_identity =
+                        shapes.add_domain_application(domain, carrier, binders, false)?;
                     output.push((domain.semantic_id, carrier_identity));
                 }
                 type_reference = *base_type;

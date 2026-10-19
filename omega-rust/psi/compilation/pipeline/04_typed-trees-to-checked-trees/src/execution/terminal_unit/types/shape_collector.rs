@@ -71,7 +71,7 @@ impl<'program> ShapeCollector<'program> {
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let mut reference = carrier;
         let mut has_domain_constraints = false;
-        let mut selected_symbol = None;
+        let mut selected_application = None;
         loop {
             match self.program.type_reference_table.type_reference(reference) {
                 TypeReferenceNode::Reference { referee, .. } => reference = *referee,
@@ -85,7 +85,7 @@ impl<'program> ShapeCollector<'program> {
                         };
                         has_domain_constraints = true;
                         if constraint.semantic_id == domain
-                            && selected_symbol.replace(constraint.symbol).is_some()
+                            && selected_application.replace(constraint).is_some()
                         {
                             return None;
                         }
@@ -95,22 +95,60 @@ impl<'program> ShapeCollector<'program> {
                 _ => break,
             }
         }
-        let definition = if !has_domain_constraints {
+        if has_domain_constraints {
+            return self.add_domain_application(selected_application?, carrier, binders, false);
+        }
+        let definition = {
             // Legacy unqualified carriers carry only the semantic family.
             self.program
                 .domain_definitions()
                 .iter()
                 .find(|definition| definition.semantic_id == domain)
-        } else {
-            // Qualified byte carriers preserve the actual declaration selected
-            // by typing. Another capacity in the same family is not its proof
-            // theory, even when both declarations happen to classify bytes.
-            Some(typed_trees::domain::domain_by_symbol(
-                self.program,
-                selected_symbol?,
-            )?)
         };
-        self.add_domain_definition(domain, carrier, binders, definition, false)
+        self.add_domain_definition(domain, carrier, binders, definition, false, None)
+    }
+
+    /// A typed application retains its closed argument roster. Its instance
+    /// identity is not the uninstantiated declaration's identity, and its
+    /// scalar theory uses the same projection as receiving-field replay.
+    /// Registration records that theory; it establishes no membership.
+    pub(in crate::execution::terminal_unit) fn add_domain_application(
+        &mut self,
+        application: &typed_trees::types::DomainConstraint,
+        carrier: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        stored_carrier: bool,
+    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
+        let definition = typed_trees::domain::domain_by_symbol(self.program, application.symbol)?;
+        let predicate = if application.arguments.is_empty()
+            || validation::field_domains::domain_requires_provenance(
+                self.program,
+                definition.symbol,
+            ) {
+            None
+        } else if let Some(primitive) = self.program.primitive_type_reference(carrier) {
+            Some(validation::scalar_domain_predicate(
+                self.program,
+                application,
+                checked_trees::CheckedScalarExpression::Parameter {
+                    position: 0,
+                    primitive_type: primitive,
+                },
+            )?)
+        } else {
+            // Aggregate and routed applications retain their exact instance
+            // and declaration-owned routes. A pure scalar projection is not
+            // their complete theory and cannot replace those independent owners.
+            None
+        };
+        self.add_domain_definition(
+            application.semantic_id,
+            carrier,
+            binders,
+            Some(definition),
+            stored_carrier,
+            predicate,
+        )
     }
 
     /// A contract may establish a domain independently of the qualifications
@@ -131,7 +169,14 @@ impl<'program> ShapeCollector<'program> {
         stored_carrier: bool,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let definition = typed_trees::domain::domain_by_symbol(self.program, selected_symbol)?;
-        self.add_domain_definition(domain, carrier, binders, Some(definition), stored_carrier)
+        self.add_domain_definition(
+            domain,
+            carrier,
+            binders,
+            Some(definition),
+            stored_carrier,
+            None,
+        )
     }
 
     fn add_domain_definition(
@@ -141,6 +186,7 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         definition: Option<&typed_trees::domain::DomainDefinition>,
         stored_carrier: bool,
+        predicate: Option<checked_trees::CheckedBooleanExpression>,
     ) -> Option<typed_trees::type_identity::TypeIdentityId> {
         let carrier_type_identity =
             if stored_carrier && validation::stores_reference_shape(self.program, carrier, &[]) {
@@ -163,7 +209,7 @@ impl<'program> ShapeCollector<'program> {
                 typed_trees::byte_predicates::domain_byte_predicate(self.program, definition.symbol)
             });
         let plan = CheckedUnitStructuralDomainPlan {
-            predicate: None,
+            predicate,
             byte_predicate,
             domain,
             name: identity,

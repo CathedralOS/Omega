@@ -166,17 +166,19 @@ pub(in crate::checks::contracts) fn value_satisfies_domain_predicates_in_context
 /// The initializer supplies the value; the declared constraint supplies the
 /// instance. Neither may be inferred from the other, and a non-integer carrier
 /// keeps its existing owner rather than being routed through arithmetic.
-pub(super) fn initializer_satisfies_indexed_domain(
+/// Callers bind the capture to the exact local or constructor-child occurrence.
+pub(super) fn captured_value_satisfies_indexed_domain(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
-    statement_index: usize,
-    value: ExpressionHandle,
+    capture: &checked_trees::FlowOperandFact,
     constraint: &typed_trees::types::DomainConstraint,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     if constraint.arguments.is_empty()
-        || constraint.symbol.is_valid() == false
+        || !constraint.symbol.is_valid()
         || !constraint.semantic_id.is_valid()
+        || capture.state_symbol != state.state_symbol
     {
         return false;
     }
@@ -185,7 +187,7 @@ pub(super) fn initializer_satisfies_indexed_domain(
     };
     // A routed theory still owes its authorized provenance; a numerical
     // predicate proof never mints a route.
-    if !domain.establishment_routes.is_empty() {
+    if validation::field_domains::domain_requires_provenance(program, constraint.symbol) {
         return false;
     }
     if !program
@@ -194,10 +196,34 @@ pub(super) fn initializer_satisfies_indexed_domain(
     {
         return false;
     }
-    let Some(scalar) =
-        completed_integer_initializer_value(program, facts, state, statement_index, value)
-    else {
-        return false;
+    let scalar = if let Some(literal) = program.expression_table.integer_node(capture.expression)
+        && let Some(integer) = numerics::bignum::BigInt::from_decimal_str(literal.text())
+    {
+        validation::ScopedArithmeticValue::Integer(integer)
+    } else {
+        let (Some(frames), Some(consumer_statement)) =
+            (frames, capture.statement_index.checked_add(1))
+        else {
+            return false;
+        };
+        // The existing completed-value reader owns copy/view epochs and
+        // alternative agreement. Statement-entry storage can have a different
+        // value after an earlier constructor sibling has executed.
+        match super::super::prover::captured_scalar_at_path(
+            program,
+            facts,
+            state,
+            capture,
+            &[],
+            consumer_statement,
+            capture.constraints,
+            frames,
+        ) {
+            Some(checked_trees::facts::scalar_predicates::ScalarValue::Integer(integer)) => {
+                validation::ScopedArithmeticValue::Integer(integer)
+            }
+            _ => return false,
+        }
     };
     matches!(
         validation::integer_domain_membership(
@@ -209,56 +235,6 @@ pub(super) fn initializer_satisfies_indexed_domain(
         ),
         validation::StrictArithmeticImplicationJudgment::Proven
     )
-}
-
-/// The exact integer denotation of a completed initializer expression.
-///
-/// A literal keeps full-width precision; a place read supplies its captured
-/// scalar observation, taken from the statement's own completed operand so a
-/// later sibling write cannot retroactively justify an earlier initializer.
-/// Anything else -- a call, an operator, a byte view -- has its own semantic
-/// owner and supplies nothing here.
-fn completed_integer_initializer_value(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state: &FlowStateFact,
-    statement_index: usize,
-    value: ExpressionHandle,
-) -> Option<validation::ScopedArithmeticValue> {
-    use validation::ScopedArithmeticValue;
-    if let Some(literal) = program.expression_table.integer_node(value)
-        && let Some(integer) = numerics::bignum::BigInt::from_decimal_str(literal.text())
-    {
-        return Some(ScopedArithmeticValue::Integer(integer));
-    }
-    let place = validation::canonical_place_from_expression_in_state(
-        program,
-        state.state_symbol,
-        statement_index,
-        value,
-    )?;
-    let contexts = facts
-        .flow
-        .state_statement(state, statement_index)
-        .map(|statement| statement.entry_constraints)
-        .unwrap_or(state.entry_constraints);
-    let contexts = facts
-        .flow
-        .semantic_constraint_contexts(contexts)
-        .collect::<Vec<_>>();
-    match crate::values::scalar_value_at_place(
-        program,
-        &facts.semantic,
-        contexts
-            .iter()
-            .map(|context| facts.semantic.contexts.get(*context)),
-        &place,
-    )? {
-        checked_trees::facts::scalar_predicates::ScalarValue::Integer(integer) => {
-            Some(ScopedArithmeticValue::Integer(integer))
-        }
-        _ => None,
-    }
 }
 
 /// Substitute the completed value into the domain's selected proof expression.

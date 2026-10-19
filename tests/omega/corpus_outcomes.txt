@@ -1376,6 +1376,10 @@ fail/domains/guard_call_requires_established_membership rejected 867ms expected 
 fail/domains/implicit_semantic_domain_local_weakening rejected 828ms expected @a9ae30e1c334+wt
 fail/domains/imported_provider_unissued_result rejected 5578ms expected @e5140c7a7be2+wt
 fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 332ms expected @dca1c7cd7e6f+wt
+fail/domains/indexed_membership_rejects_stale_entry rejected 2053ms expected @a80b1ee9811e+wt
+	construction of `Holder` field `scoped` is not proven in domain `Except` in invalid_record state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+	array literal element is not proven in domain `Except` in invalid_array state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
+	construction of `AfterCall` field `copied` is not proven in domain `Except` in invalid_after_call state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 fail/domains/interval_membership_wrapping_false rejected 1589ms expected @d1fa4738e67a+wt
 fail/domains/issued_membership_dependency_is_not_subject rejected 6176ms expected @c48489ea6ad6
 fail/domains/issued_membership_element_mutation rejected 4752ms expected @c48489ea6ad6
@@ -3512,8 +3516,10 @@ fail/proofs/indexed_field_changed_selector rejected 170ms expected @7ba26861e79c
 fail/proofs/indexed_field_changed_value rejected 170ms expected @7ba26861e79c+wt
 fail/proofs/inductive_climbing_sum_step_false_twin rejected 808ms expected @a9ae30e1c334+wt
 fail/proofs/inductive_climbing_sum_unbounded_accumulator rejected 870ms expected @a9ae30e1c334+wt
-fail/proofs/inductive_gauss_sum_false_twin rejected 832ms expected @a9ae30e1c334+wt
-fail/proofs/inductive_gauss_sum_step_false_twin rejected 911ms expected @a9ae30e1c334+wt
+fail/proofs/inductive_gauss_sum_false_twin rejected 650ms expected @a80b1ee9811e+wt
+	machine `Main::gauss_sum` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1 + 1` on the transition arm guarded by `n > 0 == false`
+fail/proofs/inductive_gauss_sum_step_false_twin rejected 653ms expected @a80b1ee9811e+wt
+	machine `Main::gauss_sum` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 3` on the transition arm guarded by `n > 0 == true`
 fail/proofs/integer_piecewise_wrong_result rejected 563ms expected @1f63ee648905+wt
 fail/proofs/kernel_integer_discreteness_false_twin rejected 5186ms expected @a9ae30e1c334+wt
 fail/proofs/kernel_integer_subtract_bound_false_twin rejected 837ms expected @a9ae30e1c334+wt
@@ -3567,19 +3573,40 @@ fail/proofs/polynomial_false_expand rejected 2698ms expected @a9ae30e1c334+wt
 fail/proofs/pre_mutation_guard_alias_expired rejected 9450ms expected @5b35eda9b8d6
 fail/proofs/pre_mutation_guard_expired rejected 11332ms expected @5b35eda9b8d6
 fail/proofs/proof_bignum_constant_false rejected 891ms expected @a9ae30e1c334+wt
+fail/proofs/proof_integer_authored_operand_meaning rejected 2046ms expected @a80b1ee9811e+wt
+	cannot prove ensures contract for exit from false_bridge at statement 0: embed(left) + embed(right) != 0
 fail/proofs/proof_integer_embedding_boolean rejected 799ms expected @a9ae30e1c334+wt
 fail/proofs/proof_integer_embedding_denotational_operand_crash rejected 1432ms expected @a9ae30e1c334+wt
 fail/proofs/proof_integer_embedding_denotational_operand_nontermination rejected 1361ms expected @a9ae30e1c334+wt
 fail/proofs/proof_integer_embedding_reference rejected 975ms expected @232ee85de964+wt
 	compiler-owned `embed(value)` accepts only a fixed-width integer or address value
 fail/proofs/proof_integer_embedding_runtime rejected 887ms expected @a9ae30e1c334+wt
+fail/proofs/proof_integer_named_wrapping_operand rejected 643ms expected @a80b1ee9811e+wt
+	machine `false_wrapping_bridge` cannot prove ensures contract proof fact `below_limit(value)` from the requires contract
+fail/proofs/proof_integer_nested_divisor rejected 681ms expected @a80b1ee9811e+wt
+	partial exact division in machine `nested_formation` ensures contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial exact division in machine `nested_formation` ensures contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial exact division in machine `nested_formation` ensures contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial exact division in machine `nested_formation` ensures contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/proofs/proof_integer_nested_saturating_value rejected 663ms expected @a80b1ee9811e+wt
+	machine `wrong_saturation` ensures contract proof fact `embed(value + 1 - 1) == 127` is disproved by constant arithmetic
 fail/proofs/proof_integer_quotient_bound_false_twin rejected 841ms expected @a9ae30e1c334+wt
 fail/proofs/proof_integer_quotient_false_twin rejected 845ms expected @a9ae30e1c334+wt
-fail/proofs/proof_integer_undefined_remainder rejected 2834ms expected @232ee85de964+wt
-	cannot prove ensures contract for exit from undefined_remainder at statement 0: embed(7) % embed(divisor) - embed(7) % embed(divisor) == 0
-fail/proofs/proof_integer_unformed_quotient rejected 2746ms expected @232ee85de964+wt
-	cannot prove ensures contract for exit from unformed_quotient at statement 0: embed(7) / embed(divisor) == embed(7) / embed(divisor)
-fail/proofs/proof_integer_zero_divisor rejected 1588ms expected @a9ae30e1c334+wt
+fail/proofs/proof_integer_self_justified_divisor rejected 612ms expected @a80b1ee9811e+wt
+	partial exact division in machine `circular_formation` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/proofs/proof_integer_undefined_remainder rejected 640ms expected @a80b1ee9811e+wt
+	partial exact remainder in machine `undefined_remainder` ensures contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial exact remainder in machine `undefined_remainder` ensures contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/proofs/proof_integer_unformed_dispatch_pattern rejected 650ms expected @a80b1ee9811e+wt
+	partial exact division in machine `unordered_patterns` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/proofs/proof_integer_unformed_quotient rejected 665ms expected @a80b1ee9811e+wt
+	partial exact division in machine `unformed_quotient` ensures contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial exact division in machine `unformed_quotient` ensures contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/proofs/proof_integer_zero_dispatch_arm rejected 631ms expected @a80b1ee9811e+wt
+	partial exact division in machine `wrong_edge` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/proofs/proof_integer_zero_divisor rejected 555ms expected @a80b1ee9811e+wt
+	partial exact division in machine `undefined_quotient` ensures contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial exact division in machine `undefined_quotient` ensures contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/proofs/proposition_const_operand_extent_rejected rejected 836ms expected @a9ae30e1c334+wt
 fail/proofs/proposition_reference_operand_depth_rejected rejected 882ms expected @a9ae30e1c334+wt
 fail/proofs/proposition_relation_inherited_law_rejected rejected 481ms expected @f3014db3f225+wt
@@ -3607,6 +3634,8 @@ fail/proofs/quotient_transport_roles_reversed_rejected rejected 1373ms expected 
 fail/proofs/range_result_stale_observation rejected 689ms expected @2ef2ab353498+wt
 fail/proofs/range_result_unrelated_bound rejected 691ms expected @2ef2ab353498+wt
 fail/proofs/ranked_accumulator_guarantee_wrong_step_twin rejected 2835ms expected @a9ae30e1c334+wt
+fail/proofs/recursive_formals_do_not_read_caller_constants rejected 548ms expected @a80b1ee9811e+wt
+	machine `recurse` ensures contract proof fact `result == value + 1` is disproved by constant arithmetic on the transition arm guarded by `remaining > 0 && value == 0 == true`
 fail/proofs/recursive_terminal_missing_erased_evidence rejected 1037ms expected @5acf32321f42+wt
 fail/proofs/remainder_range_false_twin rejected 809ms expected @a9ae30e1c334+wt
 fail/proofs/replaced_descriptor_retires_bound rejected 585ms expected @b3d0b7396229+wt
@@ -5857,6 +5886,7 @@ pass/domains/executable_domain_membership_expression_exit checked 12153ms check-
 pass/domains/executable_domain_membership_union_guard_exit checked 11700ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/explicit_domain_erasure checked 1802ms @a9ae30e1c334+wt
 pass/domains/indexed_domain_fact checked 9754ms @5041ef1af684+wt
+pass/domains/indexed_membership_follows_completed_values checked 11058ms check-target:macos_arm64 @a80b1ee9811e+wt
 pass/domains/intersected_qualifiers checked 9557ms @5041ef1af684+wt
 pass/domains/issued_indexed_subject_predicate checked 16965ms @c48489ea6ad6
 pass/domains/local_alias_domain_transfer checked 1774ms @a9ae30e1c334+wt
@@ -6928,6 +6958,7 @@ pass/float/nested_float_operator_applications_exit checked 17131ms check-target:
 pass/float/ordinary_numeric_helper_edges_exit checked 15670ms check-target:macos_arm64 @1f63ee648905+wt
 pass/float/owned_local_computed_float_store_exit checked 17257ms check-target:linux_x86_64 @1b12798e27f4
 pass/float/primitive_comparison_sealed_scope_exit checked 27659ms check-target:macos_arm64 @963915e78283
+pass/float/primitive_storage_predicate_keeps_ieee_meaning checked 11026ms check-target:macos_arm64 @a80b1ee9811e+wt
 pass/float/public_boolean_result_contract_import_exit checked 24929ms check-target:macos_arm64 @9c4d1c444502
 pass/float/public_boolean_result_contract_match_import_exit checked 24773ms check-target:macos_arm64 @9c4d1c444502
 pass/float/public_boolean_result_contract_short_circuit_import_exit checked 25074ms check-target:macos_arm64 @9c4d1c444502
@@ -7668,9 +7699,9 @@ pass/proofs/proof_constant_arithmetic_identity checked 1602ms @a9ae30e1c334+wt
 pass/proofs/proof_data_cycle checked 9675ms @5041ef1af684+wt
 pass/proofs/proof_inductive_climbing_sum checked 1615ms @a9ae30e1c334+wt
 pass/proofs/proof_inductive_gauss_sum checked 1618ms @3e63a17a5fea+wt
-pass/proofs/proof_integer_embedding checked 1608ms @a9ae30e1c334+wt
+pass/proofs/proof_integer_embedding checked 2526ms @a80b1ee9811e+wt
 pass/proofs/proof_integer_embedding_denotational_call checked 1877ms @a9ae30e1c334+wt
-pass/proofs/proof_integer_quotient_remainder checked 1821ms @a9ae30e1c334+wt
+pass/proofs/proof_integer_quotient_remainder checked 10865ms check-target:macos_arm64 @a80b1ee9811e+wt
 pass/proofs/proof_linear_range_sum checked 1754ms @a9ae30e1c334+wt
 pass/proofs/proof_multiplication_distributivity checked 1615ms @a9ae30e1c334+wt
 pass/proofs/proof_nat_structural_lemmas checked 10747ms @b7aaf37278ea+wt

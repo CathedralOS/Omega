@@ -54,17 +54,12 @@ impl ScalarTerm {
                 }
                 Ok(())
             }
-            Self::IeeeFloatField { path, .. } => {
-                if path.is_empty() {
-                    return Err(PropositionError::EmptyIeeeFloatStructuralFieldPath);
-                }
-                Ok(())
-            }
             Self::Value { .. }
             | Self::BooleanField { .. }
             | Self::IntegerField { .. }
             | Self::ViewExtent { .. }
             | Self::ByteSequencePredicate { .. }
+            | Self::IeeeFloatField { .. }
             | Self::Boolean(_)
             | Self::IeeeFloatLiteral(_) => Ok(()),
             Self::BooleanNot { operand } => {

@@ -275,48 +275,6 @@ pub fn integer_embedding_argument(
     Some((integer_embedding(program, *argument)?.primitive, *argument))
 }
 
-pub(crate) fn machine_contains_integer_embedding(
-    program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-) -> bool {
-    let mut nodes = Vec::new();
-    let mut seen = HashSet::default();
-    for contract in program.machine_contracts(machine).iter().chain(
-        program
-            .machine_states(machine)
-            .iter()
-            .flat_map(|state| program.state_contracts(state)),
-    ) {
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            match fact {
-                ProofFact::Expression(expression) => {
-                    collect_expression_nodes(program, *expression, &mut nodes, &mut seen)
-                }
-                ProofFact::Membership(membership) => {
-                    collect_expression_nodes(program, membership.value, &mut nodes, &mut seen)
-                }
-                ProofFact::Proposition(application) => {
-                    for argument in program
-                        .expression_table
-                        .expression_handles(application.arguments)
-                    {
-                        collect_expression_nodes(program, *argument, &mut nodes, &mut seen);
-                    }
-                }
-            }
-        }
-    }
-    for state in program.machine_states(machine) {
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            collect_statement_nodes(program, statement, &mut nodes, &mut seen);
-        }
-    }
-    nodes.into_iter().any(|expression| {
-        matches!(program.expression_table.expression(expression),
-        ExpressionNode::Call(call) if is_exact_embed_call(program, call))
-    })
-}
-
 pub(crate) fn proof_int_type_reference(
     program: &dyn crate::CheckingInput,
 ) -> Option<TypeReferenceHandle> {

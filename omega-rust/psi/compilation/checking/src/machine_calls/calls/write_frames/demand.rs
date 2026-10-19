@@ -1033,6 +1033,59 @@ impl<'program> CallFrameResolver<'program> {
             .into_complete_paths()
     }
 
+    /// A declaration without an executable caller can retain observations
+    /// only when every selected invocation has a complete empty frame in its
+    /// own namespace. No alias translation is needed for an empty frame;
+    /// opaque or nonempty frames establish nothing about caller storage.
+    pub(crate) fn declaration_expression_has_empty_write_frame(
+        &self,
+        expression: ExpressionHandle,
+        builtin_operation: &impl Fn(ExpressionHandle) -> bool,
+    ) -> bool {
+        let mut expressions = Vec::new();
+        crate::expression_traversal::collect_expression_tree(
+            self.program,
+            expression,
+            &mut expressions,
+        );
+        expressions.into_iter().all(|expression| {
+            match self.program.expression_table.expression(expression) {
+                ExpressionNode::Atomic(_) => false,
+                ExpressionNode::Binary(_) => builtin_operation(expression),
+                ExpressionNode::Call(call) => {
+                    // An integer projection is a proof operation, not one of
+                    // the executable value builtins. Its argument is still
+                    // visited independently; placement, custody and checked
+                    // denotation do not follow from this empty local frame.
+                    if crate::proof_contracts::proof_embeddings::integer_embedding_argument(
+                        self.program,
+                        expression,
+                    )
+                    .is_some()
+                        || value_builtin_has_empty_write_frame(self.program, call)
+                        || crate::mathematical_applications::selected_definition(self.program, call)
+                            .is_some()
+                        || crate::machine_calls::denotational_calls::abstract_value_call_signature(
+                            self.program,
+                            call.target_symbol,
+                        )
+                        .is_some()
+                    {
+                        return true;
+                    }
+                    super::machine_state_by_symbol(self.program, call.target_symbol).is_some_and(
+                        |(machine, state)| {
+                            self.inferred_state_write_frame(machine, state)
+                                .into_complete_paths()
+                                .is_some_and(|paths| paths.is_empty())
+                        },
+                    )
+                }
+                _ => true,
+            }
+        })
+    }
+
     pub fn expression_write_frame(
         &self,
         current_machine: &'program Machine,

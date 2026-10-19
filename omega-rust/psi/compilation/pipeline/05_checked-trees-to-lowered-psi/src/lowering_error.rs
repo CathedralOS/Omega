@@ -22,6 +22,13 @@ pub enum LoweringError {
         domain: language_semantics::SemanticDomainId,
         carrier: semantic_vocabulary::StructuralTypeId,
     },
+    /// A complete checked predicate cannot silently become an opaque domain.
+    InvalidUnitDomainPredicate {
+        domain: language_semantics::SemanticDomainId,
+        name: String,
+        carrier: semantic_vocabulary::StructuralTypeId,
+        cause: Box<LoweringError>,
+    },
     DebugSourceFileCountOverflow,
     DebugSourceLengthOverflow,
     MissingDebugSourceFile(usize),

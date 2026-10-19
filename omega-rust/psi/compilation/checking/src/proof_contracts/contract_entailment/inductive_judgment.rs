@@ -237,8 +237,7 @@ fn prepare_arm<'program>(
         });
     }
     let mut comparisons = Vec::new();
-    let mut fully_visible = engine.collect_comparisons(requires, &mut comparisons);
-    engine.collect_entry_range_hypotheses(&mut comparisons);
+    let mut fully_visible = engine.add_requires(requires);
 
     // Dispatch is ordered: preceding guards failed before this arm's own
     // guard succeeded. In particular, an Always fallback is not unconstrained.
@@ -251,6 +250,7 @@ fn prepare_arm<'program>(
         fully_visible &=
             super::ranking_range::collect_guard(&mut engine, guard, polarity, &mut comparisons, 0)
                 .unwrap_or(false);
+        fully_visible &= engine.install_hypotheses(std::mem::take(&mut comparisons));
     }
 
     let value = match &arm.kind {
@@ -264,41 +264,33 @@ fn prepare_arm<'program>(
             // INDUCTION: the recursive call's instantiated ensures may enter
             // the arm's facts, exactly as a nested callee's ensures would,
             // PROVIDED a strict decrease is discharged at this exact call
-            // site. Build the gate context first (requires + guard, no
-            // hypothesis), then instantiate.
-            let mut gate_engine = Engine::with_result_atom(program, machine, root);
-            let mut gate_comparisons = Vec::new();
-            gate_engine.collect_comparisons(requires, &mut gate_comparisons);
-            gate_engine.collect_entry_range_hypotheses(&mut gate_comparisons);
-            for &(guard, polarity) in &guards {
-                super::ranking_range::collect_guard(
-                    &mut gate_engine,
-                    guard,
-                    polarity,
-                    &mut gate_comparisons,
-                    0,
-                );
-            }
-            gate_engine.install_hypotheses(gate_comparisons);
-
-            let argument_map = self_call_argument_map(&mut engine, root, arguments)?;
-            if gate_engine.requires_unsatisfiable {
+            // site. The installed context contains requires + guard only;
+            // normalizing under it cannot borrow the recursive conclusion.
+            let actuals = self_call_arguments(&mut engine, root, arguments)?;
+            if engine.requires_unsatisfiable {
                 // Unreachable arm: vacuous regardless of the hypothesis.
-            } else if discharges_strict_decrease(program, machine, &mut gate_engine, &argument_map)
-            {
+            } else if discharges_strict_decrease(program, machine, &mut engine, &actuals) {
                 // Instantiate the machine's own ensures over the call's
                 // arguments; `result` stays shared (the arm's result IS the
                 // call's result). Conjuncts the engine cannot instantiate are
                 // dropped -- a weaker hypothesis is sound but blocks
                 // rejection.
-                for fact in ensures {
-                    for conjunct in engine.conjuncts(*fact) {
-                        match instantiated_hypothesis(&mut engine, conjunct, &argument_map) {
-                            Some(comparison) => comparisons.push(comparison),
-                            None => fully_visible = false,
+                let (hypotheses, visible) =
+                    engine.with_formal_arguments(machine.symbol, &actuals, |engine| {
+                        let mut hypotheses = Vec::new();
+                        let mut visible = true;
+                        for fact in ensures {
+                            for conjunct in engine.conjuncts(*fact) {
+                                match engine.comparison_polynomials(conjunct) {
+                                    Some(comparison) => hypotheses.push(comparison),
+                                    None => visible = false,
+                                }
+                            }
                         }
-                    }
-                }
+                        Some((hypotheses, visible))
+                    })?;
+                comparisons.extend(hypotheses);
+                fully_visible &= visible;
             } else {
                 // No discharged decrease at this call site: NO induction
                 // hypothesis. The goal must prove some other way; rejection
@@ -374,34 +366,24 @@ fn failed_guard_display(program: &dyn crate::CheckingInput, guard: ExpressionHan
     format!("!({})", program.expression_table.display_name(guard))
 }
 
-/// The classical negation of a comparison operator (integer semantics).
-
-/// Positional map from the machine's non-self parameters to the recursive
-/// call's argument polynomials. `None` when an argument is outside the
-/// engine's language.
-fn self_call_argument_map(
+/// Complete the recursive tuple in the caller's namespace before publishing
+/// any formal. Resolved symbols carry the association into both consumers.
+fn self_call_arguments(
     engine: &mut Engine<'_>,
     root: &typed_trees::state::State,
     arguments: &[ExpressionHandle],
-) -> Option<BTreeMap<String, Polynomial>> {
-    let parameters: Vec<String> = engine
-        .program
-        .state_parameters(root)
-        .iter()
-        .map(|parameter| parameter.name.as_str().to_owned())
-        .collect();
+) -> Option<Vec<(symbols::SymbolHandle, Polynomial)>> {
+    let program = engine.program;
+    let parameters = program.state_parameters(root);
     if parameters.len() != arguments.len() {
         return None;
     }
-    let mut map = BTreeMap::new();
-    for (name, argument) in parameters.into_iter().zip(arguments) {
+    let mut actuals = Vec::with_capacity(parameters.len());
+    for (parameter, argument) in parameters.iter().zip(arguments) {
         let polynomial = engine.normalize(*argument)?;
-        map.insert(name, polynomial);
+        actuals.push((parameter.symbol, polynomial));
     }
-    // Remainder/quotient atoms embed their operand's display; let a measure
-    // or conjunct carrying one transport through the same simultaneous map.
-    engine.extend_argument_map_over_opaque_terms(&mut map);
-    Some(map)
+    Some(actuals)
 }
 
 /// SOUNDNESS GATE for the induction hypothesis: prove, from the arm's own
@@ -423,7 +405,7 @@ fn discharges_strict_decrease(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     engine: &mut Engine<'_>,
-    argument_map: &BTreeMap<String, Polynomial>,
+    actuals: &[(symbols::SymbolHandle, Polynomial)],
 ) -> bool {
     // The hypothesis gate keys exclusively on the normalized private witness.
     let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
@@ -450,36 +432,36 @@ fn discharges_strict_decrease(
     if !polynomial_order {
         return false;
     }
-    let measure = if increasing_to {
-        let Some(arguments) =
-            typed_trees::ranking::resolve_machine_witness_view_arguments(program, machine)
-        else {
-            return false;
-        };
-        match (decreases.as_slice(), arguments.as_slice()) {
-            ([subject], [limit]) => engine
+    let limits = if increasing_to {
+        match typed_trees::ranking::resolve_machine_witness_view_arguments(program, machine) {
+            Some(arguments) => Some(arguments),
+            None => return false,
+        }
+    } else {
+        None
+    };
+    let read_measure = |engine: &mut Engine<'_>| {
+        match (decreases.as_slice(), limits.as_deref()) {
+            ([subject], Some([limit])) => engine
                 .normalize(*limit)
                 .zip(engine.normalize(*subject))
                 .map(|(limit, subject)| limit.sub(&subject)),
-            _ => None,
-        }
-    } else {
-        match decreases.as_slice() {
-            [single] => engine.normalize(*single),
+            ([single], None) => engine.normalize(*single),
             // The two-subject bounded distance: the subjects bind in order to the
             // view's (lower, upper) parameters and the measure polynomial is the
             // distance `upper - lower`.
-            [lower, upper] => engine
+            ([lower, upper], None) => engine
                 .normalize(*upper)
                 .zip(engine.normalize(*lower))
                 .map(|(upper, lower)| upper.sub(&lower)),
             _ => None,
         }
     };
-    let Some(measure) = measure else {
+    let Some(measure) = read_measure(engine) else {
         return false;
     };
-    let Some(measure_after) = apply_argument_map(&measure, argument_map) else {
+    let Some(measure_after) = engine.with_formal_arguments(machine.symbol, actuals, read_measure)
+    else {
         return false;
     };
     let measure_now = engine.substituted(&measure);
@@ -487,21 +469,6 @@ fn discharges_strict_decrease(
     let difference = measure_now.sub(&measure_after);
     engine.prove_at_least(&difference, &BigInt::from_i64(1))
         && engine.prove_at_least(&measure_after, &BigInt::zero())
-}
-
-/// One ensures conjunct instantiated over the recursive call's arguments:
-/// parameter atoms are replaced (simultaneously) by argument polynomials and
-/// `result` is kept shared. This is the induction hypothesis the arm may
-/// assume once the decrease gate has discharged.
-fn instantiated_hypothesis(
-    engine: &mut Engine<'_>,
-    conjunct: ExpressionHandle,
-    argument_map: &BTreeMap<String, Polynomial>,
-) -> Option<(BinaryOperator, Polynomial, Polynomial)> {
-    let (operator, left, right) = engine.comparison_polynomials(conjunct)?;
-    let left = apply_argument_map(&left, argument_map)?;
-    let right = apply_argument_map(&right, argument_map)?;
-    Some((operator, left, right))
 }
 
 /// Simultaneous single-pass substitution of parameter atoms by argument

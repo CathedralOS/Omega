@@ -1,1 +1,2 @@
-is disproved on the transition arm guarded by `n > 0 == false`: the arm's facts entail its negation
+ensures contract proof fact
+on the transition arm guarded by `n > 0 == false`
