@@ -1666,6 +1666,15 @@ pass/facts/view_extent_after_write_through_other_machine_exit built 6581ms exit:
 pass/facts/view_extent_after_write_through_other_state_exit built 6588ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/facts/view_extent_after_write_through_parameter_exit built 6581ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/facts/view_extent_after_write_through_target_body_exit built 6626ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
+pass/facts/zero_byte_erased_carrier_through_call_result_exit built 45096ms exit:0 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_const_name_exit built 45981ms exit:0 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_field_exit built 44905ms exit:0 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_local_exit built 45908ms exit:0 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_match_join_exit built 45467ms exit:0 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_other_machine_exit built 45372ms exit:0 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_other_state_exit built 45863ms exit:0 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_parameter_exit built 45434ms exit:0 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_target_body_exit built 45540ms exit:0 @7bfdc8af4bb2
 pass/filesystem/cross_linux_value_syscalls checked 24317ms @e01f73c689de+wt
 pass/filesystem/dir_walk_wrappers_exit built 18777ms exit:70 @cc43b6679d2a+wt
 pass/filesystem/native_canonicalize built 18026ms exit:0 stdout:match @cc43b6679d2a+wt

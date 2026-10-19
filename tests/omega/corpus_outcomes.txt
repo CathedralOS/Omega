@@ -2950,6 +2950,27 @@ fail/facts/write_only_borrow_initialization_unproved_target_body rejected 2345ms
 fail/facts/write_only_checked_adapter_opaque_call rejected 328ms expected @2ef2ab353498+wt
 fail/facts/write_only_target_family_nonhost_observation rejected 331ms expected @2ef2ab353498+wt
 fail/facts/write_only_target_family_opaque_member rejected 268ms expected @2ef2ab353498+wt
+fail/facts/zero_byte_erased_carrier_unproved_call_result rejected 16584ms expected @7bfdc8af4bb2
+	cannot prove requires contract for call verify_carrier from main: produce().value >= 100 && produce().value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/zero_byte_erased_carrier_unproved_const_name rejected 16196ms expected @7bfdc8af4bb2
+	cannot prove requires contract for call verify_carrier from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/zero_byte_erased_carrier_unproved_field rejected 14985ms expected @7bfdc8af4bb2
+	cannot prove requires contract for call verify_carrier from main: holder.carrier.value >= 100 && holder.carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/zero_byte_erased_carrier_unproved_local rejected 14377ms expected @7bfdc8af4bb2
+	cannot prove requires contract for call verify_carrier from main: local_carrier.value >= 100 && local_carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/zero_byte_erased_carrier_unproved_match_join rejected 14431ms expected @7bfdc8af4bb2
+	cannot prove requires contract for call verify_carrier from choose: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/zero_byte_erased_carrier_unproved_other_machine rejected 14440ms expected @7bfdc8af4bb2
+	cannot prove requires contract for call forward from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/zero_byte_erased_carrier_unproved_other_state rejected 14441ms expected @7bfdc8af4bb2
+	cannot prove requires contract for call exercise from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/zero_byte_erased_carrier_unproved_parameter rejected 14201ms expected @7bfdc8af4bb2
+	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/zero_byte_erased_carrier_unproved_target_body rejected 14225ms expected @7bfdc8af4bb2
+	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/authored_heterogeneous_float_operator_requires rejected 472ms expected @f7d5743143af
 fail/float/boundary_call_guard_wrong_argument rejected 2266ms expected @f7d5743143af
 fail/float/boundary_call_guard_wrong_format rejected 1735ms expected @f7d5743143af
@@ -7115,6 +7136,15 @@ pass/facts/write_only_borrow_initialization_through_other_state_exit checked 797
 pass/facts/write_only_borrow_initialization_through_parameter_exit checked 7942ms check-target:macos_arm64 @81a34ecbe5d8+wt
 pass/facts/write_only_borrow_initialization_through_target_body_exit checked 7900ms check-target:macos_arm64 @81a34ecbe5d8+wt
 pass/facts/write_only_checked_adapter_exit checked 5187ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/zero_byte_erased_carrier_through_call_result_exit checked 35883ms check-target:macos_arm64 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_const_name_exit checked 36430ms check-target:macos_arm64 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_field_exit checked 36045ms check-target:macos_arm64 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_local_exit checked 35999ms check-target:macos_arm64 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_match_join_exit checked 35911ms check-target:macos_arm64 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_other_machine_exit checked 36254ms check-target:macos_arm64 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_other_state_exit checked 36644ms check-target:macos_arm64 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_parameter_exit checked 36209ms check-target:macos_arm64 @7bfdc8af4bb2
+pass/facts/zero_byte_erased_carrier_through_target_body_exit checked 36876ms check-target:macos_arm64 @7bfdc8af4bb2
 pass/filesystem/cross_linux_value_syscalls checked 16296ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit checked 19471ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/filesystem/native_canonicalize checked 25257ms check-target:macos_arm64 @c9eefa9130a0+wt
