@@ -1,0 +1,4 @@
+owner: w26-batch128
+provenance: coordinator=model=gemini-4-argon,reasoning_effort=medium;workers=model=gemini-3.8-flash,reasoning_effort=medium
+ticket: 80763317ece142eda28a5f64fc767987
+published_utc: 2026-10-19T14:06:03.217731+00:00
