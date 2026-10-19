@@ -48,7 +48,22 @@ are bound; actual execution evidence currently covers macOS ARM64 only.
 ## Host evidence and remaining scope
 
 The nine places execute with native/Terminal exit 0 on macOS ARM64; all nine
-permission twins reject. Additional corpus witnesses cover ordinary returned
+permission twins reject. Each place is pinned twice: the check-side golden
+records its twin as `rejected`, and `tests/omega/corpus_native_macos_arm64.txt`
+records the positive as `built ... exit:0` with `jobs=3`. The native row is the
+measurement that the host image executes the writeback oracle; the check row
+alone would not move if a regression built and then exited wrongly.
+
+The obligation is construction-gated, and the probes that establish that are in
+[the discrimination record](../../../../tests/omega/pass/facts/placed_stable_write/DISCRIMINATION.md).
+The write is observable through the placed home: corrupting only the consumer's
+demanded value traps both engines (`native signal 5`, `interp crash: Trap`).
+Violating the construct's own licence refuses before runtime realization — a
+permission derived from a runtime-read plan value still runs, a folded-false
+permission refuses, and seeding the permission from a runtime parameter is
+inadmissible at the plan machine signature. No admissible seeding defers the
+licence to runtime, so no runtime trap exists for it; this is a construction-gate
+class, not a value/arithmetic bound. Additional corpus witnesses cover ordinary returned
 and stored backing references, static callbacks, and actual allocation alignment.
 One insufficient caller rejects even when another caller supplies aligned backing.
 This establishes permitted reads and writes over initialized Stable RAM, not
