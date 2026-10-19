@@ -1463,6 +1463,15 @@ pass/facts/matched_field_windows_through_other_machine_exit built 11913ms exit:0
 pass/facts/matched_field_windows_through_other_state_exit built 11879ms exit:0 @6950e9f0e0c8
 pass/facts/matched_field_windows_through_parameter_exit built 11778ms exit:0 @6950e9f0e0c8
 pass/facts/matched_field_windows_through_target_body_exit built 11730ms exit:0 @6950e9f0e0c8
+pass/facts/nested_record_value_through_call_result_exit built 68755ms exit:0 @c14e052cf9d9
+pass/facts/nested_record_value_through_const_name_exit built 68469ms exit:0 @c14e052cf9d9
+pass/facts/nested_record_value_through_field_exit built 68819ms exit:0 @c14e052cf9d9
+pass/facts/nested_record_value_through_local_exit built 68978ms exit:0 @c14e052cf9d9
+pass/facts/nested_record_value_through_match_join_exit built 69774ms exit:0 @c14e052cf9d9
+pass/facts/nested_record_value_through_other_machine_exit built 68334ms exit:0 @c14e052cf9d9
+pass/facts/nested_record_value_through_other_state_exit built 68426ms exit:0 @c14e052cf9d9
+pass/facts/nested_record_value_through_parameter_exit built 68830ms exit:0 @c14e052cf9d9
+pass/facts/nested_record_value_through_target_body_exit built 68683ms exit:0 @c14e052cf9d9
 pass/facts/nominal_loan_backing_cleanup_through_call_result_exit built 15708ms exit:0 stdout:match @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_const_name_exit built 15401ms exit:0 stdout:match @d698b30fd9ab+wt
 pass/facts/nominal_loan_backing_cleanup_through_field_exit built 15557ms exit:0 stdout:match @d698b30fd9ab+wt
