@@ -3662,7 +3662,11 @@ fail/providers/checked_view_provider_wrong_extent rejected 271ms expected @71e65
 fail/providers/computed_binding_receiver_fabricated_carrier rejected 3603ms expected @a9ae30e1c334+wt
 fail/providers/consuming_requirement_without_provider rejected 5554ms expected @308fbdc54ba0
 fail/providers/consuming_trait_requirement_without_provider rejected 6626ms expected @308fbdc54ba0
+fail/providers/demanded_unavailable_target_provider rejected 12668ms expected @c78998036afd+wt
+	no provider is selected for boundary requirement `Value::read`, which the program entry reaches on target `macos_arm64`
 fail/providers/erased_routed_result_not_recovered rejected 687ms expected @d75fe4ba5012+wt
+fail/providers/explicit_unavailable_target_provider rejected 8328ms expected @c78998036afd+wt
+	build selects provider `FirmwareValue` for slot `Value`, but no candidate exists in the loaded dependency closure
 fail/providers/external_boundary_requires_preserved rejected 3059ms expected @5aabaabbdd54+wt
 fail/providers/finite_requirement_boolean_outside_roster rejected 3413ms expected @a9ae30e1c334+wt
 fail/providers/finite_requirement_const_outside_roster rejected 3391ms expected @a9ae30e1c334+wt
@@ -8710,6 +8714,7 @@ run/ownership/temporary_projected_value_residual checked 11846ms check-target:ma
 run/proofs/embed_collection_length_exit checked 5426ms check-target:macos_arm64 @73e11f08dcbb+wt
 run/proofs/quotient_copy_paths checked 19698ms check-target:macos_arm64 @73e466d6222f+wt
 run/providers/module_named_float_conversion_family_exit checked 16353ms check-target:macos_arm64 @77cde1c51efd+wt
+run/providers/target_applicable_provider_closure checked 8466ms check-target:macos_arm64 @c78998036afd+wt
 run/providers/target_family_provider_boundary_identity_exit checked 73525ms check-target:macos_arm64 @2775f035db79+wt
 run/slices/call_result_mutable_window_exit checked 13049ms check-target:macos_arm64 @73e11f08dcbb+wt
 run/slices/computed_record_window checked 8787ms check-target:macos_arm64 @9791764bdb43

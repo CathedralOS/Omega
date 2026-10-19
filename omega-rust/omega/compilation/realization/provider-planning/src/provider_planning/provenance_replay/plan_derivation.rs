@@ -212,6 +212,19 @@ pub(crate) fn derive_provider_plans(
     let named = derive_named_provider_plans(context, calling_plans, selected_target, &plans);
     plans.extend(named);
     derive_placed_accessor_plans(context, selected_target, &mut plans)?;
+    // Coverage includes the selected target's direct body closure, not only
+    // the portable adapter's own declaration. Keep every authored source body,
+    // but exclude a whole map when one of its rows reaches a known absent
+    // target body. Completion, provider dependencies and admission remain
+    // separate obligations on the candidates that selection actually chooses.
+    let absent = crate::target_machines::DirectTargetBodyAbsences::derive(context, selected_target);
+    plans.retain(|candidate| {
+        !candidate
+            .provenance
+            .row_realizations
+            .iter()
+            .any(|machine| absent.contains(typed, *machine))
+    });
     Ok(plans)
 }
 
