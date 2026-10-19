@@ -966,8 +966,10 @@ fail/contracts/case_payload_write_retires_content_guarantee rejected 384ms expec
 fail/contracts/case_requirement_replaced_through_parameter rejected 382ms expected @6c0183cab07b
 fail/contracts/case_requirement_selector_changed rejected 384ms expected @6c0183cab07b
 fail/contracts/case_requires_other_case_payload_read rejected 1647ms expected @e03f48653b6a
-fail/contracts/contract_declaration_boundary_comparison rejected 172ms expected @fcbc37bb531f+wt
-fail/contracts/contract_declaration_boundary_operator rejected 173ms expected @fcbc37bb531f+wt
+fail/contracts/contract_declaration_boundary_comparison rejected 559ms expected @23cea4bf3b2f+wt
+	machine `probe` state `entry` value call to `limited` violates required fact `value < 100`: the instantiated fact is structurally false (`100 < 100`)
+fail/contracts/contract_declaration_boundary_operator rejected 559ms expected @23cea4bf3b2f+wt
+	machine `probe` state `entry` value call to `limited` violates required fact `operator < value`: the instantiated fact is structurally false (`5 < 5`)
 fail/contracts/copied_field_guarantee_after_overwrite rejected 1175ms expected @ea24f0fe7101
 fail/contracts/current_computed_scalar_guard_false_arm rejected 510ms expected @635eb3f2e180+wt
 fail/contracts/current_computed_scalar_guard_overwritten rejected 502ms expected @635eb3f2e180+wt
@@ -4180,11 +4182,22 @@ fail/providers/provider_selection_fabricated_activation rejected 2725ms expected
 fail/providers/provider_type_slot_ambiguous rejected 127ms expected @a9ae30e1c334+wt
 fail/providers/provider_type_slot_unknown rejected 2727ms expected @a9ae30e1c334+wt
 fail/providers/provider_type_target_default_conflict rejected 178ms expected @a9ae30e1c334+wt
-fail/providers/qualified_foreign_result_forwarding_carrier rejected 1718ms expected @7c5ee11ecfb7+wt
-fail/providers/qualified_foreign_result_forwarding_instance rejected 1778ms expected @7c5ee11ecfb7+wt
-fail/providers/qualified_foreign_result_forwarding_missing rejected 1753ms expected @7c5ee11ecfb7+wt
-fail/providers/qualified_foreign_result_forwarding_state rejected 1708ms expected @7c5ee11ecfb7+wt
-fail/providers/qualified_foreign_result_forwarding_written rejected 1792ms expected @7c5ee11ecfb7+wt
+fail/providers/qualified_foreign_result_forwarding_carrier rejected 1711ms expected @23cea4bf3b2f+wt
+	cannot prove requires contract for call read from wrong: view.protocol in Guid::Selected (invalidated by prior mutation of view.protocol.value; view.protocol.value is part of Guid::Selected) in state `entry`
+	cannot prove ensures contract for exit from wrong at statement 1: result.code == 0
+fail/providers/qualified_foreign_result_forwarding_instance rejected 1714ms expected @23cea4bf3b2f+wt
+	cannot prove requires contract for call read from wrong: value in Coordinate<integer:u64:7> in state `entry`
+	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
+fail/providers/qualified_foreign_result_forwarding_missing rejected 1709ms expected @23cea4bf3b2f+wt
+	cannot prove requires contract for call read from wrong: value == 42 (needs fact `value == 42` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
+fail/providers/qualified_foreign_result_forwarding_state rejected 1711ms expected @23cea4bf3b2f+wt
+	cannot prove requires contract for call read from wrong: renamed in Guid::Selected (invalidated by prior mutation of renamed.value; renamed.value is part of Guid::Selected) in state `next`
+	cannot prove ensures contract for exit from wrong at statement 1: result.code == 0
+fail/providers/qualified_foreign_result_forwarding_written rejected 1690ms expected @23cea4bf3b2f+wt
+	state `read` receives `protocol` as both mutable and read-only
+	cannot prove requires contract for call read from wrong: protocol in Guid::Selected in state `entry`
+	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
 fail/providers/qualified_state_duplicates_claim rejected 701ms expected @d75fe4ba5012+wt
 fail/providers/qualified_state_without_issuance rejected 692ms expected @d75fe4ba5012+wt
 fail/providers/returned_write_only_call_observation rejected 352ms expected @001fe6f26d2c
@@ -5859,7 +5872,7 @@ pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2820ms check-
 pass/contracts/call_write_keeps_disjoint_guard_exit checked 5761ms check-target:macos_arm64 @a036414cf2c9
 pass/contracts/carry_contract_decl checked 9441ms @5041ef1af684+wt
 pass/contracts/case_requires_payload_field_read_exit checked 13093ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/contracts/contract_declaration_boundary checked 3479ms @fcbc37bb531f+wt
+pass/contracts/contract_declaration_boundary checked 8943ms @23cea4bf3b2f+wt
 pass/contracts/current_computed_scalar_guard_exit checked 5137ms check-target:macos_arm64 @635eb3f2e180+wt
 pass/contracts/disequality_disjoin checked 9565ms @5041ef1af684+wt
 pass/contracts/disjunctive_ensures checked 9250ms @5041ef1af684+wt
@@ -8301,7 +8314,7 @@ pass/providers/owned_array_operand_epochs_exit checked 10855ms check-target:maco
 pass/providers/portable_contract checked 9330ms @5041ef1af684+wt
 pass/providers/provider_const_endpoint checked 19169ms @5041ef1af684+wt
 pass/providers/provider_type_target_default_override checked 11443ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/providers/qualified_foreign_result_forwarding checked 6546ms @7c5ee11ecfb7+wt
+pass/providers/qualified_foreign_result_forwarding checked 8911ms @23cea4bf3b2f+wt
 pass/providers/qualified_foreign_structural_arguments checked 13698ms check-target:macos_arm64 @d75fe4ba5012+wt
 pass/providers/runtime_adapter_dispatch_exit checked 10056ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/providers/runtime_boundary_address_model_exit checked 3842ms check-target:macos_arm64 @d75fe4ba5012+wt

@@ -336,22 +336,17 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     // position), so injectivity decomposition is the recorded next rung.
     let mut structural = if proof_only.is_proof_machine(program, machine) {
         StructuralJudge::from_requires(program, machine, &requires, true)
+    } else if let Some(entry) = program.machine_states(machine).first() {
+        // Return checking executes the body from its admitted entry, just as
+        // an ordered prefix observation does. Retain that state identity so
+        // exact nominal prerequisites can justify selected call guarantees;
+        // subsequent writes still retire their input observations. A
+        // prefix-free judge cannot assume those entry memberships.
+        StructuralJudge::from_runtime_state_requires(program, machine, entry, &requires)
     } else {
-        // An executable body's postcondition describes its actual return,
-        // including calls that mutate their borrowed arguments. Observe those
-        // calls once and invalidate written subjects; do not unfold them as
-        // repeatable mathematical applications.
         StructuralJudge::from_runtime_requires(program, machine, &requires)
     };
     if let Some(entry) = program.machine_states(machine).first() {
-        // A return proof starts at the same admitted entry as a prefix proof.
-        // Import the input's domain predicates before observing the body so
-        // subsequent effects invalidate them through ordinary capture rules.
-        // Keep this out of the prefix-free runtime judge: closed-call
-        // refutation deliberately has no license to assume entry facts.
-        if structural.has_runtime_body_values() {
-            structural.intake_entry_domain_predicates(machine, entry);
-        }
         transparent_applications::intake_transparent_requires(
             program,
             machine,

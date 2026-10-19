@@ -1,6 +1,8 @@
 // Entry obligations and normal-return guarantees have different storage
 // epochs. A foreign output write does not erase the independently returned
 // status, but its input observations cannot become post-state equations.
+// Whole-body return checking must start at the admitted entry state, including
+// exact nominal memberships, rather than a prefix-free refutation context.
 data Status [copy] { code: u64; }
 data Table { read: addr; scalar: addr; }
 data Record { value: u64; }
