@@ -1460,6 +1460,15 @@ pass/facts/reference_arrival_handoff_through_other_machine_exit built 6277ms exi
 pass/facts/reference_arrival_handoff_through_other_state_exit built 6315ms exit:0 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_parameter_exit built 6349ms exit:0 @3424ad143d6e
 pass/facts/reference_arrival_handoff_through_target_body_exit built 6344ms exit:0 @3424ad143d6e
+pass/facts/scalar_width_shifts_through_call_result_exit built 31700ms exit:0 @f98259e86dd2
+pass/facts/scalar_width_shifts_through_const_name_exit built 31744ms exit:0 @f98259e86dd2
+pass/facts/scalar_width_shifts_through_field_exit built 31711ms exit:0 @f98259e86dd2
+pass/facts/scalar_width_shifts_through_local_exit built 31608ms exit:0 @f98259e86dd2
+pass/facts/scalar_width_shifts_through_match_join_exit built 31225ms exit:0 @f98259e86dd2
+pass/facts/scalar_width_shifts_through_other_machine_exit built 31386ms exit:0 @f98259e86dd2
+pass/facts/scalar_width_shifts_through_other_state_exit built 32155ms exit:0 @f98259e86dd2
+pass/facts/scalar_width_shifts_through_parameter_exit built 31792ms exit:0 @f98259e86dd2
+pass/facts/scalar_width_shifts_through_target_body_exit built 31605ms exit:0 @f98259e86dd2
 pass/facts/selected_native_code_layout_through_call_result_exit built 8945ms exit:0 @b9f8d3719246+wt
 pass/facts/selected_native_code_layout_through_const_name_exit built 8947ms exit:0 @b9f8d3719246+wt
 pass/facts/selected_native_code_layout_through_field_exit built 8946ms exit:0 @b9f8d3719246+wt
