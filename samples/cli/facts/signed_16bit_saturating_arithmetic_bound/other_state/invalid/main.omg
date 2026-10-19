@@ -1,0 +1,40 @@
+// Fact: 16-bit signed saturating addition lhs +| rhs with bounded interval 350i16 <= sum <= 600i16 establishes 350i16 <= sum <= 600i16 across all nine places so exact subtractions 600i16 - sum and sum - 350i16 are safe.
+// Expected exit: 0
+
+machine verify_sum(value: i16) -> i32
+requires value >= 350i16 && value <= 600i16
+{
+    let sub_hi: i16 = 600i16 - value;
+    let sub_lo: i16 = value - 350i16;
+    let diff: i16 = (sub_hi + sub_lo) - 250i16;
+    transition diff == 0i16 {
+        true -> 0i32
+        _ -> 1i32
+    }
+}
+
+machine exercise(lhs: i16 in Saturating, rhs: i16 in Saturating) -> i32 crashes Trap {
+    let sum_sat: i16 in Saturating = lhs + rhs;
+    let sum: i16 = sum_sat as i16;
+    transition sum >= 350i16 && sum <= 601i16 {
+        true -> step(sum)
+        _ -> bad()
+    }
+    state step(s: i16) -> i32 requires s >= 350i16 && s <= 601i16 {
+        transition { _ -> next_step(s) }
+    }
+    state next_step(s: i16) -> i32 requires s >= 350i16 && s <= 601i16 {
+        verify_sum(s)
+    }
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    let rc: i32 = exercise(400i16, 80i16);
+    transition rc == 0i32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
