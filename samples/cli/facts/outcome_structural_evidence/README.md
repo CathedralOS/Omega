@@ -50,6 +50,23 @@ nonmatching arm without manufacturing a `Success` witness, and traps if that dis
 threshold is wrong. If `gate.threshold` is corrupt (not 5) or outcome evidence is absent, the transition
 evaluates to false and enters `state bad() { crash Trap; }`, terminating with non-zero exit/signal.
 
+Measured on producer `bcd7c58d3a26` for `macos_arm64`. Two probe classes were exercised, and they are
+distinguished by where they die:
+
+| Probe | Mutation | Result |
+| --- | --- | --- |
+| static, boundary establishment | `pick` body `{ selected = Fresh; Outcome::Success }` → `{ Outcome::Success }` | **checker refusal**, no native production: `outcome-specific evidence \`selected\` is not definitely assigned on the matching ordinary exit through pick::entry` |
+| static, opposite establishment | `pick` body `{ selected = Fresh; Outcome::Success }` → `{ selected = Fresh; Outcome::Failure }` | **checker refusal**: `outcome-specific evidence \`selected\` is assigned on a nonmatching ordinary exit through pick::entry` |
+| runtime, bound value | `Gate { threshold: 5 }` → `Gate { threshold: 4 }` or `{ threshold: 6 }` (comparison stays `== 5`) | **both engines trap**: `native signal 5` / `interp crash: Trap (host presentation agrees)` |
+| runtime, consuming operation | `gate.threshold == 5` → `gate.threshold == 6` (literal stays `5`) | **both engines trap**: `native signal 5` / `interp crash: Trap (host presentation agrees)` |
+
+An unmodified copy placed under the same `build.omg` in the probe directory returns `native exit 0` /
+`interp exit: 0`, so the trap rows are the mutation and not the probe scaffolding. The establishment
+probes never reach native production because the guaranteed outcome contract is checked before
+realization; the value probes reach runtime because the comparison is an ordinary operation whose
+operands the prover does not constant-fold into the outcome contract. Together they show the row is
+enforced statically at establishment and observably at execution.
+
 ### Invalid controls and reject twins
 
 The `invalid` child of each place keeps the place's program shape and removes only `selected = Fresh;` from `pick`.
@@ -80,6 +97,11 @@ omega --check samples/cli/facts/outcome_structural_evidence/target_body/invalid/
 - **Pinned fixtures:**
   - Positive passes: `tests/omega/pass/facts/outcome_structural_evidence_<place>` (9 places pinned, each byte-identical to `<place>/main.omg` and recording native exit 0 and Terminal interpreter agreement).
   - Negative controls: `tests/omega/fail/facts/outcome_structural_evidence_<place>` (9 places pinned, each byte-identical to `<place>/invalid/main.omg`, rejecting with `outcome-specific evidence \`selected\` is not definitely assigned on the matching ordinary exit`).
+
+- **Measured run record** (producer revision `3d4cd69c2bc1`, `macos_arm64`, library root `source/library`):
+  - `python3 tools/sample_native_gate.py --filter outcome_structural_evidence` — 10/10 samples meet their documented oracle; 9/9 intended-invalid controls match their authored rejection.
+  - `python3 tools/corpus_gate.py --native --filter facts/outcome_structural_evidence` — clean, 9 fixtures all `built`, executed 9 with exit codes `{'0': 9}`, 0 stdout differing from expected. Nine `built ... exit:0` rows are pinned in `tests/omega/corpus_native_macos_arm64.txt`.
+  - Discrimination probes recorded under [The oracle discriminates](#the-oracle-discriminates). This row was **coverage**, not a repair: all nine places already ran green on both engines, so no compiler source changed. Only the golden rows were missing.
 
 ### Specification and Lowering Layers
 
