@@ -60,6 +60,42 @@ omega --check samples/cli/facts/zero_byte_erased_carrier/target_body/invalid/mai
 Every reject twin fails closed with:
 `error: cannot prove requires contract for call ...: carrier.value >= 100 && carrier.value <= 100`
 
+## Pinned fixtures
+
+The row is measured by its fixtures under `tests/omega/`, not by the sample-side
+oracle file: the sample's `expected_native_exit.txt` scores only through
+`tools/corpus_gate.py`, which reads it directly. Each positive place is pinned
+as `tests/omega/pass/facts/zero_byte_erased_carrier_through_<place>_exit` and
+each reject twin as `tests/omega/fail/facts/zero_byte_erased_carrier_unproved_<place>`,
+where `<place>` is one of `local`, `field`, `parameter`, `call_result`,
+`match_join`, `const_name`, `other_state`, `other_machine`, `target_body`.
+
+Measured on `macos_arm64` at the recorded revision:
+
+| Leg | Command | Result |
+| --- | --- | --- |
+| check | `python3 tools/corpus_gate.py --filter zero_byte_erased_carrier` | 18 fixtures: 9 `checked`, 9 `rejected`; 0 rejected without their expected fragment, 0 fail fixtures did not reject |
+| native | `python3 tools/corpus_gate.py --native --filter pass/facts/zero_byte_erased_carrier` | 9 fixtures `built`; executed 9 with exit codes `{0: 9}` |
+
+### Oracle discrimination
+
+The zero-byte member carries no bytes, so the oracle must be shown to depend on
+the carrier at all, and specifically on its `u64` payload rather than its token.
+Corrupting the payload (`value: 100u64` to `value: 100u64 + 1u64`) while leaving
+the construct otherwise identical flips the observed result from exit 0 to a
+trap in **both** engines: native reports `native signal 5`, Terminal Psi reports
+`interp crash: Trap`, and agreement is preserved. The payload is what the oracle
+observes; the token is not.
+
+### Zero-storage measurement
+
+Applying the same construct, `size_of<Token>() == 0`, `align_of<Token>() == 1`,
+`size_of<Carrier>() == 8`, and `align_of<Carrier>() == 8` all hold as exit 0 in
+both engines. Falsification: flipping the claim to `token_size == 1` traps in
+both engines, so the measurement discriminates rather than reporting a constant.
+The token therefore contributes zero extents at byte alignment, and `Carrier`
+is exactly its 8-byte scalar with no padding overhead.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
@@ -68,7 +104,7 @@ Every reject twin fails closed with:
 
 Full 8-layer specification and lowering evidence:
 
-- **Establishment:** Constructing the nominal `Carrier { token: Token { empty: [] }, value: 100u64 }` record establishes the static contract bound `carrier.value >= 100u64 && carrier.value <= 100u64` at construction. The `verify_carrier` machine checks `size_of<Token>() == 0`, `size_of<Carrier>() == 8`, and performs exact subtraction `carrier.value - 100u64 == 0` directly from the established bounds without any post-hoc caller equality guard (`transition x == 100`).
+- **Establishment:** Constructing the nominal `Carrier { token: Token { empty: [] }, value: 100u64 }` record establishes the static contract bound `carrier.value >= 100u64 && carrier.value <= 100u64` at construction. The `verify_carrier` machine checks `size_of<Token>() == 0`, `size_of<Carrier>() == 8`, and performs exact subtraction `carrier.value - 100u64 == 0` directly from the established bounds without any post-hoc caller equality guard (`transition x == 100`). The rejecting form of this establishment is pinned by `zero_byte_erased_carrier_unproved_*`: supplying `99u64` denies the bound, and the checker refuses the call rather than admitting it.
 - **Identity and lifetime:** The zero-byte token field `empty: [u8; 0]` contributes zero physical bytes to the layout while maintaining distinct nominal type identity. The carrier value and contract bound retain exact identity and scope across all nine places without loss or unexpected field padding.
 - **Composition:** The zero-byte carrier composes through all 9 standard places: local variable assignment (`local`), struct field wrapping (`field`), machine parameter passing (`parameter`), function call return value (`call_result`), match branch convergence join (`match_join`), named constant initialization (`const_name`), state transition arrival (`other_state`), forwarding machine delegation (`other_machine`), and target-scoped body candidates (`target_body`). Each `<place>/invalid/main.omg` differs solely in supplying `value: 99u64`, violating the contract bound.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `cannot prove requires contract for call ...: carrier.value >= 100 && carrier.value <= 100`. The compiler strictly refuses callers that cannot prove the contract precondition before lowering.
