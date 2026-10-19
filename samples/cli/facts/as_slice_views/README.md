@@ -27,6 +27,7 @@ The root application and nine place projects all verify that extent.
 
 | Place | Positive | Invalid twin | Control twin | Fact transport |
 | --- | --- | --- | --- | --- |
+| root | [source](main.omg) | — | — | whole-array shared view in root main |
 | local | [source](local/main.omg) | [source](local/invalid/main.omg) | `local/controls/short_extent/` | whole-array shared view in a local |
 | field | [source](field/main.omg) | [source](field/invalid/main.omg) | `field/controls/short_extent/` | whole-array shared view in a record field |
 | parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) | `parameter/controls/short_extent/` | view parameter with exact extent requirement |
@@ -51,34 +52,14 @@ call executes natively with Terminal interpreter agreement across the nine
 places. The task's wider acceptance (restricted scalar-array constructors,
 cyclic view forwarding, and its named sample obligations) remains open there.
 
-- **Establishment:** the four-entry extent is established by construction of
-  the fixed array and carried by the view's stored length; the reject twins
-  (`<place>/invalid/` and `<place>/controls/short_extent/`) break only that
-  extent and fail at the `require_four` requirement without any caller
-  post-hoc equality guard.
-- **Identity and lifetime:** the view borrows `entries` under its shared loan;
-  descriptor construction cannot waive the backing loan. The anonymous
-  provider call product inside the direct `&entries[..]` argument keeps its
-  own evaluation custody: retirement planning answers its transfers from the
-  authored call's retained operand facts when no established local carries its
-  schedule.
-- **Composition:** each place substitutes the view through its carrier (local,
-  field, parameter, call result, match arms, const name, state arrival,
-  machine parameter, target body) into the same `require_four` call, and each
-  `<place>/main.omg` vs. `<place>/invalid/main.omg` differs only in the
-  construct's own backing array extent/contract (`4` vs. `3`).
-- **Soundness boundaries:** the twins' weakened extent is a proof failure
-  (`cannot prove requires contract for call require_four`), distinct from a
-  lowering refusal; authority and ownership obligations are unchanged by the
-  transfer repair.
-- **Terminal Psi and carrier lowering:** the view lowers as a borrowed
-  descriptor with its stored extent; the anonymous `Slice::range` call
-  evaluates through the ordinary structural value-call schedule.
-- **Native realization, frame/layout encoding, and image emission:** every
-  place (and root `main.omg`) binds `ProgramEntry` for the four hosted targets
-  (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and agrees
-  between Terminal Psi and native execution on the matching host
-  (`omega run --both`, exit 0). Foreign-target execution is not claimed.
+- **Establishment:** The four-entry extent `view.len == 4` is established by construction of the fixed array `[Entry; 4]` and carried by the whole-array range borrow `&entries[..]` through the selected provider `Slice::range`. At the consuming call `require_four(view.len)`, the precondition `requires length == 4` is discharged directly from the view's proven extent without relying on any post-hoc caller equality guard (`transition x == 100`).
+- **Identity and lifetime:** The slice view `&[Entry]` borrows `entries` under a shared loan (`&`); descriptor construction cannot waive the backing loan. The fact `view.len == 4` tracks the exact array version across local binding, record field (`Held<'a>`), explicit parameter, call return, match branches, named constant, state transition, forwarding machine, and target bodies while `entries` remains live and unmodified in place.
+- **Composition:** Each place substitutes the view through its carrier into the same `require_four` call. Calls substitute exact actuals, match-arm joins preserve the view extent on both branch paths (both executed at runtime), and state transitions prove arrival contracts before reading `view.len`. In every place, `<place>/main.omg` vs. `<place>/invalid/main.omg` (and `<place>/controls/short_extent/`) differ solely in the backing array extent and matching transport contracts (`4` vs. `3`), keeping the construct, bound, and operation identical.
+- **Soundness boundaries:** Weakening the extent in the reject twins causes static verification to fail closed with `cannot prove requires contract for call require_four` (or `cannot prove index ...`), distinguishing proof failure from lowering refusal. Shared borrow exclusivity and lifetime boundaries prevent access after loan retirement, and descriptor construction cannot synthesize authority over unborrowed storage.
+- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Non-byte `&[T]` range formation `&entries[..]` and extent projection `view.len` lower into canonical target-neutral Terminal Psi (`PSITERM\0`) two-word slice descriptors (pointer + element count), preserving erased proof-formal tag lanes while materializing borrowed-storage restoration windows and evaluation schedules. The Terminal Psi interpreter evaluates the view extent and executes in agreement with native execution (`omega run --both`, exit 0).
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Build companion rows join `ProgramEntry` declarations across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) to the Terminal catalog without reopening source. Fixed-array layout for `[Entry; 4]` (`Entry { value: i32 }`, `size_of = 16`, align 4, stride 4) and two-word slice descriptors (`size_of = 16`, align 8) validate. Target `CallPlan`/`StatePlan` lower slice descriptor pointers and lengths across register pairs (`rcx`/`rdx` on Windows x86_64, `rdi`/`rsi` on Linux x86_64, `x0`/`x1` on AArch64) and stack slots.
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Target backend lowering selects 64-bit integer comparisons for extent checks, assigns register homes and disjoint stack-frame activation storage for `entries`, computes bounded activation claims (`committed <= bound`), and inserts standard function prologues and epilogues honoring the `StatePlan` ceiling.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve to concrete frame offsets for array storage and slice descriptors, basic blocks lay out with branch relaxation and offset reflow around comparison jumps, transitive machine-state footprint evidence is validated, and direct PE/ELF/Mach-O images are emitted, executing natively and agreeing with Terminal Psi (`omega run --both`, exit 0) across host targets including `windows_x86_64` and `macos_arm64`.
 
 Canonical anchors: [borrowed range access and endpoints](../../../../wiki/spec/language/expressions.md#borrowed-range-access),
 [exact dependency transport](../../../../wiki/spec/language/dependent_values.md#establishment-and-witness-loans),
