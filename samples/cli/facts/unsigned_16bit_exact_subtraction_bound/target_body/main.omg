@@ -1,0 +1,52 @@
+// Fact: 16-bit unsigned exact subtraction lhs - rhs with 300u16 <= lhs <= 500u16 and 50u16 <= rhs <= 100u16 establishes 200u16 <= diff <= 450u16 so 450u16 - diff and diff - 200u16 are safe.
+// Place: target_body. Each of four target bodies performs exact 16-bit subtraction and discharges subtraction bounds.
+// Expected exit: 0
+
+linux_x86_64 machine verify_target() -> i32 {
+    let lhs: u16 = 400u16;
+    let rhs: u16 = 80u16;
+    let diff: u16 = lhs - rhs;
+    let headroom: u16 = 450u16 - diff;
+    let margin: u16 = diff - 200u16;
+    0i32
+}
+
+linux_arm64 machine verify_target() -> i32 {
+    let lhs: u16 = 400u16;
+    let rhs: u16 = 80u16;
+    let diff: u16 = lhs - rhs;
+    let headroom: u16 = 450u16 - diff;
+    let margin: u16 = diff - 200u16;
+    0i32
+}
+
+macos_arm64 machine verify_target() -> i32 {
+    let lhs: u16 = 400u16;
+    let rhs: u16 = 80u16;
+    let diff: u16 = lhs - rhs;
+    let headroom: u16 = 450u16 - diff;
+    let margin: u16 = diff - 200u16;
+    0i32
+}
+
+windows_x86_64 machine verify_target() -> i32 {
+    let lhs: u16 = 400u16;
+    let rhs: u16 = 80u16;
+    let diff: u16 = lhs - rhs;
+    let headroom: u16 = 450u16 - diff;
+    let margin: u16 = diff - 200u16;
+    0i32
+}
+
+machine probe() -> i32 {
+    verify_target()
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
