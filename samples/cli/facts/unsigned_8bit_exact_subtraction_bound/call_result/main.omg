@@ -1,0 +1,37 @@
+// Fact: 8-bit unsigned exact subtraction lhs - rhs with 100u8 <= lhs <= 180u8 and 20u8 <= rhs <= 40u8 establishes 60u8 <= diff <= 160u8 so 160u8 - diff and diff - 60u8 are safe.
+// Place: call result. Contracted helper calls return bounded 8-bit operands before subtraction and interval discharge.
+// Expected exit: 0
+
+machine get_lhs() -> u8
+ensures result >= 100 && result <= 180
+{
+    140u8
+}
+
+machine get_rhs() -> u8
+ensures result >= 20 && result <= 40
+{
+    30u8
+}
+
+machine sub_call_result() -> u8 {
+    let lhs: u8 = get_lhs();
+    let rhs: u8 = get_rhs();
+    let diff: u8 = lhs - rhs;
+    let headroom: u8 = 160u8 - diff;
+    let margin: u8 = diff - 60u8;
+    headroom + margin
+}
+
+machine probe() -> u8 {
+    sub_call_result()
+}
+
+machine main() crashes Trap {
+    transition probe() == 100 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
