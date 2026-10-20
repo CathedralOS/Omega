@@ -4541,6 +4541,31 @@ fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_target_body_rejecte
 	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
 	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
 	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call verify_diff from sat_target: diff >= 40 && diff <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from sat_target: diff >= 40 && diff <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from sat_target: diff >= 40 && diff <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from sat_target: diff >= 40 && diff <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_32bit_saturating_multiplication_bound_through_call_result_rejected rejected 17211ms expected @f5ba8b2d7223+wt
+	cannot prove requires contract for call verify_prod from exercise: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_32bit_saturating_multiplication_bound_through_const_name_rejected rejected 17128ms expected @f5ba8b2d7223+wt
+	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_32bit_saturating_multiplication_bound_through_field_rejected rejected 14632ms expected @f5ba8b2d7223+wt
+	cannot prove requires contract for call verify_prod from exercise: carrier.prod >= 50 && carrier.prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_32bit_saturating_multiplication_bound_through_local_rejected rejected 14921ms expected @f5ba8b2d7223+wt
+	cannot prove requires contract for call verify_prod from exercise: local_val >= 50 && local_val <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_32bit_saturating_multiplication_bound_through_match_join_rejected rejected 19084ms expected @f5ba8b2d7223+wt
+	cannot prove requires contract for call verify_prod from exercise: joined >= 50 && joined <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_32bit_saturating_multiplication_bound_through_other_machine_rejected rejected 18856ms expected @f5ba8b2d7223+wt
+	cannot prove requires contract for call verify_prod from exercise: relayed >= 50 && relayed <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_32bit_saturating_multiplication_bound_through_other_state_rejected rejected 15569ms expected @f5ba8b2d7223+wt
+	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `next_step`
+fail/facts/unsigned_32bit_saturating_multiplication_bound_through_parameter_rejected rejected 17417ms expected @f5ba8b2d7223+wt
+	cannot prove requires contract for call verify_prod from helper: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_32bit_saturating_multiplication_bound_through_target_body_rejected rejected 18585ms expected @f5ba8b2d7223+wt
+	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_rejected rejected 15294ms expected @a6b4f5c6d966+wt
 	cannot prove requires contract for call verify_masked from exercise: masked >= 40 && masked <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_rejected rejected 15562ms expected @a6b4f5c6d966+wt
@@ -9542,6 +9567,15 @@ pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_other_machine_exit 
 pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_other_state_exit checked 77009ms check-target:macos_arm64 @0fd8ec5f201d+wt
 pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_parameter_exit checked 83574ms check-target:macos_arm64 @0fd8ec5f201d+wt
 pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_target_body_exit checked 46496ms check-target:macos_arm64 @0fd8ec5f201d+wt
+pass/facts/unsigned_32bit_saturating_multiplication_bound_through_call_result_exit checked 45779ms check-target:macos_arm64 @f5ba8b2d7223+wt
+pass/facts/unsigned_32bit_saturating_multiplication_bound_through_const_name_exit checked 38454ms check-target:macos_arm64 @f5ba8b2d7223+wt
+pass/facts/unsigned_32bit_saturating_multiplication_bound_through_field_exit checked 47033ms check-target:macos_arm64 @f5ba8b2d7223+wt
+pass/facts/unsigned_32bit_saturating_multiplication_bound_through_local_exit checked 61685ms check-target:macos_arm64 @f5ba8b2d7223+wt
+pass/facts/unsigned_32bit_saturating_multiplication_bound_through_match_join_exit checked 44336ms check-target:macos_arm64 @f5ba8b2d7223+wt
+pass/facts/unsigned_32bit_saturating_multiplication_bound_through_other_machine_exit checked 51230ms check-target:macos_arm64 @f5ba8b2d7223+wt
+pass/facts/unsigned_32bit_saturating_multiplication_bound_through_other_state_exit checked 43757ms check-target:macos_arm64 @f5ba8b2d7223+wt
+pass/facts/unsigned_32bit_saturating_multiplication_bound_through_parameter_exit checked 48651ms check-target:macos_arm64 @f5ba8b2d7223+wt
+pass/facts/unsigned_32bit_saturating_multiplication_bound_through_target_body_exit checked 62404ms check-target:macos_arm64 @f5ba8b2d7223+wt
 pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_exit checked 46823ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_exit checked 39234ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_field_exit checked 43195ms check-target:macos_arm64 @a6b4f5c6d966+wt

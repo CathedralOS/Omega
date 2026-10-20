@@ -3,6 +3,8 @@
 Fact: 32-bit unsigned saturating multiplication lhs *| rhs with bounded interval 50u32 <= prod <= 200u32 establishes 50u32 <= prod <= 200u32 across all nine places so exact subtractions 200u32 - prod and prod - 50u32 are safe.
 
 Owning Task: `UNSIGNED-32BIT-SATURATING-MULTIPLICATION`
+Claim Ticket: `0a3c98d9730d4bd7b8a9fb3fe12993f0` (`antigravity/w36-2`)
+Obligation Class: Contract precondition (`requires value >= 50u32 && value <= 200u32` on `verify_prod`)
 Specification Reference: [Numeric values](wiki/spec/language/numeric_values.md#overflow-policies), [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md), and [Instruction selection](wiki/spec/resources/storage.md)
 
 This fact row demonstrates that 32-bit unsigned saturating multiplication (`lhs * rhs` on `u32 in Saturating`) combined with an explicit bounded interval guard (`50u32 <= prod <= 200u32`) establishes the exact interval (`50u32 <= prod <= 200u32`) across all nine standard places. The compiler statically derives that the dominating guard constrains `prod` to `[50, 200]`, which directly discharges exact downstream 32-bit unsigned subtractions `headroom = 200u32 - prod` and `margin = prod - 50u32` and downstream contract `requires value >= 50u32 && value <= 200u32` of `verify_prod` without underflow, overflow, or runtime crash traps across both Terminal Psi and native targets.
@@ -11,18 +13,18 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 
 ## Places
 
-| Place | Project | Transport | Positive Witness | Reject Twin |
-| --- | --- | --- | --- | --- |
-| root | `.` | canonical root witness multiplying saturating u32 values with interval guard and discharging exact subtractions | [`main.omg`](main.omg) | - |
-| local | `local/` | the guarded product is bound to local variables before discharging subtraction | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
-| field | `field/` | the guarded product is stored in a ProdCarrier record field before extraction and contract verification | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
-| parameter | `parameter/` | a helper machine receives the guarded product as an explicit parameter under contract | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
-| call result | `call_result/` | a producer machine returns the guarded product under postcondition ensures result >= 50u32 && result <= 200u32 | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
-| match join | `match_join/` | both branches of a boolean match expression yield the guarded product before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
-| const name | `const_name/` | named constants LHS_VAL and RHS_VAL define operands for saturating multiplication before guarded subtraction | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| another state | `other_state/` | an internal state transition transfers the guarded product to a successor state with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
-| another machine | `other_machine/` | an associated Relay machine forwards the guarded product to the caller under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
-| another target body | `target_body/` | each of the four hosted target bodies computes saturating multiplication and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+| Place | Project | Transport | Positive Witness | Reject Twin | Pinned Corpus Pass | Pinned Corpus Fail |
+| --- | --- | --- | --- | --- | --- | --- |
+| root | `.` | canonical root witness multiplying saturating u32 values with interval guard and discharging exact subtractions | [`main.omg`](main.omg) | - | - | - |
+| local | `local/` | the guarded product is bound to local variables before discharging subtraction | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | `tests/omega/pass/facts/unsigned_32bit_saturating_multiplication_bound_through_local_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_multiplication_bound_through_local_rejected` |
+| field | `field/` | the guarded product is stored in a ProdCarrier record field before extraction and contract verification | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | `tests/omega/pass/facts/unsigned_32bit_saturating_multiplication_bound_through_field_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_multiplication_bound_through_field_rejected` |
+| parameter | `parameter/` | a helper machine receives the guarded product as an explicit parameter under contract | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `tests/omega/pass/facts/unsigned_32bit_saturating_multiplication_bound_through_parameter_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_multiplication_bound_through_parameter_rejected` |
+| call result | `call_result/` | a producer machine returns the guarded product under postcondition ensures result >= 50u32 && result <= 200u32 | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `tests/omega/pass/facts/unsigned_32bit_saturating_multiplication_bound_through_call_result_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_multiplication_bound_through_call_result_rejected` |
+| match join | `match_join/` | both branches of a boolean match expression yield the guarded product before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `tests/omega/pass/facts/unsigned_32bit_saturating_multiplication_bound_through_match_join_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_multiplication_bound_through_match_join_rejected` |
+| const name | `const_name/` | named constants LHS_VAL and RHS_VAL define operands for saturating multiplication before guarded subtraction | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `tests/omega/pass/facts/unsigned_32bit_saturating_multiplication_bound_through_const_name_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_multiplication_bound_through_const_name_rejected` |
+| another state | `other_state/` | an internal state transition transfers the guarded product to a successor state with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `tests/omega/pass/facts/unsigned_32bit_saturating_multiplication_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_multiplication_bound_through_other_state_rejected` |
+| another machine | `other_machine/` | an associated Relay machine forwards the guarded product to the caller under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `tests/omega/pass/facts/unsigned_32bit_saturating_multiplication_bound_through_other_machine_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_multiplication_bound_through_other_machine_rejected` |
+| another target body | `target_body/` | each of the four hosted target bodies computes saturating multiplication and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `tests/omega/pass/facts/unsigned_32bit_saturating_multiplication_bound_through_target_body_exit` | `tests/omega/fail/facts/unsigned_32bit_saturating_multiplication_bound_through_target_body_rejected` |
 
 ## Execution
 
@@ -41,7 +43,7 @@ omega run --both samples/cli/facts/unsigned_32bit_saturating_multiplication_boun
 omega run --both samples/cli/facts/unsigned_32bit_saturating_multiplication_bound/target_body/main.omg
 ```
 
-All 10 samples report `native exit 0` and `interp exit: 0`.
+All 10 samples report `native exit 0` and `interp exit: 0`. Perturbing the demanded oracle check in `main.omg` (`transition rc == 0u32` -> `transition rc == 1u32`) causes both engines to trap (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`), proving that the oracle discriminates.
 
 Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the interval guard is widened to `201u32` (or operands adjusted to evaluate to `201u32`), failing to discharge `requires value >= 50u32 && value <= 200u32`. Check each twin with:
 
