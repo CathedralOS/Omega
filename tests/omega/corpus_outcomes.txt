@@ -2572,14 +2572,26 @@ fail/facts/exact_sub_guard_through_other_state_rejected rejected 641ms expected 
 fail/facts/exact_sub_guard_through_parameter_rejected rejected 650ms expected @9115912f0074
 fail/facts/exact_sub_guard_through_target_body_rejected rejected 607ms expected @9115912f0074
 fail/facts/field_where_index_through_call_result_rejected rejected 3225ms expected @a1b70f5ad427+wt
+	cannot prove index `current(main) + 1` is within length 5 in use::entry
 fail/facts/field_where_index_through_const_name_rejected rejected 3211ms expected @a1b70f5ad427+wt
+	cannot prove index `main.k + 1` is within length 5 in read::entry
 fail/facts/field_where_index_through_field_rejected rejected 3176ms expected @a1b70f5ad427+wt
+	cannot prove index `main.k + 1` is within length 5 in read::entry
 fail/facts/field_where_index_through_local_rejected rejected 2895ms expected @a1b70f5ad427+wt
+	cannot prove index `index + 1` is within length 5 in read::entry
 fail/facts/field_where_index_through_match_join_rejected rejected 2936ms expected @a1b70f5ad427+wt
+	cannot prove index `index + 1` is within length 5 in joined::entry
 fail/facts/field_where_index_through_other_machine_rejected rejected 2834ms expected @a1b70f5ad427+wt
+	cannot prove index `index + 1` is within length 5 in consumed::entry
 fail/facts/field_where_index_through_other_state_rejected rejected 3036ms expected @a1b70f5ad427+wt
+	cannot prove index `index + 1` is within length 5 in use::pick
 fail/facts/field_where_index_through_parameter_rejected rejected 2832ms expected @a1b70f5ad427+wt
+	cannot prove index `index + 1` is within length 5 in read_at::entry
 fail/facts/field_where_index_through_target_body_rejected rejected 2711ms expected @a1b70f5ad427+wt
+	cannot prove index `main.k + 1` is within length 5 in read_target::entry
+	cannot prove index `main.k + 1` is within length 5 in read_target::entry
+	cannot prove index `main.k + 1` is within length 5 in read_target::entry
+	cannot prove index `main.k + 1` is within length 5 in read_target::entry
 fail/facts/fixed_array_layout_geometry_through_call_result_rejected rejected 16911ms expected @a6b4f5c6d966+wt
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/fixed_array_layout_geometry_through_const_name_rejected rejected 16680ms expected @a6b4f5c6d966+wt
