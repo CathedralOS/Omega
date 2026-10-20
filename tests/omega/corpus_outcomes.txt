@@ -4425,6 +4425,10 @@ fail/facts/signed_32bit_division_remainder_bound_through_other_state_rejected re
 fail/facts/signed_32bit_division_remainder_bound_through_parameter_rejected rejected 15534ms expected @3045ef49d634+wt
 	cannot prove requires contract for call verify_parameter from compute_param: dividend % divisor >= 0 && dividend % divisor <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_32bit_division_remainder_bound_through_target_body_rejected rejected 16205ms expected @3045ef49d634+wt
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_32bit_saturating_multiplication_bound_through_call_result_rejected rejected 14682ms expected @972304d13c39+wt
 	Exact integer cast in machine `multiply_call_result` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/signed_32bit_saturating_multiplication_bound_through_const_name_rejected rejected 12109ms expected @972304d13c39+wt
