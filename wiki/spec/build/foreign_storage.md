@@ -161,10 +161,14 @@ Enforced today:
   checked-content suite (`typed-trees-to-checked-trees` `checks::content`;
   recorded 14/14 green on the board at `a0591618c7ba`/later re-verifications).
 - Authored rejections are pinned by corpus fixtures:
-  `tests/omega/fail/entry/service_foreign_domain_rejected`,
   `tests/omega/fail/expressions/token_bound_machine_foreign_family_rejected`,
   `tests/omega/fail/core/content_projection_foreign_owner`, and the
-  termination `*_foreign*` rejection rows.
+  termination `*_foreign*` rejection rows. The former
+  `tests/omega/fail/entry/service_foreign_domain_rejected` was retired with the
+  `Binding<R>` carrier it asserted on (`component_publication.md`, "Source-visible
+  `Binding<R>` values are retired"); the rule that a source-visible carrier
+  admits no authored domain qualification has no subject left, and the retired
+  name itself stays pinned by `fail/calls/retired_core_binding_{field,local,parameter}`.
 - Write-only foreign access leans on the ordinary write-only enforcement
   surfaces (`checks/multiplicity/borrowed_windows.rs`,
   `checks/multiplicity/linear_validation/recorded_events.rs`,

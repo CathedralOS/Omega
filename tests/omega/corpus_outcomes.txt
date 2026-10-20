@@ -1729,7 +1729,6 @@ fail/effects/windows_copy_move_requires_content rejected 3197ms expected @18ee7b
 	machine `move_without_content` publishes service reach `FilesystemNamespaceMutation` but its checked body reaches undeclared services `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation`
 fail/effects/windows_filesystem_read_requires_content_read rejected 3213ms expected @18ee7b79c832
 	machine `read_without_content_permission` publishes service reach `WindowsFilesystemHost` but its checked body reaches undeclared service `FilesystemContentRead`
-fail/entry/service_foreign_domain_rejected rejected 917ms expected @a9ae30e1c334+wt
 fail/expressions/anonymous_structural_match_undefined_pattern rejected 80ms expected @5c4c9bc0ebab
 fail/expressions/anonymous_structural_match_undefined_subject rejected 79ms expected @5c4c9bc0ebab
 fail/expressions/anonymous_structural_match_unselected_arm_type rejected 161ms expected @5c4c9bc0ebab
