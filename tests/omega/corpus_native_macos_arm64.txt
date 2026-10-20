@@ -2621,6 +2621,7 @@ pass/providers/checked_fixed_operator_physical_custody built 1393ms exit:70 @bed
 pass/providers/component_owner_provider_override_compile built 300ms
 pass/providers/const_generic_entry_record_field_exit built 4357ms exit:70 @b016b7e0a226
 pass/providers/consuming_trait_requirement_external_sink_exit built 4004ms exit:0 @b8976916d516+wt
+pass/providers/cross_package_public_slot_exit built 1029ms exit:0 @fb4e3a381843
 pass/providers/direct_boundary_array_snapshot_exit built 2031ms exit:70 @36ad3370c97a
 pass/providers/external_boundary_contract_exit built 17928ms exit:0 @5aabaabbdd54+wt
 pass/providers/external_boundary_requirement_via_exit built 2953ms exit:21 @fb2178def922

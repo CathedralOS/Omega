@@ -6953,6 +6953,8 @@ fail/providers/checked_reference_provider_local_escape rejected 1208ms expected 
 fail/providers/checked_view_provider_wrong_extent rejected 271ms expected @71e65af3059c+wt
 fail/providers/consuming_requirement_without_provider rejected 5554ms expected @308fbdc54ba0
 fail/providers/consuming_trait_requirement_without_provider rejected 6626ms expected @308fbdc54ba0
+fail/providers/cross_package_private_slot_rejected rejected 218ms expected @fb4e3a381843
+	Build declaration operand does not resolve to one visible product declaration of the required kind
 fail/providers/demanded_unavailable_target_provider rejected 12668ms expected @c78998036afd+wt
 	no provider is selected for boundary requirement `Value::read`, which the program entry reaches on target `macos_arm64`
 fail/providers/erased_routed_result_not_recovered rejected 687ms expected @d75fe4ba5012+wt
@@ -11983,6 +11985,7 @@ pass/providers/closed_callback_repeated_application checked 42689ms check-target
 pass/providers/component_owner_provider_override_compile checked 11504ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/const_generic_entry_record_field_exit checked 2988ms check-target:macos_arm64 @b016b7e0a226
 pass/providers/consuming_trait_requirement_external_sink_exit checked 5872ms check-target:macos_arm64 @b8976916d516+wt
+pass/providers/cross_package_public_slot_exit checked 939ms check-target:macos_arm64 @fb4e3a381843
 pass/providers/direct_boundary_array_snapshot_exit checked 12346ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/external_boundary_contract_exit checked 6992ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/providers/external_boundary_requirement_via_exit checked 11623ms check-target:macos_arm64 @a9ae30e1c334+wt
