@@ -1502,6 +1502,15 @@ pass/facts/erased_reference_contract_through_other_machine_exit built 6179ms exi
 pass/facts/erased_reference_contract_through_other_state_exit built 6173ms exit:0 @327a3ccb7744+wt
 pass/facts/erased_reference_contract_through_parameter_exit built 6164ms exit:0 @327a3ccb7744+wt
 pass/facts/erased_reference_contract_through_target_body_exit built 6164ms exit:0 @327a3ccb7744+wt
+pass/facts/fixed_array_layout_geometry_through_call_result_exit built 61999ms exit:0 @8b1b2befa842
+pass/facts/fixed_array_layout_geometry_through_const_name_exit built 62006ms exit:0 @8b1b2befa842
+pass/facts/fixed_array_layout_geometry_through_field_exit built 58092ms exit:0 @8b1b2befa842
+pass/facts/fixed_array_layout_geometry_through_local_exit built 59106ms exit:0 @8b1b2befa842
+pass/facts/fixed_array_layout_geometry_through_match_join_exit built 69396ms exit:0 @8b1b2befa842
+pass/facts/fixed_array_layout_geometry_through_other_machine_exit built 69534ms exit:0 @8b1b2befa842
+pass/facts/fixed_array_layout_geometry_through_other_state_exit built 68368ms exit:0 @8b1b2befa842
+pass/facts/fixed_array_layout_geometry_through_parameter_exit built 68546ms exit:0 @8b1b2befa842
+pass/facts/fixed_array_layout_geometry_through_target_body_exit built 54694ms exit:0 @8b1b2befa842
 pass/facts/fixed_array_value_through_call_result_exit built 15856ms exit:0 @fc2a9ae75c65
 pass/facts/fixed_array_value_through_const_name_exit built 15966ms exit:0 @fc2a9ae75c65
 pass/facts/fixed_array_value_through_field_exit built 15882ms exit:0 @fc2a9ae75c65
