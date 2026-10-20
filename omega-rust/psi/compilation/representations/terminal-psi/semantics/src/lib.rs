@@ -16,6 +16,7 @@
 //! proof-bearing scalars, record fields, primitive places, scalar arrays and
 //! structural effects.
 
+pub mod activation_storage;
 mod arrival_storage;
 pub mod borrowed_storage;
 mod byte_carriers;

@@ -309,6 +309,26 @@ pub enum OperationKind {
     EstablishScalarArray {
         elements: Vec<ValueId>,
     },
+    /// Establish activation-local backing at this caller site. The backing's
+    /// fixed array reserves the complete bound, including on rejection. A
+    /// within-bound request initializes the committed byte prefix and returns
+    /// Established with a linear descriptor over that exact region; otherwise
+    /// it returns Rejected without a claim. Moving the descriptor never moves
+    /// this site's backing home. No provider participates in either outcome.
+    EstablishActivationClaim {
+        bound: u64,
+        committed: ValueId,
+        backing_type: StructuralTypeId,
+        established_case: StructuralCaseId,
+        rejected_case: StructuralCaseId,
+    },
+    /// Retire the newest live activation claim after all its loans close.
+    /// The exact caller-local claim follows the ordinary ownership transfers;
+    /// the backing remains private to this frame until activation retirement.
+    ReleaseActivationClaim {
+        source: StructuralArgument,
+        claim: ClaimId,
+    },
     /// Atomically establish a complete fixed array from its ordered owned
     /// structural elements. The result declaration supplies the exact element
     /// type and length; projected operands retain their original custody.
@@ -1161,7 +1181,8 @@ impl OperationKind {
             }
         }
         match self {
-            Self::EstablishNativeCodeLayout { .. } => {}
+            Self::EstablishNativeCodeLayout { .. } | Self::ReleaseActivationClaim { .. } => {}
+            Self::EstablishActivationClaim { committed, .. } => *committed = map(*committed),
             Self::EstablishReference { storage, .. } => {
                 if let Some(storage) = storage {
                     storage.byte_offset = map(storage.byte_offset);

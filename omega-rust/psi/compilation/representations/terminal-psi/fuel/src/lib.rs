@@ -41,6 +41,8 @@ impl TerminalFuelSchedule {
             | OperationKind::ReleaseReference { .. }
             | OperationKind::EstablishScalarCase { .. }
             | OperationKind::EstablishScalarArray { .. }
+            | OperationKind::EstablishActivationClaim { .. }
+            | OperationKind::ReleaseActivationClaim { .. }
             | OperationKind::EstablishZeroedStructural { .. }
             | OperationKind::EstablishStructuralLocal { .. }
             | OperationKind::EstablishByteSequenceConcatenation { .. }

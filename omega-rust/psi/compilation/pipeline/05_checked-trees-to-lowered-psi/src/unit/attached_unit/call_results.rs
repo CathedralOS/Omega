@@ -61,7 +61,7 @@ pub(crate) fn prepare(
     };
     let plans = &checked.facts.flow.terminal_unit_effects;
     let public_result = match call.route() {
-        checked_trees::CheckedUnitCallRoute::Module { .. } => None,
+        checked_trees::CheckedUnitCallRoute::Module { .. } | checked_trees::CheckedUnitCallRoute::ActivationStorage { .. } => None,
         checked_trees::CheckedUnitCallRoute::Boundary => Some(
             &super::call_closure::unique_unit_boundary(
                 super::bodies::UnitPlans::published(&checked.facts.flow),

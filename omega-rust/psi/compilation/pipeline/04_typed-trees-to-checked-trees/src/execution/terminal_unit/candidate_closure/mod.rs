@@ -206,7 +206,7 @@ fn admit_call_target(
         // A selector call enters no single body. Each selected
         // implementation's rows are the dispatch catalog's dependencies,
         // which lowering resolves when it assembles the tables.
-        (CheckedUnitCallRoute::Dynamic { .. }, _) => {}
+        (CheckedUnitCallRoute::Dynamic { .. } | CheckedUnitCallRoute::ActivationStorage { .. }, _) => {}
     }
 }
 

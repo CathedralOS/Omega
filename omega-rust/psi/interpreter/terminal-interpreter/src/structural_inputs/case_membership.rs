@@ -141,6 +141,9 @@ impl TerminalExecution<'_> {
         target: &StructuralRuntimePlace,
     ) -> Result<StructuralTypeId, TerminalInterpretError> {
         let mut actual = None;
+        if let Some(owner) = self.activation_storage.owners.get(target) {
+            return Ok(owner.structural_type);
+        }
         for owner in self.structural_values.values().chain(
             self.call_stack
                 .iter()

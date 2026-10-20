@@ -589,6 +589,7 @@ fn scan_operation(
         }
     }
     match operation {
+        O::ReleaseActivationClaim { source, .. } => pending.attribute_argument(context, source, true, true),
         O::RegisterAccess { .. } => {
             // Register writes may change memory interpretation. They are not
             // ordinary accesses to one place that an alias summary can narrow.
@@ -871,6 +872,7 @@ fn scan_operation(
         | O::EstablishScalarArray { .. }
         | O::EstablishPrimitiveLocal { .. }
         | abstract_operations::byte_literal_establish_pair_pattern!(..)
+        | O::EstablishActivationClaim { .. }
         | O::EstablishNativeCodeLayout { .. }
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }

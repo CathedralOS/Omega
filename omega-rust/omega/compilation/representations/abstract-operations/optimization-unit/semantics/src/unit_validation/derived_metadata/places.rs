@@ -51,6 +51,7 @@ pub(crate) fn reconstruct_declared_places(
             abstract_operations::establish_or_subslice_set_pattern!(result, ..)
             | abstract_operations::establish_case_or_record_result_pattern!(result)
             | O::EstablishNativeCodeLayout { result, .. }
+            | O::EstablishActivationClaim { result, .. }
             | O::EstablishZeroedStructural { result, .. }
             | O::EstablishStructuralLocal { result, .. }
             | O::EstablishReference { result, .. }
@@ -172,6 +173,7 @@ pub(crate) fn validate_operation_places(
                 require(argument.place, known)?;
             }
         }
+        O::ReleaseActivationClaim { source, .. } => require(source.place, known)?,
         O::ReleaseReference { source, .. } => require(*source, known)?,
         O::WriteOnlyPrimitiveStore { destination, .. } => {
             require(destination.place(), known)?;

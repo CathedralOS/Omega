@@ -325,6 +325,21 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::EstablishStructuralArray { elements } => {
             value_operations::encode_establish_structural_array(writer, elements)?
         }
+        OperationKind::EstablishActivationClaim { bound, committed, backing_type, established_case, rejected_case } => {
+            writer.u8(operation_tags::ESTABLISH_ACTIVATION_CLAIM);
+            writer.u64(bound);
+            writer.id(committed);
+            writer.id(backing_type);
+            writer.id(established_case);
+            writer.id(rejected_case);
+        }
+        OperationKind::ReleaseActivationClaim { source, claim } => {
+            writer.u8(operation_tags::RELEASE_ACTIVATION_CLAIM);
+            writer.id(source.place);
+            super::structural_signature_wire::encode_structural_access(writer, source.access);
+            super::structural_place_wire::encode_structural_path(writer, "activation claim release", &source.path)?;
+            writer.id(claim);
+        }
         OperationKind::EstablishScalarArray { elements } => {
             value_operations::encode_establish_scalar_array(writer, elements)?
         }
@@ -929,6 +944,19 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
                 terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
             )?
         }
+        operation_tags::ESTABLISH_ACTIVATION_CLAIM => OperationKind::EstablishActivationClaim {
+            bound: reader.u64()?, committed: reader.id("ValueId")?,
+            backing_type: reader.id("StructuralTypeId")?,
+            established_case: reader.id("StructuralCaseId")?, rejected_case: reader.id("StructuralCaseId")?,
+        },
+        operation_tags::RELEASE_ACTIVATION_CLAIM => OperationKind::ReleaseActivationClaim {
+            source: terminal_psi::StructuralArgument {
+                place: reader.id("PlaceId")?,
+                access: super::structural_signature_wire::decode_structural_access(reader)?,
+                path: super::structural_place_wire::decode_structural_path(reader)?,
+            },
+            claim: reader.id("ClaimId")?,
+        },
         operation_tags::ESTABLISH_SCALAR_ARRAY => {
             value_operations::decode_establish_scalar_array(reader)?
         }

@@ -2,6 +2,7 @@
 //! struct literals, places and placed views, recasts, borrows, locals,
 //! cleanup, expression and reference types, wire and intrinsic boundaries.
 
+pub(crate) mod activation_storage;
 pub(crate) mod atomic_fences;
 pub(crate) mod atomic_operations;
 pub(crate) mod claim_frontier;

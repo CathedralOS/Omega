@@ -85,6 +85,7 @@ use crate::unit::{
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use semantic_vocabulary::{BlockId, OperationId};
 
+mod activation_storage;
 mod atomic_access;
 mod boundary_calls;
 mod byte_operands;

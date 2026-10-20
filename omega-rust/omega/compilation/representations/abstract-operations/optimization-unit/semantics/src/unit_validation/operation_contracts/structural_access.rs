@@ -1197,7 +1197,8 @@ pub(crate) fn structural_operation_result_contract<'a>(
                 O::EstablishElementView { result, .. } => (result, view_access(caller, operation)?),
                 O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
                 | abstract_operations::establish_case_or_record_result_pattern!(result)
-                | O::EstablishZeroedStructural { result, .. }
+                | O::EstablishActivationClaim { result, .. }
+            | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishStructuralLocal { result, .. }
                 | O::EstablishReference { result, .. }
                 | O::EstablishPlacedReference { result, .. }

@@ -101,7 +101,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Scalar result memberships retain independent predicate and return provenance.
 // Quotient source judgments are erased; only nominal copy/call joins remain.
 // Folded constants retain exact target-scoped selected-realization dependencies.
-pub(crate) const FORMAT_MARKER: u16 = 172;
+// Caller-activation establishment and release carry exact site/custody operands.
+pub(crate) const FORMAT_MARKER: u16 = 173;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

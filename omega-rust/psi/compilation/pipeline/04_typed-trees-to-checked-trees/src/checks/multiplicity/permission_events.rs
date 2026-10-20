@@ -263,6 +263,14 @@ pub(crate) fn prepare_permission_events(
                 let (places, remaining, selections, selected_cleanup, instruction_dispositions) =
                     custody;
                 super::permission_schedule::select_cases(program, state, step, places);
+                super::permission_schedule::select_cleanup_cases(
+                    program,
+                    machine,
+                    call_frames.as_ref(),
+                    state,
+                    step,
+                    remaining,
+                );
                 match step {
                     super::permission_schedule::PermissionStep::Evaluate {
                         statement: statement_index,
@@ -970,22 +978,21 @@ pub(crate) fn case_transition_run_is_exhaustive(
     })
 }
 
-/// The symbol-rooted canonical path a guard `subject` resolves to — the
+/// The occurrence-rooted canonical path a guard `subject` resolves to — the
 /// shared peel both case-alternative guards apply before their path tests.
 fn guarded_case_subject(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     subject: typed_trees::expression::ExpressionHandle,
-) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
+) -> Option<(facts::PlaceRoot, Vec<facts::PlaceSegment>)> {
     let place = validation::canonical_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,
         subject,
     )?;
-    let symbol = place.root.as_symbol()?;
-    Some((symbol, place.segments))
+    Some((place.root, place.segments))
 }
 
 pub(crate) fn select_case_alternative_from_guard(
@@ -996,13 +1003,13 @@ pub(crate) fn select_case_alternative_from_guard(
     variant: SymbolHandle,
     places: &mut [LinearPlace],
 ) {
-    let Some((symbol, mut selected_path)) =
+    let Some((root, mut selected_path)) =
         guarded_case_subject(program, state_symbol, statement_index, subject)
     else {
         return;
     };
     selected_path.push(facts::PlaceSegment::Case { variant });
-    select_static_case_alternative(facts::PlaceRoot::Symbol(symbol), &selected_path, places);
+    select_static_case_alternative(root, &selected_path, places);
 }
 
 pub(crate) fn exclude_case_alternative(
@@ -1013,14 +1020,13 @@ pub(crate) fn exclude_case_alternative(
     variant: SymbolHandle,
     places: &mut [LinearPlace],
 ) {
-    let Some((symbol, path)) =
-        guarded_case_subject(program, state_symbol, statement_index, subject)
+    let Some((root, path)) = guarded_case_subject(program, state_symbol, statement_index, subject)
     else {
         return;
     };
     let case_index = path.len();
     for candidate in places.iter_mut().filter(|candidate| {
-        candidate.root == facts::PlaceRoot::Symbol(symbol)
+        candidate.root == root
             && candidate.path.get(..case_index) == Some(path.as_slice())
             && candidate.path.get(case_index) == Some(&facts::PlaceSegment::Case { variant })
     }) {

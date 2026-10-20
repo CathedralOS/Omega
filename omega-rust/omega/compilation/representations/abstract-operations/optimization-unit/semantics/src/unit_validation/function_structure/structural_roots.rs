@@ -170,6 +170,16 @@ pub(crate) fn validate_structural_root_operations(
                 structural_types,
             )?;
             match &node.operation {
+                O::EstablishActivationClaim { psi_operation, result, bound, committed, backing_type, established_case, rejected_case } => {
+                    let operation = terminal_psi::Operation { id: *psi_operation, static_reach_binding: None, suspension_crossing: None,
+                        result: terminal_psi::OperationResult::Structural(result.clone()),
+                        kind: terminal_psi::OperationKind::EstablishActivationClaim { bound: *bound, committed: *committed,
+                            backing_type: *backing_type, established_case: *established_case, rejected_case: *rejected_case } };
+                    terminal_semantics::activation_storage::activation_claim_shape_in(&unit.structural_types, &operation)
+                        .map_err(|_| catalog_mismatch(function))?;
+                    if !matches!(place_kinds.get(&result.place), Some(StructuralPlaceKind::OperationResult { producer, structural_type })
+                        if *producer == *psi_operation && *structural_type == result.structural_type) { return Err(catalog_mismatch(function)); }
+                }
                 O::StructuralByteSequenceFieldByteStore { .. } => {
                     if super::byte_views::byte_field_store_capacity(
                         function,

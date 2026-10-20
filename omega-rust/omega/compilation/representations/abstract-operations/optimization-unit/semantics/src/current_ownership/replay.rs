@@ -510,6 +510,7 @@ pub(super) fn validate_current_ownership_cfg(
                 // A window repair consumes its value exactly like one owned
                 // whole call argument: live-owned custody in, once.
                 O::StoreStructuralField { value, .. }
+                | O::ReleaseActivationClaim { source: value, .. }
                 | O::MoveStructuralValue { source: value, .. } => std::slice::from_ref(value),
                 _ => &[],
             };
@@ -536,6 +537,7 @@ pub(super) fn validate_current_ownership_cfg(
                 // The repair's consumed operand carries its own declared
                 // signature; there is no callee parameter row to read.
                 O::StoreStructuralField { value, .. }
+                | O::ReleaseActivationClaim { source: value, .. }
                 | O::MoveStructuralValue { source: value, .. } => {
                     vec![
                         crate::unit_validation::operation_contracts::structural_source_contract(
@@ -924,7 +926,17 @@ pub(super) fn validate_current_ownership_cfg(
             } else {
                 Vec::new()
             };
+            if let O::ReleaseActivationClaim { source, claim, .. } = &node.operation {
+                let exact = frontier.claims.get(claim).is_some_and(|live| live.input == Some(source.place)
+                    && live.path == source.path)
+                    && frontier.claims.iter().filter(|(_, live)| live.input == Some(source.place)
+                        && live.path.starts_with(&source.path)).count() == 1;
+                if !exact || source.access != StructuralAccess::Owned {
+                    return Err(OptimizationUnitValidationError::CurrentCleanupMismatch { machine: function.machine, block: block_id });
+                }
+            }
             let transferred = match &node.operation {
+                O::ReleaseActivationClaim { claim, .. } => vec![*claim],
                 O::TransformContent { .. } => transformed_parents,
                 O::CallStructural {
                     claim_transfers, ..

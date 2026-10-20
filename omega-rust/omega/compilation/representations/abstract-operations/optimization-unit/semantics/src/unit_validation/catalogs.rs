@@ -134,6 +134,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
             descriptor_requirements.entry(function.machine).or_default(),
             &mut ownership_frontiers,
         )?;
+        super::activation_storage::validate(unit, function)?;
         validate_structural_field_range_authority(unit, function, &structural_types)?;
     }
     crate::current_ownership::validate_descriptor_compatibility(unit, &descriptor_requirements)?;

@@ -10,6 +10,20 @@ pub fn finalize_terminal_artifact(
 {
     let (lowered, execution) = optimized.into_parts();
     let (module, debug_map, _) = lowered.into_parts();
+    // Activation establishment is conditional, but its successful custody is
+    // activation-local and ordered across the complete CFG. Decide that
+    // obligation on the final pre-Terminal graph before either consumer can
+    // execute it. Artifact encoding deliberately trusts producer foundations;
+    // external decode and optional target optimization are not this admission.
+    for machine in &module.machines {
+        terminal_semantics::activation_storage::validate_machine(&module, machine).map_err(
+            |reason| {
+                terminal_codec::CanonicalTerminalArtifactError::Semantic(
+                    terminal_codec::CodecError::MalformedStructuralFoundation(reason),
+                )
+            },
+        )?;
+    }
     let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(
         module,
         execution,

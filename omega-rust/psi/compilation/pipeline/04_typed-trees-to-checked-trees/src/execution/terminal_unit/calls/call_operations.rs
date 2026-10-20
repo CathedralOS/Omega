@@ -452,6 +452,42 @@ pub(in crate::execution) fn build_call_operation(
             return None;
         }
     }
+    if let Some(contract) = validation::exact_toolchain_activation_storage_contract(program, target_machine) {
+        phase("activation storage: closed operation contract");
+        let bound = if contract.operation == validation::ActivationStorageOperation::Establish {
+            Some(validation::activation_storage_bound(program, target_machine)
+                .inspect_err(|reason| phase(reason)).ok()?)
+        } else { None };
+        let route = CheckedUnitCallRoute::ActivationStorage { operation: contract.operation, bound };
+        if let Some(ExpectedCallValueResult::Structural(result)) = expected_call_result {
+            return super::structural_result_call::with_structural_custody(
+                program, facts, machine.symbol, state.symbol, trace,
+                CheckedUnitCallParts {
+                    coordinate, source_site, target: call_target, route,
+                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                    scalar_arguments, structural_arguments,
+                    result: CheckedUnitCallResult::Structural {
+                        binding: result.clone(), discard_result_on_return: false,
+                    },
+                    transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
+                },
+            );
+        }
+        if expected_call_result.is_some() || contract.operation != validation::ActivationStorageOperation::Release {
+            phase("activation storage: operation/result mismatch");
+            return None;
+        }
+        let transfers = call_claim_transfers(program, facts, machine.symbol, state.symbol, call,
+            caller_parameters, caller_structural_results, &structural_arguments)
+            .inspect_err(|reason| phase(reason)).ok()?;
+        return CheckedUnitCallPlan::new(CheckedUnitCallParts {
+            coordinate, source_site, target: call_target, route,
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+            scalar_arguments, structural_arguments,
+            result: CheckedUnitCallResult::Unit,
+            transfers: CheckedUnitCallTransfers::Claims(transfers),
+        }).map(CheckedUnitEffectOperationPlan::Call);
+    }
     // A result carrying linear claims, whole or beneath an affine owner,
     // binds them through its checked custody rather than an ownership-free
     // storage judgment: the callee's returning edge decides which claim

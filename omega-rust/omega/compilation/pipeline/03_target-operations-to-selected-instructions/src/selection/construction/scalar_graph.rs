@@ -486,7 +486,9 @@ fn select_function(
                     | LegalizedScalarInstructionKind::WrappingSubtract { .. } => {
                         integer_arithmetic::emit(function, environment, operation, &mut builder)?
                     }
-                    LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. }
+                    LegalizedScalarInstructionKind::EstablishActivationClaim { .. }
+                    | LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }
+                    | LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. }
                     | LegalizedScalarInstructionKind::EstablishRecord { .. }
                     | LegalizedScalarInstructionKind::EstablishCase { .. }
                     | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }

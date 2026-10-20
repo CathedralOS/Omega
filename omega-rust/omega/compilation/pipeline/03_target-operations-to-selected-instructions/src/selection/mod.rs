@@ -5,6 +5,7 @@
 //! across functions.
 
 mod address_join_input;
+mod activation_storage_input;
 mod aggregate_result_input;
 mod arrival_parameter_input;
 mod atomic_access;

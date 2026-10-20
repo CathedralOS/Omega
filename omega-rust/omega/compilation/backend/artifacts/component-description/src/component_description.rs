@@ -740,6 +740,8 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::TransformContent { .. }
                     | OperationKind::EstablishScalarCase { .. }
                     | OperationKind::EstablishStructuralCase { .. }
+                    | OperationKind::EstablishActivationClaim { .. }
+                    | OperationKind::ReleaseActivationClaim { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }
                     | OperationKind::StorageAddress { .. }
                     | OperationKind::PrimitiveScalarRead { .. }

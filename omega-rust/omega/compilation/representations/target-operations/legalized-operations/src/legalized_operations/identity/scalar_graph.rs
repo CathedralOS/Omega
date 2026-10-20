@@ -71,6 +71,21 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::EstablishActivationClaim { result, bound, committed, backing_type, established_case, rejected_case, layout } => {
+                    bytes.push(253);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    bytes.extend_from_slice(&bound.to_le_bytes());
+                    bytes.extend_from_slice(&committed.get().to_le_bytes());
+                    bytes.extend_from_slice(&backing_type.get().to_le_bytes());
+                    bytes.extend_from_slice(&established_case.get().to_le_bytes());
+                    bytes.extend_from_slice(&rejected_case.get().to_le_bytes());
+                    super::read_byte::encode_layout(bytes, layout);
+                }
+                LegalizedScalarInstructionKind::ReleaseActivationClaim { source, claim } => {
+                    bytes.push(254);
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    bytes.extend_from_slice(&claim.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::EstablishNativeCodeLayout {
                     result,
                     machine,

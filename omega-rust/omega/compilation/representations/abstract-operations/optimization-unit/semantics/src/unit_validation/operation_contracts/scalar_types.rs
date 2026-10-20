@@ -53,6 +53,8 @@ pub(crate) fn operation_scalar_types_match(
         return false;
     }
     match operation {
+        O::EstablishActivationClaim { committed, .. } => matches!(scalar(*committed), Some(ScalarType::Integer(integer)) if fixed(integer) && integer.bits() == 64 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned),
+        O::ReleaseActivationClaim { .. } => true,
         O::StorageAddress { result, .. } => matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
             && scalar(result.value) == Some(result.scalar_type),
         O::RegisterAccess { service, event, result, .. } => {

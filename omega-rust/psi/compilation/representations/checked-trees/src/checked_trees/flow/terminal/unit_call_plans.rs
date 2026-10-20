@@ -70,6 +70,15 @@ pub struct CheckedUnitCallTarget {
 /// How a call reaches its target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitCallRoute {
+    /// A sealed compiler operation performed in this caller's activation.
+    /// Its source invocation shares operand evaluation and result custody with
+    /// calls, but enters no callee frame and demands no provider completion.
+    ActivationStorage {
+        operation: language_core::activation_storage::ActivationStorageOperation,
+        /// Present exactly on establishment; this is a closed byte demand,
+        /// never the runtime committed extent or a diagnostic identity.
+        bound: Option<u64>,
+    },
     /// An ordinary checked machine (or a bodied boundary adapter) whose
     /// authored body this module compiles.
     Module {
@@ -205,6 +214,27 @@ impl CheckedUnitCallPlan {
             ),
             BoundaryCompletion::NormalReturn => match (&route, &result, &transfers) {
                 (
+                    CheckedUnitCallRoute::ActivationStorage {
+                        operation: language_core::activation_storage::ActivationStorageOperation::Establish,
+                        bound: Some(_),
+                    },
+                    Result::Structural { .. }, Transfers::StructuralCustody(_),
+                ) => true,
+                (
+                    CheckedUnitCallRoute::ActivationStorage {
+                        operation: language_core::activation_storage::ActivationStorageOperation::BorrowBytes,
+                        bound: None,
+                    },
+                    Result::Structural { .. }, Transfers::StructuralCustody(_),
+                ) => true,
+                (
+                    CheckedUnitCallRoute::ActivationStorage {
+                        operation: language_core::activation_storage::ActivationStorageOperation::Release,
+                        bound: None,
+                    },
+                    Result::Unit, Transfers::Claims(_),
+                ) => true,
+                (
                     CheckedUnitCallRoute::Module {
                         contract_commitment,
                         ..
@@ -314,7 +344,9 @@ impl CheckedUnitCallPlan {
     /// Whether this route and result retain the authored call site: every
     /// boundary call and every ordinary structural call.
     fn retains_source_site(&self) -> bool {
-        self.is_boundary() || matches!(self.result, CheckedUnitCallResult::Structural { .. })
+        self.is_boundary()
+            || matches!(self.route, CheckedUnitCallRoute::ActivationStorage { .. })
+            || matches!(self.result, CheckedUnitCallResult::Structural { .. })
     }
 
     /// The exact authored call site the row retains for target-owned
@@ -333,7 +365,7 @@ impl CheckedUnitCallPlan {
                 contract_commitment,
                 ..
             } => *contract_commitment,
-            CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
+            CheckedUnitCallRoute::ActivationStorage { .. } | CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
     }
 
@@ -345,7 +377,7 @@ impl CheckedUnitCallPlan {
                 erased_scalar_arguments,
                 ..
             } => Some(erased_scalar_arguments),
-            CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
+            CheckedUnitCallRoute::ActivationStorage { .. } | CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
     }
 
@@ -357,7 +389,7 @@ impl CheckedUnitCallPlan {
                 erased_proof_arguments,
                 ..
             } => Some(erased_proof_arguments),
-            CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
+            CheckedUnitCallRoute::ActivationStorage { .. } | CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
     }
 

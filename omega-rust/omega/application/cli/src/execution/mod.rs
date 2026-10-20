@@ -148,9 +148,6 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             (None, None)
         };
     if request.keep_artifacts
-        && report
-            .runtime_provisions()
-            .is_some_and(|provisions| !provisions.private_entry_ram().is_empty())
         && let Some(artifact) = report.retained_native_artifact()
     {
         // Keep the exact canonical product and replay model that produced this

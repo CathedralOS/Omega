@@ -32,6 +32,8 @@ pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
                         | AbstractOperation::EstablishStructuralArray { .. }
                         | AbstractOperation::EstablishScalarArray { .. }
                         | AbstractOperation::EstablishByteSequenceConcatenation { .. }
+                        | AbstractOperation::EstablishActivationClaim { .. }
+                        | AbstractOperation::ReleaseActivationClaim { .. }
                         | AbstractOperation::EstablishNativeCodeLayout { .. }
                         | AbstractOperation::EstablishRecord { .. }
                         | AbstractOperation::EstablishReference { .. }

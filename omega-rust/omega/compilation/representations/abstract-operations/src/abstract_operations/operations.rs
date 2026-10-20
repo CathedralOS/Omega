@@ -30,6 +30,22 @@ pub struct StructuralStorageDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperation {
+    /// Caller-site storage: the sum/descriptor may move; private backing stays
+    /// in this operation's activation frame until that frame retires.
+    EstablishActivationClaim {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        bound: u64,
+        committed: ValueId,
+        backing_type: semantic_vocabulary::StructuralTypeId,
+        established_case: StructuralCaseId,
+        rejected_case: StructuralCaseId,
+    },
+    ReleaseActivationClaim {
+        psi_operation: OperationId,
+        source: StructuralArgument,
+        claim: ClaimId,
+    },
     EstablishNativeCodeLayout {
         psi_operation: OperationId,
         result: StructuralOperationResult,
@@ -922,6 +938,7 @@ impl AbstractOperation {
                     },
                 ..
             }
+            | Self::EstablishActivationClaim { result, .. }
             | Self::EstablishScalarArray { result, .. }
             | Self::EstablishStructuralArray { result, .. }
             | Self::EstablishPrimitiveLocal { result, .. }
@@ -999,7 +1016,7 @@ impl AbstractOperation {
             } => {
                 vec![destination.path.as_slice(), path.as_slice()]
             }
-            Self::MoveStructuralValue { source, .. } => vec![source.path.as_slice()],
+            Self::MoveStructuralValue { source, .. } | Self::ReleaseActivationClaim { source, .. } => vec![source.path.as_slice()],
             Self::TransformContent {
                 source, parents, ..
             } => std::iter::once(source.path.as_slice())
@@ -1088,7 +1105,9 @@ impl AbstractOperation {
     /// control transfer (identified by its edge).
     pub fn psi_operation(&self) -> Option<OperationId> {
         match self {
-            Self::WriteOnlyPrimitiveStore { psi_operation, .. }
+            Self::EstablishActivationClaim { psi_operation, .. }
+            | Self::ReleaseActivationClaim { psi_operation, .. }
+            | Self::WriteOnlyPrimitiveStore { psi_operation, .. }
             | Self::ByteSequenceWrite { psi_operation, .. }
             | Self::StructuralByteSequenceFieldByteStore { psi_operation, .. }
             | Self::ByteSequenceStore { psi_operation, .. }

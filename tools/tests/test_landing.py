@@ -805,6 +805,81 @@ class ReceiptTests(LandingTests):
         self.assertEqual(receipt["exit_code"], 101)
         self.assertEqual(calls[0][0], "cargo")
 
+    def rebased_qualified_receipt(self, module):
+        with (self.a / ".git" / "info" / "exclude").open("a", encoding="utf-8") as exclude:
+            exclude.write("build/\n")
+        original = self.rust_crate()
+        path = self.receipt(module, original, {"crate-one", "omega"})
+        prior = json.loads(path.read_text(encoding="utf-8"))
+        qualification_path = self.a / "build" / "qualification.json"
+        prior["qualification"] = {"path": str(qualification_path), "candidate": original}
+        module.write_receipt(self.a, prior)
+        self.git(self.a, "reset", "--hard", self.initial)
+        base = self.commit(self.a, "incoming fixture evidence")
+        candidate = self.rust_crate()
+        return original, base, candidate, qualification_path
+
+    def test_verify_reuses_build_after_historical_qualification_moves(self):
+        module = load_landing()
+        original, base, candidate, path = self.rebased_qualified_receipt(module)
+        current = {"path": str(path), "candidate": candidate, "base": base}
+        observations = []
+
+        def validate(repository, selected_path, selected_candidate, selected_base):
+            observations.append((selected_candidate, selected_base))
+            if selected_candidate == original:
+                raise module.qualification.RecoveryError("historical final review moved")
+            return current
+
+        calls = []
+        with mock.patch.object(module.qualification, "active_path", return_value=path), \
+                mock.patch.object(module.qualification, "validate", side_effect=validate), \
+                mock.patch.object(module.shutil, "which", return_value="/bin/mbx"), \
+                mock.patch.object(module.subprocess, "run",
+                                  side_effect=self.check_recorder(0, calls)):
+            self.assertEqual(module.verify(self.a, base), 0)
+        self.assertEqual(calls, [])
+        self.assertEqual(observations, [(candidate, base), (candidate, base)])
+        receipt = json.loads(module.receipt_path(self.a, candidate).read_text(encoding="utf-8"))
+        self.assertEqual(receipt["reused_build_from"], original)
+        self.assertEqual(receipt["qualification"], current)
+
+    def test_build_reuse_still_rejects_changed_rust_inputs(self):
+        module = load_landing()
+        _, base, _, _ = self.rebased_qualified_receipt(module)
+        source = self.a / "crate" / "src" / "lib.rs"
+        source.write_text("pub fn answer() -> i32 { 2 }\n", encoding="utf-8")
+        self.git(self.a, "add", "crate/src/lib.rs")
+        self.git(self.a, "commit", "--amend", "--no-edit")
+        candidate = self.git(self.a, "rev-parse", "HEAD")
+        workspaces = module.affected_workspaces(self.a, base, candidate)
+        self.assertIsNone(module.reusable_build_receipt(
+            self.a, base, candidate, workspaces, {"crate-one", "omega"}))
+
+    def test_current_qualification_still_blocks_verify_and_publication(self):
+        module = load_landing()
+        original, base, candidate, path = self.rebased_qualified_receipt(module)
+        calls = []
+        with mock.patch.object(module.qualification, "active_path", return_value=path), \
+                mock.patch.object(module.qualification, "validate", side_effect=
+                                  module.qualification.RecoveryError("current final review stale")), \
+                mock.patch.object(module.subprocess, "run",
+                                  side_effect=self.check_recorder(0, calls)):
+            with self.assertRaisesRegex(module.LandingError, "current final review stale"):
+                module.verify(self.a, base)
+            self.assertEqual(calls, [])
+            self.assertFalse(module.receipt_path(self.a, candidate).exists())
+            prior = json.loads(module.receipt_path(self.a, original).read_text(encoding="utf-8"))
+            prior.update(candidate=candidate, base=base,
+                         qualification={"path": str(path), "candidate": candidate})
+            module.write_receipt(self.a, prior)
+            client = module.Landing(self.a, "origin")
+            options = SimpleNamespace(base=base, candidate=candidate, board_update=False)
+            snapshot = {"main": base, "record": {"active": {"base": base}}}
+            with mock.patch.object(module, "expired", return_value=False):
+                with self.assertRaisesRegex(module.LandingError, "current final review stale"):
+                    client.publication_check(options, snapshot)
+
     def standalone_crate(self, package="crate-one"):
         self.rust_crate(package)
         manifest = self.a / "crate" / "Cargo.toml"

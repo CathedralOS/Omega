@@ -55,14 +55,16 @@ pub(super) fn argument(
             target.root_structural_type,
         )
         .ok_or_else(|| SelectedInstructionError::custody())?;
+        let storage_shape = crate::selection::activation_storage_input::local_shape(source, slot, root_shape)
+            .ok_or_else(SelectedInstructionError::custody)?;
         if builder
             .transport
             .local_slots
             .iter()
             .filter(|home| {
                 home.id == slot
-                    && home.byte_size == root_shape.byte_size
-                    && home.alignment == root_shape.alignment
+                    && home.byte_size == storage_shape.byte_size
+                    && home.alignment == storage_shape.alignment
             })
             .count()
             != 1

@@ -6106,14 +6106,20 @@ wait for Cathedral's instruction coverage. The interpreter is
   establish runtime-sized backing within a declared bound, access it, retain
   it across suspension and release in reverse order. Ordinary calls/core
   declarations expose it; no new keyword or owner decision is needed.
-  - `ActivationClaimLedger` and `compose_claim_bounds` in
-    `omega-rust/psi/foundation/extents/src/activation_claims/mod.rs` have no
-    compiler consumers and hold numeric rows, not backing or activation
-    identity. Connect call admission, extent evidence and Terminal production
-    to compiler-provisioned storage, keeping each site's bound, committed
-    extent, provenance, release order and suspension role. Co-live bounds sum
-    (aligned); exclusive branches take the maximum; open demand rejects before
-    establishment. Backing does not move.
+  - The bounded serial establishment/access/release path is implemented and
+    pinned by `samples/cli/facts/bounded_activation` and its matching corpus
+    fixtures. Ordinary sealed core calls retain static bounds and runtime
+    committed extents through Terminal operations, activation identity, exact
+    loan custody, reverse release and stable backing. Current-flow replay
+    consumes the foundation ledger; native fixed frames cover complete bounds
+    in their probe and unwind plans. Checked over-bound rejection and the
+    escape, wrong-activation, stale-loan and non-LIFO controls are retained.
+  - Remaining: live-claim preservation and exact storage roles across
+    suspension, extent splitting/merging, and further target execution.
+    The current serial realization refuses possible suspension with live
+    claims, including transitive/dynamic/boundary and nominal-cleanup calls.
+    Co-live bounds sum (aligned); exclusive branches compose by maximum;
+    open demand still rejects before establishment. Backing does not move.
   Acceptance: a run fixture where `committed > bound` returns checked failure
   (no trap or clamp) and a within-bound claim executes; escaping claims, wrong
   activation, stale loans and invalid release order reject. **FRAME-LAYOUT** in

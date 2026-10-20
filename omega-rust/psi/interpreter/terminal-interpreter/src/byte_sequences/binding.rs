@@ -397,6 +397,16 @@ impl TerminalExecution<'_> {
                     && binding.validate_mutable_referent(self, selected).is_ok()
             }
         };
+        if let Some(binding) = self
+            .activation_storage
+            .claim_descriptors
+            .get(&crate::values::StructuralRuntimePlace::from(selected))
+        {
+            if !self.is_live_activation_descriptor(binding, selected) {
+                return Err(malformed());
+            }
+            return Ok(binding.clone());
+        }
         if argument.path.is_empty()
             && let Some(binding) = self.byte_sequence_values.get(&argument.place)
         {
@@ -606,15 +616,23 @@ impl TerminalExecution<'_> {
                     ..parameter.clone()
                 },
             );
+        let binding = self.byte_descriptor_binding(argument, &selected)?;
+        let activation_claim = parameter.multiplicity == StructuralMultiplicity::Linear
+            && self.is_live_activation_descriptor(&binding, &selected);
+        if activation_claim {
+            let claims = crate::custody::projected_ownership_claims(&self.live_claims, argument)?;
+            if claims.len() != 1 || !claims[0].1.path.is_empty() {
+                return Err(malformed());
+            }
+        }
         if argument.access != StructuralAccess::Owned
-            || !argument.path.is_empty()
+            || (!argument.path.is_empty() && !activation_claim)
             || parameter.structural_type != resolved.structural_type
             || !parameter.projected_qualifications.is_empty()
             || !resolved.projected_qualifications.is_empty()
         {
             return Err(malformed());
         }
-        let binding = self.byte_descriptor_binding(argument, &selected)?;
         let permission_matches = match &binding {
             ByteSequenceBinding::Immutable(bytes) => {
                 // Copying an unrestricted shared descriptor neither owns nor
@@ -634,9 +652,9 @@ impl TerminalExecution<'_> {
             ByteSequenceBinding::MutableArray { .. }
             | ByteSequenceBinding::MutableField { .. }
             | ByteSequenceBinding::MutableOwner { .. } => {
-                parameter.multiplicity == StructuralMultiplicity::Affine
+                (parameter.multiplicity == StructuralMultiplicity::Affine || activation_claim)
                     && matches!(access, None | Some(StructuralAccess::MutableBorrow))
-                    && owned_source
+                    && (owned_source || activation_claim)
                     && parameter.qualifications.is_empty()
                     && resolved.qualifications.is_empty()
             }

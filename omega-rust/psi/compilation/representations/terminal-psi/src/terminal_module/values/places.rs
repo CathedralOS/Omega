@@ -246,7 +246,7 @@ impl OperationKind {
         map: &mut impl FnMut(PlaceId, StructuralAccess) -> PlaceId,
     ) {
         match self {
-            Self::EstablishNativeCodeLayout { .. } => {}
+            Self::EstablishNativeCodeLayout { .. } | Self::EstablishActivationClaim { .. } => {}
             Self::TransformContent {
                 source,
                 parents,
@@ -268,7 +268,8 @@ impl OperationKind {
                 }
                 derivations.sort();
             }
-            Self::StorageAddress { source }
+            Self::ReleaseActivationClaim { source, .. }
+            | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
             | Self::EstablishPlacedReference { source }
             | Self::EstablishReference { source, .. }
@@ -396,7 +397,7 @@ impl OperationKind {
     pub fn structural_projections(&self) -> Vec<OperationProjection<'_>> {
         let mut projections = Vec::new();
         match self {
-            Self::EstablishNativeCodeLayout { .. } => {}
+            Self::EstablishNativeCodeLayout { .. } | Self::EstablishActivationClaim { .. } => {}
             Self::EstablishByteSequenceConcatenation { left, right, .. }
             | Self::ByteSequenceEqual { left, right } => {
                 for operand in [left, right] {
@@ -406,7 +407,8 @@ impl OperationKind {
             Self::ByteSequencePredicate { operand, .. } => {
                 projections.push(argument_projection(operand.argument()));
             }
-            Self::StorageAddress { source }
+            Self::ReleaseActivationClaim { source, .. }
+            | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
             | Self::EstablishPlacedReference { source }
             | Self::EstablishReference { source, .. }
@@ -527,7 +529,8 @@ impl OperationKind {
             Self::ByteSequencePredicate { operand, .. } => {
                 paths.push(&mut operand.argument_mut().path);
             }
-            Self::StorageAddress { source }
+            Self::ReleaseActivationClaim { source, .. }
+            | Self::StorageAddress { source }
             | Self::MoveStructuralValue { source }
             | Self::EstablishPlacedReference { source }
             | Self::EstablishReference { source, .. }

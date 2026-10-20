@@ -27,7 +27,7 @@ pub(super) enum AuthorityEdge {
 /// decision rather than silently treating a new call/physical role as pure.
 pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
     match operation {
-        AbstractOperation::EstablishNativeCodeLayout { .. } => AuthorityEdge::None,
+        AbstractOperation::EstablishNativeCodeLayout { .. } | AbstractOperation::EstablishActivationClaim { .. } | AbstractOperation::ReleaseActivationClaim { .. } => AuthorityEdge::None,
         AbstractOperation::CallStructural { callee, .. } => match callee {
             abstract_operations::AbstractCallTarget::Machine(machine) => AuthorityEdge::Internal(*machine),
             abstract_operations::AbstractCallTarget::Dynamic { interface, slot, .. } => AuthorityEdge::Dynamic { interface: *interface, slot: *slot },

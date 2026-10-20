@@ -57,9 +57,11 @@ pub(crate) fn regions_for_calls(
                 frames,
             )
             .ok_or_else(|| {
-                diagnostics::Diagnostic::error(
-                    "exclusive call completion has no representable caller storage authority",
-                )
+                diagnostics::Diagnostic::error(format!(
+                    "exclusive call completion of `{}` in `{}` state `{}` at statement {} call {} has no representable caller storage authority",
+                    program.symbols.display_path(call.target_symbol,"::"), caller.name,
+                    program.state_by_symbol(state).map_or("<unknown>",|state| state.name.as_str()), call.statement_index,call.call_ordinal,
+                ))
             })?;
             if ceiling.is_empty() {
                 return Ok((source, Vec::new()));

@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Content transformations retain atomic parent consumption and child authority.
-        129
+        // Activation establishments retain closed backing bounds and conditional grants.
+        130
     }
 }

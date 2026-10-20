@@ -30,7 +30,16 @@ pub(crate) fn structural_parameters<'checked>(
                 "call parameter roster names no checked dynamic slot",
             ))?;
         (target.slot, target.structural_parameters.as_slice())
-    } else if call.is_boundary() {
+    } else if call.is_boundary()
+        || matches!(
+            call.route(),
+            checked_trees::CheckedUnitCallRoute::ActivationStorage { .. }
+        )
+    {
+        // Compiler-owned activation primitives have checked declaration formals
+        // but never enter an implementation frame. Reuse that retained roster;
+        // executable provider settlement remains exclusive to Boundary calls.
+
         let target = unique_unit_boundary(plans, call.target.machine)?;
         (target.state, target.structural_parameters.as_slice())
     } else if matches!(call.result(), CheckedUnitCallResult::Scalar(_)) {

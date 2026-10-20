@@ -165,6 +165,10 @@ fn known_call_written_paths_for_parts(
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
+    if crate::activation_accessor_has_empty_write_frame(program, target_symbol) {
+        return Some(Vec::new());
+    }
+
     // A static callable owns a public write ceiling just like an operator.
     // Project only that exact telescope; unresolved nested substitutions stay
     // opaque rather than borrowing a selected implementation's stronger body.

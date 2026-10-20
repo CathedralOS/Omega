@@ -14,6 +14,7 @@
 //! defines vocabulary that several stages must agree on; it neither parses nor
 //! judges a program, and it depends on no representation crate.
 
+pub mod activation_storage;
 pub mod atomic;
 pub mod cast_form;
 pub mod constant_value;

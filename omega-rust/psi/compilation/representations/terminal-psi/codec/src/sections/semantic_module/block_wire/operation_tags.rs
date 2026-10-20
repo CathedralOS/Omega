@@ -260,3 +260,6 @@ pub(super) const TRANSFORM_CONTENT: u8 = 125;
 
 /// Catalogued register observation requiring no abstract service authority.
 pub(super) const REGISTER_OBSERVATION: u8 = 126;
+/// Caller-activation backing establishment and linear retirement.
+pub(super) const ESTABLISH_ACTIVATION_CLAIM: u8 = 127;
+pub(super) const RELEASE_ACTIVATION_CLAIM: u8 = 128;

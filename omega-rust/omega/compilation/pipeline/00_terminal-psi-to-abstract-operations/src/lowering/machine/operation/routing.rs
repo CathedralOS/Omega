@@ -27,6 +27,18 @@ pub(super) fn lower(
     lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::EstablishActivationClaim { bound, committed, backing_type, established_case, rejected_case } => {
+            terminal_semantics::activation_storage::activation_claim_shape(module, operation)
+                .map_err(|_| LoweringError::InvalidActivationStorage(operation.id))?;
+            let result = operation.result.structural().cloned()
+                .ok_or(LoweringError::InvalidActivationStorage(operation.id))?;
+            Ok(AbstractOperation::EstablishActivationClaim { psi_operation: operation.id, result,
+                bound: *bound, committed: *committed, backing_type: *backing_type,
+                established_case: *established_case, rejected_case: *rejected_case })
+        }
+        OperationKind::ReleaseActivationClaim { source, claim } => {
+            Ok(AbstractOperation::ReleaseActivationClaim { psi_operation: operation.id, source: source.clone(), claim: *claim })
+        }
         OperationKind::EstablishPlacedReference { source } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedReferenceCustody(operation.id));

@@ -24,6 +24,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::MachineId;
 
+mod activation_storage;
 pub(crate) mod affine_authority;
 pub(crate) mod arrival_storage;
 

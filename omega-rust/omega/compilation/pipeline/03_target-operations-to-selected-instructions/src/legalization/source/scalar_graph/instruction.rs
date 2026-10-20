@@ -269,6 +269,12 @@ pub(super) fn project(
                 elements: elements.clone(),
                 shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
             },
+            AbstractOperation::EstablishActivationClaim { result, bound, committed, backing_type, established_case, rejected_case, .. } => LegalizedScalarInstructionKind::EstablishActivationClaim {
+                result: result.clone(), bound: *bound, committed: *committed, backing_type: *backing_type,
+                established_case: *established_case, rejected_case: *rejected_case,
+                layout: scalar_graph_input::aggregate_results::sum_layout(result, plan)?,
+            },
+            AbstractOperation::ReleaseActivationClaim { source, claim, .. } => LegalizedScalarInstructionKind::ReleaseActivationClaim { source: source.clone(), claim: *claim },
             AbstractOperation::EstablishNativeCodeLayout {
                 result, machine, ..
             } => LegalizedScalarInstructionKind::EstablishNativeCodeLayout {

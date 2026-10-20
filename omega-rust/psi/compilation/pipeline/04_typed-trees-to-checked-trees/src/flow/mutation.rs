@@ -221,6 +221,13 @@ fn call_write_places(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     loan: Option<&CanonicalPlace>,
 ) -> Option<Vec<CallMutationWrite>> {
+    // Reuse the sealed operation's effect judgment. Borrowing its backing does
+    // not overwrite the linear claim descriptor or establish a replacement
+    // ownership identity when this call completes.
+    if validation::activation_accessor_has_empty_write_frame(program, borrow_call.target_symbol) {
+        return Some(Vec::new());
+    }
+
     let summarized_places = instantiate_known_call_mutation_summary_places(
         program,
         caller_machine_symbol,

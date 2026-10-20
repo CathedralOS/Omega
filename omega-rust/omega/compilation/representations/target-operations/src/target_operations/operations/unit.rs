@@ -93,6 +93,20 @@ impl TargetFloatResultPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    EstablishActivationClaim {
+        psi_operation: OperationId,
+        result_home: TargetStructuralHomeRequirement,
+        bound: u64,
+        committed: TargetUnitScalarArgumentSource,
+        backing_type: semantic_vocabulary::StructuralTypeId,
+        established_case: semantic_vocabulary::StructuralCaseId,
+        rejected_case: semantic_vocabulary::StructuralCaseId,
+    },
+    ReleaseActivationClaim {
+        psi_operation: OperationId,
+        source: StructuralArgument,
+        claim: semantic_vocabulary::ClaimId,
+    },
     EstablishNativeCodeLayout {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
@@ -765,6 +779,9 @@ impl TargetUnitOperation {
                 psi_operation,
                 result_home,
                 ..
+            }
+            | Self::EstablishActivationClaim {
+                psi_operation, result_home, ..
             }
             | Self::EstablishScalarArray {
                 psi_operation,

@@ -1,0 +1,32 @@
+// Bounded activation-local backing (resources/activation_storage.md).
+//
+// These declarations name compiler-owned establishment, access and retirement.
+// They are not allocation-provider requests. An admitted establishment belongs
+// to the calling activation; the static Bound charges that activation's closed
+// demand even when the runtime request rejects. The opaque linear carrier
+// cannot be reconstructed from addresses, lengths, or ordinary record fields.
+public data Activation {}
+
+public boundary data ActivationClaim [linear];
+
+public data ActivationClaimAttempt {
+    case Established(claim: ActivationClaim);
+    case Rejected;
+}
+
+// Over-bound requests return Rejected without establishing a live claim.
+// Within-bound requests establish exactly committed bytes, without clamping.
+// Establishment initializes that prefix to zero before exposing the readable
+// byte loan. Initialization and the activation-storage grant are separate
+// obligations; zeroed bytes alone never establish the claim.
+public boundary machine Activation::try_claim<const Bound: u64>(committed: u64)
+    -> ActivationClaimAttempt;
+
+// The returned ordinary exclusive loan has the established committed length.
+// It cannot survive release of the exact claim that supplied its backing.
+public boundary machine ActivationClaim::bytes(claim: &mut ActivationClaim)
+    -> &mut [u8];
+
+// Only the newest live claim in this activation may release, and every loan
+// over its backing must have ended. No provider receives freed backing.
+public boundary machine ActivationClaim::release(claim: ActivationClaim);

@@ -251,6 +251,8 @@ impl<'execution> ConstructorValue<'execution> {
 
 #[derive(Default)]
 pub(crate) struct ConstructorStorage {
+    activation_descriptors:
+        BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     scalars: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
     bytes: BTreeMap<
         StructuralByteSequenceRuntimeField,
@@ -530,6 +532,26 @@ impl ConstructorStorage {
             .program
             .structural_types()
             .get(&child.structural_type)
+            .is_some_and(|row| row.owns_linear_claim && row.shape.is_borrowed_byte_view())
+        {
+            let binding = execution.byte_descriptor_binding(argument, child)?;
+            if !transfers_custody || !execution.is_live_activation_descriptor(&binding, child) {
+                return Err(malformed());
+            }
+            let mut descriptor = child.clone();
+            descriptor.opaque_identity = destination.opaque_identity;
+            descriptor.path = destination.path.clone();
+            self.activation_descriptors.insert(
+                destination.clone(),
+                binding.with_descriptor_home(descriptor),
+            );
+            return Ok(());
+        }
+
+        if execution
+            .program
+            .structural_types()
+            .get(&child.structural_type)
             .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
         {
             self.views.insert(
@@ -620,6 +642,22 @@ impl ConstructorStorage {
                 path,
             })
         };
+        for (home, binding) in crate::structural_storage::cells(
+            &execution.activation_storage.claim_descriptors,
+            source,
+        ) {
+            if let Some(target) = relocate(home) {
+                let old = binding.descriptor_home().ok_or_else(malformed)?;
+                if !transfers_custody || !execution.is_live_activation_descriptor(binding, old) {
+                    return Err(malformed());
+                }
+                let mut descriptor = old.clone();
+                descriptor.opaque_identity = target.opaque_identity;
+                descriptor.path = target.path.clone();
+                self.activation_descriptors
+                    .insert(target, binding.clone().with_descriptor_home(descriptor));
+            }
+        }
         for (home, descriptor) in
             crate::structural_storage::cells(&execution.structural_element_view_fields, source)
         {
@@ -709,6 +747,10 @@ impl ConstructorStorage {
         for (home, bytes) in self.owner_writes {
             *execution.byte_owner_bytes_mut(&home)? = bytes;
         }
+        execution
+            .activation_storage
+            .claim_descriptors
+            .extend(self.activation_descriptors);
         execution.structural_scalar_fields.extend(self.scalars);
         execution.structural_byte_sequence_fields.extend(self.bytes);
         execution.structural_element_view_fields.extend(self.views);

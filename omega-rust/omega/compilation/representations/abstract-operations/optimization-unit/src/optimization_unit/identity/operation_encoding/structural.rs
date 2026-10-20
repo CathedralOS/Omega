@@ -12,6 +12,15 @@ use super::{AbstractOperation, CanonicalBytes};
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::EstablishActivationClaim { psi_operation, result, bound, committed, backing_type, established_case, rejected_case } => {
+            bytes.u8(253); bytes.id(*psi_operation); encode_structural_operation_result(bytes, result);
+            bytes.u64(*bound); bytes.id(*committed); bytes.id(*backing_type);
+            bytes.id(*established_case); bytes.id(*rejected_case);
+        }
+        O::ReleaseActivationClaim { psi_operation, source, claim } => {
+            bytes.u8(254); bytes.id(*psi_operation); encode_structural_argument(bytes, source); bytes.id(*claim);
+        }
+
         O::EstablishNativeCodeLayout {
             psi_operation,
             result,

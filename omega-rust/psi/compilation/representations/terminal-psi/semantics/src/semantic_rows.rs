@@ -163,6 +163,8 @@ use ScalarLeafOperandShape as Operands;
 use ScalarLeafResultShape as ResultShape;
 
 operation_semantic_rows! {
+    EstablishActivationClaim => ("schema:operation:establish-activation-claim", LeafDenotation, None),
+    ReleaseActivationClaim => ("schema:operation:release-activation-claim", LeafDenotation, None),
     StorageAddress => ("schema:operation:storage-address", LeafDenotation, None),
     EstablishPlacedReference => ("schema:operation:establish-placed-reference", LeafDenotation, None),
     EstablishReference => ("schema:operation:establish-reference", LeafDenotation, None),

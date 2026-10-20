@@ -485,6 +485,13 @@ impl RemainingCustody {
         }
     }
 
+    /// The source schedule proved this whole case absent on this alternative.
+    /// Preserve the containing home; this is not an owned transfer or death.
+    pub(super) fn exclude_absent_case(&mut self, root: PlaceRoot, path: &[PlaceSegment]) {
+        debug_assert!(matches!(path.last(), Some(PlaceSegment::Case { .. })));
+        self.remove(root, path);
+    }
+
     fn remove(&mut self, root: PlaceRoot, path: &[PlaceSegment]) {
         if self
             .excluded

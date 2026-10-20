@@ -1303,7 +1303,24 @@ pub fn structural_call_custody(
         // Ordinary custody follows an actual checked body, including a
         // boundary adapter. Its interface polarity does not turn the result
         // into opaque supply or erase the checked return's loan ancestry.
-        if !target.supplies_checked_body() {
+        let activation_operation = match call.route() {
+            checked_trees::CheckedUnitCallRoute::ActivationStorage { operation, bound } => {
+                let contract = crate::exact_toolchain_activation_storage_contract(program, target)
+                    .ok_or("activation operation lost its sealed declaration contract")?;
+                if contract.operation != *operation {
+                    return Err("activation operation differs from its selected declaration");
+                }
+                let expected_bound = if *operation == crate::ActivationStorageOperation::Establish {
+                    Some(crate::activation_storage_bound(program, target)?)
+                } else { None };
+                if *bound != expected_bound {
+                    return Err("activation operation differs from its selected static bound");
+                }
+                true
+            }
+            _ => false,
+        };
+        if !target.supplies_checked_body() && !activation_operation {
             return Err("structural call result differs from the callee contract");
         }
         (

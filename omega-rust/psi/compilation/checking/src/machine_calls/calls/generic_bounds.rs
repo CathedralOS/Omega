@@ -95,12 +95,24 @@ fn report_bodyless_boundary_symbol_call(
     let compiler_placed_factory = program
         .placed_borrow_factory(callee_machine.symbol)
         .is_some();
+    let activation_realization =
+        crate::exact_toolchain_activation_storage_contract(program, callee_machine).is_some_and(
+            |contract| {
+                contract.operation
+                    != language_core::activation_storage::ActivationStorageOperation::Establish
+                    || crate::activation_storage_bound(program, callee_machine).is_ok()
+                    // Open templates retain symbolic const arguments. The executable
+                    // route and lowering still require a closed numeric bound.
+                    || program.typed_program().callable_body_has_open_parameters(current_machine)
+            },
+        );
     if matches!(
         callee_machine.supply_mode,
         language_semantics::MachineSupplyMode::Boundary
             | language_semantics::MachineSupplyMode::TopLevelRequirement
     ) && !compiler_placed_accessor
         && !compiler_placed_factory
+        && !activation_realization
         && !callee_machine.body_is_present
         && !is_directly_callable_top_level_requirement(program, callee_machine, current_machine)
     {

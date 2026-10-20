@@ -543,6 +543,11 @@ pub(crate) fn classify_type_references<R: Clone, F>(
     with_rows(rows)
 }
 
+pub use value_custody::activation_storage::{
+    ActivationStorageContract, ActivationStorageOperation,
+    activation_accessor_has_empty_write_frame, activation_claim_byte_carrier,
+    activation_storage_bound, exact_toolchain_activation_storage_contract,
+};
 pub use value_custody::atomic_fences::{
     AtomicFenceContract, exact_toolchain_atomic_fence_contract,
 };

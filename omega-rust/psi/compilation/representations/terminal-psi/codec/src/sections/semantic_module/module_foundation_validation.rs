@@ -58,8 +58,8 @@ pub(super) fn declared_scalar_type(
 
 /// Validate the closed representation foundation needed before the independent
 /// semantic verifier learns these operations. This checks identities, exact
-/// carrier relationships, signatures, and operation/result shape; it does not
-/// prove qualifications, reach closure, or claim dataflow.
+/// carrier relationships, signatures, operation/result shape, and bounded
+/// activation custody. Independent qualification and reach proofs follow.
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
     module
         .folded_constants
@@ -183,6 +183,13 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     }
     for machine in &module.machines {
         machine_foundations::validate_machine(module, machine)?;
+    }
+    // Replay custody only after types, the finite by-value graph, and every
+    // operation/place relationship are checked. Malformed constructor loops
+    // must reject before they can grow an unbounded abstract carrier path.
+    for machine in &module.machines {
+        terminal_semantics::activation_storage::validate_machine(module, machine)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
     }
     Ok(())
 }
@@ -723,6 +730,27 @@ fn validate_operation_foundation(
         }
         OperationKind::EstablishElementView { .. } => {
             storage_foundations::validate_establish_element_view(module, machine, operation)?
+        }
+        OperationKind::EstablishActivationClaim { committed, .. } => {
+            if !matches!(declared_scalar_type(machine, *committed), Some(ScalarType::Integer(integer))
+                if integer.bits() == 64 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                    && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+            {
+                return malformed(
+                    "activation committed extent must be an unsigned fixed 64-bit value",
+                );
+            }
+            terminal_semantics::activation_storage::activation_claim_shape(module, operation)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
+        }
+        OperationKind::ReleaseActivationClaim { source, .. } => {
+            if operation.result != OperationResult::Unit
+                || source.access != terminal_psi::StructuralAccess::Owned
+            {
+                return malformed(
+                    "activation release requires one owned claim and Unit completion",
+                );
+            }
         }
         OperationKind::EstablishMutableElementView { .. } => {
             storage_foundations::validate_establish_mutable_element_view(

@@ -301,6 +301,7 @@ impl TerminalExecution<'_> {
 
     /// Retire precisely the consumed subtree after its cells have been staged.
     pub(crate) fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
+        crate::structural_storage::prune(&mut self.activation_storage.claim_descriptors, from);
         crate::structural_storage::prune(&mut self.structural_scalar_fields, from);
         crate::structural_storage::prune(&mut self.structural_byte_sequence_fields, from);
         crate::structural_storage::prune(&mut self.structural_byte_storage, from);

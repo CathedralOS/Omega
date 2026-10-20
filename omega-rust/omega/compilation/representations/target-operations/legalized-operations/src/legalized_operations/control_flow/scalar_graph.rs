@@ -134,7 +134,8 @@ impl LegalizedScalarInstruction {
     /// reads; a value appears once per operand position that reads it.
     pub fn visit_scalar_operands(&self, mut visit: impl FnMut(ValueId)) {
         match &self.kind {
-            LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. } => {}
+            LegalizedScalarInstructionKind::EstablishActivationClaim { committed, .. } => visit(*committed),
+            LegalizedScalarInstructionKind::ReleaseActivationClaim { .. } | LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. } => {}
             LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
                 left,
                 right,
@@ -387,6 +388,19 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    EstablishActivationClaim {
+        result: terminal_psi::StructuralOperationResult,
+        bound: u64,
+        committed: ValueId,
+        backing_type: semantic_vocabulary::StructuralTypeId,
+        established_case: semantic_vocabulary::StructuralCaseId,
+        rejected_case: semantic_vocabulary::StructuralCaseId,
+        layout: calling_conventions::ConventionalSumLayout,
+    },
+    ReleaseActivationClaim {
+        source: terminal_psi::StructuralArgument,
+        claim: semantic_vocabulary::ClaimId,
+    },
     EstablishNativeCodeLayout {
         result: terminal_psi::StructuralOperationResult,
         machine: semantic_vocabulary::MachineId,
@@ -1004,6 +1018,7 @@ impl LegalizedScalarInstructionKind {
             Self::EstablishByteSequenceConcatenation { result, .. }
             | Self::EstablishStructuralArray { result, .. }
             | Self::EstablishScalarArray { result, .. }
+            | Self::EstablishActivationClaim { result, .. }
             | Self::EstablishNativeCodeLayout { result, .. }
             | Self::EstablishRecord { result, .. }
             | Self::EstablishZeroedStructural { result, .. }
@@ -1027,7 +1042,8 @@ impl LegalizedScalarInstructionKind {
                 target_operations::TargetBoundaryResult::Unit
                 | target_operations::TargetBoundaryResult::Scalar(_) => None,
             },
-            Self::ProgramImageAddress { .. }
+            Self::ReleaseActivationClaim { .. }
+            | Self::ProgramImageAddress { .. }
             | Self::SelectImplementation { .. }
             | Self::FloatResultPolicy { .. }
             | Self::PortWrite { .. }

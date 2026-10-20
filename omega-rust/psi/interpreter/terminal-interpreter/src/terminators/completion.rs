@@ -100,6 +100,7 @@ impl TerminalExecution<'_> {
         &mut self,
         completed: CompletedReturn,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        self.complete_activation_storage()?;
         let Some(caller) = self.call_stack.pop() else {
             if completed.destination.is_some() {
                 return Err(malformed());

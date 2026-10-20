@@ -229,6 +229,17 @@ impl TerminalExecution<'_> {
                     )?)
                 }
             }
+            ByteSequenceBinding::MutableOwner { .. }
+                if window.start == 0
+                    && u64::try_from(window.end).ok()
+                        == Some(self.byte_descriptor_length(binding, source)?) =>
+            {
+                // A complete-region reborrow retains the exact pinned owner;
+                // no offset or second backing is introduced. Partial owner
+                // windows need their own offset-bearing runtime carrier.
+                binding.validate_mutable_referent(self, source)?;
+                binding.clone().with_descriptor_home(destination.clone())
+            }
             ByteSequenceBinding::Immutable(_)
             | ByteSequenceBinding::MutableField { .. }
             | ByteSequenceBinding::MutableOwner { .. } => {

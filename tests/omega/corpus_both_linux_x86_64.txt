@@ -52,6 +52,19 @@ pass/facts/atomic_compare_exchange_once_local_exit built 21653ms exit:0 interpre
 pass/facts/atomic_compare_exchange_once_operand_effect_exit built 21627ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
 pass/facts/atomic_compare_exchange_once_target_body_exit built 23126ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
 pass/facts/atomic_compare_exchange_once_wide_exit built 22737ms exit:0 interpreter-exit:0 interpreter:agrees @0e0be918eda9+wt
+pass/facts/bounded_activation_cleanup_pure_exit built 43914ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @03517371da00
+pass/facts/bounded_activation_computed_bound_exit built 27726ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
+pass/facts/bounded_activation_field_transport_exit built 40498ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
+pass/facts/bounded_activation_generic_bound_exit built 42430ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
+pass/facts/bounded_activation_main_exit built 42303ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
+pass/facts/bounded_activation_multiple_bounds_exit built 40254ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
+pass/facts/bounded_activation_named_attempt_exit built 41650ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
+pass/facts/bounded_activation_named_bound_exit built 34792ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
+pass/facts/bounded_activation_nested_lifo_exit built 36270ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
+pass/facts/bounded_activation_page_bound_exit built 34594ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
+pass/facts/bounded_activation_parameter_committed_exit built 33042ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
+pass/facts/bounded_activation_unsigned_max_request_exit built 37613ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
+pass/facts/bounded_activation_zero_bound_exit built 30375ms exit:0 interpreter-exit:0 interpreter:agrees @03517371da00
 pass/facts/checked_asm_countdown_call_result_exit built 8806ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_const_name_exit built 11075ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt
 pass/facts/checked_asm_countdown_field_exit built 13616ms exit:0 interpreter-exit:0 interpreter:agrees @a0c34fdba779+wt

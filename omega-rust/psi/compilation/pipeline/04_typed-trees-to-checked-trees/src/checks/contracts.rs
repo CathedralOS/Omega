@@ -184,6 +184,7 @@ pub(super) fn check_flow_call_contracts(
             }
         }
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
+            return_values::check_activation_return(program, facts, exit_flow, &mut diagnostics);
             boundary_refutations.check(program, facts, exit_flow, call_frames, &mut diagnostics);
             exits::check_scalar_result_domains(
                 program,

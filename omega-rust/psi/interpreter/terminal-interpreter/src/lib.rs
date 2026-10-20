@@ -34,6 +34,7 @@
 //! `semantic_value_comparison` (trace-value comparison for differential
 //! checks).
 
+mod activation_storage;
 mod adapters;
 mod atomic_operations;
 mod byte_sequences;

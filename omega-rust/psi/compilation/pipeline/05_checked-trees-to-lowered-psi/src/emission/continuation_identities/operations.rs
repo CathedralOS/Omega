@@ -22,7 +22,7 @@ impl IdentityMap {
         operation.map_structural_uses(&mut |place| self.place(place));
         map_obligations(operation, &mut |obligation| self.obligation(obligation));
         match operation {
-            OperationKind::EstablishNativeCodeLayout { .. } => {}
+            OperationKind::EstablishNativeCodeLayout { .. } | OperationKind::EstablishActivationClaim { .. } | OperationKind::ReleaseActivationClaim { .. } => {}
             OperationKind::TransformContent { derivations, .. } => {
                 *derivations = content_derivations;
                 for derived in derivations.iter_mut() {
@@ -95,6 +95,7 @@ impl IdentityMap {
             _ => {}
         }
         match operation {
+            OperationKind::ReleaseActivationClaim { claim, .. } => *claim = self.claim(*claim),
             OperationKind::CallUnit {
                 claim_transfers, ..
             }
@@ -147,7 +148,7 @@ pub(crate) fn map_obligations(
         }
     }
     match operation {
-        OperationKind::EstablishNativeCodeLayout { .. } => {}
+        OperationKind::EstablishNativeCodeLayout { .. } | OperationKind::EstablishActivationClaim { .. } | OperationKind::ReleaseActivationClaim { .. } => {}
         OperationKind::EstablishPrimitiveLocal {
             range_obligation, ..
         }

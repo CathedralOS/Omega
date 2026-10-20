@@ -16,7 +16,9 @@ mod structural;
 pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
-        O::StorageAddress { .. }
+        O::EstablishActivationClaim { .. }
+        | O::ReleaseActivationClaim { .. }
+        | O::StorageAddress { .. }
         | O::ByteSequenceSubslice { .. }
         | O::EstablishElementView { .. }
         | O::ElementViewSubslice { .. }

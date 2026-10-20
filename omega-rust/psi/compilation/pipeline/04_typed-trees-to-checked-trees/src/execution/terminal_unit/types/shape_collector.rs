@@ -962,6 +962,24 @@ impl<'program> ShapeCollector<'program> {
         // without a selected application still cannot claim storage.
         let mut data = data;
         if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
+            if validation::activation_claim_byte_carrier(self.program, data.symbol).is_some() {
+                // The descriptor moves with linear custody. Its byte backing
+                // belongs to the caller-site establishment, never this home.
+                self.types.insert(identity, CheckedUnitStructuralTypePlan {
+                    scalar_restriction: None,
+                    owns_linear_claim: true,
+                    no_code_affine_cleanup: false,
+                    descriptor_cleanup: false,
+                    identity,
+                    shape: CheckedUnitStructuralTypeShape::ByteSequence(
+                        checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+                            access: Some(CheckedStructuralAccess::MutableBorrow),
+                        },
+                    ),
+                });
+                self.in_progress.remove(&identity);
+                return Some(identity);
+            }
             let Some(selection) = representation_selections::selection_for_opaque(
                 self.program.opaque_representation_selections(),
                 data.symbol,

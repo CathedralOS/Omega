@@ -79,6 +79,8 @@ pub(in crate::legalization) fn admit(
     }
     if let abstract_operations::establish_or_subslice_set_pattern!(psi_operation, ..)
     | AbstractOperation::PortWrite { psi_operation, .. }
+    | AbstractOperation::EstablishActivationClaim { psi_operation, .. }
+    | AbstractOperation::ReleaseActivationClaim { psi_operation, .. }
     | AbstractOperation::EstablishNativeCodeLayout { psi_operation, .. }
     | AbstractOperation::EstablishRecord { psi_operation, .. }
     | AbstractOperation::EstablishReference { psi_operation, .. }
@@ -763,7 +765,7 @@ pub(super) fn validate(
         }
         if matches!(
             node.operation,
-            AbstractOperation::EstablishNativeCodeLayout { .. }
+            AbstractOperation::EstablishActivationClaim { .. } | AbstractOperation::ReleaseActivationClaim { .. } | AbstractOperation::EstablishNativeCodeLayout { .. }
                 | AbstractOperation::EstablishRecord { .. }
                 | AbstractOperation::EstablishReference { .. }
                 | AbstractOperation::EstablishPlacedReference { .. }

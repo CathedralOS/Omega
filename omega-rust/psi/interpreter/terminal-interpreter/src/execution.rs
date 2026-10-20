@@ -67,6 +67,7 @@ pub(crate) enum OperationFlow {
 /// so a sponsor can replenish the same meter and resume without replaying
 /// semantic work or charging it twice.
 pub struct TerminalExecution<'artifact> {
+    pub(crate) activation_storage: crate::activation_storage::RuntimeActivationStorage,
     // One immutable program owner survives suspension and is shared verbatim
     // across every independent instance admitted from the same module. A
     // resume or call borrows this owner independently of mutable runtime
@@ -405,6 +406,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         )?;
         let mut execution = Self {
             x86_flags: installation.and_then(|supplies| supplies.x86_flags),
+            activation_storage: Default::default(),
             program: std::sync::Arc::clone(&program),
             boundary_supplies: installation
                 .map(|installation| installation.supplies.clone())
@@ -808,6 +810,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     EstablishStructuralArray => flow execute_establish_structural_array,
                                     EstablishRecord => flow execute_establish_record,
                                     EstablishStructuralCase => flow execute_establish_structural_case,
+                                    EstablishActivationClaim => flow execute_establish_activation_claim,
+                                    ReleaseActivationClaim => flow execute_release_activation_claim,
                                     CallStructuralScalar => flow execute_call_structural_scalar,
                                     CallStructural => flow execute_call_structural,
                                     CallStructuralWithScalarArguments => flow execute_call_structural_with_scalar_arguments,

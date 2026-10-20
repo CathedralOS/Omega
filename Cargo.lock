@@ -2236,6 +2236,7 @@ dependencies = [
 name = "terminal-interpreter"
 version = "0.1.0"
 dependencies = [
+ "extents",
  "numerics",
  "proof-admission",
  "semantic-vocabulary",
@@ -2314,6 +2315,7 @@ name = "terminal-semantics"
 version = "0.1.0"
 dependencies = [
  "access-plans",
+ "extents",
  "language-semantics",
  "numerics",
  "optimization",

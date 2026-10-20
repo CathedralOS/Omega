@@ -199,31 +199,8 @@ pub(super) fn select_cases(
     step: PermissionStep,
     places: &mut [super::linear_obligations::LinearPlace],
 ) {
-    let (statement, target) = match step {
-        PermissionStep::Evaluate {
-            statement,
-            evaluation: FlowPermissionEvaluation::TransitionTarget(target),
-        } => (statement, Some(target)),
-        PermissionStep::MissedGuard { statement } => (statement, None),
-        _ => return,
-    };
-    let StatementNode::Transition(transition) =
-        &program.statement_table.statements(state.statement_nodes)[statement]
-    else {
-        return;
-    };
-    let TransitionGuardNode::When(guard) = transition.guard else {
-        return;
-    };
-    if target == Some(transition.target) {
-        let mut positive = Vec::new();
-        super::permission_events::collect_positive_case_tests(
-            program,
-            state.symbol,
-            guard,
-            &mut positive,
-        );
-        for (subject, variant) in positive {
+    for (statement, subject, variant, positive) in case_tests(program, state, step) {
+        if positive {
             super::permission_events::select_case_alternative_from_guard(
                 program,
                 state.symbol,
@@ -232,17 +209,144 @@ pub(super) fn select_cases(
                 variant,
                 places,
             );
+        } else {
+            super::permission_events::exclude_case_alternative(
+                program,
+                state.symbol,
+                statement,
+                subject,
+                variant,
+                places,
+            );
         }
-    } else if let Some((subject, variant)) =
-        super::permission_events::exact_positive_case_test(program, state.symbol, guard)
-    {
-        super::permission_events::exclude_case_alternative(
+    }
+}
+
+/// Cleanup and linear custody observe the same selected case. An absent case
+/// is excluded from the residual cleanup region, never consumed or retired.
+/// Common fields and the selected payload remain owned; later writes clear
+/// exclusions through ordinary storage establishment.
+pub(super) fn select_cleanup_cases<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    machine: &'program typed_trees::machine::Machine,
+    frames: Option<&validation::CallFrameResolver<'program>>,
+    state: &typed_trees::state::State,
+    step: PermissionStep,
+    remaining: &mut super::cleanup_dispositions::RemainingCustody,
+) {
+    for (statement, subject, variant, positive) in case_tests(program, state, step) {
+        let Some(typed_trees::statement::StatementNode::Transition(transition)) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(statement)
+        else {
+            continue;
+        };
+        let TransitionGuardNode::When(guard) = transition.guard else {
+            continue;
+        };
+        // A later conjunct may overwrite an earlier case observation. Unknown
+        // effects cannot justify absence at the end of the complete guard.
+        if !frames.is_some_and(|frames| {
+            frames
+                .expression_write_frame(machine, guard)
+                .into_complete_paths()
+                .is_some_and(|writes| writes.is_empty())
+        }) {
+            continue;
+        }
+        let Some(place) = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             statement,
             subject,
-            variant,
-            places,
-        );
+        ) else {
+            continue;
+        };
+        let Some(reference) =
+            validation::canonical_place_type_reference(program, state.symbol, statement, &place)
+        else {
+            continue;
+        };
+        // Canonical paths may implicitly traverse a reference, but they do
+        // not name an owned referent home. No prefix may supply cleanup
+        // authority by peeling that reference shell.
+        if !(0..=place.segments.len()).all(|length| {
+            validation::canonical_place_type_reference(
+                program,
+                state.symbol,
+                statement,
+                &validation::CanonicalPlace {
+                    root: place.root,
+                    segments: place.segments[..length].to_vec(),
+                },
+            )
+            .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
+        }) {
+            continue;
+        }
+        let Some(data) = program.closed_data_definition(reference) else {
+            continue;
+        };
+        let variants = program
+            .data_members(data)
+            .iter()
+            .filter_map(|member| match member {
+                typed_trees::data::DataMember::Variant(row) => Some(row.symbol),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if !variants.contains(&variant) {
+            continue;
+        }
+        for excluded in variants
+            .into_iter()
+            .filter(|candidate| (*candidate == variant) != positive)
+        {
+            let mut path = place.segments.clone();
+            path.push(facts::PlaceSegment::Case { variant: excluded });
+            remaining.exclude_absent_case(place.root, &path);
+        }
+    }
+}
+
+fn case_tests(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    step: PermissionStep,
+) -> Vec<(
+    usize,
+    typed_trees::expression::ExpressionHandle,
+    symbols::SymbolHandle,
+    bool,
+)> {
+    let (statement, target) = match step {
+        PermissionStep::Evaluate {
+            statement,
+            evaluation: FlowPermissionEvaluation::TransitionTarget(target),
+        } => (statement, Some(target)),
+        PermissionStep::MissedGuard { statement } => (statement, None),
+        _ => return Vec::new(),
+    };
+    let StatementNode::Transition(transition) =
+        &program.statement_table.statements(state.statement_nodes)[statement]
+    else {
+        return Vec::new();
+    };
+    let TransitionGuardNode::When(guard) = transition.guard else {
+        return Vec::new();
+    };
+    if target == Some(transition.target) {
+        let mut positive = Vec::new();
+        super::permission_events::collect_positive_case_tests(program, state.symbol, guard, &mut positive);
+        positive
+            .into_iter()
+            .map(|(subject, variant)| (statement, subject, variant, true))
+            .collect()
+    } else {
+        super::permission_events::exact_positive_case_test(program, state.symbol, guard)
+            .into_iter()
+            .map(|(subject, variant)| (statement, subject, variant, false))
+            .collect()
     }
 }

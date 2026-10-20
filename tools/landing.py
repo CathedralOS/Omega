@@ -544,8 +544,12 @@ def reusable_build_receipt(repository, base, head, workspaces, packages):
                                     f"{prior_base}^{{commit}}",
                                     allow_failure=True).returncode):
             continue
-        if receipt_failure(repository, prior_candidate, set(packages),
-                           workspaces=workspaces, base=prior_base) is not None:
+        # The old build belongs to immutable Rust inputs, not the mutable
+        # qualification state that has since advanced to this candidate.
+        # verify validates current qualification before and after this reuse;
+        # publication still uses the full receipt validator below.
+        if build_receipt_failure(path, prior, prior_candidate, set(packages),
+                                 workspaces=workspaces, base=prior_base) is not None:
             continue
         if (affected_workspaces(repository, prior_base, base)
                 or affected_workspaces(repository, prior_candidate, head)):
@@ -676,32 +680,14 @@ def verify(repository, base, qualification_path=None):
     emit(receipt)
     return 0 if exit_code == 0 else 1
 
-def receipt_failure(repository, candidate, affected, workspaces=None, base=None, qualification_path=None):
-    """None when a valid build receipt covers `affected`; else the reason."""
-    path = receipt_path(repository, candidate)
-    if not path.is_file():
-        return f"no build receipt at {path}"
-    try:
-        receipt = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
-        return f"unreadable build receipt {path} ({error})"
+def build_receipt_failure(path, receipt, candidate, affected, workspaces=None, base=None):
+    """Validate build facts; current qualification is a separate obligation."""
     if receipt.get("schema") != RECEIPT_SCHEMA:
         return f"build receipt {path} is not {RECEIPT_SCHEMA}"
     if receipt.get("candidate") != candidate:
         return f"build receipt {path} covers {receipt.get('candidate')}, not this candidate"
     if base is not None and receipt.get("base") != base:
         return "build receipt integration base differs from the reserved publication base"
-    if qualification_path and (not receipt.get("qualification")
-            or Path(receipt["qualification"].get("path", "")).resolve() != Path(qualification_path).resolve()):
-        return "build receipt qualification differs from the active worktree registration"
-    if receipt.get("qualification"):
-        qualified = receipt["qualification"]
-        try:
-            current = qualification.validate(repository, qualified["path"], candidate, receipt["base"])
-            if current != qualified:
-                return "qualification changed since exact-candidate verification"
-        except (qualification.RecoveryError, OSError, KeyError, ValueError) as error:
-            return "qualification no longer valid: " + str(error)
     if receipt.get("lost_rows"):
         return (f"build receipt {path} recorded lost corpus rows "
                 f"{receipt['lost_rows']}")
@@ -725,6 +711,32 @@ def receipt_failure(repository, candidate, affected, workspaces=None, base=None,
                    and packages <= set(check.get("packages") or [])
                    for check in receipt.get("checks", [])):
             return f"build receipt {path} lacks a passing check for workspace {workspace}"
+    return None
+
+
+def receipt_failure(repository, candidate, affected, workspaces=None, base=None, qualification_path=None):
+    """Validate the exact build receipt and its current qualification binding."""
+    path = receipt_path(repository, candidate)
+    if not path.is_file():
+        return f"no build receipt at {path}"
+    try:
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        return f"unreadable build receipt {path} ({error})"
+    failure = build_receipt_failure(path, receipt, candidate, affected, workspaces, base)
+    if failure is not None:
+        return failure
+    if qualification_path and (not receipt.get("qualification")
+            or Path(receipt["qualification"].get("path", "")).resolve() != Path(qualification_path).resolve()):
+        return "build receipt qualification differs from the active worktree registration"
+    if receipt.get("qualification"):
+        qualified = receipt["qualification"]
+        try:
+            current = qualification.validate(repository, qualified["path"], candidate, receipt["base"])
+            if current != qualified:
+                return "qualification changed since exact-candidate verification"
+        except (qualification.RecoveryError, OSError, KeyError, ValueError) as error:
+            return "qualification no longer valid: " + str(error)
     return None
 
 class Landing:

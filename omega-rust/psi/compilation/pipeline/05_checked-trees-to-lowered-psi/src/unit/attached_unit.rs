@@ -264,6 +264,7 @@ pub(crate) fn lower_unit_closure(
     // generated immutable carrier before cloning it into any callee emitter.
     for machine_symbol in &closure {
         for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
+            crate::activation_storage::prepare_operation(identities, &mut structural_types, operation)?;
             if operation.call().is_some_and(|call| {
                 call.structural_arguments.iter().any(|argument| {
                     argument.byte_sequence_literal().is_some()

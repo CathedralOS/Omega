@@ -81,7 +81,8 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         abstract_operations::byte_literal_establish_pair_pattern!(place, ..) => {
             places.insert(place.id);
         }
-        O::EstablishNativeCodeLayout { result, .. }
+        O::EstablishActivationClaim { result, .. }
+        | O::EstablishNativeCodeLayout { result, .. }
         | O::EstablishPrimitiveLocal { result, .. }
         | O::EstablishZeroedStructural { result, .. }
         | O::EstablishStructuralLocal { result, .. }
@@ -119,6 +120,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::ElementViewLength { source, .. } | O::ByteSequenceLength { source, .. } => {
             places.insert(source.place);
         }
+        O::ReleaseActivationClaim { source, .. } => { places.insert(source.place); }
         O::ReleaseReference { source, .. } => {
             places.insert(*source);
         }

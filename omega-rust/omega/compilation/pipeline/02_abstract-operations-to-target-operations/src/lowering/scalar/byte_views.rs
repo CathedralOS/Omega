@@ -556,7 +556,7 @@ pub(in crate::lowering) fn resolve_byte_view(
     }
     let Some(AbstractOperation::ByteSequenceSubslice { psi_operation, result, source, start, end, length, obligation }) =
         function.operations.iter().find(|operation| matches!(operation, AbstractOperation::ByteSequenceSubslice { result, .. } if result.place == place))
-        else { return Err(invalid()); };
+        else { return Err(super::descriptor_operands::refusal(function, &("missing subslice producer", place, function.operations.len()))); };
     if !matches!(
         result.multiplicity,
         terminal_psi::nonlinear_multiplicity_pair_pattern!()
@@ -574,13 +574,26 @@ pub(in crate::lowering) fn resolve_byte_view(
                 )
             })
     {
-        return Err(invalid());
+        return Err(super::descriptor_operands::refusal(
+            function,
+            &(
+                "subslice result carrier",
+                result,
+                structural_types.get(&result.structural_type),
+            ),
+        ));
     }
-    let endpoint = unsigned_u64_endpoint(values, &invalid);
+    let invalid_endpoint = || {
+        super::descriptor_operands::refusal(function, &("subslice endpoint", start, end, values))
+    };
+    let endpoint = unsigned_u64_endpoint(values, &invalid_endpoint);
     let start = endpoint(*start)?;
     let end = endpoint(*end)?;
     if !super::descriptor_operands::observes_count(function, values, *length, source, true) {
-        return Err(invalid());
+        return Err(super::descriptor_operands::refusal(
+            function,
+            &("subslice count observation", length, source),
+        ));
     }
     let (selected, indices) = super::descriptor_operands::descriptor_projection(
         function,

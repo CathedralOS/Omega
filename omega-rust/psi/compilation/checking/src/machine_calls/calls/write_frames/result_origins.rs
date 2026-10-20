@@ -49,9 +49,11 @@ pub(super) fn call_result_origins(
     // Reference-shaped operands include ordinary borrowed collection windows;
     // their type alone cannot decide whether a descriptor binding was exposed.
     // Instantiate the returned leaves against that same captured caller prefix.
+    let activation_origin = activation_borrow_result_origins(program, machine, state, expected);
     if inference.active_states.contains(&state.symbol)
-        || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !machine.body_is_present
+        || (activation_origin.is_none()
+            && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || !machine.body_is_present))
         || !program.machine_type_parameters(machine).is_empty()
         || !call.machine_arguments.is_empty()
         || call.receiver.is_valid() != machine.attached_data.is_some()
@@ -60,15 +62,19 @@ pub(super) fn call_result_origins(
     {
         return None;
     }
-    let mut relative = state_result_origins(
-        program,
-        machine,
-        state,
-        state.return_type,
-        symbols,
-        inference,
-        include_shared,
-    )?;
+    let mut relative = if let Some(origin) = activation_origin {
+        origin
+    } else {
+        state_result_origins(
+            program,
+            machine,
+            state,
+            state.return_type,
+            symbols,
+            inference,
+            include_shared,
+        )?
+    };
     instantiate_result_origins(
         program,
         caller_machine,
@@ -96,6 +102,10 @@ pub(super) fn state_result_origins<'program>(
     inference: &mut FrameInference,
     include_shared: bool,
 ) -> Option<AggregateOrigins> {
+    if let Some(origin) = activation_borrow_result_origins(program, machine, state, expected_result)
+    {
+        return Some(origin);
+    }
     if inference.active_states.contains(&state.symbol) {
         return None;
     }
@@ -925,4 +935,54 @@ fn instantiate_result_origins(
         }
     }
     Some(returned)
+}
+
+// The sealed accessor's result borrows the exact input grant's region. This
+// intrinsic relation substitutes the actual normally; a leaf spelling, return
+// type, address, or bodyless declaration supplies no such storage authority.
+// The extent/initialization and activation-local grant are checked separately
+// by establishment. A readable view never manufactures an independent grant.
+fn activation_borrow_result_origins(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expected: TypeReferenceHandle,
+) -> Option<AggregateOrigins> {
+    let contract = crate::exact_toolchain_activation_storage_contract(program, machine)?;
+    if contract.operation
+        != language_core::activation_storage::ActivationStorageOperation::BorrowBytes
+        || !super::isolation::aggregate_storage_types_match(program, state.return_type, expected)
+    {
+        return None;
+    }
+    let [entry] = program.machine_states(machine) else {
+        return None;
+    };
+    if entry.symbol != state.symbol {
+        return None;
+    }
+    let [parameter] = program.state_parameters(state) else {
+        return None;
+    };
+    Some(AggregateOrigins {
+        references: vec![ReferenceLeaf {
+            kind: super::stored_origins::StoredOriginKind::Reference(
+                language_semantics::ReferenceAccess::Mutable,
+            ),
+            local_suffix: String::new(),
+            local_segments: Vec::new(),
+            may_select: false,
+            lifetime_dependencies: Vec::new(),
+            origin: Some(FramePlaceOrigin {
+                path: parameter.name.as_str().to_owned(),
+                precision: FramePathPrecision::Exact,
+                source: super::FrameSourcePlace {
+                    root: parameter.symbol,
+                    builtin_coordinates: true,
+                    ..Default::default()
+                },
+            }),
+        }],
+        ..Default::default()
+    })
 }

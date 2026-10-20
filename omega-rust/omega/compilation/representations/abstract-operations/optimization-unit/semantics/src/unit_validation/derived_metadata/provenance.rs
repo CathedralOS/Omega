@@ -30,7 +30,9 @@ pub(crate) fn expected_provenance(
                 )
                 .collect()
         }
-        O::SelectImplementation { psi_operation, .. }
+        O::EstablishActivationClaim { psi_operation, .. }
+        | O::ReleaseActivationClaim { psi_operation, .. }
+        | O::SelectImplementation { psi_operation, .. }
         | O::EstablishPrimitiveLocal { psi_operation, .. }
         | O::PrimitiveLocalStore { psi_operation, .. }
         | abstract_operations::primitive_storage_observation_pattern!(psi_operation, ..)

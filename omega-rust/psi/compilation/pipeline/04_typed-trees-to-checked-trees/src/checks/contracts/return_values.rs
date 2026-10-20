@@ -7,6 +7,56 @@ use typed_trees::{
     statement::{StatementNode, TransitionExit, TransitionTargetNode},
 };
 
+/// A completed opaque activation claim cannot cross its owning activation's
+/// return boundary. Check the actual returning occurrence, not its signature:
+/// crashing bodies and claim-free Rejected attempts do not return a claim.
+/// Aggregate/conditional custody is decided on the final executable CFG.
+pub(super) fn check_activation_return(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    exit: &FlowExitFact,
+    diagnostics: &mut Vec<diagnostics::Diagnostic>,
+) {
+    let Some(machine) = program.machine(exit.machine_symbol) else {
+        return;
+    };
+    let Some(state) = validation::find_state_for_exit(program, exit) else {
+        return;
+    };
+    let returned = exit_return_expression(program, exit);
+    let reference = if returned.is_valid() {
+        validation::expression_result_type_reference(program, machine, state, returned)
+    } else {
+        exit_return_call(program, facts, exit)
+            .and_then(|call| validation::call_target_state(program, call.target_symbol))
+            .map(|target| target.return_type)
+    };
+    let Some(symbol) = reference.and_then(|reference| {
+        program
+            .type_reference_table
+            .type_reference(reference)
+            .as_named_symbol()
+    }) else {
+        return;
+    };
+    if validation::activation_claim_byte_carrier(program, symbol).is_none() {
+        return;
+    }
+    let mut diagnostic = diagnostics::Diagnostic::error(format!(
+        "activation claim cannot escape its owning activation through return from {} state {} at statement {}",
+        program.symbols.display_path(exit.machine_symbol, "::"),
+        program.symbols.display_path(exit.state_symbol, "::"),
+        exit.statement_index,
+    ));
+    if returned.is_valid() {
+        let span = program.expression_table.source_span(returned);
+        if span != source::SourceSpan::default() {
+            diagnostic = diagnostic.with_source_span(span);
+        }
+    }
+    diagnostics.push(diagnostic);
+}
+
 /// Rejoin a returned invocation to its exact retained call occurrence, whether
 /// the return spells a value call or names an external tail target.
 pub(super) fn exit_return_call<'facts>(

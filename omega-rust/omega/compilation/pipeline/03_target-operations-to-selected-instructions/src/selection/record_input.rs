@@ -299,6 +299,10 @@ fn descriptor_shape(
 ) -> Option<StructuralTypeShape> {
     match field_type {
         StructuralFieldType::Structural(child) => find_structural_type(declarations, *child)
+            // A linear claim may use descriptor geometry without being a
+            // borrowed view. Its exact owned carrier follows the structural
+            // operand path, retaining claim custody rather than loan access.
+            .filter(|declaration| !declaration.owns_linear_claim)
             .map(|declaration| declaration.shape.clone())
             .filter(|shape| {
                 matches!(

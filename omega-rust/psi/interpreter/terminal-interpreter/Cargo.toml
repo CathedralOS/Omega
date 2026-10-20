@@ -9,6 +9,7 @@ name = "terminal_interpreter"
 path = "src/lib.rs"
 
 [dependencies]
+extents = { path = "../../foundation/extents" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 numerics = { path = "../../foundation/numerics" }
 terminal-psi = { path = "../../compilation/representations/terminal-psi" }

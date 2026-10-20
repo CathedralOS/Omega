@@ -627,8 +627,8 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 172 + `u16` vocabulary
-marker 129 + the entry callable, followed by the module tables in the
+Module bytes are `PSITERM\0` + `u16` format marker 173 + `u16` vocabulary
+marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
 
@@ -639,8 +639,10 @@ ordinary scalar call lane. Correspondence checking judgments, selected theorem
 schemas and automatic/selected implication evidence remain source-side and are
 not serialized here. Marker 171 replaces the earlier proof-row catalog layout;
 older markers are rejected before their payload is read. Marker 172 adds the
-folded constant closure below, retaining that quotient layout; marker 171
-artifacts reject before their payload is read.
+folded constant closure below, retaining that quotient layout. Marker 173
+retains those tables and adds caller-activation claim establishment and release
+operations under vocabulary 130; marker 171 and 172 artifacts reject before
+their payload is read.
 
 <!-- module-table-order -->
 | # | Module table | Row |

@@ -10,7 +10,7 @@ use super::rule_catalog::{DeadScalarFamily, dead_scalar_family};
 /// unused instances belong to one exact family or remain ineligible.
 fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option<DeadScalarFamily> {
     match operation {
-        O::EstablishNativeCodeLayout { .. } => None,
+        O::EstablishNativeCodeLayout { .. } | O::EstablishActivationClaim { .. } | O::ReleaseActivationClaim { .. } => None,
         O::IntegerConstant { .. } | O::BooleanConstant { .. } => Some(DeadScalarFamily::Literal),
         abstract_operations::boolean_not_or_equal_pair_pattern!(..)
         | abstract_operations::integer_equal_less_pair_pattern!(..)

@@ -111,14 +111,15 @@ pub(super) fn build(
     };
     match dispatch_source {
         selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
+            let storage_shape = crate::selection::activation_storage_input::local_shape(source, slot, *root_shape).ok_or_else(invalid)?;
             if builder
                 .transport
                 .local_slots
                 .iter()
                 .filter(|candidate| {
                     candidate.id == slot
-                        && candidate.byte_size == root_shape.byte_size
-                        && candidate.alignment == root_shape.alignment
+                        && candidate.byte_size == storage_shape.byte_size
+                        && candidate.alignment == storage_shape.alignment
                 })
                 .count()
                 != 1

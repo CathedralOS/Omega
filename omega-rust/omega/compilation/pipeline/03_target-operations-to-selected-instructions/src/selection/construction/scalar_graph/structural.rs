@@ -43,6 +43,7 @@ pub(super) fn establish_atomic_outcome(
     atomic_outcome::establish(source, row, builder, observed, expected, scalar)
 }
 mod native_code_layout;
+mod activation_storage;
 pub(super) use local_storage::{byte_field_argument, fixed_array_argument};
 mod case_membership;
 mod element_establishment;
@@ -458,6 +459,10 @@ pub(super) fn operation(
             | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
     ) {
         scalar_store::emit(source, row, builder)?;
+        return Ok(true);
+    }
+    if matches!(row.kind, LegalizedScalarInstructionKind::EstablishActivationClaim { .. } | LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }) {
+        activation_storage::emit(source, builder, row)?;
         return Ok(true);
     }
     if matches!(
