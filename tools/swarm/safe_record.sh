@@ -15,7 +15,9 @@
 #   - raise the per-fixture ceiling so a loaded host does not produce timeouts
 #   - after the record, REJECT it if any `timeout` row appears, or if rows were lost
 #
-# Usage: bash tools/swarm/safe_record.sh <filter> [--native] [--check]
+# Usage: bash tools/swarm/safe_record.sh <filter> [--native | --check]
+#        (no flag records the native leg; --check records the check leg, whose
+#         fail-tier reject diagnostics live in tests/omega/corpus_outcomes.txt)
 #        bash tools/swarm/safe_record.sh --help
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
@@ -26,14 +28,21 @@ if [ "${1:-}" = "--help" ] || [ $# -lt 1 ]; then
 fi
 
 filter=$1; shift
+# Leg selection. The check leg is the one selected by NO leg flag, but a bare
+# `legs=""` was then forced to `--native`, so `--check` recorded the native
+# golden -- which carries no fail-tier rows at all -- and could never pin a
+# check-leg reject diagnostic. Keep the historical no-flag default (native) and
+# let `--check` select the check leg explicitly.
 legs=""
+native=0
+check=0
 for a in "$@"; do
   case "$a" in
-    --native) legs="$legs --native" ;;
-    --check)  legs="$legs" ;;
+    --native) native=1 ;;
+    --check)  check=1 ;;
   esac
 done
-[ -n "$legs" ] || legs="--native"
+if [ "$native" = 1 ] || [ "$check" = 0 ]; then legs="--native"; fi
 
 LOCKDIR=build/swarm/record-slots
 mkdir -p "$LOCKDIR"
