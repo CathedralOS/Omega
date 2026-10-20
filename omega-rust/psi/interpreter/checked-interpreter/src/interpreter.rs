@@ -138,6 +138,51 @@ pub enum BuildMachineEntry<'a> {
     Symbol(SymbolHandle),
 }
 
+/// An exact family-body selection supplied by the realization owner. Psi knows
+/// membership, not deployment policy: the caller chooses a retained checked body
+/// and both admission and execution consume that same identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectedBuildTimeMachineBody {
+    pub family: SymbolHandle,
+    pub body: SymbolHandle,
+}
+
+impl SelectedBuildTimeMachineBody {
+    /// Membership alone confers no execution authority. A selected external or
+    /// deferred member remains subject to the ordinary admission/body checks;
+    /// unrelated nonexecuting families may be retained in a realization map.
+    pub fn validate_all(program: &TypedTrees, selections: &[Self]) -> Result<(), String> {
+        for (position, selected) in selections.iter().enumerate() {
+            let family = program
+                .target_machine_families
+                .iter()
+                .find(|family| family.canonical == selected.family)
+                .ok_or_else(|| "build-time body selection names no retained family".to_owned())?;
+            if !program
+                .machine(selected.family)
+                .is_some_and(|machine| machine.target_family_interface)
+                || !family
+                    .members
+                    .iter()
+                    .any(|member| member.machine == selected.body)
+                || program.machine(selected.body).is_none()
+            {
+                return Err(
+                    "build-time body selection is not a retained member of its exact family"
+                        .to_owned(),
+                );
+            }
+            if selections[..position]
+                .iter()
+                .any(|previous| previous.family == selected.family)
+            {
+                return Err("build-time family has more than one selected body".to_owned());
+            }
+        }
+        Ok(())
+    }
+}
+
 /// One build-time machine evaluation: the machine, its arguments, the selected
 /// build-time operators a structured evaluation may call, and the sponsor an
 /// argument evaluation charges for its result custody.
@@ -148,6 +193,7 @@ pub struct BuildMachineEvaluationRequest<'a> {
     pub entry: BuildMachineEntry<'a>,
     pub arguments: Vec<BuildTimeValue>,
     pub operators: &'a [SelectedBuildTimeBinaryOperator],
+    pub machine_bodies: &'a [SelectedBuildTimeMachineBody],
     pub sponsor: Option<&'a BuildEvaluationSponsor>,
     pub product_entry_compatibility: Option<&'a dyn ProductEntryCompatibility>,
 }
@@ -167,6 +213,16 @@ pub enum BuildMachineProgram<'program> {
         execution: &'program checked_trees::CheckedTrees,
         product_declarations: &'program TypedTrees,
     },
+}
+
+impl<'program> BuildMachineProgram<'program> {
+    fn typed(self) -> &'program TypedTrees {
+        match self {
+            Self::Typed(typed) => typed,
+            Self::Checked(checked) => &checked.typed,
+            Self::CheckedClosure { execution, .. } => &execution.typed,
+        }
+    }
 }
 
 /// Source-signature compatibility for the narrowly designated product-entry
@@ -238,6 +294,7 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
             entry: BuildMachineEntry::Name(machine_name),
             arguments,
             operators: &[],
+            machine_bodies: &[],
             sponsor: None,
             product_entry_compatibility: None,
         }
@@ -250,6 +307,7 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
             entry: BuildMachineEntry::Symbol(machine_symbol),
             arguments,
             operators: &[],
+            machine_bodies: &[],
             sponsor: None,
             product_entry_compatibility: None,
         }
@@ -304,7 +362,13 @@ pub fn evaluate_prepared_build_time_machine(
     program: BuildMachineProgram<'_>,
     request: BuildMachineEvaluationRequest<'_>,
 ) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
-    evaluate_structured_return(program, request.entry, request.arguments, request.operators)
+    evaluate_structured_return(
+        program,
+        request.entry,
+        request.arguments,
+        request.operators,
+        request.machine_bodies,
+    )
 }
 
 /// Evaluate one build-time machine for its observed argument values without
@@ -319,6 +383,7 @@ pub fn evaluate_build_machine_arguments(
         request.arguments,
         request.sponsor.cloned(),
         request.product_entry_compatibility,
+        request.machine_bodies,
     )
 }
 
@@ -336,6 +401,7 @@ pub fn evaluate_granted_build_machine_arguments(
         options,
         request.sponsor.cloned(),
         request.product_entry_compatibility,
+        request.machine_bodies,
     )
 }
 
@@ -374,12 +440,10 @@ fn evaluate_structured_return(
     entry: BuildMachineEntry<'_>,
     arguments: Vec<build_time_values::BuildTimeValue>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
+    machine_bodies: &[SelectedBuildTimeMachineBody],
 ) -> Result<BuildTimeOperationEvaluation<build_time_values::BuildTimeValue>, String> {
-    let typed = match program {
-        BuildMachineProgram::Typed(typed) => typed,
-        BuildMachineProgram::Checked(checked) => &checked.typed,
-        BuildMachineProgram::CheckedClosure { execution, .. } => &execution.typed,
-    };
+    let typed = program.typed();
+    SelectedBuildTimeMachineBody::validate_all(typed, machine_bodies)?;
     if operators
         .iter()
         .any(|operator| operator.has_crash_contract(typed))
@@ -394,6 +458,7 @@ fn evaluate_structured_return(
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new_build(program);
                 evaluator.selected_build_time_operators = operators;
+                evaluator.selected_build_time_machine_bodies = machine_bodies;
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
                 let result = match entry {
                     BuildMachineEntry::Name(machine_name) => {
@@ -433,12 +498,15 @@ fn evaluate_observed_arguments(
     arguments: Vec<build_time_values::BuildTimeValue>,
     sponsor: Option<BuildEvaluationSponsor>,
     product_entry_compatibility: Option<&dyn ProductEntryCompatibility>,
+    machine_bodies: &[SelectedBuildTimeMachineBody],
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<build_time_values::BuildTimeValue>>, String> {
+    SelectedBuildTimeMachineBody::validate_all(program.typed(), machine_bodies)?;
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new_build(program);
+                evaluator.selected_build_time_machine_bodies = machine_bodies;
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, sponsor);
                 evaluator.product_entry_compatibility = product_entry_compatibility;
                 let result = match entry {
@@ -504,15 +572,25 @@ fn evaluate_granted_arguments(
     options: InterpretOptions,
     sponsor: Option<BuildEvaluationSponsor>,
     product_entry_compatibility: Option<&dyn ProductEntryCompatibility>,
+    machine_bodies: &[SelectedBuildTimeMachineBody],
 ) -> Result<
     MeasuredBuildMachineEvaluation<Vec<build_time_values::BuildTimeValue>>,
     BuildMachineEvaluationFailure,
 > {
+    SelectedBuildTimeMachineBody::validate_all(program.typed(), machine_bodies).map_err(
+        |reason| {
+            BuildMachineEvaluationFailure::without_evidence(
+                BuildMachineEvaluationFailureKind::Unsupported,
+                reason,
+            )
+        },
+    )?;
     std::thread::scope(|scope| {
         let worker = std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, move || {
                 let mut evaluator = Evaluator::new_build(program);
+                evaluator.selected_build_time_machine_bodies = machine_bodies;
                 evaluator.configure_build_evaluation(STEP_BUDGET, sponsor);
                 evaluator.product_entry_compatibility = product_entry_compatibility;
                 evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;

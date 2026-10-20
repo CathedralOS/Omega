@@ -443,12 +443,23 @@ impl<'program> Evaluator<'program> {
         if !target_symbol.is_valid() {
             return None;
         }
-        let (machine, state) = if let Some(machine) = self.program.machine_by_symbol(target_symbol)
-        {
+        let (machine, state) = if let Some(machine) = self.find_machine_by_symbol(target_symbol) {
             (machine, self.machine_entry_state(machine)?)
         } else {
-            let machine = self.program.machine_holding_state(target_symbol)?;
-            (machine, self.find_state_by_symbol(machine, target_symbol)?)
+            let owner = self.program.machine_holding_state(target_symbol)?;
+            let machine = self.find_machine_by_symbol(owner.symbol)?;
+            if machine.symbol != owner.symbol {
+                // Calls may retain the family's signature state instead of
+                // its machine symbol. Only that entry correspondence selects
+                // the body; an internal state is never redirected by name.
+                let entry = self.program.machine_states(owner).first()?;
+                if entry.symbol != target_symbol {
+                    return None;
+                }
+                (machine, self.machine_entry_state(machine)?)
+            } else {
+                (machine, self.find_state_by_symbol(machine, target_symbol)?)
+            }
         };
         Some((machine, state))
     }

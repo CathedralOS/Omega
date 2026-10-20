@@ -337,6 +337,15 @@ pass/facts/generic_calling_policy/inline_const_exit built 20768ms exit:0 interpr
 pass/facts/generic_calling_policy/literal_arguments_exit built 34594ms exit:0 interpreter-exit:0 interpreter:agrees @2220bcc69929
 pass/facts/generic_calling_policy/nested_argument_exit built 20707ms exit:0 interpreter-exit:0 interpreter:agrees @164f21ca3402
 pass/facts/generic_calling_policy/nested_data_const_exit built 21564ms exit:0 interpreter-exit:0 interpreter:agrees @164f21ca3402
+pass/facts/generic_calling_policy/through_call_result_exit built 21256ms exit:0 interpreter-exit:0 interpreter:agrees @54e533003490
+pass/facts/generic_calling_policy/through_const_name_exit built 21335ms exit:0 interpreter-exit:0 interpreter:agrees @54e533003490
+pass/facts/generic_calling_policy/through_field_exit built 10561ms exit:0 interpreter-exit:0 interpreter:agrees @54e533003490
+pass/facts/generic_calling_policy/through_local_exit built 10730ms exit:0 interpreter-exit:0 interpreter:agrees @54e533003490
+pass/facts/generic_calling_policy/through_match_join_exit built 10851ms exit:0 interpreter-exit:0 interpreter:agrees @54e533003490
+pass/facts/generic_calling_policy/through_other_machine_exit built 10650ms exit:0 interpreter-exit:0 interpreter:agrees @54e533003490
+pass/facts/generic_calling_policy/through_other_state_exit built 10872ms exit:0 interpreter-exit:0 interpreter:agrees @54e533003490
+pass/facts/generic_calling_policy/through_parameter_exit built 10944ms exit:0 interpreter-exit:0 interpreter:agrees @54e533003490
+pass/facts/generic_calling_policy/through_target_body_exit built 11194ms exit:0 interpreter-exit:0 interpreter:agrees @54e533003490
 pass/facts/guarded_record_line_loan_through_call_result_exit built 6984ms exit:0 interpreter-exit:0 interpreter:agrees @5ebdefd57827
 pass/facts/guarded_record_line_loan_through_const_name_exit built 7002ms exit:0 interpreter-exit:0 interpreter:agrees @5ebdefd57827
 pass/facts/guarded_record_line_loan_through_field_exit built 7154ms exit:0 interpreter-exit:0 interpreter:agrees @5ebdefd57827

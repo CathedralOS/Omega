@@ -229,6 +229,8 @@ pub(crate) struct Evaluator<'program> {
     pub(super) selected_product_float_comparisons:
         Option<&'program [checked_trees::CheckedSelectedFloatComparisonExecution]>,
     pub(super) selected_build_time_operators: &'program [crate::SelectedBuildTimeBinaryOperator],
+    pub(super) selected_build_time_machine_bodies:
+        &'program [crate::SelectedBuildTimeMachineBody],
     /// Semantic evaluation cannot choose observable bits for computed NaN.
     semantic_float_evaluation: bool,
     pub(super) stdout: Vec<u8>,

@@ -131,6 +131,7 @@ pub struct BuildTimeAdmissionPlan {
     call_edges: Vec<BuildTimeCallEdge>,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     selected_operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
+    selected_machine_bodies: Vec<crate::SelectedBuildTimeMachineBody>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -168,6 +169,7 @@ impl BuildTimeAdmissionPlan {
             call_edges,
             selection_authority,
             selected_operators: Vec::new(),
+            selected_machine_bodies: Vec::new(),
         }
     }
 
@@ -216,6 +218,68 @@ impl BuildTimeAdmissionPlan {
             }
         }
         Ok(())
+    }
+
+    /// The realization owner supplies exact retained bodies, without giving
+    /// target knowledge to Psi. Rewrite the shared closure edges once so all
+    /// admission axes and execution follow the same checked declarations.
+    pub fn with_selected_machine_bodies(
+        mut self,
+        program: &TypedTrees,
+        selections: &[crate::SelectedBuildTimeMachineBody],
+    ) -> Result<Self, String> {
+        if !self.selected_machine_bodies.is_empty() {
+            return Err("build-time family-body selections are already settled".to_owned());
+        }
+        crate::SelectedBuildTimeMachineBody::validate_all(program, selections)?;
+        for edge in &mut self.call_edges {
+            let target = if edge.target_machine_symbol.is_valid() {
+                edge.target_machine_symbol
+            } else {
+                // Unmeasured terminal recursion keeps a machine-symbol edge
+                // in the state lane; it requires the same body selection.
+                edge.target_state_symbol
+            };
+            if let Some(selected) = selections.iter().find(|selected| selected.family == target) {
+                edge.target_machine_symbol = selected.body;
+                if let Some(entry) = program
+                    .machine(selected.body)
+                    .and_then(|machine| program.machine_states(machine).first())
+                {
+                    edge.target_state_symbol = entry.symbol;
+                }
+            }
+        }
+        self.selected_machine_bodies = selections.to_vec();
+        Ok(self)
+    }
+
+    fn closure_machine_symbols(
+        &self,
+        program: &TypedTrees,
+        root: SymbolHandle,
+    ) -> Vec<SymbolHandle> {
+        let mut closure = vec![root];
+        let mut position = 0;
+        while position < closure.len() {
+            let source = closure[position];
+            for edge in self
+                .call_edges
+                .iter()
+                .filter(|edge| edge.source_machine_symbol == source)
+            {
+                let target = if edge.target_machine_symbol.is_valid() {
+                    edge.target_machine_symbol
+                } else {
+                    edge.target_state_symbol
+                };
+                if program.machine(target).is_some() && !closure.contains(&target) {
+                    closure.push(target);
+                }
+            }
+            position += 1;
+        }
+        closure
     }
 
     pub fn with_selected_operators(
@@ -395,45 +459,34 @@ impl BuildTimeAdmissionPlan {
     ) -> Result<(), BuildTimeAdmissionRejection> {
         let program = input.typed();
         crate::validate_selected_operators(program, &self.selected_operators)?;
-        let service_summary = self
-            .service_reaches
-            .for_machine(machine.symbol)
-            .ok_or_else(|| {
+        crate::SelectedBuildTimeMachineBody::validate_all(program, &self.selected_machine_bodies)?;
+        // The ordinary inference may stop at a bodyless family contract. Its
+        // selected body's complete summaries remain independently mandatory;
+        // never grant purity merely by redirecting the executable edge.
+        let mut services = Vec::new();
+        let mut transitive_may_suspend = false;
+        let mut transitive_may_block = false;
+        for symbol in self.closure_machine_symbols(program, machine.symbol) {
+            let summary = self.service_reaches.for_machine(symbol).ok_or_else(|| {
                 format!(
-                    "machine `{}` has no inferred service-reach summary",
-                    machine.name
+                    "build-time closure machine {symbol:?} has no inferred service-reach summary"
                 )
             })?;
-        let transitive_may_suspend = self.machine_suspension(machine.symbol).ok_or_else(|| {
-            format!(
-                "machine `{}` has no inferred operational summary",
-                machine.name
-            )
-        })?;
-        let transitive_may_block = self.machine_blocking(machine.symbol).ok_or_else(|| {
-            format!(
-                "machine `{}` has no inferred operational summary",
-                machine.name
-            )
-        })?;
-
-        let services = self
-            .service_reaches
-            .services(service_summary.effective)
-            .iter()
-            .map(|service| {
-                program
-                    .service_reaches
-                    .definition(*service)
-                    .map(|definition| definition.name.as_str())
-                    .ok_or_else(|| {
-                        format!(
-                            "machine `{}` reaches an unknown canonical service identity",
-                            machine.name
-                        )
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+            for service in self.service_reaches.services(summary.effective) {
+                let definition = program.service_reaches.definition(*service).ok_or_else(|| {
+                    format!("build-time closure machine {symbol:?} reaches an unknown canonical service identity")
+                })?;
+                if !services.contains(&definition.name.as_str()) {
+                    services.push(definition.name.as_str());
+                }
+            }
+            transitive_may_suspend |= self.machine_suspension(symbol).ok_or_else(|| {
+                format!("build-time closure machine {symbol:?} has no suspension summary")
+            })?;
+            transitive_may_block |= self.machine_blocking(symbol).ok_or_else(|| {
+                format!("build-time closure machine {symbol:?} has no blocking summary")
+            })?;
+        }
         self.require_closed_static_applications(program, machine.symbol)?;
         // Premises past an unconditional entry are proved at their own
         // source sites, whatever this invocation's arguments.
@@ -511,7 +564,10 @@ impl BuildTimeAdmissionPlan {
         self.require_floor(input, machine, None, false)?;
         checked_interpreter::evaluate_build_time_machine(
             program,
-            BuildMachineEvaluationRequest::named(machine_name, arguments),
+            BuildMachineEvaluationRequest {
+                machine_bodies: &self.selected_machine_bodies,
+                ..BuildMachineEvaluationRequest::named(machine_name, arguments)
+            },
         )
         .map(BuildTimeOperationEvaluation::into_value)
         .map_err(BuildTimeAdmissionRejection::from)
@@ -531,7 +587,10 @@ impl BuildTimeAdmissionPlan {
         self.require_floor(input, machine, Some(custody), false)?;
         checked_interpreter::evaluate_build_time_machine(
             program,
-            BuildMachineEvaluationRequest::named(machine_name, arguments),
+            BuildMachineEvaluationRequest {
+                machine_bodies: &self.selected_machine_bodies,
+                ..BuildMachineEvaluationRequest::named(machine_name, arguments)
+            },
         )
         .map(BuildTimeOperationEvaluation::into_value)
         .map_err(BuildTimeAdmissionRejection::from)
@@ -557,7 +616,10 @@ impl BuildTimeAdmissionPlan {
         self.require_floor(input, machine, Some(custody), false)?;
         checked_interpreter::evaluate_build_time_machine(
             program,
-            BuildMachineEvaluationRequest::symbol(machine_symbol, arguments),
+            BuildMachineEvaluationRequest {
+                machine_bodies: &self.selected_machine_bodies,
+                ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
+            },
         )
         .map(BuildTimeOperationEvaluation::into_measured)
     }
@@ -652,6 +714,7 @@ impl BuildTimeAdmissionPlan {
             BuildMachineEvaluationRequest {
                 product_entry_compatibility: None,
                 operators: &self.selected_operators,
+                machine_bodies: &self.selected_machine_bodies,
                 ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
             },
         )
@@ -764,6 +827,7 @@ impl BuildTimeAdmissionPlan {
             BuildMachineEvaluationRequest {
                 product_entry_compatibility: None,
                 operators: &self.selected_operators,
+                machine_bodies: &self.selected_machine_bodies,
                 ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
             },
         )

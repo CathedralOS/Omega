@@ -279,6 +279,7 @@ pub fn evaluate_build_machine_measured(
         entry: checked_interpreter::BuildMachineEntry::Symbol(symbol),
         arguments: invocation.arguments,
         operators: &[],
+        machine_bodies: &[],
         sponsor: invocation.sponsor,
         product_entry_compatibility: invocation.product_entry_compatibility,
     };

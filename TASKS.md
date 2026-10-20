@@ -262,10 +262,15 @@ helper that passes does not close an item.
     calling-policy/member kinds beyond the reference compiler's closed inline
     calling-policy path. The reference producer now
     specializes exact named calling-policy inline plan captures and nested data
-    arguments before plan evaluation; Linux System V boundary-result, distinct
-    applications, canonical const projection and refusal controls are pinned in
-    `samples/cli/facts/generic_calling_policy`. Other ABI/host policies remain
-    unqualified. Reflection selection rejects a
+    arguments before plan evaluation. `samples/cli/facts/generic_calling_policy`
+    qualifies the closed `GenericPolicy<Box<u64>, 8>` result placement across all
+    nine places with native/Terminal exit 0 on Linux x86-64 and Width-4 reject
+    twins. Ordinary target-scoped policy helpers retain their exact selected
+    bodies through admission and execution. Matching Windows x86-64, macOS ARM64
+    and Linux ARM64 images validate the authored plan geometry; their native
+    execution and other policy/member kinds remain unqualified. Distinct
+    applications, canonical const projection and prior refusal controls remain
+    pinned. Reflection selection rejects a
     named implementation as a member's operation until callable-contract checking lands
     (**Semantic reflection**).
   - Retire authored `Trait::member = Existing::machine;` rows under

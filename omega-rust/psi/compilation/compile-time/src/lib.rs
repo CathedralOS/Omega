@@ -35,7 +35,7 @@ pub use wire_demands::harvest_wire_compatibility_demands;
 
 pub use checked_interpreter::{
     CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, MeasuredEvaluation,
-    SelectedBuildTimeBinaryOperator,
+    SelectedBuildTimeBinaryOperator, SelectedBuildTimeMachineBody,
 };
 pub use const_evaluation::const_domain_facts::evaluate_const_domain_facts;
 pub use const_evaluation::const_generic_calls::evaluate_const_generic_calls;

@@ -891,6 +891,17 @@ fn instantiate_result_origins(
             });
             continue;
         };
+        if origin.source.is_static() {
+            // Literal-issued image storage belongs to no callee declaration.
+            // Keep its captured source and substituted lifetime debts when a
+            // named state or call returns it; never infer static storage from
+            // an absent parameter root.
+            returned.references.push(ReferenceLeaf {
+                lifetime_dependencies,
+                ..leaf.clone()
+            });
+            continue;
+        }
         if include_shared
             && !origin.source.root.is_valid()
             && origin.precision == FramePathPrecision::CollectionCoarse

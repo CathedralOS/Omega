@@ -284,13 +284,33 @@ pub fn compute_boundary_calling_plans(
     if pending.is_empty() {
         return Ok(Vec::new());
     }
+    // Policy helpers use ordinary target families too. Select their exact
+    // retained bodies in Omega, then give admission and evaluation one shared
+    // identity mapping; Psi must neither guess the host nor pick a sibling.
+    let machine_bodies = typed
+        .target_machine_families
+        .iter()
+        .filter_map(|family| {
+            crate::target_machines::family_member_for_target(
+                typed,
+                family.canonical,
+                target_profile.target_name(),
+            )
+            .map(|body| build_time_evaluation::SelectedBuildTimeMachineBody {
+                family: family.canonical,
+                body: body.symbol,
+            })
+        })
+        .collect::<Vec<_>>();
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
         typed,
         package_inputs.map(|inputs| {
             std::sync::Arc::new(inputs.clone())
                 as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
-    );
+    )
+    .with_selected_machine_bodies(typed, &machine_bodies)
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut evaluated = Vec::with_capacity(pending.len());
     for (
         boundary_trait,
