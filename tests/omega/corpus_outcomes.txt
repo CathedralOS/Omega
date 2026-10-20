@@ -3886,7 +3886,8 @@ fail/facts/record_layout_geometry_unproved_parameter rejected 3940ms expected @4
 fail/facts/record_layout_geometry_unproved_target_body rejected 3880ms expected @45cbafd80d9c
 	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/reference_arrival_handoff_cleanup_receiver_order_held_residual rejected 1660ms expected @4030174fbc4e
-fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejected 1845ms expected @4030174fbc4e
+fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejected 7661ms expected @64fed27437de+wt
+	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 4: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite rejected 1684ms expected @4030174fbc4e
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 3: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_cleanup_receiver_prerequisite rejected 1541ms expected @4030174fbc4e
