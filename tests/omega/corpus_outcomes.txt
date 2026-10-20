@@ -7002,7 +7002,6 @@ fail/providers/occurrence_region_binding_conflicting_inputs rejected 42ms expect
 fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms expected @1e469c9b15bb
 fail/providers/portable_slot_cannot_lend_raw_binding rejected 1873ms expected @aebe0714a499+wt
 fail/providers/primitive_reference_contract_refinement rejected 997ms expected @f3014db3f225+wt
-fail/providers/private_binding_authority_contract rejected 31ms expected @e5140c7a7be2+wt
 fail/providers/provider_reference_allocation_requires_nonnull rejected 1128ms expected @2a08673f9136
 fail/providers/provider_result_private_qualification rejected 2181ms expected @20ad71d6e3a6+wt
 fail/providers/provider_selection_fabricated_activation rejected 2725ms expected @a9ae30e1c334+wt
