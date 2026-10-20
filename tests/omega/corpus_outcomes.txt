@@ -4993,6 +4993,27 @@ fail/facts/unsigned_8bit_saturating_multiplication_bound_through_target_body_rej
 	cannot prove requires contract for call exercise from main: prod >= 40 && prod <= 150 (needs fact `val >= 40 && val <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: prod >= 40 && prod <= 150 (needs fact `val >= 40 && val <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: prod >= 40 && prod <= 150 (needs fact `val >= 40 && val <= 150` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_saturating_subtraction_bound_through_call_result_rejected rejected 13701ms expected @e0f60f15982c+wt
+	cannot prove requires contract for call verify_diff from exercise: diff >= 60 && diff <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_saturating_subtraction_bound_through_const_name_rejected rejected 16081ms expected @e0f60f15982c+wt
+	cannot prove requires contract for call verify_diff from exercise: d >= 60 && d <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_saturating_subtraction_bound_through_field_rejected rejected 16544ms expected @e0f60f15982c+wt
+	cannot prove requires contract for call verify_diff from exercise: carrier.diff >= 60 && carrier.diff <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_saturating_subtraction_bound_through_local_rejected rejected 15365ms expected @e0f60f15982c+wt
+	cannot prove requires contract for call verify_diff from exercise: local_val >= 60 && local_val <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_saturating_subtraction_bound_through_match_join_rejected rejected 13215ms expected @e0f60f15982c+wt
+	cannot prove requires contract for call verify_diff from exercise: joined >= 60 && joined <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_saturating_subtraction_bound_through_other_machine_rejected rejected 19124ms expected @e0f60f15982c+wt
+	cannot prove requires contract for call verify_diff from exercise: relayed >= 60 && relayed <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_saturating_subtraction_bound_through_other_state_rejected rejected 15421ms expected @e0f60f15982c+wt
+	cannot prove requires contract for call verify_diff from exercise: d >= 60 && d <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `next_step`
+fail/facts/unsigned_8bit_saturating_subtraction_bound_through_parameter_rejected rejected 14070ms expected @e0f60f15982c+wt
+	cannot prove requires contract for call verify_diff from helper: d >= 60 && d <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_saturating_subtraction_bound_through_target_body_rejected rejected 13264ms expected @e0f60f15982c+wt
+	cannot prove requires contract for call verify_diff from exercise: d >= 60 && d <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_diff from exercise: d >= 60 && d <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_diff from exercise: d >= 60 && d <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_diff from exercise: d >= 60 && d <= 160 (needs fact `value >= 60 && value <= 160` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 fail/facts/view_extent_after_write_through_call_result_unproved rejected 1061ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_const_name_unproved rejected 1057ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_field_unproved rejected 1058ms expected @86af356b96fb+wt
@@ -10015,6 +10036,15 @@ pass/facts/unsigned_8bit_saturating_multiplication_bound_through_other_machine_e
 pass/facts/unsigned_8bit_saturating_multiplication_bound_through_other_state_exit checked 51226ms check-target:macos_arm64 @e0f60f15982c+wt
 pass/facts/unsigned_8bit_saturating_multiplication_bound_through_parameter_exit checked 41936ms check-target:macos_arm64 @e0f60f15982c+wt
 pass/facts/unsigned_8bit_saturating_multiplication_bound_through_target_body_exit checked 43254ms check-target:macos_arm64 @e0f60f15982c+wt
+pass/facts/unsigned_8bit_saturating_subtraction_bound_through_call_result_exit checked 40884ms check-target:macos_arm64 @e0f60f15982c+wt
+pass/facts/unsigned_8bit_saturating_subtraction_bound_through_const_name_exit checked 38372ms check-target:macos_arm64 @e0f60f15982c+wt
+pass/facts/unsigned_8bit_saturating_subtraction_bound_through_field_exit checked 37279ms check-target:macos_arm64 @e0f60f15982c+wt
+pass/facts/unsigned_8bit_saturating_subtraction_bound_through_local_exit checked 41425ms check-target:macos_arm64 @e0f60f15982c+wt
+pass/facts/unsigned_8bit_saturating_subtraction_bound_through_match_join_exit checked 40004ms check-target:macos_arm64 @e0f60f15982c+wt
+pass/facts/unsigned_8bit_saturating_subtraction_bound_through_other_machine_exit checked 41616ms check-target:macos_arm64 @e0f60f15982c+wt
+pass/facts/unsigned_8bit_saturating_subtraction_bound_through_other_state_exit checked 44258ms check-target:macos_arm64 @e0f60f15982c+wt
+pass/facts/unsigned_8bit_saturating_subtraction_bound_through_parameter_exit checked 40867ms check-target:macos_arm64 @e0f60f15982c+wt
+pass/facts/unsigned_8bit_saturating_subtraction_bound_through_target_body_exit checked 43509ms check-target:macos_arm64 @e0f60f15982c+wt
 pass/facts/view_extent_after_write_through_call_result_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_const_name_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_field_exit checked 3519ms check-target:macos_arm64 @86af356b96fb+wt
