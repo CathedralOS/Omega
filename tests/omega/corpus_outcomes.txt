@@ -4210,6 +4210,31 @@ fail/facts/signed_32bit_wrapping_subtraction_bound_through_target_body_rejected 
 	cannot prove requires contract for call verify_diff from exercise: d >= 40 && d <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 	cannot prove requires contract for call verify_diff from exercise: d >= 40 && d <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 	cannot prove requires contract for call verify_diff from exercise: d >= 40 && d <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+fail/facts/signed_32bit_saturating_multiplication_bound_through_call_result_rejected rejected 14682ms expected @972304d13c39+wt
+	Exact integer cast in machine `multiply_call_result` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_32bit_saturating_multiplication_bound_through_const_name_rejected rejected 12109ms expected @972304d13c39+wt
+	Exact integer cast in machine `multiply_const` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_32bit_saturating_multiplication_bound_through_field_rejected rejected 12101ms expected @972304d13c39+wt
+	Exact integer cast in machine `multiply_field` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_32bit_saturating_multiplication_bound_through_local_rejected rejected 28879ms expected @972304d13c39+wt
+	Exact integer cast in machine `multiply_local` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_32bit_saturating_multiplication_bound_through_match_join_rejected rejected 11917ms expected @972304d13c39+wt
+	Exact integer cast in machine `multiply_match_join` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_32bit_saturating_multiplication_bound_through_other_machine_rejected rejected 13039ms expected @972304d13c39+wt
+	Exact integer cast in machine `forward_eval` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_32bit_saturating_multiplication_bound_through_other_state_rejected rejected 12551ms expected @972304d13c39+wt
+	Exact integer cast in machine `multiply_other_state` state `check_state` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_32bit_saturating_multiplication_bound_through_parameter_rejected rejected 10506ms expected @972304d13c39+wt
+	Exact integer cast in machine `multiply_param` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_32bit_saturating_multiplication_bound_through_target_body_rejected rejected 13681ms expected @972304d13c39+wt
+	Exact integer cast in machine `multiply_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `multiply_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `multiply_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `multiply_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_rejected rejected 19310ms expected @9a273b151c31+wt
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_rejected rejected 18871ms expected @9a273b151c31+wt
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_field_rejected rejected 15266ms expected @9a273b151c31+wt
@@ -9350,6 +9375,15 @@ pass/facts/signed_32bit_wrapping_subtraction_bound_through_other_machine_exit ch
 pass/facts/signed_32bit_wrapping_subtraction_bound_through_other_state_exit checked 43459ms check-target:macos_arm64 @ff75d315e2ba+wt
 pass/facts/signed_32bit_wrapping_subtraction_bound_through_parameter_exit checked 41835ms check-target:macos_arm64 @ff75d315e2ba+wt
 pass/facts/signed_32bit_wrapping_subtraction_bound_through_target_body_exit checked 43459ms check-target:macos_arm64 @ff75d315e2ba+wt
+pass/facts/signed_32bit_saturating_multiplication_bound_through_call_result_exit checked 39263ms check-target:macos_arm64 @972304d13c39+wt
+pass/facts/signed_32bit_saturating_multiplication_bound_through_const_name_exit checked 44643ms check-target:macos_arm64 @972304d13c39+wt
+pass/facts/signed_32bit_saturating_multiplication_bound_through_field_exit checked 54511ms check-target:macos_arm64 @972304d13c39+wt
+pass/facts/signed_32bit_saturating_multiplication_bound_through_local_exit checked 71434ms check-target:macos_arm64 @972304d13c39+wt
+pass/facts/signed_32bit_saturating_multiplication_bound_through_match_join_exit checked 39428ms check-target:macos_arm64 @972304d13c39+wt
+pass/facts/signed_32bit_saturating_multiplication_bound_through_other_machine_exit checked 39629ms check-target:macos_arm64 @972304d13c39+wt
+pass/facts/signed_32bit_saturating_multiplication_bound_through_other_state_exit checked 66873ms check-target:macos_arm64 @972304d13c39+wt
+pass/facts/signed_32bit_saturating_multiplication_bound_through_parameter_exit checked 43937ms check-target:macos_arm64 @972304d13c39+wt
+pass/facts/signed_32bit_saturating_multiplication_bound_through_target_body_exit checked 63879ms check-target:macos_arm64 @972304d13c39+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_exit checked 39212ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_exit checked 43877ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_field_exit checked 44917ms check-target:macos_arm64 @9a273b151c31+wt

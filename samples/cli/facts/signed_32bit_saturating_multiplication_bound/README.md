@@ -4,18 +4,21 @@
 
 ## Places & witnesses
 
-| Place | Witness (`main.omg`) | Reject twin (`invalid/main.omg`) | Note |
-|---|---|---|---|
-| root | [`main.omg`](main.omg) | - | Root package probe exercising 32-bit signed saturating multiplication bound |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | product is stored in intermediate local bindings before exact interval subtractions |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | bounded operands are packed into and projected from a nominal record field (`Operands`) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | bounded operands are operated on directly through parameter bindings |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | helper call returns saturating multiplication product with postcondition contract `ensures result >= 50i32 && result <= 200i32` |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | product is synthesized and unified across conditional match branches |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | declared symbolic constants define operand intervals and bound limits |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor state `check_state(p: i32)` receives product and verifies interval subtractions |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine passes the product to another machine for interval verification |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped implementations across all four platforms perform saturating multiplication and interval verification |
+- **Claim ticket:** `8ebe4a7e9c0640c8b5c820261dd31355` (`antigravity/w35-2`)
+- **Obligation class:** Exact integer cast representability (`let check_h: u32 = headroom as u32` after `let headroom: i32 = 200i32 - prod`)
+
+| Place | Witness (`main.omg`) | Reject twin (`invalid/main.omg`) | Pinned Corpus Pass | Pinned Corpus Fail | Note |
+|---|---|---|---|---|---|
+| root | [`main.omg`](main.omg) | - | - | - | Root package probe exercising 32-bit signed saturating multiplication bound |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_saturating_multiplication_bound_through_local_exit` | `tests/omega/fail/facts/signed_32bit_saturating_multiplication_bound_through_local_rejected` | product is stored in intermediate local bindings before exact interval subtractions |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_saturating_multiplication_bound_through_field_exit` | `tests/omega/fail/facts/signed_32bit_saturating_multiplication_bound_through_field_rejected` | bounded operands are packed into and projected from a nominal record field (`Operands`) |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_saturating_multiplication_bound_through_parameter_exit` | `tests/omega/fail/facts/signed_32bit_saturating_multiplication_bound_through_parameter_rejected` | bounded operands are operated on directly through parameter bindings |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_saturating_multiplication_bound_through_call_result_exit` | `tests/omega/fail/facts/signed_32bit_saturating_multiplication_bound_through_call_result_rejected` | helper call returns saturating multiplication product with postcondition contract `ensures result >= 50i32 && result <= 200i32` |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_saturating_multiplication_bound_through_match_join_exit` | `tests/omega/fail/facts/signed_32bit_saturating_multiplication_bound_through_match_join_rejected` | product is synthesized and unified across conditional match branches |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_saturating_multiplication_bound_through_const_name_exit` | `tests/omega/fail/facts/signed_32bit_saturating_multiplication_bound_through_const_name_rejected` | declared symbolic constants define operand intervals and bound limits |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_saturating_multiplication_bound_through_other_state_exit` | `tests/omega/fail/facts/signed_32bit_saturating_multiplication_bound_through_other_state_rejected` | successor state `check_state(p: i32)` receives product and verifies interval subtractions |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_saturating_multiplication_bound_through_other_machine_exit` | `tests/omega/fail/facts/signed_32bit_saturating_multiplication_bound_through_other_machine_rejected` | forwarding machine passes the product to another machine for interval verification |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_saturating_multiplication_bound_through_target_body_exit` | `tests/omega/fail/facts/signed_32bit_saturating_multiplication_bound_through_target_body_rejected` | target-scoped implementations across all four platforms perform saturating multiplication and interval verification |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
@@ -48,7 +51,7 @@ The recorded 0 exit is discriminating:
 - 32-bit signed saturating multiplication evaluates to `120i32` and is verified overflow-free.
 - Consuming exact subtractions `let headroom: i32 = 200i32 - prod` (`80i32`) and `let margin: i32 = prod - 50i32` (`70i32`) are statically proved safe in interval `[0i32, 150i32]`.
 - Exact unsigned casts `let check_h: u32 = headroom as u32` and `let check_m: u32 = margin as u32` confirm non-negative bounds without underflow or overflow.
-- At runtime, `prod == 120i32 && headroom + margin == 150i32 && check_h + check_m == 150u32` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy.
+- At runtime, `prod == 120i32 && headroom + margin == 150i32 && check_h + check_m == 150u32` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, causing both engines to trap: `native exit -1073741795` / `interp crash: Trap (host presentation agrees)` when perturbing `transition res == 0` to `transition res == 1` in `main.omg`) on discrepancy.
 - Each invalid twin widens the `lhs` bound to `lhs <= 21i32`, allowing `prod` to take value `21 * 10 = 210i32 > 200i32`. The headroom subtraction `200i32 - prod` yields `-10i32`, which fails closed at compile time during exact conversion to `u32` with diagnostic `Exact integer cast ... from \`i32\` to \`u32\` is not provably representable`. None reaches native execution.
 
 Check all nine invalid twins with:
