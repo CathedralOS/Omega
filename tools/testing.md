@@ -360,6 +360,21 @@ them, and a row can also claim a stronger success than the route now produces.
 Re-measure with `--filter` before relying on a row, and use `--write-moves` to
 read what a run actually observed.
 
+A sample probe is judged by the oracle in its own README, not by a uniform run.
+`samples/cli/probes/progress_provider` documents that its trait's requirements
+admit calls at `--check` and declares no program entry, so `omega run` on it
+fails with `native artifact identity physical pipeline failed:
+FunctionRelativeRealization(Encoding(ArtifactMismatch))` -- a real failure of a
+native route the probe never claimed, not a defect it pins. Measured on
+2026-10-20; judging such a probe by a native run invents a failure exactly as a
+CLI check on a twin invents a success.
+
+A sweep for a retired spelling must separate code from prose. A comment that
+records the retirement ("The former `Binding<Character>` carrier lane is gone")
+contains the spelling and is not residue, and a grep cannot tell the two apart.
+Classify each match by the line it sits on and fail only on code, or the sweep
+fails on its own documentation.
+
 ### One golden, every host
 
 `tests/omega/corpus_outcomes.txt` is a single checked-in file shared by
