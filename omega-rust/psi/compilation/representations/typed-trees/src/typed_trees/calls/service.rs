@@ -1,22 +1,29 @@
-//! Exact recognition of the toolchain-owned routed service carrier.
+//! The retired routed-service carrier `Binding<R>`, kept as an explicit
+//! negative judgment while its remaining consumers are removed.
 //!
-//! A same-named package declaration is ordinary opaque data. Compiler
-//! privilege requires the complete core source and declaration shape.
-//! `Binding<R>` admits no authored qualification. Its nominal contract and its
-//! closed occurrence are different judgments: a field declaration cannot supply
-//! a caller's actual regions or enclosing data applications.
-//!
-//! A declaration's contract may refer to its own formal operands. Inspecting
-//! that contract does not admit a closed service occurrence: selection and
-//! execution still require `ExactServiceCarrier` and transitive closure. Both
-//! judgments decode the same nominal shape, rather than recognizing separate
-//! template and concrete spellings.
+//! [Component publication](../../../../../../../../wiki/spec/build/component_publication.md)
+//! retires source-visible `Binding<R>` values: "A boundary trait is not a data
+//! carrier, provider object, capability, or source-visible vtable, and no hidden
+//! binding argument is inserted into requirement signatures." An exact closed
+//! boundary-trait application is itself the static provider slot, and source
+//! calls its requirements directly (`Console::write(bytes)`). The carrier's
+//! declaring file `source/library/core/binding.omg` was deleted with
+//! `tests/omega/fail/calls/retired_core_binding_*` asserting the bare name is
+//! unknown, so no program can reach the recognition this module used to perform:
+//! recognition required the exact toolchain source `core/binding.omg`, which no
+//! longer exists. `STATIC-MACHINE-MIGRATION` (TASKS.md) owns deleting what
+//! remains: the call sites whose carrier branch can no longer fire
+//! (`declarations/trait_definition/applications/source_fields.rs`,
+//! `declarations/invocations.rs`,
+//! `04_typed-trees-to-checked-trees/.../shape_collector.rs`,
+//! `checking/.../boundary_calls.rs`, `checking/.../value_custody/type_references.rs`,
+//! `checked-trees/.../service_parameter.rs`) and the selected-dispatch
+//! `service_custody` traversal with `program_entry_service_requirements`, whose
+//! only constructor of `ExactServiceCarrier` was this recognition.
 
 use crate::TypedTrees;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
-
-pub const SERVICE_CORE_SOURCE: &str = "binding.omg";
 
 /// Nominal contract inspection, without closed-application admission or an
 /// executable identity. The supplying telescope belongs to the occurrence.
@@ -103,28 +110,9 @@ pub fn inspect_service_parameter_contract(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Result<Option<ServiceParameterContract>, String> {
-    let (carrier_type, access) = match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference {
-            referee, access, ..
-        } if matches!(
-            access,
-            language_semantics::ReferenceAccess::Shared
-                | language_semantics::ReferenceAccess::Mutable
-        ) =>
-        {
-            (*referee, Some(*access))
-        }
-        _ => (type_reference, None),
-    };
-    Ok(
-        inspect_service_carrier_contract(program, carrier_type)?.map(|carrier| {
-            ServiceParameterContract {
-                carrier,
-                carrier_type,
-                access,
-            }
-        }),
-    )
+    // The carrier is retired, so no parameter can name it; see the module header.
+    let _ = (program, type_reference);
+    Ok(None)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -200,206 +188,46 @@ pub struct ExactServiceParameterCarrier {
     pub access: Option<language_semantics::ReferenceAccess>,
 }
 
+/// Classify one parameter shell. `Ok(None)` always: the carrier is retired
+/// (module header), so no parameter names it. Kept while
+/// `STATIC-MACHINE-MIGRATION` removes the callers.
 pub fn classify_exact_service_parameter_carrier(
     program: &TypedTrees,
     occurrence: ServiceCarrierOccurrence<'_>,
 ) -> Result<Option<ExactServiceParameterCarrier>, String> {
-    let Some(contract) = inspect_service_parameter_contract(program, occurrence.type_reference)?
-    else {
-        return Ok(None);
-    };
-    let carrier = close_service_carrier(program, contract.carrier, occurrence)?;
-    Ok(Some(ExactServiceParameterCarrier {
-        carrier,
-        carrier_type: contract.carrier_type,
-        access: contract.access,
-    }))
+    let _ = (program, occurrence);
+    Ok(None)
 }
 
-/// Classify one type shell. `Ok(None)` means it is not the exact core
-/// `Service` carrier; `Err` means it does name that carrier but violates the
-/// deliberately narrow first-rung contract. The carrier is closed: an authored
-/// `Constrained` shell over `Binding<R>` is itself a violation, whatever
-/// domain or membership the constraint names.
+/// Classify one type shell. `Ok(None)` always: the exact core carrier this
+/// used to decode (`Binding<R>` in `core/binding.omg`) is retired and its
+/// declaring file no longer exists (module header). Kept while
+/// `STATIC-MACHINE-MIGRATION` removes the callers.
 pub fn classify_exact_bound_service_carrier(
     program: &TypedTrees,
     occurrence: ServiceCarrierOccurrence<'_>,
 ) -> Result<Option<ExactServiceCarrier>, String> {
-    let Some(contract) = inspect_service_carrier_contract(program, occurrence.type_reference)?
-    else {
-        return Ok(None);
-    };
-    close_service_carrier(program, contract, occurrence).map(Some)
+    let _ = (program, occurrence);
+    Ok(None)
 }
 
-fn close_service_carrier(
-    program: &TypedTrees,
-    contract: ServiceCarrierContract,
-    occurrence: ServiceCarrierOccurrence<'_>,
-) -> Result<ExactServiceCarrier, String> {
-    let scope = contract
-        .application(
-            program,
-            occurrence.lexical_owner,
-            occurrence.enclosing_data_applications,
-        )
-        .ok_or("service occurrence lost its complete supplying telescope")?;
-    program
-        .require_receiving_trait_operands(&scope)
-        .map_err(str::to_owned)?;
-    // Closure retains actual regions, not their ABI erasure. Provider selection
-    // and receiving installation separately consume the checked correspondence;
-    // identifying this occurrence cannot grant either judgment.
-    scope
-        .portable_application_identity(program)
-        .ok_or("closed requirement needs a retained exact region application")?;
-    let requirement_identity = scope
-        .application_identity(program)
-        .ok_or("service occurrence lost its exact application identity")?;
-    Ok(ExactServiceCarrier {
-        service_data: contract.service_data,
-        requirement: contract.requirement,
-        requirement_reference: contract.requirement_reference,
-        requirement_identity,
-    })
-}
-
-/// Decode the toolchain-owned contract once for formal checking and concrete
-/// admission. Ordinary declaration checking must also establish that every
-/// free operand belongs to its lexical telescope. This inspection cannot grant
-/// provider/installation correspondence for a region-bearing occurrence.
+/// Decode the toolchain-owned contract. `Ok(None)` always: the carrier is
+/// retired, so nothing names it. Resolution, checking and provider planning
+/// see the same negative answer the deleted `core/binding.omg` produced.
 pub fn inspect_service_carrier_contract(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Result<Option<ServiceCarrierContract>, String> {
-    let mut current = type_reference;
-    let mut qualified = false;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(current)
-    {
-        qualified = true;
-        current = *base_type;
-    }
-
-    let generic_origin = match program.type_reference_table.type_reference(current) {
-        TypeReferenceNode::Generic { .. } => current,
-        TypeReferenceNode::Named { symbol, .. } => {
-            let Some(origin) = program
-                .data_definition_by_symbol(*symbol)
-                .and_then(|definition| definition.generic_instance)
-            else {
-                return Ok(None);
-            };
-            origin
-        }
-        _ => return Ok(None),
-    };
-    let TypeReferenceNode::Generic {
-        base_symbol,
-        lifetime_arguments,
-        arguments,
-        ..
-    } = program.type_reference_table.type_reference(generic_origin)
-    else {
-        return Ok(None);
-    };
-    if !is_exact_service_data_symbol(program, *base_symbol) {
-        return Ok(None);
-    }
-    if qualified {
-        return Err(
-            "the core `Binding` carrier is closed; it admits no authored qualification".to_owned(),
-        );
-    }
-    if !lifetime_arguments.is_empty() {
-        return Err("the core `Service` carrier takes no lifetime arguments".to_owned());
-    }
-    let arguments = program
-        .type_reference_table
-        .type_reference_handles(*arguments);
-    let [requirement] = arguments else {
-        return Err(format!(
-            "the core `Service` carrier requires exactly one closed boundary requirement, but {} arguments were supplied",
-            arguments.len()
-        ));
-    };
-    let requirement_reference = *requirement;
-    let (requirement, name, arguments, lifetimes) = match program.type_reference_table.type_reference(requirement_reference) {
-        TypeReferenceNode::Named { symbol, name } => (*symbol, name, &[][..], &[][..]),
-        TypeReferenceNode::Generic { base_symbol, base_name, lifetime_arguments, arguments, .. }
-            => (*base_symbol, base_name,
-                program.type_reference_table.type_reference_handles(*arguments), lifetime_arguments.as_slice()),
-        _ => return Err("the core `Binding` carrier requires one complete closed boundary-trait application with retained exact regions".to_owned()),
-    };
-    let Some(requirement_definition) = program.trait_definition_by_symbol(requirement) else {
-        return Err(format!(
-            "`Binding<{name}>` does not name an exact boundary-trait requirement"
-        ));
-    };
-    if !requirement_definition.is_public {
-        return Err(format!(
-            "`Binding<{name}>` requires a public boundary trait as its stable slot contract"
-        ));
-    }
-    if !requirement_definition.is_boundary {
-        return Err(format!(
-            "`Binding<{name}>` requires a boundary trait; ordinary traits are local interfaces"
-        ));
-    }
-    if requirement_definition.lifetime_parameters.len() != lifetimes.len()
-        || program.trait_type_parameters(requirement_definition).len() != arguments.len()
-    {
-        return Err(format!(
-            "the core `Binding` carrier requires a complete closed boundary application with retained exact regions; `{name}` remains open"
-        ));
-    }
-    Ok(Some(ServiceCarrierContract {
-        service_data: *base_symbol,
-        requirement,
-        requirement_reference,
-    }))
+    let _ = (program, type_reference);
+    Ok(None)
 }
 
 /// The declared logical requirement, not a closed receiving application.
+/// `None` always, for the reason above.
 pub fn service_requirement_declaration(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    inspect_service_carrier_contract(program, type_reference)
-        .ok()
-        .flatten()
-        .map(|carrier| carrier.requirement)
-}
-
-pub fn is_exact_service_data_symbol(program: &TypedTrees, symbol: SymbolHandle) -> bool {
-    let Some(definition) = program.data_definition_by_symbol(symbol) else {
-        return false;
-    };
-    // One carrier, one source. `ForeignBinding` was listed here as a second
-    // row, which is an artifact of the rename that turned `Service<R>` into
-    // `Binding<R>`: the name it took over had belonged to a routed-service
-    // carrier, but `ForeignBinding` is the compile-time foreign LOCATOR in
-    // `core/external_binding.omg` and is not `boundary data` at all, so it
-    // could never satisfy the shape checked below.
-    let carrier_source = match definition.name.as_str() {
-        "Binding" => SERVICE_CORE_SOURCE,
-        _ => return false,
-    };
-    if !exact_toolchain_source(program, symbol, carrier_source) {
-        return false;
-    }
-    let parameters = program.data_type_parameters(definition);
-    definition.is_public
-        && definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
-        && definition.properties.multiplicity == language_semantics::Multiplicity::Affine
-        && definition.properties.carry.is_none()
-        && definition.lifetime_parameters.is_empty()
-        && matches!(parameters, [parameter] if matches!(parameter.kind, crate::data::TypeParameterKind::Type))
-        && program.data_members(definition).is_empty()
-}
-
-fn exact_toolchain_source(program: &TypedTrees, symbol: SymbolHandle, relative: &str) -> bool {
-    program
-        .symbol_toolchain_relative_path(symbol)
-        .is_some_and(|path| path == std::path::Path::new(relative))
+    let _ = (program, type_reference);
+    None
 }

@@ -419,28 +419,40 @@ helper that passes does not close an item.
   unmigrated program pass.
   - Source remainder: the two memory canaries
     (**TOP-LEVEL-BOUNDARY-REQUIREMENTS** and **CHECKED-ASM-LABEL-CONTRACTS**).
-    Build receiver calls remain for facets such as test groups, and source still
-    carries compiler-installed services through `Binding<R>` fields/parameters.
-    Move their producers and consumers to
+    Build receiver calls remain for facets such as test groups; move their
+    producers and consumers to
     namespace-qualified calls with explicit arguments, following `Build::bind`,
     `Build::select_provider`, `Build::exclude_service`, and
     `Build::select_representation`, `Build::accept_boundary`,
     `Build::require_wire_compatibility`, and `Build::assume_binding_contract`.
     A boundary requirement call spells `Requirement::operation(arguments)` and
-    demands one exact static provider slot; checking accepts that form, and a
-    leading `Binding<R>` operand is the only remaining receiver-lane entry.
-    Migrate source and fixtures: 40 test and 7 sample files still name
-    `Binding<`. The test remainder pins Binding-specific refusals and
-    receiver lanes; the sample remainder is four probes plus `file_journal`,
-    `note_vault` and `private_issuer_provider_result`, which move with std's
-    `Filesystem` carrier under **FILESYSTEM-PLATFORM-SERVICES**. Deleting the
-    carrier waits for that record: std must keep checking. An inherited
+    demands one exact static provider slot; checking accepts that form.
+    An inherited
     requirement is called through its declaring trait (`Parent::reset`), not
     the refining child's name, and an applied one as `Parent<u64>::read()`.
-    Then delete `source/library/core/binding.omg`, Binding type recognition, entry-field
-    establishment, receiver/leading-argument paths and source-visible routing
-    custody. Add fail controls for `Binding<R>` in fields, locals and parameters
-    and for ambiguous provider supply; provider admission already rejects a
+  - `Binding<R>` retirement frontier, measured on main: the declaring file and the
+    compiler's type recognition are done. `source/library/core/binding.omg` is
+    deleted, `calls/service.rs` answers the source-visible carrier as an explicit
+    negative judgment (its `SERVICE_CORE_SOURCE` row and name/shape recognition are
+    gone), and `fail/calls/retired_core_binding_{field,local,parameter}` assert the
+    bare name is unknown. Remaining: 34 files still import the deleted module and
+    every one fails `omega --check` with `failed to resolve
+    .../core/binding.omg` (12 pass fixtures, 17 reject twins, 1 run fixture, 4
+    `samples/cli/probes`); their twins currently reject because the module is
+    missing, so a migrated twin must still reject with its authored fragment. Three
+    stale comments still name the carrier (`source/library/core/task.omg`,
+    `source/library/std/targets/macos_arm64/filesystem_impl.omg`,
+    `fail/boundary/bare_field_value_rejected`). Compiler paths whose carrier branch
+    can no longer fire must then be deleted with their data shapes:
+    `declarations/trait_definition/applications/source_fields.rs`,
+    `declarations/invocations.rs`, `shape_collector.rs`,
+    `checking/.../boundary_calls.rs`,
+    `checking/.../value_custody/type_references.rs`,
+    `checked-trees/.../service_parameter.rs`, and selected-dispatch
+    `service_custody` with `program_entry_service_requirements` (package-review
+    nomination and its driver test), whose only `ExactServiceCarrier` constructor
+    was the deleted recognition. Add fail controls for ambiguous provider supply;
+    provider admission already rejects a
     requirement the entry reaches with no selected provider. Multiple static roles use exact
     generic applications or wrapper traits; runtime multiplicity uses protocol
     handles/descriptors/`dyn`, never a generic routing carrier.
