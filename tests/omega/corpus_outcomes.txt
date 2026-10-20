@@ -4620,7 +4620,11 @@ fail/facts/stack_frame_slot_isolation_unproved_target_body rejected 2295ms expec
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/subslice_state_extent_wrong_view_rejected rejected 605ms expected @cbdcc23565fb
+fail/facts/subslice_state_extent_wrong_view_rejected rejected 1857ms expected @8b8e7e035fdc
+	cannot prove requires contract for call extended from trial: buffer.len >= 1024 (needs fact `buffer.len >= 1024` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `transfer`
+	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
+	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
+	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 fail/facts/target_scoped_constant_false_contract rejected 17279ms expected @f84839bf641a
 	cannot prove ensures contract for exit from Small::get at statement 0: result == 5
 fail/facts/target_scoped_constant_missing_method rejected 156ms expected @f84839bf641a
