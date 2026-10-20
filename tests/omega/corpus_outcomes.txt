@@ -3111,6 +3111,27 @@ fail/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_target_body_reje
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/narrow_to_wide_signed_8to64_extension_through_call_result_rejected rejected 12768ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_wide from compute_call_result: transported >= 30 && transported <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_8to64_extension_through_const_name_rejected rejected 12673ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_wide from compute_const: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_8to64_extension_through_field_rejected rejected 12904ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_wide from compute_field: transported >= 30 && transported <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_8to64_extension_through_local_rejected rejected 11523ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_wide from compute_local: transported >= 30 && transported <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_8to64_extension_through_match_join_rejected rejected 11479ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_wide from compute_match_join: joined >= 30 && joined <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_8to64_extension_through_other_machine_rejected rejected 11634ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_wide from compute_other_machine: transported >= 30 && transported <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_8to64_extension_through_other_state_rejected rejected 10721ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_wide from compute_other_state: w >= 30 && w <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/narrow_to_wide_signed_8to64_extension_through_parameter_rejected rejected 11040ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_wide from compute_parameter: transported >= 30 && transported <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_8to64_extension_through_target_body_rejected rejected 10604ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_wide from compute_target_body: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_wide from compute_target_body: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_wide from compute_target_body: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_wide from compute_target_body: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_record_value_through_call_result_rejected rejected 2327ms expected @45cbafd80d9c
 	exact arithmetic in machine `sum_envelope` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_record_value_through_const_name_rejected rejected 3511ms expected @45cbafd80d9c
@@ -7967,6 +7988,15 @@ pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_other_machine_ex
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_other_state_exit checked 39079ms check-target:macos_arm64 @7dc9c049a48b
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_parameter_exit checked 35188ms check-target:macos_arm64 @7dc9c049a48b
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_target_body_exit checked 37965ms check-target:macos_arm64 @7dc9c049a48b
+pass/facts/narrow_to_wide_signed_8to64_extension_through_call_result_exit checked 30824ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_const_name_exit checked 30817ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_field_exit checked 30843ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_local_exit checked 31019ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_match_join_exit checked 30836ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_other_machine_exit checked 31139ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_other_state_exit checked 31184ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_parameter_exit checked 30846ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit checked 30950ms check-target:macos_arm64 @da99a3ccd03e+wt
 pass/facts/nested_record_value_through_call_result_exit checked 7774ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/nested_record_value_through_const_name_exit checked 7806ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/nested_record_value_through_field_exit checked 8027ms check-target:macos_arm64 @45cbafd80d9c

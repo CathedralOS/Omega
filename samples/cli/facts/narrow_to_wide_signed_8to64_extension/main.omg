@@ -5,7 +5,9 @@ machine verify_wide(wide: i64) -> i32
     requires wide >= 30 && wide <= 100
 {
     let headroom: i64 = 100 - wide;
-    (headroom - 40) as i32
+    let margin: i64 = wide - 30;
+    let diff: i64 = headroom - margin;
+    (diff - 10) as i32
 }
 
 machine compute_root(narrow: i8) -> i32

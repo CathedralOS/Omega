@@ -1395,6 +1395,15 @@ pass/facts/narrow_to_wide_signed_32to64_extension_through_other_machine built 18
 pass/facts/narrow_to_wide_signed_32to64_extension_through_other_state built 12191ms exit:0 @7dc9c049a48b
 pass/facts/narrow_to_wide_signed_32to64_extension_through_parameter built 19259ms exit:0 @7dc9c049a48b
 pass/facts/narrow_to_wide_signed_32to64_extension_through_target_body built 11017ms exit:0 @7dc9c049a48b
+pass/facts/narrow_to_wide_signed_8to64_extension_through_call_result_exit built 27842ms exit:0 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_const_name_exit built 28127ms exit:0 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_field_exit built 27770ms exit:0 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_local_exit built 28105ms exit:0 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_match_join_exit built 27439ms exit:0 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_other_machine_exit built 27527ms exit:0 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_other_state_exit built 28083ms exit:0 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_parameter_exit built 28248ms exit:0 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit built 27875ms exit:0 @da99a3ccd03e+wt
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_call_result_exit built 27615ms exit:0 @7dc9c049a48b
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_const_name_exit built 27486ms exit:0 @7dc9c049a48b
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_field_exit built 27519ms exit:0 @7dc9c049a48b
