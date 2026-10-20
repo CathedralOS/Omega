@@ -80,6 +80,71 @@ application, rather than naming a separate numeric constant.
 - Positives: `tests/omega/pass/facts/dynamic_float_refinement_through_<place>_exit` (9 places pinned, each byte-identical to `<place>/main.omg` with native exit 0).
 - Reject twins: `tests/omega/fail/facts/dynamic_float_refinement_through_<place>_outside_interval` (9 places pinned, each byte-identical to `<place>/invalid/main.omg`, rejecting with `machine 'Quarter::get' realizes 'Fraction::get' but does not guarantee its 'ensures result <= 0.5'`).
 
+### Recorded native evidence (macos_arm64)
+
+Measured on `macos_arm64` at revision `bc9ef5d9a334` with the producer built
+from that revision (`opt_level 1`):
+
+```sh
+python3 tools/corpus_gate.py --native --filter pass/facts/dynamic_float_refinement_through
+```
+
+Before the record the gate reported all nine positives as `new fixture
+(built)`, and the run reported `9 fixtures ({'built': 9})`,
+`executed 9 (exit codes {'0': 9})`, 0 rejected without their expected fragment
+and 0 fail fixtures that did not reject — every positive place already built
+and ran, so the gap was the durable record, not a compiler refusal. The nine
+rows now read `built ... exit:0 @bc9ef5d9a334` in
+`tests/omega/corpus_native_macos_arm64.txt`, spliced in as a pure addition
+(+9 lines, 0 deletions, no timeout rows, LOST 0). Re-run on the integration
+base `cf4879f2e8ee` (whose only incoming change was another fact's check-leg
+rows, 0 Rust files): the same filter is `clean — 9 fixtures ({'built': 9})`,
+`executed 9 (exit codes {'0': 9})`, 0 rejected without their expected
+fragment, 0 fail fixtures that did not reject.
+
+The mechanism is exercised by this host rather than merely compiled for it.
+No positive place is target-scoped except `target_body`, whose four bodies each
+invoke `Fraction::get`, so the realized `macos_arm64` body performs the dynamic
+call and the `f64` comparison itself; the other eight places are target-neutral
+and run the same dispatch on this host.
+
+The recorded 0 is discriminating at the artifact level, not just at build
+level. Changing the authored comparison in
+`tests/omega/pass/facts/dynamic_float_refinement_through_local_exit/main.omg`
+from `transition observed == 0.25` to `transition observed == 0.5` — a
+comparison outcome, not a formatting difference — made the same gate report
+`expected native 0, observed built {'exit': 'signal', 'signal': '5'}` and the
+structural move `exit:0` to `exit:signal signal:5` (exit 3). Restoring the
+fixture byte-for-byte returned the same filter to `clean — 1 fixtures
+({'built': 1})`, `executed 1 (exit codes {'0': 1})`, so the recorded row is
+compared against the artifact's real exit and a wrong value is caught.
+
+The nine reject twins are unchanged by this record and were re-verified on the
+check leg: `clean — 9 fixtures ({'rejected': 9})`, 0 rejected without their
+expected fragment, 0 fail fixtures that did not reject.
+
+Main then moved again to `4c81ee5883b4` with a compiler change (`compiler:
+retain captured placed interpretations across reference returns`), so the
+native leg was re-measured with a producer rebuilt from that base: 0
+structural moves, `9 fixtures ({'built': 9})`, `executed 9 (exit codes
+{'0': 9})`, 0 rejected without their expected fragment, 0 fail fixtures that
+did not reject. The four `perf_slower` notes are host load and worker count —
+the gate's own context records pre-run load and a jobs mismatch — and no row
+moved, so the recorded revision stays `bc9ef5d9a334`.
+
+One more integration step then landed five further compiler commits
+(`cc6fcc708be7`, 34 Rust files, scalar qualification and source-evidence
+scoping), and the leg was re-measured again with a producer rebuilt from that
+base: `clean — 9 fixtures ({'built': 9})`, `executed 9 (exit codes {'0': 9})`,
+0 rejected without their expected fragment, 0 fail fixtures that did not
+reject, and no perf noise at all. The recorded revision still stands; the
+re-measurements are what carry it across the landed compiler commits.
+
+Remaining open on other hosts: `tests/omega/corpus_native_linux_x86_64.txt` and
+`tests/omega/corpus_native_windows_x86_64.txt` carry no row for this fact yet
+and need those hosts; `linux_arm64` has no native golden in this checkout. The
+macOS rows recorded here do not stand in for them.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` ([TASKS.md](../../../../TASKS.md)).
