@@ -65,11 +65,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         // index bounds proof all read. Its EFFECTFUL selectors are captured
         // instead, so the address is still evaluated exactly once.
         if expression_is_storage_read(syntax_trees, *subject_expression) {
-            capture_effectful_selectors(
-                syntax_trees,
-                *subject_expression,
-                &mut selector_captures,
-            );
+            capture_effectful_selectors(syntax_trees, *subject_expression, &mut selector_captures);
             continue;
         }
         let captured = *subject_expression;

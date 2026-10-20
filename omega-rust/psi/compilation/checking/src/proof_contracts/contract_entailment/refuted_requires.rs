@@ -429,27 +429,11 @@ pub(super) fn instantiated_selected_fact_judgment(
             ) else {
                 return StructuralJudgment::Unknown;
             };
-            let equality = judge.judge_equation(left, right, 0);
-            // The same boundary as the runtime-body predicate above: a
-            // comparison over a projection whose selected call is not yet
-            // certified denotational is not a decided contradiction. Proven
-            // stands, so a genuine requirement still discharges.
-            let equality = if projection_uncertified
-                && matches!(equality, StructuralJudgment::Refuted)
-            {
-                StructuralJudgment::Unknown
-            } else {
-                equality
-            };
-            if binary.operator == BinaryOperator::Equal {
-                equality
-            } else {
-                match equality {
-                    StructuralJudgment::Proven => StructuralJudgment::Refuted,
-                    StructuralJudgment::Refuted => StructuralJudgment::Proven,
-                    StructuralJudgment::Unknown => StructuralJudgment::Unknown,
-                }
-            }
+            equality_predicate_judgment(
+                judge.judge_equation(left, right, 0),
+                binary.operator,
+                projection_uncertified,
+            )
         }
         BinaryOperator::Less
         | BinaryOperator::LessOrEqual
@@ -511,6 +495,63 @@ pub(super) fn instantiated_selected_fact_judgment(
     }
 }
 
+fn equality_predicate_judgment(
+    equality: StructuralJudgment,
+    operator: BinaryOperator,
+    projection_uncertified: bool,
+) -> StructuralJudgment {
+    // Withhold a false predicate, not a false equation. Inverting after the
+    // withholding would both retain a false `!=` and discard a true one.
+    let judgment = match (operator, equality) {
+        (BinaryOperator::Equal, judgment) => judgment,
+        (BinaryOperator::NotEqual, StructuralJudgment::Proven) => StructuralJudgment::Refuted,
+        (BinaryOperator::NotEqual, StructuralJudgment::Refuted) => StructuralJudgment::Proven,
+        _ => StructuralJudgment::Unknown,
+    };
+    if projection_uncertified && matches!(judgment, StructuralJudgment::Refuted) {
+        StructuralJudgment::Unknown
+    } else {
+        judgment
+    }
+}
+
+#[cfg(test)]
+mod equality_predicate_tests {
+    use super::{BinaryOperator, StructuralJudgment, equality_predicate_judgment};
+
+    #[test]
+    fn uncertified_comparisons_withhold_only_false_predicates() {
+        use BinaryOperator::{Equal, NotEqual};
+        use StructuralJudgment::{Proven, Refuted, Unknown};
+        let cases = [
+            (Equal, Proven, false, Proven),
+            (Equal, Refuted, false, Refuted),
+            (Equal, Unknown, false, Unknown),
+            (NotEqual, Proven, false, Refuted),
+            (NotEqual, Refuted, false, Proven),
+            (NotEqual, Unknown, false, Unknown),
+            (Equal, Proven, true, Proven),
+            (Equal, Refuted, true, Unknown),
+            (Equal, Unknown, true, Unknown),
+            (NotEqual, Proven, true, Unknown),
+            (NotEqual, Refuted, true, Proven),
+            (NotEqual, Unknown, true, Unknown),
+        ];
+        for (case_index, (operator, equality, uncertified, expected)) in
+            cases.into_iter().enumerate()
+        {
+            let actual = equality_predicate_judgment(equality, operator, uncertified);
+            assert!(
+                matches!(
+                    (actual, expected),
+                    (Proven, Proven) | (Refuted, Refuted) | (Unknown, Unknown)
+                ),
+                "comparison truth-table case {case_index}"
+            );
+        }
+    }
+}
+
 /// Whether a term reads a field off a call this stage cannot yet certify
 /// denotational. A symbolic machine parameter publishes a total closed-value
 /// signature, and that promise is its authority. A concrete machine's
@@ -524,8 +565,10 @@ fn uncertified_call_projection(program: &dyn crate::CheckingInput, term: &Struct
         StructuralTerm::CallProjection {
             target, arguments, ..
         } => {
-            crate::machine_calls::denotational_calls::abstract_value_call_signature(program, *target)
-                .is_none()
+            crate::machine_calls::denotational_calls::abstract_value_call_signature(
+                program, *target,
+            )
+            .is_none()
                 || arguments
                     .iter()
                     .any(|argument| uncertified_call_projection(program, argument))
@@ -545,7 +588,8 @@ fn uncertified_call_projection(program: &dyn crate::CheckingInput, term: &Struct
         } => uncertified_call_projection(program, value),
         StructuralTerm::MathematicalBinary { left, right, .. }
         | StructuralTerm::ScalarBinary { left, right, .. } => {
-            uncertified_call_projection(program, left) || uncertified_call_projection(program, right)
+            uncertified_call_projection(program, left)
+                || uncertified_call_projection(program, right)
         }
         StructuralTerm::Constructor { fields, .. } => fields
             .iter()
@@ -597,8 +641,8 @@ fn instantiated_operands(
     )?;
     let left = StructuralJudge::substitute_call_term(&left, map, machine_map);
     let right = StructuralJudge::substitute_call_term(&right, map, machine_map);
-    let projection_uncertified = uncertified_call_projection(program, &left)
-        || uncertified_call_projection(program, &right);
+    let projection_uncertified =
+        uncertified_call_projection(program, &left) || uncertified_call_projection(program, &right);
     Some((
         declared_len_extent_term(
             program,
