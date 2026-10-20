@@ -6,18 +6,22 @@ Every place performs the same operation: multiply bounded 16-bit unsigned operan
 
 ## Places
 
-| Place | Positive Project | Reject Twin | Transport Mechanism |
-| --- | --- | --- | --- |
-| (root) | [`main.omg`](main.omg) | — | root 16-bit unsigned saturating multiplication, interval verification, and exact subtraction discharge |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the 16-bit operands are copied into locals before saturating multiplication and interval discharge |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the 16-bit operands are stored in record fields before saturating multiplication and interval discharge |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | explicit machine parameters receive bounded 16-bit operands before saturating multiplication and interval discharge |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper calls return bounded 16-bit operands before saturating multiplication and interval discharge |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 16-bit operands and join before saturating multiplication and interval discharge |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded 16-bit operands before saturating multiplication and interval discharge |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives bounded 16-bit operands before saturating multiplication and interval discharge |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes bounded 16-bit operands to saturating multiplication |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies multiplies bounded 16-bit operands with saturation and discharges interval |
+- **Claim ticket:** `c8cf0e66c1564a8a94095a60c3915e00` (`antigravity/w38-2`)
+- **Obligation class:** Contract precondition (`requires value >= 50u16 && value <= 200u16` on `verify_prod`)
+- **Specification references:** [numeric values](wiki/spec/language/numeric_values.md), [integer certificates](wiki/spec/terminal-psi/integer_certificates.md), [storage](wiki/spec/resources/storage.md)
+
+| Place | Positive Project | Reject Twin | Pinned Corpus Pass | Pinned Corpus Fail | Transport Mechanism |
+| --- | --- | --- | --- | --- | --- |
+| (root) | [`main.omg`](main.omg) | — | — | — | root 16-bit unsigned saturating multiplication, interval verification, and exact subtraction discharge |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_saturating_multiplication_bound_through_local_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_multiplication_bound_through_local_rejected` | the 16-bit operands are copied into locals before saturating multiplication and interval discharge |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_saturating_multiplication_bound_through_field_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_multiplication_bound_through_field_rejected` | the 16-bit operands are stored in record fields before saturating multiplication and interval discharge |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_saturating_multiplication_bound_through_parameter_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_multiplication_bound_through_parameter_rejected` | explicit machine parameters receive bounded 16-bit operands before saturating multiplication and interval discharge |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_saturating_multiplication_bound_through_call_result_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_multiplication_bound_through_call_result_rejected` | contracted helper calls return bounded 16-bit operands before saturating multiplication and interval discharge |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_saturating_multiplication_bound_through_match_join_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_multiplication_bound_through_match_join_rejected` | both match arms yield bounded 16-bit operands and join before saturating multiplication and interval discharge |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_saturating_multiplication_bound_through_const_name_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_multiplication_bound_through_const_name_rejected` | named constants supply bounded 16-bit operands before saturating multiplication and interval discharge |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_saturating_multiplication_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_multiplication_bound_through_other_state_rejected` | a successor state receives bounded 16-bit operands before saturating multiplication and interval discharge |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_saturating_multiplication_bound_through_other_machine_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_multiplication_bound_through_other_machine_rejected` | an intermediate forwarding machine receives and passes bounded 16-bit operands to saturating multiplication |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_saturating_multiplication_bound_through_target_body_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_multiplication_bound_through_target_body_rejected` | each of four target-scoped machine bodies multiplies bounded 16-bit operands with saturation and discharges interval |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
@@ -45,7 +49,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, with `lhs == 15u16` and `rhs == 8u16`, `prod == 120u16`, `headroom == 80u16`, `margin == 70u16`, and `headroom + margin == 150u16`. The transition `probe() == 150 { true -> done() _ -> bad() }` exits 0. If 16-bit unsigned saturating multiplication or exact interval calculations evaluate incorrectly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- At runtime, with `lhs == 15u16` and `rhs == 8u16`, `prod == 120u16`, `headroom == 80u16`, `margin == 70u16`, and `headroom + margin == 150u16`. The transition `probe() == 150 { true -> done() _ -> bad() }` exits 0. Perturbing `transition probe() == 150` to `transition probe() == 151` in `main.omg` causes both engines to trap (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - In each invalid twin, `lhs` upper bound is widened to `21u16` so `prod` can reach `210u16 > 200u16`. Proof obligation checking statically detects that `verify_prod` contract precondition `value <= 200u16` cannot be satisfied, failing closed with `cannot prove requires contract for call`. None reaches native execution.
 
 Check all nine invalid twins with:

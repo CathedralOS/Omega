@@ -4524,6 +4524,27 @@ fail/facts/unsigned_16bit_saturating_subtraction_bound_through_target_body_rejec
 	cannot prove requires contract for call exercise from main: diff >= 200 && diff <= 450 (needs fact `val >= 200 && val <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: diff >= 200 && diff <= 450 (needs fact `val >= 200 && val <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: diff >= 200 && diff <= 450 (needs fact `val >= 200 && val <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_multiplication_bound_through_call_result_rejected rejected 15931ms expected @4429ec03c382+wt
+	cannot prove requires contract for call verify_prod from sat_call_result: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_multiplication_bound_through_const_name_rejected rejected 15872ms expected @4429ec03c382+wt
+	cannot prove requires contract for call verify_prod from sat_const: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_multiplication_bound_through_field_rejected rejected 15455ms expected @4429ec03c382+wt
+	cannot prove requires contract for call verify_prod from sat_field: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_multiplication_bound_through_local_rejected rejected 15610ms expected @4429ec03c382+wt
+	cannot prove requires contract for call verify_prod from sat_local: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_multiplication_bound_through_match_join_rejected rejected 14884ms expected @4429ec03c382+wt
+	cannot prove requires contract for call verify_prod from sat_match_join: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_multiplication_bound_through_other_machine_rejected rejected 15296ms expected @4429ec03c382+wt
+	cannot prove requires contract for call verify_prod from sat_worker: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_multiplication_bound_through_other_state_rejected rejected 14880ms expected @4429ec03c382+wt
+	cannot prove requires contract for call verify_prod from sat_state: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_16bit_saturating_multiplication_bound_through_parameter_rejected rejected 15218ms expected @4429ec03c382+wt
+	cannot prove requires contract for call verify_prod from sat_param: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_multiplication_bound_through_target_body_rejected rejected 15508ms expected @4429ec03c382+wt
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_32bit_bitwise_and_mask_bound_through_call_result_rejected rejected 11388ms expected @411a6fa70643+wt
 	exact arithmetic in machine `mask_call_result` state `entry` local `check` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_32bit_bitwise_and_mask_bound_through_const_name_rejected rejected 11546ms expected @411a6fa70643+wt
@@ -9659,6 +9680,15 @@ pass/facts/unsigned_16bit_saturating_subtraction_bound_through_other_machine_exi
 pass/facts/unsigned_16bit_saturating_subtraction_bound_through_other_state_exit checked 34319ms check-target:macos_arm64 @3a31fabd110b+wt
 pass/facts/unsigned_16bit_saturating_subtraction_bound_through_parameter_exit checked 34519ms check-target:macos_arm64 @3a31fabd110b+wt
 pass/facts/unsigned_16bit_saturating_subtraction_bound_through_target_body_exit checked 34678ms check-target:macos_arm64 @3a31fabd110b+wt
+pass/facts/unsigned_16bit_saturating_multiplication_bound_through_call_result_exit checked 38081ms check-target:macos_arm64 @4429ec03c382+wt
+pass/facts/unsigned_16bit_saturating_multiplication_bound_through_const_name_exit checked 40981ms check-target:macos_arm64 @4429ec03c382+wt
+pass/facts/unsigned_16bit_saturating_multiplication_bound_through_field_exit checked 39194ms check-target:macos_arm64 @4429ec03c382+wt
+pass/facts/unsigned_16bit_saturating_multiplication_bound_through_local_exit checked 41086ms check-target:macos_arm64 @4429ec03c382+wt
+pass/facts/unsigned_16bit_saturating_multiplication_bound_through_match_join_exit checked 40734ms check-target:macos_arm64 @4429ec03c382+wt
+pass/facts/unsigned_16bit_saturating_multiplication_bound_through_other_machine_exit checked 40981ms check-target:macos_arm64 @4429ec03c382+wt
+pass/facts/unsigned_16bit_saturating_multiplication_bound_through_other_state_exit checked 40603ms check-target:macos_arm64 @4429ec03c382+wt
+pass/facts/unsigned_16bit_saturating_multiplication_bound_through_parameter_exit checked 40582ms check-target:macos_arm64 @4429ec03c382+wt
+pass/facts/unsigned_16bit_saturating_multiplication_bound_through_target_body_exit checked 41608ms check-target:macos_arm64 @4429ec03c382+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_call_result_exit checked 38170ms check-target:macos_arm64 @411a6fa70643+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_const_name_exit checked 37178ms check-target:macos_arm64 @411a6fa70643+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_field_exit checked 38972ms check-target:macos_arm64 @411a6fa70643+wt
