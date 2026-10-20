@@ -1,85 +1,45 @@
-# Unsigned 32-bit Wrapping Subtraction Bound Fact Row
+# `unsigned_32bit_wrapping_subtraction_bound`
 
-Fact: 32-bit unsigned wrapping subtraction lhs -% rhs with bounded interval 40u32 <= diff <= 100u32 establishes 40u32 <= diff <= 100u32 across all nine places so exact subtractions 100u32 - diff and diff - 40u32 are safe.
+**Fact:** 32-bit unsigned wrapping subtraction `lhs -% rhs` with bounded interval `40u32 <= diff <= 100u32` establishes `40u32 <= diff <= 100u32` across all nine places so exact subtractions `100u32 - diff` and `diff - 40u32` are safe.
 
-Every place computes or transports a 32-bit unsigned wrapping difference `diff = (lhs as u32 in Wrapping) - (rhs as u32 in Wrapping)` (`compute_diff(100u32, 30u32) == 70u32`) from bounded inputs (`lhs in [80u32..120u32]`, `rhs in [20u32..40u32]`), statically establishing the interval `diff in [40u32..100u32]`. This static bound proves that the consuming exact 32-bit unsigned subtractions `let headroom: u32 = 100u32 - diff;` (`30u32`) and `let margin: u32 = diff - 40u32;` (`30u32`) are overflow- and underflow-free across all nine language places without runtime arithmetic overflow checks or traps.
+**Owning task & specification:**
+- Owning outcome: `EXACT-ARITHMETIC-UNSIGNED-DISCHARGE` / `UNSIGNED-32BIT-WRAPPING-SUBTRACTION-BOUND` (`TASKS.md`).
+- Governing specification: [numeric values](../../../../wiki/spec/language/numeric_values.md), [domains](../../../../wiki/spec/language/domains.md), [state contracts](../../../../wiki/spec/language/state_contracts.md), [integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md).
 
-Only the transport mechanism of the bounded wrapping difference changes across the nine places.
+## Witnesses and Pinned Corpus Fixtures
 
-| Place | Positive Project | Reject Twin | Transport Mechanism |
-| --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | bounded wrapping difference is computed and held in a local variable before subtraction |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the bounded wrapping difference is stored in a struct field before subtraction |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the bounded wrapping difference is passed to a machine parameter with contract |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a helper machine returns the bounded wrapping difference with guaranteed contract |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both branches of pattern matching evaluate the bounded wrapping difference and join |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded inputs for wrapping subtraction |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the bounded wrapping difference to a successor state |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate forwarding machine receives and verifies the wrapping difference |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | dedicated target-scoped machine bodies evaluate the bounded wrapping difference on each hosted target |
+| Place | Positive witness (`Expected exit: 0`) | Pinned pass fixture | Reject twin | Pinned fail fixture | Reject diagnostic fragment |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Root summary | [`main.omg`](main.omg) | — | — | — | — |
+| Local | [`local/main.omg`](local/main.omg) | `tests/omega/pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_local_exit` | [`local/invalid/main.omg`](local/invalid/main.omg) | `tests/omega/fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_local_rejected` | `cannot prove requires contract for call verify_diff from probe: diff >= 40 && diff <= 100` |
+| Field | [`field/main.omg`](field/main.omg) | `tests/omega/pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_field_exit` | [`field/invalid/main.omg`](field/invalid/main.omg) | `tests/omega/fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_field_rejected` | `cannot prove requires contract for call verify_diff from probe: held.diff >= 40 && diff <= 100` |
+| Parameter | [`parameter/main.omg`](parameter/main.omg) | `tests/omega/pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_parameter_exit` | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `tests/omega/fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_parameter_rejected` | `cannot prove requires contract for call check_param from probe: diff >= 40 && diff <= 100` |
+| Call result | [`call_result/main.omg`](call_result/main.omg) | `tests/omega/pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_call_result_exit` | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `tests/omega/fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_call_result_rejected` | `cannot prove requires contract for call verify_diff from probe: diff >= 40 && diff <= 100` |
+| Match join | [`match_join/main.omg`](match_join/main.omg) | `tests/omega/pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_match_join_exit` | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `tests/omega/fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_match_join_rejected` | `cannot prove requires contract for call verify_diff from probe: diff >= 40 && diff <= 100` |
+| Const name | [`const_name/main.omg`](const_name/main.omg) | `tests/omega/pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_const_name_exit` | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `tests/omega/fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_const_name_rejected` | `cannot prove requires contract for call verify_diff from probe: diff >= 40 && diff <= 100` |
+| Other state | [`other_state/main.omg`](other_state/main.omg) | `tests/omega/pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_other_state_exit` | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `tests/omega/fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_other_state_rejected` | `cannot prove requires contract for call step from probe: diff >= 40 && diff <= 100` |
+| Other machine | [`other_machine/main.omg`](other_machine/main.omg) | `tests/omega/pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_other_machine_exit` | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `tests/omega/fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_other_machine_rejected` | `cannot prove requires contract for call forward from probe: diff >= 40 && diff <= 100` |
+| Target body | [`target_body/main.omg`](target_body/main.omg) | `tests/omega/pass/facts/unsigned_32bit_wrapping_subtraction_bound_through_target_body_exit` | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `tests/omega/fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_target_body_rejected` | `cannot prove requires contract for call verify_diff from evaluate_diff: diff >= 40 && diff <= 100` |
 
-## Execution
+## Discrimination & Perturbation Proof
 
-Each positive place is an application that exits 0, and every positive place (and the root `main.omg`) carries an authored `expected_native_exit.txt` declaring `0`. `omega run --both` verifies agreement between Terminal Psi interpreter and native compilation:
+- **Static discrimination:** Each `<place>/invalid/main.omg` widens the upper bound on `lhs` to `121u32` (`lhs = 121u32, rhs = 20u32`, `ensures result >= 40u32 && result <= 101u32`), so `diff <= 100u32` is no longer entailed at the consuming call/state boundary (`cannot prove requires contract`).
+- **Runtime 1-token perturbation:** Perturbing `transition probe() == 0u32` to `transition probe() == 1u32` in `main.omg` causes `omega run --both` to fail with Terminal Psi `crash: Trap` and native `windows_x86_64` exit code `-1073741795` (`0xC000001D` illegal instruction trap), proving the exit oracle discriminates the computed wrapping subtraction value.
 
-```sh
-omega run --both samples/cli/facts/unsigned_32bit_wrapping_subtraction_bound/main.omg
-omega run --both samples/cli/facts/unsigned_32bit_wrapping_subtraction_bound/local/main.omg
-omega run --both samples/cli/facts/unsigned_32bit_wrapping_subtraction_bound/field/main.omg
-omega run --both samples/cli/facts/unsigned_32bit_wrapping_subtraction_bound/parameter/main.omg
-omega run --both samples/cli/facts/unsigned_32bit_wrapping_subtraction_bound/call_result/main.omg
-omega run --both samples/cli/facts/unsigned_32bit_wrapping_subtraction_bound/match_join/main.omg
-omega run --both samples/cli/facts/unsigned_32bit_wrapping_subtraction_bound/const_name/main.omg
-omega run --both samples/cli/facts/unsigned_32bit_wrapping_subtraction_bound/other_state/main.omg
-omega run --both samples/cli/facts/unsigned_32bit_wrapping_subtraction_bound/other_machine/main.omg
-omega run --both samples/cli/facts/unsigned_32bit_wrapping_subtraction_bound/target_body/main.omg
-```
+## Requirement & Evidence Obligations
 
-All ten positive places produce `native exit 0` and `interp exit: 0`.
+| Obligation Class | How Established in This Fact Row | Remaining Open in Parent Outcome |
+| :--- | :--- | :--- |
+| **Establishment** | `compute_diff(lhs: u32, rhs: u32)` requires `80u32 <= lhs <= 120u32` and `20u32 <= rhs <= 40u32`, performs `u32 in Wrapping` subtraction `wrap_lhs - wrap_rhs`, and proves `ensures result >= 40u32 && result <= 100u32` ([numeric values](../../../../wiki/spec/language/numeric_values.md), [state contracts](../../../../wiki/spec/language/state_contracts.md)). | 8-bit, 16-bit, and 64-bit wrapping subtraction bounds under `samples/cli/facts`. |
+| **Identity and lifetime** | The interval fact `40u32 <= diff <= 100u32` attaches to the exact value/field/const carrier across local bindings, `DiffHolder.diff`, `BASE_DIFF`, and state/machine parameters without caller-side re-guards ([fact validity](../../../../wiki/spec/terminal-psi/fact_validity.md)). | None for `u32` wrapping subtraction interval bounds. |
+| **Composition** | Each transport place feeds `verify_diff(diff)` (requires `diff >= 40u32 && diff <= 100u32`), which discharges exact subtractions `100u32 - diff` (`30u32`) and `diff - 40u32` (`30u32`) ([evaluation](../../../../wiki/spec/language/evaluation.md)). | None for this row. |
+| **Soundness boundaries** | Reject twins widen `lhs <= 121u32` (`result <= 101u32`), failing `requires diff >= 40u32 && diff <= 100u32` before `100u32 - diff` can underflow ([proof contracts](../../../../wiki/spec/proofs/contracts.md)). | None for this row. |
+| **Checked-to-Terminal Psi lowering (`Psi 05–07`)** | `u32 in Wrapping` subtraction lowers to canonical wrapping integer ops in `PSITERM\0` and executes identically in the Terminal Psi interpreter (`omega run --both`) ([integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md)). | None for this row. |
+| **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)** | All 10 positive programs bind `ProgramEntry` across all four hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`), and `target_body` selects target-scoped `evaluate_diff` bodies ([calling plans](../../../../wiki/spec/build/calling_plans.md)). | Cross-target native execution outside `windows_x86_64` host remains covered by target-specific gates. |
+| **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)** | 32-bit unsigned wrapping subtraction and exact `u32` subtractions lower to target `sub` instructions and register/stack homes on `windows_x86_64` ([machine-state evidence](../../../../wiki/spec/build/machine_state_evidence.md)). | None for this row. |
+| **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)** | Emits direct PE executables on `windows_x86_64` that exit `0` and agree with Terminal Psi (`--both`) ([executable installation](../../../../wiki/spec/build/executable_installation.md)). | None for this row. |
 
-### The Oracle Discriminates
+## Qualification & Claim Record
 
-The authored exit code `0` is not an unconstrained default. If the expectation in `verify_diff()` is modified to require a non-zero exit or if an unexpected computation result occurs (`headroom != 30u32 || margin != 30u32`), execution transitions to `state bad() { crash Trap; }` with `native signal 5` and `interp crash: Trap`, yielding exit code 255. The oracle therefore strictly discriminates between correct evaluation and faulty execution.
-
-### Reject Twins
-
-Each place has an `invalid/` twin whose `lhs` upper bound is widened to `121u32` (`lhs = 121u32, rhs = 20u32`), allowing the difference to reach `101u32 > 100u32`. When passed to `verify_diff` (or forwarding contracts), the required contract `diff <= 100u32` fails closed at compile time with `cannot prove requires contract`. None reaches native execution.
-
-Check each twin with:
-```sh
-omega --check samples/cli/facts/unsigned_32bit_wrapping_subtraction_bound/<place>/invalid/main.omg
-```
-
-| Place | Reject Twin | Authored Diagnostic Fragment |
-| --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `cannot prove requires contract` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `cannot prove requires contract` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `cannot prove requires contract` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove requires contract` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove requires contract` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove requires contract` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract` |
-
-## Requirements and Evidence
-
-- **Parent outcome:** `EXACT-ARITHMETIC-UNSIGNED-DISCHARGE` / `UNSIGNED-32BIT-WRAPPING-SUBTRACTION-BOUND` (`TASKS.md`)
-- **Requirement established:** 32-bit unsigned wrapping subtraction (`u32 in Wrapping` subtraction, `lhs -% rhs`, `[numeric values](wiki/spec/language/numeric_values.md)`) of bounded inputs (`lhs in [80u32..120u32]`, `rhs in [20u32..40u32]`) statically establishes interval bounds `[40u32..100u32]`, proving exact 32-bit unsigned subtractions `100u32 - diff` and `diff - 40u32` overflow/underflow-free without runtime checks across all nine language places.
-
-### Full 8-Layer Specification and Lowering Evidence
-
-- **Establishment:** Bounded inputs (`lhs >= 80u32 && lhs <= 120u32` and `rhs >= 20u32 && rhs <= 40u32`) establish static interval bounds on `compute_diff`. Wrapping subtraction over `u32 in Wrapping` (`(lhs as u32 in Wrapping) - (rhs as u32 in Wrapping)`) computes `wrap_diff`, which when cast back to exact `u32` establishes `result >= 40u32 && result <= 100u32` by monotonic unsigned interval arithmetic (since `lhs >= rhs` on the entire domain). The bounds directly justify the consuming exact unsigned subtractions `100u32 - diff` (`30u32`) and `diff - 40u32` (`30u32`), proving absence of underflow without post-hoc caller equality guards.
-- **Identity and lifetime:** The 32-bit unsigned difference value (`u32`) occupies a 4-byte scalar slot and preserves its exact value identity and interval bounds across local variables, record fields, machine parameters, return results, pattern match joins, named constants, state transitions, machine calls, and target-scoped bodies without truncation, sign distortion, or lifetime aliasing.
-- **Composition:** The bounded wrapping difference composes through all 9 places into the consuming operations `100u32 - diff` and `diff - 40u32`. Positive places and reject twins differ only in the input operand values (`(100, 30)` vs `(121, 20)`) and callee bound contracts.
-- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with static proof verification diagnostics (`cannot prove requires contract` / `diff <= 100`), proving that unproved upper bounds are soundly rejected before native emission.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Wrapping subtraction and exact unsigned subtractions lower into canonical target-neutral Terminal Psi (`PSITERM\0`). Mathematical proof certificates and range assertions are verified and erased, retaining 32-bit unsigned scalar arithmetic (`ScalarType::U32`), executing with exact parity in the Terminal Psi interpreter (`omega run --both` exit 0).
-- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` binds across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). 32-bit unsigned integers are laid out with 4-byte size and 4-byte alignment (`size_of = 4`, `align_of = 4`). Parameter passing places `u32` values in 32-bit sub-registers (`ecx, edx, r8d, r9d` on Windows x86_64; `edi, esi, edx, ecx, r8d, r9d` on Linux x86_64; `w0..w7` on ARM64) according to target calling plans.
-- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend code generation selects 32-bit unsigned subtract instructions (`sub r32, r32` on x86_64, `sub w, w, w` on ARM64) for both wrapping subtraction and exact subtraction. Register allocation assigns dedicated 32-bit homes and disjoint stack frame spill slots conforming to WCSU bounds.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** 32-bit arithmetic instructions encode into valid PE/ELF/Mach-O binaries that natively execute and agree with Terminal Psi (`omega run --both` exit 0) across all hosted targets.
-
-### Verification Evidence
-
-- `sample_native_gate.py --filter cli/facts/unsigned_32bit_wrapping_subtraction_bound`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract`).
-- Discrimination: modifying transition conditions in `verify_diff` causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
-- What remains open: 8-bit, 16-bit, and 64-bit wrapping subtraction bounds, unsigned wrapping addition `lhs +% rhs` bounds, and signed wrapping arithmetic interval arithmetic.
+- Claim ticket: `4c68b2ad1a0d4c5ca669da76f0055bb8` (`antigravity/w35-5`).
+- Verified on `windows_x86_64`: `sample_native_gate.py --filter cli/facts/unsigned_32bit_wrapping_subtraction_bound` (`10/10` pass, `9/9` rejected), `corpus_gate.py --native --filter facts/unsigned_32bit_wrapping_subtraction_bound` (`9/9` built and executed with exit `0`), and `corpus_gate.py --filter facts/unsigned_32bit_wrapping_subtraction_bound` (`9` checked, `9` rejected).
