@@ -4930,6 +4930,27 @@ fail/facts/unsigned_8bit_bitwise_and_mask_bound_through_target_body_rejected rej
 	cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_bitwise_or_bound_through_call_result_rejected rejected 16831ms expected @8dbc99701887+wt
+	cannot prove requires contract for call verify_combined from exercise: combined >= 40 && combined <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_bitwise_or_bound_through_const_name_rejected rejected 15993ms expected @8dbc99701887+wt
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_bitwise_or_bound_through_field_rejected rejected 16374ms expected @8dbc99701887+wt
+	cannot prove requires contract for call verify_combined from exercise: carrier.val >= 40 && carrier.val <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_bitwise_or_bound_through_local_rejected rejected 17359ms expected @8dbc99701887+wt
+	cannot prove requires contract for call verify_combined from exercise: loc >= 40 && loc <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_bitwise_or_bound_through_match_join_rejected rejected 17295ms expected @8dbc99701887+wt
+	cannot prove requires contract for call verify_combined from exercise: joined >= 40 && joined <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_bitwise_or_bound_through_other_machine_rejected rejected 19020ms expected @8dbc99701887+wt
+	cannot prove requires contract for call verify_combined from exercise: relayed >= 40 && relayed <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_bitwise_or_bound_through_other_state_rejected rejected 16136ms expected @8dbc99701887+wt
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `next_step`
+fail/facts/unsigned_8bit_bitwise_or_bound_through_parameter_rejected rejected 14908ms expected @8dbc99701887+wt
+	cannot prove requires contract for call verify_combined from helper: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_bitwise_or_bound_through_target_body_rejected rejected 15405ms expected @8dbc99701887+wt
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 fail/facts/view_extent_after_write_through_call_result_unproved rejected 1061ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_const_name_unproved rejected 1057ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_field_unproved rejected 1058ms expected @86af356b96fb+wt
@@ -9925,6 +9946,15 @@ pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_other_machine_exit check
 pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_other_state_exit checked 38391ms check-target:macos_arm64 @b68b96569b6d+wt
 pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_parameter_exit checked 41314ms check-target:macos_arm64 @b68b96569b6d+wt
 pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_target_body_exit checked 40913ms check-target:macos_arm64 @b68b96569b6d+wt
+pass/facts/unsigned_8bit_bitwise_or_bound_through_call_result_exit checked 48131ms check-target:macos_arm64 @8dbc99701887+wt
+pass/facts/unsigned_8bit_bitwise_or_bound_through_const_name_exit checked 48099ms check-target:macos_arm64 @8dbc99701887+wt
+pass/facts/unsigned_8bit_bitwise_or_bound_through_field_exit checked 42380ms check-target:macos_arm64 @8dbc99701887+wt
+pass/facts/unsigned_8bit_bitwise_or_bound_through_local_exit checked 44140ms check-target:macos_arm64 @8dbc99701887+wt
+pass/facts/unsigned_8bit_bitwise_or_bound_through_match_join_exit checked 44603ms check-target:macos_arm64 @8dbc99701887+wt
+pass/facts/unsigned_8bit_bitwise_or_bound_through_other_machine_exit checked 43406ms check-target:macos_arm64 @8dbc99701887+wt
+pass/facts/unsigned_8bit_bitwise_or_bound_through_other_state_exit checked 42827ms check-target:macos_arm64 @8dbc99701887+wt
+pass/facts/unsigned_8bit_bitwise_or_bound_through_parameter_exit checked 43490ms check-target:macos_arm64 @8dbc99701887+wt
+pass/facts/unsigned_8bit_bitwise_or_bound_through_target_body_exit checked 45303ms check-target:macos_arm64 @8dbc99701887+wt
 pass/facts/view_extent_after_write_through_call_result_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_const_name_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_field_exit checked 3519ms check-target:macos_arm64 @86af356b96fb+wt

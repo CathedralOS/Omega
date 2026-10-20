@@ -1,1 +1,1 @@
-error: cannot prove requires contract for call verify_combined
+cannot prove requires contract for call verify_combined
