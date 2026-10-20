@@ -6985,7 +6985,8 @@ fail/providers/generic_result_phantom_issuer rejected 103ms expected @abd18815d4
 	domain `Token::Issued` authorizes `Issuer::issue` but that requirement does not name the domain on its exact result or an exact non-self external-root parameter
 fail/providers/generic_result_wrong_carrier rejected 624ms expected @abd18815d46a+wt
 	trait `Issuer` state `issue` return type generic argument uses `in Token::Issued`, but no `domain` named `Token::Issued` is declared for `Other` (domains are bound to their storage type)
-fail/providers/inherited_applied_binding_ambiguous_ancestors rejected 61ms expected @fa48d7bba308+wt
+fail/providers/inherited_applied_binding_ambiguous_ancestors rejected 86ms expected @76d291e2651e+wt
+	dynamic call `Child::read` is ambiguous across inherited requirements: First::read, Second::read
 fail/providers/inherited_boundary_private_field_postcondition rejected 3340ms expected @fa48d7bba308+wt
 fail/providers/inherited_provider_competing_authored_maps rejected 3507ms expected @fa48d7bba308+wt
 fail/providers/inherited_provider_erased_regions rejected 3522ms expected @fa48d7bba308+wt
@@ -7006,7 +7007,8 @@ fail/providers/native_fixed_array_unproved_domain rejected 1954ms expected @52d7
 	cannot prove requires contract for call read from main: words in [u16; N]::TerminatedWords in state `entry`
 fail/providers/nested_binding_missing_establishment rejected 1147ms expected @ff11b3a0f8c7
 	no provider is selected for boundary requirement `Reading::read`, which the program entry reaches on target `windows_x86_64`
-fail/providers/occurrence_region_binding_conflicting_inputs rejected 42ms expected @619f89e4fed6+wt
+fail/providers/occurrence_region_binding_conflicting_inputs rejected 118ms expected @76d291e2651e+wt
+	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
 fail/providers/ordinary_exit_name_preserves_return_obligations rejected 1225ms expected @1e469c9b15bb
 fail/providers/portable_slot_cannot_lend_raw_binding rejected 1873ms expected @aebe0714a499+wt
 fail/providers/primitive_reference_contract_refinement rejected 997ms expected @f3014db3f225+wt

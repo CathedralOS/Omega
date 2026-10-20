@@ -1,22 +1,15 @@
-use omega::language::core::binding;
+// One erased lifetime parameter of `combined` cannot take two conflicting
+// ordinary borrow constraints in a single call: its two arguments carry
+// different source regions. The former `Binding<Reading<&'r i32>>` carrier is
+// retired; the surviving carrier is a data type whose field is that reference,
+// so the obligation this fixture pins is unchanged and still reached.
 
-public boundary trait Reading<Value> { machine read(value: Value) -> i32; }
-BorrowedReading<'provider> satisfies Reading<&'provider i32> {
-    Reading::read = read;
-}
-machine read<'provider>(value: &'provider i32) -> i32 { value as i32 }
-machine combined<'source>(first: &Binding<Reading<&'source i32>>,
-    second: &Binding<Reading<&'source i32>>, value: &'source i32) -> i32 reaches Reading {
-    first.read(value)
-}
+data Slot<'r> { value: &'r i32; }
+machine combined<'source>(first: &Slot<'source>, second: &Slot<'source>) -> i32 { 0 }
 data Main<'left, 'right> {
-    first: Binding<Reading<&'left i32>>;
-    second: Binding<Reading<&'right i32>>;
-    value: i32;
+    left: Slot<'left>;
+    right: Slot<'right>;
 }
-machine Main::main<'left, 'right>(main: &mut Main<'left, 'right>) reaches Reading {
-    let observed: i32 = combined(&main.first, &main.second, &main.value);
-    let first: &Binding<Reading<&'left i32>> = &main.first;
-    let second: &Binding<Reading<&'right i32>> = &main.second;
-    let saved: i32 = combined(first, second, &main.value);
+machine Main::main<'left, 'right>(main: &mut Main<'left, 'right>) {
+    let observed: i32 = combined(&main.left, &main.right);
 }
