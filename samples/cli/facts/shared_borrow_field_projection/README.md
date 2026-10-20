@@ -71,8 +71,61 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 ## Pinned Fixtures
 
 Each of the nine places is pinned twice in the compiler corpus:
-- **Positive native-exit fixtures:** `tests/omega/pass/facts/shared_borrow_field_projection_through_<place>_exit/` (`build.omg`, `main.omg`, `expected_native_exit.txt`), binding `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and recorded in `tests/omega/corpus_native_windows_x86_64.txt` (`built ... exit:0`) and `tests/omega/corpus_outcomes.txt` (`checked`).
+- **Positive native-exit fixtures:** `tests/omega/pass/facts/shared_borrow_field_projection_through_<place>_exit/` (`build.omg`, `main.omg`, `expected_native_exit.txt`), binding `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and recorded in `tests/omega/corpus_native_windows_x86_64.txt` (`built ... exit:0`), `tests/omega/corpus_native_macos_arm64.txt` (`built ... exit:0`), and `tests/omega/corpus_outcomes.txt` (`checked`).
 - **Reject twin fixtures:** `tests/omega/fail/facts/shared_borrow_field_projection_through_<place>_rejected/` (`build.omg`, `main.omg`, `expected.txt`), recorded in `tests/omega/corpus_outcomes.txt` (`rejected`).
+
+Both host-pinned native goldens are the measurement:
+
+```sh
+python3 tools/corpus_gate.py --native --filter facts/shared_borrow_field_projection
+# clean — 9 fixtures ({'built': 9}) ... executed 9 (exit codes {'0': 9})
+python3 tools/corpus_gate.py --filter facts/shared_borrow_field_projection
+# clean — 18 fixtures ({'checked': 9, 'rejected': 9}), 0 rejected without their expected fragment
+```
+
+### The projection carries the bound (discrimination)
+
+Engine agreement (`omega run --both` exit 0) shows the program runs; it does not
+by itself show that the *projection* carries the bound rather than the constant
+surviving folding. The halves below separate those.
+
+- **Static half (licensing).** Breaking the construct's own contract — widening
+  the record's declared domain to `data Window where used <= 91` while leaving
+  the shared borrow, the projection, and the consumer untouched — is refused
+  *before native production*:
+
+  ```
+  error: exact arithmetic in machine `evaluate` state `entry` local `diff`
+  may overflow `u64`: the operands are not provably in range
+  (decision 17 -- exact arithmetic is a proof obligation)
+  ```
+
+  That is the pinned twin's diagnostic, so the twin measures the obligation
+  rather than an unrelated refusal. The obligation's kind decides the class: it
+  is a `where`-clause construction fact, so **no runtime trap is reachable**.
+  Seeding the field from an opaque helper (`Window { used: seed() }`) is refused
+  at the *construction* gate — `a `where` fact is not established by the values
+  observed at this construction` — and an out-of-domain literal (`used: 91`) is
+  refused at the same gate. `construction_bounds.rs` folds the `where` fact over
+  field-value intervals, so seeding cannot defeat it. The refusal is STATIC.
+
+- **Shared borrow refuses a write (access mode is enforced).** Mutating through
+  the shared projection is refused statically:
+
+  ```
+  error: machine `evaluate` state `entry` assignment requires mutable source
+  access through every reference crossed by its destination
+  ```
+
+  The control shows this is about access mode rather than a general write
+  defect: the identical write through `&mut Window` is accepted and runs green
+  in both engines, and making that mutable write observable (`transition diff ==
+  49`) while asserting the un-mutated value (`diff == 50`) traps at runtime in
+  both engines — `native signal 5` / `interp crash: Trap (host presentation
+  agrees)`. The mutable write therefore genuinely lands, while the shared one
+  cannot be formed at all. This refusal is the read-only counterpart to the
+  `mutable_borrow_field_writeback` row and matches that lane's independent
+  observation word for word.
 
 ## Requirements and Evidence
 
