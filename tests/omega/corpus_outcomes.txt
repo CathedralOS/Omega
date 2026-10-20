@@ -20,6 +20,15 @@ fail/arithmetic/boolean_shift_guard_subject_written rejected 829ms expected @a9a
 fail/arithmetic/bounded_assignment_unproven rejected 2731ms expected @a9ae30e1c334+wt
 fail/arithmetic/bounded_call_unproven rejected 1571ms expected @a9ae30e1c334+wt
 fail/arithmetic/bounded_store_consumed_before_repair rejected 913ms expected @a9ae30e1c334+wt
+fail/arithmetic/captured_boolean_exposed_condition rejected 1765ms expected @35b277d4a6f9
+	cannot prove requires contract for call next from stale: count + 1 <= 9 && embed(rest - 10) + embed(count + 1) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/arithmetic/captured_boolean_replaced_condition rejected 1776ms expected @35b277d4a6f9
+	cannot prove requires contract for call next from stale: count + 1 <= 9 && embed(rest - 10) + embed(count + 1) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/arithmetic/captured_boolean_replaced_scalar rejected 1775ms expected @35b277d4a6f9
+	cannot prove requires contract for call next from stale: count + 1 <= 9 && embed(rest - 10) + embed(count + 1) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/arithmetic/captured_boolean_wrong_polarity rejected 1817ms expected @35b277d4a6f9
+	cannot prove requires contract for call next from wrong: count + 1 <= 9 && embed(rest - 10) + embed(count + 1) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_below from incorrect_denial: rest < 10 (needs fact `rest < 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/arithmetic/chained_const_binder_without_ceiling rejected 313ms expected @5a08952f5dbd+wt
 fail/arithmetic/checked_flag_proof_invalid_shift_count rejected 6746ms expected @737f6be3b09b
 	shift count in machine `observe` state `entry` local `snapshot` is provably out of range and can never execute for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
@@ -7437,6 +7446,7 @@ pass/arithmetic/runtime_bounded_dividend_remainder_exit checked 10616ms check-ta
 pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit checked 13816ms check-target:macos_arm64 @1b12798e27f4
 pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit checked 14708ms check-target:macos_arm64 @1b12798e27f4
 pass/arithmetic/runtime_call_live_remainder_recovery_exit checked 7304ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/arithmetic/runtime_captured_boolean_recurrence checked 4152ms check-target:macos_arm64 @35b277d4a6f9
 pass/arithmetic/runtime_captured_call_result_subtracts_itself_exit checked 3731ms check-target:macos_arm64 @6756ba1b9853
 pass/arithmetic/runtime_comparison_signedness_exit checked 11182ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/runtime_composite_bound_arrivals_exit checked 13494ms check-target:macos_arm64 @82646dcce47b+wt

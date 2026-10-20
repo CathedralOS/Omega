@@ -6,6 +6,9 @@
 //! proof construction scratch, not an invocation-memory snapshot or a retained
 //! certificate. Arrivals, exits and ranks share this transfer. Unknown effects
 //! retire current bindings; they cannot revive an entry fact about new storage.
+//! Saved Booleans retain conditional propositions under that same captured
+//! roster. Guard selection consumes one polarity without rereading its numeric
+//! sources; Boolean replacement retires the association like any other store.
 //!
 //! A fixed array's extent is metadata for every reference access and every
 //! qualification. A stable slice descriptor retains its observed length under
@@ -43,7 +46,9 @@ use validation::{
 };
 
 mod collections;
+mod conditions;
 mod scalar_fields;
+use conditions::ConditionBinding;
 use scalar_fields::{ScalarField, scalar_field_occurrence};
 
 #[derive(Clone)]
@@ -90,6 +95,7 @@ pub(crate) struct CurrentScalarValues<'program> {
     current: Vec<Binding>,
     lengths: Vec<Length>,
     fields: Vec<ScalarField>,
+    conditions: Vec<ConditionBinding>,
     hypotheses: Vec<ScopedArithmeticHypothesis>,
     scalar_observations: Vec<validation::CapturedScalarObservation>,
 }
@@ -185,6 +191,7 @@ impl<'program> CurrentScalarValues<'program> {
             initial,
             lengths,
             fields: Vec::new(),
+            conditions: Vec::new(),
             hypotheses: Vec::new(),
             scalar_observations: validation::captured_scalar_observations(
                 program,
@@ -255,6 +262,8 @@ impl<'program> CurrentScalarValues<'program> {
                 StatementNode::LocalData(local) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
                     let value = values.capture(program, machine, state, local.initial_value);
+                    let conditions = values.capture_conditions(local.initial_value, 0);
+                    values.replace_conditions(local.symbol, &[], conditions);
                     values.capture_collection(
                         local.symbol,
                         local.name.as_str(),
@@ -287,6 +296,7 @@ impl<'program> CurrentScalarValues<'program> {
                 StatementNode::Assignment(assignment) => {
                     values.invalidate_operand_effects(program, machine, statement, frames);
                     let value = values.capture(program, machine, state, assignment.value);
+                    let conditions = values.capture_conditions(assignment.value, 0);
                     let mut scalar_fields = values.captured_scalar_fields(assignment.value, 0);
                     if let Some(field) =
                         values.captured_scalar_store(assignment.target, value.clone(), ordinal)
@@ -351,6 +361,7 @@ impl<'program> CurrentScalarValues<'program> {
                         );
                     }
                     if let Some((owner, path)) = field_storage_path(program, assignment.target) {
+                        values.replace_conditions(owner, &path, conditions);
                         values.replace_scalar_fields(owner, &path, scalar_fields);
                         values.replace_record_fields(
                             owner,
@@ -433,6 +444,13 @@ impl<'program> CurrentScalarValues<'program> {
                 binding.value = None;
             }
         }
+        self.conditions.retain(|condition| {
+            paths.as_ref().is_some_and(|paths| {
+                !paths
+                    .iter()
+                    .any(|path| validation::frame_paths_overlap(path, &condition.name))
+            })
+        });
         for field in &mut self.fields {
             if paths.as_ref().is_none_or(|paths| {
                 paths
@@ -463,20 +481,29 @@ impl<'program> CurrentScalarValues<'program> {
         expression: ExpressionHandle,
         holds: bool,
     ) {
-        self.assume_at_depth(program, machine, state, expression, holds, 0);
+        let hypotheses = self.capture_condition(program, machine, state, expression, holds, 0);
+        self.hypotheses.extend(hypotheses);
     }
 
-    fn assume_at_depth(
-        &mut self,
+    fn capture_condition(
+        &self,
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
         holds: bool,
         depth: usize,
-    ) {
+    ) -> Vec<ScopedArithmeticHypothesis> {
         if depth >= 64 || !program.expression_table.expression_is_valid(expression) {
-            return;
+            return Vec::new();
+        }
+        if let Some((owner, path)) = field_storage_path(program, expression)
+            && let Some(condition) = self
+                .conditions
+                .iter()
+                .find(|condition| condition.owner == owner && condition.path == path)
+        {
+            return condition.hypotheses(holds).to_vec();
         }
         if let Some(binary) = program.expression_table.binary_node(expression)
             && matches!(
@@ -499,7 +526,7 @@ impl<'program> CurrentScalarValues<'program> {
                 _ => None,
             };
             if let Some((operand, value)) = wrapped {
-                self.assume_at_depth(
+                return self.capture_condition(
                     program,
                     machine,
                     state,
@@ -507,7 +534,6 @@ impl<'program> CurrentScalarValues<'program> {
                     holds == (value == (binary.operator == BinaryOperator::Equal)),
                     depth + 1,
                 );
-                return;
             }
         }
         if let Some(binary) = program.expression_table.binary_node(expression)
@@ -520,9 +546,19 @@ impl<'program> CurrentScalarValues<'program> {
                 expression,
             )
         {
-            self.assume_at_depth(program, machine, state, binary.left, holds, depth + 1);
-            self.assume_at_depth(program, machine, state, binary.right, holds, depth + 1);
-            return;
+            let mut hypotheses =
+                self.capture_condition(program, machine, state, binary.left, holds, depth + 1);
+            // Repeated copies of one Boolean do not create new evidence.
+            // Deduplicate here so `saved && saved` chains cannot double the
+            // retained predicate roster at every binding.
+            for hypothesis in
+                self.capture_condition(program, machine, state, binary.right, holds, depth + 1)
+            {
+                if !hypotheses.contains(&hypothesis) {
+                    hypotheses.push(hypothesis);
+                }
+            }
+            return hypotheses;
         }
         if let ExpressionNode::Unary(unary) = program.expression_table.expression(expression)
             && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
@@ -533,8 +569,14 @@ impl<'program> CurrentScalarValues<'program> {
                 expression,
             )
         {
-            self.assume_at_depth(program, machine, state, unary.operand, !holds, depth + 1);
-            return;
+            return self.capture_condition(
+                program,
+                machine,
+                state,
+                unary.operand,
+                !holds,
+                depth + 1,
+            );
         }
         if admitted(
             program,
@@ -558,10 +600,10 @@ impl<'program> CurrentScalarValues<'program> {
                 &self.hypotheses,
                 program,
             ) {
-                self.hypotheses
-                    .push(ScopedArithmeticHypothesis { proposition, holds });
+                return vec![ScopedArithmeticHypothesis { proposition, holds }];
             }
         }
+        Vec::new()
     }
 
     fn capture(

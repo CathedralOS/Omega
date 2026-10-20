@@ -37,6 +37,7 @@ pass/arithmetic/runtime_boolean_guarded_bit_value_exit built 1759ms exit:0 @e769
 pass/arithmetic/runtime_boolean_guarded_product_exit built 1759ms exit:0 @e7691b42e321+wt
 pass/arithmetic/runtime_boolean_state_shift_count_exit built 1829ms exit:0 @50b7e26fea31+wt
 pass/arithmetic/runtime_call_live_remainder_recovery_exit built 21100ms exit:70 stdout:match stderr:match @589aedee8ebc+wt
+pass/arithmetic/runtime_captured_boolean_recurrence built 3900ms exit:0 @35b277d4a6f9
 pass/arithmetic/runtime_comparison_signedness_exit built 1120ms exit:70
 pass/arithmetic/runtime_composite_bound_arrivals_exit built 11536ms exit:0 @82646dcce47b+wt
 pass/arithmetic/runtime_dispatch_cast_decisions_exit built 3145ms exit:70 @9beb2be72f2d+wt

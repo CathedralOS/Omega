@@ -18,6 +18,7 @@ pass/arithmetic/runtime_boolean_field_shift_count_exit built 1814ms exit:0 inter
 pass/arithmetic/runtime_boolean_guarded_bit_value_exit built 1768ms exit:0 interpreter-exit:0 interpreter:agrees @e7691b42e321+wt
 pass/arithmetic/runtime_boolean_guarded_product_exit built 1765ms exit:0 interpreter-exit:0 interpreter:agrees @e7691b42e321+wt
 pass/arithmetic/runtime_boolean_state_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
+pass/arithmetic/runtime_captured_boolean_recurrence built 4234ms exit:0 interpreter-exit:0 interpreter:agrees @35b277d4a6f9
 pass/arithmetic/runtime_captured_call_result_subtracts_itself_exit built 3792ms exit:0 interpreter-exit:0 interpreter:agrees @6756ba1b9853
 pass/arithmetic/runtime_composite_bound_arrivals_exit built 12850ms exit:0 interpreter-exit:0 interpreter:agrees @82646dcce47b+wt
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
