@@ -3948,14 +3948,23 @@ fail/facts/result_cleanup_guarantees_through_target_body_rejected rejected 16125
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 fail/facts/returned_write_destination_through_call_result_read rejected 2165ms expected @2ef2ab353498+wt
+	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_const_name_read rejected 2281ms expected @2ef2ab353498+wt
+	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_field_read rejected 1980ms expected @2ef2ab353498+wt
+	machine `main` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_local_read rejected 2211ms expected @2ef2ab353498+wt
+	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_match_join_read rejected 2885ms expected @2ef2ab353498+wt
+	machine `replace` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_other_machine_read rejected 1978ms expected @2ef2ab353498+wt
+	machine `replace` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_other_state_read rejected 1985ms expected @2ef2ab353498+wt
+	machine `replace` state `later` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_parameter_read rejected 1888ms expected @2ef2ab353498+wt
+	machine `replace` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_target_body_read rejected 2268ms expected @2ef2ab353498+wt
+	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/runtime_count_index_through_call_result_out_of_bounds rejected 7953ms expected @ce5f8c9f2f5f
 fail/facts/runtime_count_index_through_const_name_out_of_bounds rejected 7057ms expected @ce5f8c9f2f5f
 fail/facts/runtime_count_index_through_field_out_of_bounds rejected 5786ms expected @ce5f8c9f2f5f
