@@ -1,12 +1,12 @@
 """Gate expensive compiler builds to a fixed number of concurrent slots.
 
 One `mbx build -p omega` on a 10-core host drives rustc to roughly 5.4 cores.
-The default is three: at sixteen concurrent sample lanes the pool, not the
-agent count, was the throughput ceiling, and lanes reported waits of 130-270s
-queued behind two slots while several were idle-but-ready to compile. Three
-builds overlap the tail of one with the start of another and keep the
-compilation pipe fed. A fourth adds contention rather than throughput, since
-three already exceed the core count; raise it only with a measured reason.
+The default is two. It was briefly three, to keep the compilation pipe fed when
+sixteen lanes queued on the pool, but the host then ran out of MEMORY rather than
+CPU: with three concurrent builds plus sixteen lanes, swap reached 2.6 GB of 4 GB,
+the kernel logged 764 jetsam kills in twenty minutes, and lanes' records were
+OOM-killed mid-run. Two is the setting that keeps swap out of the picture; raise it
+only with a measured reason and watch free memory, not just load.
 Agent count and build count are separate resources. This gate caps only the
 second one, letting many agents edit, author fixtures and run programs while a
 small number of builds proceed at full speed.
@@ -36,7 +36,7 @@ import subprocess
 import sys
 import time
 
-DEFAULT_SLOTS = 3
+DEFAULT_SLOTS = 2
 POLL_SECONDS = 2.0
 
 
