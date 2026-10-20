@@ -78,6 +78,48 @@ binary hashes. Existing evidence remains immutable and readable; observations
 without verified producer profiles must be requalified rather than retroactively
 stamped. Keep the actual build receipt in the evidence closure as well.
 
+### The false-success class
+
+A check that cannot see the thing it certifies reports clean, and that is this
+toolchain's most expensive failure mode: the report reads as acceptance, so
+nobody re-measures. The instances below were all measured here, and each names
+what it hid.
+
+- **A key-presence count over destroyed content.** `LOST 0` counts fixture keys;
+  the sorted re-render above kept every key while 42 of 79 diagnostic lines were
+  destroyed and 37 continuations detached. Guard the content, not the keys
+  ([splicing a golden](#splicing-a-golden-the-content-guard)).
+- **A record wrapper that reads only the goldens afterwards.**
+  `tools/swarm/safe_record.sh` pipes `corpus_gate.py --record` through `tail -5`
+  and then inspects the goldens, so a gate that failed before measuring
+  (`runner exited 2`, or a filter that matched nothing) used to leave the
+  goldens byte-identical while the wrapper printed `OK: no timeout rows,
+  LOST 0`. It now reads the gate's status through `PIPESTATUS` (refusing its
+  usage and infrastructure exits) and refuses when neither golden's bytes
+  changed, which also catches a `--record` the gate refused outright. Read the
+  producer's own exit status; a pipeline's `$?` is its last command's.
+- **A census keyed on substrings.** `tools/swarm/fact_status.sh` matched a fact
+  name as a substring, so `length` also counted unrelated `_length_` and `bound`
+  families and a nine-place row read as 27 pass fixtures; it now matches exact
+  path components, because both directions of a substring filter are wrong.
+- **A golden row as current evidence.** Rows are history: five fixtures in the
+  2026-10 migration wave had rows reading `checked` while the check route
+  refused them, and a false green carries no diagnostic to grep
+  ([which instrument decides a fixture](#which-instrument-decides-a-fixture)).
+- **A missing instrument.** An evicted `target/debug/omega` prints nothing, and a
+  shell reading a pipeline's status reports success, so an absent binary is
+  indistinguishable from an accepted fixture
+  ([build cache placement](#build-cache-placement)).
+- **A healthy-looking cache or copy.** `.mbx.toml` records `mbx doctor` and
+  `mbx cache verify` reporting healthy for cached build-script bytes that are
+  hash-consistent with what was stored and wrong; macOS `openrsync` rejects
+  GNU-only flags by printing usage and copying nothing (124 MB of 19 GB in the
+  wave's case) while a pipeline reported exit 0.
+
+The rule: when a check reports clean, ask what it structurally cannot see, and
+measure that thing separately. Every instance above was found by adding the
+second measurement, never by repeating the first.
+
 ### Execution evidence and replay inputs
 
 Record what a command actually did: source checking, target publication, native
@@ -292,6 +334,31 @@ infrastructure failure and record refusal. Diagnostics compare against the
 golden after prefix normalization (`corpus_records.DIAGNOSTIC_PREFIX_ALIASES`),
 so renaming a diagnostic's wording is not a move; golden rows stamped
 `@<revision>` report how many commits behind HEAD each measurement is.
+
+### Which instrument decides a fixture
+
+A pass fixture's own source check is meaningful:
+`./target/debug/omega --check <fixture>/main.omg` answers whether the source is
+accepted, once the binary is proven present and fresh. A fail twin's acceptance
+is not: the CLI's check product never continues a fail fixture into native
+production, while `corpus_runner` does exactly that when the fixture's own
+`build.omg` binds a program entry -- which is where a provider-plan refusal such
+as ``no provider is selected for boundary requirement `Reading::read`, which the
+program entry reaches on target `windows_x86_64` `` is produced. `omega --check`
+therefore exits 0 for twins the gate correctly reports as `rejected`; measured
+on `fail/providers/applied_entry_nested_binding_wrong_receiver` and
+`fail/providers/nested_binding_missing_establishment` on 2026-10-20. A clean CLI
+check on a twin proves nothing about the obligation, and the family's acceptance
+is the gate's own line: `0 rejected without their expected fragment` and `0 fail
+fixtures that did not reject` -- both name their fixtures, because a count alone
+is unactionable.
+
+Neither instrument makes a golden row authoritative. A row records what some
+previous run measured, so it goes stale in both directions: five fixtures in the
+2026-10 migration wave had rows reading `checked` while the check route refused
+them, and a row can also claim a stronger success than the route now produces.
+Re-measure with `--filter` before relying on a row, and use `--write-moves` to
+read what a run actually observed.
 
 ### One golden, every host
 
@@ -579,6 +646,65 @@ than the fixture's own behavior.
 ```bash
 python3 tools/corpus_gate.py --native --filter providers/
 ```
+
+### Splicing a golden: the content guard
+
+A filtered `--record` splices: each measured fixture replaces its own row block
+in place, and every other row, comment and context line stays byte-for-byte.
+The guard for that splice is two-part, and which part applies depends on what
+the record is for, because a key-presence check cannot see content loss:
+
+- a row **addition**: `git diff <base>..<HEAD> --numstat -- <golden>` shows
+  0 deletions;
+- a **re-record**, or any splice that legitimately replaces a key line: no
+  continuation line deleted, no fixture key lost, the diagnostic-line count not
+  falling, and no continuation line left detached from a key line. Key-line
+  replacement is legitimate here; content loss is not.
+
+The ordering rule is file-specific: `corpus_outcomes.txt` is sorted by key,
+`corpus_native_<target>.txt` is not. `build/swarm/w33/lane2_golden_guard.sh` is
+the reference implementation of both forms — two revisions and the golden paths,
+detached-continuation detection, and an `ALLOW_REMOVED_KEYS` list that prints
+each specification-authorized retirement as `AUTHORIZED removal` instead of
+letting it pass silently. It was proven both ways: it catches the sorted
+re-render below (79 continuation deletions, diagnostics 79 -> 37, 37 detached)
+and it passes a real re-record (+8/-7 with the diagnostic count rising).
+
+Why both forms exist, measured 2026-10-20: a conflict resolution that
+re-rendered the native golden in sorted key order kept every key and moved all
+37 diagnostic continuation lines off their rows, collapsing repeated text — 42
+of 79 diagnostic lines destroyed, with 236 insertions and 269 deletions in a
+commit whose own body reported `LOST 0` and no timeouts. A guard that counts
+keys cannot detect lost content; count the content.
+
+### Fixtures whose obligation the specification retires
+
+A language change can retire the very obligation a twin pins: the construct it
+was written about stops existing. The test is not "does the fixture still
+reject", because a fixture whose import no longer resolves rejects for a reason
+its directory cannot justify. Ask instead whether the rule still exists and is
+still enforced; three answers need three responses.
+
+- **Retired obligation** — the rule itself is gone with the construct
+  (source-visible `Binding<R>` fabrication, `component_publication.md:198`).
+  Delete the twin: fixture, `expected.txt`, a fixture-specific README and its
+  golden rows together, and enumerate in the commit body the retired obligation,
+  the specification citation, the row delta including any removed continuation
+  line, and the check showing the rule family is still pinned wherever it
+  survives. Never re-author a retired obligation into invented semantics.
+- **Obligation survives, enforcement survives** — migrate the twin to the
+  surviving construct: same obligation, new subject.
+- **Obligation survives, enforcement is gone** — a well-formed invalid control
+  now accepts. That is a regression, not a retirement: freeze the source, record
+  the acceptance, repair the enforcement, and keep the twin. Deleting it hides a
+  live rule behind a green corpus. Measured case:
+  `fail/providers/private_binding_authority_contract`, whose direct selection of
+  a private boundary trait compiled and ran with no diagnostic while the
+  public-slot rule still stood.
+
+Never leave a twin rejecting for the wrong reason (`expected_satisfied` False,
+reported as `rejected without its expected fragment`): a corpus that reports a
+rejection it cannot justify is worse than a smaller corpus.
 
 ### Recording a regression without pinning it
 
@@ -1005,6 +1131,57 @@ If small crates each pause for seconds before parsing, inspect `target/` before
 changing test or compiler architecture: a long-lived `target/debug/deps` with
 hundreds of thousands of stale hashed artifacts makes rustc rescan it per
 crate. `cargo clean` fixes it.
+
+### Build cache placement
+
+`mbx` computes its garbage-collection floor per disk, not per cache:
+`gc.min_free_size` defaults to 10% of each disk clamped to [5 GiB, 50 GiB]
+(`mbx settings ls` prints the default; `mbx gc --help` describes the
+over-budget collection). With `cache_dir` left unset — the platform cache
+directory, `~/Library/Caches/mbx` on macOS — a 460 GiB system volume therefore
+holds a ~46 GiB floor, and the cache evicts whenever that volume is near it.
+Measured here on 2026-10-20: the GC line read `43.7 GiB free on the disk holding
+/Users/jarod/Library/Caches/mbx, under the 45.0 GiB minimum`, and it `removed 2
+target directories (1.9 GiB logical, 0 abandoned and 2 live)` — two live
+worktrees — after which `target/debug/deps` was empty and the `corpus_runner` a
+gate had just built was gone.
+
+The symptom is not a slow build, it is a false success: `target/debug/omega`
+disappears, a missing binary prints nothing, and a shell reading a pipeline's
+exit status reports success — indistinguishable from a fixture that accepted.
+Never accept an empty diagnostic without `test -x target/debug/omega` first, and
+`tools/swarm/binary_fresh.sh` immediately before a measurement run; report
+`exit 127` as a missing instrument, never as a result. A long measurement can
+also copy the binary out of the worktree, or chain the runs that must share one
+runner.
+
+The fix is two fixes, which is why it belongs in a setting rather than a habit.
+`mbx settings set cache_dir <volume holding the checkout>` (measured here:
+`/Volumes/Crucial/mbx-cache`). First, the floor then applies to that volume —
+10% of 3.6 TB exceeds the 50 GiB ceiling against 3.2 TB free — so eviction
+pressure disappears. Second, cache and target finally share a filesystem, so
+restore clones or links instead of copying: `mbx doctor` reports
+`<cache> -> <worktree>/target: cloning is supported`, and the action-store
+budget scales with the volume (`gc.max_size` defaults to 5% of the cache disk
+clamped to [5 GiB, 500 GiB] — `185.0 GiB budget` here against roughly 23 GiB
+when the cache sits on the system volume). Change the setting, then verify with
+`mbx doctor`.
+
+Changing `cache_dir` strands the old target directories, because a worktree's
+`target` is a symlink into `<cache_dir>/targets/v1/<hash>`. After a move the
+existing link names the old cache; once that area is collected the link is
+broken and `mbx` refuses with `Caused by: Not a directory (os error 20)` before
+compiling anything — measured in this wave, on a worktree whose link named one
+of the `2 live` target directories the GC had just removed. Remove the stale
+link (`rm target`; it is ignored scratch and no source is touched), let the next
+`mbx` invocation recreate it under the new cache, and rebuild: the collected
+target directories took every binary with them.
+
+Moving a cache between volumes has its own trap. macOS ships `openrsync` as
+`/usr/bin/rsync`: it rejects GNU-only flags such as `--info=...` by printing
+usage and copying nothing, and `rsync ... | tail -1` reports exit 0 because the
+pipeline's status is the last command's. Use `ditto` or `rsync -aH`, and never
+read a pipeline's exit code as the tool's.
 
 ### Fast sample work discovery
 

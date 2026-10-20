@@ -140,6 +140,38 @@ ones that pre-warmed landed on the next head.
 Under an active swarm main can advance every few minutes, so expect to rebase
 inside the lease rather than treating it as the exception.
 
+## Land from one scripted invocation
+
+The reservation is 180 seconds and the sequence verify → enqueue → claim →
+rebase → re-verify → publish does not fit with a model turn between the steps;
+the lease has been lost to tool-call latency alone. Script the whole sequence,
+and carry these guards inside the script rather than around it.
+
+- **The rebase belongs inside the script, after the claim.** A rebase the caller
+  ran before starting moves HEAD, so a guard computed against HEAD sees an empty
+  delta and cannot fire; the base the reservation is granted against is fetched
+  by the claim, which only the script holds. Rebase onto that base, re-verify
+  the rebased candidate (a rebase produces a new sha with no receipt), then
+  publish.
+- **The movement guard reads the measured revision, not HEAD.** Pass the
+  revision the evidence was measured on as an argument and compare it with the
+  granted base: `git diff --name-only <measured>..<base>` must contain no `.rs`
+  files. That is independent of HEAD, so a rebase cannot erase the delta, and
+  compiler movement between the measurement and the base releases the
+  reservation instead of publishing stale evidence. Re-measure, then rejoin.
+- **Write the note before `publish`.** Publish ends the reservation, and
+  `claims.py note` attaches only while a claim is live
+  ([claims lifetime](claims.md#lifetime-and-evidence)), so a note written after
+  the publish is refused and the ticket keeps nothing. Render the note text
+  inside the script *after* its own rebase, substituting `git rev-parse HEAD` at
+  that point: a note prepared before the run names the commits the rebase
+  replaced, and it cannot be corrected afterwards.
+- **Run the golden content guard on the rebased tree and release rather than
+  publish when it fails**
+  ([splicing a golden](testing.md#splicing-a-golden-the-content-guard)); a
+  lossy splice published under a granted base is another lane's silent
+  regression.
+
 ## Check locally, then publish
 
 Capture the exact candidate before running the checks required by [tools/testing.md](testing.md)
