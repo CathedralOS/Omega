@@ -445,8 +445,6 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
                     0x48, 0x83, 0xc4, 0x10, // 17: add rsp, 16 — frame release
                     0xc3, // 21: ret
                 ],
-                x86_scalar_fma: Vec::new(),
-                x86_scalar_fma_occurrences: Vec::new(),
                 x86_floating_control: None,
                 unit_stack: Some(UnitStackEvidence {
                     frame: Some(StackAdjustmentPair {
@@ -565,8 +563,6 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
                     edges: vec![edge_id(9)],
                 },
                 bytes: vec![0xc3],
-                x86_scalar_fma: Vec::new(),
-                x86_scalar_fma_occurrences: Vec::new(),
                 x86_floating_control: None,
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),

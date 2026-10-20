@@ -2,7 +2,6 @@ use super::super::super::{LegalizationError, ScalarType, ValueShape};
 use super::super::{AbstractOperation, TargetUnitOperation, ValueId};
 use super::Source;
 use semantic_vocabulary::IeeeFloatFormat;
-use target_operations::{TargetIeeeFloatFmaOperand, TargetUnitScalarHomeRequirement};
 
 /// Replay IEEE operations against their exact ordered, available scalar sources.
 pub(super) fn validate(
@@ -158,64 +157,6 @@ pub(super) fn validate(
                     source_value: *result,
                     value: *value,
                 },
-            ));
-        }
-        (
-            TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
-                psi_operation,
-                result,
-                format,
-                left,
-                right,
-                addend,
-                settlement,
-            },
-            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
-                psi_operation: expected_operation,
-                result: expected_result,
-                format: expected_format,
-                left: expected_left,
-                right: expected_right,
-                addend: expected_addend,
-            },
-        ) => {
-            // Each operand names one exact preceding IEEE constant: the
-            // retained source must be that constant's own immediate record,
-            // so a same-valued or same-typed producer cannot substitute.
-            let exact_operand = |operand: &TargetIeeeFloatFmaOperand, expected: &ValueId| {
-                operand.source_value == *expected
-                    && sources
-                        .iter()
-                        .filter(|(value, _)| value == expected)
-                        .map(|(_, source)| source)
-                        .eq(std::iter::once(&Source::IeeeFloatImmediate {
-                            defining_operation: operand.defining_operation,
-                            source_value: operand.source_value,
-                            value: operand.value,
-                        }))
-            };
-            if psi_operation != expected_operation
-                || result != expected_result
-                || format != expected_format
-                || settlement.terminal_operation != *expected_operation
-                || settlement.format != *expected_format
-                || !exact_operand(left, expected_left)
-                || !exact_operand(right, expected_right)
-                || !exact_operand(addend, expected_addend)
-            {
-                return Err(LegalizationError::custody());
-            }
-            sources.push((
-                *result,
-                Source::Home(TargetUnitScalarHomeRequirement {
-                    defining_operation: *psi_operation,
-                    source_value: *result,
-                    scalar_type: ScalarType::IeeeFloat(*format),
-                    shape: ValueShape::float(match format {
-                        IeeeFloatFormat::Binary32 => 4,
-                        IeeeFloatFormat::Binary64 => 8,
-                    }),
-                }),
             ));
         }
         _ => return Err(LegalizationError::custody()),

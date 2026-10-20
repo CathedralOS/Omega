@@ -42,10 +42,10 @@ pub(super) struct OperatorPhysicalSpan {
 /// nearest-FMA is refused at comparison-coverage settlement for lack of
 /// selected-provider custody. A selected float guard over receiver fields
 /// stops earlier still, at stage 05 scalar field observation
-/// (`tests::boundary_operator_frontier`). The `Call*` arms and the FMA tail
-/// still bind replayed artifacts naming them; extending the intrinsic arms
-/// before an occurrence exists would dead-code this lane, so the arm to
-/// extend is whichever family the next replay change first makes survivable.
+/// (`tests::boundary_operator_frontier`). The `Call*` arms still bind
+/// replayed artifacts naming them; extending the intrinsic arms before an
+/// occurrence exists would dead-code this lane, so the arm to extend is
+/// whichever family the next replay change first makes survivable.
 ///
 /// Production native publication admits physical evidence only through
 /// `NativePhysicalEvidenceScope::from_validated_fragment_publication`, so
@@ -85,7 +85,7 @@ pub(super) fn derive_operator_physical_span(
             ) {
                 return derive_integer_comparison_span(occurrence, execution, object, image);
             }
-            derive_fma_span(occurrence, operation, object, image)
+            Ok(None)
         }
     }
 }
@@ -241,52 +241,6 @@ fn validate_checked_call_relocation(
         );
     }
     Ok(())
-}
-
-fn derive_fma_span(
-    occurrence: &OptimizedOperatorOccurrence,
-    operation: &terminal_psi::Operation,
-    object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
-) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
-    if !matches!(
-        operation.kind,
-        OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
-    ) {
-        return Ok(None);
-    }
-    let function = object
-        .function_on_machine(occurrence.machine())
-        .ok_or("D29 FMA names an absent object function")?;
-    let matching = function
-        .x86_scalar_fma_occurrences
-        .iter()
-        .zip(&function.x86_scalar_fma)
-        .filter(|(retained, _)| {
-            retained.terminal_operation == occurrence.operation()
-                && retained.operation_ordinal == occurrence.operation_ordinal()
-        })
-        .collect::<Vec<_>>();
-    let [(retained, fragment)] = matching.as_slice() else {
-        return if matching.is_empty() {
-            Ok(None)
-        } else {
-            Err("D29 FMA rejoins multiple emitted fragments")
-        };
-    };
-    if retained.fragment_identity != fragment.identity || fragment.byte_count == 0 {
-        return Err("D29 FMA changed its exact fragment or emitted an empty span");
-    }
-    derive_span(
-        function,
-        fragment.code_offset,
-        fragment.byte_count,
-        object,
-        image,
-        PhysicalRelocationDisposition::DirectInstructionBytes,
-        &[],
-    )
-    .map(Some)
 }
 
 /// Selected integer comparisons emit instruction-only operations with no

@@ -54,9 +54,7 @@ pub(crate) fn validate_private_functions<'plan>(
         {
             return Err(ObjectError::UnsupportedPrivateFunctionBody);
         }
-        if !private.function.x86_scalar_fma.is_empty()
-            || !private.function.x86_scalar_fma_occurrences.is_empty()
-            || private.function.x86_floating_control.is_some()
+        if private.function.x86_floating_control.is_some()
             || !private.function.port_effects.is_empty()
             || private.function.structural_return.is_some()
         {
@@ -69,7 +67,7 @@ pub(crate) fn validate_private_functions<'plan>(
             entry: private.function.machine,
             functions: vec![private.function.clone()],
         };
-        let replayed = build_object_artifact_with_x86_feature_profile(&standalone, &[], None, None)
+        let replayed = build_object_artifact_with_x86_feature_profile(&standalone, &[], None)
             .map_err(|_| ObjectError::InvalidPrivateFunctionBody)?;
         let [function] = replayed.functions.as_slice() else {
             return Err(ObjectError::InvalidPrivateFunctionBody);

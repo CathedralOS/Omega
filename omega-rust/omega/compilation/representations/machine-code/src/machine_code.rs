@@ -79,8 +79,7 @@ pub use image_addresses::{
     PlacedImageAddress, SelectedFormImageAddressFixup,
 };
 pub use instructions::{
-    X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat,
-    X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord, x86_fma,
+    X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, x86_fma,
 };
 pub use layout::text_section::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,

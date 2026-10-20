@@ -227,8 +227,6 @@ pub(super) fn emit_functions(
             symbol,
             text_offset,
             byte_count: function.bytes.len(),
-            x86_scalar_fma: function.x86_scalar_fma.clone(),
-            x86_scalar_fma_occurrences: function.x86_scalar_fma_occurrences.clone(),
             x86_floating_control: function.x86_floating_control,
             unit_stack,
             scalar_stack,

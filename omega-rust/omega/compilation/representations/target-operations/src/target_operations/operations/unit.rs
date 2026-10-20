@@ -4,9 +4,9 @@ use crate::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, ProviderExecutionBinding, TargetBoundaryResult,
-    TargetIeeeFloatFmaOperand, TargetStructuralArgument, TargetStructuralHomeRequirement,
+    TargetStructuralArgument, TargetStructuralHomeRequirement,
     TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
-    TargetUnitWriteOnlyPrimitiveStoreSource, TargetX86ScalarFmaSettlement,
+    TargetUnitWriteOnlyPrimitiveStoreSource,
 };
 use abstract_operations::{AbstractResult, CompletionClaimSource};
 use calling_conventions::{CallPlan, ValueShape};
@@ -469,18 +469,6 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         result: ValueId,
         value: IeeeFloatValue,
-    },
-    /// One nearest-even scalar FMA whose first bounded Unit lane consumes
-    /// three exact preceding IEEE constants. Physical XMM assignment remains
-    /// the next stage's responsibility.
-    NearestIeeeFloatFusedMultiplyAdd {
-        psi_operation: OperationId,
-        result: ValueId,
-        format: IeeeFloatFormat,
-        left: TargetIeeeFloatFmaOperand,
-        right: TargetIeeeFloatFmaOperand,
-        addend: TargetIeeeFloatFmaOperand,
-        settlement: TargetX86ScalarFmaSettlement,
     },
     /// Establish one empty-record affine local. It occupies no bytes, so the
     /// row realizes no storage: it is the owner's establishment identity,

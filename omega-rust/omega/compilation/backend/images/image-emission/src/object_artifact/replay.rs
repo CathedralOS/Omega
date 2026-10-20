@@ -8,7 +8,6 @@ pub(crate) mod instruction_loads;
 pub(crate) mod scalar;
 pub(crate) mod structural;
 pub(crate) mod unit;
-pub(crate) mod x86_fma;
 
 fn x86_register_info_writes_stack_pointer(info: &iced_x86::InstructionInfo) -> bool {
     info.used_registers().iter().any(|register| {

@@ -24,9 +24,6 @@ pub use arguments::{
     BoundaryByteSequenceArgument, BoundaryScalarArgument, BoundarySettlementBinding,
     ExternalCompletionBinding,
 };
-mod fma;
-pub use fma::TargetIeeeFloatFmaOperand;
-pub(crate) use fma::TargetX86ScalarFmaSettlement;
 
 mod float_class;
 pub use float_class::conventional_float_class_layout;

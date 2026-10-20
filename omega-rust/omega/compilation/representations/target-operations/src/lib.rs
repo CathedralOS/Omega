@@ -7,7 +7,6 @@
 
 pub mod target_operations;
 pub use abstract_operations::ValueBinding;
-pub(crate) use target_operations::TargetX86ScalarFmaSettlement;
 pub use target_operations::{
     AbstractResult, BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, BoundarySettlementBinding, BoundarySettlementRealization,
@@ -25,7 +24,7 @@ pub use target_operations::{
     TargetBoundaryResult, TargetByteView, TargetCallResult, TargetControlBlock,
     TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlGraph,
     TargetControlSuccessor, TargetControlTerminator, TargetElementView, TargetElementViewRegion,
-    TargetFloatResultPolicy, TargetFunction, TargetIeeeFloatFmaOperand, TargetIntegerExpression,
+    TargetFloatResultPolicy, TargetFunction, TargetIntegerExpression,
     TargetNativeCallbackArgument, TargetOperationPlan, TargetOperationPlanWithPlacedViewInputs,
     TargetPlacedCallAssociation, TargetPlacedCallBinding, TargetPlacedInterpretation,
     TargetPlacedViewInput, TargetReferenceOrigin, TargetReferenceOriginBase, TargetReferenceResult,

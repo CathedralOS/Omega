@@ -49,7 +49,6 @@ pub use control_flow::{
 pub mod provenance;
 pub use provenance::{CallSiteOwner, TerminalPsiProvenance};
 pub mod boundary;
-pub(crate) use boundary::TargetX86ScalarFmaSettlement;
 pub use boundary::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, BoundarySettlementBinding, BoundarySettlementRealization,
@@ -62,7 +61,7 @@ pub use boundary::{
     NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
     PlacedScalarAccessRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
-    TargetIeeeFloatFmaOperand, conventional_atomic_once_layout, conventional_float_class_layout,
+    conventional_atomic_once_layout, conventional_float_class_layout,
 };
 pub mod operations;
 pub use operations::{

@@ -259,7 +259,7 @@ impl DynamicElfNativeArtifact {
             self.boundary_application_coverage.as_ref(),
             &self.physical_evidence_scope,
         )?;
-        validate_ieee_float_fma_occurrences(module, &self.object, &self.selected_provider_plans)?;
+        validate_ieee_float_fma_occurrences(module)?;
         self.object.validate_terminal_entry(&self.psi_artifact)?;
         if self.selected_provider_closure_report_identity == 0 {
             return Err(

@@ -62,11 +62,7 @@ pub(super) struct FunctionValidation {
 /// Replay every function's retained records against its bytes, in canonical
 /// order: shape and ordering, foreign calls, stack and call custody, semantic
 /// attribution, port effects, then boundary settlements.
-pub(super) fn validate_functions(
-    plan: &MachineCodePlan,
-    x86_feature_profile: Option<target::TargetProfile>,
-    x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-) -> Result<FunctionValidation, ObjectError> {
+pub(super) fn validate_functions(plan: &MachineCodePlan) -> Result<FunctionValidation, ObjectError> {
     let mut previous = None;
     let mut saw_entry = false;
     let mut text_size = 0usize;
@@ -84,13 +80,7 @@ pub(super) fn validate_functions(
         .map(|function| (function.machine, function))
         .collect::<std::collections::BTreeMap<_, _>>();
     for function in &plan.functions {
-        validate_function_shape(
-            plan,
-            function,
-            previous,
-            x86_feature_profile,
-            x86_scalar_fma_provider,
-        )?;
+        validate_function_shape(plan, function, previous)?;
         validate_foreign_calls(plan, function)?;
         let mut validated_function_stack = validate_unit_stack(plan, function)?;
         validate_stack_and_return_evidence(plan, function)?;
@@ -961,14 +951,12 @@ fn validate_complete_unit_stack(
 }
 
 /// Shape and ordering preconditions: admitted pointer custody, ABI joins,
-/// canonical function and call order, non-empty bytes, exclusive cleanup
-/// evidence, and the x86 scalar FMA seam.
+/// canonical function and call order, non-empty bytes, and exclusive cleanup
+/// evidence.
 fn validate_function_shape(
     plan: &MachineCodePlan,
     function: &MachineCodeFunction,
     previous: Option<MachineId>,
-    x86_feature_profile: Option<target::TargetProfile>,
-    x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 ) -> Result<(), ObjectError> {
     // Legacy machine plans have only assigned stack homes. Incoming ABI
     // pointer custody is admitted through the independently replayed
@@ -1011,12 +999,6 @@ fn validate_function_shape(
     if function.bytes.is_empty() {
         return Err(ObjectError::EmptyFunction(function.machine));
     }
-    crate::object_artifact::replay::x86_fma::validate_x86_scalar_fma_function(
-        plan.target,
-        x86_feature_profile,
-        x86_scalar_fma_provider,
-        function,
-    )?;
     if function
         .internal_calls
         .windows(2)

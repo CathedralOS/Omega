@@ -19,36 +19,19 @@ pub(crate) mod text_emission;
 /// normalizing it. Each function gets exactly one symbol and one retained Psi
 /// provenance row.
 pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, ObjectError> {
-    build_object_artifact_with_x86_feature_profile(plan, &[], None, None)
+    build_object_artifact_with_x86_feature_profile(plan, &[], None)
 }
-
-/// Construct an object that owns semantic program functions and a disjoint,
-/// placement-identified compiler-private callback-function roster.
-
-/// Construct the bounded source-free object seam for feature-requiring scalar
-/// x86 FMA. The profile is explicit because `NativeTarget` deliberately
-/// collapses Windows and UEFI x86-64 physical layouts.
-
-/// Consume exact deployment-feature and differential authority while building
-/// an object whose generic F32/F64 FMA slots may enter executable emission.
-/// Ordinary and feature-required-only builders retain their fail-closed
-/// baseline behavior.
 
 pub(crate) fn build_object_artifact_with_x86_feature_profile(
     plan: &MachineCodePlan,
     private_functions: &[CompilerPrivateMachineCodeFunction],
     x86_feature_profile: Option<target::TargetProfile>,
-    x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 ) -> Result<ObjectArtifact, ObjectError> {
     if plan.functions.is_empty() {
         return Err(ObjectError::EmptyPlan);
     }
     let validated_private_functions = validate_private_functions(plan.target, private_functions)?;
-    let validation = function_validation::validate_functions(
-        plan,
-        x86_feature_profile,
-        x86_scalar_fma_provider,
-    )?;
+    let validation = function_validation::validate_functions(plan)?;
     let layout::ObjectLayout {
         mut object,
         text_size,
@@ -102,7 +85,6 @@ pub(crate) fn build_object_artifact_with_x86_feature_profile(
         psi: plan.psi,
         target: plan.target,
         x86_feature_profile,
-        x86_scalar_fma_provider,
         entry: plan.entry,
         object,
         relocations,

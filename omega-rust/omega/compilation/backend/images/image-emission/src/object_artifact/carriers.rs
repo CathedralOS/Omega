@@ -31,10 +31,6 @@ pub struct ObjectArtifact {
     /// Exact deployment profile for the source-free feature-requiring x86 FMA
     /// seam. Ordinary object construction retains `None` and rejects FMA.
     pub(crate) x86_feature_profile: Option<target::TargetProfile>,
-    /// Consumed feature/differential authority for generic x86 FMA slots.
-    /// The feature-required mechanics seam retains `None` and remains
-    /// non-executable.
-    pub(crate) x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     pub(crate) entry: MachineId,
     pub(crate) object: ObjectPlan,
     pub(crate) relocations: RelocationPlan,
@@ -104,10 +100,6 @@ impl ObjectArtifact {
 
     pub const fn x86_feature_profile(&self) -> Option<target::TargetProfile> {
         self.x86_feature_profile
-    }
-
-    pub const fn x86_scalar_fma_provider(&self) -> Option<target::AdmittedX86ScalarFmaProvider> {
-        self.x86_scalar_fma_provider
     }
 
     pub const fn entry(&self) -> MachineId {
@@ -246,10 +238,6 @@ pub struct ObjectFunction {
     pub symbol: ObjectSymbolHandle,
     pub text_offset: usize,
     pub byte_count: usize,
-    /// Independently replayed feature requirements for exact scalar FMA3
-    /// intervals. These remain requirements, not executable admission.
-    pub x86_scalar_fma: Vec<machine_code::X86ScalarFmaFragment>,
-    pub x86_scalar_fma_occurrences: Vec<machine_code::X86ScalarFmaOccurrenceRecord>,
     pub x86_floating_control: Option<machine_code::X86FloatingControlRecord>,
     /// Byte-validated stack facts for a completely accounted Unit body.
     pub unit_stack: Option<ObjectUnitStack>,

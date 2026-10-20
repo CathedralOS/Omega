@@ -21,8 +21,7 @@ use crate::{
     UnitAffineCleanupRecord, UnitAffineScalarRecordEstablishmentRecord, UnitContinuationRecord,
     UnitIntegerConstantRecord, UnitParameterHomeRecord, UnitParameterRecord, UnitScalarHomeRecord,
     UnitStackEvidence, UnitStructuralScalarFieldStoreRecord, UnitWriteOnlyPrimitiveStoreRecord,
-    X86FloatingControlRecord, X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord,
-    unit_call_arguments,
+    X86FloatingControlRecord, unit_call_arguments,
 };
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use target_operations::TerminalPsiProvenance;
@@ -74,13 +73,6 @@ pub struct MachineCodeFunction {
     pub parameter_abi: Option<ParameterFunctionAbiRecord>,
     pub provenance: TerminalPsiProvenance,
     pub bytes: Vec<u8>,
-    /// Feature-requiring scalar FMA3 instruction intervals. These records do
-    /// not admit AVX/FMA3; they make the requirement impossible to erase
-    /// before independent object replay.
-    pub x86_scalar_fma: Vec<X86ScalarFmaFragment>,
-    /// Source/Terminal occurrences joined one-to-one to the mechanics
-    /// fragments above by exact fragment identity.
-    pub x86_scalar_fma_occurrences: Vec<X86ScalarFmaOccurrenceRecord>,
     /// Canonical floating-control save/install/restore custody for functions
     /// that execute IEEE scalar operations.
     pub x86_floating_control: Option<X86FloatingControlRecord>,

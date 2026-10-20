@@ -6036,30 +6036,27 @@ wait for Cathedral's instruction coverage. The interpreter is
   **COMPONENT-SUBSTRATE** owns component replacement.
 
 - **X86-FMA-PROVIDER-TRANSPORT.** Execute admitted x86 FMA through std
-  consumers and Linux x86-64 hardware.
+  consumers on Linux x86-64 hardware.
   - `NearestIeeeFloatArithmeticRealization` carries the admitted AVX+FMA3
     provider from stage 00 catalog admission through stage 02/03 lowering,
     legalization and selection; x86 encodes `VFMADD213SS`/`SD` with the addend
-    in `xmm3`. Std-free `pass/float/fused_multiply_add_single_rounding_exit`
-    exits 0 on Windows x86-64, both formats trap when the helpers use
-    multiply-then-add, and the `linux_x86_64` cross-build carries one
-    VFMADD213 per format. Without admission the plan join still rejects.
-  - Remaining: run that fixture on Linux x86-64 hardware; run
-    `x86_fma_plan_association`, `named_provider_fused_multiply_add_exit` and
-    `admitted_numeric_imports_preserve_semantics` (all admit AvxFma3) on
-    matching hosts now that std Console source checking is restored.
-  - Delete the superseded constant-operand
+    in `xmm3`. The superseded constant-operand
     `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd` route, machine-code
-    FMA fragments/occurrences and their digest plumbing,
-    `object_artifact/replay/x86_fma.rs`, and the unused ObjectArtifact /
-    ExecutableImage `x86_scalar_fma_provider` fields. Preserve the admitted
-    provider in the realization plan, ordinary runtime-operand lowering and
-    floating-control behavior. Do not extend replay to runtime operands or
-    replace it with another FMA-specific image ledger; see
-    [numeric realization](wiki/spec/language/numeric_values.md#target-realization-and-control-state).
-  Acceptance: the three std fixtures run on Windows and Linux x86-64 at their
-  oracles and the std-free fixture runs on Linux x86-64 hardware; the dormant
-  image custody route and its callers are absent, with missing-feature and
+    FMA fragments/occurrences, `object_artifact/replay/x86_fma.rs`, and the
+    unused `ObjectArtifact` / `ExecutableImage` `x86_scalar_fma_provider`
+    fields are deleted. On Windows x86-64, std-free
+    `pass/float/fused_multiply_add_single_rounding_exit` exits 0,
+    `pass/float/named_provider_fused_multiply_add_exit` and
+    `pass/float/admitted_numeric_imports_preserve_semantics` exit 70, and
+    `pass/float/x86_fma_plan_association` builds natively. Without admission the
+    plan join still rejects.
+  - Remaining: run `pass/float/fused_multiply_add_single_rounding_exit`,
+    `pass/float/x86_fma_plan_association`,
+    `pass/float/named_provider_fused_multiply_add_exit` and
+    `pass/float/admitted_numeric_imports_preserve_semantics` on Linux x86-64
+    hardware.
+  Acceptance: the three std fixtures and the std-free fixture run on Linux
+  x86-64 hardware at their oracles, with missing-feature and
   fused-versus-unfused controls retained.
 
 - **ASM-INSTRUCTION-CATALOG-EXPANSION.** Carry checked assembly through

@@ -2050,7 +2050,7 @@ pass/filesystem/wrapper_lock_metadata_exit rejected 44079ms @e3eb5bdd566b
 pass/filesystem/wrapper_open_with_exit rejected 43749ms @e3eb5bdd566b
 pass/float/admitted_float_conversion_crash built 26724ms exit:-1073741795 stdout:match @91bbf3e29aa9
 pass/float/admitted_float_lower_boundary_crash built 25641ms exit:-1073741795 stdout:match @91bbf3e29aa9
-pass/float/admitted_numeric_imports_preserve_semantics timeout 120009ms @91bbf3e29aa9
+pass/float/admitted_numeric_imports_preserve_semantics built 228936ms exit:70 @19c1ee2ad76b+wt
 pass/float/build_runtime_semantics_twins_windows_x64 timeout 120003ms @e3eb5bdd566b
 pass/float/build_runtime_semantics_twins_x86_baseline timeout 120010ms @e3eb5bdd566b
 pass/float/builtin_extrema_field_store_exit built 27803ms exit:70 @91bbf3e29aa9
@@ -2070,6 +2070,7 @@ pass/float/float_to_int_trapping_nan_traps built 12441ms exit:-1073741795 @6c496
 pass/float/float_trapping_overflow_traps built 23097ms exit:-1073741795 @e3eb5bdd566b
 pass/float/float_trapping_propagated_nan_traps built 23155ms exit:-1073741795 @e3eb5bdd566b
 pass/float/foreign_control_state_restore built 4007ms @7fc7a3a06d34
+pass/float/fused_multiply_add_single_rounding_exit built 26491ms exit:0 @19c1ee2ad76b+wt
 pass/float/guarded_exact_float_conversion checked 2856ms @6c49683ce714
 pass/float/hydrostatic_load_format_exit built 25561ms exit:0 stdout:match @91bbf3e29aa9
 pass/float/literal_indexed_float_field_read_exit built 21995ms exit:70 @91bbf3e29aa9

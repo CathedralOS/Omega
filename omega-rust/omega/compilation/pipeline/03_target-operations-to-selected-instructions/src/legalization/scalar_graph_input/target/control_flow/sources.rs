@@ -180,22 +180,6 @@ pub(in crate::legalization::scalar_graph_input) fn definition(
                 value: *value,
             },
         )),
-        TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
-            psi_operation,
-            result,
-            format,
-            ..
-        } => Some((
-            *result,
-            Source::Home(target_operations::TargetUnitScalarHomeRequirement {
-                defining_operation: *psi_operation,
-                source_value: *result,
-                scalar_type: semantic_vocabulary::ScalarType::IeeeFloat(*format),
-                shape: super::super::super::scalar_shape(
-                    semantic_vocabulary::ScalarType::IeeeFloat(*format),
-                )?,
-            }),
-        )),
         TargetUnitOperation::SelectImplementation { result_home, .. }
         // An instruction-observed atomic result is an immutable SSA value,
         // even when a later call can modify the original resident. Reconstruct

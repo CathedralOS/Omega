@@ -88,7 +88,6 @@ fn validate(
         || !artifact.text_bytes.starts_with(&text.bytes)
         || artifact.relocations.target != text.target
         || artifact.x86_feature_profile.is_some()
-        || artifact.x86_scalar_fma_provider.is_some()
         || artifact.private_functions.len()
             != private_functions.map_or(artifact.private_functions.len(), |roster| roster.len())
         || artifact.port_effects != super::port_effects::produce(source)?
@@ -302,8 +301,6 @@ fn callback_reference_count(artifact: &ObjectArtifact) -> usize {
 
 fn empty_unsupported_records(function: &ObjectFunction) -> bool {
     function.structural_call_scalar_return.is_none()
-        && function.x86_scalar_fma.is_empty()
-        && function.x86_scalar_fma_occurrences.is_empty()
         && function.x86_floating_control.is_none()
         && function.internal_unit_scalar_calls.is_empty()
         && function.installed_provider_unit_scalar_calls.is_empty()

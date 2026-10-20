@@ -114,8 +114,6 @@ pub fn build_function_fragment_object_artifact(
             symbol,
             text_offset: offset,
             byte_count: length,
-            x86_scalar_fma: Vec::new(),
-            x86_scalar_fma_occurrences: Vec::new(),
             x86_floating_control: None,
             unit_stack: unit.then_some(ObjectUnitStack {
                 frame_bytes,
@@ -236,7 +234,6 @@ pub fn build_function_fragment_object_artifact(
         psi: text.psi,
         target: text.target,
         x86_feature_profile: None,
-        x86_scalar_fma_provider: None,
         entry: text.semantic_entry,
         object,
         relocations,

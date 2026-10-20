@@ -142,8 +142,6 @@ fn plan(machine_raw: u64) -> MachineCodePlan {
                 edges: vec![return_edge],
             },
             bytes: vec![0xc3],
-            x86_scalar_fma: Vec::new(),
-            x86_scalar_fma_occurrences: Vec::new(),
             x86_floating_control: None,
             unit_stack: Some(UnitStackEvidence {
                 frame: None,
