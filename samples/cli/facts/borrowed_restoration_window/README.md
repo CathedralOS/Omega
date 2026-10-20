@@ -72,6 +72,49 @@ error: state `write_cell` receives `cell` while local borrow `held` is still act
 Removing the competing borrow restores clean compilation and zero exit.
 The negative obligation is a static loan-exclusivity and borrow-window gate: overlapping mutable loans are decided and refused at compile time before any runtime realization, so no runtime trap is reachable for the loan-exclusivity violation itself, while the positive side's restored write is verified at runtime by both the Terminal Psi interpreter and native execution. Each place is pinned twice in the corpus goldens—on the check/outcome side (`tests/omega/corpus_outcomes.txt`) and on the native execution side (`tests/omega/corpus_native_windows_x86_64.txt` as `built ... exit:0`).
 
+### Host-pinned macOS ARM64 native rows
+
+The nine positives were measured and recorded on this host with
+
+```sh
+OMEGA_LIBRARY_ROOT=$PWD/source/library python3 tools/corpus_gate.py --native --record --filter facts/borrowed_restoration_window
+```
+
+producing nine rows in `tests/omega/corpus_native_macos_arm64.txt`, one per place
+(`call_result`, `const_name`, `field`, `local`, `match_join`, `other_machine`,
+`other_state`, `parameter`, `target_body`):
+
+```
+pass/facts/borrowed_restoration_window_through_<place>_exit built <ms>ms exit:0
+```
+
+The gate reports `clean — 9 fixtures ({'built': 9}) ... executed 9 (exit codes {'0': 9})`.
+Producer: `omega` built at `opt-level = 1` (`omega --build-profile` reports
+`{"opt_level":"1"}`), host `macos_arm64`.
+
+### Obligation class: the window is statically checked, its restored value is observable at runtime
+
+Both halves of this fact were probed directly, and they behave differently.
+
+- **Static refusal (the loan discipline).** Holding a competing exclusive borrow `held` live
+  across the write call is refused before lowering, at the call gate in
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/calls/conflicts.rs`.
+  No probe reached a runtime trap on this path: the window violation cannot be seeded into
+  execution because checking rejects the program first. That is the obligation's class, not a
+  missing reachable trap.
+- **Runtime trap (the restored value).** The restoration window's storage is genuinely
+  observed, so the value it carries is a runtime fact. Corrupting only the value the callee
+  stores — `cell.value = 99u64` instead of `100u64`, nothing else changed — makes the
+  post-restoration guard false and traps in both engines: `native signal 5` /
+  `interp crash: Trap` (exit 255). Restoring `100u64` returns `native exit 0` /
+  `interp exit: 0`. A one-value delta flips both engines, so the use after restoration really
+  depends on the restored storage rather than on a folded constant.
+
+A post-restoration owner read through a still-live `held` loan is accepted and exits 0: the
+check refuses the overlapping *call* and the overlapping *mutation*, while a later read whose
+last use ends that loan does not overlap the window. That is precisely the discipline the nine
+reject twins break.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`)
