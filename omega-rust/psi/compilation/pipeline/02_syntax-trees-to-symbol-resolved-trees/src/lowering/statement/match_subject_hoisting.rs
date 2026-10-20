@@ -154,7 +154,7 @@ pub(crate) fn hoist_comparison_match_subject(
             .bodies
             .expressions
             .expression(outer.left),
-        ExpressionNode::Binary(inner) if is_comparison_operator(inner.operator)
+        ExpressionNode::Binary(inner) if inner.operator.is_comparison()
     );
     if !subject_is_comparison || !subject_contains_hoistable(lowerer, outer.left) {
         return false;
@@ -203,18 +203,6 @@ pub(crate) fn hoist_comparison_match_subject(
         }),
     );
     true
-}
-
-fn is_comparison_operator(operator: BinaryOperator) -> bool {
-    matches!(
-        operator,
-        BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual
-    )
 }
 
 /// Whether `expression` is a member read through a SHARED reference-to-struct

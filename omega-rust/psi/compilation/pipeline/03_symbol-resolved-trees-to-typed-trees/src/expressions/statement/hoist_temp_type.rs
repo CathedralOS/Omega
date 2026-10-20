@@ -256,6 +256,20 @@ pub(super) fn infer_hoist_temp_type(
     // operand with no Exact range yields a bare scalar temp (the index prover
     // then reports its clean cannot-prove error).
     if let Some(binary) = expressions.binary_node(initial_value) {
+        // A Boolean-valued operator's result carrier is the primitive Boolean
+        // whatever its operands' carriers are: the operator decides the result
+        // type, so such a temp does not take the operand's base scalar the way a
+        // computed index does, and no arithmetic interval describes it. The
+        // caller keeps the `Unit` inference sentinel when this arm declines, and
+        // a local whose declared type is neither primitive nor a real structural
+        // type has no plan: the checked statement sequence abandons the whole
+        // state, so a capture as ordinary as `transition seen == 30` — or a
+        // conjunction over a slice, fixed-array or reference carrier — could not
+        // plan its body either. The same comparison bound to an explicit `bool`
+        // local always planned, which is the behavior restored here.
+        if binary.operator.result_is_boolean() {
+            return builtin_primitive_type(lowerer, symbols::BuiltinTypeAtom::Bool, "bool");
+        }
         for operand in [binary.left, binary.right] {
             // `member_chain_type`, not `collection_type_reference`: the latter
             // resolves a member only when its receiver is spelled `self`, so

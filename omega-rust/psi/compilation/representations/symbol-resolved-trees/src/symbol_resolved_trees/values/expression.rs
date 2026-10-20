@@ -852,6 +852,34 @@ pub enum BinaryOperator {
     Subtract,
 }
 
+impl BinaryOperator {
+    /// `left <self> right` is one of the six ordering comparisons. Their result
+    /// carrier is the primitive Boolean whatever the operands' carriers are,
+    /// so a temp binding a comparison takes its declared type from the operator
+    /// rather than from a place operand — the same set the typed trees' own
+    /// `is_comparison` names.
+    pub fn is_comparison(self) -> bool {
+        matches!(
+            self,
+            BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+                | BinaryOperator::Less
+                | BinaryOperator::LessOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual
+        )
+    }
+
+    /// The operators whose result carrier is the primitive Boolean whatever
+    /// their operands' carriers are: the six comparisons and the two logical
+    /// operators. The checker's own expression result type answers Boolean for
+    /// this same set, so a temp binding one of them is typed by the operator
+    /// and never by a place operand's carrier.
+    pub fn result_is_boolean(self) -> bool {
+        self.is_comparison() || matches!(self, BinaryOperator::And | BinaryOperator::Or)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {
     BitwiseNot,
