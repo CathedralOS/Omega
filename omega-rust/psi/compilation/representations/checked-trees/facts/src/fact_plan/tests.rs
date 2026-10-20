@@ -276,6 +276,7 @@ fn expression_places_resolve_attached_data_members() {
     program.push_data_definition(main_data);
 
     let mut machine = typed_trees::machine::Machine {
+        assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability::Any,
         symbol: machine_symbol,
         name: Identifier::generated("Main::main"),
         target: None,
@@ -309,6 +310,7 @@ fn expression_places_resolve_attached_data_members() {
         contracts: HandleSpan::empty(),
         states: HandleSpan::empty(),
         authored_target: None,
+        entry_context_origin: None,
     };
     let mut state = typed_trees::state::State {
         symbol: state_symbol,
