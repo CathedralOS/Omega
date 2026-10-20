@@ -1939,15 +1939,27 @@ fail/facts/boundary_provider_call_through_target_body_rejected rejected 19568ms 
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `get(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `get(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `get(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
-fail/facts/bounded_products_through_call_result_rejected rejected 2349ms expected @77c924b0deb6
-fail/facts/bounded_products_through_const_name_rejected rejected 2345ms expected @77c924b0deb6
-fail/facts/bounded_products_through_field_rejected rejected 2125ms expected @77c924b0deb6
-fail/facts/bounded_products_through_local_rejected rejected 2372ms expected @77c924b0deb6
-fail/facts/bounded_products_through_match_join_rejected rejected 2205ms expected @77c924b0deb6
-fail/facts/bounded_products_through_other_machine_rejected rejected 2387ms expected @77c924b0deb6
-fail/facts/bounded_products_through_other_state_rejected rejected 2311ms expected @77c924b0deb6
-fail/facts/bounded_products_through_parameter_rejected rejected 2383ms expected @77c924b0deb6
-fail/facts/bounded_products_through_target_body_rejected rejected 2301ms expected @77c924b0deb6
+fail/facts/bounded_products_through_call_result_rejected rejected 3984ms expected @86e2299c7307
+	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `supply(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/bounded_products_through_const_name_rejected rejected 5454ms expected @86e2299c7307
+	cannot prove ensures contract for exit from mul at statement 0: result <= 2500
+fail/facts/bounded_products_through_field_rejected rejected 3968ms expected @86e2299c7307
+	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_products_through_local_rejected rejected 3622ms expected @86e2299c7307
+	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_products_through_match_join_rejected rejected 3625ms expected @86e2299c7307
+	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_products_through_other_machine_rejected rejected 3572ms expected @86e2299c7307
+	exact arithmetic in machine `combine` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_products_through_other_state_rejected rejected 3563ms expected @86e2299c7307
+	exact arithmetic in machine `mul` state `product` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_products_through_parameter_rejected rejected 3547ms expected @86e2299c7307
+	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/bounded_products_through_target_body_rejected rejected 3466ms expected @86e2299c7307
+	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/bounded_scalar_sums_through_call_result_rejected rejected 903ms expected @91ca9a02874b
 	exact arithmetic in machine `add` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `supply(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/bounded_scalar_sums_through_const_name_rejected rejected 649ms expected @91ca9a02874b
@@ -2175,7 +2187,8 @@ fail/facts/compound_guard_different_call_result_compile rejected 3197ms expected
 fail/facts/compound_guard_different_grouping_compile rejected 3217ms expected @2ef2ab353498+wt
 fail/facts/compound_guard_missing_lower_compile rejected 3183ms expected @2ef2ab353498+wt
 fail/facts/compound_guard_mutated_coordinate_compile rejected 3633ms expected @2ef2ab353498+wt
-fail/facts/compound_guard_shorter_slice_compile rejected 1857ms expected @2ef2ab353498+wt
+fail/facts/compound_guard_shorter_slice_compile rejected 4863ms expected @4e77584323e4
+	cannot prove index `b * 20 + a` is within length 20 in Main::main::put
 fail/facts/compound_guard_through_call_result_compile rejected 3926ms expected @2ef2ab353498+wt
 fail/facts/compound_guard_through_const_name_compile rejected 3163ms expected @2ef2ab353498+wt
 fail/facts/compound_guard_through_field_compile rejected 2980ms expected @2ef2ab353498+wt
@@ -2679,7 +2692,8 @@ fail/facts/ieee_float_ordered_comparison_through_target_body_rejected rejected 1
 	cannot prove requires contract for call verify_window from probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/ieee_guard_i32_from_f64_call_result_invalid rejected 4433ms expected @1cf00aa9ba90+wt
 fail/facts/ieee_guard_i32_from_f64_const_name_invalid rejected 4495ms expected @1cf00aa9ba90+wt
-fail/facts/ieee_guard_i32_from_f64_field_invalid rejected 4476ms expected @1cf00aa9ba90+wt
+fail/facts/ieee_guard_i32_from_f64_field_invalid rejected 10967ms expected @4e77584323e4
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/facts/ieee_guard_i32_from_f64_local_invalid rejected 3891ms expected @1cf00aa9ba90+wt
 fail/facts/ieee_guard_i32_from_f64_match_join_invalid rejected 3933ms expected @1cf00aa9ba90+wt
 fail/facts/ieee_guard_i32_from_f64_other_machine_invalid rejected 3892ms expected @1cf00aa9ba90+wt
@@ -3398,7 +3412,8 @@ fail/facts/nested_record_value_through_target_body_rejected rejected 2399ms expe
 	exact arithmetic in machine `sum_envelope` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `sum_envelope` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_result_extent_disjoint_write_wrong_view_rejected rejected 675ms expected @cbdcc23565fb
-fail/facts/nested_result_extent_later_sibling_bound_rejected rejected 561ms expected @8a884ecc43d5+wt
+fail/facts/nested_result_extent_later_sibling_bound_rejected rejected 2800ms expected @4e77584323e4
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
 fail/facts/nested_result_extent_one_bad_match_arm_rejected rejected 590ms expected @8a884ecc43d5+wt
 fail/facts/nested_result_extent_replaced_descriptor_rejected rejected 583ms expected @8a884ecc43d5+wt
 fail/facts/nested_result_extent_through_call_result_rejected rejected 547ms expected @8a884ecc43d5+wt
@@ -3538,7 +3553,10 @@ fail/facts/qualified_field_capacity_through_target_body_mismatch rejected 3070ms
 	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Strategy` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/qualified_join_routed_authority rejected 727ms expected @8a884ecc43d5+wt
+fail/facts/qualified_join_routed_authority rejected 3235ms expected @4e77584323e4
+	cannot prove default-domain field requirement for return from forge at statement 0: match flag { true => Extent, false => Extent } requires Extent::Granted
+	construction value is not proven in domain `Extent::Granted` in forge state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Extent::Granted` in forge state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/facts/qualified_linear_value_reused_after_transfer rejected 391ms expected @ab16f19fe1b1+wt
 fail/facts/qualified_owned_join_missing_arm rejected 267ms expected @8a884ecc43d5+wt
 fail/facts/qualified_owned_join_reused_source rejected 336ms expected @8a884ecc43d5+wt
@@ -3637,12 +3655,12 @@ fail/facts/reference_arrival_handoff_cleanup_receiver_order_held_residual reject
 fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejected 1845ms expected @4030174fbc4e
 fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite rejected 1684ms expected @4030174fbc4e
 fail/facts/reference_arrival_handoff_cleanup_receiver_prerequisite rejected 1541ms expected @4030174fbc4e
-fail/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_prerequisite rejected 1672ms expected @4030174fbc4e
+fail/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_prerequisite rejected 7527ms expected @4e77584323e4
+	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_through_call_result_held_source rejected 3345ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_const_name_held_source rejected 3207ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_field_held_source rejected 2657ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_local_held_source rejected 2572ms expected @3424ad143d6e
-fail/facts/reference_arrival_handoff_through_match_join_held_source rejected 1661ms expected @28774f64507d
 fail/facts/reference_arrival_handoff_through_match_join_held_source rejected 1661ms expected @28774f64507d
 fail/facts/reference_arrival_handoff_through_other_machine_held_source rejected 2460ms expected @3424ad143d6e
 fail/facts/reference_arrival_handoff_through_other_state_held_source rejected 2517ms expected @3424ad143d6e
@@ -3946,26 +3964,14 @@ fail/facts/shared_qualification_erasure_target_body rejected 4666ms expected @81
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_rejected rejected 19310ms expected @9a273b151c31+wt
-	cannot prove requires contract for call verify_masked from bitwise_and_call: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_rejected rejected 18871ms expected @9a273b151c31+wt
-	cannot prove requires contract for call verify_masked from bitwise_and_const: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_field_rejected rejected 15266ms expected @9a273b151c31+wt
-	cannot prove requires contract for call verify_masked from bitwise_and_field: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_local_rejected rejected 17573ms expected @9a273b151c31+wt
-	cannot prove requires contract for call verify_masked from bitwise_and_local: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_match_join_rejected rejected 17360ms expected @9a273b151c31+wt
-	cannot prove requires contract for call verify_masked from bitwise_and_join: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_other_machine_rejected rejected 16913ms expected @9a273b151c31+wt
-	cannot prove requires contract for call verify_masked from bitwise_and_worker: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_other_state_rejected rejected 15665ms expected @9a273b151c31+wt
-	cannot prove requires contract for call verify_masked from bitwise_and_state: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_parameter_rejected rejected 14636ms expected @9a273b151c31+wt
-	cannot prove requires contract for call verify_masked from bitwise_and_param: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_target_body_rejected rejected 14582ms expected @9a273b151c31+wt
-	cannot prove requires contract for call verify_masked from bitwise_and_target: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_masked from bitwise_and_target: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_masked from bitwise_and_target: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_masked from bitwise_and_target: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_or_bound_through_call_result_rejected rejected 20772ms expected @9a273b151c31+wt
 	cannot prove requires contract for call verify_combined from compute_call_result: combined >= 40 && combined <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_or_bound_through_const_name_rejected rejected 20302ms expected @9a273b151c31+wt
@@ -4043,6 +4049,9 @@ fail/facts/signed_64bit_bitwise_and_mask_bound_through_parameter_rejected reject
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_target_body_rejected rejected 14582ms expected @9a273b151c31+wt
 	cannot prove requires contract for call verify_prod from sat_match_join: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_prod from compute_local: transported >= 50 && transported <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_64bit_saturating_subtraction_bound_through_call_result_rejected rejected 10032ms expected @abd18815d46a+wt
+	Exact integer cast in machine `subtract_call_result` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_64bit_saturating_subtraction_bound_through_const_name_rejected rejected 10076ms expected @abd18815d46a+wt
 	Exact integer cast in machine `subtract_const` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	cannot prove requires contract for call verify_prod from sat_local: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_prod from compute_parameter: transported >= 50 && transported <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -8040,15 +8049,15 @@ pass/facts/boundary_provider_call_through_other_machine_exit checked 84245ms che
 pass/facts/boundary_provider_call_through_other_state_exit checked 83776ms check-target:macos_arm64 @2f87a2fd7fac+wt
 pass/facts/boundary_provider_call_through_parameter_exit checked 84256ms check-target:macos_arm64 @2f87a2fd7fac+wt
 pass/facts/boundary_provider_call_through_target_body_exit checked 84193ms check-target:macos_arm64 @2f87a2fd7fac+wt
-pass/facts/bounded_products_through_call_result_exit checked 7336ms check-target:macos_arm64 @77c924b0deb6
-pass/facts/bounded_products_through_const_name_exit checked 7323ms check-target:macos_arm64 @77c924b0deb6
-pass/facts/bounded_products_through_field_exit checked 7323ms check-target:macos_arm64 @77c924b0deb6
-pass/facts/bounded_products_through_local_exit checked 7321ms check-target:macos_arm64 @77c924b0deb6
-pass/facts/bounded_products_through_match_join_exit checked 7726ms check-target:macos_arm64 @77c924b0deb6
-pass/facts/bounded_products_through_other_machine_exit checked 7421ms check-target:macos_arm64 @77c924b0deb6
-pass/facts/bounded_products_through_other_state_exit checked 7507ms check-target:macos_arm64 @77c924b0deb6
-pass/facts/bounded_products_through_parameter_exit checked 7565ms check-target:macos_arm64 @77c924b0deb6
-pass/facts/bounded_products_through_target_body_exit checked 7561ms check-target:macos_arm64 @77c924b0deb6
+pass/facts/bounded_products_through_call_result_exit checked 13581ms check-target:macos_arm64 @86e2299c7307
+pass/facts/bounded_products_through_const_name_exit checked 13614ms check-target:macos_arm64 @86e2299c7307
+pass/facts/bounded_products_through_field_exit checked 13578ms check-target:macos_arm64 @86e2299c7307
+pass/facts/bounded_products_through_local_exit checked 12766ms check-target:macos_arm64 @86e2299c7307
+pass/facts/bounded_products_through_match_join_exit checked 12754ms check-target:macos_arm64 @86e2299c7307
+pass/facts/bounded_products_through_other_machine_exit checked 12724ms check-target:macos_arm64 @86e2299c7307
+pass/facts/bounded_products_through_other_state_exit checked 12571ms check-target:macos_arm64 @86e2299c7307
+pass/facts/bounded_products_through_parameter_exit checked 12561ms check-target:macos_arm64 @86e2299c7307
+pass/facts/bounded_products_through_target_body_exit checked 12585ms check-target:macos_arm64 @86e2299c7307
 pass/facts/bounded_scalar_sums_through_call_result_exit checked 14592ms check-target:macos_arm64 @91ca9a02874b
 pass/facts/bounded_scalar_sums_through_const_name_exit checked 14540ms check-target:macos_arm64 @91ca9a02874b
 pass/facts/bounded_scalar_sums_through_field_exit checked 14683ms check-target:macos_arm64 @91ca9a02874b
