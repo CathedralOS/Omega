@@ -3672,14 +3672,26 @@ fail/facts/nested_result_extent_one_bad_match_arm_rejected rejected 590ms expect
 fail/facts/nested_result_extent_replaced_descriptor_rejected rejected 2043ms expected @595e8f1c6d8e
 	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `current` in trial::entry
 fail/facts/nested_result_extent_through_call_result_rejected rejected 547ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..minimum(minimum(count, other.len), 2147483647)` is within unknown slice length of `buffer` in trial::entry
 fail/facts/nested_result_extent_through_const_name_rejected rejected 545ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
 fail/facts/nested_result_extent_through_field_rejected rejected 570ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..bound.end` is within unknown slice length of `buffer` in trial::entry
 fail/facts/nested_result_extent_through_local_rejected rejected 572ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
 fail/facts/nested_result_extent_through_match_join_rejected rejected 555ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
 fail/facts/nested_result_extent_through_other_machine_rejected rejected 558ms expected @8a884ecc43d5+wt
+	cannot prove requires contract for call consume from trial: bound.end <= buffer.len (needs fact `bound.end <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_result_extent_through_other_state_rejected rejected 553ms expected @8a884ecc43d5+wt
+	cannot prove requires contract for call consume from trial: capacity <= buffer.len (needs fact `end <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_result_extent_through_parameter_rejected rejected 554ms expected @8a884ecc43d5+wt
+	cannot prove requires contract for call consume from trial: capacity <= buffer.len (needs fact `end <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_result_extent_through_target_body_rejected rejected 564ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
 fail/facts/no_wrap_domain_through_call_result_requires_geometry rejected 2874ms expected @d2f0e31ca0d4+wt
 	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/no_wrap_domain_through_const_name_requires_geometry rejected 2876ms expected @d2f0e31ca0d4+wt
