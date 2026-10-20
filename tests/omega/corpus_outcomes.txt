@@ -3730,6 +3730,7 @@ fail/facts/nested_result_extent_disjoint_write_wrong_view_rejected rejected 675m
 fail/facts/nested_result_extent_later_sibling_bound_rejected rejected 2800ms expected @4e77584323e4
 	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
 fail/facts/nested_result_extent_one_bad_match_arm_rejected rejected 590ms expected @8a884ecc43d5+wt
+	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `buffer` in trial::entry
 fail/facts/nested_result_extent_replaced_descriptor_rejected rejected 2043ms expected @595e8f1c6d8e
 	cannot prove subslice range end bound `0..capacity` is within unknown slice length of `current` in trial::entry
 fail/facts/nested_result_extent_through_call_result_rejected rejected 547ms expected @8a884ecc43d5+wt
