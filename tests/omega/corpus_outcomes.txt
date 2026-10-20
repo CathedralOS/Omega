@@ -3186,14 +3186,23 @@ fail/facts/matched_field_windows_through_other_state_rejected rejected 2739ms ex
 fail/facts/matched_field_windows_through_parameter_rejected rejected 1549ms expected @6950e9f0e0c8
 fail/facts/matched_field_windows_through_target_body_rejected rejected 1453ms expected @6950e9f0e0c8
 fail/facts/matched_window_through_call_result_rejected rejected 664ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_call at statement 0: result.len == 2
 fail/facts/matched_window_through_const_name_rejected rejected 659ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_const at statement 0: result.len == 2
 fail/facts/matched_window_through_field_rejected rejected 659ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_field at statement 0: result.len == 2
 fail/facts/matched_window_through_local_rejected rejected 656ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_local at statement 1: result.len == 2
 fail/facts/matched_window_through_match_join_rejected rejected 659ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_join at statement 0: result.len == 2
 fail/facts/matched_window_through_other_machine_rejected rejected 655ms expected @a48b0ac286f5
+	cannot prove requires contract for call open_end from from_machine: which + 1 == 2 (needs fact `end == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/matched_window_through_other_state_rejected rejected 651ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_state at statement 0: result.len == 2
 fail/facts/matched_window_through_parameter_rejected rejected 651ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
 fail/facts/matched_window_through_target_body_rejected rejected 649ms expected @a48b0ac286f5
+	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
 fail/facts/mixed_width_record_padding_geometry_unproved_call_result rejected 35090ms expected @e29d1dd099de
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/mixed_width_record_padding_geometry_unproved_const_name rejected 38250ms expected @e29d1dd099de
