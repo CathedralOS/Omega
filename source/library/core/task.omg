@@ -48,8 +48,8 @@ public boundary requirement Task::request_cancel<T>(task: &Task<T>);
 public boundary requirement Task::finish<T>(task: Task<T>) -> TaskOutcome<T>
 suspends; blocks;
 
-// Runtime authority is a public selected boundary capability carried by
-// Binding<TaskRuntime>. Public start outcomes let callers settle either
+// Runtime authority is a public selected boundary capability: callers invoke
+// `TaskRuntime` requirements directly and provider admission picks one realization. Public start outcomes let callers settle either
 // admitted custody or their returned arguments. These requirements give
 // `start<M>` a nominal, machine-contract-checked surface for activation-plan
 // elaboration; provider admission/dispatch remains the next runtime layer.

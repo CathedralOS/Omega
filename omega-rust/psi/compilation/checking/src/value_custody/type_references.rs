@@ -578,8 +578,10 @@ fn validate_routed_service_carrier_placement(
         }
         TypeReferenceNode::Named { symbol, name } => {
             // A boundary names a requirement, never the value or reference
-            // that supplies it. Keep formal checking on the actual Binding
-            // carrier instead of letting a bare-trait reference skip custody.
+            // that supplies it. `Binding<R>` is retired, so the advice names
+            // the surviving vocabulary: call the requirement directly, or
+            // carry an ordinary handle, session, or `dyn` value when runtime
+            // multiplicity is what the program needs.
             if owner.allows_borrowed_routed_service_carrier()
                 && program
                     .traits()
@@ -587,7 +589,7 @@ fn validate_routed_service_carrier_placement(
                     .any(|definition| definition.symbol == *symbol && definition.is_boundary)
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses boundary trait `{name}` as a value type; use `Binding<{name}>` or a borrow of that carrier"
+                    "{owner} uses boundary trait `{name}` as a value type; call a `{name}` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity"
                 )));
                 return;
             }

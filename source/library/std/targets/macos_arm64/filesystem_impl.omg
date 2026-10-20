@@ -1,7 +1,7 @@
 // Darwin ABI facts for the shared POSIX portable service. Layout and flag
 // values follow the SDK's sys/stat.h, sys/fcntl.h and sys/dirent.h; the
 // complete raw provider supplies negative errno, never retained libc state.
-// Application data remains one Binding<FilesystemService>.
+// Application data holds no carrier; callers invoke `FilesystemService` requirements directly.
 use omega::language::core::filesystem_authority;
 use omega::language::core::external_binding;
 use omega::language::core::layout;
