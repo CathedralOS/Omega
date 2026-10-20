@@ -3,7 +3,7 @@
 //! Every structural result a state's operations produce has exactly one
 //! owner on each path out of the state: a later operation that consumes it,
 //! a store that writes it, a successor edge that transfers it, or a cleanup
-//! row that discards it. An all-crash exit abandons still-live custody without
+//! row that discards it. A domain-ending or all-crash exit abandons custody without
 //! manufacturing a disposition. Normal paths with no owner and every path
 //! with duplicate dispositions refuse; closed sums account per case.
 //! Named homes are not permanent aliases of their first result. Cleanup and
@@ -55,7 +55,7 @@ pub(super) fn account<'calls>(
 ) -> Option<()> {
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: result custody accounting");
-    let abandons_custody = terminator.abandons_custody(&facts.flow.guarded_exits)?;
+    let abandons_custody = terminator.abandons_custody(operations, &facts.flow.guarded_exits)?;
     // The first guard executes before selecting any exit. Later ordered
     // guards execute only on a remaining path; their transfers cannot stand
     // in for unconditional ownership. The retained computation itself owns
@@ -597,7 +597,7 @@ pub(super) fn account<'calls>(
         let return_arm_owns =
             |arm: &CheckedConditionalReturnArm,
              uses: &[(usize, &CheckedUnitStructuralArgumentPlan)]| {
-                matches!(arm, CheckedConditionalReturnArm::Crash { .. })
+                arm.abandons_custody()
                     || arm.definite_call_transfers(
                         &facts.values,
                         call_schedules,
@@ -613,9 +613,7 @@ pub(super) fn account<'calls>(
         // With no normal exit there is no transfer/disposal owner here to
         // count beside an earlier in-sequence consumption.
         let has_normal_exit = !terminator.successors().is_empty()
-            || return_arms
-                .iter()
-                .any(|arm| !matches!(arm, CheckedConditionalReturnArm::Crash { .. }));
+            || return_arms.iter().any(|arm| !arm.abandons_custody());
         let mut closed_sum_all_reference_returns = false;
         // Every normal completion owes its own transfer or exact cleanup
         // receipt. A move in one alternative cannot cover a sibling return.

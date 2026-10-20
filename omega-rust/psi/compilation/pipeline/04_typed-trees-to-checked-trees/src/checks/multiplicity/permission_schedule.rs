@@ -22,6 +22,7 @@ pub(super) enum PermissionStep {
 pub(super) fn walk<S: Clone>(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
+    calls: &[checked_trees::FlowCallFact],
     mut custody: S,
     mut visit: impl FnMut(PermissionStep, &mut S),
 ) {
@@ -39,6 +40,15 @@ pub(super) fn walk<S: Clone>(
                 },
                 &mut custody,
             );
+            if ends_domain(
+                program,
+                state,
+                calls,
+                statement,
+                FlowPermissionEvaluation::Statement,
+            ) {
+                return;
+            }
             continue;
         };
         transitions.push(statement);
@@ -49,6 +59,15 @@ pub(super) fn walk<S: Clone>(
             },
             &mut custody,
         );
+        if ends_domain(
+            program,
+            state,
+            calls,
+            statement,
+            FlowPermissionEvaluation::TransitionGuard,
+        ) {
+            return;
+        }
         for (target, kind) in [
             (transition.target, FlowClaimJoinExitKind::TransitionTarget),
             (
@@ -67,6 +86,9 @@ pub(super) fn walk<S: Clone>(
                 },
                 &mut branch,
             );
+            if target_ends_domain(program, target) {
+                continue;
+            }
             visit(
                 PermissionStep::Exit {
                     coordinate: FlowClaimJoinExit {
@@ -111,6 +133,62 @@ pub(super) fn walk<S: Clone>(
         },
         &mut custody,
     );
+}
+
+/// An admitted external completion has no normal ownership successor. Its
+/// argument evaluation still runs above, but neither cleanup nor a fabricated
+/// consumption event may discharge the remaining frontier. Use the producer's
+/// unconditional call occurrences: a call in only one selected expression arm
+/// cannot erase the other arm's normal-exit obligations.
+fn ends_domain(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    calls: &[checked_trees::FlowCallFact],
+    statement: usize,
+    evaluation: FlowPermissionEvaluation,
+) -> bool {
+    let Some(machine) = program.machine_holding_state(state.symbol) else {
+        return false;
+    };
+    calls.iter().any(|call| {
+        call.statement_index == statement
+            && !call.authored_selected
+            && call.authored_dispatch_role != checked_trees::FlowCallDispatchRole::SavedSubjectRead
+            && crate::flow::call_permission_evaluation(
+                program,
+                machine,
+                state,
+                statement,
+                call.call_ordinal,
+            ) == evaluation
+            && external_completion(program, call.target_symbol)
+    })
+}
+
+fn external_completion(
+    program: &dyn validation::CheckingInput,
+    target: symbols::SymbolHandle,
+) -> bool {
+    matches!(
+        validation::boundary_requirement_completion(program, target),
+        semantic_vocabulary::BoundaryCompletion::External(_)
+    )
+}
+
+fn target_ends_domain(
+    program: &dyn validation::CheckingInput,
+    target: typed_trees::statement::TransitionTargetHandle,
+) -> bool {
+    match program.statement_table.transition_target(target) {
+        typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
+            external_completion(program, path.symbol)
+        }
+        typed_trees::statement::TransitionTargetNode::Value(value) => program
+            .expression_table
+            .call_node(*value)
+            .is_some_and(|call| external_completion(program, call.target_symbol)),
+        typed_trees::statement::TransitionTargetNode::Terminal => false,
+    }
 }
 
 /// Case alternatives narrow custody on the same chosen edge as its moves.

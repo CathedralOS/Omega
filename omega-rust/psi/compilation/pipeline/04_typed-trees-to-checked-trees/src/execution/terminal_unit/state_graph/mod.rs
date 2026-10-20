@@ -495,7 +495,7 @@ pub(super) fn build_traced(
         // does not exempt a returning sibling.
         trace.phase("state graph: borrowed windows at selected exits");
         if !sequence.windows.is_closed()
-            && !terminator.abandons_custody(&facts.flow.guarded_exits)?
+            && !terminator.all_paths_crash(&operations, &facts.flow.guarded_exits)?
         {
             return None;
         }

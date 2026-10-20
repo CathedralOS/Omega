@@ -57,7 +57,7 @@ impl OperationSequence {
     ) -> Result<(), LoweringError> {
         match state
             .terminator
-            .abandons_custody(&checked.facts.flow.guarded_exits)
+            .all_paths_crash(&state.operations, &checked.facts.flow.guarded_exits)
         {
             Some(true) => Ok(()),
             Some(false) => self.require_closed(),

@@ -2061,11 +2061,14 @@ pass/host/foreign_byte_recast checked 13378ms @5041ef1af684+wt
 pass/host/foreign_multiregister checked 9884ms @5041ef1af684+wt
 pass/host/hfa_aggregate_entry checked 9508ms @5041ef1af684+wt
 pass/host/intrinsic_machine_param checked 9788ms @5041ef1af684+wt
+pass/host/process_exit_abandons_cleanup built 16793ms exit:0 stdout:match @b19a2aaae492+wt
 pass/host/process_exit_after_zero_payload_construction built 1427ms exit:70 @5d657ba9bd55+wt
 pass/host/process_exit_explicit_standalone_domain_exit built 9401ms exit:70 @5889f8b8208f+wt
 pass/host/process_exit_i32_status_mapped built 6901ms exit:212 @7c6892099245+wt
 pass/host/process_exit_i32_status_ordered built 7788ms exit:70 stdout:match @7c6892099245+wt
 pass/host/process_exit_preserves_scalar_contract built 2977ms exit:70 stdout:match @2424b17e715c
+pass/host/process_exit_retains_linear_frontier built 15555ms exit:0 @b19a2aaae492+wt
+pass/host/process_exit_selected_frontier built 9745ms exit:0 @b19a2aaae492+wt
 pass/host/runtime_console_bounded_line_exit built 3578ms exit:20 @0136a22812ee+wt
 pass/host/runtime_console_bounded_line_full_exit built 3674ms exit:34 stdout:match @0136a22812ee+wt
 pass/host/runtime_console_bounded_line_lf_exit built 3487ms exit:13 stdout:match @0136a22812ee+wt

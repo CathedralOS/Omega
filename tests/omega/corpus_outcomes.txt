@@ -4255,9 +4255,22 @@ fail/generics/transition_value_slice_element_mismatch rejected 243ms expected @6
 fail/generics/value_binder_unknown_field rejected 312ms expected @16802f0d1e96
 fail/generics/value_binder_used_as_nested_type rejected 3433ms expected @a9ae30e1c334+wt
 fail/generics/value_generic_runtime_static_length rejected 191ms expected @a9ae30e1c334+wt
+fail/host/conditional_process_exit_keeps_return_obligations rejected 1770ms expected @b19a2aaae492+wt
+	linear value `token` reaches scope exit without being consumed or transferred
 fail/host/console_byte_payload_above_byte rejected 735ms expected @afccbf17d92b+wt
 fail/host/console_byte_payload_negative rejected 674ms expected @afccbf17d92b+wt
 fail/host/descriptor_read_guarded_prefix_without_admitted_abi rejected 3747ms expected @2375f5327b1a+wt
+fail/host/process_exit_argument_requires_live_custody rejected 745ms expected @b19a2aaae492+wt
+	cannot use `token.value` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
+fail/host/process_exit_before_crash_keeps_crossing_obligations rejected 1684ms expected @b19a2aaae492+wt
+	cannot make a boundary or service call at statement 1 while `holder.token` is absent: restore the value moved out of borrowed storage at statement 0 first
+fail/host/process_exit_preserves_borrowed_restoration rejected 747ms expected @b19a2aaae492+wt
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `ordinary`, state `entry` (statement 0): `holder.token` must hold a value again before this state's exits consume the borrow
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `composed`, state `finish` (statement 0): `holder.token` must hold a value again before this state's exits consume the borrow
+fail/host/process_exit_reach_keeps_return_obligations rejected 1700ms expected @b19a2aaae492+wt
+	linear value `token` reaches scope exit without being consumed or transferred
+fail/host/returning_exit_spelling_keeps_linear_obligations rejected 1685ms expected @b19a2aaae492+wt
+	linear value `token` reaches scope exit without being consumed or transferred
 fail/host/scalar_reference_mixed_backing_foreign_export rejected 7630ms expected @7c847bad15b6+wt
 fail/host/scalar_reference_narrow_backing_foreign_export rejected 7535ms expected @7c847bad15b6+wt
 fail/inline_asm/asm_cli_requires_machine_authority rejected 69ms expected @9f1c8cc89b93+wt
@@ -8720,11 +8733,14 @@ pass/host/foreign_byte_recast checked 12749ms @5041ef1af684+wt
 pass/host/foreign_multiregister checked 9550ms @5041ef1af684+wt
 pass/host/hfa_aggregate_entry checked 9579ms @5041ef1af684+wt
 pass/host/intrinsic_machine_param checked 10120ms @5041ef1af684+wt
+pass/host/process_exit_abandons_cleanup checked 16686ms check-target:macos_arm64 @b19a2aaae492+wt
 pass/host/process_exit_after_zero_payload_construction checked 8523ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/process_exit_explicit_standalone_domain_exit checked 8825ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/process_exit_i32_status_mapped checked 9176ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/process_exit_i32_status_ordered checked 12461ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/process_exit_preserves_scalar_contract checked 12470ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/host/process_exit_retains_linear_frontier checked 15478ms check-target:macos_arm64 @b19a2aaae492+wt
+pass/host/process_exit_selected_frontier checked 9831ms check-target:macos_arm64 @b19a2aaae492+wt
 pass/host/runtime_console_bounded_line_cr_midline_exit checked 11139ms check-target:macos_arm64 @da842c101400+wt
 pass/host/runtime_console_bounded_line_eof_repeat_exit checked 11270ms check-target:macos_arm64 @da842c101400+wt
 pass/host/runtime_console_bounded_line_exit checked 11919ms check-target:macos_arm64 @a9ae30e1c334+wt

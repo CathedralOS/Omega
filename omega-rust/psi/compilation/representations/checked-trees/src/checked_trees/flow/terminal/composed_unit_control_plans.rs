@@ -309,20 +309,27 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
 impl CheckedComposedUnitControlTerminatorPlan {
     /// Whether every selected path abandons custody without a successor or
     /// normal completion. The checked guard roster supplies coverage; a
-    /// missing or stale roster cannot authorize abandonment. This is shared
-    /// by window restoration and result accounting so neither manufactures
-    /// cleanup on crash paths or overlooks a returning sibling.
-    pub fn abandons_custody(&self, guarded_exits: &crate::CheckedGuardedExitPlans) -> Option<bool> {
-        let crash_arm = |arm: &CheckedConditionalReturnArm| {
-            matches!(arm, CheckedConditionalReturnArm::Crash { .. })
-        };
+    /// missing or stale roster cannot authorize abandonment. Result accounting
+    /// must neither manufacture cleanup nor overlook a returning sibling. An external
+    /// completion in the unconditional operation prefix ends the domain before
+    /// the terminator. Its admitted call plan, never its spelling or reach,
+    /// establishes that there is no normal ownership successor.
+    pub fn abandons_custody(
+        &self,
+        operations: &[CheckedUnitEffectOperationPlan],
+        guarded_exits: &crate::CheckedGuardedExitPlans,
+    ) -> Option<bool> {
+        if has_external_completion(operations) {
+            return Some(true);
+        }
+        let abandons = CheckedConditionalReturnArm::abandons_custody;
         Some(match self {
             Self::Crash { .. } => true,
             Self::ConditionalCompletion {
                 when_true,
                 when_false,
                 ..
-            } => crash_arm(when_true) && crash_arm(when_false),
+            } => abandons(when_true) && abandons(when_false),
             Self::Guarded { arms, fallback, .. } => {
                 let arms = guarded_exits.exits.span(*arms)?;
                 (!arms.is_empty() || fallback.is_some())
@@ -339,17 +346,19 @@ impl CheckedComposedUnitControlTerminatorPlan {
             Self::GuardedJumps { arms, fallback } => {
                 arms.iter().all(|arm| {
                     matches!(
-                        arm, CheckedGuardedJumpArmPlan::Return(plan) if crash_arm(&plan.return_arm)
+                        arm, CheckedGuardedJumpArmPlan::Return(plan) if abandons(&plan.return_arm)
                     )
                 }) && matches!(fallback,
-                    CheckedGuardedJumpFallbackPlan::Return(arm) if crash_arm(arm)
+                    CheckedGuardedJumpFallbackPlan::Return(arm) if abandons(arm)
                 )
             }
-            Self::ClosedSum { cases, .. } => !cases.is_empty() && cases.iter().all(|case| {
-                matches!(
-                    &case.outcome, CheckedClosedSumCaseOutcomePlan::Return(arm) if crash_arm(arm)
-                )
-            }),
+            Self::ClosedSum { cases, .. } => {
+                !cases.is_empty() && cases.iter().all(|case| {
+                    matches!(
+                        &case.outcome, CheckedClosedSumCaseOutcomePlan::Return(arm) if abandons(arm)
+                    )
+                })
+            }
             Self::ReturnUnit
             | Self::ReturnScalar { .. }
             | Self::ReturnStructural { .. }
@@ -357,6 +366,27 @@ impl CheckedComposedUnitControlTerminatorPlan {
             | Self::Conditional { .. }
             | Self::ConditionalReturn { .. } => false,
         })
+    }
+
+    /// The existing crash-only exemption for borrowed restoration windows.
+    /// External completion abandons local owners, but does not establish that
+    /// a lender belongs to the dying domain. Until crossing admission proves
+    /// that premise, external paths keep their restoration requirement. Inspect
+    /// the prefix first: an unreachable later crash cannot authorize an exit.
+    pub fn all_paths_crash(
+        &self,
+        operations: &[CheckedUnitEffectOperationPlan],
+        guarded_exits: &crate::CheckedGuardedExitPlans,
+    ) -> Option<bool> {
+        if has_external_completion(operations)
+            || self
+                .return_arms()
+                .iter()
+                .any(|arm| has_external_completion(arm.operation_dependencies()))
+        {
+            return Some(false);
+        }
+        self.abandons_custody(operations, guarded_exits)
     }
 
     /// Control-flow successors of this terminator, in terminator order.
@@ -559,6 +589,13 @@ pub enum CheckedConditionalReturnArm {
 }
 
 impl CheckedConditionalReturnArm {
+    /// This selected arm has no normal custody successor. A boundary call
+    /// carries its admitted completion even though its source result is Unit;
+    /// reach alone and ordinary returning Unit calls do not authorize this.
+    pub fn abandons_custody(&self) -> bool {
+        matches!(self, Self::Crash { .. }) || has_external_completion(self.operation_dependencies())
+    }
+
     /// The operation this arm runs when selected: a value producer or a
     /// terminal call. Unit and scalar arms run no operation of their own.
     pub fn operation(&self) -> Option<&CheckedUnitEffectOperationPlan> {
@@ -606,6 +643,22 @@ impl CheckedConditionalReturnArm {
             }
         }
     }
+}
+
+/// Only the operations of one selected sequence belong here, not a union of
+/// sibling dependencies. Each call already carries its exact checked contract.
+fn has_external_completion<'operation>(
+    operations: impl IntoIterator<Item = &'operation CheckedUnitEffectOperationPlan>,
+) -> bool {
+    operations
+        .into_iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .any(|call| {
+            matches!(
+                call.completion(),
+                semantic_vocabulary::BoundaryCompletion::External(_)
+            )
+        })
 }
 
 /// One guarded arm of an ordered transition chain: the exact checked scalar

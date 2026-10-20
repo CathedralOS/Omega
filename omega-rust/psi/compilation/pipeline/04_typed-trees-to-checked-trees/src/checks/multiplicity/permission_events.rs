@@ -251,6 +251,7 @@ pub(crate) fn prepare_permission_events(
         super::permission_schedule::walk(
             program,
             state,
+            &calls,
             (
                 places,
                 remaining,
@@ -618,61 +619,72 @@ pub(crate) fn record_crash_frontier_lower_bounds(
             proven_conditional_entry_claims(program, state, incoming, &places);
 
         let mut ignored_diagnostics = Vec::new();
-        super::permission_schedule::walk(program, state, places, |step, places| {
-            super::permission_schedule::select_cases(program, state, step, places);
-            match step {
-                super::permission_schedule::PermissionStep::Evaluate {
-                    statement,
-                    evaluation,
-                } => {
-                    if evaluation == checked_trees::FlowPermissionEvaluation::Statement
-                        && let Some((_, receipt)) = facts
-                            .flow
-                            .ownership
-                            .owned_selection_at(state.symbol, statement as u32)
-                    {
-                        owned_selection::apply_availability(&facts.flow.ownership, receipt, places);
-                        return;
-                    }
-                    apply_recorded_statement_events(
-                        program,
-                        facts,
-                        machine,
-                        state,
+        super::permission_schedule::walk(
+            program,
+            state,
+            facts.flow.control.calls.span_or_empty(state_flow.calls),
+            places,
+            |step, places| {
+                super::permission_schedule::select_cases(program, state, step, places);
+                match step {
+                    super::permission_schedule::PermissionStep::Evaluate {
                         statement,
                         evaluation,
-                        &events,
-                        places,
-                        &mut ignored_diagnostics,
-                    );
+                    } => {
+                        if evaluation == checked_trees::FlowPermissionEvaluation::Statement
+                            && let Some((_, receipt)) = facts
+                                .flow
+                                .ownership
+                                .owned_selection_at(state.symbol, statement as u32)
+                        {
+                            owned_selection::apply_availability(
+                                &facts.flow.ownership,
+                                receipt,
+                                places,
+                            );
+                            return;
+                        }
+                        apply_recorded_statement_events(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            statement,
+                            evaluation,
+                            &events,
+                            places,
+                            &mut ignored_diagnostics,
+                        );
+                    }
+                    super::permission_schedule::PermissionStep::Exit {
+                        coordinate,
+                        crash: true,
+                    } => {
+                        let claims = places
+                            .iter()
+                            .filter_map(|place| {
+                                (place.live
+                                    && (!place.conditional
+                                        || place.claim_identity.is_some_and(|identity| {
+                                            proven_conditional_claims.contains(&identity)
+                                        })))
+                                .then_some(place.claim_identity?)
+                                .filter(|identity| *identity != PermissionClaimIdentity::Unknown)
+                            })
+                            .collect();
+                        derived.push(DerivedCrashFrontier {
+                            machine_symbol: state_flow.machine_symbol,
+                            state_symbol: state.symbol,
+                            statement_ordinal: u32::try_from(coordinate.statement_index).expect(
+                                "state-local statement ordinal exceeds checked identity range",
+                            ),
+                            claims,
+                        });
+                    }
+                    _ => {}
                 }
-                super::permission_schedule::PermissionStep::Exit {
-                    coordinate,
-                    crash: true,
-                } => {
-                    let claims = places
-                        .iter()
-                        .filter_map(|place| {
-                            (place.live
-                                && (!place.conditional
-                                    || place.claim_identity.is_some_and(|identity| {
-                                        proven_conditional_claims.contains(&identity)
-                                    })))
-                            .then_some(place.claim_identity?)
-                            .filter(|identity| *identity != PermissionClaimIdentity::Unknown)
-                        })
-                        .collect();
-                    derived.push(DerivedCrashFrontier {
-                        machine_symbol: state_flow.machine_symbol,
-                        state_symbol: state.symbol,
-                        statement_ordinal: u32::try_from(coordinate.statement_index)
-                            .expect("state-local statement ordinal exceeds checked identity range"),
-                        claims,
-                    });
-                }
-                _ => {}
-            }
-        });
+            },
+        );
     }
 
     for contract in &mut facts.contract_plans.machines {

@@ -111,6 +111,7 @@ pub(crate) fn validate_linear_permission_events(
         super::permission_schedule::walk(
             program,
             state,
+            facts.flow.control.calls.span_or_empty(state_flow.calls),
             (
                 places.clone(),
                 owned_selection::SelectionOccurrences::default(),
