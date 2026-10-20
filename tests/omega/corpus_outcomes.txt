@@ -4898,6 +4898,27 @@ fail/facts/unsigned_64bit_wrapping_subtraction_bound_through_target_body_rejecte
 	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `verify_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/unsigned_8bit_bitwise_and_mask_bound_through_call_result_rejected rejected 15698ms expected @b68b96569b6d+wt
+	cannot prove ensures contract for exit from produce_masked at statement 0: result >= 40 && result <= 63
+fail/facts/unsigned_8bit_bitwise_and_mask_bound_through_const_name_rejected rejected 16077ms expected @b68b96569b6d+wt
+	cannot prove requires contract for call verify_masked from main: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_bitwise_and_mask_bound_through_field_rejected rejected 16494ms expected @b68b96569b6d+wt
+	cannot prove requires contract for call verify_masked from main: carrier.masked >= 40 && carrier.masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_bitwise_and_mask_bound_through_local_rejected rejected 16055ms expected @b68b96569b6d+wt
+	cannot prove requires contract for call verify_masked from main: local_masked >= 40 && local_masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_bitwise_and_mask_bound_through_match_join_rejected rejected 14798ms expected @b68b96569b6d+wt
+	cannot prove requires contract for call verify_masked from main: joined >= 40 && joined <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_bitwise_and_mask_bound_through_other_machine_rejected rejected 15471ms expected @b68b96569b6d+wt
+	cannot prove requires contract for call runner from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_bitwise_and_mask_bound_through_other_state_rejected rejected 14248ms expected @b68b96569b6d+wt
+	cannot prove requires contract for call verify_masked from main: forwarded >= 40 && forwarded <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_8bit_bitwise_and_mask_bound_through_parameter_rejected rejected 14048ms expected @b68b96569b6d+wt
+	cannot prove requires contract for call check_param from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_8bit_bitwise_and_mask_bound_through_target_body_rejected rejected 14319ms expected @b68b96569b6d+wt
+	cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/view_extent_after_write_through_call_result_unproved rejected 1061ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_const_name_unproved rejected 1057ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_field_unproved rejected 1058ms expected @86af356b96fb+wt
@@ -9884,6 +9905,15 @@ pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_other_machine_exit 
 pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_other_state_exit checked 21037ms check-target:macos_arm64 @da99a3ccd03e+wt
 pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_parameter_exit checked 21287ms check-target:macos_arm64 @da99a3ccd03e+wt
 pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_target_body_exit checked 21395ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_call_result_exit checked 40000ms check-target:macos_arm64 @b68b96569b6d+wt
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_const_name_exit checked 41513ms check-target:macos_arm64 @b68b96569b6d+wt
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_field_exit checked 41224ms check-target:macos_arm64 @b68b96569b6d+wt
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_local_exit checked 40229ms check-target:macos_arm64 @b68b96569b6d+wt
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_match_join_exit checked 40802ms check-target:macos_arm64 @b68b96569b6d+wt
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_other_machine_exit checked 38815ms check-target:macos_arm64 @b68b96569b6d+wt
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_other_state_exit checked 38391ms check-target:macos_arm64 @b68b96569b6d+wt
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_parameter_exit checked 41314ms check-target:macos_arm64 @b68b96569b6d+wt
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_target_body_exit checked 40913ms check-target:macos_arm64 @b68b96569b6d+wt
 pass/facts/view_extent_after_write_through_call_result_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_const_name_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_field_exit checked 3519ms check-target:macos_arm64 @86af356b96fb+wt
