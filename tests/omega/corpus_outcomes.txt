@@ -5380,6 +5380,9 @@ fail/facts/write_only_borrow_struct_destination_through_target_body_rejected rej
 	exact arithmetic in machine `target_probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `target_probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/write_only_checked_adapter_opaque_call rejected 328ms expected @2ef2ab353498+wt
+	machine `opaque` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
+	machine `lend` state `entry` calls `opaque` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `opaque` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 fail/facts/write_only_target_family_nonhost_observation rejected 331ms expected @2ef2ab353498+wt
 	machine `lend` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/write_only_target_family_opaque_member rejected 268ms expected @2ef2ab353498+wt
