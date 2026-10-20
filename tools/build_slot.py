@@ -38,6 +38,9 @@ import time
 
 DEFAULT_SLOTS = 2
 POLL_SECONDS = 2.0
+# How long an EMPTY slot file must exist before reclaim() treats it as a killed
+# builder rather than one that is mid-write between O_CREAT and its PID write.
+EMPTY_SLOT_GRACE_SECONDS = 10.0
 
 
 def slot_directory(repository):
@@ -82,19 +85,44 @@ def process_alive(pid):
 
 
 def reclaim(directory):
-    """Drop slots whose owner is gone, so a killed build cannot wedge the pool."""
+    """Drop slots whose owner is gone or whose file names no owner at all.
+
+    An empty file is what a builder killed between O_CREAT and writing its PID leaves
+    behind; `int(read_text())` raised ValueError on it, the loop skipped it, and the
+    slot was never reclaimed -- two of those wedge the pool permanently for every lane,
+    because builds are how a lane gets a producer. Unparseable content never names a
+    live owner either. An EMPTY file is only reclaimed once it is older than the grace
+    window: a builder that is writing right now also reads empty for the microseconds
+    between create and write, and reclaiming that would let two builders hold one slot.
+    Reclaiming only unlinks; acquire still takes a slot with O_CREAT|O_EXCL, so a racing
+    builder loses the retry rather than sharing the slot.
+    """
     reclaimed = []
+    now = time.time()
     for entry in directory.glob("slot-*"):
         try:
-            pid = int(entry.read_text().strip())
-        except (OSError, ValueError):
+            text = entry.read_text().strip()
+        except OSError:
             continue
-        if pid and not process_alive(pid):
+        if text:
             try:
-                entry.unlink()
-                reclaimed.append(pid)
+                pid = int(text)
+            except ValueError:
+                pid = 0
+            if pid > 0 and process_alive(pid):
+                continue
+        else:
+            pid = 0
+            try:
+                if now - entry.stat().st_mtime < EMPTY_SLOT_GRACE_SECONDS:
+                    continue
             except OSError:
-                pass
+                continue
+        try:
+            entry.unlink()
+            reclaimed.append(pid)
+        except OSError:
+            pass
     return reclaimed
 
 
