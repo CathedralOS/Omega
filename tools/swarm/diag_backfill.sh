@@ -43,6 +43,13 @@ git fetch origin -q 2>/dev/null
 # one. A backfill lane hit exactly this (its case_equality rows went back to 0/10 in
 # the working tree while recording guarded_line_loan; the commit was safe, the tree
 # was not).
+echo "== operating on: $(pwd) =="
+if [ "$(pwd -P)" = "/Volumes/Crucial/CathedralOS/Omega" ]; then
+  echo "   ABORT: this is the MAIN CHECKOUT. This tool acts on the tree it lives in," >&2
+  echo "   and the main checkout working tree carries an unlanded migration. Copy the" >&2
+  echo "   tool into your own worktree and run it there." >&2
+  exit 2
+fi
 echo "== re-sync goldens from origin/main (once) =="
 git checkout origin/main -- tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt 2>/dev/null
 git checkout origin/main -- tests/omega/corpus_native_macos_arm64.txt 2>/dev/null
