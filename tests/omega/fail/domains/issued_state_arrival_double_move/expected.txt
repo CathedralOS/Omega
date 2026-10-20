@@ -1,1 +1,2 @@
-affine value `resource` was already transferred or consumed
+cannot use `resource`
+after `resource` was transferred or consumed

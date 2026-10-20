@@ -1144,7 +1144,8 @@ fail/control_flow/dispatch_boundary_ordinary_result rejected 39ms expected @58a5
 fail/control_flow/dispatch_boundary_separated_crash rejected 39ms expected @58a5ed816ae5
 fail/control_flow/distinct_constant_aggregate_dispatch_incomplete rejected 175ms expected @2ef2ab353498+wt
 fail/control_flow/implicit_entry_parameter_capture rejected 819ms expected @a9ae30e1c334+wt
-fail/control_flow/linear_result_repeated_successor_arguments rejected 1568ms expected @a9ae30e1c334+wt
+fail/control_flow/linear_result_repeated_successor_arguments rejected 843ms expected @77554b7685c5+wt
+	cannot use `receipt` in machine `main` state `entry` (statement 1) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/control_flow/projected_float_payload_after_guard_mutation rejected 5837ms expected @e03f48653b6a
 fail/control_flow/projected_float_payload_after_negated_guard_mutation rejected 6512ms expected @7c847bad15b6+wt
 fail/control_flow/projected_float_payload_without_case rejected 3076ms expected @e03f48653b6a
@@ -1517,7 +1518,8 @@ fail/domains/issued_predicate_second_operand_mutation rejected 3789ms expected @
 fail/domains/issued_record_bounds_sibling_mutation rejected 619ms expected @de35918cc70a+wt
 fail/domains/issued_record_unknown_branch rejected 880ms expected @de35918cc70a+wt
 fail/domains/issued_record_wrapping_zero rejected 612ms expected @de35918cc70a+wt
-fail/domains/issued_state_arrival_double_move rejected 599ms expected @0e81fb3e4cce+wt
+fail/domains/issued_state_arrival_double_move rejected 695ms expected @77554b7685c5+wt
+	cannot use `resource` in machine `main` state `entry` (statement 1) after `resource` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `resource` first
 fail/domains/issued_state_arrival_mutated rejected 599ms expected @0e81fb3e4cce+wt
 fail/domains/issued_state_arrival_unissued rejected 609ms expected @0e81fb3e4cce+wt
 fail/domains/linear_qualification_reuse_moved_source rejected 5402ms expected @d012ed8f0bae+wt
@@ -1689,7 +1691,8 @@ fail/drops/erased_linear_subject_requires_disposition rejected 789ms expected @4
 fail/drops/generic_cleanup_fixed_owner_cannot_infer_demand rejected 1561ms expected @a9ae30e1c334+wt
 fail/drops/generic_cleanup_incomplete_compound_prerequisite rejected 2085ms expected @a9ae30e1c334+wt
 fail/drops/generic_cleanup_mutated_integer_prerequisite rejected 1993ms expected @a9ae30e1c334+wt
-fail/drops/guarded_record_return_duplicate_move rejected 627ms expected @166de40fb052+wt
+fail/drops/guarded_record_return_duplicate_move rejected 683ms expected @77554b7685c5+wt
+	cannot use `observation` in machine `choose` state `entry` (statement 2) after `observation` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `observation` first
 fail/drops/guarded_record_return_linear_debt rejected 629ms expected @166de40fb052+wt
 fail/drops/local_cleanup_unmet_prerequisite rejected 1531ms expected @a9ae30e1c334+wt
 fail/drops/named_linear_container_abnormal_hook rejected 818ms expected @a9ae30e1c334+wt
@@ -7015,8 +7018,8 @@ fail/providers/provider_type_target_default_conflict rejected 178ms expected @a9
 fail/providers/qualified_foreign_result_forwarding_carrier rejected 1711ms expected @23cea4bf3b2f+wt
 	cannot prove requires contract for call read from wrong: view.protocol in Guid::Selected (invalidated by prior mutation of view.protocol.value; view.protocol.value is part of Guid::Selected) in state `entry`
 	cannot prove ensures contract for exit from wrong at statement 1: result.code == 0
-fail/providers/qualified_foreign_result_forwarding_instance rejected 1714ms expected @23cea4bf3b2f+wt
-	cannot prove requires contract for call read from wrong: value in Coordinate<integer:u64:7> in state `entry`
+fail/providers/qualified_foreign_result_forwarding_instance rejected 905ms expected @77554b7685c5+wt
+	cannot prove requires contract for call read from wrong: value in unmanaged:product::Coordinate<integer:u64:7> in state `entry`
 	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
 fail/providers/qualified_foreign_result_forwarding_missing rejected 1709ms expected @23cea4bf3b2f+wt
 	cannot prove requires contract for call read from wrong: value == 42 (needs fact `value == 42` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -7028,7 +7031,8 @@ fail/providers/qualified_foreign_result_forwarding_written rejected 1690ms expec
 	state `read` receives `protocol` as both mutable and read-only
 	cannot prove requires contract for call read from wrong: protocol in Guid::Selected in state `entry`
 	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
-fail/providers/qualified_state_duplicates_claim rejected 701ms expected @d75fe4ba5012+wt
+fail/providers/qualified_state_duplicates_claim rejected 723ms expected @77554b7685c5+wt
+	cannot use `root` in machine `Main::main` state `main` (statement 1) after `root` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `root` first
 fail/providers/qualified_state_without_issuance rejected 692ms expected @d75fe4ba5012+wt
 fail/providers/returned_write_only_call_observation rejected 352ms expected @001fe6f26d2c
 fail/providers/satisfier_extra_parameter_rejected rejected 1333ms expected @3b422f31da30+wt

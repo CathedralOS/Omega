@@ -1,1 +1,2 @@
-linear value `receipt` was already transferred or consumed; it cannot be moved here
+cannot use `receipt`
+after `receipt` was transferred or consumed

@@ -1,1 +1,2 @@
-cannot prove requires contract for call read from wrong: value in Coordinate<integer:u64:7>
+cannot prove requires contract for call read from wrong: value in
+Coordinate<integer:u64:7>
