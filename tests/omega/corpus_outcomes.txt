@@ -4454,15 +4454,27 @@ fail/facts/signed_64bit_saturating_multiplication_bound_through_other_machine_re
 fail/facts/signed_64bit_saturating_multiplication_bound_through_other_state_rejected rejected 13153ms expected @1febd2fd3f47+wt
 fail/facts/signed_64bit_saturating_multiplication_bound_through_parameter_rejected rejected 13185ms expected @1febd2fd3f47+wt
 fail/facts/signed_64bit_saturating_multiplication_bound_through_target_body_rejected rejected 13308ms expected @1febd2fd3f47+wt
-fail/facts/signed_64bit_saturating_subtraction_bound_through_call_result_rejected rejected 10032ms expected @abd18815d46a+wt
-fail/facts/signed_64bit_saturating_subtraction_bound_through_const_name_rejected rejected 10076ms expected @abd18815d46a+wt
-fail/facts/signed_64bit_saturating_subtraction_bound_through_field_rejected rejected 9958ms expected @abd18815d46a+wt
-fail/facts/signed_64bit_saturating_subtraction_bound_through_local_rejected rejected 9773ms expected @abd18815d46a+wt
-fail/facts/signed_64bit_saturating_subtraction_bound_through_match_join_rejected rejected 9514ms expected @abd18815d46a+wt
-fail/facts/signed_64bit_saturating_subtraction_bound_through_other_machine_rejected rejected 9529ms expected @abd18815d46a+wt
-fail/facts/signed_64bit_saturating_subtraction_bound_through_other_state_rejected rejected 10803ms expected @abd18815d46a+wt
-fail/facts/signed_64bit_saturating_subtraction_bound_through_parameter_rejected rejected 11407ms expected @abd18815d46a+wt
-fail/facts/signed_64bit_saturating_subtraction_bound_through_target_body_rejected rejected 11241ms expected @abd18815d46a+wt
+fail/facts/signed_64bit_saturating_subtraction_bound_through_call_result_rejected rejected 4531ms expected @a5174d1d0f55
+	Exact integer cast in machine `subtract_call_result` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_64bit_saturating_subtraction_bound_through_const_name_rejected rejected 4578ms expected @a5174d1d0f55
+	Exact integer cast in machine `subtract_const` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_64bit_saturating_subtraction_bound_through_field_rejected rejected 4546ms expected @a5174d1d0f55
+	Exact integer cast in machine `subtract_field` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_64bit_saturating_subtraction_bound_through_local_rejected rejected 4553ms expected @a5174d1d0f55
+	Exact integer cast in machine `subtract_local` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_64bit_saturating_subtraction_bound_through_match_join_rejected rejected 4493ms expected @a5174d1d0f55
+	Exact integer cast in machine `subtract_match_join` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_64bit_saturating_subtraction_bound_through_other_machine_rejected rejected 4522ms expected @a5174d1d0f55
+	Exact integer cast in machine `forward_eval` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_64bit_saturating_subtraction_bound_through_other_state_rejected rejected 4504ms expected @a5174d1d0f55
+	Exact integer cast in machine `subtract_other_state` state `check_state` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_64bit_saturating_subtraction_bound_through_parameter_rejected rejected 4499ms expected @a5174d1d0f55
+	Exact integer cast in machine `subtract_param` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_64bit_saturating_subtraction_bound_through_target_body_rejected rejected 4612ms expected @a5174d1d0f55
+	Exact integer cast in machine `subtract_target` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `subtract_target` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `subtract_target` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `subtract_target` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/signed_64bit_wrapping_multiplication_bound_through_call_result_rejected rejected 14967ms expected @7b770f2baf0d+wt
 	cannot prove requires contract for call verify_prod from sat_call_result: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_wrapping_multiplication_bound_through_const_name_rejected rejected 14579ms expected @7b770f2baf0d+wt
