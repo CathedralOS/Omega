@@ -108,7 +108,19 @@ impl Elaborator<'_> {
             validation::mathematical_applications::operand_type_reference(self.program, expression)
         };
         reference
-            .map(|reference| self.elaborate_type_reference(reference))
+            .map(|reference| {
+                self.elaborate_type_reference(reference)
+                    .map_err(|mut diagnostics| {
+                        // Operand formation can run after the authored declaration
+                        // telescope. Its error belongs to this expression, not to
+                        // whichever declaration last populated the ambient span.
+                        for diagnostic in &mut diagnostics {
+                            diagnostic.source_span =
+                                Some(self.program.expression_table.source_span(expression));
+                        }
+                        diagnostics
+                    })
+            })
             .transpose()
     }
 
@@ -145,7 +157,10 @@ impl Elaborator<'_> {
         &mut self,
         reference: TypeReferenceHandle,
     ) -> Result<Option<TermHandle>, Vec<Diagnostic>> {
-        let projected = validation::peel_arithmetic_policy(self.program, reference);
+        let projected = self
+            .program
+            .type_reference_table
+            .unconstrained_type_reference(reference);
         if !matches!(
             self.program.type_reference_table.type_reference(projected),
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Unit
@@ -155,6 +170,11 @@ impl Elaborator<'_> {
         let Some(carrier) = self.scalar_carrier_of_type_reference(projected) else {
             return Ok(None);
         };
+        // Qualification changes the source theory, not the calculus carrier.
+        // Retain the COMPLETE reference in this alias: projection alone must
+        // never make Meters interchangeable with Seconds, or establish a
+        // predicate/issuer membership from an unqualified value. The ordinary
+        // source admission checks still own those obligations.
         // Named nominal carriers keep their own declaration identity. Fixed
         // source carriers need aliases because calculus Int intentionally
         // merges widths and source arithmetic policies.
@@ -305,11 +325,20 @@ impl Elaborator<'_> {
     ) -> Result<bool, Vec<Diagnostic>> {
         let expected = self.source_domain_head(signature, expected, budget)?;
         if let Some(reference) = self.source_alias_reference(expected)
+            && !matches!(
+                self.program
+                    .type_reference_table
+                    .type_reference(validation::peel_arithmetic_policy(self.program, reference)),
+                TypeReferenceNode::Constrained { .. }
+            )
             && let Some(expression) = expression
             && validation::has_anonymous_numeric_results(self.program, expression)
         {
             // Literal landing is a separate source formation judgment. A
             // typed Int or a function never borrows the demanded fixed carrier.
+            // Landing proves representability, never nominal predicates or
+            // issuer provenance. Non-policy qualifications must already agree
+            // through the retained source-domain identity below.
             return Ok(validation::checked_argument_matches_type_reference(
                 self.program,
                 expression,
@@ -348,6 +377,27 @@ impl Elaborator<'_> {
         left: TypeReferenceHandle,
         right: TypeReferenceHandle,
     ) -> bool {
+        // The primitive query deliberately sees through qualification. Its
+        // carrier/policy comparison is sufficient only for policy-only types;
+        // any other theory must retain its exact normalized identity.
+        if matches!(
+            self.program
+                .type_reference_table
+                .type_reference(validation::peel_arithmetic_policy(self.program, left)),
+            TypeReferenceNode::Constrained { .. }
+        ) || matches!(
+            self.program
+                .type_reference_table
+                .type_reference(validation::peel_arithmetic_policy(self.program, right)),
+            TypeReferenceNode::Constrained { .. }
+        ) {
+            return self
+                .program
+                .type_identity(TypeIdentityRequest::ordinary(left))
+                == self
+                    .program
+                    .type_identity(TypeIdentityRequest::ordinary(right));
+        }
         match (
             self.program.primitive_type_reference(left),
             self.program.primitive_type_reference(right),

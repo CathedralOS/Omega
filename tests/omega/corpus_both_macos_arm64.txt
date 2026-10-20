@@ -1014,6 +1014,7 @@ pass/proofs/mathematical_predicate_contract_import_exit built 3407ms exit:0 inte
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit built 2843ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1
 pass/proofs/normal_return_expression_statement_sequence_exit built 3324ms exit:0 interpreter-exit:0 interpreter:agrees @4a6e7ac34b03
 pass/proofs/proof_bag_view_reflexivity built 3431ms exit:0 interpreter-exit:0 interpreter:agrees @6ede3322eb88+wt
+pass/proofs/qualified_scalar_operand_exit built 3889ms exit:0 interpreter-exit:0 interpreter:agrees @69cfefcd2bf1+wt
 pass/proofs/runtime_byte_predicate_state_contract_exit built 1191ms exit:70 interpreter-exit:70 interpreter:agrees @767b982de12c+wt
 pass/proofs/runtime_indexed_field_relations_exit built 3048ms exit:0 interpreter-exit:0 interpreter:agrees @7ba26861e79c+wt
 pass/proofs/runtime_inductive_gauss_sum_exit built 2792ms exit:70 interpreter-exit:70 interpreter:agrees @cba4ef8c9ab1

@@ -6179,15 +6179,30 @@ fail/proofs/kernel_integer_subtract_order_false_twin rejected 309ms expected @1a
 fail/proofs/kernel_theorem_equality_false_twin rejected 841ms expected @a9ae30e1c334+wt
 fail/proofs/linear_range_sum_false_twin rejected 827ms expected @a9ae30e1c334+wt
 fail/proofs/machine_parameterized_runtime_data_rejected rejected 905ms expected @a9ae30e1c334+wt
+fail/proofs/mathematical_distinct_qualified_argument rejected 105ms expected @69cfefcd2bf1+wt
+	invalid mathematical application `meter_identity(value)`: mathematical argument does not preserve its declared carrier and policy
 fail/proofs/mathematical_function_argument_carrier rejected 179ms expected @a9ae30e1c334+wt
-fail/proofs/mathematical_generic_argument_carrier rejected 148ms expected @a9ae30e1c334+wt
-fail/proofs/mathematical_generic_argument_policy rejected 117ms expected @a9ae30e1c334+wt
+fail/proofs/mathematical_generic_argument_carrier rejected 114ms expected @69cfefcd2bf1+wt
+	invalid mathematical application `identity(value)`: mathematical argument does not preserve its declared carrier and policy
+fail/proofs/mathematical_generic_argument_policy rejected 113ms expected @69cfefcd2bf1+wt
+	invalid mathematical application `identity(value)`: mathematical argument does not preserve its declared carrier and policy
 fail/proofs/mathematical_machine_result_mismatched_carriers rejected 715ms expected @3b72a3521c0e+wt
 fail/proofs/mathematical_machine_result_no_denotation rejected 1945ms expected @3b72a3521c0e+wt
 fail/proofs/mathematical_machine_result_requires rejected 816ms expected @3b72a3521c0e+wt
 fail/proofs/mathematical_mutated_capture rejected 249ms expected @8a884ecc43d5+wt
 fail/proofs/mathematical_opaque_operation_source_meaning rejected 1571ms expected @a9ae30e1c334+wt
-fail/proofs/mathematical_result_carrier rejected 153ms expected @a9ae30e1c334+wt
+fail/proofs/mathematical_qualified_literal_argument rejected 106ms expected @69cfefcd2bf1+wt
+	invalid mathematical application `positive_identity(0)`: mathematical argument does not preserve its declared carrier and policy
+fail/proofs/mathematical_qualified_literal_result rejected 106ms expected @69cfefcd2bf1+wt
+	invalid mathematical application `0`: mathematical result does not preserve its declared carrier and policy
+fail/proofs/mathematical_qualified_negation rejected 105ms expected @69cfefcd2bf1+wt
+	invalid mathematical application `0 - value`: mathematical result does not preserve its declared carrier and policy
+fail/proofs/mathematical_result_carrier rejected 106ms expected @69cfefcd2bf1+wt
+	invalid mathematical application `256`: mathematical result does not preserve its declared carrier and policy
+fail/proofs/mathematical_routed_generic_argument rejected 111ms expected @69cfefcd2bf1+wt
+	invalid mathematical application `identity(0)`: mathematical argument does not preserve its declared carrier and policy
+fail/proofs/mathematical_routed_literal_result rejected 105ms expected @69cfefcd2bf1+wt
+	invalid mathematical application `0`: mathematical result does not preserve its declared carrier and policy
 fail/proofs/mathematical_term_in_runtime_arguments rejected 865ms expected @a9ae30e1c334+wt
 fail/proofs/mathematical_wrapping_capture rejected 252ms expected @8a884ecc43d5+wt
 fail/proofs/mutable_ranked_accumulator_wrong_step rejected 3874ms expected @1727c70d2f7e+wt
