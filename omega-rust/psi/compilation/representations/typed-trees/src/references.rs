@@ -38,6 +38,23 @@ pub enum StaticArgumentCall<'call> {
 }
 
 impl<'call> StaticArgumentCall<'call> {
+    /// Both source telescopes belong to the occurrence. Operand-form selection
+    /// shares the invocation ledger; qualifier-form selection owns another one.
+    pub fn applications(
+        &self,
+    ) -> impl Iterator<Item = crate::static_applications::StaticMachineApplicationHandle> + use<>
+    {
+        let invocation = self.application();
+        let selection = self.selection_application();
+        [invocation, selection]
+            .into_iter()
+            .enumerate()
+            .filter_map(move |(index, application)| {
+                (application.is_valid() && (index == 0 || application != invocation))
+                    .then_some(application)
+            })
+    }
+
     /// The exact static map selection is independent of a method invocation's
     /// own type/const/machine operands. A qualifier can supply the former even
     /// when the latter is empty, and specialization must preserve both.

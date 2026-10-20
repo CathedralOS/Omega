@@ -346,13 +346,14 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
         {
             call.native_code_layout = native_query;
         }
-        let (mut arguments, application) = {
+        let (mut arguments, applications) = {
             let ExpressionNode::Call(call) = program.expression_table.expression(handle) else {
                 continue;
             };
             (
                 call.machine_arguments.clone(),
-                call.authored_machine_application,
+                typed_trees::references::StaticArgumentCall::Expression(handle, call)
+                    .applications(),
             )
         };
         if fold_const_arguments(program, &mut arguments) {
@@ -361,7 +362,7 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
             };
             call.machine_arguments = arguments;
         }
-        if application.is_valid() {
+        for application in applications {
             let mut arguments = program
                 .expression_table
                 .static_machine_application_arguments(application)
@@ -393,13 +394,13 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
         }
     }
     for handle in statement_handles {
-        let (mut arguments, application) = {
+        let (mut arguments, applications) = {
             let Some(call) = program.statement_table.statement(handle).as_call() else {
                 continue;
             };
             (
                 call.machine_arguments.clone(),
-                call.authored_machine_application,
+                typed_trees::references::StaticArgumentCall::Statement(call).applications(),
             )
         };
         if fold_const_arguments(program, &mut arguments) {
@@ -408,7 +409,7 @@ pub(crate) fn fold_closed_const_machine_arguments(program: &mut TypedTrees) {
             };
             call.machine_arguments = arguments;
         }
-        if application.is_valid() {
+        for application in applications {
             let mut arguments = program
                 .expression_table
                 .static_machine_application_arguments(application)

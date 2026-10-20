@@ -198,7 +198,9 @@ pub(crate) fn rewrite_cloned_calls(
             );
             let application = call.authored_machine_application;
             let target = call.target.clone();
-            if application.is_valid() {
+            let applications =
+                typed_trees::references::StaticArgumentCall::Statement(call).applications();
+            for application in applications {
                 substitute_forwarded_machine_arguments(
                     program
                         .expression_table
@@ -213,7 +215,10 @@ pub(crate) fn rewrite_cloned_calls(
                     &static_argument_rewrites,
                     &argument_rewrites,
                 );
-            } else if let Some((registration_operation, arguments)) = erased_application {
+            }
+            if !application.is_valid()
+                && let Some((registration_operation, arguments)) = erased_application
+            {
                 let application = program.expression_table.retain_static_machine_application(
                     registration_operation,
                     target,
@@ -326,7 +331,9 @@ pub(crate) fn rewrite_cloned_calls(
         );
         let application = call.authored_machine_application;
         let target = call.target.clone();
-        if application.is_valid() {
+        let applications =
+            typed_trees::references::StaticArgumentCall::Expression(handle, call).applications();
+        for application in applications {
             substitute_forwarded_machine_arguments(
                 program
                     .expression_table
@@ -341,7 +348,10 @@ pub(crate) fn rewrite_cloned_calls(
                 &static_argument_rewrites,
                 &argument_rewrites,
             );
-        } else if let Some((registration_operation, arguments)) = erased_application {
+        }
+        if !application.is_valid()
+            && let Some((registration_operation, arguments)) = erased_application
+        {
             let application = program.expression_table.retain_static_machine_application(
                 registration_operation,
                 target,

@@ -112,7 +112,7 @@ pub(crate) fn instantiate_requirement_applications(
             let arguments = invocation.arguments;
             if arguments.len() != parameters.len() {
                 return Err(vec![Diagnostic::error(
-                    "static method application requires its complete explicit invocation telescope",
+                    "static method application requires its complete invocation telescope",
                 )]);
             }
             // A symbolic call checks the authored universal schema. It does

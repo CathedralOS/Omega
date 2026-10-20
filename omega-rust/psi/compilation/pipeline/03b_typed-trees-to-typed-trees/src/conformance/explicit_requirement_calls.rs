@@ -98,41 +98,42 @@ pub(crate) fn route_explicit_requirement_calls(
         else {
             return;
         };
-        let selection = if program.conformance_by_symbol(qualifier).is_some() {
-            ImplementationSelection::Qualifier(qualifier)
-        } else if arguments
+        let qualified = program.conformance_by_symbol(qualifier).is_some();
+        let has_selection_operand = arguments
             .iter()
-            .any(|argument| argument.names_implementation(&program.symbols))
-        {
+            .any(|argument| argument.names_implementation(&program.symbols));
+        // A qualifier owns the map telescope separately. Without one, only a
+        // final implementation operand can extend the member's static list;
+        // omitted method operands still go through ordinary inference.
+        if (qualified || !has_selection_operand) && arguments.len() > *invocation_arity {
+            let source_span = match occurrence.site {
+                RequirementCallSite::Expression(handle) => {
+                    program.expression_table.source_span(handle)
+                }
+                RequirementCallSite::Statement(handle) => program
+                    .statement_table
+                    .statement(handle)
+                    .as_call()
+                    .map(|call| call.source_span)
+                    .unwrap_or_default(),
+            };
+            let mut message = format!(
+                "`{}` expects {} static invocation argument(s), got {}",
+                program.symbols.display_path(*requirement, "::"),
+                invocation_arity,
+                arguments.len(),
+            );
+            if !qualified {
+                message.push_str("; explicit selection requires a named implementation as the final static argument");
+            }
+            diagnostics.push(Diagnostic::error(message).with_source_span(source_span));
+            return;
+        }
+        let selection = if qualified {
+            ImplementationSelection::Qualifier(qualifier)
+        } else if has_selection_operand {
             ImplementationSelection::StaticOperand
         } else {
-            // With no selected map, these are the requirement's ordinary
-            // method operands. Reject surplus data/const operands here too:
-            // recognizing only implementation-shaped arguments silently let
-            // malformed selections bypass the invocation telescope. Omitted
-            // operands still belong to ordinary inference/completeness checks.
-            if arguments.len() > *invocation_arity {
-                let source_span = match occurrence.site {
-                    RequirementCallSite::Expression(handle) => {
-                        program.expression_table.source_span(handle)
-                    }
-                    RequirementCallSite::Statement(handle) => program
-                        .statement_table
-                        .statement(handle)
-                        .as_call()
-                        .map(|call| call.source_span)
-                        .unwrap_or_default(),
-                };
-                diagnostics.push(
-                    Diagnostic::error(format!(
-                        "`{}` expects {} static invocation argument(s), got {}; explicit selection requires a named implementation as the final static argument",
-                        program.symbols.display_path(*requirement, "::"),
-                        invocation_arity,
-                        arguments.len(),
-                    ))
-                    .with_source_span(source_span),
-                );
-            }
             return;
         };
         calls.push((
@@ -260,6 +261,10 @@ pub(crate) fn route_explicit_requirement_calls(
                 call.target_symbol = rewrite.target;
                 call.target = rewrite.name;
                 call.receiver = receiver;
+                // The checked selection now owns the qualifier's complete
+                // application. It is no longer an applied trait receiver on
+                // this rewritten realization/binder call.
+                call.requirement_application = TypeReferenceHandle::invalid();
                 call.machine_arguments = rewrite.application_arguments;
                 call.static_requirement_dispatch = rewrite.dispatch;
             }
@@ -308,14 +313,69 @@ fn qualified_selection_arguments(
         .expression_table
         .static_machine_application(occurrence.application)
         .lexical_owner;
+    // Applied qualifiers retain their telescope separately from the method's
+    // arguments. Rebuilding a bare symbol here discarded every captured type,
+    // constant and region before ordinary map selection could inspect it.
+    // Applied Unit/discarded calls remain expression carriers from parsing;
+    // a path-only statement has no applied qualifier to recover.
+    let qualifier = match occurrence.site {
+        RequirementCallSite::Expression(handle) => program
+            .expression_table
+            .call_node(handle)
+            .map(|call| call.requirement_application)
+            .unwrap_or_default(),
+        RequirementCallSite::Statement(_) => TypeReferenceHandle::invalid(),
+    };
+    let selected = if qualifier.is_valid() {
+        program
+            .static_operand_from_type_reference(qualifier)
+            .map_err(str::to_owned)?
+    } else {
+        StaticMachineArgument {
+            symbol: implementation,
+            path: Box::from([typed_trees::name::Identifier::generated(
+                program.symbols.name(implementation),
+            )]),
+            ..StaticMachineArgument::default()
+        }
+    };
+    if selected.symbol != implementation {
+        return Err("named implementation qualifier names another map".to_owned());
+    }
+    close_conformance_application(program, &selected).map_err(|diagnostic| diagnostic.message)?;
+    let captures = selected
+        .application
+        .as_ref()
+        .map_or(&[][..], |application| &application.arguments)
+        .iter()
+        .map(|argument| {
+            program
+                .static_operand_type_reference(argument)
+                .map_err(str::to_owned)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let lifetimes = selected
+        .application
+        .as_ref()
+        .map_or(&[][..], |application| &application.lifetime_arguments);
     let conformance = program
         .conformance_by_symbol(implementation)
         .ok_or("named implementation call lost its selected map")?;
     let environment =
-        typed_trees::trait_definition::AppliedTraitScope::from_conformance(program, conformance)
-            .and_then(|scope| scope.declaring_scope(program, declaring_trait))
-            .map(|scope| scope.environment())
-            .ok_or("named implementation call lost its exact declaring application")?;
+        typed_trees::trait_definition::AppliedTraitScope::from_conformance_application(
+            program,
+            conformance,
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner: owner,
+                enclosing_data_applications: &[],
+                arguments: &captures,
+                lifetimes,
+            },
+        )
+        .ok_or("named implementation qualifier does not supply its complete telescope")?
+        .declaring_scope(program, declaring_trait)
+        .map(|scope| scope.environment())
+        .ok_or("named implementation call lost its exact declaring application")?;
     let references = program
         .materialize_trait_application_arguments(&environment)
         .map_err(str::to_owned)?;
@@ -327,13 +387,7 @@ fn qualified_selection_arguments(
                 .map_err(str::to_owned)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    arguments.push(StaticMachineArgument {
-        symbol: implementation,
-        path: Box::from([typed_trees::name::Identifier::generated(
-            program.symbols.name(implementation),
-        )]),
-        ..StaticMachineArgument::default()
-    });
+    arguments.push(selected);
     let requirement_name =
         typed_trees::name::Identifier::generated(program.symbols.name(requirement));
     let application = program.expression_table.retain_static_machine_application(

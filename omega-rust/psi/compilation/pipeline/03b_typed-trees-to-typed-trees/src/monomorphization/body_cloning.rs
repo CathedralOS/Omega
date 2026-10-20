@@ -560,8 +560,9 @@ pub(super) fn clone_single_specialized_machine(
                 for argument in call.machine_arguments.iter_mut() {
                     argument.remap_symbols(realized);
                 }
-                let application = call.authored_machine_application;
-                if application.is_valid() {
+                let applications =
+                    typed_trees::references::StaticArgumentCall::Statement(call).applications();
+                for application in applications {
                     for argument in program
                         .expression_table
                         .static_machine_application_arguments_mut(application)
@@ -685,8 +686,9 @@ pub(super) fn clone_single_specialized_machine(
                 continue;
             };
             let mut arguments = call.machine_arguments.clone();
-            let application = call.authored_machine_application;
-            if application.is_valid() {
+            let applications =
+                typed_trees::references::StaticArgumentCall::Statement(call).applications();
+            for application in applications {
                 let mut authored_arguments = program
                     .expression_table
                     .static_machine_application_arguments(application)
@@ -1065,14 +1067,15 @@ pub(super) fn copy_cloned_expression_type_payloads(
                 handle,
                 call.machine_arguments.clone(),
                 call.native_code_layout.clone(),
-                call.authored_machine_application,
+                typed_trees::references::StaticArgumentCall::Expression(handle, call)
+                    .applications(),
                 call.requirement_application,
                 call.exact_coercion_target,
             )),
             _ => None,
         })
         .collect::<Vec<_>>();
-    for (handle, mut arguments, mut native_query, application, requirement, coercion_target) in
+    for (handle, mut arguments, mut native_query, applications, requirement, coercion_target) in
         calls
     {
         // These are type-table payloads too: the applied trait qualifier and
@@ -1080,7 +1083,7 @@ pub(super) fn copy_cloned_expression_type_payloads(
         // the generic template whose expression tree was copied.
         let requirement = copy_type_reference(source, program, requirement, symbols);
         let coercion_target = copy_type_reference(source, program, coercion_target, symbols);
-        if application.is_valid() {
+        for application in applications {
             let mut authored_arguments = program
                 .expression_table
                 .static_machine_application_arguments(application)

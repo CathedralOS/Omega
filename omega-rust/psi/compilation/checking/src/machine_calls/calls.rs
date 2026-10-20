@@ -698,7 +698,7 @@ fn validate_value_call_arguments(
     callee_state: &State,
     executes: bool,
     diagnostics: &mut Vec<Diagnostic>,
-    static_arguments: &[typed_trees::expression::StaticMachineArgument],
+    call: &typed_trees::expression::TableCallExpression,
 ) {
     // (The void-callee-in-value-position check lives in report_void_value_callee:
     // it consults the resolved state's return type AND the callee machine's
@@ -707,7 +707,22 @@ fn validate_value_call_arguments(
 
     // Reject incomplete bindings before type substitution or precondition
     // instantiation can zip arguments against the declared parameters.
-    let parameters = program.state_parameters(callee_state);
+    let selected_signature = if call.static_requirement_dispatch.is_some() {
+        let Some(signature) = program.requirement_call_signature(current_machine.symbol, call)
+        else {
+            diagnostics.push(Diagnostic::error(
+                "selected implementation call lost its exact public signature",
+            ));
+            return;
+        };
+        Some(signature)
+    } else {
+        None
+    };
+    let parameters = selected_signature.map_or_else(
+        || program.state_parameters(callee_state),
+        |signature| program.state_signature_parameters(signature),
+    );
     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
         && program
             .typed_program()
@@ -721,7 +736,7 @@ fn validate_value_call_arguments(
             current_machine.name,
             callee_machine.name,
             callee_state.name,
-            static_arguments,
+            call.machine_arguments,
             program
                 .typed_program()
                 .executable_application_template(callee_machine.symbol)
@@ -736,13 +751,16 @@ fn validate_value_call_arguments(
         return;
     }
 
-    let Some(type_bindings) = type_arguments::call_type_arguments(
+    // The selected public view already applies the map's captured telescope
+    // and the member invocation. Re-inferring against an open private body
+    // would compare unrelated binders with identical diagnostic names.
+    let Some(mut type_bindings) = type_arguments::call_type_arguments(
         program,
         current_machine,
         Some(current_state),
         callee_machine,
         callee_state,
-        static_arguments,
+        &call.machine_arguments,
         arguments,
     ) else {
         diagnostics.push(Diagnostic::error(format!(
@@ -751,6 +769,9 @@ fn validate_value_call_arguments(
         )));
         return;
     };
+    if selected_signature.is_some() {
+        type_bindings.clear();
+    }
     // Short-circuit operands remain statically checked, but an invocation
     // that cannot execute has no runtime precondition obligation.
     if executes {

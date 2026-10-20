@@ -70,9 +70,21 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
         return true;
     }
     if !call.target_symbol.is_valid()
-        || !call.carries_only_positional_arguments()
-        || !call.selects_only_nominal_route()
+        || call.quotient_operation.is_some()
+        || call.private_layout_operation.is_some()
+        || call.layout_query.is_some()
+        || call.native_code_layout.is_some()
     {
+        return false;
+    }
+    // Classify the logical result, not the private executable's source shape.
+    // A selected map and a boundary invocation share the same prepared public
+    // signature. Static/evidence operands still undergo ordinary call checking;
+    // having them does not turn a Unit statement into a value use.
+    if let Some(signature) = program.requirement_call_signature(machine.symbol, call) {
+        return unit_type(program, signature.return_type);
+    }
+    if call.static_requirement_dispatch.is_some() {
         return false;
     }
     // State spans are disjoint append-only ranges, so a state symbol's
@@ -96,20 +108,11 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
     {
         return unit_type(program, operator.return_type);
     }
-    let signature = match program.machine_parameter_signature(call.target_symbol) {
-        Some((owner, signature)) if owner.symbol == machine.symbol => Some(signature),
-        Some(_) => return false,
-        None => program.requirement_call_signature(machine.symbol, call),
-    };
-    signature.is_some_and(|signature| {
-        let declaration = program
-            .closed_requirement_application(signature.symbol)
-            .map_or(signature.symbol, |application| application.template);
-        program
-            .trait_machine_signature(declaration)
-            .is_some_and(|(definition, _)| definition.is_boundary)
-            && unit_type(program, signature.return_type)
-    })
+    program
+        .machine_parameter_signature(call.target_symbol)
+        .is_some_and(|(owner, signature)| {
+            owner.symbol == machine.symbol && unit_type(program, signature.return_type)
+        })
 }
 
 /// The checker establishes the Build namespace and explicit argument before validation;

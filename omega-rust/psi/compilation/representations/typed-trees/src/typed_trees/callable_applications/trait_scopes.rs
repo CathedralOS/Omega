@@ -52,7 +52,8 @@ impl TypedTrees {
         {
             return Some(signature);
         }
-        Some(outer)
+        (call.static_requirement_dispatch.is_none() || outer.type_parameters.is_empty())
+            .then_some(outer)
     }
 
     fn requirement_outer_signature(
@@ -62,6 +63,32 @@ impl TypedTrees {
         target: SymbolHandle,
     ) -> Option<&signature::StateSignature> {
         let (declaration, signature) = self.trait_machine_signature(target)?;
+        if let Some(dispatch) = &call.static_requirement_dispatch {
+            // A map qualifier supplies an independent outer telescope even
+            // inside an open generic body. Its exact retained selection, not
+            // the realizer's private signature, owns this logical contract.
+            let applications = self.selected_conformance_applications(
+                lexical_owner,
+                dispatch.selection_application,
+                dispatch.requirement,
+                dispatch.application_report_fingerprint,
+                dispatch.application_commitment,
+            );
+            let [application] = applications.as_slice() else {
+                return None;
+            };
+            let scope = application
+                .trait_scope
+                .scope(self)?
+                .declaring_scope(self, declaration.symbol)?;
+            return self
+                .applied_callable_signature(&scope, signature.symbol)
+                .or_else(|| {
+                    (scope.substitutions.is_empty()
+                        && scope.declaration.lifetime_parameters.is_empty())
+                    .then_some(signature)
+                });
+        }
         if call.requirement_application.is_valid() {
             let scope = self
                 .applied_requirement_scope(lexical_owner, call.requirement_application)?
@@ -80,6 +107,7 @@ impl TypedTrees {
         &mut self,
         lexical_owner: SymbolHandle,
         call: &crate::expression::TableCallExpression,
+        bindings: &[crate::static_applications::StaticMachineBinding],
     ) -> Result<Option<signature::StateSignature>, &'static str> {
         let target = call
             .static_requirement_dispatch
@@ -106,9 +134,6 @@ impl TypedTrees {
         else {
             return Ok(None);
         };
-        let bindings = self
-            .expression_table
-            .static_machine_application_bindings(call.authored_machine_application);
         let mut application = CallableApplication {
             region_scope: lexical_owner,
             ..CallableApplication::default()

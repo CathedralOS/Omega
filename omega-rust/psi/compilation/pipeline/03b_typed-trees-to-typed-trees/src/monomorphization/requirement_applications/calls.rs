@@ -5,9 +5,11 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
-    TypedTrees, expression::StaticMachineArgument, trait_definition::AppliedTraitScope,
-    types::TypeReferenceHandle,
+    TypedTrees, expression::StaticMachineArgument, references::StaticArgumentCall,
+    trait_definition::AppliedTraitScope, types::TypeReferenceHandle,
 };
+
+mod invocation_binding_views;
 
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct InvocationTuple {
@@ -19,19 +21,18 @@ pub(super) struct InvocationTuple {
 fn occurrence(
     program: &TypedTrees,
     owner: SymbolHandle,
-    application: typed_trees::static_applications::StaticMachineApplicationHandle,
-    arguments: &[StaticMachineArgument],
+    call: StaticArgumentCall<'_>,
 ) -> InvocationTuple {
+    let application = call.application();
+    let arguments = invocation_binding_views::complete_arguments(program, owner, call)
+        .unwrap_or_else(|| call.arguments(program).to_vec());
     if application.is_valid() {
         InvocationTuple {
             owner: program
                 .expression_table
                 .static_machine_application(application)
                 .lexical_owner,
-            arguments: program
-                .expression_table
-                .static_machine_application_arguments(application)
-                .to_vec(),
+            arguments,
             lifetimes: program
                 .expression_table
                 .static_machine_application_lifetimes(application)
@@ -40,7 +41,7 @@ fn occurrence(
     } else {
         InvocationTuple {
             owner,
-            arguments: arguments.to_vec(),
+            arguments,
             lifetimes: Vec::new(),
         }
     }
@@ -264,12 +265,7 @@ pub(super) fn invocation_tuples(
                         ),
                         TypeReferenceHandle::invalid(),
                         call.static_requirement_dispatch.as_ref(),
-                        occurrence(
-                            program,
-                            machine.symbol,
-                            call.authored_machine_application,
-                            &call.machine_arguments,
-                        ),
+                        occurrence(program, machine.symbol, StaticArgumentCall::Statement(call)),
                     )?;
                 }
                 let mut expressions = Vec::new();
@@ -302,8 +298,7 @@ pub(super) fn invocation_tuples(
                             occurrence(
                                 program,
                                 machine.symbol,
-                                call.authored_machine_application,
-                                &call.machine_arguments,
+                                StaticArgumentCall::Expression(expression, call),
                             ),
                         )?;
                     }
@@ -371,8 +366,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                             &occurrence(
                                 program,
                                 machine.symbol,
-                                call.authored_machine_application,
-                                &call.machine_arguments,
+                                StaticArgumentCall::Statement(call),
                             ),
                         );
                         if selected.is_valid() {
@@ -394,12 +388,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                         call.target_symbol,
                         receiver,
                         TypeReferenceHandle::invalid(),
-                        &occurrence(
-                            program,
-                            machine.symbol,
-                            call.authored_machine_application,
-                            &call.machine_arguments,
-                        ),
+                        &occurrence(program, machine.symbol, StaticArgumentCall::Statement(call)),
                     )?;
                     if selected.is_valid() {
                         statement_updates
@@ -429,8 +418,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                             &occurrence(
                                 program,
                                 machine.symbol,
-                                call.authored_machine_application,
-                                &call.machine_arguments,
+                                StaticArgumentCall::Expression(expression, call),
                             ),
                         );
                         if selected.is_valid() {
@@ -469,8 +457,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                         &occurrence(
                             program,
                             machine.symbol,
-                            call.authored_machine_application,
-                            &call.machine_arguments,
+                            StaticArgumentCall::Expression(expression, call),
                         ),
                     )?;
                     if !selected.is_valid() {
@@ -559,8 +546,12 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
         let Some(call) = program.expression_table.call_node(expression).cloned() else {
             continue;
         };
+        let Some(bindings) = invocation_binding_views::public_bindings(program, owner, &call)?
+        else {
+            continue;
+        };
         if let Some(signature) = program
-            .prepare_requirement_invocation(owner, &call)
+            .prepare_requirement_invocation(owner, &call, &bindings)
             .map_err(|message| vec![Diagnostic::error(message)])?
         {
             let references =

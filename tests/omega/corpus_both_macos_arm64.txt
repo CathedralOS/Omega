@@ -856,6 +856,7 @@ pass/generics/closed_generic_local_field_observation_exit built 3226ms exit:0 in
 pass/generics/contextual_static_machine_const_scopes_exit built 3451ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt
 pass/generics/contextual_static_machine_open_const_exit built 3537ms exit:0 interpreter-exit:0 interpreter:agrees @af65e4684ce5+wt
 pass/generics/open_computed_quantity_result built 17044ms exit:70 interpreter-exit:70 interpreter:agrees @7b786cd56594+wt
+pass/generics/runtime_applied_implementation_qualifier_exit built 4167ms exit:0 interpreter-exit:0 interpreter:agrees @097fbfdea595+wt
 pass/generics/runtime_case_qualified_reference_storage_exit built 2329ms exit:0 interpreter-exit:0 interpreter:agrees @20a60bd05eab+wt
 pass/generics/runtime_closed_case_array_payload_exit built 2379ms exit:0 interpreter-exit:0 interpreter:agrees @baa32bc3a441
 pass/generics/runtime_const_container_methods_exit built 1598ms exit:70 interpreter-exit:70 interpreter:agrees @0c36a0fe0b35

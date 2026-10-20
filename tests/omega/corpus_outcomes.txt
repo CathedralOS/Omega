@@ -5713,6 +5713,20 @@ fail/float/unbounded_result_does_not_prove_guarantee rejected 1369ms expected @9
 fail/float/unguarded_scalar_state_contract rejected 1179ms expected @9c4d1c444502
 fail/generics/applied_array_field_needs_explicit_borrow rejected 77ms expected @d1fa4738e67a+wt
 fail/generics/applied_data_argument_parameter_mismatch rejected 232ms expected @6ef08ceefee0+wt
+fail/generics/applied_implementation_extra_method_argument rejected 69ms expected @097fbfdea595+wt
+	`Operations::read` expects 0 static invocation argument(s), got 1
+fail/generics/applied_implementation_missing_method_argument rejected 110ms expected @097fbfdea595+wt
+	static method application requires its complete invocation telescope
+fail/generics/applied_implementation_qualifier_missing_capture rejected 65ms expected @097fbfdea595+wt
+	generic conformance `Selected` requires 2 explicit non-lifetime argument(s), got 1; expected subject and trait shape never fill its own telescope
+fail/generics/applied_implementation_qualifier_wrong_value rejected 304ms expected @097fbfdea595+wt
+	argument `value` for state `read` expects `bool`, got `integer literal`
+fail/generics/applied_implementation_unit_requires rejected 714ms expected @097fbfdea595+wt
+	cannot prove requires contract for call put from main: 0 > 0 (needs fact `count > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/generics/applied_implementation_unit_value rejected 305ms expected @097fbfdea595+wt
+	machine `main` state `entry`: `replace(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
+fail/generics/applied_implementation_unused_method_carrier rejected 250ms expected @097fbfdea595+wt
+	const argument `300` for `Selected::constant$specialized$73462c8d66260eaf$0::Extra` does not fit `u8`
 fail/generics/applied_payload_field_needs_case_membership rejected 3952ms expected @c48489ea6ad6
 fail/generics/applied_result_distinct_declaration_mismatch rejected 343ms expected @7c0518fd7afd+wt
 fail/generics/attached_machine_unresolved_extent rejected 869ms expected @a9ae30e1c334+wt
@@ -10982,6 +10996,7 @@ pass/generics/omitted_fixed_domain_array_equation checked 3667ms @a9ae30e1c334+w
 pass/generics/open_computed_quantity_result checked 24313ms check-target:macos_arm64 @f6326ba5a76f
 pass/generics/open_value_case_constructor_checked checked 19660ms check-target:macos_arm64 @c0ec033db8e0+wt
 pass/generics/ranged_const_parameter_attached_shape checked 15081ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_applied_implementation_qualifier_exit checked 4126ms check-target:macos_arm64 @097fbfdea595+wt
 pass/generics/runtime_borrowed_value_inference_exit checked 16121ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_captured_map_borrowed_type checked 17222ms check-target:macos_arm64 @4730b1ac8a84
 pass/generics/runtime_captured_map_const_body checked 14987ms check-target:macos_arm64 @4730b1ac8a84
