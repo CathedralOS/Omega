@@ -1168,14 +1168,21 @@ when the cache sits on the system volume). Change the setting, then verify with
 `mbx doctor`.
 
 Changing `cache_dir` strands the old target directories, because a worktree's
-`target` is a symlink into `<cache_dir>/targets/v1/<hash>`. After a move the
-existing link names the old cache; once that area is collected the link is
-broken and `mbx` refuses with `Caused by: Not a directory (os error 20)` before
-compiling anything — measured in this wave, on a worktree whose link named one
-of the `2 live` target directories the GC had just removed. Remove the stale
-link (`rm target`; it is ignored scratch and no source is touched), let the next
-`mbx` invocation recreate it under the new cache, and rebuild: the collected
-target directories took every binary with them.
+`target` is a symlink into `<cache_dir>/targets/v1/<hash>`. Three states then
+produce the same failure — a build or gate refusing with `Caused by: Not a
+directory (os error 20)` before compiling anything — and one remedy covers all
+three: remove `target` (it is ignored scratch; no source is touched), let the
+next `mbx` invocation recreate it under the new cache, and rebuild, because the
+collected target directories took every binary with them.
+
+- **A symlink into the old cache**, whose target area the GC then collected —
+  measured here, on a worktree whose link named one of the `2 live` target
+  directories the GC had just removed; `rm target` and the next `mbx` run
+  recreated the link under the new cache.
+- **Absent** — already removed, or never created; `mbx` creates it.
+- **A plain empty directory**, which `mbx` never replaces with its link:
+  measured by the discovery lane, where `cargo` failed with the same `Not a
+  directory (os error 20)` until `rmdir target` and a rebuild.
 
 Moving a cache between volumes has its own trap. macOS ships `openrsync` as
 `/usr/bin/rsync`: it rejects GNU-only flags such as `--info=...` by printing
