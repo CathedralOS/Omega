@@ -3,6 +3,8 @@
 Fact: 32-bit signed bitwise XOR raw ^ 15i32 with bounded interval 40i32 <= xored <= 63i32 establishes 40i32 <= xored <= 63i32 across all nine places so exact subtractions 63i32 - xored and xored - 40i32 are safe.
 
 Owning Task: `BITWISE-OPERATORS` / `SIGNED-BITWISE-XOR-BOUND` (`TASKS.md`)
+Claim Ticket: `b58885870ca04780aa168e6dfdfbf887` (`antigravity/w34-2`)
+Obligation Class: Contract precondition (`requires v >= 40i32 && v <= 63i32` / `requires param_res >= 40i32 && param_res <= 63i32` / `requires first >= 40i32 && first <= 63i32 && second >= 40i32 && second <= 63i32` / `requires forwarded_res >= 40i32 && forwarded_res <= 63i32` / `requires val >= 40i32 && val <= 63i32`)
 
 Every positive place and reject twin tests a 32-bit signed bitwise XOR operation (`let xored: i32 = raw ^ 15i32;`) where `raw: i32` is bounded in `[59, 59]`.
 Because `raw <= 59` and `15` is a 4-bit non-negative integer ($2^4 - 1 = 15$), the bitwise XOR sets no bit at or above bit 6 ($2^6 = 64$), establishing the upper bound `xored <= 63i32` via bit-width interval arithmetic on non-negative operands.
@@ -13,18 +15,18 @@ Subtracting `23i32` evaluates `23 - 23 = 0i32`, terminating with exit 0.
 
 ## Places
 
-| Place | Positive Program | Reject Twin (invalid) | Transport Mechanism |
-| --- | --- | --- | --- |
-| root | [`main.omg`](main.omg) | — | canonical root witness establishing bounded signed XOR interval and evaluating dual margin subtractions |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | 32-bit signed XOR result is copied into a local binding before verification |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | 32-bit signed XOR result is stored into and read from a record field before verification |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | 32-bit signed XOR result is passed as an explicit machine parameter before verification |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | 32-bit signed XOR result is returned from a dedicated helper machine |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match expression unify the bounded 32-bit signed XOR value |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant supplies the signed XOR mask operand |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the bounded 32-bit signed XOR value into a successor state |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an independent forwarding machine transports the bounded 32-bit signed XOR value |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target provides a target-scoped machine body performing signed bitwise XOR and verification |
+| Place | Positive Program | Reject Twin (invalid) | Pinned Corpus Pass | Pinned Corpus Fail | Transport Mechanism |
+| --- | --- | --- | --- | --- | --- |
+| root | [`main.omg`](main.omg) | — | — | — | canonical root witness establishing bounded signed XOR interval and evaluating dual margin subtractions |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_bitwise_xor_bound_through_local_exit` | `tests/omega/fail/facts/signed_32bit_bitwise_xor_bound_through_local_rejected` | 32-bit signed XOR result is copied into a local binding before verification |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_bitwise_xor_bound_through_field_exit` | `tests/omega/fail/facts/signed_32bit_bitwise_xor_bound_through_field_rejected` | 32-bit signed XOR result is stored into and read from a record field before verification |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_bitwise_xor_bound_through_parameter_exit` | `tests/omega/fail/facts/signed_32bit_bitwise_xor_bound_through_parameter_rejected` | 32-bit signed XOR result is passed as an explicit machine parameter before verification |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_bitwise_xor_bound_through_call_result_exit` | `tests/omega/fail/facts/signed_32bit_bitwise_xor_bound_through_call_result_rejected` | 32-bit signed XOR result is returned from a dedicated helper machine |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_bitwise_xor_bound_through_match_join_exit` | `tests/omega/fail/facts/signed_32bit_bitwise_xor_bound_through_match_join_rejected` | both arms of a match expression unify the bounded 32-bit signed XOR value |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_bitwise_xor_bound_through_const_name_exit` | `tests/omega/fail/facts/signed_32bit_bitwise_xor_bound_through_const_name_rejected` | named constant supplies the signed XOR mask operand |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_bitwise_xor_bound_through_other_state_exit` | `tests/omega/fail/facts/signed_32bit_bitwise_xor_bound_through_other_state_rejected` | a state transition carries the bounded 32-bit signed XOR value into a successor state |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_bitwise_xor_bound_through_other_machine_exit` | `tests/omega/fail/facts/signed_32bit_bitwise_xor_bound_through_other_machine_rejected` | an independent forwarding machine transports the bounded 32-bit signed XOR value |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `tests/omega/pass/facts/signed_32bit_bitwise_xor_bound_through_target_body_exit` | `tests/omega/fail/facts/signed_32bit_bitwise_xor_bound_through_target_body_rejected` | each hosted target provides a target-scoped machine body performing signed bitwise XOR and verification |
 
 ## Execution
 
@@ -54,7 +56,7 @@ The bitwise XOR interval arithmetic proves `xored <= 63i32` from `raw in [59, 59
 Subsequent exact subtractions in `verify_xored` (`headroom = 63i32 - res = 11i32` and `margin = res - 40i32 = 12i32`) evaluate to `11i32 + 12i32 = 23i32`.
 Subtracting `23i32` evaluates `23 - 23 = 0i32`.
 The transition guard `res == 0i32` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
-If signed bitwise XOR evaluation or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
+If signed bitwise XOR evaluation or verification arithmetic is corrupted (for example, perturbing `transition res == 0i32` to `transition res == 1i32` in `main.omg`), the guard fails and transitions to `bad() { crash Trap; }`, causing both engines to trap (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 
 ### Invalid controls and reject twins
 
