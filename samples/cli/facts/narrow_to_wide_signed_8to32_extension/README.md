@@ -18,8 +18,34 @@
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped implementations across all four platforms perform sign extension and interval subtractions |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
-`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
-`Expected exit: 0`.
+`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
+authored `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
+
+## Pinned fixtures
+
+The nine positive places and nine reject twins are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/narrow_to_wide_signed_8to32_extension_through_local_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_8to32_extension_through_field_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_8to32_extension_through_parameter_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_8to32_extension_through_call_result_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_8to32_extension_through_match_join_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_8to32_extension_through_const_name_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_8to32_extension_through_other_state_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_8to32_extension_through_other_machine_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_8to32_extension_through_target_body_exit/`
+- **Fail fixtures (`expected.txt` = `not provably representable`):**
+  - `tests/omega/fail/facts/narrow_to_wide_signed_8to32_extension_through_local_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_8to32_extension_through_field_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_8to32_extension_through_parameter_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_8to32_extension_through_call_result_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_8to32_extension_through_match_join_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_8to32_extension_through_const_name_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_8to32_extension_through_other_state_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_8to32_extension_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_8to32_extension_through_target_body_rejected/`
+
+`tests/omega/corpus_native_windows_x86_64.txt` records nine real `built ... exit:0` rows, one per place, and `tests/omega/corpus_outcomes.txt` records all 18 pass and fail outcomes.
 
 ## Execution
 
@@ -47,14 +73,26 @@ The recorded 0 exit is discriminating:
 - Sign-extending to `i32` (`let wide: i32 = narrow as i32`) statically preserves the exact value interval `[30i32, 100i32]`.
 - Consuming exact subtractions `let headroom: i32 = 100i32 - wide` (`40i32`) and `let margin: i32 = wide - 30i32` (`30i32`) evaluate to non-negative quantities bounded in `[0i32, 70i32]`.
 - Exact unsigned casts `let check_h: u32 = headroom as u32` and `let check_m: u32 = margin as u32` verify non-negative headroom/margin bounds without underflow or overflow.
-- At runtime, `wide == 60i32 && headroom + margin == 70i32 && check_h + check_m == 70u32` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy.
-- Each invalid twin widens the `narrow` bound to `narrow <= 101i8`, allowing `wide` to take value `101i32 > 100i32`. The headroom subtraction `100i32 - wide` yields `-1i32`, which fails closed at compile time during exact conversion to `u32` with diagnostic `Exact integer cast ... from \`i32\` to \`u32\` is not provably representable`. None reaches native execution.
+- At runtime, `wide == 60i32 && headroom + margin == 70i32 && check_h + check_m == 70u32` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy. A 1-token perturbation of the demanded result in `main` (`transition res == 0` to `transition res == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- Each invalid twin widens the `narrow` bound to `narrow <= 101i8`, allowing `wide` to take value `101i32 > 100i32`. The headroom subtraction `100i32 - wide` yields `-1i32`, which fails closed at compile time under the **Exact integer cast representability** obligation class during exact conversion to `u32` with diagnostic `Exact integer cast ... from \`i32\` to \`u32\` is not provably representable`. None reaches native execution.
 
 Check all nine invalid twins with:
 
 ```sh
 omega --check samples/cli/facts/narrow_to_wide_signed_8to32_extension/<place>/invalid/main.omg
 ```
+
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
 
 ### Acceptance Gate
 

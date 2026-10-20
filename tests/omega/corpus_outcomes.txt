@@ -3208,6 +3208,27 @@ fail/facts/narrow_to_wide_signed_16to64_extension_through_target_body_rejected r
 	cannot prove requires contract for call verify_wide from ext_target: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_wide from ext_target: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_wide from ext_target: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_8to32_extension_through_call_result_rejected rejected 11606ms expected @face07c7cf97+wt
+	Exact integer cast in machine `extend_call_result` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_signed_8to32_extension_through_const_name_rejected rejected 11548ms expected @face07c7cf97+wt
+	Exact integer cast in machine `extend_const` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_signed_8to32_extension_through_field_rejected rejected 11645ms expected @face07c7cf97+wt
+	Exact integer cast in machine `extend_field` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_signed_8to32_extension_through_local_rejected rejected 11776ms expected @face07c7cf97+wt
+	Exact integer cast in machine `extend_local` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_signed_8to32_extension_through_match_join_rejected rejected 12457ms expected @face07c7cf97+wt
+	Exact integer cast in machine `extend_match_join` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_signed_8to32_extension_through_other_machine_rejected rejected 12271ms expected @face07c7cf97+wt
+	Exact integer cast in machine `forward_eval` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_signed_8to32_extension_through_other_state_rejected rejected 11062ms expected @face07c7cf97+wt
+	Exact integer cast in machine `extend_other_state` state `check_state` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_signed_8to32_extension_through_parameter_rejected rejected 11227ms expected @face07c7cf97+wt
+	Exact integer cast in machine `extend_param` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_signed_8to32_extension_through_target_body_rejected rejected 11180ms expected @face07c7cf97+wt
+	Exact integer cast in machine `extend_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `extend_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `extend_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+	Exact integer cast in machine `extend_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/narrow_to_wide_signed_8to64_extension_through_call_result_rejected rejected 12768ms expected @da99a3ccd03e+wt
 	cannot prove requires contract for call verify_wide from compute_call_result: transported >= 30 && transported <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/narrow_to_wide_signed_8to64_extension_through_const_name_rejected rejected 12673ms expected @da99a3ccd03e+wt
@@ -8510,6 +8531,15 @@ pass/facts/narrow_to_wide_signed_16to64_extension_through_other_machine_exit che
 pass/facts/narrow_to_wide_signed_16to64_extension_through_other_state_exit checked 41237ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/narrow_to_wide_signed_16to64_extension_through_parameter_exit checked 41704ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/narrow_to_wide_signed_16to64_extension_through_target_body_exit checked 39246ms check-target:macos_arm64 @9a273b151c31+wt
+pass/facts/narrow_to_wide_signed_8to32_extension_through_call_result_exit checked 38211ms check-target:macos_arm64 @face07c7cf97+wt
+pass/facts/narrow_to_wide_signed_8to32_extension_through_const_name_exit checked 39507ms check-target:macos_arm64 @face07c7cf97+wt
+pass/facts/narrow_to_wide_signed_8to32_extension_through_field_exit checked 41212ms check-target:macos_arm64 @face07c7cf97+wt
+pass/facts/narrow_to_wide_signed_8to32_extension_through_local_exit checked 40015ms check-target:macos_arm64 @face07c7cf97+wt
+pass/facts/narrow_to_wide_signed_8to32_extension_through_match_join_exit checked 38864ms check-target:macos_arm64 @face07c7cf97+wt
+pass/facts/narrow_to_wide_signed_8to32_extension_through_other_machine_exit checked 40506ms check-target:macos_arm64 @face07c7cf97+wt
+pass/facts/narrow_to_wide_signed_8to32_extension_through_other_state_exit checked 40336ms check-target:macos_arm64 @face07c7cf97+wt
+pass/facts/narrow_to_wide_signed_8to32_extension_through_parameter_exit checked 40021ms check-target:macos_arm64 @face07c7cf97+wt
+pass/facts/narrow_to_wide_signed_8to32_extension_through_target_body_exit checked 39135ms check-target:macos_arm64 @face07c7cf97+wt
 pass/facts/narrow_to_wide_signed_8to64_extension_through_call_result_exit checked 30824ms check-target:macos_arm64 @da99a3ccd03e+wt
 pass/facts/narrow_to_wide_signed_8to64_extension_through_const_name_exit checked 30817ms check-target:macos_arm64 @da99a3ccd03e+wt
 pass/facts/narrow_to_wide_signed_8to64_extension_through_field_exit checked 30843ms check-target:macos_arm64 @da99a3ccd03e+wt
