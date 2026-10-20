@@ -2887,6 +2887,7 @@ fail/facts/ieee_float_ordered_comparison_through_target_body_rejected rejected 1
 	cannot prove requires contract for call verify_window from probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_window from probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/ieee_guard_i32_from_f64_call_result_invalid rejected 4433ms expected @1cf00aa9ba90+wt
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `supply(value)` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/facts/ieee_guard_i32_from_f64_const_name_invalid rejected 3605ms expected @407ce3afb469
 	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/facts/ieee_guard_i32_from_f64_field_invalid rejected 10967ms expected @4e77584323e4
