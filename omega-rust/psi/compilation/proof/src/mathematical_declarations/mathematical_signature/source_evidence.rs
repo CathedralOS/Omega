@@ -42,8 +42,47 @@ impl Elaborator<'_> {
         }
         let machines = self.program.machines().to_vec();
         for machine in &machines {
-            self.source_owner = machine.symbol;
             self.scope.clear();
+            // Runtime states without source-family occurrences need no calculus
+            // telescope. In particular, unrelated prepared scalar temporaries
+            // must not become mathematical declaration admission requests.
+            let states = self
+                .program
+                .machine_states(machine)
+                .iter()
+                .filter_map(|state| {
+                    let references = self
+                        .program
+                        .state_parameters(state)
+                        .iter()
+                        .map(|parameter| parameter.type_reference)
+                        .chain(
+                            self.program
+                                .statement_table
+                                .statements(state.statement_nodes)
+                                .iter()
+                                .filter_map(|statement| {
+                                    if let typed_trees::statement::StatementNode::LocalData(local) =
+                                        statement
+                                    {
+                                        Some(local.type_reference)
+                                    } else {
+                                        None
+                                    }
+                                }),
+                        )
+                        .collect::<Vec<_>>();
+                    references
+                        .iter()
+                        .any(|reference| self.known_source_family(*reference))
+                        .then_some((state, references))
+                })
+                .collect::<Vec<_>>();
+            if states.is_empty() {
+                continue;
+            }
+            self.source_owner = machine.symbol;
+            self.span = self.program.symbols.symbol_source_span(machine.symbol);
             let binders = self.program.machine_type_parameters(machine).to_vec();
             if binders
                 .iter()
@@ -59,7 +98,7 @@ impl Elaborator<'_> {
                 self.push_scope(Some(binder.symbol), binder.name.clone(), domain);
             }
             let machine_depth = self.scope.len();
-            for state in self.program.machine_states(machine) {
+            for (state, references) in states {
                 self.scope.truncate(machine_depth);
                 for parameter in self.program.state_parameters(state) {
                     if self
@@ -70,31 +109,11 @@ impl Elaborator<'_> {
                                 || primitive.integer_bounds().is_some()
                         })
                     {
-                        let domain = self.elaborate_type_reference(parameter.type_reference)?;
+                        let domain =
+                            self.elaborate_source_operand_type(parameter.type_reference)?;
                         self.push_scope(Some(parameter.symbol), parameter.name.clone(), domain);
                     }
                 }
-                let references = self
-                    .program
-                    .state_parameters(state)
-                    .iter()
-                    .map(|parameter| parameter.type_reference)
-                    .chain(
-                        self.program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .iter()
-                            .filter_map(|statement| {
-                                if let typed_trees::statement::StatementNode::LocalData(local) =
-                                    statement
-                                {
-                                    Some(local.type_reference)
-                                } else {
-                                    None
-                                }
-                            }),
-                    )
-                    .collect::<Vec<_>>();
                 for reference in references {
                     if !self.known_source_family(reference)
                         || self
