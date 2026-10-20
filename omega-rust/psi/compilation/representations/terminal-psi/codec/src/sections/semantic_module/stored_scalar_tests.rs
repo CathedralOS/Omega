@@ -658,6 +658,24 @@ fn shared_storage_view_may_observe_without_field_membership() {
 }
 
 #[test]
+fn shared_atomic_view_cannot_weaken_source_field_membership() {
+    let mut changed =
+        reinterpreted_record_module(terminal_psi::StructuralAccess::SharedBorrow, false);
+    let scalar = changed.machines[0].parameters[0].scalar_type;
+    let StructuralTypeShape::Record { fields, .. } = &mut changed.structural_types[3].shape else {
+        unreachable!()
+    };
+    fields[0].field_type = terminal_psi::StructuralFieldType::Atomic(scalar);
+    let failure = decode_module(&encode_raw(&changed).unwrap()).unwrap_err();
+    assert!(
+        failure
+            .to_string()
+            .contains("storage reinterpretation lacks scalar field membership correspondence"),
+        "{failure}"
+    );
+}
+
+#[test]
 fn scalar_field_catalog_checks_every_matching_declaration() {
     let mut original = module();
     original.identities = identity_table(10);

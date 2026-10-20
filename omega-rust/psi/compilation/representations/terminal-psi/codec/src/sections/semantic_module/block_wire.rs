@@ -325,7 +325,13 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::EstablishStructuralArray { elements } => {
             value_operations::encode_establish_structural_array(writer, elements)?
         }
-        OperationKind::EstablishActivationClaim { bound, committed, backing_type, established_case, rejected_case } => {
+        OperationKind::EstablishActivationClaim {
+            bound,
+            committed,
+            backing_type,
+            established_case,
+            rejected_case,
+        } => {
             writer.u8(operation_tags::ESTABLISH_ACTIVATION_CLAIM);
             writer.u64(bound);
             writer.id(committed);
@@ -337,7 +343,11 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             writer.u8(operation_tags::RELEASE_ACTIVATION_CLAIM);
             writer.id(source.place);
             super::structural_signature_wire::encode_structural_access(writer, source.access);
-            super::structural_place_wire::encode_structural_path(writer, "activation claim release", &source.path)?;
+            super::structural_place_wire::encode_structural_path(
+                writer,
+                "activation claim release",
+                &source.path,
+            )?;
             writer.id(claim);
         }
         OperationKind::EstablishScalarArray { elements } => {
@@ -945,9 +955,11 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
             )?
         }
         operation_tags::ESTABLISH_ACTIVATION_CLAIM => OperationKind::EstablishActivationClaim {
-            bound: reader.u64()?, committed: reader.id("ValueId")?,
+            bound: reader.u64()?,
+            committed: reader.id("ValueId")?,
             backing_type: reader.id("StructuralTypeId")?,
-            established_case: reader.id("StructuralCaseId")?, rejected_case: reader.id("StructuralCaseId")?,
+            established_case: reader.id("StructuralCaseId")?,
+            rejected_case: reader.id("StructuralCaseId")?,
         },
         operation_tags::RELEASE_ACTIVATION_CLAIM => OperationKind::ReleaseActivationClaim {
             source: terminal_psi::StructuralArgument {

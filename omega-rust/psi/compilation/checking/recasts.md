@@ -19,6 +19,13 @@ execution remains a separate limitation, pinned under
 `tests/omega/pending/atomics/standalone_reference_access`; atomic record views
 with unchanged physical declarations execute through ordinary atomic events.
 
+Terminal's explicit byte-offset aggregate route admits only recursively plain
+storage, including when its source is a `u8` endpoint. The endpoint grants byte
+geometry, not atomic mutation or embedded-descriptor authority. This is the
+route's supported subset, not a language prohibition on exclusive or atomic
+recasts whose operation authority is retained. A shared target may forget field
+membership only when its reachable contents have no shared mutation.
+
 Domain-owned `read by` and `written by` clauses are not implemented by this
 qualification repair. Their restrictions must survive erasure when that policy
 is admitted; predicate/issuer vacuity is not evidence of unrestricted access.

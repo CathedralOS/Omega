@@ -128,7 +128,8 @@ fn storage_field(
 /// An explicit byte-offset interpretation retains geometry, not a scalar-field
 /// origin correspondence. It cannot introduce target membership or lend away
 /// a writable source invariant. Exact ordinary record references retain their
-/// declaration; shared views into a bare target may only forget observations.
+/// declaration; shared views into a bare, nonmutating target may only forget
+/// observations. Shared atomic/descriptor targets are not read-only views.
 pub(super) fn validate_storage_interpretation(
     module: &TerminalModule,
     source: semantic_vocabulary::StructuralTypeId,
@@ -140,9 +141,10 @@ pub(super) fn validate_storage_interpretation(
     else {
         return malformed("scalar field storage interpretation lost its reference type");
     };
-    if contains_membership(module, *referent)?
-        || access != terminal_psi::StructuralAccess::SharedBorrow
-            && contains_membership(module, source)?
+    let read_only = access == terminal_psi::StructuralAccess::SharedBorrow
+        && terminal_semantics::shared_mutation(module.structural_types.iter(), *referent, &[])
+            == terminal_semantics::SharedMutation::None;
+    if contains_membership(module, *referent)? || !read_only && contains_membership(module, source)?
     {
         return malformed("storage reinterpretation lacks scalar field membership correspondence");
     }

@@ -671,15 +671,18 @@ pub fn reference_storage_source_compatible<'types>(
                 && reference_storage_view_is_compatible(stored, *logical)
         }
         (None, terminal_psi::record_or_fixed_array_shape_pattern!()) => {
-            byte_endpoint
-                || plain_storage(types.clone(), source, &mut Vec::new())
-                    && plain_storage(types.clone(), *referent, &mut Vec::new())
-                    && crate::reference_storage_layout(types.clone(), source).is_some_and(
-                        |layout| {
-                            Some(layout)
-                                == crate::reference_storage_layout(types.clone(), *referent)
-                        },
-                    )
+            // A byte endpoint supplies geometry, not the authority carried by
+            // atomic cells or embedded descriptors. Both source routes retain
+            // the same closed plain-storage receiving boundary.
+            plain_storage(types.clone(), *referent, &mut Vec::new())
+                && (byte_endpoint
+                    || plain_storage(types.clone(), source, &mut Vec::new())
+                        && crate::reference_storage_layout(types.clone(), source).is_some_and(
+                            |layout| {
+                                Some(layout)
+                                    == crate::reference_storage_layout(types.clone(), *referent)
+                            },
+                        ))
         }
         _ => false,
     }
