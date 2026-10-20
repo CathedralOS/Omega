@@ -3206,15 +3206,27 @@ fail/facts/loop_branch_relaxation_ranking_unproved_target_body rejected 7191ms e
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/matched_field_windows_through_call_result_rejected rejected 4184ms expected @6950e9f0e0c8
-fail/facts/matched_field_windows_through_const_name_rejected rejected 3751ms expected @6950e9f0e0c8
-fail/facts/matched_field_windows_through_field_rejected rejected 3786ms expected @6950e9f0e0c8
-fail/facts/matched_field_windows_through_local_rejected rejected 4165ms expected @6950e9f0e0c8
-fail/facts/matched_field_windows_through_match_join_rejected rejected 4173ms expected @6950e9f0e0c8
-fail/facts/matched_field_windows_through_other_machine_rejected rejected 1437ms expected @6950e9f0e0c8
-fail/facts/matched_field_windows_through_other_state_rejected rejected 2739ms expected @6950e9f0e0c8
-fail/facts/matched_field_windows_through_parameter_rejected rejected 1549ms expected @6950e9f0e0c8
-fail/facts/matched_field_windows_through_target_body_rejected rejected 1453ms expected @6950e9f0e0c8
+fail/facts/matched_field_windows_through_call_result_rejected rejected 2446ms expected @1b6a7414189c
+	cannot prove ensures contract for exit from from_call at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_const_name_rejected rejected 2480ms expected @1b6a7414189c
+	cannot prove ensures contract for exit from from_const at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_field_rejected rejected 2402ms expected @1b6a7414189c
+	cannot prove ensures contract for exit from from_field at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_local_rejected rejected 2412ms expected @1b6a7414189c
+	cannot prove ensures contract for exit from from_local at statement 1: result.len == 2
+fail/facts/matched_field_windows_through_match_join_rejected rejected 2416ms expected @1b6a7414189c
+	cannot prove ensures contract for exit from from_join at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_other_machine_rejected rejected 779ms expected @1b6a7414189c
+	machine `from_machine` state `entry` value call to `open_end` violates required fact `end == 2`: the instantiated fact is structurally false (`3 == 2`)
+fail/facts/matched_field_windows_through_other_state_rejected rejected 2382ms expected @1b6a7414189c
+	cannot prove ensures contract for exit from from_state at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_parameter_rejected rejected 2303ms expected @1b6a7414189c
+	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
+fail/facts/matched_field_windows_through_target_body_rejected rejected 2301ms expected @1b6a7414189c
+	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
 fail/facts/matched_window_through_call_result_rejected rejected 664ms expected @a48b0ac286f5
 	cannot prove ensures contract for exit from from_call at statement 0: result.len == 2
 fail/facts/matched_window_through_const_name_rejected rejected 659ms expected @a48b0ac286f5
