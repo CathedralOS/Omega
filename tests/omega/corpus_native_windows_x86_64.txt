@@ -1495,6 +1495,15 @@ pass/facts/shared_borrow_field_projection_through_other_machine_exit built 55381
 pass/facts/shared_borrow_field_projection_through_other_state_exit built 55381ms exit:0 @8f970335dca4+wt
 pass/facts/shared_borrow_field_projection_through_parameter_exit built 56947ms exit:0 @8f970335dca4+wt
 pass/facts/shared_borrow_field_projection_through_target_body_exit built 56400ms exit:0 @8f970335dca4+wt
+pass/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_exit built 40002ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_exit built 38053ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_and_mask_bound_through_field_exit built 38231ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_and_mask_bound_through_local_exit built 38039ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_and_mask_bound_through_match_join_exit built 41667ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_and_mask_bound_through_other_machine_exit built 37920ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_and_mask_bound_through_other_state_exit built 37867ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_and_mask_bound_through_parameter_exit built 36439ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_and_mask_bound_through_target_body_exit built 38101ms exit:0 @9a273b151c31+wt
 pass/facts/signed_64bit_shift_right_arithmetic_bound_through_call_result built 42968ms exit:0 @7dc9c049a48b
 pass/facts/signed_64bit_shift_right_arithmetic_bound_through_const_name built 42897ms exit:0 @7dc9c049a48b
 pass/facts/signed_64bit_shift_right_arithmetic_bound_through_field built 42919ms exit:0 @7dc9c049a48b

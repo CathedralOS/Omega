@@ -20,8 +20,8 @@ Every place performs the same operation: combine a bounded 64-bit signed operand
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies performs 64-bit bitwise AND and discharges interval |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
-`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
-`Expected exit: 0`.
+`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
+authored `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
 
 ## Execution
 
@@ -45,8 +45,8 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, with `raw == 116i64` and mask `63i64`, `masked == 52i64`, `headroom == 63i64 - 52i64 == 11i64`, `margin == 52i64 - 40i64 == 12i64`, and `headroom + margin == 23i64`. The transition `probe() == 23 { true -> done() _ -> bad() }` exits 0. If 64-bit bitwise AND or exact interval calculations evaluate incorrectly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
-- In each invalid twin, `raw` lower bound is widened from `112i64` to `64i64` (or constant `RAW` set to `64i64`). Bitwise AND analysis synthesizes `masked in [0, 63]`, which fails the required interval `masked >= 40 && masked <= 63` on `verify_masked`. Proof obligation checking statically detects the violated contract, failing closed with `cannot prove requires contract for call`. None reaches native execution.
+- At runtime, with `raw == 116i64` and mask `63i64`, `masked == 52i64`, `headroom == 63i64 - 52i64 == 11i64`, `margin == 52i64 - 40i64 == 12i64`, and `headroom + margin == 23i64`. The transition `probe() == 23 { true -> done() _ -> bad() }` exits 0. A 1-token perturbation of the demanded result (`transition probe() == 23` to `transition probe() == 24`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- In each invalid twin, `raw` lower bound is widened from `112i64` to `64i64` (or constant `RAW` set to `64i64`). Bitwise AND analysis synthesizes `masked in [0, 63]`, which fails the required interval `masked >= 40 && masked <= 63` on `verify_masked`. Proof obligation checking statically detects the violated contract under the **Contract precondition** obligation class, failing closed with `cannot prove requires contract for call`. None reaches native execution.
 
 Check all nine invalid twins with:
 
@@ -54,20 +54,57 @@ Check all nine invalid twins with:
 omega --check samples/cli/facts/signed_64bit_bitwise_and_mask_bound/<place>/invalid/main.omg
 ```
 
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/signed_64bit_bitwise_and_mask_bound --jobs 4
+python tools/sample_native_gate.py --filter cli/facts/signed_64bit_bitwise_and_mask_bound --jobs 4
 ```
 
 `sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract for call`).
 
+## Pinned Fixtures
+
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_local_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_field_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt`):**
+  - `tests/omega/fail/facts/signed_64bit_bitwise_and_mask_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_and_mask_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_and_mask_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_and_mask_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_and_mask_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_and_mask_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_and_mask_bound_through_target_body_rejected/`
+The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
-- **Ticket:** `c748de1b32944b76a08992df45b6ec83`.
+- **Parent outcome:** `NUMERIC-VALUES` / `INTEGER-CERTIFICATES` / `CONSERVATION-CONTRACT` (`TASKS.md`).
+- **Ticket:** `6353c824ab25419db47a93337863ee2b`.
 - **Requirement established:** Target-neutral compile-time 64-bit signed bitwise AND mask bounds analysis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, bitwise AND (`&`) between a bounded 64-bit signed `i64` operand (`raw >= 112i64 && raw <= 127i64`) and mask constant `63i64` establishes the synthesized post-operation interval (`masked >= 48i64 && masked <= 63i64 ⊆ [40, 63]`), discharging exact 64-bit subtractions `63i64 - masked` and `masked - 40i64` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
