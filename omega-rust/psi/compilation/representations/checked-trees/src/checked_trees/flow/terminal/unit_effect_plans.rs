@@ -178,7 +178,9 @@ impl CheckedUnitEffectPlans {
         let name = |symbol: SymbolHandle| symbols.display_path(symbol, "::");
         let mut gap = self.gap_for_machine(machine)?;
         let mut chain = vec![machine];
-        while let CheckedUnitPlanGapReason::Callee(target) = gap.reason {
+        while let CheckedUnitPlanGapReason::Callee(target)
+        | CheckedUnitPlanGapReason::BoundaryTarget(target) = gap.reason
+        {
             let Some(next) = self.gap_for_machine(target) else {
                 break;
             };

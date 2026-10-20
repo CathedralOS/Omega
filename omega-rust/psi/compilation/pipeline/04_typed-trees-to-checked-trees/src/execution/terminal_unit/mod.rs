@@ -203,7 +203,25 @@ pub(crate) fn build_checked_unit_effect_plans(
                 // binding is not selected. Supply selects admission, not whether Psi
                 // may retain that declaration's contract.
                 .filter(|machine| !machine.supplies_checked_body())
-                .filter_map(|machine| build_boundary_machine(program, facts, &mut shapes, machine))
+                .filter_map(|machine| {
+                    shapes.take_unselected_opaque();
+                    match build_boundary_machine(program, facts, &mut shapes, machine) {
+                        Ok(plan) => Some(plan),
+                        Err(reason) => {
+                            let reason = shapes.take_unselected_opaque().map_or(
+                                CheckedUnitPlanGapReason::Unsupported(reason),
+                                CheckedUnitPlanGapReason::UnselectedOpaqueRepresentation,
+                            );
+                            boundary_gaps.push(plan_gaps::plan_gap(
+                                program,
+                                machine.symbol,
+                                plan_gaps::GapSite::Machine,
+                                reason,
+                            ));
+                            None
+                        }
+                    }
+                })
                 .collect::<Vec<_>>();
             boundary_machines.extend(build_static_boundary_requirements(
                 program,

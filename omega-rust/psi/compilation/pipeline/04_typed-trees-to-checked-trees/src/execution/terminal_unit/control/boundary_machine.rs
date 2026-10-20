@@ -8,7 +8,7 @@
 use super::boundary_contracts::boundary_scalar_requires;
 
 use crate::execution::terminal_unit::calls::{
-    boundary_owner_scalar_signature, free_structural_scalar_signature, parameter_signatures,
+    free_structural_scalar_signature, parameter_signatures,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
@@ -26,37 +26,28 @@ pub(crate) fn build_boundary_machine(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
-) -> Option<CheckedBoundaryMachinePlan> {
+) -> Result<CheckedBoundaryMachinePlan, &'static str> {
     let [state] = program.machine_states(machine) else {
-        return None;
+        return Err("boundary declaration requires one signature state");
     };
     let binders = machine_binders(program, machine);
-    let result = boundary_result_plan(program, shapes, state.return_type, &binders, &[])?;
+    let result = boundary_result_plan(program, shapes, state.return_type, &binders, &[])
+        .ok_or("boundary result has no runtime signature")?;
     if !program
         .statement_table
         .statements(state.statement_nodes)
         .is_empty()
     {
-        return None;
+        return Err("boundary signature state contains executable statements");
     }
-    // An opaque callable need not name a data attachment. A free foreign leaf
-    // and a namespace-qualified requirement both get their runtime signature
-    // from explicit parameters. Supply mode does not invent an owner; actual
-    // data attachments retain their existing identity and custody.
-    // A same-spelled declaration in another package is not this machine's
-    // owner. Resolution retains the exact nominal attachment, or zero for a
-    // namespace-only qualifier.
-    let has_data_attachment = machine.attached_data_symbol.is_valid();
-    let (attachment_type_identity, structural_parameters, scalar_parameters) =
-        if !has_data_attachment {
-            let (structural, scalar) =
-                free_structural_scalar_signature(program, shapes, state, &binders)?;
-            (None, structural, scalar)
-        } else {
-            let (attachment, structural, scalar) =
-                boundary_owner_scalar_signature(program, shapes, machine, state, &binders)?;
-            (Some(attachment), structural, scalar)
-        };
+    // A static qualifier retains nominal ownership through the callable's
+    // declaration identity, not a runtime data shape. Requiring a shape here
+    // made `Opaque::operation(value)` demand a representation of Opaque even
+    // when no argument or result contained it. All boundary storage and
+    // custody come from the explicit signature, exactly as for checked bodies.
+    let (structural_parameters, scalar_parameters) =
+        free_structural_scalar_signature(program, shapes, state, &binders)
+            .ok_or("boundary explicit parameters have no runtime signature")?;
     let domain_requirements = boundary_domain_requirements(
         program,
         shapes,
@@ -68,8 +59,12 @@ pub(crate) fn build_boundary_machine(
         &structural_parameters,
         &scalar_parameters,
         &binders,
-    )?;
-    let contract = facts.contract_plans.for_machine(machine.symbol)?;
+    )
+    .ok_or("boundary domain requirements have no retained plan")?;
+    let contract = facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .ok_or("boundary declaration has no checked contract")?;
     let scalar_requires = boundary_scalar_requires(
         program,
         &facts.operators,
@@ -83,18 +78,23 @@ pub(crate) fn build_boundary_machine(
         program.machine_contracts(machine),
         program.state_contracts(state),
         &contract.closed_scalar_values,
-    )?;
+    )
+    .ok_or("boundary scalar requirements have no retained plan")?;
     // The callable's checked reach can include target-family members. Its
     // empty interface state is not the machine's inferred execution closure.
-    let machine_reach = facts.service_reaches.for_machine(machine.symbol)?;
+    let machine_reach = facts
+        .service_reaches
+        .for_machine(machine.symbol)
+        .ok_or("boundary declaration has no checked service reach")?;
 
-    Some(CheckedBoundaryMachinePlan {
-        reference_outputs: reference_outputs(program, program.state_parameters(state), &[]).ok()?,
+    Ok(CheckedBoundaryMachinePlan {
+        reference_outputs: reference_outputs(program, program.state_parameters(state), &[])
+            .map_err(|_| "boundary reference outputs have no retained custody plan")?,
         machine: machine.symbol,
         kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
         state: state.symbol,
         contract_owner: machine.symbol,
-        attachment_type_identity,
+        attachment_type_identity: None,
         structural_parameters,
         scalar_parameters,
         result,
@@ -106,7 +106,10 @@ pub(crate) fn build_boundary_machine(
         scalar_requires,
         contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
-        contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
+        contract_service_reach: facts
+            .service_reaches
+            .plan_for_machine(machine.symbol)
+            .ok_or("boundary declaration has no retained service reach plan")?,
         service_reach: language_semantics::ServiceReachSummary {
             direct: machine_reach.inferred_direct,
             transitive: machine_reach.inferred_transitive,

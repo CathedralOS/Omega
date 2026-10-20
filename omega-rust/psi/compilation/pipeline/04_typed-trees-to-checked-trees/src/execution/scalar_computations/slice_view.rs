@@ -263,7 +263,7 @@ impl Builder<'_, '_> {
         let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self.program.state_by_symbol(self.state)?;
         let parameters = if machine.attached_data.is_some() {
-            calls::ambient_self_scalar_signature(self.program, machine, state)?.0
+            calls::ambient_self_scalar_signature(self.program, state)?.0
         } else {
             calls::free_structural_scalar_signature(
                 self.program,

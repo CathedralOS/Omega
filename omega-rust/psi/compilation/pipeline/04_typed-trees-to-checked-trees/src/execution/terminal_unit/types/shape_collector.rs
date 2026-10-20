@@ -241,41 +241,6 @@ impl<'program> ShapeCollector<'program> {
         Some(carrier_type_identity)
     }
 
-    /// A machine attached to generic data retains the exact owner application
-    /// its binder scope resolved — `Task<Token>` on a receiver-specialized
-    /// clone where the declared `Task<T>` data still names the open
-    /// parameter. Collect that applied shape like any other carrier; the
-    /// declared-data fallback still serves attachments that named no generic
-    /// actuals.
-    pub(in crate::execution::terminal_unit) fn add_attached_application(
-        &mut self,
-        machine: &typed_trees::machine::Machine,
-        binders: &[(SymbolHandle, String)],
-    ) -> Option<typed_trees::type_identity::TypeIdentityId> {
-        let attached = self
-            .program
-            .data_definition_by_symbol(machine.attached_data_symbol)
-            .or_else(|| {
-                // A compiler-synthesized placed accessor attaches by a
-                // generated name that carries no source-resolved symbol; the
-                // signature builder joins that spelling to the exact shell
-                // declaration in the same way.
-                machine
-                    .attached_data
-                    .as_ref()
-                    .and_then(|name| self.program.data_definition_by_name(name))
-            });
-        if let Some(data) = attached
-            && let Some(identity) = self.add_placed_accessor_attachment(data, binders)
-        {
-            return Some(identity);
-        }
-        if machine.attached_data_application.is_valid() {
-            return self.add_type(machine.attached_data_application, binders, &[]);
-        }
-        self.add_attached_data(attached?, binders)
-    }
-
     pub(in crate::execution::terminal_unit) fn add_attached_data(
         &mut self,
         data: &typed_trees::data::DataDefinition,

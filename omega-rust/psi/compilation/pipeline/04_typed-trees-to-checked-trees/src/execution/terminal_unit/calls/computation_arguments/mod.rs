@@ -221,7 +221,7 @@ pub(crate) fn subslice_computation_argument(
     {
         Vec::new()
     } else if owner.attached_data.is_some() {
-        super::ambient_self_scalar_signature(program, owner, state)?.0
+        super::ambient_self_scalar_signature(program, state)?.0
     } else {
         super::free_structural_scalar_signature(
             program,

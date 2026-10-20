@@ -377,7 +377,7 @@ pub(super) fn build_traced(
         trace.phase("state graph: state signature: parameter signature");
         let (structural, scalar) = if owner.attached_data.is_some() {
             let (identity, structural, scalar) =
-                structural_scalar_signature_traced(program, shapes, owner, state, &[], trace)?;
+                structural_scalar_signature_traced(program, shapes, state, &[], trace)?;
             // One graph can publish only one attachment identity. Static
             // qualification contributes no attachment storage.
             if attachment.is_some() && attachment != identity {

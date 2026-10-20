@@ -14,24 +14,6 @@ use crate::execution::terminal_unit::{
     strips_erased_parameter,
 };
 
-/// Which attachment storage a qualified machine's signature retains.
-///
-/// A carrier qualification names the semantic owner and contributes no
-/// argument or storage, so ordinary Terminal plans retain an attachment only
-/// for an authored receiver during the static-machine migration. Explicit
-/// scalar/structural signatures require a data owner only when retaining
-/// owner storage; boundary signatures additionally retain the owner for ABI
-/// metadata.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AttachmentStorage {
-    /// Ordinary static qualification contributes no runtime storage.
-    StaticQualification,
-    /// Retain the data owner itself. Boundary machine plans keep their
-    /// owner's identity as ABI metadata, which stage 05 rejoins against the
-    /// authored data attachment.
-    DataOwner,
-}
-
 /// The qualified structural signature of a state without scalar
 /// parameters, and the attachment an authored receiver retains.
 pub(crate) fn structural_signature(
@@ -230,39 +212,13 @@ fn service_parameter_access_matches(
     }
 }
 
-/// A boundary machine retains its data owner identity as ABI metadata.
-pub(crate) fn boundary_owner_scalar_signature(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    binders: &[(SymbolHandle, String)],
-) -> Option<(
-    typed_trees::type_identity::TypeIdentityId,
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-)> {
-    let (attachment, structural, scalar) = structural_scalar_signature(
-        program,
-        shapes,
-        machine,
-        state,
-        binders,
-        AttachmentStorage::DataOwner,
-        &LocalConstructionTrace::default(),
-    )?;
-    Some((attachment?, structural, scalar))
-}
-
-/// `structural_scalar_signature`, marking the signature guard (attached data
-/// shape, then each parameter's erasure, scalar
+/// A static qualified signature, marking each parameter's erasure, scalar
 /// signature, const-ness, type shape, qualifications, access, and projected
-/// qualifications) that declined the state. Only the general state-graph
+/// qualifications that declined the state. Only the general state-graph
 /// route traces this, so the marks carry that route's phase prefix.
 pub(crate) fn structural_scalar_signature_traced(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     trace: &LocalConstructionTrace,
@@ -271,58 +227,15 @@ pub(crate) fn structural_scalar_signature_traced(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
-    structural_scalar_signature(
-        program,
-        shapes,
-        machine,
-        state,
-        binders,
-        AttachmentStorage::StaticQualification,
-        trace,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn structural_scalar_signature(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    binders: &[(SymbolHandle, String)],
-    storage: AttachmentStorage,
-    trace: &LocalConstructionTrace,
-) -> Option<(
-    Option<typed_trees::type_identity::TypeIdentityId>,
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-)> {
-    trace.phase("state graph: state signature: parameter signature: attached data shape");
-    // Static qualification supplies no storage. Resolve a data carrier only
-    // when this signature actually retains one; otherwise all storage and
-    // multiplicity come from the ordinary explicit parameters. A boundary
-    // owner still requires its exact nominal declaration for ABI metadata.
-    let attachment = if storage == AttachmentStorage::DataOwner {
-        let attached = program.attached_data_definition(machine)?;
-        Some((
-            shapes.add_attached_application(machine, binders)?,
-            attached.properties.multiplicity,
-        ))
-    } else {
-        None
-    };
+    // Static qualification supplies identity, never implicit storage.
     let (structural_parameters, scalar_parameters) =
         scalar_and_structural_parameters(program, shapes, state, binders, trace)?;
-    Some((
-        attachment.map(|(identity, _)| identity),
-        structural_parameters,
-        scalar_parameters,
-    ))
+    Some((None, structural_parameters, scalar_parameters))
 }
 
 /// A scalar body's explicit parameters and the structural shapes they require.
 pub(crate) fn ambient_self_scalar_signature(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) -> Option<(
     Vec<CheckedUnitStructuralParameterPlan>,
@@ -333,7 +246,6 @@ pub(crate) fn ambient_self_scalar_signature(
     let (_, structural, scalar) = structural_scalar_signature_traced(
         program,
         &mut shapes,
-        machine,
         state,
         &[],
         &LocalConstructionTrace::default(),
