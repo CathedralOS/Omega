@@ -3939,6 +3939,27 @@ fail/facts/signed_64bit_saturating_subtraction_bound_through_target_body_rejecte
 	Exact integer cast in machine `subtract_target` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `subtract_target` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `subtract_target` state `entry` from `i64` to `u64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/signed_64bit_wrapping_multiplication_bound_through_call_result_rejected rejected 14967ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_call_result: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_64bit_wrapping_multiplication_bound_through_const_name_rejected rejected 14579ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_const: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_64bit_wrapping_multiplication_bound_through_field_rejected rejected 14470ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_field: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_64bit_wrapping_multiplication_bound_through_local_rejected rejected 14240ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_local: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_64bit_wrapping_multiplication_bound_through_match_join_rejected rejected 13917ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_match_join: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_64bit_wrapping_multiplication_bound_through_other_machine_rejected rejected 14983ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_worker: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_64bit_wrapping_multiplication_bound_through_other_state_rejected rejected 14266ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_state: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_64bit_wrapping_multiplication_bound_through_parameter_rejected rejected 14158ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_param: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_64bit_wrapping_multiplication_bound_through_target_body_rejected rejected 16356ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_division_quotient_unproved_call_result rejected 2405ms expected @45cbafd80d9c
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/signed_division_quotient_unproved_const_name rejected 2403ms expected @45cbafd80d9c
@@ -8743,6 +8764,15 @@ pass/facts/signed_64bit_saturating_subtraction_bound_through_other_machine_exit 
 pass/facts/signed_64bit_saturating_subtraction_bound_through_other_state_exit checked 35399ms check-target:macos_arm64 @abd18815d46a+wt
 pass/facts/signed_64bit_saturating_subtraction_bound_through_parameter_exit checked 35007ms check-target:macos_arm64 @abd18815d46a+wt
 pass/facts/signed_64bit_saturating_subtraction_bound_through_target_body_exit checked 35729ms check-target:macos_arm64 @abd18815d46a+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_call_result_exit checked 38339ms check-target:macos_arm64 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_const_name_exit checked 37206ms check-target:macos_arm64 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_field_exit checked 37517ms check-target:macos_arm64 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_local_exit checked 35773ms check-target:macos_arm64 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_match_join_exit checked 38129ms check-target:macos_arm64 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_other_machine_exit checked 38146ms check-target:macos_arm64 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_other_state_exit checked 36422ms check-target:macos_arm64 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_parameter_exit checked 37733ms check-target:macos_arm64 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_target_body_exit checked 38194ms check-target:macos_arm64 @7b770f2baf0d+wt
 pass/facts/signed_division_quotient_through_call_result_exit checked 7575ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_const_name_exit checked 7742ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_field_exit checked 7695ms check-target:macos_arm64 @45cbafd80d9c

@@ -1548,6 +1548,15 @@ pass/facts/signed_64bit_shift_right_arithmetic_bound_through_other_machine built
 pass/facts/signed_64bit_shift_right_arithmetic_bound_through_other_state built 42756ms exit:0 @7dc9c049a48b
 pass/facts/signed_64bit_shift_right_arithmetic_bound_through_parameter built 42868ms exit:0 @7dc9c049a48b
 pass/facts/signed_64bit_shift_right_arithmetic_bound_through_target_body built 42818ms exit:0 @7dc9c049a48b
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_call_result_exit built 37384ms exit:0 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_const_name_exit built 46017ms exit:0 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_field_exit built 41111ms exit:0 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_local_exit built 44429ms exit:0 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_match_join_exit built 39200ms exit:0 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_other_machine_exit built 44300ms exit:0 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_other_state_exit built 40163ms exit:0 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_parameter_exit built 49929ms exit:0 @7b770f2baf0d+wt
+pass/facts/signed_64bit_wrapping_multiplication_bound_through_target_body_exit built 40043ms exit:0 @7b770f2baf0d+wt
 pass/facts/signed_division_quotient_through_call_result_exit built 6626ms exit:0 @623a499c00d9+wt
 pass/facts/signed_division_quotient_through_const_name_exit built 6817ms exit:0 @623a499c00d9+wt
 pass/facts/signed_division_quotient_through_field_exit built 6605ms exit:0 @623a499c00d9+wt
