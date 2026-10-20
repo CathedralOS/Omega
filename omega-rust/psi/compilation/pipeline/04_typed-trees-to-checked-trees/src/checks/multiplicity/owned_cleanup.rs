@@ -16,6 +16,7 @@ pub(super) fn claim_receipts<'a>(
     path: &[PlaceSegment],
     places: &'a [LinearPlace],
     removed: &[&[PlaceSegment]],
+    inactive_cases: &[&[PlaceSegment]],
 ) -> Option<Vec<&'a LinearPlace>> {
     let mut receipts = places
         .iter()
@@ -45,9 +46,11 @@ pub(super) fn claim_receipts<'a>(
     if receipts.iter().any(|place| {
         removed
             .iter()
+            .chain(inactive_cases)
             .any(|removed| place.path[path.len()..].starts_with(removed))
     }) {
         return None;
     }
-    crate::flow::residual_cleanup_is_eligible(program, reference, removed).then_some(receipts)
+    crate::flow::residual_cleanup_is_eligible(program, reference, removed, inactive_cases)
+        .then_some(receipts)
 }

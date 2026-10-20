@@ -2001,7 +2001,21 @@ pub(super) fn collect_guard(
     if depth >= 128 {
         return None;
     }
+    if let Some(binary) = engine.program.expression_table.binary_node(expression)
+        && !engine.selected_binary_meaning(expression, binary)
+    {
+        return Some(false);
+    }
     match engine.program.expression_table.expression(expression) {
+        ExpressionNode::Name(name) if name.symbol == name.head_symbol => {
+            let Some(observation) = engine.saved_conditions.iter().find(|observation| {
+                observation.symbol == name.symbol && observation.holds == holds
+            }) else {
+                return Some(false);
+            };
+            comparisons.extend(observation.comparisons.iter().cloned());
+            Some(observation.fully_visible)
+        }
         ExpressionNode::Unary(unary)
             if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
         {

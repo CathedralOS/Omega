@@ -935,6 +935,8 @@ pass/control_flow/runtime_projected_index_single_case_payload_exit built 2297ms 
 pass/control_flow/runtime_projected_single_case_payload_exit built 1166ms exit:70 @441e8f33f8c7+wt
 pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit built 2954ms exit:70 @64c766216f02+wt
 pass/control_flow/runtime_ranked_state_cycle_owned_record_exit built 2788ms exit:70 @64c766216f02+wt
+pass/control_flow/runtime_saved_transition_empty_sibling_exit built 13525ms exit:0 @ef97e2a38c91+wt
+pass/control_flow/runtime_saved_transition_subject_exit built 13683ms exit:0 @ef97e2a38c91+wt
 pass/control_flow/runtime_selected_parent_state_loan_exit built 9885ms exit:0 @589aedee8ebc+wt
 pass/control_flow/runtime_shared_case_return_call_exit built 1438ms exit:70 @f6bc514dc21+wt
 pass/control_flow/runtime_string_literal_dispatch_exit built 1008ms exit:11 @1c0bb7bc95d0
@@ -2928,6 +2930,7 @@ pass/termination/runtime_projected_element_rank_arrivals_exit built 3396ms exit:
 pass/termination/runtime_rank_range_state_call_exit built 1004ms exit:70 @82d2bd2d7669+wt
 pass/termination/runtime_rankless_boundary_suffix_exit built 14526ms exit:0 @8df1d091a810
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 1474ms exit:70 @c9c108ecb4ac+wt
+pass/termination/runtime_saved_boolean_descent_exit built 12966ms exit:0 @ef97e2a38c91+wt
 pass/termination/runtime_saved_rank_cycle_exit built 1732ms exit:0 @68fba6a896c8+wt
 pass/termination/runtime_selected_requirement_rank_prefix_exit built 3531ms exit:0 @05ef1dca14f6
 pass/termination/runtime_shrinking_slice_recursion_exit built 873ms exit:70 @2f8006be6cc9+wt

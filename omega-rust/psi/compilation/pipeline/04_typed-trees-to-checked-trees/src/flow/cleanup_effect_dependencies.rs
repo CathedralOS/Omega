@@ -77,6 +77,16 @@ pub(crate) fn selected_cleanup_leaves(
         .iter()
         .map(|place| dispositions.segments.span(place.segments))
         .collect::<Option<Vec<_>>>()?;
+    let inactive_cases = dispositions
+        .exclusions
+        .span(disposition.inactive_cases)?
+        .iter()
+        .map(|place| {
+            (place.root == disposition.root)
+                .then(|| dispositions.segments.span(place.segments))
+                .flatten()
+        })
+        .collect::<Option<Vec<_>>>()?;
     if removed.iter().any(|removed| path.starts_with(removed)) {
         return Some(Vec::new());
     }
@@ -135,22 +145,25 @@ pub(crate) fn selected_cleanup_leaves(
     // The occurrence's source facts decide which alternatives can hold a
     // payload here. Without contexts every alternative remains possible.
     let inactive_case = |segments: &[PlaceSegment]| {
-        contexts.as_ref().is_some_and(|contexts| {
-            contexts.iter().all(|(statement, contexts)| {
-                crate::flow::place_case_path_is_inactive(
-                    program,
-                    &facts.semantic,
-                    contexts,
-                    disposition.machine,
-                    disposition.state,
-                    *statement,
-                    &validation::CanonicalPlace {
-                        root: disposition.root,
-                        segments: segments.to_vec(),
-                    },
-                )
+        inactive_cases
+            .iter()
+            .any(|inactive| segments.starts_with(inactive))
+            || contexts.as_ref().is_some_and(|contexts| {
+                contexts.iter().all(|(statement, contexts)| {
+                    crate::flow::place_case_path_is_inactive(
+                        program,
+                        &facts.semantic,
+                        contexts,
+                        disposition.machine,
+                        disposition.state,
+                        *statement,
+                        &validation::CanonicalPlace {
+                            root: disposition.root,
+                            segments: segments.to_vec(),
+                        },
+                    )
+                })
             })
-        })
     };
     let mut leaves = Vec::new();
     visit(
@@ -176,7 +189,7 @@ pub(crate) fn whole_cleanup_is_eligible(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
-    residual_cleanup_is_eligible(program, reference, &[])
+    residual_cleanup_is_eligible(program, reference, &[], &[])
 }
 
 /// The same type-side plan restricted to the authenticated remaining region.
@@ -184,6 +197,7 @@ pub(crate) fn residual_cleanup_is_eligible(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
     removed: &[&[PlaceSegment]],
+    inactive_cases: &[&[PlaceSegment]],
 ) -> bool {
     let mut has_erased_obligations = false;
     let complete = visit(
@@ -195,7 +209,11 @@ pub(crate) fn residual_cleanup_is_eligible(
         &mut Vec::new(),
         &mut Vec::new(),
         &mut has_erased_obligations,
-        &|_| false,
+        &|path| {
+            inactive_cases
+                .iter()
+                .any(|inactive| path.starts_with(inactive))
+        },
     )
     .is_some();
     // Runtime cleanup omits erased fields. Ordinary unrestricted subjects
@@ -493,7 +511,7 @@ fn visit_owner(
     let symbol = program
         .machine_by_symbol(symbol)
         .map_or(symbol, |machine| machine.attached_data_symbol);
-    let Some(data) = program.data_definition_by_symbol(symbol) else {
+    let Some(data) = applied_owner(program, reference, symbol) else {
         return match program.symbols.get(symbol).kind {
             symbols::SymbolKind::BuiltinType => Some(()),
             symbols::SymbolKind::TypeParameter if removed.is_empty() => {
@@ -512,9 +530,15 @@ fn visit_owner(
         return None;
     }
     if let Some(target) = nominal {
-        // A nominal hook requires the whole value. Partial transfer across
-        // that prefix is independently forbidden by custody validation.
-        if !removed.is_empty() {
+        // A nominal hook requires the whole value. An authenticated inactive
+        // alternative owns no payload, so its absent claim rows do not make
+        // this owner partial. Every actual or unresolved transfer still blocks
+        // the hook; a Case-shaped path alone never establishes inactivity.
+        if removed.iter().any(|removed| {
+            let mut absolute = path.clone();
+            absolute.extend_from_slice(removed);
+            !inactive_case(&absolute)
+        }) {
             return None;
         }
         leaves.push(CleanupLeaf::Nominal {
@@ -765,7 +789,7 @@ fn select_type(
     let symbol = program
         .machine_by_symbol(symbol)
         .map_or(symbol, |machine| machine.attached_data_symbol);
-    let data = program.data_definition_by_symbol(symbol)?;
+    let data = applied_owner(program, reference, symbol)?;
     let members = program.data_members(data);
     let (field, suffix) = match path[0] {
         PlaceSegment::Field { symbol } => {
@@ -792,6 +816,22 @@ fn select_type(
         return None;
     }
     select_type(program, field.type_reference, &nested, suffix)
+}
+
+/// Removed paths and cleanup receivers use the exact applied member namespace.
+/// Closed applications retain their own field/case identities; reopening their
+/// authored template would lose every projected exclusion. Open applications
+/// still use their prepared view (or declaration plus substitutions), so this
+/// query does not turn field preparation into evidence of type closure.
+fn applied_owner(
+    program: &dyn validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    symbol: SymbolHandle,
+) -> Option<&typed_trees::data::DataDefinition> {
+    program
+        .closed_data_definition(reference)
+        .or_else(|| program.data_application_definition(reference))
+        .or_else(|| program.data_definition_by_symbol(symbol))
 }
 
 /// Canonical completed-owner cleanup order shared by prerequisite checking and

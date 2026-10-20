@@ -54,29 +54,36 @@ pub(crate) fn bind_applications(
                 && template.exit.kind == instance.exit.kind
                 && flow.ownership.segments.span_or_empty(template.path) == path
         }) {
-            let template_exclusions = cleanup.exclusions.span_or_empty(template.exclusions);
-            let instance_exclusions = cleanup.exclusions.span_or_empty(instance.exclusions);
-            if template_exclusions.len() != instance_exclusions.len()
-                || !template_exclusions.iter().zip(instance_exclusions).all(
-                    |(template, instance)| {
-                        let Some(instance_root) = instance.root.as_symbol() else {
-                            return false;
-                        };
-                        template.root
-                            == PlaceRoot::Symbol(source_symbol(
-                                program,
-                                instance_root,
-                                specialization.instance,
-                            ))
-                            && cleanup.segments.span_or_empty(template.segments)
-                                == source_path(
+            let corresponding_regions = [
+                (template.exclusions, instance.exclusions),
+                (template.inactive_cases, instance.inactive_cases),
+            ]
+            .into_iter()
+            .all(|(template_regions, instance_regions)| {
+                let template_exclusions = cleanup.exclusions.span_or_empty(template_regions);
+                let instance_exclusions = cleanup.exclusions.span_or_empty(instance_regions);
+                template_exclusions.len() == instance_exclusions.len()
+                    && template_exclusions.iter().zip(instance_exclusions).all(
+                        |(template, instance)| {
+                            let Some(instance_root) = instance.root.as_symbol() else {
+                                return false;
+                            };
+                            template.root
+                                == PlaceRoot::Symbol(source_symbol(
                                     program,
-                                    cleanup.segments.span_or_empty(instance.segments),
+                                    instance_root,
                                     specialization.instance,
-                                )
-                    },
-                )
-            {
+                                ))
+                                && cleanup.segments.span_or_empty(template.segments)
+                                    == source_path(
+                                        program,
+                                        cleanup.segments.span_or_empty(instance.segments),
+                                        specialization.instance,
+                                    )
+                        },
+                    )
+            });
+            if !corresponding_regions {
                 continue;
             }
             applications.append(ContextualCleanupApplication {

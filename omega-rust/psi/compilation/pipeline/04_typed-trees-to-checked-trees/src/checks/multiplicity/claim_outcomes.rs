@@ -19,7 +19,7 @@ use crate::checks::multiplicity::linear_obligations::{
 use crate::checks::multiplicity::linear_validation::{
     established_provenance, linear_claim_frontier, permission_event_statement_index,
 };
-use crate::checks::multiplicity::type_multiplicity::{data_field_name, literal_variant};
+use crate::checks::multiplicity::type_multiplicity::data_field_name;
 use arena::HandleSpan;
 use checked_trees::{
     CheckFacts, FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
@@ -298,21 +298,58 @@ fn derive_claim_outcome_hypothesis(
             .unwrap_or(usize::MAX)
     });
     let inactive_paths = expected_paths
-        .into_iter()
-        .filter(|path| !entries.iter().any(|entry| entry.output_path == *path))
+        .iter()
+        .filter(|path| !entries.iter().any(|entry| entry.output_path == **path))
+        .cloned()
         .collect::<Vec<_>>();
     if !joins::complete_frontier(program, state.return_type, &entries, &inactive_paths) {
         return None;
     }
-    // Inactive paths above were independently proved on every return. Each
-    // active path must also appear with the same source on every return;
-    // flattening first would silently erase unresolved/swapped alternatives.
+    // Each return accounts for its own selected case. A path may be absent
+    // from one return only when that return independently excludes it; another
+    // return's constructor is not absence evidence. All live occurrences still
+    // agree on the invariant source, so swapped or unresolved maps cannot be
+    // hidden by flattening alternatives.
     let all_returns_covered = !return_entries.is_empty()
-        && return_entries.iter().all(|returned| {
-            joins::complete_frontier(program, state.return_type, returned, &inactive_paths)
-                && returned.len() == entries.len()
-                && returned.iter().all(|entry| entries.contains(entry))
-        });
+        && return_entries
+            .iter()
+            .enumerate()
+            .all(|(return_index, returned)| {
+                let (expressions, transitions) = if return_index < result_expressions.len() {
+                    (
+                        &result_expressions[return_index..return_index + 1],
+                        &named_transitions[0..0],
+                    )
+                } else {
+                    let transition_index = return_index - result_expressions.len();
+                    (
+                        &result_expressions[0..0],
+                        &named_transitions[transition_index..transition_index + 1],
+                    )
+                };
+                let absent = expected_paths
+                    .iter()
+                    .filter(|path| {
+                        !returned.iter().any(|entry| entry.output_path == **path)
+                            && claim_path_is_statically_inactive(
+                                &ClaimAbsence {
+                                    program,
+                                    borrow,
+                                    state,
+                                    ownership,
+                                    events: permission_events,
+                                    maps: known_maps,
+                                },
+                                path,
+                                expressions,
+                                transitions,
+                            )
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                joins::complete_frontier(program, state.return_type, returned, &absent)
+                    && returned.iter().all(|entry| entries.contains(entry))
+            });
     Some(ClaimOutcomeHypothesis {
         map: CheckedClaimOutcomeMap {
             machine_symbol,
@@ -365,22 +402,21 @@ fn claim_path_is_statically_inactive(
     {
         return false;
     }
-    result_expressions
+    result_expressions.iter().all(|(statement, expression)| {
+        absence.expression(*statement, *expression, path, absence.state.return_type)
+    }) && named_transitions
         .iter()
-        .all(|(statement, expression)| absence.expression(*statement, *expression, path))
-        && named_transitions
-            .iter()
-            .all(|(statement, target, arguments)| {
-                absence.arguments(
-                    *statement,
-                    *target,
-                    absence
-                        .program
-                        .statement_table
-                        .expression_handles(*arguments),
-                    path,
-                )
-            })
+        .all(|(statement, target, arguments)| {
+            absence.arguments(
+                *statement,
+                *target,
+                absence
+                    .program
+                    .statement_table
+                    .expression_handles(*arguments),
+                path,
+            )
+        })
 }
 
 /// Source-owned exclusion of a conditional claim. Complete outcome maps and
@@ -400,6 +436,7 @@ impl ClaimAbsence<'_> {
         statement: usize,
         expression: typed_trees::expression::ExpressionHandle,
         path: &[facts::PlaceSegment],
+        expected: typed_trees::types::TypeReferenceHandle,
     ) -> bool {
         if let Some(mut place) = validation::canonical_place_from_expression_in_state(
             self.program,
@@ -429,9 +466,21 @@ impl ClaimAbsence<'_> {
                     let Some(facts::PlaceSegment::Case { variant }) = remaining.first() else {
                         return false;
                     };
-                    if literal_variant(self.program, literal).map(|candidate| candidate.symbol)
-                        != Some(*variant)
+                    let Some(selected) = literal.case_symbol.and_then(|selected| {
+                        self.program
+                            .closed_data_constructor_case(expected, selected)
+                    }) else {
+                        return false;
+                    };
+                    // Unknown or unrelated classifiers never establish absence.
+                    if self
+                        .program
+                        .closed_data_constructor_case(expected, *variant)
+                        .is_none()
                     {
+                        return false;
+                    }
+                    if selected.symbol != *variant {
                         return true;
                     }
                     remaining = &remaining[1..];
@@ -447,7 +496,19 @@ impl ClaimAbsence<'_> {
                     .struct_fields(literal.fields)
                     .iter()
                     .find(|field| field.name.as_str() == field_name)
-                    .is_some_and(|field| self.expression(statement, field.value, &remaining[1..]))
+                    .is_some_and(|field| {
+                        let consumed = path.len() - remaining.len() + 1;
+                        output_path_type(
+                            self.program,
+                            self.state,
+                            statement,
+                            expected,
+                            &path[..consumed],
+                        )
+                        .is_some_and(|expected| {
+                            self.expression(statement, field.value, &remaining[1..], expected)
+                        })
+                    })
             }
             typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
                 let Some(facts::PlaceSegment::FixedIndex { index }) = path.first() else {
@@ -457,7 +518,12 @@ impl ClaimAbsence<'_> {
                     .expression_table
                     .expression_handles(*values)
                     .get(*index)
-                    .is_some_and(|value| self.expression(statement, *value, &path[1..]))
+                    .is_some_and(|value| {
+                        output_path_type(self.program, self.state, statement, expected, &path[..1])
+                            .is_some_and(|expected| {
+                                self.expression(statement, *value, &path[1..], expected)
+                            })
+                    })
             }
             typed_trees::expression::ExpressionNode::Call(call) => self.arguments(
                 statement,
@@ -514,7 +580,10 @@ impl ClaimAbsence<'_> {
         };
         // Substitute the exact input path into its actual once. The same walk
         // handles constructor exclusion, nested calls and preserved storage.
-        self.expression(statement, argument, input_path)
+        let Some(parameter) = parameter_for_symbol(self.program, target, *parameter_symbol) else {
+            return false;
+        };
+        self.expression(statement, argument, input_path, parameter.type_reference)
     }
 }
 
@@ -708,7 +777,16 @@ fn claim_outcomes_for_expression(
         typed_trees::expression::ExpressionNode::StructLiteral(literal)
             if literal.case_name.is_some() =>
         {
-            let Some(variant) = literal_variant(program, literal) else {
+            let Some(variant) = output_path_type(
+                program,
+                state,
+                statement_index,
+                state.return_type,
+                output_prefix,
+            )
+            .and_then(|reference| {
+                program.closed_data_constructor_case(reference, literal.case_symbol?)
+            }) else {
                 return Vec::new();
             };
             let mut case_prefix = output_prefix.to_vec();
@@ -746,8 +824,16 @@ fn claim_outcomes_for_expression(
         typed_trees::expression::ExpressionNode::StructLiteral(literal)
             if literal.case_name.is_none() =>
         {
-            let Some(definition) = program.data_definition_by_name_str(literal.type_name.as_str())
-            else {
+            let Some(definition) = output_path_type(
+                program,
+                state,
+                statement_index,
+                state.return_type,
+                output_prefix,
+            )
+            .and_then(|reference| {
+                program.closed_data_constructor_definition(reference, literal.type_symbol)
+            }) else {
                 return Vec::new();
             };
             program
@@ -885,6 +971,27 @@ fn claim_outcomes_for_expression(
         }
         _ => Vec::new(),
     }
+}
+
+/// Resolve the receiving namespace before interpreting a constructor. A shared
+/// generic body retains template selectors while each result owns its closed
+/// case and field identities; display names cannot join those namespaces.
+fn output_path_type(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement: usize,
+    root_type: typed_trees::types::TypeReferenceHandle,
+    path: &[facts::PlaceSegment],
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    validation::canonical_place_type_reference(
+        program,
+        state.symbol,
+        statement,
+        &validation::CanonicalPlace {
+            root: facts::PlaceRoot::TypeReference(root_type),
+            segments: path.to_vec(),
+        },
+    )
 }
 
 /// Complete, correlated source maps for the receipt's authored terminal arms.
@@ -1288,6 +1395,14 @@ fn call_result_origin_rewrite(
         // its completed result keeps the receiving occurrence's identity
         // and joins its exact return source through a call receipt.
         .filter(|entry| matches!(entry.source, CheckedClaimOutcomeSource::Input { .. }))
+        // Forwarding preserves one identity only when it names one receiving
+        // location. A case-dependent location instead needs the existing
+        // occurrence-local join, whose alternatives authenticate the live path.
+        .filter(|entry| {
+            !map.entries
+                .iter()
+                .any(|other| other.source == entry.source && other.output_path != entry.output_path)
+        })
         .filter_map(|entry| {
             bind_claim_outcome_source_at_call(
                 program,

@@ -208,12 +208,17 @@ impl CheckedConditionalReturnArm {
             Self::Call {
                 operands,
                 operation,
+                completions,
             } => {
                 operands
                     .iter()
                     .map(|operand| transfers.operation(operand))
                     .sum::<usize>()
                     + transfers.operation(operation)
+                    + completions
+                        .iter()
+                        .map(|completion| transfers.operation(completion))
+                        .sum::<usize>()
             }
             Self::Crash { .. } | Self::Unit { .. } => 0,
         }

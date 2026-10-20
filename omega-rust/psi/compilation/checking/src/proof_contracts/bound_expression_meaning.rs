@@ -800,6 +800,15 @@ fn membership_subject_matches_owner(
     };
     // Only nominal subjects match. In particular, type_symbol() also walks
     // array/slice element types, which cannot establish a collection's tag.
+    // A call may retain Generic<Base, Args> while its selected classifier
+    // already names the prepared closed declaration. Rejoin the exact applied
+    // carrier, not just its template base or a matching rendered spelling.
+    if program
+        .closed_data_definition(subject_type)
+        .is_some_and(|subject| subject.symbol == owner.symbol)
+    {
+        return true;
+    }
     match program.type_reference_table.type_reference(subject_type) {
         TypeReferenceNode::Named { symbol, .. } => *symbol == owner.symbol,
         TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol == owner.symbol,

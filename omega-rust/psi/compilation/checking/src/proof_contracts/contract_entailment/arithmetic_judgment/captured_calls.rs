@@ -129,6 +129,7 @@ impl Engine<'_> {
         let previous_symbols = self.strict_symbol_bindings.clone();
         let previous_result = self.strict_result_binding.clone();
         let previous_occurrences = self.strict_occurrences.clone();
+        let previous_conditions = std::mem::take(&mut self.saved_conditions);
         let prepared_occurrences = self
             .install_scoped_expression(&prepared)
             .then(|| self.strict_occurrences.clone());
@@ -138,6 +139,7 @@ impl Engine<'_> {
         self.strict_symbol_bindings = previous_symbols;
         self.strict_result_binding = previous_result;
         self.strict_occurrences = previous_occurrences;
+        self.saved_conditions = previous_conditions;
         if !accepted {
             return false;
         }

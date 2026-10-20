@@ -100,6 +100,32 @@ pub(super) fn install(
             local.initial_value,
             0,
         );
+        // A Boolean local carries two conditional observations, not an
+        // unconditional hypothesis. Capture both polarities under the same
+        // stable-reference bar as numeric locals, before installing this name.
+        if program
+            .type_reference_table
+            .primitive_type(local.type_reference)
+            == Some(typed_trees::types::PrimitiveType::Bool)
+        {
+            for holds in [false, true] {
+                let mut comparisons = Vec::new();
+                let Some(fully_visible) =
+                    super::collect_guard(engine, local.initial_value, holds, &mut comparisons, 0)
+                else {
+                    continue;
+                };
+                engine
+                    .saved_conditions
+                    .push(super::super::arithmetic_judgment::SavedCondition {
+                        symbol: local.symbol,
+                        holds,
+                        comparisons,
+                        fully_visible,
+                    });
+            }
+            continue;
+        }
         let _ = engine.bind_strict_arguments(&[StrictArithmeticExpressionBinding {
             symbol: local.symbol,
             expression: local.initial_value,

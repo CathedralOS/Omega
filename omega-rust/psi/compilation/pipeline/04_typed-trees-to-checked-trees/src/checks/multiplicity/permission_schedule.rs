@@ -268,6 +268,9 @@ pub(super) fn select_cleanup_cases<'program>(
         else {
             continue;
         };
+        if !crate::flow::stable_case_subject(&place) {
+            continue;
+        }
         // Canonical paths may implicitly traverse a reference, but they do
         // not name an owned referent home. No prefix may supply cleanup
         // authority by peeling that reference shell.
@@ -338,7 +341,12 @@ fn case_tests(
     };
     if target == Some(transition.target) {
         let mut positive = Vec::new();
-        super::permission_events::collect_positive_case_tests(program, state.symbol, guard, &mut positive);
+        super::permission_events::collect_positive_case_tests(
+            program,
+            state.symbol,
+            guard,
+            &mut positive,
+        );
         positive
             .into_iter()
             .map(|(subject, variant)| (statement, subject, variant, true))

@@ -1,5 +1,5 @@
 use crate::diagnostics::parse_error::ParseError;
-use crate::input::token_cursor::{Input, ParseResult, is_identifier_token_for_parser};
+use crate::input::token_cursor::{Input, ParseResult};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -7,7 +7,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::{
     StatementHandle, StatementNode, TableTransition, TransitionTargetHandle, TransitionTargetNode,
 };
-use tokens::{KeywordKind, PunctuationKind};
+use tokens::PunctuationKind;
 
 use super::guards::{parse_transition_expression_list, parse_transition_guard_node};
 use super::targets::parse_target::parse_transition_block_target_with_bindings;
@@ -40,21 +40,22 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     // call `make` once for `x` and again for `y`, nor skip the field law merely
     // because the authored subject was not already a place.
     let mut subject_captures: Vec<(Identifier, ExpressionHandle)> = Vec::new();
-    if transition_contains_destructure_pattern(input) {
-        for subject_expression in &mut subject {
-            if expression_is_place(syntax_trees, *subject_expression) {
-                continue;
-            }
-            let captured = *subject_expression;
-            let name =
-                Identifier::generated(format!("__transition_subject#{}", captured.arena_index()));
-            let path_start = syntax_trees
-                .expressions
-                .append_identifier_path_member(name.clone());
-            let path = HandleSpan::from_parts(path_start, 1);
-            *subject_expression = syntax_trees.expressions.insert(ExpressionNode::Name(path));
-            subject_captures.push((name, captured));
+    // Capture is a property of subject evaluation, not of the arm's spelling.
+    // In particular, ordinary case payloads and proof-bearing payloads retain
+    // the same owner while their selected fields are transferred separately.
+    for subject_expression in &mut subject {
+        if expression_is_place(syntax_trees, *subject_expression) {
+            continue;
         }
+        let captured = *subject_expression;
+        let name =
+            Identifier::generated(format!("__transition_subject#{}", captured.arena_index()));
+        let path_start = syntax_trees
+            .expressions
+            .append_identifier_path_member(name.clone());
+        let path = HandleSpan::from_parts(path_start, 1);
+        *subject_expression = syntax_trees.expressions.insert(ExpressionNode::Name(path));
+        subject_captures.push((name, captured));
     }
 
     let mut start = Handle::invalid();
@@ -306,147 +307,6 @@ fn expression_is_place(syntax_trees: &SyntaxTrees, expression: ExpressionHandle)
         }
         _ => false,
     }
-}
-
-/// A cheap structural lookahead for the one syntax that needs a computed
-/// subject capture. It recognizes plain-record `Type { .. } [if ..] ->`
-/// arms anywhere in the token stream. A case-pattern arm is included only when
-/// its braces contain the outcome proof-lane separator; this preserves the
-/// structural form of older proof-only recursive case machines while ensuring
-/// a selected-witness producer call executes exactly once. Requiring
-/// the pattern's closing brace to be followed immediately by `->` or `if`
-/// distinguishes it from a struct-literal arm TARGET, whose closing brace is
-/// followed by the next arm's pattern.
-fn transition_contains_destructure_pattern(input: Input<'_, '_>) -> bool {
-    // `Input` is the remainder of the SOURCE, not a slice already bounded to
-    // this transition. Stop at this block's own closing brace or a later
-    // machine/state containing a record arm would spuriously capture an
-    // earlier scalar transition subject.
-    let mut tokens = Vec::new();
-    let mut outer_brace_depth = 0usize;
-    for token in input.tokens.iter().filter(|token| !token.is_non_semantic()) {
-        match token.punctuation() {
-            Some(PunctuationKind::LeftBrace) => outer_brace_depth += 1,
-            Some(PunctuationKind::RightBrace) if outer_brace_depth == 0 => break,
-            Some(PunctuationKind::RightBrace) => outer_brace_depth -= 1,
-            _ => {}
-        }
-        tokens.push(token);
-    }
-
-    for start in 0..tokens.len() {
-        if !is_identifier_token_for_parser(tokens[start]) {
-            continue;
-        }
-        if start > 0 && tokens[start - 1].punctuation() == Some(PunctuationKind::ColonColon) {
-            continue;
-        }
-        let mut cursor = start + 1;
-        let mut case_proof_lane = false;
-        if tokens
-            .get(cursor)
-            .is_some_and(|token| token.punctuation() == Some(PunctuationKind::ColonColon))
-        {
-            cursor += 1;
-            if !tokens
-                .get(cursor)
-                .is_some_and(|token| is_identifier_token_for_parser(token))
-            {
-                continue;
-            }
-            cursor += 1;
-            case_proof_lane = true;
-        }
-        if !tokens
-            .get(cursor)
-            .is_some_and(|token| token.punctuation() == Some(PunctuationKind::LeftBrace))
-        {
-            continue;
-        }
-
-        let mut depth = 1usize;
-        let mut has_proof_separator = false;
-        cursor += 1;
-        while cursor < tokens.len() && depth > 0 {
-            match tokens[cursor].punctuation() {
-                Some(PunctuationKind::LeftBrace) => depth += 1,
-                Some(PunctuationKind::RightBrace) => depth -= 1,
-                Some(PunctuationKind::Semicolon) if depth == 1 => {
-                    has_proof_separator = true;
-                }
-                _ => {}
-            }
-            cursor += 1;
-        }
-        if depth != 0 {
-            continue;
-        }
-        if tokens
-            .get(cursor)
-            .is_some_and(|token| token.punctuation() == Some(PunctuationKind::Arrow))
-            && (!case_proof_lane || has_proof_separator)
-        {
-            return true;
-        }
-        // Tuple destructures have `, ... )` between a component's closing
-        // brace and the arm arrow. Seeing the tuple close before that arrow
-        // distinguishes the pattern side from a struct-literal target.
-        if tokens.get(cursor).is_some_and(|token| {
-            matches!(
-                token.punctuation(),
-                Some(PunctuationKind::Comma | PunctuationKind::RightParen)
-            )
-        }) {
-            let mut nested_braces = 0usize;
-            while cursor < tokens.len() {
-                match tokens[cursor].punctuation() {
-                    Some(PunctuationKind::LeftBrace) => nested_braces += 1,
-                    Some(PunctuationKind::RightBrace) if nested_braces > 0 => nested_braces -= 1,
-                    Some(PunctuationKind::RightParen) if nested_braces == 0 => {
-                        let next = tokens[cursor + 1..]
-                            .iter()
-                            .find(|token| !token.is_non_semantic());
-                        if next.is_some_and(|token| {
-                            token.punctuation() == Some(PunctuationKind::Arrow)
-                                || token.keyword() == Some(KeywordKind::If)
-                        }) {
-                            return true;
-                        }
-                    }
-                    _ => {}
-                }
-                cursor += 1;
-            }
-            continue;
-        }
-        if !tokens
-            .get(cursor)
-            .is_some_and(|token| token.keyword() == Some(KeywordKind::If))
-        {
-            continue;
-        }
-
-        let mut paren = 0usize;
-        let mut bracket = 0usize;
-        let mut brace = 0usize;
-        cursor += 1;
-        while cursor < tokens.len() {
-            match tokens[cursor].punctuation() {
-                Some(PunctuationKind::LeftParen) => paren += 1,
-                Some(PunctuationKind::RightParen) => paren = paren.saturating_sub(1),
-                Some(PunctuationKind::LeftBracket) => bracket += 1,
-                Some(PunctuationKind::RightBracket) => bracket = bracket.saturating_sub(1),
-                Some(PunctuationKind::LeftBrace) => brace += 1,
-                Some(PunctuationKind::RightBrace) if brace > 0 => brace -= 1,
-                Some(PunctuationKind::Arrow) if paren == 0 && bracket == 0 && brace == 0 => {
-                    return true;
-                }
-                _ => {}
-            }
-            cursor += 1;
-        }
-    }
-    false
 }
 
 fn parse_expression_list_until_punctuation<'tokens, 'source>(

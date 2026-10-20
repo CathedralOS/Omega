@@ -85,6 +85,10 @@ pub struct ContextualCleanupDisposition {
     /// subtrees below use this family's segment arena instead.
     pub path: HandleSpan<PlaceSegment>,
     pub exclusions: HandleSpan<Place>,
+    /// Alternatives proved inactive at this occurrence. Unlike transferred
+    /// subtrees, these do not make an intact nominal owner partially moved.
+    /// Paths use the same place/segment arenas as exclusions.
+    pub inactive_cases: HandleSpan<Place>,
     /// The death belongs to a root still under field-wise construction at
     /// this edge, so the ownership producer already ordered this root's
     /// deaths in reverse establishment order. Consumers keep that order; a

@@ -390,7 +390,7 @@ fn expression_frontiers(
                     events,
                     maps,
                 }
-                .expression(statement, expression, &claim.path)
+                .expression(statement, expression, &claim.path, state.return_type)
         })
         .map(|claim| claim.path)
         .collect::<Vec<_>>();

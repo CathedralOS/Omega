@@ -25,11 +25,13 @@ impl<'program> Engine<'program> {
         let previous_owner = self.source_owner;
         let previous_arguments = self.formal_arguments.replace(arguments.to_vec());
         let previous_occurrences = std::mem::take(&mut self.strict_occurrences);
+        let previous_conditions = std::mem::take(&mut self.saved_conditions);
         self.source_owner = owner;
         let value = query(self);
         self.source_owner = previous_owner;
         self.formal_arguments = previous_arguments;
         self.strict_occurrences = previous_occurrences;
+        self.saved_conditions = previous_conditions;
         value
     }
 
@@ -505,6 +507,7 @@ impl<'program> Engine<'program> {
         }
         self.strict_occurrences.clear();
         let mut symbols: Vec<(SymbolHandle, Polynomial)> = Vec::with_capacity(bindings.len());
+        self.saved_conditions.clear();
         let mut occurrences = Vec::new();
         let mut result = None;
         for binding in bindings {
@@ -731,8 +734,10 @@ impl<'program> Engine<'program> {
         // the destination must install its own projected readings afterward.
         self.strict_occurrences.clear();
         let Some(bindings) = &mut self.strict_symbol_bindings else {
+            self.saved_conditions.clear();
             return;
         };
+        self.saved_conditions.clear();
         for (symbol, polynomial) in formals {
             match bindings
                 .iter_mut()

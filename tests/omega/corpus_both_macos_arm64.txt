@@ -200,6 +200,7 @@ pass/borrows/stored_primitive_reference_observations_exit built 1686ms exit:42 i
 pass/borrows/stored_reference_address_field_exit built 3695ms exit:0 interpreter-exit:0 interpreter:agrees @5e555aae7d56
 pass/borrows/stored_reference_projection_exit built 1368ms exit:70 interpreter-exit:70 interpreter:agrees @efc0f5f0f7a9+wt
 pass/borrows/structural_operand_view_catalog_exit built 3342ms exit:0 interpreter-exit:0 interpreter:agrees @ea7b63644a0a+wt
+pass/borrows/terminal_call_loan_completion_exit built 11678ms exit:0 interpreter-exit:0 interpreter:agrees @f772dfc723fb+wt
 pass/borrows/transition_shared_borrow_result built 7025ms exit:181 interpreter-exit:181 interpreter:agrees @5889f8b8208f+wt
 pass/boundary/later_state_requirement_scalar_result_exit built 69713ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/boundary/static_foreign_scalar_result_locals_exit built 69334ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
@@ -496,6 +497,7 @@ pass/drops/runtime_nested_empty_array_owner_cleanup_exit built 10881ms exit:0 in
 pass/drops/runtime_nested_nominal_producer_loans_exit built 1496ms exit:0 interpreter-exit:0 interpreter:agrees @f0ed096e2456+wt
 pass/drops/runtime_nested_temporary_capture_cleanup_exit built 1731ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt
 pass/drops/runtime_nominal_array_replacement_exit built 1627ms exit:0 interpreter-exit:0 interpreter:agrees @11521b5d20fe+wt
+pass/drops/runtime_nominal_case_observation_exit built 12514ms exit:0 interpreter-exit:0 interpreter:agrees @f772dfc723fb+wt
 pass/drops/runtime_nominal_cleanup_compound_contract_exit built 1721ms exit:0 interpreter-exit:0 interpreter:agrees @4cc11cbadf31+wt
 pass/drops/runtime_nominal_successor_argument_order_exit built 3588ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @093f0ff4e0f2
 pass/drops/runtime_nominal_temporary_helper_closure_exit built 1603ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt

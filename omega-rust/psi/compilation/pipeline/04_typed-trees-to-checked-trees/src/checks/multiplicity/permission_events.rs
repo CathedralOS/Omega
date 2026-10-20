@@ -178,6 +178,39 @@ pub(crate) fn prepare_permission_events(
                 }
             }
         };
+        // Mutation invalidates observations even when no linear claim needs
+        // restoration. The shared write owner may be unknown: forgetting then
+        // requires no invented storage authority or additional admission.
+        let call_writes = calls
+            .iter()
+            .map(|call| {
+                let borrowed = checked_trees::BorrowCallFact {
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                    receiver_symbol: call.receiver_symbol,
+                    target_symbol: call.target_symbol,
+                    has_receiver: call.has_receiver,
+                    accesses: call.accesses,
+                };
+                let source = PermissionEventSource::Call {
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                    target_symbol: call.target_symbol,
+                };
+                (
+                    source,
+                    crate::flow::call_mutated_places(
+                        program,
+                        machine.symbol,
+                        state.symbol,
+                        &facts.borrow,
+                        &borrowed,
+                        &mutation_summaries,
+                        call_frames.as_ref(),
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
         let temporary_owners =
             match temporary_results::temporary_owners(program, facts, machine, state, &calls) {
                 Ok(owners) => owners,
@@ -355,15 +388,8 @@ pub(crate) fn prepare_permission_events(
                                 _ => None,
                             })
                             .collect::<Vec<_>>();
-                        let has_selected_move = !selected.is_empty();
-                        let before_places = if has_selected_move {
-                            places.clone()
-                        } else {
-                            Vec::new()
-                        };
                         let event_start = permission_events.len();
                         remaining.reserve(program, &statements[statement_index]);
-                        let before_remaining = remaining.clone();
                         let routes = super::selected_evaluation::ExpressionRoutes::new(
                             program,
                             machine,
@@ -380,6 +406,7 @@ pub(crate) fn prepare_permission_events(
                             &moves,
                             &calls,
                             &completion_regions,
+                            &call_writes,
                             &temporary_owners,
                             statement_index,
                             &statements[statement_index],
@@ -412,8 +439,7 @@ pub(crate) fn prepare_permission_events(
                         if let Err(diagnostic) = selected_cleanup.observe(
                             program,
                             &selected,
-                            &before_places,
-                            &before_remaining,
+                            &produced_storage.transfers,
                             &routes,
                             &calls,
                             &permission_events[event_start..],

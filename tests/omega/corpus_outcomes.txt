@@ -604,6 +604,8 @@ fail/borrows/stored_writeonly_carrier_shared_outer rejected 146ms expected @3d1b
 fail/borrows/stored_writeonly_carrier_shared_widening rejected 148ms expected @3d1bd96aeaa5
 fail/borrows/tail_recursive_mutation_retires_field_bound rejected 1343ms expected @0a951af3f8e9+wt
 fail/borrows/tail_recursive_write_conflicts_with_live_sibling_loan rejected 981ms expected @0a951af3f8e9+wt
+fail/borrows/terminal_call_returned_loan_live_write rejected 1849ms expected @f772dfc723fb+wt
+	statement 1 mutates `container.cell.value` while local borrow `value` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/unproved_window_index_keeps_backing rejected 2835ms expected @c4d3eedf9f1d+wt
 fail/borrows/view_local_backing_write_while_stored rejected 2577ms expected @a9ae30e1c334+wt
 fail/borrows/view_local_forward_before_store rejected 2896ms expected @a9ae30e1c334+wt
@@ -5705,6 +5707,12 @@ fail/ownership/computed_window_selector_requires_builtin_meaning rejected 1260ms
 fail/ownership/conditional_scalar_return_preserves_live_claim rejected 669ms expected @e12a9f3ff2a3
 fail/ownership/copy_linear_conflict rejected 3ms expected @a9ae30e1c334+wt
 fail/ownership/cyclic_arrival_restores_consumed_field rejected 338ms expected @d41afc784463+wt
+fail/ownership/dispatch_payload_duplicates_linear_field rejected 916ms expected @ef97e2a38c91+wt
+	cannot use `__transition_subject#7::Present.left` in machine `duplicate` state `entry` (statement 2) after `__transition_subject#7::Present.left` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `__transition_subject#7::Present.left` first
+fail/ownership/dispatch_payload_omits_linear_sibling rejected 1970ms expected @ef97e2a38c91+wt
+	linear value `__transition_subject#7::Present.right` reaches scope exit without being consumed or transferred
+fail/ownership/dispatch_payload_preserves_nominal_cleanup rejected 830ms expected @ef97e2a38c91+wt
+	cannot partially move a value of `Envelope<Leaf>` because `Envelope<Leaf>::drop` requires the whole value
 fail/ownership/duplicate_constructor_payload rejected 1352ms expected @a81c7e227ee2+wt
 	cannot use `choice::Present.value` in machine `duplicate` state `entry` (statement 1) after `choice::Present.value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `choice::Present.value` first
 fail/ownership/first_match_linear_frontier_mismatch rejected 250ms expected @dd6871ed0476
@@ -6602,6 +6610,12 @@ fail/termination/requirement_witness_rejected rejected 9ms expected @a9ae30e1c33
 fail/termination/retired_block_form rejected 0ms expected @a9ae30e1c334+wt
 fail/termination/retired_standalone_decreases rejected 3ms expected @a9ae30e1c334+wt
 fail/termination/runtime_non_tail_joint_machine_cycle rejected 306ms expected @1a353f2e117b+wt
+fail/termination/saved_boolean_after_write rejected 1800ms expected @ef97e2a38c91+wt
+	cannot prove the `terminates by` ranking for machine repeat
+	machine call cycle: `repeat` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/termination/saved_boolean_replaced rejected 1808ms expected @ef97e2a38c91+wt
+	terminating machine repeat: cannot prove strict rank decrease on a recurrent arrival: the transition from `repeat` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `repeat` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/saved_rank_authored_operator_rejected rejected 1549ms expected @a9ae30e1c334+wt
 fail/termination/selected_requirement_rank_composed_prefix_write rejected 1803ms expected @a9ae30e1c334+wt
 fail/termination/selected_requirement_rank_prefix_write rejected 1707ms expected @a9ae30e1c334+wt
@@ -7329,6 +7343,7 @@ pass/borrows/stored_reference_address_field_exit checked 3628ms check-target:mac
 pass/borrows/stored_reference_projection_exit checked 11240ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/stored_view_return_consumers checked 1799ms @f329f97f57f7+wt
 pass/borrows/structural_operand_view_catalog_exit checked 3433ms check-target:macos_arm64 @ea7b63644a0a+wt
+pass/borrows/terminal_call_loan_completion_exit checked 11894ms check-target:macos_arm64 @f772dfc723fb+wt
 pass/borrows/transition_shared_borrow_result checked 11028ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/view_field_record_exit_disposal checked 1549ms @a9ae30e1c334+wt
 pass/borrows/write_projection_loan checked 9836ms @5041ef1af684+wt
@@ -8120,6 +8135,8 @@ pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit checked 11387m
 pass/control_flow/runtime_ranked_state_cycle_owned_record_exit checked 11629ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_returned_nested_case_payload_capture_exit checked 12354ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/runtime_root_float_case_payload_exit checked 6507ms check-target:macos_arm64 @aef42baa7504+wt
+pass/control_flow/runtime_saved_transition_empty_sibling_exit checked 13398ms check-target:macos_arm64 @ef97e2a38c91+wt
+pass/control_flow/runtime_saved_transition_subject_exit checked 13584ms check-target:macos_arm64 @ef97e2a38c91+wt
 pass/control_flow/runtime_scalar_case_arm_evaluation_exit checked 39487ms check-target:macos_arm64 @e03f48653b6a
 pass/control_flow/runtime_selected_parent_state_loan_exit checked 5794ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/control_flow/runtime_shared_case_return_call_exit checked 14412ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8465,6 +8482,7 @@ pass/drops/runtime_nested_empty_array_owner_cleanup_exit checked 10361ms check-t
 pass/drops/runtime_nested_nominal_producer_loans_exit checked 11899ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_nested_temporary_capture_cleanup_exit checked 11485ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_nominal_array_replacement_exit checked 11435ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_nominal_case_observation_exit checked 12454ms check-target:macos_arm64 @f772dfc723fb+wt
 pass/drops/runtime_nominal_cleanup_compound_contract_exit checked 12320ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_nominal_state_loan_alias_exit checked 15301ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/drops/runtime_nominal_state_loan_cleanup_order_exit checked 14700ms check-target:linux_x86_64 @753e7ce7a36e+wt
@@ -11710,6 +11728,7 @@ pass/termination/runtime_ranked_sequence_arrival_coordinates_exit checked 12264m
 pass/termination/runtime_rankless_boundary_suffix_exit checked 10325ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/termination/runtime_receiver_byte_slice_recursion_exit checked 12492ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_record_measure_constructed_arrivals_exit checked 13486ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/termination/runtime_saved_boolean_descent_exit checked 12797ms check-target:macos_arm64 @ef97e2a38c91+wt
 pass/termination/runtime_saved_rank_cycle_exit checked 12832ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_selected_boundary_requirement_identity_exit checked 12695ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/runtime_selected_requirement_rank_composed_prefix_exit checked 12682ms check-target:macos_arm64 @a9ae30e1c334+wt

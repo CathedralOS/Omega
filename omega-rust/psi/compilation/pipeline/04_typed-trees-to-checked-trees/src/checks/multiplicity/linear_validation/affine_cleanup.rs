@@ -243,6 +243,7 @@ fn visit_owned_region_cleanup_events(
         path,
         tracked_places,
         &remaining.removed_paths(program, root, path),
+        &remaining.inactive_case_paths(root, path),
     ) else {
         return;
     };
@@ -339,8 +340,26 @@ pub(crate) fn apply_recorded_cleanup_events(
             })
             .collect::<Vec<_>>();
         let receipts = reference.and_then(|reference| {
+            let inactive_cases = cleanup
+                .exclusions
+                .span_or_empty(disposition.inactive_cases)
+                .iter()
+                .filter(|inactive| inactive.root == root)
+                .filter_map(|inactive| {
+                    cleanup
+                        .segments
+                        .span_or_empty(inactive.segments)
+                        .strip_prefix(path)
+                })
+                .collect::<Vec<_>>();
             super::super::owned_cleanup::claim_receipts(
-                program, reference, root, path, places, &removed,
+                program,
+                reference,
+                root,
+                path,
+                places,
+                &removed,
+                &inactive_cases,
             )
         });
         let Some(receipts) = receipts else {

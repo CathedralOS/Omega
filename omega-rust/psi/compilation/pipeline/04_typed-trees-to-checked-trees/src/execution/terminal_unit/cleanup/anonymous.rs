@@ -100,7 +100,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    operations: &mut [CheckedUnitEffectOperationPlan],
     invocation: &CheckedUnitEffectOperationPlan,
     trace: &super::super::control::LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
@@ -151,14 +151,28 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         {
             continue;
         }
-        let mut producers = operations.iter_mut().filter_map(|operation| {
-            operation.discardable_structural_result_by_ordinal_mut(*binding_ordinal)
-        });
-        let (_, discard) = producers.next()?;
-        if producers.next().is_some() {
-            return None;
+        // Every carrier has a producer, but direct reference/view formation
+        // has no automatic result-discard flag. Its explicit release is the
+        // entire disposition; only producers with an automatic death need it
+        // withdrawn here.
+        {
+            let mut producers = operations
+                .iter()
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
+                .filter(|binding| binding.binding_ordinal == *binding_ordinal);
+            producers.next()?;
+            if producers.next().is_some() {
+                return None;
+            }
         }
-        *discard = false;
+        for operation in operations.iter_mut() {
+            if let Some((_, discard)) =
+                operation.discardable_structural_result_by_ordinal_mut(*binding_ordinal)
+            {
+                *discard = false;
+            }
+        }
         selected_descriptors.push(completion);
     }
     completions = selected_descriptors;

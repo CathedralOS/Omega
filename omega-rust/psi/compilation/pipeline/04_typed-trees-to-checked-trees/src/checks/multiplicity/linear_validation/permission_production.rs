@@ -6,7 +6,7 @@
 //! The emitted ledger retains exact producer identities for outcome mapping
 //! and the storage extent of each write for contextual cleanup.
 
-use crate::checks::multiplicity::cleanup_dispositions::StorageEstablishment;
+use crate::checks::multiplicity::cleanup_dispositions::{StorageEstablishment, TransferCustody};
 use crate::checks::multiplicity::linear_obligations::{
     ClaimIdentityAllocator, LinearPlace, WrittenLinearTarget,
 };
@@ -27,6 +27,7 @@ use typed_trees::statement::StatementNode;
 
 pub(crate) struct ProducedStorage {
     pub(crate) establishments: Vec<StorageEstablishment>,
+    pub(crate) transfers: Vec<TransferCustody>,
     /// Prefix already reflected in joined storage custody. Claim events alone
     /// cannot reconstruct whole-carrier moves that contain several claims.
     pub(crate) evaluated_events: usize,
@@ -41,6 +42,10 @@ pub(crate) fn apply_statement_permission_production(
     moves: &[crate::flow::DiscoveredMoveEvent],
     state_calls: &[checked_trees::FlowCallFact],
     completion_regions: &[(PermissionEventSource, Vec<validation::CanonicalPlace>)],
+    call_writes: &[(
+        PermissionEventSource,
+        Option<Vec<validation::CanonicalPlace>>,
+    )],
     temporary_owners: &[temporary_results::TemporaryOwner],
     statement_index: usize,
     statement: &StatementNode,
@@ -60,6 +65,7 @@ pub(crate) fn apply_statement_permission_production(
     {
         return Ok(ProducedStorage {
             establishments: Vec::new(),
+            transfers: Vec::new(),
             evaluated_events: 0,
         });
     }
@@ -164,6 +170,7 @@ pub(crate) fn apply_statement_permission_production(
         .cloned()
         .collect::<Vec<_>>();
     let mut storage_establishments = Vec::new();
+    let mut transfers = Vec::new();
     let copy_completions = copy_source_completions(
         program,
         facts,
@@ -194,7 +201,11 @@ pub(crate) fn apply_statement_permission_production(
     for occurrence in occurrences {
         match occurrence.step {
             StatementStep::Observe { .. } => continue,
-            StatementStep::Move { event, ordered, .. } => {
+            StatementStep::Move {
+                event,
+                ordered,
+                conditional,
+            } => {
                 let event = &moves[event];
                 if event.evaluation != evaluation {
                     continue;
@@ -298,6 +309,16 @@ pub(crate) fn apply_statement_permission_production(
                 // Storage custody moves once at the authored carrier path;
                 // nested linear claims retain their separate exact transfers.
                 let projected_start = permission_events.len();
+                let transfer_snapshot = conditional.then(|| {
+                    let position = transfers.len();
+                    let start = projected_start - event_start;
+                    transfers.push(TransferCustody {
+                        events: start..start,
+                        places: places.clone(),
+                        remaining: remaining.clone(),
+                    });
+                    position
+                });
                 projected_affine::append_transfer(
                     program,
                     facts,
@@ -309,6 +330,9 @@ pub(crate) fn apply_statement_permission_production(
                     remaining,
                     permission_events,
                 );
+                if let Some(position) = transfer_snapshot {
+                    transfers[position].events.end = permission_events.len() - event_start;
+                }
                 // A projected affine subtree may have no tracked claim leaf.
                 // Its captured storage transfer still changes this branch's
                 // cleanup complement before any enclosing join.
@@ -360,6 +384,9 @@ pub(crate) fn apply_statement_permission_production(
                     });
                     place.live = false;
                 }
+                if let Some(position) = transfer_snapshot {
+                    transfers[position].events.end = permission_events.len() - event_start;
+                }
                 remaining.transfer_storage(event.root, &event_path);
             }
 
@@ -379,6 +406,13 @@ pub(crate) fn apply_statement_permission_production(
                         target_symbol: call.target_symbol,
                     };
                     let completion_start = permission_events.len();
+                    remaining.invalidate_call_observations(
+                        program,
+                        call_writes
+                            .iter()
+                            .find(|(candidate, _)| *candidate == source)
+                            .and_then(|(_, writes)| writes.as_deref()),
+                    );
                     temporary_results::append_constructed_argument_transfers(
                         program,
                         machine_symbol,
@@ -809,6 +843,7 @@ pub(crate) fn apply_statement_permission_production(
     )?;
     Ok(ProducedStorage {
         establishments: storage_establishments,
+        transfers,
         evaluated_events,
     })
 }

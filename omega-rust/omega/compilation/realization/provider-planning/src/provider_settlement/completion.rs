@@ -568,6 +568,7 @@ impl CompletionReview<'_> {
             CheckedConditionalReturnArm::Call {
                 operands,
                 operation,
+                completions,
             } => {
                 let mut values = values.clone();
                 let operations = operands.iter().cloned().collect::<Vec<_>>();
@@ -575,6 +576,15 @@ impl CompletionReview<'_> {
                 if outcome.returns {
                     outcome.returns = false;
                     outcome.merge(self.operation(operation, &mut values)?);
+                }
+                if outcome.returns {
+                    let completions = completions.iter().cloned().collect::<Vec<_>>();
+                    let result = outcome.result;
+                    outcome.returns = false;
+                    outcome.merge(self.operations(&completions, &mut values)?);
+                    if outcome.returns {
+                        outcome.result = result;
+                    }
                 }
                 Ok(outcome)
             }

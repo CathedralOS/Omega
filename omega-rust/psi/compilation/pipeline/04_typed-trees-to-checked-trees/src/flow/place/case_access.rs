@@ -203,7 +203,7 @@ pub(crate) fn place_case_has_value(
     declared && excluded_alternative
 }
 
-fn stable_subject(subject: &CanonicalPlace) -> bool {
+pub(crate) fn stable_subject(subject: &CanonicalPlace) -> bool {
     // An evaluated temporary is an identity too. Live facts name its exact
     // occurrence; matching them neither replays its producer nor transfers a
     // selected tag to another equal-looking call or constructor.

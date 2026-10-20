@@ -118,10 +118,12 @@ impl StateGraphEmission<'_, '_> {
             checked_trees::CheckedConditionalReturnArm::Call {
                 operands,
                 operation,
+                completions,
             } => {
                 let planned = operands
                     .iter()
                     .chain(std::iter::once(operation))
+                    .chain(completions.iter())
                     .cloned()
                     .collect::<Vec<_>>();
                 super::super::super::emission::emit_call_operations(

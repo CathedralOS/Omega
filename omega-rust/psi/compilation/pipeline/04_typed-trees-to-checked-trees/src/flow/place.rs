@@ -14,6 +14,7 @@ pub(crate) use canonicalization::{
 };
 pub(crate) use case_access::{
     place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
+    stable_subject as stable_case_subject,
 };
 pub(crate) use comparison::{
     canonical_place_joined_segments_may_overlap, canonical_place_segments_equal,

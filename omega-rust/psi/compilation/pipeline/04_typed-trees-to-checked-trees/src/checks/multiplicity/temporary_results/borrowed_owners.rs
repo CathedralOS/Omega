@@ -44,6 +44,7 @@ pub(in crate::checks::multiplicity) fn append_borrow(
             &[],
             places,
             &[],
+            &[],
         )
         .is_none()
         {
@@ -101,6 +102,7 @@ pub(in crate::checks::multiplicity) fn append_borrow(
                 disposed_type: owner.type_reference,
                 path: HandleSpan::empty(),
                 exclusions: HandleSpan::empty(),
+                inactive_cases: HandleSpan::empty(),
             });
         permissions.push(FlowPermissionEventFact {
             expression: owner.completion,

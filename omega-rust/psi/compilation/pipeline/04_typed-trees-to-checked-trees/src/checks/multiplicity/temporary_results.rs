@@ -276,9 +276,14 @@ pub(super) fn unselected_claim_diagnostic(
         {
             continue;
         }
-        return Some(Diagnostic::error(
-            "cannot partially move a temporary call result while an unselected linear claim remains; bind the result to a local and transfer or consume every claim",
-        ));
+        let machine_name = validation::find_state(program, state_symbol)
+            .map(|(machine, _)| machine.name.as_str())
+            .unwrap_or("<unknown machine>");
+        let statement_index = event_statement_index(event.source).unwrap_or(0);
+        return Some(Diagnostic::error(format!(
+            "cannot partially move a temporary call result while an unselected linear claim remains in {machine_name}::{} at statement {statement_index}; bind the result to a local and transfer or consume every claim",
+            program.symbols.name(state_symbol)
+        )));
     }
     None
 }

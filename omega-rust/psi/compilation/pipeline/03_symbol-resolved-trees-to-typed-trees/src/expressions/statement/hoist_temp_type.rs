@@ -295,7 +295,11 @@ pub(super) fn infer_hoist_temp_type(
                     binary.left,
                     binary.right,
                 ) else {
-                    return Ok(Some(base_handle));
+                    // An operand's carrier is not the operation's result:
+                    // comparison and selected operators may return another
+                    // type. Without a derived arithmetic range, preparation
+                    // infers the result from the selected typed expression.
+                    return Ok(None);
                 };
                 // A negative bound cannot ride an UNSIGNED scalar's range;
                 // clamp the low end to 0 (the store proof still gates every

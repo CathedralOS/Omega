@@ -1,7 +1,7 @@
 //! Candidate deaths retain exact regions of an established occurrence across
 //! selected transfers. Ordinary availability stays conservative; the retained
 //! candidates never enter the unconditional permission ledger.
-use super::cleanup_dispositions::{RemainingCustody, StorageEstablishment};
+use super::cleanup_dispositions::{RemainingCustody, StorageEstablishment, TransferCustody};
 use super::linear_obligations::LinearPlace;
 use checked_trees::{
     ContextualCleanupFacts, FlowClaimJoinExit, FlowOwnershipFacts, FlowPermissionEventFact,
@@ -102,8 +102,7 @@ impl SelectedCleanup {
         &mut self,
         program: &dyn validation::CheckingInput,
         selected: &[typed_trees::expression::ExpressionHandle],
-        places: &[LinearPlace],
-        remaining: &RemainingCustody,
+        transfers: &[TransferCustody],
         routes: &super::selected_evaluation::ExpressionRoutes,
         calls: &[checked_trees::FlowCallFact],
         events: &[FlowPermissionEventFact],
@@ -111,20 +110,10 @@ impl SelectedCleanup {
         ownership: &mut FlowOwnershipFacts,
         output: &mut ContextualCleanupFacts,
     ) -> Result<(), diagnostics::Diagnostic> {
-        let mut prefix = remaining.clone();
-        let mut selection = super::selected_evaluation::SelectedEvaluation::new();
         for (ordinal, event) in events.iter().enumerate() {
             if event.access != PermissionAccess::Owned {
                 continue;
             }
-            selection.enter(
-                routes.event(event, calls),
-                &mut prefix,
-                |current, sibling| {
-                    current.join(sibling);
-                    Ok(())
-                },
-            )?;
             let path = ownership.segments.span_or_empty(event.segments).to_vec();
             for establishment in establishments
                 .iter()
@@ -180,13 +169,6 @@ impl SelectedCleanup {
                     )
                     && path.starts_with(ownership.segments.span_or_empty(prior.segments))
             });
-            let before_transfer = (selected.contains(&event.expression)
-                && matches!(
-                    event.kind,
-                    PermissionEventKind::Transfer | PermissionEventKind::Consume
-                ))
-            .then(|| prefix.clone());
-            prefix.advance(program, std::slice::from_ref(event), &ownership.segments);
             if !matches!(
                 event.kind,
                 PermissionEventKind::Transfer | PermissionEventKind::Consume
@@ -217,6 +199,17 @@ impl SelectedCleanup {
                 // An expression owner is born only where it is evaluated.
                 continue;
             }
+            let transfer = transfers
+                .iter()
+                .find(|transfer| transfer.events.contains(&ordinal))
+                .ok_or_else(|| {
+                    unsupported(
+                        program,
+                        event,
+                        "selected transfer has no producer custody snapshot",
+                    )
+                })?;
+            let before_transfer = &transfer.remaining;
             let statement = match event.source {
                 PermissionEventSource::Statement { statement_index }
                 | PermissionEventSource::Call {
@@ -251,7 +244,8 @@ impl SelectedCleanup {
             {
                 continue;
             }
-            let established = places
+            let established = transfer
+                .places
                 .iter()
                 .filter(|place| place.root == event.root)
                 .cloned()
@@ -280,16 +274,12 @@ impl SelectedCleanup {
             // A reserved root (a declared local its stores establish field
             // by field) has no established whole place; its construction
             // frontier, checked below for the exact region, is the authority.
-            let reserved = before_transfer
-                .as_ref()
-                .is_some_and(|remaining| remaining.is_reserved(event.root));
+            let reserved = before_transfer.is_reserved(event.root);
             // This prefix follows the permission producer's selected edge.
             // Known absence is an invalid use, not missing cleanup evidence;
             // do not let the later custody-gap diagnostic hide a second move.
             if (established.iter().any(|place| place.ever_established) || reserved)
-                && before_transfer
-                    .as_ref()
-                    .is_some_and(|remaining| !remaining.is_present(event.root, &path))
+                && !before_transfer.is_present(event.root, &path)
             {
                 let message = "owned region is unavailable at this selected transfer: it was already transferred or has not been established";
                 return Err(diagnostics::Diagnostic::error(message)
@@ -308,9 +298,7 @@ impl SelectedCleanup {
                             .iter()
                             .any(|place| place.provenance == Some(event.provenance))
                 }
-                || before_transfer
-                    .as_ref()
-                    .is_none_or(|remaining| !remaining.is_present(event.root, &path))
+                || !before_transfer.is_present(event.root, &path)
             {
                 return Err(unsupported(
                     program,
@@ -329,7 +317,7 @@ impl SelectedCleanup {
                 reference,
                 origin: event.clone(),
                 places: established,
-                remaining: before_transfer.expect("selected transfer retained its exact prefix"),
+                remaining: before_transfer.clone(),
             });
         }
         self.retire_transferred(routes, calls, events, ownership)

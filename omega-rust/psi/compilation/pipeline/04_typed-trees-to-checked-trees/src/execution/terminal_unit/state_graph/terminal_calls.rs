@@ -355,9 +355,24 @@ pub(super) fn arm_call(
     };
     trace.phase("state graph: terminator: terminal call arm: result consumption");
     control::statement_sequence::consume_results(&mut preparation, &operation)?;
+    // The arm's result completes its caller, but that does not extend its
+    // operand loans into caller cleanup. Retain the same normal-return
+    // transaction as a statement or nested value call, on this selected arm.
+    let completions = super::super::cleanup::anonymous::normal_call_completion(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        &structural_results,
+        &mut preparation,
+        &operation,
+        trace,
+    )?;
     preparation.drain(..predecessor_count);
     Some(checked_trees::CheckedConditionalReturnArm::Call {
         operands: checked_trees::CheckedOperandSequence::new(preparation),
         operation,
+        completions: checked_trees::CheckedOperandSequence::new(completions),
     })
 }

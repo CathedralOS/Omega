@@ -18,6 +18,9 @@ pub(crate) struct RemainingCustody {
     // Moved regions and conditional claim regions that were never established
     // both lie outside the owner's cleanup complement.
     excluded: Vec<(PlaceRoot, Vec<PlaceSegment>)>,
+    // Tag observations are facts, not transfers. They intersect at joins and
+    // are invalidated by writes; unioning them can erase every live alternative.
+    inactive_cases: Vec<(PlaceRoot, Vec<PlaceSegment>)>,
     constructing: Vec<(
         PlaceRoot,
         super::construction_frontier::ConstructionFrontier,
@@ -36,6 +39,14 @@ pub(super) struct StorageEstablishment {
     pub(super) destination: validation::CanonicalPlace,
 }
 
+/// A selected move's exact pre-transfer custody, captured by the producer.
+/// Permission events alone omit call invalidations and storage-only changes.
+pub(crate) struct TransferCustody {
+    pub(crate) events: std::ops::Range<usize>,
+    pub(crate) places: Vec<super::linear_obligations::LinearPlace>,
+    pub(crate) remaining: RemainingCustody,
+}
+
 impl RemainingCustody {
     /// Ordinary post-selection availability is the intersection. Selected
     /// cleanup retains the exact skipped-path frontier separately; this join
@@ -44,6 +55,8 @@ impl RemainingCustody {
         for (root, path) in &sibling.excluded {
             self.remove(*root, path);
         }
+        self.inactive_cases
+            .retain(|observation| sibling.inactive_cases.contains(observation));
         self.zero_images
             .retain(|root| sibling.zero_images.contains(root));
         for (root, frontier) in &mut self.constructing {
@@ -135,6 +148,7 @@ impl RemainingCustody {
         !self
             .excluded
             .iter()
+            .chain(&self.inactive_cases)
             .any(|(candidate, removed)| *candidate == root && path.starts_with(removed))
             && self
                 .constructing
@@ -183,6 +197,21 @@ impl RemainingCustody {
             .filter_map(|(candidate, removed)| {
                 (*candidate == root)
                     .then(|| removed.strip_prefix(path))
+                    .flatten()
+            })
+            .collect()
+    }
+
+    pub(super) fn inactive_case_paths<'a>(
+        &'a self,
+        root: PlaceRoot,
+        path: &[PlaceSegment],
+    ) -> Vec<&'a [PlaceSegment]> {
+        self.inactive_cases
+            .iter()
+            .filter_map(|(candidate, inactive)| {
+                (*candidate == root)
+                    .then(|| inactive.strip_prefix(path))
                     .flatten()
             })
             .collect()
@@ -406,6 +435,15 @@ impl RemainingCustody {
                 // path, has no folded whole value: the producer ordered its
                 // deaths by establishment (`SelectedCleanup::finish`).
                 let establishment_ordered = establishment_ordered_roots.contains(&event.root);
+                let inactive_cases = self
+                    .inactive_cases
+                    .iter()
+                    .filter(|(root, _)| *root == event.root)
+                    .map(|(root, path)| Place {
+                        root: *root,
+                        segments: output.segments.insert_many(path.iter().copied()),
+                    })
+                    .collect::<Vec<_>>();
                 let disposition = output.dispositions.append(ContextualCleanupDisposition {
                     selection: Default::default(),
                     machine: event.machine_symbol,
@@ -417,6 +455,7 @@ impl RemainingCustody {
                     disposed_type: typed_trees::types::TypeReferenceHandle::invalid(),
                     path: event.segments,
                     exclusions: output.exclusions.insert_many(exclusions),
+                    inactive_cases: output.exclusions.insert_many(inactive_cases),
                     establishment_ordered,
                     zero_image,
                 });
@@ -436,6 +475,7 @@ impl RemainingCustody {
     ) {
         match event.kind {
             PermissionEventKind::Establish | PermissionEventKind::Restore => {
+                self.invalidate_case_observations(program, event.root, path);
                 // A strict child cannot revive its consumed containing owner.
                 self.excluded
                     .retain(|(root, removed)| *root != event.root || !removed.starts_with(path));
@@ -489,7 +529,42 @@ impl RemainingCustody {
     /// Preserve the containing home; this is not an owned transfer or death.
     pub(super) fn exclude_absent_case(&mut self, root: PlaceRoot, path: &[PlaceSegment]) {
         debug_assert!(matches!(path.last(), Some(PlaceSegment::Case { .. })));
-        self.remove(root, path);
+        if !self
+            .inactive_cases
+            .iter()
+            .any(|(candidate, inactive)| *candidate == root && inactive == path)
+        {
+            self.inactive_cases.push((root, path.to_vec()));
+        }
+    }
+
+    fn invalidate_case_observations(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        root: PlaceRoot,
+        path: &[PlaceSegment],
+    ) {
+        self.inactive_cases.retain(|(candidate, inactive)| {
+            *candidate != root
+                || !crate::flow::canonical_place_segments_may_overlap(program, inactive, path)
+        });
+    }
+
+    /// Forget observations at the exact returned invocation before any owner
+    /// cleanup. Borrowed writes can change tags without restoring a linear
+    /// claim; unknown effects forget facts but never manufacture authority.
+    pub(super) fn invalidate_call_observations(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        writes: Option<&[validation::CanonicalPlace]>,
+    ) {
+        let Some(writes) = writes else {
+            self.inactive_cases.clear();
+            return;
+        };
+        for write in writes {
+            self.invalidate_case_observations(program, write.root, &write.segments);
+        }
     }
 
     fn remove(&mut self, root: PlaceRoot, path: &[PlaceSegment]) {
@@ -543,6 +618,7 @@ impl RemainingCustody {
                 disposed_type: Default::default(),
                 path: Default::default(),
                 exclusions,
+                inactive_cases: Default::default(),
                 establishment_ordered: false,
                 zero_image: false,
             });
@@ -558,6 +634,7 @@ impl RemainingCustody {
         root: PlaceRoot,
         path: &[PlaceSegment],
     ) {
+        self.invalidate_case_observations(program, root, path);
         self.excluded
             .retain(|(candidate, removed)| *candidate != root || !removed.starts_with(path));
         if let Some((_, frontier)) = self

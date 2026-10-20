@@ -245,6 +245,16 @@ pub(super) enum OpaqueTerm {
     },
 }
 
+/// Conditional facts of a completed Boolean observation. Keeping normalized
+/// operands, rather than its initializer, prevents later scope substitution
+/// from replaying the comparison against different values.
+pub(super) struct SavedCondition {
+    pub(super) symbol: SymbolHandle,
+    pub(super) holds: bool,
+    pub(super) comparisons: Vec<(BinaryOperator, Polynomial, Polynomial)>,
+    pub(super) fully_visible: bool,
+}
+
 pub(super) struct Engine<'program> {
     pub(super) program: &'program dyn crate::CheckingInput,
     /// The machine this engine judges (entry-range hypotheses resolve
@@ -273,6 +283,7 @@ pub(super) struct Engine<'program> {
     /// Exact numeric projections and quotient occurrences installed by the
     /// owning strict query after checking builtin meaning and source custody.
     strict_occurrences: Vec<(ExpressionHandle, Polynomial)>,
+    pub(super) saved_conditions: Vec<SavedCondition>,
     /// One call-observation namespace for this judgment. Reusing it prevents
     /// a shared public-clause expression from identifying different invocations
     /// merely because each operand was prepared first in a fresh namespace.
@@ -341,6 +352,7 @@ impl<'program> Engine<'program> {
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_occurrences: Vec::new(),
+            saved_conditions: Vec::new(),
             captured_calls: None,
             proof_integer_formation: false,
             unsigned_atoms,
@@ -597,6 +609,7 @@ impl<'program> Engine<'program> {
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
             strict_occurrences: Vec::new(),
+            saved_conditions: Vec::new(),
             captured_calls: None,
             proof_integer_formation: false,
             unsigned_atoms: Vec::new(),

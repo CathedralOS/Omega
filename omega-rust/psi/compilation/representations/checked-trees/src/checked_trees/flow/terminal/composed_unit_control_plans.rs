@@ -585,6 +585,8 @@ pub enum CheckedConditionalReturnArm {
     Call {
         operands: crate::CheckedOperandSequence,
         operation: CheckedUnitEffectOperationPlan,
+        /// The ordinary call's normal-return transaction, before state cleanup.
+        completions: crate::CheckedOperandSequence,
     },
 }
 
@@ -616,6 +618,14 @@ impl CheckedConditionalReturnArm {
             .into_iter()
             .flat_map(|operands| operands.iter())
             .chain(self.operation())
+            .chain(
+                match self {
+                    Self::Call { completions, .. } => Some(completions),
+                    _ => None,
+                }
+                .into_iter()
+                .flat_map(|completions| completions.iter()),
+            )
     }
 
     /// The authored transition ordinal this arm completes at, when the arm
