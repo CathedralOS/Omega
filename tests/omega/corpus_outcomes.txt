@@ -746,9 +746,6 @@ fail/calls/affine_call_local_moved_twice rejected 942ms expected @0e7ef4cb2ac8+w
 fail/calls/affine_constructor_result_reuse rejected 1183ms expected @a9ae30e1c334+wt
 fail/calls/ambiguous_returned_loan_drops_count rejected 965ms expected @d9b14477f4cf+wt
 fail/calls/authored_numeric_name_requires rejected 1601ms expected @a9ae30e1c334+wt
-fail/calls/borrowed_binding_nested_field rejected 323ms expected @8df1d091a810
-fail/calls/borrowed_service_field_literal_authority rejected 266ms expected @a87ecf7b03bf
-fail/calls/borrowed_service_field_wrong_contract rejected 258ms expected @a87ecf7b03bf
 fail/calls/boundary_computed_selector_out_of_bounds rejected 1609ms expected @a9ae30e1c334+wt
 fail/calls/boundary_nested_argument_conflicting_loan rejected 1504ms expected @a9ae30e1c334+wt
 fail/calls/boundary_projected_subslice_past_end rejected 1564ms expected @a9ae30e1c334+wt
