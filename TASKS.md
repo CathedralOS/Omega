@@ -432,20 +432,28 @@ helper that passes does not close an item.
     An inherited
     requirement is called through its declaring trait (`Parent::reset`), not
     the refining child's name, and an applied one as `Parent<u64>::read()`.
-  - `Binding<R>` retirement frontier, measured on main: the declaring file and the
-    compiler's type recognition are done. `source/library/core/binding.omg` is
+  - `Binding<R>` retirement frontier, measured on main: the source migration is
+    complete except three parked files. `source/library/core/binding.omg` is
     deleted, `calls/service.rs` answers the source-visible carrier as an explicit
     negative judgment (its `SERVICE_CORE_SOURCE` row and name/shape recognition are
-    gone), and `fail/calls/retired_core_binding_{field,local,parameter}` assert the
-    bare name is unknown. Remaining: 34 files still import the deleted module and
-    every one fails `omega --check` with `failed to resolve
-    .../core/binding.omg` (12 pass fixtures, 17 reject twins, 1 run fixture, 4
-    `samples/cli/probes`); their twins currently reject because the module is
-    missing, so a migrated twin must still reject with its authored fragment. Three
-    stale comments still name the carrier (`source/library/core/task.omg`,
-    `source/library/std/targets/macos_arm64/filesystem_impl.omg`,
-    `fail/boundary/bare_field_value_rejected`). Compiler paths whose carrier branch
-    can no longer fire must then be deleted with their data shapes:
+    gone), `fail/calls/retired_core_binding_{field,local,parameter}` assert the bare
+    name is unknown, and the comments and refusal text that still advised the carrier
+    are retired (`source/library/core/task.omg`, `.../filesystem_impl.omg`,
+    `fail/boundary/bare_field_value_rejected`, `value_custody/type_references.rs`).
+    Of the 34 files that imported the deleted module, all are migrated or retired:
+    six fixtures were deleted with their retired obligation named and its
+    specification citation in the commit
+    (`fail/calls/borrowed_binding_nested_field`,
+    `borrowed_service_field_literal_authority`, `borrowed_service_field_wrong_contract`,
+    `fail/entry/service_foreign_domain_rejected`,
+    `fail/providers/borrowed_binding_local_fabricated_carrier`,
+    `computed_binding_receiver_fabricated_carrier`), and every survivor checks or
+    rejects with its authored fragment. Parked: the two provider twins
+    `inherited_applied_binding_ambiguous_ancestors` and
+    `occurrence_region_binding_conflicting_inputs` await a `dyn`/higher-ranked
+    spelling ruling, and `private_binding_authority_contract` is a lost-enforcement
+    repair, not a migration. What remains is deleting the compiler paths whose carrier
+    branch can no longer fire, with their data shapes:
     `declarations/trait_definition/applications/source_fields.rs`,
     `declarations/invocations.rs`, `shape_collector.rs`,
     `checking/.../boundary_calls.rs`,
