@@ -1,0 +1,29 @@
+// A machine-level exact edge serves selection only for the requirement it
+// names. This member satisfies the sibling requirement `Reading::peek` of the
+// same trait, while another provider legitimately satisfies `Reading::read`,
+// so selecting it for `Reading` must still reject at admission.
+
+public boundary trait Reading {
+    machine read() -> u64;
+    machine peek() -> u64;
+}
+
+data DecoyProvider {}
+machine DecoyProvider::read() -> u64 satisfies Reading::read { 7 }
+
+data ReadingProvider {}
+machine ReadingProvider::peek() -> u64 satisfies Reading::peek { 42 }
+
+data Session {}
+data Main { session: Session; }
+
+machine read() -> u64 reaches Reading {
+    Reading::read()
+}
+
+machine Main::main(main: &mut Main) reaches Reading crashes Trap {
+    let value: u64 = read();
+    transition value == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

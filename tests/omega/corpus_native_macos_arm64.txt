@@ -2656,6 +2656,8 @@ pass/providers/inherited_applied_binding_borrowed_result_exit built 15703ms exit
 pass/providers/inherited_applied_binding_dispatch_exit built 2729ms exit:0 @344ec0329ba8+wt
 pass/providers/inherited_applied_binding_finite_family_exit built 2800ms exit:0 @344ec0329ba8+wt
 pass/providers/inherited_applied_binding_forwarded_value_exit built 2638ms exit:0 @344ec0329ba8+wt
+pass/providers/inline_member_generic_requirement_exit built 839ms exit:0 @d81382f05a6c+wt
+pass/providers/inline_member_provider_selection_exit built 836ms exit:0 @d81382f05a6c+wt
 pass/providers/kernel_import_result_chain_exit built 1378ms @65fd4c9d99fc
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 626ms exit:41
 pass/providers/linear_structural_provider_pure_exit built 27581ms exit:0 @7e6c0ae564d2+wt

@@ -7066,6 +7066,10 @@ fail/providers/inherited_provider_erased_regions rejected 3522ms expected @fa48d
 fail/providers/inherited_provider_phantom_arguments rejected 3474ms expected @fa48d7bba308+wt
 fail/providers/inherited_receiver_same_calling_owner_conflict rejected 2578ms expected @fa48d7bba308+wt
 fail/providers/inherited_receiver_unscoped_parent rejected 5190ms expected @fa48d7bba308+wt
+fail/providers/inline_member_sibling_requirement_rejected rejected 680ms expected @d81382f05a6c+wt
+	build selects provider `ReadingProvider` for slot `Reading`, but candidate `<selected target>::ReadingProvider::satisfies::Reading` is partial (1/2) and cannot be selected
+fail/providers/inline_member_unedged_data_rejected rejected 615ms expected @d81382f05a6c+wt
+	build selects provider `ReadingProvider` for slot `Reading`, but no candidate exists in the loaded dependency closure
 fail/providers/linear_provider_carry_forgetting rejected 890ms expected @3e583b96cb82
 fail/providers/linear_provider_result_second_use rejected 365ms expected @83314997c2b2
 fail/providers/linear_provider_stronger_nominal_result rejected 774ms expected @3e583b96cb82
@@ -12125,6 +12129,8 @@ pass/providers/inherited_applied_binding_forwarded_value_exit checked 6593ms che
 pass/providers/inherited_boundary_field_postcondition_exit checked 6992ms check-target:macos_arm64 @fa48d7bba308+wt
 pass/providers/inherited_provider_borrowed_result_exit checked 36153ms check-target:macos_arm64 @c48489ea6ad6
 pass/providers/inherited_receiver_calling_contracts_exit checked 10514ms check-target:linux_x86_64 @fa48d7bba308+wt
+pass/providers/inline_member_generic_requirement_exit checked 759ms check-target:macos_arm64 @d81382f05a6c+wt
+pass/providers/inline_member_provider_selection_exit checked 759ms check-target:macos_arm64 @d81382f05a6c+wt
 pass/providers/kernel_import_result_chain_exit checked 11433ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 11424ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/linear_structural_provider_pure_exit checked 7890ms check-target:macos_arm64 @03d6ab4d9d4c

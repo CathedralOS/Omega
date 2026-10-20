@@ -1,0 +1,28 @@
+// Selecting a data declaration whose member carries no exact requirement edge
+// supplies no provider for that requirement. Another provider legitimately
+// satisfies `Reading::read`, so only the selected declaration's missing edge
+// can refuse this program.
+
+public boundary trait Reading {
+    machine read() -> u64;
+}
+
+data DecoyProvider {}
+machine DecoyProvider::read() -> u64 satisfies Reading::read { 7 }
+
+data ReadingProvider {}
+machine ReadingProvider::read() -> u64 { 42 }
+
+data Session {}
+data Main { session: Session; }
+
+machine read() -> u64 reaches Reading {
+    Reading::read()
+}
+
+machine Main::main(main: &mut Main) reaches Reading crashes Trap {
+    let value: u64 = read();
+    transition value == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
