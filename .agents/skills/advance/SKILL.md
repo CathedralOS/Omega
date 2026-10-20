@@ -60,13 +60,17 @@ transition, ABI placement lane, or instruction-lowering path—preserves its
 static meaning and runtime behavior across all nine transport places:
 width/signedness scalars, shifts,
 narrow-to-wide sign/zero extension, signed/unsigned division and remainder,
-IEEE floats, fixed-size arrays, nested structural records, tagged case
-payloads, slice views, `size_of`/`align_of` layout geometry, borrowed
-projections (`&`, `&mut`), `&write` write-only borrows, affine cleanup, linear
-claim retirement, borrowed-storage restoration windows,
+IEEE floats, refinement domains, dependent value parameters, quotient
+projections, mathematical bindings, inductive structural recursion, termination
+measures, fixed-size arrays, nested structural records, tagged case
+payloads, slice views, explicit layout recasts/codecs, `size_of`/`align_of`
+layout geometry, borrowed projections (`&`, `&mut`), `&write` write-only
+borrows, affine cleanup, linear claim retirement, borrowed-storage restoration
+windows, content custody, placed/MMIO access, atomic concurrency orderings,
 named-implementation/`dyn` dispatch, multi-argument calling plans across
 register and stack slots, live-across-call preservation, disjoint stack-frame
-homes, boundary/provider calls, and checked `asm`.
+homes, boundary/provider calls, foreign bindings, private callbacks, process
+exit, and checked `asm`.
 Once a row proves a mechanism across the nine places, repeating that same
 mechanism at a larger count adds no new evidence about the compiler; a new row
 is meaningful only when it exercises a different compiler code path or crosses

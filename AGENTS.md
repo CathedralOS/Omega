@@ -129,20 +129,38 @@ transition, ABI placement lane, or instruction-lowering path—preserves its
 static meaning and runtime behavior across all nine transport places:
 width/signedness scalars, shifts, narrow-to-wide sign/zero
 extension, signed/unsigned division and remainder, and IEEE floats
-([numeric values](wiki/spec/language/numeric_values.md)); fixed-size arrays,
-nested structural records, tagged case payloads, slice views, and
-`size_of`/`align_of` layout geometry ([layout plans](wiki/spec/layouts/plans.md),
+([numeric values](wiki/spec/language/numeric_values.md)); refinement domains,
+dependent value parameters, quotient projections, mathematical bindings,
+inductive structural recursion, and termination measures
+([domains](wiki/spec/language/domains.md),
+[dependent values](wiki/spec/language/dependent_values.md),
+[quotients](wiki/spec/proofs/quotients.md),
+[mathematical bindings](wiki/spec/proofs/mathematical_bindings.md),
+[inductive profile](wiki/spec/proofs/inductive_profile.md),
+[termination](wiki/spec/language/termination.md)); fixed-size arrays,
+nested structural records, tagged case payloads, slice views, explicit layout
+recasts/codecs, and `size_of`/`align_of` layout geometry
+([layout plans](wiki/spec/layouts/plans.md),
+[recasts](wiki/spec/layouts/recasts.md),
+[codecs](wiki/spec/layouts/codecs.md),
 [counts and addresses](wiki/spec/language/counts_and_addresses.md)); borrowed
 projections (`&`, `&mut`), `&write` write-only borrows, affine cleanup, linear
-claim retirement, and borrowed-storage restoration windows
+claim retirement, borrowed-storage restoration windows, content custody,
+placed/MMIO access, and atomic concurrency orderings
 ([structural access](wiki/spec/terminal-psi/structural_access.md),
 [ownership](wiki/spec/terminal-psi/ownership.md),
-[loans](wiki/spec/terminal-psi/loans.md)); and named-implementation/`dyn`
+[loans](wiki/spec/terminal-psi/loans.md),
+[content custody](wiki/spec/resources/content_custody.md),
+[placed access](wiki/spec/resources/placed_access.md),
+[concurrency](wiki/spec/language/concurrency.md)); and named-implementation/`dyn`
 dispatch, multi-argument calling plans across register and stack slots,
 live-across-call preservation, disjoint stack-frame homes, boundary/provider
-calls, and checked `asm`
+calls, foreign bindings, private callbacks, process exit, and checked `asm`
 ([dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md),
 [calling plans](wiki/spec/build/calling_plans.md),
+[foreign bindings](wiki/spec/build/foreign_bindings.md),
+[private callbacks](wiki/spec/build/private_callbacks.md),
+[process exit](wiki/spec/language/process_exit.md),
 [storage](wiki/spec/resources/storage.md),
 [checked assembly](wiki/spec/language/assembly.md)). Once a row proves a
 mechanism across the nine places, repeating that same mechanism at a larger
@@ -237,19 +255,37 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
   checked theorem evidence on the construct under test justify introducing the
   fact; an unproved goal does not establish itself, and a post-hoc caller
   equality guard (`transition x == 100`) after the construct completes does not
-  substitute for the construct establishing or preserving the static fact.
+  substitute for the construct establishing or preserving the static fact
+  ([state contracts](wiki/spec/language/state_contracts.md),
+  [proof contracts](wiki/spec/proofs/contracts.md),
+  [domains](wiki/spec/language/domains.md),
+  [dependent values](wiki/spec/language/dependent_values.md)).
 - **Identity and lifetime:** the fact names an exact value or storage version;
   snapshots retain their meaning, and overlapping writes invalidate facts about
-  changed storage without discarding facts about provably unrelated storage.
+  changed storage without discarding facts about provably unrelated storage
+  ([fact validity](wiki/spec/terminal-psi/fact_validity.md),
+  [lifetimes](wiki/spec/language/lifetimes.md),
+  [ownership](wiki/spec/language/ownership.md),
+  [content custody](wiki/spec/resources/content_custody.md)).
 - **Composition:** calls substitute exact actuals, joins retain only justified
   facts on every incoming path, and state transitions prove their arrival
   obligations; the consuming operation (such as `total - 100u64`) is proved
   directly from the fact carried through the place, and `<place>/main.omg` vs.
   `<place>/invalid/main.omg` differ only in the construct's own input, domain,
-  or contract—never in a caller guard.
+  or contract—never in a caller guard
+  ([machines](wiki/spec/language/machines.md),
+  [evaluation](wiki/spec/language/evaluation.md),
+  [patterns](wiki/spec/language/patterns.md),
+  [structural predicates](wiki/spec/terminal-psi/structural_predicates.md)).
 - **Soundness boundaries:** proof preserves ownership, access authority and
   termination obligations, tracks transitive assumptions, and respects the
-  boundary between erased mathematics and executable values.
+  boundary between erased mathematics and executable values
+  ([mathematical bindings](wiki/spec/proofs/mathematical_bindings.md),
+  [mathematical values](wiki/spec/terminal-psi/mathematical_values.md),
+  [quotients](wiki/spec/proofs/quotients.md),
+  [inductive profile](wiki/spec/proofs/inductive_profile.md),
+  [termination](wiki/spec/language/termination.md),
+  [authority](wiki/spec/resources/authority.md)).
 - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** source constructs lower
   without loss into canonical target-neutral Terminal Psi (`PSITERM\0`) and
   execute in the Terminal Psi interpreter (`omega run --both`), erasing
@@ -259,8 +295,8 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
   borrowed-storage restoration windows (`reborrow restored call uses`), lowering
   state transitions, crash routes, and strongly connected ranking/scalar-block-invariant
   edges, separating explicit `dyn` selector vs. data lanes, and retaining
-  boundary-application demands, integer arithmetic modes/certificates, and
-  checked target-scoped body candidates
+  boundary-application demands, placed/atomic observations, integer arithmetic
+  modes/certificates, and checked target-scoped body candidates
   ([product](wiki/spec/terminal-psi/product.md),
   [encoding](wiki/spec/terminal-psi/encoding.md),
   [calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md),
@@ -269,6 +305,7 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
   [ownership](wiki/spec/terminal-psi/ownership.md),
   [loans](wiki/spec/terminal-psi/loans.md),
   [boundary calls](wiki/spec/terminal-psi/boundary_calls.md),
+  [observations](wiki/spec/terminal-psi/observations.md),
   [integer certificates](wiki/spec/terminal-psi/integer_certificates.md)).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
   target realization joins Build companion rows (`ProgramEntry`, `ProviderPlan`,
@@ -276,12 +313,18 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
   contracts, and target-scoped body selection) to the Terminal catalog without
   reopening source, evaluates and validates target layout plans (`size_of`/`align_of`,
   field/bit offsets, variant tags/payloads, `IntegerAt` stored widths,
-  element/byte view descriptors, and erased zero-byte carriers), and lowers
-  calls, returns, and boundary entries into validated
-  `CallPlan`/`StatePlan`/`BoundaryEntryPlan` placements across register vs.
-  stack lanes, indirect `sret` aggregate return homes, and `&write` write-only
-  destination pointers ([provider selection](wiki/spec/build/provider_selection.md),
+  element/byte view descriptors, explicit recasts/codecs, and erased zero-byte
+  carriers), and lowers calls, returns, foreign bindings, private callbacks, and
+  boundary entries into validated `CallPlan`/`StatePlan`/`BoundaryEntryPlan`
+  placements across register vs. stack lanes, indirect `sret` aggregate return
+  homes, and `&write` write-only destination pointers
+  ([provider selection](wiki/spec/build/provider_selection.md),
+  [assumed binding contracts](wiki/spec/build/assumed_binding_contracts.md),
+  [foreign bindings](wiki/spec/build/foreign_bindings.md),
+  [private callbacks](wiki/spec/build/private_callbacks.md),
   [layout plans](wiki/spec/layouts/plans.md),
+  [recasts](wiki/spec/layouts/recasts.md),
+  [codecs](wiki/spec/layouts/codecs.md),
   [calling plans](wiki/spec/build/calling_plans.md),
   [byte views](wiki/spec/terminal-psi/byte_views.md)).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):**
