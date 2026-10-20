@@ -3643,6 +3643,27 @@ fail/facts/temporary_case_cleanup_through_other_machine_rejected rejected 1095ms
 fail/facts/temporary_case_cleanup_through_other_state_rejected rejected 1702ms expected @46f72294c589
 fail/facts/temporary_case_cleanup_through_parameter_rejected rejected 1096ms expected @46f72294c589
 fail/facts/temporary_case_cleanup_through_target_body_rejected rejected 1676ms expected @46f72294c589
+fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_rejected rejected 15294ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_masked from exercise: masked >= 40 && masked <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_rejected rejected 15562ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_masked from exercise: m >= 40 && m <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_field_rejected rejected 14270ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_masked from exercise: carrier.masked >= 40 && carrier.masked <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_local_rejected rejected 16219ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_masked from exercise: local_val >= 40 && local_val <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_match_join_rejected rejected 15175ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_masked from exercise: joined >= 40 && joined <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_rejected rejected 22893ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_masked from exercise: relayed >= 40 && relayed <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_rejected rejected 15286ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_masked from exercise: m >= 40 && m <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `next_step`
+fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_parameter_rejected rejected 14955ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_masked from helper: m >= 40 && m <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_target_body_rejected rejected 14264ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_masked from exercise: m >= 40 && m <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_masked from exercise: m >= 40 && m <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_masked from exercise: m >= 40 && m <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_masked from exercise: m >= 40 && m <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 fail/facts/unsigned_64bit_bitwise_or_bound_through_call_result_rejected rejected 14490ms expected @a6b4f5c6d966+wt
 	cannot prove requires contract for call verify_combined from bitwise_or_call: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_64bit_bitwise_or_bound_through_const_name_rejected rejected 15077ms expected @a6b4f5c6d966+wt
@@ -8125,6 +8146,15 @@ pass/facts/temporary_case_cleanup_through_other_machine_exit checked 3644ms chec
 pass/facts/temporary_case_cleanup_through_other_state_exit checked 3644ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_parameter_exit checked 3645ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_target_body_exit checked 3646ms check-target:macos_arm64 @46f72294c589
+pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_exit checked 46823ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_exit checked 39234ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_field_exit checked 43195ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_local_exit checked 42871ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_match_join_exit checked 41375ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_exit checked 42760ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_exit checked 40767ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_parameter_exit checked 43456ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_target_body_exit checked 47980ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_bitwise_or_bound_through_call_result_exit checked 41795ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_bitwise_or_bound_through_const_name_exit checked 45955ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_bitwise_or_bound_through_field_exit checked 41263ms check-target:macos_arm64 @a6b4f5c6d966+wt

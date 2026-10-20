@@ -43,7 +43,11 @@ omega run --both samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/target_
 
 All 10 samples report `native exit 0` and `interp exit: 0`.
 
-Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the mask is widened to `127u64` and the interval guard to `64u64` (or constants evaluated to `64u64`), failing to discharge `requires value >= 40u64 && value <= 63u64`. Check each twin with:
+Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` (`sample.json` + `expected.txt`) where only the construct's own mask/guard domain or constant input is widened (mask `127u64` and interval guard `64u64`, or constants evaluating to `64u64`), never a post-hoc caller guard, failing to discharge `requires value >= 40u64 && value <= 63u64`.
+
+- **Obligation class:** Call contract precondition (`cannot prove requires contract for call verify_masked`) protecting the exact 64-bit unsigned subtractions `63u64 - value` and `value - 40u64` inside `verify_masked`.
+
+Check each twin with:
 
 ```sh
 omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/local/invalid/main.omg
@@ -59,6 +63,45 @@ omega --check samples/cli/facts/unsigned_64bit_bitwise_and_mask_bound/target_bod
 
 Every reject twin fails closed with:
 `error: cannot prove requires contract for call verify_masked`
+
+### Measured Discrimination
+
+The obligation's class decides where a violation is caught:
+- **Runtime (1-token perturbation):** The authored exit `0` is strictly discriminative. In `main.omg`, `exercise(116u64)` computes `116u64 & 63u64 == 52u64` (inside `[40, 63]`), yielding `headroom = 63 - 52 = 11` and `margin = 52 - 40 = 12`. A 1-token perturbation of the input literal from `exercise(116u64)` to `exercise(117u64)` (so `117u64 & 63u64 == 53u64`, still satisfying the `[40, 63]` contract, with `headroom == 10` and `margin == 13`) causes `verify_masked` to return `1u64` and `main` to transition to `state bad() { crash Trap; }`, trapping both engines identically with `native exit -1073741795` (`0xC000001D` illegal instruction trap on `windows_x86_64`) and `interp crash: Trap (host presentation agrees)`.
+- **Static (contract and exact-subtraction gate):** Widening the bitwise mask from `63u64` to `127u64` and the dominating interval upper bound from `63u64` to `64u64` in `<place>/invalid/main.omg` is refused at compile time before native realization with `cannot prove requires contract for call verify_masked`.
+
+## Pinned Fixtures
+
+All 18 positive and reject places are pinned under `tests/omega/{pass,fail}/facts/`:
+
+| Place | Positive Fixture (`expected_native_exit.txt` = `0`) | Reject Twin Fixture (`expected.txt`) |
+| --- | --- | --- |
+| local | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_local_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_local_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_local_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_local_rejected/main.omg) |
+| field | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_field_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_field_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_field_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_field_rejected/main.omg) |
+| parameter | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_parameter_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_parameter_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_parameter_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_parameter_rejected/main.omg) |
+| call result | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_rejected/main.omg) |
+| match join | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_match_join_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_match_join_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_match_join_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_match_join_rejected/main.omg) |
+| const name | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_rejected/main.omg) |
+| another state | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_rejected/main.omg) |
+| another machine | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_rejected/main.omg) |
+| another target body | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_target_body_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_target_body_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_target_body_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_target_body_rejected/main.omg) |
+
+## Run Record
+
+Host: `windows_x86_64`. Command per positive place: `omega run --both <place>/main.omg`.
+
+| Place | Positive (`--both`) | Reject Twin (`--check`) |
+| --- | --- | --- |
+| root | `native exit 0` / `interp exit: 0` | — |
+| local | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_masked from exercise: local_val >= 40 && local_val <= 63` |
+| field | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_masked from exercise: carrier.masked >= 40 && carrier.masked <= 63` |
+| parameter | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_masked from helper: m >= 40 && m <= 63` |
+| call result | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_masked from exercise: masked >= 40 && masked <= 63` |
+| match join | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_masked from exercise: joined >= 40 && joined <= 63` |
+| const name | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_masked from exercise: m >= 40 && m <= 63` |
+| another state | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_masked from exercise: m >= 40 && m <= 63` |
+| another machine | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_masked from exercise: relayed >= 40 && relayed <= 63` |
+| another target body | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_masked from exercise: m >= 40 && m <= 63` (all 4 target bodies) |
 
 ## Requirements and Evidence
 
