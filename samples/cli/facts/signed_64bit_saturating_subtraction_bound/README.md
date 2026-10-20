@@ -18,8 +18,8 @@
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped implementations across all four platforms perform saturating subtraction and interval verification |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
-`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
-`Expected exit: 0`.
+`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
+authored `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
 
 ## Execution
 
@@ -48,8 +48,8 @@ The recorded 0 exit is discriminating:
 - 64-bit signed saturating subtraction evaluates to `70i64` and is verified overflow-free.
 - Consuming exact subtractions `let headroom: i64 = 100i64 - diff` (`30i64`) and `let margin: i64 = diff - 40i64` (`30i64`) are statically proved safe in interval `[0i64, 60i64]`.
 - Exact unsigned casts `let check_h: u64 = headroom as u64` and `let check_m: u64 = margin as u64` confirm non-negative bounds without underflow or overflow.
-- At runtime, `diff == 70i64 && headroom + margin == 60i64 && check_h + check_m == 60u64` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy.
-- Each invalid twin widens the `lhs` bound to `lhs <= 125i64`, allowing `diff` to take value `125 - 20 = 105i64 > 100i64`. The headroom subtraction `100i64 - diff` yields `-5i64`, which fails closed at compile time during exact conversion to `u64` with diagnostic `Exact integer cast ... from \`i64\` to \`u64\` is not provably representable`. None reaches native execution.
+- At runtime, `diff == 70i64 && headroom + margin == 60i64 && check_h + check_m == 60u64` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy. In `main`, `transition res == 0` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition res == 0` to `transition res == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- Each invalid twin widens the `lhs` bound to `lhs <= 125i64`, allowing `diff` to take value `125 - 20 = 105i64 > 100i64`. The headroom subtraction `100i64 - diff` yields `-5i64`, which fails closed at compile time under the **Exact integer cast representability** obligation class during exact conversion to `u64` with diagnostic `Exact integer cast ... from \`i64\` to \`u64\` is not provably representable`. None reaches native execution.
 
 Check all nine invalid twins with:
 
@@ -57,15 +57,52 @@ Check all nine invalid twins with:
 omega --check samples/cli/facts/signed_64bit_saturating_subtraction_bound/<place>/invalid/main.omg
 ```
 
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/signed_64bit_saturating_subtraction_bound --jobs 4
+python tools/sample_native_gate.py --filter cli/facts/signed_64bit_saturating_subtraction_bound --jobs 4
 ```
 
 `sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64`.
 - 9/9 intended-invalid controls match their authored rejection (`not provably representable`).
+
+## Pinned Fixtures
+
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/signed_64bit_saturating_subtraction_bound_through_local_exit/`
+  - `tests/omega/pass/facts/signed_64bit_saturating_subtraction_bound_through_field_exit/`
+  - `tests/omega/pass/facts/signed_64bit_saturating_subtraction_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/signed_64bit_saturating_subtraction_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/signed_64bit_saturating_subtraction_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/signed_64bit_saturating_subtraction_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/signed_64bit_saturating_subtraction_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/signed_64bit_saturating_subtraction_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/signed_64bit_saturating_subtraction_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt`):**
+  - `tests/omega/fail/facts/signed_64bit_saturating_subtraction_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_saturating_subtraction_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_saturating_subtraction_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_saturating_subtraction_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_saturating_subtraction_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_saturating_subtraction_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_saturating_subtraction_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_saturating_subtraction_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_saturating_subtraction_bound_through_target_body_rejected/`
+The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
 
 ## Requirements and Evidence
 
