@@ -80,6 +80,11 @@ pub(crate) fn checked_generic_operator_target(
     value_origins: &GenericOperatorValueOrigins,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Result<Option<AuthoredSelectionResolutionTarget>, Diagnostic> {
+    if let Some(operation) = program.expression_table.open_index_operation(expression)
+        && let Some(target) = declaration_target(operation.operator)
+    {
+        return Ok(Some(target));
+    }
     let mut selected = None;
     let mut uses = facts
         .operators

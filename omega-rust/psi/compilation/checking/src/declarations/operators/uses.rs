@@ -45,6 +45,11 @@ pub fn collect_pre_specialization_operator_selections(
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
 
     let mut selections = Vec::new();
+    for operation in program.expression_table.selected_index_operations() {
+        if let Some(target) = crate::selection_resolution::declaration_target(operation.operator) {
+            selections.push((operation.expression, target));
+        }
+    }
     let mut diagnostic = None;
     program.for_each_machine_state_contract_frame(|machine, state, contracts, _| {
         let mut expressions = Vec::new();

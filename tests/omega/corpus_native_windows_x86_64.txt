@@ -2144,7 +2144,7 @@ pass/generics/machine_indexed_stream_dispatch checked 13326ms @91bbf3e29aa9
 pass/generics/machine_type_equations checked 1311ms @6c49683ce714
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 1422ms @6c49683ce714
 pass/generics/omitted_data_binder_range_equation checked 514ms @0484de104502
-pass/generics/open_computed_quantity_result built 11479ms exit:70 @e3eb5bdd566b
+pass/generics/open_computed_quantity_result built 59402ms exit:70 @78f48cd3217e+wt
 pass/generics/ranged_const_parameter_attached_shape built 13072ms exit:70 @91bbf3e29aa9
 pass/generics/runtime_const_container_methods_exit built 11006ms exit:70 @e3eb5bdd566b
 pass/generics/runtime_const_data_array_length_exit built 5125ms exit:70 @6c49683ce714
@@ -2152,11 +2152,11 @@ pass/generics/runtime_const_data_machine_call_exit built 5193ms exit:70 @6c49683
 pass/generics/runtime_const_data_multiple_instances_exit built 5972ms exit:70 @6c49683ce714
 pass/generics/runtime_const_data_symbolic_expression_exit built 5671ms exit:70 @6c49683ce714
 pass/generics/runtime_const_data_where_fact_exit built 5379ms exit:70 @6c49683ce714
-pass/generics/runtime_constructor_equation_binder_carriers_exit rejected 61ms @91bbf3e29aa9
+pass/generics/runtime_constructor_equation_binder_carriers_exit built 39411ms exit:0 @78f48cd3217e+wt
 pass/generics/runtime_container_setter_matrix_exit built 5375ms exit:1 @6c49683ce714
 pass/generics/runtime_copied_indexed_case_subject_exit built 13470ms exit:70 @91bbf3e29aa9
-pass/generics/runtime_equation_constructor_selected_const_exit rejected 66ms @91bbf3e29aa9
-pass/generics/runtime_equation_named_array_actual_exit rejected 73ms @91bbf3e29aa9
+pass/generics/runtime_equation_constructor_selected_const_exit built 40380ms exit:0 @78f48cd3217e+wt
+pass/generics/runtime_equation_named_array_actual_exit built 39580ms exit:0 @78f48cd3217e+wt
 pass/generics/runtime_forwarded_value_contract_exit built 13348ms exit:0 @91bbf3e29aa9
 pass/generics/runtime_generic_carrier_binder_equation_exit built 13207ms exit:0 @91bbf3e29aa9
 pass/generics/runtime_generic_carrier_equation_context_exit built 13208ms exit:0 @91bbf3e29aa9

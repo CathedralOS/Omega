@@ -3249,8 +3249,7 @@ crash and native exit behavior.
     `pass/blockexec/blocking_executor_custody_claims_compile` (attached Unit
     closure missing a checked plan), `pass/capabilities/windows_provides_import_exit`
     (external evaluation not build-time admissible),
-    `pass/generics/open_computed_quantity_result` (const parameter
-    materialization), `pass/modules/same_name_requirement_calls_exit`
+    `pass/modules/same_name_requirement_calls_exit`
     (Unit services with empty or duplicate canonical identities).
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark

@@ -216,9 +216,9 @@ pub fn prepare_typed_trees(
     // retain it and substitute exact type/evidence binders at their producer;
     // no later instance may choose authority for the universal template.
     // Immutable checking, not this derivation, commits template contracts.
+    normalize_open_index_identities(&mut program)?;
     selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
-    normalize_open_index_identities(&mut program)?;
     // Local dynamic selections and every authored boundary conformance own
     // their complete finite roster. Runtime provider selection is not a
     // checking input; every candidate is checked before Omega can choose it.
