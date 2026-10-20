@@ -1663,6 +1663,14 @@ fail/domains/structural_predicate_cast_unproved rejected 1389ms expected @201244
 fail/domains/structural_qualification_cast_other_domain rejected 226ms expected @0bb0340f378d+wt
 fail/domains/structural_qualification_transition_other_domain rejected 282ms expected @2012446ad74a+wt
 fail/domains/structural_qualification_transition_routed rejected 1282ms expected @e74967d11875
+fail/domains/target_issuer_no_self_assumption rejected 961ms expected @8fdb0071edab
+	cannot prove requires contract for call consume from issue: value in i64::Classified in state `entry`
+fail/domains/target_issuer_nonrealized_predicate rejected 1013ms expected @8fdb0071edab
+	cannot prove scalar result domain for return from issue at statement 0: i64::Classified
+fail/domains/target_issuer_same_name_other_owner rejected 895ms expected @8fdb0071edab
+	cannot prove scalar result domain for return from Other::issue at statement 0: i64::Classified
+fail/domains/target_issuer_wrong_machine rejected 935ms expected @8fdb0071edab
+	cannot prove scalar result domain for return from unrelated at statement 0: i64::Classified
 fail/domains/terminal_result_domain_incompatible_carrier rejected 523ms expected @8d3a0acb500a+wt
 fail/domains/terminal_result_domain_missing_overload rejected 247ms expected @8d3a0acb500a+wt
 fail/domains/terminal_result_domain_unestablished rejected 775ms expected @8d3a0acb500a+wt
@@ -1777,6 +1785,10 @@ fail/effects/windows_filesystem_read_requires_block rejected 1769ms expected @03
 	call to `read_file` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/effects/windows_filesystem_read_requires_content_read rejected 1746ms expected @034b5e35c420
 	machine `read_without_content_permission` publishes service reach `WindowsFilesystemHost` but its checked body reaches undeclared service `FilesystemContentRead`
+fail/effects/windows_metadata_requires_block rejected 2417ms expected @8fdb0071edab
+	call to `metadata` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/effects/windows_metadata_requires_query rejected 2399ms expected @8fdb0071edab
+	machine `inspect_without_query` publishes service reach `WindowsFilesystemHost` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/expressions/anonymous_structural_match_undefined_pattern rejected 80ms expected @5c4c9bc0ebab
 fail/expressions/anonymous_structural_match_undefined_subject rejected 79ms expected @5c4c9bc0ebab
 fail/expressions/anonymous_structural_match_unselected_arm_type rejected 161ms expected @5c4c9bc0ebab
@@ -4452,23 +4464,50 @@ fail/facts/runtime_index_application_through_target_body_payload_outside_limit r
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/scalar_boundary_parameter/call_result rejected 2705ms expected @8d0f98ca0891+wt
+fail/facts/scalar_boundary_parameter/call_result rejected 486ms expected @8fdb0071edab
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/const_name rejected 2817ms expected @8d0f98ca0891+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/field rejected 2875ms expected @8d0f98ca0891+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/local rejected 2941ms expected @8d0f98ca0891+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/match_join rejected 2713ms expected @8d0f98ca0891+wt
+fail/facts/scalar_boundary_parameter/const_name rejected 477ms expected @8fdb0071edab
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/other_machine rejected 2709ms expected @8d0f98ca0891+wt
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/field rejected 566ms expected @8fdb0071edab
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/local rejected 559ms expected @8fdb0071edab
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/match_join rejected 541ms expected @8fdb0071edab
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/other_machine rejected 559ms expected @8fdb0071edab
 	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/other_state rejected 2737ms expected @8d0f98ca0891+wt
+	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `invoke` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/other_state rejected 482ms expected @8fdb0071edab
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/parameter rejected 2730ms expected @8d0f98ca0891+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
-fail/facts/scalar_boundary_parameter/target_body rejected 2666ms expected @8d0f98ca0891+wt
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/parameter rejected 492ms expected @8fdb0071edab
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+fail/facts/scalar_boundary_parameter/target_body rejected 459ms expected @8fdb0071edab
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
+	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 fail/facts/scalar_domain_call_guarantee/call_result rejected 4423ms expected @83f47d8fae73
 	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
@@ -9266,6 +9305,7 @@ pass/domains/runtime_structural_contract_erasure_exit checked 5362ms check-targe
 pass/domains/runtime_terminal_result_context_exit checked 14710ms check-target:macos_arm64 @8d3a0acb500a+wt
 pass/domains/semantic_cast_guard_chain_mint checked 2041ms @a9ae30e1c334+wt
 pass/domains/slice_domain_validator checked 32151ms check-target:macos_arm64 @3b422f31da30+wt
+pass/domains/target_generic_issuer_forwarding_exit checked 1458ms check-target:macos_arm64 @8fdb0071edab
 pass/domains/threaded_subject_keeps_established_domains checked 15236ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/transparent_alias_expansion checked 1833ms @a9ae30e1c334+wt
 pass/domains/unit_membership_postcondition_exit checked 14120ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -10514,6 +10554,15 @@ pass/facts/runtime_index_application_through_other_machine_exit checked 13003ms 
 pass/facts/runtime_index_application_through_other_state_exit checked 19741ms check-target:macos_arm64 @336cafc17e1a+wt
 pass/facts/runtime_index_application_through_parameter_exit checked 18736ms check-target:macos_arm64 @336cafc17e1a+wt
 pass/facts/runtime_index_application_through_target_body_exit checked 13976ms check-target:macos_arm64 @336cafc17e1a+wt
+pass/facts/scalar_boundary_parameter/call_result checked 1434ms check-target:macos_arm64 @8fdb0071edab
+pass/facts/scalar_boundary_parameter/const_name checked 1432ms check-target:macos_arm64 @8fdb0071edab
+pass/facts/scalar_boundary_parameter/field checked 1371ms check-target:macos_arm64 @8fdb0071edab
+pass/facts/scalar_boundary_parameter/local checked 1442ms check-target:macos_arm64 @8fdb0071edab
+pass/facts/scalar_boundary_parameter/match_join checked 1205ms check-target:macos_arm64 @8fdb0071edab
+pass/facts/scalar_boundary_parameter/other_machine checked 1388ms check-target:macos_arm64 @8fdb0071edab
+pass/facts/scalar_boundary_parameter/other_state checked 1326ms check-target:macos_arm64 @8fdb0071edab
+pass/facts/scalar_boundary_parameter/parameter checked 1410ms check-target:macos_arm64 @8fdb0071edab
+pass/facts/scalar_boundary_parameter/target_body checked 1316ms check-target:macos_arm64 @8fdb0071edab
 pass/facts/scalar_domain_call_guarantee/call_result checked 25444ms check-target:macos_arm64 @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/const_name checked 17006ms check-target:macos_arm64 @83f47d8fae73
 pass/facts/scalar_domain_call_guarantee/field checked 16903ms check-target:macos_arm64 @83f47d8fae73
@@ -11098,6 +11147,7 @@ pass/filesystem/windows_native_create_write_close_exit checked 4007ms check-targ
 pass/filesystem/windows_raw_argument_failures_exit checked 4134ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_raw_bounded_view_exit checked 4305ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_raw_breadth_exit checked 4543ms check-target:windows_x86_64 @034b5e35c420
+pass/filesystem/windows_raw_metadata_exit checked 8789ms check-target:windows_x86_64 @8fdb0071edab
 pass/filesystem/windows_set_file_time_exit checked 4261ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_wrapper_results_exit checked 20212ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/filesystem/wrapper_lock_metadata_exit checked 20511ms check-target:macos_arm64 @7c847bad15b6+wt
