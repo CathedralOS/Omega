@@ -2274,6 +2274,7 @@ fail/facts/compound_guard_different_call_result_compile rejected 3197ms expected
 fail/facts/compound_guard_different_grouping_compile rejected 3217ms expected @2ef2ab353498+wt
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/compound_guard_missing_lower_compile rejected 3183ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/compound_guard_mutated_coordinate_compile rejected 3633ms expected @2ef2ab353498+wt
 fail/facts/compound_guard_shorter_slice_compile rejected 4863ms expected @4e77584323e4
 	cannot prove index `b * 20 + a` is within length 20 in Main::main::put
