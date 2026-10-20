@@ -51,7 +51,11 @@ echo "== operating on: $(pwd) =="
 # `git add -A` committed that revert under the second fact's message. Nothing reported
 # it. Compare before/after and fail loudly on any regression.
 PRE_COUNTS=$(mktemp)
-python3 tools/swarm/diag_counts.py tests/omega/corpus_outcomes.txt > "$PRE_COUNTS" 2>/dev/null || true
+# Refreshed inside the loop before EACH record. Templating it once and deleting it
+# per fact (as the earlier cleanup did) meant facts 2..N died with FileNotFoundError
+# inside the regression check, so the guard silently did not run for them -- exactly
+# the facts a multi-fact run is most likely to lose.
+SNAPSHOT_DIAGS() { python3 tools/swarm/diag_counts.py tests/omega/corpus_outcomes.txt > "$PRE_COUNTS" 2>/dev/null || true; }
 DIAG_REGRESSION() {
   python3 - "$PRE_COUNTS" <<'PYEOF'
 import subprocess, sys
@@ -96,6 +100,7 @@ done
 
 for fact in "$@"; do
   echo "== $fact =="
+  SNAPSHOT_DIAGS
   before=$(lost)
   [ "$before" = "0" ] || { echo "   ABORT: pre-record LOST=$before (rebase first)"; continue; }
   echo "   pre-record LOST=0 (rows from earlier facts in this run are preserved)"
@@ -213,7 +218,7 @@ RECORD_SLOTS=${RECORD_SLOTS:-1}
   timeouts=$(awk '/timeout/{n++} END{print n+0}' tests/omega/corpus_outcomes.txt)
   echo "   post-record LOST=$after timeouts=$timeouts"
   recording=""
-  rm -f "$acquired" "$PRE_COUNTS" 2>/dev/null; trap - EXIT INT TERM HUP
+  rm -f "$acquired" 2>/dev/null; trap - EXIT INT TERM HUP
   # LOST and timeout counts CANNOT detect a source tree that does not compile: no row
   # is lost and no timeout is written, yet the rows recorded are parse errors rather
   # than the fact's obligation. Observed with a contaminated tree:
@@ -268,3 +273,6 @@ RECORD_SLOTS=${RECORD_SLOTS:-1}
     echo "     git add -A && git commit -m 'tests: record $fact reject diagnostics'"
   fi
 done
+
+# One cleanup after the whole loop, not per fact.
+rm -f "$PRE_COUNTS" 2>/dev/null || true
