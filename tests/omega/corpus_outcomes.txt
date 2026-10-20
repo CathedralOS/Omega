@@ -1874,14 +1874,26 @@ fail/facts/alias_fact_transfer_through_target_body_rejected rejected 11247ms exp
 	cannot prove requires contract for call inspect from inspect_target: player in Player::Alive in state `entry`
 	cannot prove requires contract for call inspect from inspect_target: player in Player::Alive in state `entry`
 fail/facts/as_slice_views_through_call_result_short_extent rejected 7357ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_const_name_short_extent rejected 5932ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_field_short_extent rejected 5472ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: holder.view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_local_short_extent rejected 4947ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_match_join_short_extent rejected 4473ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_other_machine_short_extent rejected 5280ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from measure: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_other_state_short_extent rejected 5537ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `measure`
 fail/facts/as_slice_views_through_parameter_short_extent rejected 4743ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_target_body_short_extent rejected 4504ms expected @d68dc74a14e0
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/assumed_binding_result_bound_through_call_result_rejected rejected 1421ms expected @6f94b4f3cae8+wt
 	cannot prove index `acquire()` is within length 2 in main::entry
 fail/facts/assumed_binding_result_bound_through_const_name_rejected rejected 1386ms expected @6f94b4f3cae8+wt
