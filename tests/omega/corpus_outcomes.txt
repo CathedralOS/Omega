@@ -3823,14 +3823,26 @@ fail/facts/shared_qualification_erasure_target_body rejected 4666ms expected @81
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_rejected rejected 19310ms expected @9a273b151c31+wt
+	cannot prove requires contract for call verify_masked from bitwise_and_call: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_rejected rejected 18871ms expected @9a273b151c31+wt
+	cannot prove requires contract for call verify_masked from bitwise_and_const: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_field_rejected rejected 15266ms expected @9a273b151c31+wt
+	cannot prove requires contract for call verify_masked from bitwise_and_field: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_local_rejected rejected 17573ms expected @9a273b151c31+wt
+	cannot prove requires contract for call verify_masked from bitwise_and_local: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_match_join_rejected rejected 17360ms expected @9a273b151c31+wt
+	cannot prove requires contract for call verify_masked from bitwise_and_join: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_other_machine_rejected rejected 16913ms expected @9a273b151c31+wt
+	cannot prove requires contract for call verify_masked from bitwise_and_worker: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_other_state_rejected rejected 15665ms expected @9a273b151c31+wt
+	cannot prove requires contract for call verify_masked from bitwise_and_state: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_parameter_rejected rejected 14636ms expected @9a273b151c31+wt
+	cannot prove requires contract for call verify_masked from bitwise_and_param: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_target_body_rejected rejected 14582ms expected @9a273b151c31+wt
+	cannot prove requires contract for call verify_masked from bitwise_and_target: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_masked from bitwise_and_target: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_masked from bitwise_and_target: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_masked from bitwise_and_target: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_or_bound_through_call_result_rejected rejected 20772ms expected @9a273b151c31+wt
 	cannot prove requires contract for call verify_combined from compute_call_result: combined >= 40 && combined <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_or_bound_through_const_name_rejected rejected 20302ms expected @9a273b151c31+wt
