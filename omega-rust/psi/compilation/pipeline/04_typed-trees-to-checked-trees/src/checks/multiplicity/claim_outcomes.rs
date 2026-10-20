@@ -1193,6 +1193,8 @@ fn named_claim_invocation(
     arguments: HandleSpan<typed_trees::expression::ExpressionHandle>,
 ) -> Option<PermissionEventSource> {
     let (machine, _) = validation::find_state(program, state.symbol)?;
+    let resolved_target = validation::call_target_state(program, target_symbol)
+        .map_or(target_symbol, |target| target.symbol);
     let mut matching =
         validation::collect_call_sites_in_statement(program, machine, state, statement_index)
             .into_iter()
@@ -1203,7 +1205,7 @@ fn named_claim_invocation(
                 .then_some(PermissionEventSource::Call {
                     statement_index,
                     call_ordinal,
-                    target_symbol,
+                    target_symbol: resolved_target,
                 })
             });
     let source = matching.next()?;

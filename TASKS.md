@@ -575,10 +575,7 @@ defines the complete product bar.
     forwarding; [representation-view checking](omega-rust/psi/compilation/checking/recasts.md)
     owns typed recasts. Preserve loan identity and exact backing through
     every consumer, including local-rooted stores and borrowed-record calls
-    followed by reads. `is_record_value` in
-    `.../04_typed-trees-to-checked-trees/src/values/scalar/computations/structural_values.rs`
-    still gates on StructLiteral/Match roots; generalize the operation rather
-    than rewriting a local observation into a different subject. Fresh
+    followed by reads. Fresh
     linear-record custody and non-vacated replacement must preserve bounds,
     layout, loans and claim lifecycle. Keep:
     `pass/calls/mixed_projection_sources_in_one_call` (0),
@@ -618,7 +615,7 @@ defines the complete product bar.
     inline claim-bearing construction is an anonymous owner whose claims
     transfer whole to its call; a projected owned argument carries the claims
     beneath its path; a state's entry claim continues the claim its arriving
-    edge carries. `pass/ownership/{linear_call_result_claims_exit,linear_ambiguous_state_result_mapping,linear_transparent_record_frontier}`,
+    edge carries. `pass/ownership/{linear_call_result_claims_exit,linear_qualified_call_result_claims,linear_ambiguous_state_result_mapping,linear_transparent_record_frontier}`,
     `pass/ownership/linear_{inline_constructed_argument_claims,result_member_projection_arguments,result_owners_residual_cleanup,call_result_place_assignment}_exit`
     and `pass/ownership/linear_{state_graph_call_arguments,state_graph_claim_transport,computed_call_claim_transfers}_exit`
     run natively. Keep the shared receiving-value join across record, case and

@@ -2395,7 +2395,7 @@ pass/ownership/linear_computed_call_claim_transfers_exit built 15324ms exit:0 @9
 pass/ownership/linear_domain_forward checked 12581ms @91bbf3e29aa9
 pass/ownership/linear_entry_handoff checked 12976ms @91bbf3e29aa9
 pass/ownership/linear_inline_constructed_argument_claims_exit built 13594ms exit:0 @91bbf3e29aa9
-pass/ownership/linear_qualified_call_result_claims rejected 1901ms @91bbf3e29aa9
+pass/ownership/linear_qualified_call_result_claims built 33884ms exit:0 @78f48cd3217e+wt
 pass/ownership/linear_result_member_projection_arguments_exit built 12603ms exit:0 @91bbf3e29aa9
 pass/ownership/linear_result_owners_residual_cleanup_exit built 12104ms exit:0 @91bbf3e29aa9
 pass/ownership/linear_self_receiver_disposition checked 1230ms @6c49683ce714

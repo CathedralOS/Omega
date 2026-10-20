@@ -60,12 +60,6 @@ pub(in crate::execution::scalar_computations) fn is_record_value(
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
-    if !matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::StructLiteral(_) | ExpressionNode::Match(_)
-    ) {
-        return false;
-    }
     let shared_referent = shared_record_reference(program, expected);
     let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
         return false;

@@ -479,21 +479,25 @@ fn recognize_structural_state_leaves_from<'a>(
                             0,
                         )
                     })
-                    .collect::<Option<Vec<_>>>()?;
-                establish_citation(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    &environment,
-                    judge,
-                    classification,
-                    &case_hypotheses,
-                    &case_equations,
-                    &mut established_guarantees,
-                    &target,
-                    &arguments,
-                );
+                    .collect::<Option<Vec<_>>>();
+                if let Some(arguments) = arguments {
+                    establish_citation(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        &environment,
+                        judge,
+                        classification,
+                        &case_hypotheses,
+                        &case_equations,
+                        &mut established_guarantees,
+                        &target,
+                        &arguments,
+                    );
+                } else if !judge.has_runtime_body_values() {
+                    return None;
+                }
             }
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
