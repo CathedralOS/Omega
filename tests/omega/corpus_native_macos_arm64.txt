@@ -9,43 +9,6 @@
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "3", "load1_end": 11.76, "load1_start": 11.65, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 
-	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
-	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
-	selected compiler intrinsic `<selected target>::RegionSinkProvider::satisfies::RegionSink` for Terminal boundary `named-callable(path(RegionSink::accept),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
-	selected compiler intrinsic `<selected target>::RegionSplitProvider::satisfies::RegionSplit` for Terminal boundary `named-callable(path(RegionSplit::split),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Task::finish$specialized$f1a34b3b312b5f65$0),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,generic\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Task\\\\\\)\\\\\\)\\)\\,named\\(name\\(i32\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-	shared function MachineId(14) contains an unaccounted operation at ordinal 0: BoundaryCall { psi_operation: OperationId(317), result: Structural(StructuralOperationResult { place: PlaceId(51), structural_type: StructuralTypeId(26), multiplicity: Unrestricted, qualifications: [], projected_qualifications: [], qualification_establishments: [], claims: [] }), boundary: BoundaryMachineId(31), arguments: [ValueId(4)], structural_arguments: [], completion_claim_sources: [], completion_receipts: [] }
-	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Coff, pointer_size: 8, pointer_alignment: 8 }
-	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state)
-	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
-	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
-	selected whole provider maps `<selected target>::TimerProviderRoot::satisfies::TimerRoot` and `<selected target>::FatalExceptionProviderRoot::satisfies::FatalExceptionRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
-	selected whole provider maps `<selected target>::SecondSecondaryProcessorConformance::satisfies::SecondSecondaryProcessorRoot` and `<selected target>::FirstSecondaryProcessorConformance::satisfies::FirstSecondaryProcessorRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
-	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	machine `converges_together_at_symmetric` cites `rat_close_symmetric`, but the callee's requires fact `rat_close(p, q, precision) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `converges_together_at_symmetric` ensures contract proof fact `converges_together_at<Right, Left, Modulus>(precision, right_index, left_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	machine `doubled_nat_max_threshold` ensures contract proof fact `saturating_sub(doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision), index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 pass/arithmetic/addr_algebra checked 9989ms @5041ef1af684+wt
 pass/arithmetic/anonymous_integer_arith checked 9857ms @5041ef1af684+wt
 pass/arithmetic/anonymous_rational_arguments checked 189ms
@@ -65,7 +28,6 @@ pass/arithmetic/narrowing_flow_and_widen_permitted built 1132ms exit:5
 pass/arithmetic/negative_div_remainder checked 9647ms @5041ef1af684+wt
 pass/arithmetic/offset_integer_at checked 12917ms @5041ef1af684+wt
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1347ms exit:0 @2e29bd5fedcf
-pass/arithmetic/relative_midpoint_values_exit built 5502ms exit:0 @4c1d863a7eae+wt
 pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit built 2060ms exit:70
 pass/arithmetic/runtime_bitwise_high_ops_exit built 1132ms exit:70
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1829ms exit:0 @50b7e26fea31+wt
@@ -425,6 +387,8 @@ pass/build/sibling_module_slot_family_rows_exit built 6957ms exit:70 @cbb413ac54
 pass/build/static_assumed_binding_spelling_exit built 3706ms exit:0 @9beb2be72f2d+wt
 pass/build/uefi_entry_schema_same_leaf built 1457ms @55a23102ccd1+wt
 pass/build/uefi_os_handoff_invocation rejected 12507ms @6c75d91f0312
+	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
+	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
 pass/calls/ambient_receiver_scalar_return_exit built 3704ms exit:70 @48d34a64a938+wt
 pass/calls/borrowed_case_dispatch_member_leaf_reads built 1399ms exit:70 @48008365d839
 pass/calls/borrowed_float_argument_scalar_result_exit built 885ms exit:70 @48008365d839
@@ -997,6 +961,8 @@ pass/control_flow/termination_index_distance_compile built 525ms exit:0 @d62a4e2
 pass/control_flow/transition_operand_schedule checked 189ms
 pass/control_flow/transition_tail_self_call checked 199ms
 pass/core/carry_permission_provider_adapter built 12252ms @83314997c2b2
+	selected compiler intrinsic `<selected target>::RegionSinkProvider::satisfies::RegionSink` for Terminal boundary `named-callable(path(RegionSink::accept),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
+	selected compiler intrinsic `<selected target>::RegionSplitProvider::satisfies::RegionSplit` for Terminal boundary `named-callable(path(RegionSplit::split),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(Region\\)\\)\\,declared-domain\\(name\\(package:0101010101010101010101010101010101010101010101010101010101010101:product::Region::Owned\\)\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 pass/core/content_conservation_constructed_result_exit built 6844ms exit:70 @94192499b002+wt
 pass/core/content_conservation_contract_exit built 21807ms exit:70 @e52673d2bcdb+wt
 pass/core/content_conservation_moved_result_exit built 7102ms exit:70 @94192499b002+wt
@@ -1031,6 +997,7 @@ pass/core/runtime_guarded_trapping_conversion_exit built 1516ms exit:70 @4800836
 pass/core/runtime_natural_termination_exit built 405ms exit:0
 pass/core/self_read_only_receiver_compile checked 221ms
 pass/core/task_lifecycle_operations rejected 9002ms @6c75d91f0312
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Task::finish$specialized$f1a34b3b312b5f65$0),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,generic\\(name\\(nominal\\\\\\(toolchain-owner\\\\\\,path\\\\\\(Task\\\\\\)\\\\\\)\\)\\,named\\(name\\(i32\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/core/zii_default_composite_exit built 1810ms exit:70 @fb2178def922
 pass/data/case_first_payload_zero_established checked 220ms
 pass/data/case_membership_union_guard_exit built 599ms exit:70
@@ -1375,15 +1342,6 @@ pass/facts/aggregate_struct_return_abi_through_other_machine_exit built 26004ms 
 pass/facts/aggregate_struct_return_abi_through_other_state_exit built 26190ms exit:0 @2d783d092d9d
 pass/facts/aggregate_struct_return_abi_through_parameter_exit built 26122ms exit:0 @2d783d092d9d
 pass/facts/aggregate_struct_return_abi_through_target_body_exit built 26096ms exit:0 @2d783d092d9d
-pass/facts/alias_fact_transfer_through_call_result_compile checked 3934ms @f734a3095d6c
-pass/facts/alias_fact_transfer_through_const_name_compile checked 4063ms @f734a3095d6c
-pass/facts/alias_fact_transfer_through_field_compile checked 3821ms @f734a3095d6c
-pass/facts/alias_fact_transfer_through_local_compile checked 4058ms @f734a3095d6c
-pass/facts/alias_fact_transfer_through_match_join_compile checked 4303ms @f734a3095d6c
-pass/facts/alias_fact_transfer_through_other_machine_compile checked 4057ms @f734a3095d6c
-pass/facts/alias_fact_transfer_through_other_state_compile checked 4082ms @f734a3095d6c
-pass/facts/alias_fact_transfer_through_parameter_compile checked 4207ms @f734a3095d6c
-pass/facts/alias_fact_transfer_through_target_body_compile checked 4291ms @f734a3095d6c
 pass/facts/as_slice_views_through_call_result_exit built 4038ms exit:0 @8bcf9d86d52e
 pass/facts/as_slice_views_through_const_name_exit built 4121ms exit:0 @8bcf9d86d52e
 pass/facts/as_slice_views_through_field_exit built 3872ms exit:0 @8bcf9d86d52e
@@ -1420,15 +1378,6 @@ pass/facts/borrowed_restoration_window_through_other_machine_exit built 67821ms 
 pass/facts/borrowed_restoration_window_through_other_state_exit built 67368ms exit:0 @ec3c24b634dd
 pass/facts/borrowed_restoration_window_through_parameter_exit built 67637ms exit:0 @ec3c24b634dd
 pass/facts/borrowed_restoration_window_through_target_body_exit built 67248ms exit:0 @ec3c24b634dd
-pass/facts/bound_through_call_result_exit built 21091ms exit:0 @f734a3095d6c
-pass/facts/bound_through_const_name_exit built 20920ms exit:0 @f734a3095d6c
-pass/facts/bound_through_field_exit built 20646ms exit:0 @f734a3095d6c
-pass/facts/bound_through_local_exit built 20627ms exit:0 @f734a3095d6c
-pass/facts/bound_through_match_join_exit built 20164ms exit:0 @f734a3095d6c
-pass/facts/bound_through_other_machine_exit built 20660ms exit:0 @f734a3095d6c
-pass/facts/bound_through_other_state_exit built 20952ms exit:0 @f734a3095d6c
-pass/facts/bound_through_parameter_exit built 21616ms exit:0 @f734a3095d6c
-pass/facts/bound_through_target_body_exit built 20984ms exit:0 @f734a3095d6c
 pass/facts/boundary_provider_call_through_call_result_exit built 58697ms exit:0 @2f87a2fd7fac+wt
 pass/facts/boundary_provider_call_through_const_name_exit built 59009ms exit:0 @2f87a2fd7fac+wt
 pass/facts/boundary_provider_call_through_field_exit built 59729ms exit:0 @2f87a2fd7fac+wt
@@ -1438,15 +1387,6 @@ pass/facts/boundary_provider_call_through_other_machine_exit built 59348ms exit:
 pass/facts/boundary_provider_call_through_other_state_exit built 58880ms exit:0 @2f87a2fd7fac+wt
 pass/facts/boundary_provider_call_through_parameter_exit built 59124ms exit:0 @2f87a2fd7fac+wt
 pass/facts/boundary_provider_call_through_target_body_exit built 58915ms exit:0 @2f87a2fd7fac+wt
-pass/facts/bounded_products_through_call_result_exit built 20159ms exit:0 @f734a3095d6c
-pass/facts/bounded_products_through_const_name_exit built 21082ms exit:0 @f734a3095d6c
-pass/facts/bounded_products_through_field_exit built 19762ms exit:0 @f734a3095d6c
-pass/facts/bounded_products_through_local_exit built 19600ms exit:0 @f734a3095d6c
-pass/facts/bounded_products_through_match_join_exit built 19708ms exit:0 @f734a3095d6c
-pass/facts/bounded_products_through_other_machine_exit built 19069ms exit:0 @f734a3095d6c
-pass/facts/bounded_products_through_other_state_exit built 19124ms exit:0 @f734a3095d6c
-pass/facts/bounded_products_through_parameter_exit built 19307ms exit:0 @f734a3095d6c
-pass/facts/bounded_products_through_target_body_exit built 19442ms exit:0 @f734a3095d6c
 pass/facts/bounded_scalar_sums_through_call_result_exit built 19916ms exit:0 @91ca9a02874b
 pass/facts/bounded_scalar_sums_through_const_name_exit built 19930ms exit:0 @91ca9a02874b
 pass/facts/bounded_scalar_sums_through_field_exit built 20190ms exit:0 @91ca9a02874b
@@ -1474,18 +1414,6 @@ pass/facts/callee_saved_across_nested_calls_through_other_machine_exit built 270
 pass/facts/callee_saved_across_nested_calls_through_other_state_exit built 27145ms exit:0 @1a662c565c38
 pass/facts/callee_saved_across_nested_calls_through_parameter_exit built 27025ms exit:0 @1a662c565c38
 pass/facts/callee_saved_across_nested_calls_through_target_body_exit built 27236ms exit:0 @1a662c565c38
-pass/facts/case_const_equal_literals_with_predicate checked 4738ms @f734a3095d6c
-pass/facts/case_const_equal_literals_without_predicate checked 5334ms @f734a3095d6c
-pass/facts/case_const_forwarded_binder_compile checked 4550ms @f734a3095d6c
-pass/facts/case_equality_through_call_result_compile checked 4507ms @f734a3095d6c
-pass/facts/case_equality_through_const_name_compile checked 4515ms @f734a3095d6c
-pass/facts/case_equality_through_field_compile checked 4337ms @f734a3095d6c
-pass/facts/case_equality_through_local_compile checked 4395ms @f734a3095d6c
-pass/facts/case_equality_through_match_join_compile checked 4183ms @f734a3095d6c
-pass/facts/case_equality_through_other_machine_compile checked 4269ms @f734a3095d6c
-pass/facts/case_equality_through_other_state_compile checked 4560ms @f734a3095d6c
-pass/facts/case_equality_through_parameter_compile checked 4260ms @f734a3095d6c
-pass/facts/case_equality_through_target_body_compile checked 3843ms @f734a3095d6c
 pass/facts/case_payload_layout_geometry_through_call_result_exit built 37464ms exit:0 @5e4fd339a468
 pass/facts/case_payload_layout_geometry_through_const_name_exit built 37996ms exit:0 @5e4fd339a468
 pass/facts/case_payload_layout_geometry_through_field_exit built 37380ms exit:0 @5e4fd339a468
@@ -1513,7 +1441,6 @@ pass/facts/case_tag_discriminant_layout_through_other_machine_exit built 99023ms
 pass/facts/case_tag_discriminant_layout_through_other_state_exit built 98859ms exit:0 @9494ae6a86f2
 pass/facts/case_tag_discriminant_layout_through_parameter_exit built 100448ms exit:0 @9494ae6a86f2
 pass/facts/case_tag_discriminant_layout_through_target_body_exit built 130744ms exit:0 @9494ae6a86f2
-pass/facts/case_value_binder_payload_compile checked 4090ms @f734a3095d6c
 pass/facts/case_where_equality_through_call_result_exit built 55491ms exit:0 @cc7dabd03a0e
 pass/facts/case_where_equality_through_const_name_exit built 56241ms exit:0 @cc7dabd03a0e
 pass/facts/case_where_equality_through_field_exit built 54594ms exit:0 @cc7dabd03a0e
@@ -1523,15 +1450,6 @@ pass/facts/case_where_equality_through_other_machine_exit built 54875ms exit:0 @
 pass/facts/case_where_equality_through_other_state_exit built 54296ms exit:0 @cc7dabd03a0e
 pass/facts/case_where_equality_through_parameter_exit built 54811ms exit:0 @cc7dabd03a0e
 pass/facts/case_where_equality_through_target_body_exit built 55004ms exit:0 @cc7dabd03a0e
-pass/facts/compound_guard_through_call_result_compile checked 3751ms @f734a3095d6c
-pass/facts/compound_guard_through_const_name_compile checked 3759ms @f734a3095d6c
-pass/facts/compound_guard_through_field_compile checked 4269ms @f734a3095d6c
-pass/facts/compound_guard_through_local_compile checked 4187ms @f734a3095d6c
-pass/facts/compound_guard_through_match_join_compile checked 4013ms @f734a3095d6c
-pass/facts/compound_guard_through_other_machine_compile checked 4021ms @f734a3095d6c
-pass/facts/compound_guard_through_other_state_compile checked 4245ms @f734a3095d6c
-pass/facts/compound_guard_through_parameter_compile checked 4344ms @f734a3095d6c
-pass/facts/compound_guard_through_target_body_compile checked 4256ms @f734a3095d6c
 pass/facts/compound_index_guard_through_call_result_exit built 51129ms exit:0 @ddbaf25de324
 pass/facts/compound_index_guard_through_const_name_exit built 49962ms exit:0 @ddbaf25de324
 pass/facts/compound_index_guard_through_field_exit built 51393ms exit:0 @ddbaf25de324
@@ -1541,17 +1459,7 @@ pass/facts/compound_index_guard_through_other_machine_exit built 51154ms exit:0 
 pass/facts/compound_index_guard_through_other_state_exit built 50490ms exit:0 @ddbaf25de324
 pass/facts/compound_index_guard_through_parameter_exit built 50335ms exit:0 @ddbaf25de324
 pass/facts/compound_index_guard_through_target_body_exit built 51314ms exit:0 @ddbaf25de324
-pass/facts/computed_record_window_mixed_lifecycle_exit built 35111ms exit:0 @f734a3095d6c
 pass/facts/computed_record_window_original_exit built 8582ms exit:0 @408e4fc23fbc
-pass/facts/computed_record_window_through_call_result_exit built 36044ms exit:0 @f734a3095d6c
-pass/facts/computed_record_window_through_const_name_exit built 35243ms exit:0 @f734a3095d6c
-pass/facts/computed_record_window_through_field_exit built 35159ms exit:0 @f734a3095d6c
-pass/facts/computed_record_window_through_local_exit built 35049ms exit:0 @f734a3095d6c
-pass/facts/computed_record_window_through_match_join_exit built 35571ms exit:0 @f734a3095d6c
-pass/facts/computed_record_window_through_other_machine_exit built 35149ms exit:0 @f734a3095d6c
-pass/facts/computed_record_window_through_other_state_exit built 35007ms exit:0 @f734a3095d6c
-pass/facts/computed_record_window_through_parameter_exit built 35511ms exit:0 @f734a3095d6c
-pass/facts/computed_record_window_through_target_body_exit built 35566ms exit:0 @f734a3095d6c
 pass/facts/computed_subslice_extent_call_result_exit built 70396ms exit:0 @b8051b06675a
 pass/facts/computed_subslice_extent_const_name_exit built 70802ms exit:0 @b8051b06675a
 pass/facts/computed_subslice_extent_field_exit built 70764ms exit:0 @b8051b06675a
@@ -1561,15 +1469,6 @@ pass/facts/computed_subslice_extent_other_machine_exit built 70559ms exit:0 @b80
 pass/facts/computed_subslice_extent_other_state_exit built 70406ms exit:0 @b8051b06675a
 pass/facts/computed_subslice_extent_parameter_exit built 70774ms exit:0 @b8051b06675a
 pass/facts/computed_subslice_extent_target_body_exit built 70871ms exit:0 @b8051b06675a
-pass/facts/data_where_standing_through_call_result_exit built 19775ms exit:0 @f734a3095d6c
-pass/facts/data_where_standing_through_const_name_exit built 19447ms exit:0 @f734a3095d6c
-pass/facts/data_where_standing_through_field_exit built 19339ms exit:0 @f734a3095d6c
-pass/facts/data_where_standing_through_local_exit built 19427ms exit:0 @f734a3095d6c
-pass/facts/data_where_standing_through_match_join_exit built 19197ms exit:0 @f734a3095d6c
-pass/facts/data_where_standing_through_other_machine_exit built 18895ms exit:0 @f734a3095d6c
-pass/facts/data_where_standing_through_other_state_exit built 18685ms exit:0 @f734a3095d6c
-pass/facts/data_where_standing_through_parameter_exit built 18571ms exit:0 @f734a3095d6c
-pass/facts/data_where_standing_through_target_body_exit built 18458ms exit:0 @f734a3095d6c
 pass/facts/dependent_subtract_through_call_result_exit built 29726ms exit:0 @5de48c6e72e8+wt
 pass/facts/dependent_subtract_through_const_name_exit built 29176ms exit:0 @5de48c6e72e8+wt
 pass/facts/dependent_subtract_through_field_exit built 29872ms exit:0 @5de48c6e72e8+wt
@@ -1579,15 +1478,6 @@ pass/facts/dependent_subtract_through_other_machine_exit built 29350ms exit:0 @5
 pass/facts/dependent_subtract_through_other_state_exit built 30351ms exit:0 @5de48c6e72e8+wt
 pass/facts/dependent_subtract_through_parameter_exit built 29851ms exit:0 @5de48c6e72e8+wt
 pass/facts/dependent_subtract_through_target_body_exit built 30187ms exit:0 @5de48c6e72e8+wt
-pass/facts/disjoint_windows_through_call_result_exit built 20313ms exit:0 @f734a3095d6c
-pass/facts/disjoint_windows_through_const_name_exit built 20327ms exit:0 @f734a3095d6c
-pass/facts/disjoint_windows_through_field_exit built 20368ms exit:0 @f734a3095d6c
-pass/facts/disjoint_windows_through_local_exit built 20561ms exit:0 @f734a3095d6c
-pass/facts/disjoint_windows_through_match_join_exit built 20632ms exit:0 @f734a3095d6c
-pass/facts/disjoint_windows_through_other_machine_exit built 20587ms exit:0 @f734a3095d6c
-pass/facts/disjoint_windows_through_other_state_exit built 20360ms exit:0 @f734a3095d6c
-pass/facts/disjoint_windows_through_parameter_exit built 20185ms exit:0 @f734a3095d6c
-pass/facts/disjoint_windows_through_target_body_exit built 21147ms exit:0 @f734a3095d6c
 pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit built 55061ms exit:0 @143f0b3e0428
 pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit built 56206ms exit:0 @143f0b3e0428
 pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit built 55061ms exit:0 @143f0b3e0428
@@ -1624,24 +1514,6 @@ pass/facts/erased_reference_contract_through_other_machine_exit built 6179ms exi
 pass/facts/erased_reference_contract_through_other_state_exit built 6173ms exit:0 @327a3ccb7744+wt
 pass/facts/erased_reference_contract_through_parameter_exit built 6164ms exit:0 @327a3ccb7744+wt
 pass/facts/erased_reference_contract_through_target_body_exit built 6164ms exit:0 @327a3ccb7744+wt
-pass/facts/exact_sub_guard_through_call_result_compile checked 5232ms @f734a3095d6c
-pass/facts/exact_sub_guard_through_const_name_compile checked 4212ms @f734a3095d6c
-pass/facts/exact_sub_guard_through_field_compile checked 3698ms @f734a3095d6c
-pass/facts/exact_sub_guard_through_local_compile checked 5017ms @f734a3095d6c
-pass/facts/exact_sub_guard_through_match_join_compile checked 3776ms @f734a3095d6c
-pass/facts/exact_sub_guard_through_other_machine_compile checked 3813ms @f734a3095d6c
-pass/facts/exact_sub_guard_through_other_state_compile checked 3871ms @f734a3095d6c
-pass/facts/exact_sub_guard_through_parameter_compile checked 3852ms @f734a3095d6c
-pass/facts/exact_sub_guard_through_target_body_compile checked 3859ms @f734a3095d6c
-pass/facts/field_where_index_through_call_result_compile checked 3929ms @f734a3095d6c
-pass/facts/field_where_index_through_const_name_compile checked 4436ms @f734a3095d6c
-pass/facts/field_where_index_through_field_compile checked 4238ms @f734a3095d6c
-pass/facts/field_where_index_through_local_compile checked 3967ms @f734a3095d6c
-pass/facts/field_where_index_through_match_join_compile checked 4193ms @f734a3095d6c
-pass/facts/field_where_index_through_other_machine_compile checked 4150ms @f734a3095d6c
-pass/facts/field_where_index_through_other_state_compile checked 4540ms @f734a3095d6c
-pass/facts/field_where_index_through_parameter_compile checked 4705ms @f734a3095d6c
-pass/facts/field_where_index_through_target_body_compile checked 4350ms @f734a3095d6c
 pass/facts/fixed_array_layout_geometry_through_call_result_exit built 61999ms exit:0 @8b1b2befa842
 pass/facts/fixed_array_layout_geometry_through_const_name_exit built 62006ms exit:0 @8b1b2befa842
 pass/facts/fixed_array_layout_geometry_through_field_exit built 58092ms exit:0 @8b1b2befa842
@@ -1660,15 +1532,6 @@ pass/facts/fixed_array_value_through_other_machine_exit built 15845ms exit:0 @fc
 pass/facts/fixed_array_value_through_other_state_exit built 15803ms exit:0 @fc2a9ae75c65
 pass/facts/fixed_array_value_through_parameter_exit built 15803ms exit:0 @fc2a9ae75c65
 pass/facts/fixed_array_value_through_target_body_exit built 16238ms exit:0 @fc2a9ae75c65
-pass/facts/float_delivery_through_call_result_exit built 34683ms exit:0 @f734a3095d6c
-pass/facts/float_delivery_through_const_name_exit built 34098ms exit:0 @f734a3095d6c
-pass/facts/float_delivery_through_field_exit built 33238ms exit:0 @f734a3095d6c
-pass/facts/float_delivery_through_local_exit built 33108ms exit:0 @f734a3095d6c
-pass/facts/float_delivery_through_match_join_exit built 33114ms exit:0 @f734a3095d6c
-pass/facts/float_delivery_through_other_machine_exit built 33188ms exit:0 @f734a3095d6c
-pass/facts/float_delivery_through_other_state_exit built 33110ms exit:0 @f734a3095d6c
-pass/facts/float_delivery_through_parameter_exit built 33453ms exit:0 @f734a3095d6c
-pass/facts/float_delivery_through_target_body_exit built 32900ms exit:0 @f734a3095d6c
 pass/facts/float_range_delivery_through_call_result_exit built 79049ms exit:0 @2f90965a64a9
 pass/facts/float_range_delivery_through_const_name_exit built 78675ms exit:0 @2f90965a64a9
 pass/facts/float_range_delivery_through_field_exit built 77733ms exit:0 @2f90965a64a9
@@ -1678,24 +1541,6 @@ pass/facts/float_range_delivery_through_other_machine_exit built 79144ms exit:0 
 pass/facts/float_range_delivery_through_other_state_exit built 79511ms exit:0 @2f90965a64a9
 pass/facts/float_range_delivery_through_parameter_exit built 78093ms exit:0 @2f90965a64a9
 pass/facts/float_range_delivery_through_target_body_exit built 78358ms exit:0 @2f90965a64a9
-pass/facts/guarded_line_loan_through_call_result_exit built 20585ms exit:0 @f734a3095d6c
-pass/facts/guarded_line_loan_through_const_name_exit built 19475ms exit:0 @f734a3095d6c
-pass/facts/guarded_line_loan_through_field_exit built 19988ms exit:0 @f734a3095d6c
-pass/facts/guarded_line_loan_through_local_exit built 19634ms exit:0 @f734a3095d6c
-pass/facts/guarded_line_loan_through_match_join_exit built 19613ms exit:0 @f734a3095d6c
-pass/facts/guarded_line_loan_through_other_machine_exit built 19323ms exit:0 @f734a3095d6c
-pass/facts/guarded_line_loan_through_other_state_exit built 19189ms exit:0 @f734a3095d6c
-pass/facts/guarded_line_loan_through_parameter_exit built 19360ms exit:0 @f734a3095d6c
-pass/facts/guarded_line_loan_through_target_body_exit built 19275ms exit:0 @f734a3095d6c
-pass/facts/guarded_record_line_loan_through_call_result_exit built 18725ms exit:0 @f734a3095d6c
-pass/facts/guarded_record_line_loan_through_const_name_exit built 18419ms exit:0 @f734a3095d6c
-pass/facts/guarded_record_line_loan_through_field_exit built 20145ms exit:0 @f734a3095d6c
-pass/facts/guarded_record_line_loan_through_local_exit built 18804ms exit:0 @f734a3095d6c
-pass/facts/guarded_record_line_loan_through_match_join_exit built 18548ms exit:0 @f734a3095d6c
-pass/facts/guarded_record_line_loan_through_other_machine_exit built 18569ms exit:0 @f734a3095d6c
-pass/facts/guarded_record_line_loan_through_other_state_exit built 18887ms exit:0 @f734a3095d6c
-pass/facts/guarded_record_line_loan_through_parameter_exit built 18754ms exit:0 @f734a3095d6c
-pass/facts/guarded_record_line_loan_through_target_body_exit built 18871ms exit:0 @f734a3095d6c
 pass/facts/ieee_float_ordered_comparison_through_call_result_exit built 14623ms exit:0 @37962f84fc93
 pass/facts/ieee_float_ordered_comparison_through_const_name_exit built 14635ms exit:0 @37962f84fc93
 pass/facts/ieee_float_ordered_comparison_through_field_exit built 14556ms exit:0 @37962f84fc93
@@ -1705,33 +1550,6 @@ pass/facts/ieee_float_ordered_comparison_through_other_machine_exit built 14585m
 pass/facts/ieee_float_ordered_comparison_through_other_state_exit built 14780ms exit:0 @37962f84fc93
 pass/facts/ieee_float_ordered_comparison_through_parameter_exit built 14692ms exit:0 @37962f84fc93
 pass/facts/ieee_float_ordered_comparison_through_target_body_exit built 13986ms exit:0 @37962f84fc93
-pass/facts/ieee_guard_i32_from_f64_call_result built 32699ms exit:0 @f734a3095d6c
-pass/facts/ieee_guard_i32_from_f64_const_name built 33269ms exit:0 @f734a3095d6c
-pass/facts/ieee_guard_i32_from_f64_field built 32427ms exit:0 @f734a3095d6c
-pass/facts/ieee_guard_i32_from_f64_local built 33502ms exit:0 @f734a3095d6c
-pass/facts/ieee_guard_i32_from_f64_match_join built 35109ms exit:0 @f734a3095d6c
-pass/facts/ieee_guard_i32_from_f64_other_machine built 35405ms exit:0 @f734a3095d6c
-pass/facts/ieee_guard_i32_from_f64_other_state built 34937ms exit:0 @f734a3095d6c
-pass/facts/ieee_guard_i32_from_f64_parameter built 34617ms exit:0 @f734a3095d6c
-pass/facts/ieee_guard_i32_from_f64_target_body built 35634ms exit:0 @f734a3095d6c
-pass/facts/index_every_width_through_call_result_exit built 27776ms exit:0 @f734a3095d6c
-pass/facts/index_every_width_through_const_name_exit built 21316ms exit:0 @f734a3095d6c
-pass/facts/index_every_width_through_field_exit built 21774ms exit:0 @f734a3095d6c
-pass/facts/index_every_width_through_local_exit built 26406ms exit:0 @f734a3095d6c
-pass/facts/index_every_width_through_match_join_exit built 30241ms exit:0 @f734a3095d6c
-pass/facts/index_every_width_through_other_machine_exit built 25896ms exit:0 @f734a3095d6c
-pass/facts/index_every_width_through_other_state_exit built 22787ms exit:0 @f734a3095d6c
-pass/facts/index_every_width_through_parameter_exit built 22290ms exit:0 @f734a3095d6c
-pass/facts/index_every_width_through_target_body_exit built 56511ms exit:0 @f734a3095d6c
-pass/facts/indexed_element_mut_loan_through_call_result_exit built 19561ms exit:0 @f734a3095d6c
-pass/facts/indexed_element_mut_loan_through_const_name_exit built 19209ms exit:0 @f734a3095d6c
-pass/facts/indexed_element_mut_loan_through_field_exit built 18998ms exit:0 @f734a3095d6c
-pass/facts/indexed_element_mut_loan_through_local_exit built 19407ms exit:0 @f734a3095d6c
-pass/facts/indexed_element_mut_loan_through_match_join_exit built 19375ms exit:0 @f734a3095d6c
-pass/facts/indexed_element_mut_loan_through_other_machine_exit built 18611ms exit:0 @f734a3095d6c
-pass/facts/indexed_element_mut_loan_through_other_state_exit built 17895ms exit:0 @f734a3095d6c
-pass/facts/indexed_element_mut_loan_through_parameter_exit built 18431ms exit:0 @f734a3095d6c
-pass/facts/indexed_element_mut_loan_through_target_body_exit built 18727ms exit:0 @f734a3095d6c
 pass/facts/indexed_storage_address_identity_through_call_result_exit built 6191ms exit:0 @69725a85bb43+wt
 pass/facts/indexed_storage_address_identity_through_const_name_exit built 6191ms exit:0 @69725a85bb43+wt
 pass/facts/indexed_storage_address_identity_through_field_exit built 6164ms exit:0 @69725a85bb43+wt
@@ -1750,15 +1568,6 @@ pass/facts/inferred_array_equation_call_through_other_machine_exit built 63272ms
 pass/facts/inferred_array_equation_call_through_other_state_exit built 63929ms exit:0 @a843a6861c24
 pass/facts/inferred_array_equation_call_through_parameter_exit built 63790ms exit:0 @a843a6861c24
 pass/facts/inferred_array_equation_call_through_target_body_exit built 63150ms exit:0 @a843a6861c24
-pass/facts/integer_range_delivery_through_call_result_exit built 17802ms exit:0 @f734a3095d6c
-pass/facts/integer_range_delivery_through_const_name_exit built 18510ms exit:0 @f734a3095d6c
-pass/facts/integer_range_delivery_through_field_exit built 18154ms exit:0 @f734a3095d6c
-pass/facts/integer_range_delivery_through_local_exit built 18171ms exit:0 @f734a3095d6c
-pass/facts/integer_range_delivery_through_match_join_exit built 18552ms exit:0 @f734a3095d6c
-pass/facts/integer_range_delivery_through_other_machine_exit built 19106ms exit:0 @f734a3095d6c
-pass/facts/integer_range_delivery_through_other_state_exit built 18382ms exit:0 @f734a3095d6c
-pass/facts/integer_range_delivery_through_parameter_exit built 18770ms exit:0 @f734a3095d6c
-pass/facts/integer_range_delivery_through_target_body_exit built 18676ms exit:0 @f734a3095d6c
 pass/facts/integer_width_truncation_mask_bound_through_call_result_exit built 78685ms exit:0 @f3cb5493e846
 pass/facts/integer_width_truncation_mask_bound_through_const_name_exit built 78996ms exit:0 @f3cb5493e846
 pass/facts/integer_width_truncation_mask_bound_through_field_exit built 79121ms exit:0 @f3cb5493e846
@@ -1822,15 +1631,6 @@ pass/facts/mixed_width_record_padding_geometry_through_other_machine_exit built 
 pass/facts/mixed_width_record_padding_geometry_through_other_state_exit built 48961ms exit:0 @e29d1dd099de
 pass/facts/mixed_width_record_padding_geometry_through_parameter_exit built 49653ms exit:0 @e29d1dd099de
 pass/facts/mixed_width_record_padding_geometry_through_target_body_exit built 50229ms exit:0 @e29d1dd099de
-pass/facts/multi_exit_callee_saved_restoration_through_call_result_exit built 22686ms exit:0 @8438dd63b8ad
-pass/facts/multi_exit_callee_saved_restoration_through_const_name_exit built 22538ms exit:0 @8438dd63b8ad
-pass/facts/multi_exit_callee_saved_restoration_through_field_exit built 22782ms exit:0 @8438dd63b8ad
-pass/facts/multi_exit_callee_saved_restoration_through_local_exit built 22829ms exit:0 @8438dd63b8ad
-pass/facts/multi_exit_callee_saved_restoration_through_match_join_exit built 22828ms exit:0 @8438dd63b8ad
-pass/facts/multi_exit_callee_saved_restoration_through_other_machine_exit built 22735ms exit:0 @8438dd63b8ad
-pass/facts/multi_exit_callee_saved_restoration_through_other_state_exit built 22728ms exit:0 @8438dd63b8ad
-pass/facts/multi_exit_callee_saved_restoration_through_parameter_exit built 22674ms exit:0 @8438dd63b8ad
-pass/facts/multi_exit_callee_saved_restoration_through_target_body_exit built 22782ms exit:0 @8438dd63b8ad
 pass/facts/mutable_borrow_field_writeback_through_call_result_exit built 78419ms exit:0 @4490555c71ae
 pass/facts/mutable_borrow_field_writeback_through_const_name_exit built 78918ms exit:0 @4490555c71ae
 pass/facts/mutable_borrow_field_writeback_through_field_exit built 78422ms exit:0 @4490555c71ae
@@ -1858,6 +1658,15 @@ pass/facts/named_conformance_dispatch_through_other_machine_exit built 67319ms e
 pass/facts/named_conformance_dispatch_through_other_state_exit built 67744ms exit:0 @7fc0404c1bcc
 pass/facts/named_conformance_dispatch_through_parameter_exit built 67277ms exit:0 @7fc0404c1bcc
 pass/facts/named_conformance_dispatch_through_target_body_exit built 68741ms exit:0 @7fc0404c1bcc
+pass/facts/multi_exit_callee_saved_restoration_through_call_result_exit built 22686ms exit:0 @8438dd63b8ad
+pass/facts/multi_exit_callee_saved_restoration_through_const_name_exit built 22538ms exit:0 @8438dd63b8ad
+pass/facts/multi_exit_callee_saved_restoration_through_field_exit built 22782ms exit:0 @8438dd63b8ad
+pass/facts/multi_exit_callee_saved_restoration_through_local_exit built 22829ms exit:0 @8438dd63b8ad
+pass/facts/multi_exit_callee_saved_restoration_through_match_join_exit built 22828ms exit:0 @8438dd63b8ad
+pass/facts/multi_exit_callee_saved_restoration_through_other_machine_exit built 22735ms exit:0 @8438dd63b8ad
+pass/facts/multi_exit_callee_saved_restoration_through_other_state_exit built 22728ms exit:0 @8438dd63b8ad
+pass/facts/multi_exit_callee_saved_restoration_through_parameter_exit built 22674ms exit:0 @8438dd63b8ad
+pass/facts/multi_exit_callee_saved_restoration_through_target_body_exit built 22782ms exit:0 @8438dd63b8ad
 pass/facts/narrow_to_wide_signed_16to64_extension_through_call_result_exit built 5366ms exit:0 @ff96e24570b8
 pass/facts/narrow_to_wide_signed_16to64_extension_through_const_name_exit built 5362ms exit:0 @ff96e24570b8
 pass/facts/narrow_to_wide_signed_16to64_extension_through_field_exit built 5360ms exit:0 @ff96e24570b8
@@ -1981,15 +1790,6 @@ pass/facts/register_stack_arg_calling_plan_through_other_machine_exit built 8155
 pass/facts/register_stack_arg_calling_plan_through_other_state_exit built 80800ms exit:0 @4d66d6851894
 pass/facts/register_stack_arg_calling_plan_through_parameter_exit built 80750ms exit:0 @4d66d6851894
 pass/facts/register_stack_arg_calling_plan_through_target_body_exit built 90953ms exit:0 @4d66d6851894
-pass/facts/remainder_width_through_call_result_exit built 20569ms exit:0 @f734a3095d6c
-pass/facts/remainder_width_through_const_name_exit built 21144ms exit:0 @f734a3095d6c
-pass/facts/remainder_width_through_field_exit built 20627ms exit:0 @f734a3095d6c
-pass/facts/remainder_width_through_local_exit built 20320ms exit:0 @f734a3095d6c
-pass/facts/remainder_width_through_match_join_exit built 20431ms exit:0 @f734a3095d6c
-pass/facts/remainder_width_through_other_machine_exit built 19423ms exit:0 @f734a3095d6c
-pass/facts/remainder_width_through_other_state_exit built 18308ms exit:0 @f734a3095d6c
-pass/facts/remainder_width_through_parameter_exit built 18031ms exit:0 @f734a3095d6c
-pass/facts/remainder_width_through_target_body_exit built 17728ms exit:0 @f734a3095d6c
 pass/facts/result_cleanup_guarantee_through_call_result_exit built 3769ms exit:0 @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_const_name_exit built 3788ms exit:0 @76ea4b8c7c50
 pass/facts/result_cleanup_guarantee_through_field_exit built 3786ms exit:0 @76ea4b8c7c50
@@ -2008,15 +1808,6 @@ pass/facts/result_cleanup_guarantees_through_other_machine_exit built 47284ms ex
 pass/facts/result_cleanup_guarantees_through_other_state_exit built 47652ms exit:0 @a89cb4914b5c
 pass/facts/result_cleanup_guarantees_through_parameter_exit built 47284ms exit:0 @a89cb4914b5c
 pass/facts/result_cleanup_guarantees_through_target_body_exit built 47280ms exit:0 @a89cb4914b5c
-pass/facts/returned_write_destination_through_call_result_exit built 17983ms exit:0 @f734a3095d6c
-pass/facts/returned_write_destination_through_const_name_exit built 17237ms exit:0 @f734a3095d6c
-pass/facts/returned_write_destination_through_field_exit built 17309ms exit:0 @f734a3095d6c
-pass/facts/returned_write_destination_through_local_exit built 17595ms exit:0 @f734a3095d6c
-pass/facts/returned_write_destination_through_match_join_exit built 19303ms exit:0 @f734a3095d6c
-pass/facts/returned_write_destination_through_other_machine_exit built 18706ms exit:0 @f734a3095d6c
-pass/facts/returned_write_destination_through_other_state_exit built 19021ms exit:0 @f734a3095d6c
-pass/facts/returned_write_destination_through_parameter_exit built 20548ms exit:0 @f734a3095d6c
-pass/facts/returned_write_destination_through_target_body_exit built 20414ms exit:0 @f734a3095d6c
 pass/facts/runtime_count_index_through_call_result_exit built 15058ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_const_name_exit built 15315ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_field_exit built 15148ms exit:0 @ce5f8c9f2f5f
@@ -2144,7 +1935,6 @@ pass/facts/view_extent_after_write_through_other_machine_exit built 6581ms exit:
 pass/facts/view_extent_after_write_through_other_state_exit built 6588ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/facts/view_extent_after_write_through_parameter_exit built 6581ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/facts/view_extent_after_write_through_target_body_exit built 6626ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
-pass/facts/write_only_checked_adapter_exit built 12652ms exit:0 @f734a3095d6c
 pass/facts/zero_byte_erased_carrier_through_call_result_exit built 45096ms exit:0 @7bfdc8af4bb2
 pass/facts/zero_byte_erased_carrier_through_const_name_exit built 45981ms exit:0 @7bfdc8af4bb2
 pass/facts/zero_byte_erased_carrier_through_field_exit built 44905ms exit:0 @7bfdc8af4bb2
@@ -2183,17 +1973,23 @@ pass/filesystem/runtime_posix_borrowed_view_io_exit built 3171ms exit:0 stdout:m
 pass/filesystem/runtime_posix_native_storage_bounds_exit built 9410ms exit:0 @2f33bd96e5f4
 pass/filesystem/runtime_posix_read_runtime_range_view_exit built 7147ms exit:0 stdout:match @2375f5327b1a+wt
 pass/filesystem/windows_canonicalize_exit rejected 17869ms @e01f73c689de+wt
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_native_create_write_close_exit built 8919ms @9dd545defbc0
 pass/filesystem/windows_raw_breadth_exit rejected 1556ms @e01f73c689de+wt
+	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_set_file_time_exit rejected 2013ms @e01f73c689de+wt
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_wrapper_results_exit rejected 16286ms @e01f73c689de+wt
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_lock_metadata_exit built 10357ms exit:70 @cc43b6679d2a+wt
 pass/filesystem/wrapper_open_with_exit built 10097ms exit:70 @cc43b6679d2a+wt
 pass/float/admitted_float_conversion_crash built 4993ms exit:signal signal:5 stdout:match @673b838f6d76+wt
 pass/float/admitted_float_lower_boundary_crash built 5076ms exit:signal signal:5 stdout:match @673b838f6d76+wt
 pass/float/admitted_numeric_imports_preserve_semantics built 7854ms exit:70 @673b838f6d76+wt
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 206982ms @d41eaa7793f9
+	shared function MachineId(14) contains an unaccounted operation at ordinal 0: BoundaryCall { psi_operation: OperationId(317), result: Structural(StructuralOperationResult { place: PlaceId(51), structural_type: StructuralTypeId(26), multiplicity: Unrestricted, qualifications: [], projected_qualifications: [], qualification_establishments: [], claims: [] }), boundary: BoundaryMachineId(31), arguments: [ValueId(4)], structural_arguments: [], completion_claim_sources: [], completion_receipts: [] }
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 212511ms @d41eaa7793f9
+	shared function MachineId(14) contains an unaccounted operation at ordinal 0: BoundaryCall { psi_operation: OperationId(317), result: Structural(StructuralOperationResult { place: PlaceId(51), structural_type: StructuralTypeId(26), multiplicity: Unrestricted, qualifications: [], projected_qualifications: [], qualification_establishments: [], claims: [] }), boundary: BoundaryMachineId(31), arguments: [ValueId(4)], structural_arguments: [], completion_claim_sources: [], completion_receipts: [] }
 pass/float/builtin_extrema_field_store_exit built 2139ms exit:70 @9213c1dcbe3f+wt
 pass/float/computed_comparison_literal_landing_exit built 6031ms exit:0 @6ef30fb818e6+wt
 pass/float/data_where_float_field_restored_exit built 1621ms exit:70 @8cb8c462809d+wt
@@ -2264,6 +2060,7 @@ pass/float/scalar_helper_boundary_sequence_exit built 1800ms exit:70 @de54b0ba9f
 pass/float/state_loop_field_refinement_restoration_exit built 1742ms exit:70 @163770eba39c+wt
 pass/float/waterline_record_computed_return_exit built 35335ms exit:70 @589aedee8ebc+wt
 pass/float/x86_fma_plan_association rejected 3185ms @48008365d839
+	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Coff, pointer_size: 8, pointer_alignment: 8 }
 pass/formatting/runtime_repeated_wrapping_decimal_format_exit built 17140ms exit:0 stdout:match @589aedee8ebc+wt
 pass/generics/applied_data_argument_store_receipt checked 4511ms @7c0518fd7afd+wt
 pass/generics/borrowed_applied_field_static_selection_exit built 5548ms exit:0 @d1fa4738e67a+wt
@@ -2361,9 +2158,12 @@ pass/host/runtime_descriptor_record_loan_input_exit built 19881ms exit:0 stdout:
 pass/host/runtime_descriptor_reference_record_prefix_exit built 5466ms exit:0 stdout:match @9dd545defbc0
 pass/host/runtime_descriptor_scalar_input_exit built 11726ms exit:0 stdout:match @d4c9839eb53d+wt
 pass/host/runtime_gui_foreground_window_exit rejected 10703ms @6c75d91f0312
+	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/runtime_gui_window_lifecycle_exit rejected 10534ms @6c75d91f0312
+	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/std_clock_sleep_exit built 1894ms exit:70 @27fbba584bed+wt
 pass/inline_asm/asm_aarch64_system_registers_compile incomplete 8632ms @6c75d91f0312
+	`Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: target state)
 pass/inline_asm/asm_block_jmp_state built 301ms
 pass/inline_asm/asm_exact_clobbers checked 9500ms @5041ef1af684+wt
 pass/inline_asm/asm_machine_control_wrapper_reach checked 218ms
@@ -2373,9 +2173,11 @@ pass/inline_asm/asm_msr_multi checked 9449ms @5041ef1af684+wt
 pass/inline_asm/asm_port_contract checked 9365ms @5041ef1af684+wt
 pass/inline_asm/asm_port_immediate checked 9438ms @5041ef1af684+wt
 pass/inline_asm/asm_port_out_final_validation rejected 7599ms @73488f3b9a96
+	native artifact terminal-authority closure review failed: root-reachable checked physical operation has no selected provider requirement custody
 pass/inline_asm/asm_reach_inherit checked 9408ms @5041ef1af684+wt
 pass/inline_asm/asm_reach_wrapper checked 9576ms @5041ef1af684+wt
 pass/inline_asm/asm_runtime_port_msr_final_validation incomplete 8657ms @6c75d91f0312
+	`Main::main` has no executable body: this compiler does not lower a call of it yet (call operation: call site)
 pass/inline_asm/asm_state_jmp checked 9778ms @5041ef1af684+wt
 pass/inline_asm/asm_sysreg_rw checked 9506ms @5041ef1af684+wt
 pass/inline_asm/asm_sysregs checked 9520ms @5041ef1af684+wt
@@ -2394,7 +2196,6 @@ pass/layouts/private_callback_slot_untaken_compile checked 214ms
 pass/layouts/runtime_callee_integer_at_fitting_write_exit built 1689ms exit:0 @acdf102c21ea+wt
 pass/layouts/runtime_callee_owned_local_origins_exit built 3838ms exit:0 @9beb2be72f2d+wt
 pass/layouts/runtime_captured_encoded_reference_replacement_exit built 1815ms exit:0 @0234777c1cd7+wt
-pass/layouts/runtime_constant_layout_contract_exit built 5371ms exit:0 @e63c4b1e202d+wt
 pass/layouts/runtime_encoded_physical_view_exit built 5106ms exit:0 @9dd545defbc0
 pass/layouts/runtime_foreign_encoded_reference_exit built 5220ms exit:0 @9dd545defbc0
 pass/layouts/runtime_multi_origin_encoded_reference_exit built 1621ms exit:0 @89699170f158+wt
@@ -2436,10 +2237,12 @@ pass/machines/write_state_forward checked 9965ms @5041ef1af684+wt
 pass/memory/address_translation_canary checked 602ms @3e42cf204024+wt
 pass/memory/bump_allocator_canary built 12681ms @83314997c2b2
 pass/memory/interrupt_table_canary rejected 4037ms regressed-from:checked @6c75d91f0312
+	selected whole provider maps `<selected target>::TimerProviderRoot::satisfies::TimerRoot` and `<selected target>::FatalExceptionProviderRoot::satisfies::FatalExceptionRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 pass/memory/runtime_large_entry_record_field_exit built 1425ms exit:70 @3ce19b649c88+wt
 pass/memory/runtime_large_frame_console_byte_homes_exit built 1251ms exit:70 stdout:match @3ce19b649c88+wt
 pass/memory/runtime_large_local_record_exit built 1251ms exit:70 @3ce19b649c88+wt
 pass/memory/secondary_processor_canary rejected 3553ms regressed-from:built @6c75d91f0312
+	selected whole provider maps `<selected target>::SecondSecondaryProcessorConformance::satisfies::SecondSecondaryProcessorRoot` and `<selected target>::FirstSecondaryProcessorConformance::satisfies::FirstSecondaryProcessorRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 pass/memory/weak_vacant_qualifier_satisfied checked 158ms
 pass/modules/aggregate_machine_indices checked 213ms
 pass/modules/boolean_equality_indices checked 239ms
@@ -2614,8 +2417,67 @@ pass/proofs/axiom_citation checked 9691ms @5041ef1af684+wt
 pass/proofs/captured_scalar_field_observations built 13279ms exit:0 @f22c0e54a812
 pass/proofs/case_call_premises checked 190ms
 pass/proofs/cauchy_predicates_compile rejected 376ms @6c75d91f0312
+	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `unit_sequence_is_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `unit_sequences_are_pointwise_transitive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	machine `cauchy_at_reflexive` ensures contract proof fact `cauchy_at<Sequence, Modulus>(precision, index, index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	machine `converges_together_at_symmetric` cites `rat_close_symmetric`, but the callee's requires fact `rat_close(p, q, precision) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+	machine `converges_together_at_symmetric` ensures contract proof fact `converges_together_at<Right, Left, Modulus>(precision, right_index, left_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+	machine `converges_together_at_triangle_split` ensures contract proof fact `converges_together_at<Left, Right, Modulus>(precision, left_index, right_index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	machine `doubled_nat_max_threshold` ensures contract proof fact `saturating_sub(doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision), index) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `cauchy_at` in machine `cauchy_at_reflexive$specialized$d3ed47cf61b2fa7c$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_symmetric$specialized$1a5aa3cb4206bf5d$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `converges_together_at` in machine `converges_together_at_triangle_split$specialized$e884ebf6348c9935$0` ensures contract: establish its selected precondition in an independently formed prior requires fact
 pass/proofs/citation_requires_discharged checked 223ms
-pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1255ms @1cb01af2f0bb
 pass/proofs/completed_store_address_and_result_exit built 6742ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/proofs/constructor_aggregate_guarantees_follow_evaluation_exit built 15669ms exit:0 interpreter-exit:0 interpreter:agrees @cba98157e519+wt
 pass/proofs/defined_proposition_premises checked 1161ms @77ecdbf5e7c6
@@ -3120,7 +2982,6 @@ pass/termination/remainder_literal_call_component checked 218ms
 pass/termination/runtime_call_result_short_circuit_rank_exit built 1801ms exit:70 @98f54226c10c
 pass/termination/runtime_named_state_remainder_endpoint_exit built 33533ms exit:0
 pass/termination/runtime_projected_element_rank_arrivals_exit built 3396ms exit:0 @7c9a1dd8dd3b
-pass/termination/runtime_projected_extent_fill_exit built 5071ms exit:0 @0ab6a3e7fdb4+wt
 pass/termination/runtime_rank_range_state_call_exit built 1004ms exit:70 @82d2bd2d7669+wt
 pass/termination/runtime_rankless_boundary_suffix_exit built 14526ms exit:0 @8df1d091a810
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 1474ms exit:70 @c9c108ecb4ac+wt
@@ -3338,3 +3199,184 @@ run/providers/target_applicable_provider_closure built 12626ms exit:0 @c78998036
 run/slices/computed_record_window built 8791ms exit:0 @128397218049
 run/stores/runtime_float_indexed_call_result_exit built 9716ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
 run/stores/runtime_float_store_selector_snapshot_exit built 9116ms exit:0 stdout:match stderr:match @589aedee8ebc+wt
+pass/layouts/runtime_constant_layout_contract_exit built 5371ms exit:0 @e63c4b1e202d+wt
+pass/termination/runtime_projected_extent_fill_exit built 5071ms exit:0 @0ab6a3e7fdb4+wt
+pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 1255ms @1cb01af2f0bb
+pass/arithmetic/relative_midpoint_values_exit built 5502ms exit:0 @4c1d863a7eae+wt
+pass/facts/alias_fact_transfer_through_call_result_compile checked 3934ms @f734a3095d6c
+pass/facts/alias_fact_transfer_through_const_name_compile checked 4063ms @f734a3095d6c
+pass/facts/alias_fact_transfer_through_field_compile checked 3821ms @f734a3095d6c
+pass/facts/alias_fact_transfer_through_local_compile checked 4058ms @f734a3095d6c
+pass/facts/alias_fact_transfer_through_match_join_compile checked 4303ms @f734a3095d6c
+pass/facts/alias_fact_transfer_through_other_machine_compile checked 4057ms @f734a3095d6c
+pass/facts/alias_fact_transfer_through_other_state_compile checked 4082ms @f734a3095d6c
+pass/facts/alias_fact_transfer_through_parameter_compile checked 4207ms @f734a3095d6c
+pass/facts/alias_fact_transfer_through_target_body_compile checked 4291ms @f734a3095d6c
+pass/facts/bound_through_call_result_exit built 21091ms exit:0 @f734a3095d6c
+pass/facts/bound_through_const_name_exit built 20920ms exit:0 @f734a3095d6c
+pass/facts/bound_through_field_exit built 20646ms exit:0 @f734a3095d6c
+pass/facts/bound_through_local_exit built 20627ms exit:0 @f734a3095d6c
+pass/facts/bound_through_match_join_exit built 20164ms exit:0 @f734a3095d6c
+pass/facts/bound_through_other_machine_exit built 20660ms exit:0 @f734a3095d6c
+pass/facts/bound_through_other_state_exit built 20952ms exit:0 @f734a3095d6c
+pass/facts/bound_through_parameter_exit built 21616ms exit:0 @f734a3095d6c
+pass/facts/bound_through_target_body_exit built 20984ms exit:0 @f734a3095d6c
+pass/facts/bounded_products_through_call_result_exit built 20159ms exit:0 @f734a3095d6c
+pass/facts/bounded_products_through_const_name_exit built 21082ms exit:0 @f734a3095d6c
+pass/facts/bounded_products_through_field_exit built 19762ms exit:0 @f734a3095d6c
+pass/facts/bounded_products_through_local_exit built 19600ms exit:0 @f734a3095d6c
+pass/facts/bounded_products_through_match_join_exit built 19708ms exit:0 @f734a3095d6c
+pass/facts/bounded_products_through_other_machine_exit built 19069ms exit:0 @f734a3095d6c
+pass/facts/bounded_products_through_other_state_exit built 19124ms exit:0 @f734a3095d6c
+pass/facts/bounded_products_through_parameter_exit built 19307ms exit:0 @f734a3095d6c
+pass/facts/bounded_products_through_target_body_exit built 19442ms exit:0 @f734a3095d6c
+pass/facts/case_const_equal_literals_with_predicate checked 4738ms @f734a3095d6c
+pass/facts/case_const_equal_literals_without_predicate checked 5334ms @f734a3095d6c
+pass/facts/case_const_forwarded_binder_compile checked 4550ms @f734a3095d6c
+pass/facts/case_equality_through_call_result_compile checked 4507ms @f734a3095d6c
+pass/facts/case_equality_through_const_name_compile checked 4515ms @f734a3095d6c
+pass/facts/case_equality_through_field_compile checked 4337ms @f734a3095d6c
+pass/facts/case_equality_through_local_compile checked 4395ms @f734a3095d6c
+pass/facts/case_equality_through_match_join_compile checked 4183ms @f734a3095d6c
+pass/facts/case_equality_through_other_machine_compile checked 4269ms @f734a3095d6c
+pass/facts/case_equality_through_other_state_compile checked 4560ms @f734a3095d6c
+pass/facts/case_equality_through_parameter_compile checked 4260ms @f734a3095d6c
+pass/facts/case_equality_through_target_body_compile checked 3843ms @f734a3095d6c
+pass/facts/case_value_binder_payload_compile checked 4090ms @f734a3095d6c
+pass/facts/compound_guard_through_call_result_compile checked 3751ms @f734a3095d6c
+pass/facts/compound_guard_through_const_name_compile checked 3759ms @f734a3095d6c
+pass/facts/compound_guard_through_field_compile checked 4269ms @f734a3095d6c
+pass/facts/compound_guard_through_local_compile checked 4187ms @f734a3095d6c
+pass/facts/compound_guard_through_match_join_compile checked 4013ms @f734a3095d6c
+pass/facts/compound_guard_through_other_machine_compile checked 4021ms @f734a3095d6c
+pass/facts/compound_guard_through_other_state_compile checked 4245ms @f734a3095d6c
+pass/facts/compound_guard_through_parameter_compile checked 4344ms @f734a3095d6c
+pass/facts/compound_guard_through_target_body_compile checked 4256ms @f734a3095d6c
+pass/facts/computed_record_window_mixed_lifecycle_exit built 35111ms exit:0 @f734a3095d6c
+pass/facts/computed_record_window_through_call_result_exit built 36044ms exit:0 @f734a3095d6c
+pass/facts/computed_record_window_through_const_name_exit built 35243ms exit:0 @f734a3095d6c
+pass/facts/computed_record_window_through_field_exit built 35159ms exit:0 @f734a3095d6c
+pass/facts/computed_record_window_through_local_exit built 35049ms exit:0 @f734a3095d6c
+pass/facts/computed_record_window_through_match_join_exit built 35571ms exit:0 @f734a3095d6c
+pass/facts/computed_record_window_through_other_machine_exit built 35149ms exit:0 @f734a3095d6c
+pass/facts/computed_record_window_through_other_state_exit built 35007ms exit:0 @f734a3095d6c
+pass/facts/computed_record_window_through_parameter_exit built 35511ms exit:0 @f734a3095d6c
+pass/facts/computed_record_window_through_target_body_exit built 35566ms exit:0 @f734a3095d6c
+pass/facts/data_where_standing_through_call_result_exit built 19775ms exit:0 @f734a3095d6c
+pass/facts/data_where_standing_through_const_name_exit built 19447ms exit:0 @f734a3095d6c
+pass/facts/data_where_standing_through_field_exit built 19339ms exit:0 @f734a3095d6c
+pass/facts/data_where_standing_through_local_exit built 19427ms exit:0 @f734a3095d6c
+pass/facts/data_where_standing_through_match_join_exit built 19197ms exit:0 @f734a3095d6c
+pass/facts/data_where_standing_through_other_machine_exit built 18895ms exit:0 @f734a3095d6c
+pass/facts/data_where_standing_through_other_state_exit built 18685ms exit:0 @f734a3095d6c
+pass/facts/data_where_standing_through_parameter_exit built 18571ms exit:0 @f734a3095d6c
+pass/facts/data_where_standing_through_target_body_exit built 18458ms exit:0 @f734a3095d6c
+pass/facts/disjoint_windows_through_call_result_exit built 20313ms exit:0 @f734a3095d6c
+pass/facts/disjoint_windows_through_const_name_exit built 20327ms exit:0 @f734a3095d6c
+pass/facts/disjoint_windows_through_field_exit built 20368ms exit:0 @f734a3095d6c
+pass/facts/disjoint_windows_through_local_exit built 20561ms exit:0 @f734a3095d6c
+pass/facts/disjoint_windows_through_match_join_exit built 20632ms exit:0 @f734a3095d6c
+pass/facts/disjoint_windows_through_other_machine_exit built 20587ms exit:0 @f734a3095d6c
+pass/facts/disjoint_windows_through_other_state_exit built 20360ms exit:0 @f734a3095d6c
+pass/facts/disjoint_windows_through_parameter_exit built 20185ms exit:0 @f734a3095d6c
+pass/facts/disjoint_windows_through_target_body_exit built 21147ms exit:0 @f734a3095d6c
+pass/facts/exact_sub_guard_through_call_result_compile checked 5232ms @f734a3095d6c
+pass/facts/exact_sub_guard_through_const_name_compile checked 4212ms @f734a3095d6c
+pass/facts/exact_sub_guard_through_field_compile checked 3698ms @f734a3095d6c
+pass/facts/exact_sub_guard_through_local_compile checked 5017ms @f734a3095d6c
+pass/facts/exact_sub_guard_through_match_join_compile checked 3776ms @f734a3095d6c
+pass/facts/exact_sub_guard_through_other_machine_compile checked 3813ms @f734a3095d6c
+pass/facts/exact_sub_guard_through_other_state_compile checked 3871ms @f734a3095d6c
+pass/facts/exact_sub_guard_through_parameter_compile checked 3852ms @f734a3095d6c
+pass/facts/exact_sub_guard_through_target_body_compile checked 3859ms @f734a3095d6c
+pass/facts/field_where_index_through_call_result_compile checked 3929ms @f734a3095d6c
+pass/facts/field_where_index_through_const_name_compile checked 4436ms @f734a3095d6c
+pass/facts/field_where_index_through_field_compile checked 4238ms @f734a3095d6c
+pass/facts/field_where_index_through_local_compile checked 3967ms @f734a3095d6c
+pass/facts/field_where_index_through_match_join_compile checked 4193ms @f734a3095d6c
+pass/facts/field_where_index_through_other_machine_compile checked 4150ms @f734a3095d6c
+pass/facts/field_where_index_through_other_state_compile checked 4540ms @f734a3095d6c
+pass/facts/field_where_index_through_parameter_compile checked 4705ms @f734a3095d6c
+pass/facts/field_where_index_through_target_body_compile checked 4350ms @f734a3095d6c
+pass/facts/float_delivery_through_call_result_exit built 34683ms exit:0 @f734a3095d6c
+pass/facts/float_delivery_through_const_name_exit built 34098ms exit:0 @f734a3095d6c
+pass/facts/float_delivery_through_field_exit built 33238ms exit:0 @f734a3095d6c
+pass/facts/float_delivery_through_local_exit built 33108ms exit:0 @f734a3095d6c
+pass/facts/float_delivery_through_match_join_exit built 33114ms exit:0 @f734a3095d6c
+pass/facts/float_delivery_through_other_machine_exit built 33188ms exit:0 @f734a3095d6c
+pass/facts/float_delivery_through_other_state_exit built 33110ms exit:0 @f734a3095d6c
+pass/facts/float_delivery_through_parameter_exit built 33453ms exit:0 @f734a3095d6c
+pass/facts/float_delivery_through_target_body_exit built 32900ms exit:0 @f734a3095d6c
+pass/facts/guarded_line_loan_through_call_result_exit built 20585ms exit:0 @f734a3095d6c
+pass/facts/guarded_line_loan_through_const_name_exit built 19475ms exit:0 @f734a3095d6c
+pass/facts/guarded_line_loan_through_field_exit built 19988ms exit:0 @f734a3095d6c
+pass/facts/guarded_line_loan_through_local_exit built 19634ms exit:0 @f734a3095d6c
+pass/facts/guarded_line_loan_through_match_join_exit built 19613ms exit:0 @f734a3095d6c
+pass/facts/guarded_line_loan_through_other_machine_exit built 19323ms exit:0 @f734a3095d6c
+pass/facts/guarded_line_loan_through_other_state_exit built 19189ms exit:0 @f734a3095d6c
+pass/facts/guarded_line_loan_through_parameter_exit built 19360ms exit:0 @f734a3095d6c
+pass/facts/guarded_line_loan_through_target_body_exit built 19275ms exit:0 @f734a3095d6c
+pass/facts/guarded_record_line_loan_through_call_result_exit built 18725ms exit:0 @f734a3095d6c
+pass/facts/guarded_record_line_loan_through_const_name_exit built 18419ms exit:0 @f734a3095d6c
+pass/facts/guarded_record_line_loan_through_field_exit built 20145ms exit:0 @f734a3095d6c
+pass/facts/guarded_record_line_loan_through_local_exit built 18804ms exit:0 @f734a3095d6c
+pass/facts/guarded_record_line_loan_through_match_join_exit built 18548ms exit:0 @f734a3095d6c
+pass/facts/guarded_record_line_loan_through_other_machine_exit built 18569ms exit:0 @f734a3095d6c
+pass/facts/guarded_record_line_loan_through_other_state_exit built 18887ms exit:0 @f734a3095d6c
+pass/facts/guarded_record_line_loan_through_parameter_exit built 18754ms exit:0 @f734a3095d6c
+pass/facts/guarded_record_line_loan_through_target_body_exit built 18871ms exit:0 @f734a3095d6c
+pass/facts/ieee_guard_i32_from_f64_call_result built 32699ms exit:0 @f734a3095d6c
+pass/facts/ieee_guard_i32_from_f64_const_name built 33269ms exit:0 @f734a3095d6c
+pass/facts/ieee_guard_i32_from_f64_field built 32427ms exit:0 @f734a3095d6c
+pass/facts/ieee_guard_i32_from_f64_local built 33502ms exit:0 @f734a3095d6c
+pass/facts/ieee_guard_i32_from_f64_match_join built 35109ms exit:0 @f734a3095d6c
+pass/facts/ieee_guard_i32_from_f64_other_machine built 35405ms exit:0 @f734a3095d6c
+pass/facts/ieee_guard_i32_from_f64_other_state built 34937ms exit:0 @f734a3095d6c
+pass/facts/ieee_guard_i32_from_f64_parameter built 34617ms exit:0 @f734a3095d6c
+pass/facts/ieee_guard_i32_from_f64_target_body built 35634ms exit:0 @f734a3095d6c
+pass/facts/index_every_width_through_call_result_exit built 27776ms exit:0 @f734a3095d6c
+pass/facts/index_every_width_through_const_name_exit built 21316ms exit:0 @f734a3095d6c
+pass/facts/index_every_width_through_field_exit built 21774ms exit:0 @f734a3095d6c
+pass/facts/index_every_width_through_local_exit built 26406ms exit:0 @f734a3095d6c
+pass/facts/index_every_width_through_match_join_exit built 30241ms exit:0 @f734a3095d6c
+pass/facts/index_every_width_through_other_machine_exit built 25896ms exit:0 @f734a3095d6c
+pass/facts/index_every_width_through_other_state_exit built 22787ms exit:0 @f734a3095d6c
+pass/facts/index_every_width_through_parameter_exit built 22290ms exit:0 @f734a3095d6c
+pass/facts/index_every_width_through_target_body_exit built 56511ms exit:0 @f734a3095d6c
+pass/facts/indexed_element_mut_loan_through_call_result_exit built 19561ms exit:0 @f734a3095d6c
+pass/facts/indexed_element_mut_loan_through_const_name_exit built 19209ms exit:0 @f734a3095d6c
+pass/facts/indexed_element_mut_loan_through_field_exit built 18998ms exit:0 @f734a3095d6c
+pass/facts/indexed_element_mut_loan_through_local_exit built 19407ms exit:0 @f734a3095d6c
+pass/facts/indexed_element_mut_loan_through_match_join_exit built 19375ms exit:0 @f734a3095d6c
+pass/facts/indexed_element_mut_loan_through_other_machine_exit built 18611ms exit:0 @f734a3095d6c
+pass/facts/indexed_element_mut_loan_through_other_state_exit built 17895ms exit:0 @f734a3095d6c
+pass/facts/indexed_element_mut_loan_through_parameter_exit built 18431ms exit:0 @f734a3095d6c
+pass/facts/indexed_element_mut_loan_through_target_body_exit built 18727ms exit:0 @f734a3095d6c
+pass/facts/integer_range_delivery_through_call_result_exit built 17802ms exit:0 @f734a3095d6c
+pass/facts/integer_range_delivery_through_const_name_exit built 18510ms exit:0 @f734a3095d6c
+pass/facts/integer_range_delivery_through_field_exit built 18154ms exit:0 @f734a3095d6c
+pass/facts/integer_range_delivery_through_local_exit built 18171ms exit:0 @f734a3095d6c
+pass/facts/integer_range_delivery_through_match_join_exit built 18552ms exit:0 @f734a3095d6c
+pass/facts/integer_range_delivery_through_other_machine_exit built 19106ms exit:0 @f734a3095d6c
+pass/facts/integer_range_delivery_through_other_state_exit built 18382ms exit:0 @f734a3095d6c
+pass/facts/integer_range_delivery_through_parameter_exit built 18770ms exit:0 @f734a3095d6c
+pass/facts/integer_range_delivery_through_target_body_exit built 18676ms exit:0 @f734a3095d6c
+pass/facts/remainder_width_through_call_result_exit built 20569ms exit:0 @f734a3095d6c
+pass/facts/remainder_width_through_const_name_exit built 21144ms exit:0 @f734a3095d6c
+pass/facts/remainder_width_through_field_exit built 20627ms exit:0 @f734a3095d6c
+pass/facts/remainder_width_through_local_exit built 20320ms exit:0 @f734a3095d6c
+pass/facts/remainder_width_through_match_join_exit built 20431ms exit:0 @f734a3095d6c
+pass/facts/remainder_width_through_other_machine_exit built 19423ms exit:0 @f734a3095d6c
+pass/facts/remainder_width_through_other_state_exit built 18308ms exit:0 @f734a3095d6c
+pass/facts/remainder_width_through_parameter_exit built 18031ms exit:0 @f734a3095d6c
+pass/facts/remainder_width_through_target_body_exit built 17728ms exit:0 @f734a3095d6c
+pass/facts/returned_write_destination_through_call_result_exit built 17983ms exit:0 @f734a3095d6c
+pass/facts/returned_write_destination_through_const_name_exit built 17237ms exit:0 @f734a3095d6c
+pass/facts/returned_write_destination_through_field_exit built 17309ms exit:0 @f734a3095d6c
+pass/facts/returned_write_destination_through_local_exit built 17595ms exit:0 @f734a3095d6c
+pass/facts/returned_write_destination_through_match_join_exit built 19303ms exit:0 @f734a3095d6c
+pass/facts/returned_write_destination_through_other_machine_exit built 18706ms exit:0 @f734a3095d6c
+pass/facts/returned_write_destination_through_other_state_exit built 19021ms exit:0 @f734a3095d6c
+pass/facts/returned_write_destination_through_parameter_exit built 20548ms exit:0 @f734a3095d6c
+pass/facts/returned_write_destination_through_target_body_exit built 20414ms exit:0 @f734a3095d6c
+pass/facts/write_only_checked_adapter_exit built 12652ms exit:0 @f734a3095d6c
