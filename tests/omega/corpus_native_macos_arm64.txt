@@ -2586,10 +2586,10 @@ pass/proofs/runtime_two_state_accumulator_exit built 5797ms exit:70 @1727c70d2f7
 pass/proofs/scalar_field_snapshot_captures_replaced_collection built 4044ms exit:0 @372006f89256
 pass/proofs/scalar_field_snapshot_selector_writes_payload built 4137ms exit:0 @372006f89256
 pass/proofs/stride_pair_telescope checked 9920ms @5041ef1af684+wt
-pass/providers/applied_entry_nested_binding_context_exit built 17266ms exit:0 @8df1d091a810
+pass/providers/applied_entry_nested_binding_context_exit built 1178ms exit:0 @ff11b3a0f8c7
 pass/providers/bare_byte_array_boundary_argument built 1411ms exit:0 @bed5f45e9185+wt
-pass/providers/binding_param_capability checked 9566ms @5041ef1af684+wt
-pass/providers/binding_where_record checked 9426ms @5041ef1af684+wt
+pass/providers/binding_param_capability checked 1026ms @ff11b3a0f8c7
+pass/providers/binding_where_record checked 864ms @ff11b3a0f8c7
 pass/providers/borrowed_service_field_forward_exit built 1142ms exit:70 stdout:match @5745c7562b65
 pass/providers/boundary_array_snapshot checked 9493ms @5041ef1af684+wt
 pass/providers/boundary_declaration_structural_result_return_exit built 1553ms exit:0 @6b4fa65d3f94+wt
@@ -2638,6 +2638,7 @@ pass/providers/lifetime_boundary_requirement_dispatch_exit built 626ms exit:41
 pass/providers/linear_structural_provider_pure_exit built 27581ms exit:0 @7e6c0ae564d2+wt
 pass/providers/linear_structural_provider_return_exit built 30295ms exit:0 stdout:match @7e6c0ae564d2+wt
 pass/providers/local_record_foreign_borrow_exit built 1903ms exit:70 @59d57ace39f0+wt
+pass/providers/nested_binding_borrowed_call_exit built 958ms exit:0 @ff11b3a0f8c7
 pass/providers/occurrence_region_binding_exit built 3846ms exit:0 @619f89e4fed6+wt
 pass/providers/occurrence_region_binding_forwarding_exit built 3914ms exit:0 @619f89e4fed6+wt
 pass/providers/occurrence_region_binding_projected_type_exit built 3995ms exit:0 @619f89e4fed6+wt
