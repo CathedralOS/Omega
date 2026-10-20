@@ -2270,6 +2270,7 @@ fail/facts/checked_asm_register_contract_bound_through_target_body_rejected reje
 	exact arithmetic in machine `exercise` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `exercise` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/compound_guard_different_call_result_compile rejected 3197ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/compound_guard_different_grouping_compile rejected 3217ms expected @2ef2ab353498+wt
 fail/facts/compound_guard_missing_lower_compile rejected 3183ms expected @2ef2ab353498+wt
 fail/facts/compound_guard_mutated_coordinate_compile rejected 3633ms expected @2ef2ab353498+wt
