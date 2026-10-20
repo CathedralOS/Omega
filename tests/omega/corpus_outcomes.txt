@@ -3994,14 +3994,23 @@ fail/facts/reference_arrival_handoff_cleanup_receiver_prerequisite rejected 1541
 fail/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_prerequisite rejected 7527ms expected @4e77584323e4
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_through_call_result_held_source rejected 3345ms expected @3424ad143d6e
+	statement 3 mutates `original` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 5)
 fail/facts/reference_arrival_handoff_through_const_name_held_source rejected 3207ms expected @3424ad143d6e
+	statement 3 mutates `original` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 5)
 fail/facts/reference_arrival_handoff_through_field_held_source rejected 2657ms expected @3424ad143d6e
+	statement 3 mutates `original` while local borrow `holder` is still active (borrowed at statement 2; its last use is at statement 5)
 fail/facts/reference_arrival_handoff_through_local_held_source rejected 2572ms expected @3424ad143d6e
+	statement 3 mutates `original` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 5)
 fail/facts/reference_arrival_handoff_through_match_join_held_source rejected 1661ms expected @28774f64507d
+	statement 6 mutates `backing` while local borrow `child` is still active (borrowed at statement 5; its last use is at statement 8)
 fail/facts/reference_arrival_handoff_through_other_machine_held_source rejected 2460ms expected @3424ad143d6e
+	state `forward` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/facts/reference_arrival_handoff_through_other_state_held_source rejected 2517ms expected @3424ad143d6e
+	state `write` receives `original` while local borrow `held` is still active
 fail/facts/reference_arrival_handoff_through_parameter_held_source rejected 2539ms expected @3424ad143d6e
+	state `write` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/facts/reference_arrival_handoff_through_target_body_held_source rejected 2479ms expected @3424ad143d6e
+	state `write` receives `original` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/facts/register_stack_arg_calling_plan_through_call_result_rejected rejected 13916ms expected @4d66d6851894
 	exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/register_stack_arg_calling_plan_through_const_name_rejected rejected 7643ms expected @4d66d6851894
