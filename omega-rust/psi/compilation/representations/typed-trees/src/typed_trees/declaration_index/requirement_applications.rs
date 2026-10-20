@@ -18,7 +18,7 @@ pub(super) struct RequirementApplicationIndex {
 }
 
 impl crate::TypedTrees {
-    fn with_requirement_application_index<R>(
+    pub(super) fn with_requirement_application_index<R>(
         &self,
         run: impl FnOnce(&RequirementApplicationIndex) -> R,
     ) -> R {

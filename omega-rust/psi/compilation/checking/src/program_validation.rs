@@ -41,6 +41,7 @@ use crate::{
     value_custody::struct_literals, value_custody::wire, value_custody::write_only_borrows,
 };
 use diagnostics::Diagnostic;
+use rayon::prelude::*;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
 
@@ -171,8 +172,8 @@ enum EffectAdmission {
     AfterOwnership,
 }
 
-fn validate(
-    program: &dyn crate::CheckingInput,
+fn validate<'program>(
+    program: &'program dyn crate::CheckingInput,
     opaque_properties: OpaquePropertyValidation<'_>,
     quotient_admission: QuotientRequestAdmission,
     effect_admission: EffectAdmission,
@@ -419,17 +420,28 @@ fn validate(
 
     drop(pre_machine_guard);
     let machine_loop_guard = phase_profile::guard("05.d.2.a.2.machine_loop");
-    // The whole-program bound catalog rebuilds eagerly otherwise; one lazy
-    // cell serves every qualifying statement in this pass. The program
-    // handle travels with it: downstream scopes shorten their program
-    // borrow below what a fresh catalog could be built from.
-    let mut bound_lookup = (program, None);
     let mut proven_machine_contracts = Vec::new();
     let has_plan_laid_integer_fields = program.plan_laid_layouts.iter().any(|plan| {
         plan.geometries(program.typed_program())
             .any(|geometry| !geometry.integer_fields.is_empty())
     });
-    for machine in program.machines() {
+    // Each machine is judged independently over the immutable program, so
+    // machines are partitioned across workers. A worker owns its machine's
+    // outputs and its lazy bound catalog; nothing below reads another
+    // machine's rows. Merging in roster order keeps diagnostics, decisions
+    // and first-wins contract rows identical to a sequential pass.
+    let validate_machine = |machine: &typed_trees::machine::Machine,
+                            bound_lookup: &mut (
+        &'program dyn crate::CheckingInput,
+        Option<crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'program>>,
+    )|
+     -> MachineValidation {
+        let mut diagnostics = Vec::new();
+        let mut proven_machine_contract = None;
+        let mut arithmetic_decisions = arithmetic_domains::ArithmeticDecisions::default();
+        let mut stored_integer_writes = Vec::new();
+        let mut boundary_operator_applications = Vec::new();
+        let mut self_call_descents = Vec::new();
         let _machine_pkg_guard = phase_profile::enabled().then(|| {
             let is_toolchain_or_std = program
                 .symbols
@@ -476,11 +488,7 @@ fn validate(
                 &mut machine_diagnostics,
                 &mut proven,
             );
-            if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                && !proven_machine_contracts
-                    .iter()
-                    .any(|(symbol, _)| *symbol == machine.symbol)
-            {
+            if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody {
                 let judged = if machine_diagnostics.is_empty()
                     && crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
                         program, machine,
@@ -489,7 +497,7 @@ fn validate(
                 } else {
                     ProvenContractExpressions::default()
                 };
-                proven_machine_contracts.push((machine.symbol, judged));
+                proven_machine_contract = Some((machine.symbol, judged));
             }
             diagnostics.append(&mut machine_diagnostics);
         }
@@ -794,7 +802,7 @@ fn validate(
                     &mut arithmetic_decisions,
                     &mut stored_integer_writes,
                     &mut boundary_operator_applications,
-                    &mut bound_lookup,
+                    bound_lookup,
                     &mut diagnostics,
                 );
                 // Statement-adjacent checks above this point mint only
@@ -824,6 +832,46 @@ fn validate(
                 }
             }
         }
+        MachineValidation {
+            diagnostics,
+            proven_machine_contract,
+            arithmetic_decisions,
+            stored_integer_writes,
+            boundary_operator_applications,
+            self_call_descents,
+        }
+    };
+    let machines = program.machines();
+    let judged = checking_thread_pool().install(|| {
+        machines
+            .par_iter()
+            .map_init(
+                || (program, None),
+                |bound_lookup, machine| validate_machine(machine, bound_lookup),
+            )
+            .collect::<Vec<_>>()
+    });
+    for machine in judged {
+        diagnostics.extend(machine.diagnostics);
+        if let Some((symbol, judged)) = machine.proven_machine_contract
+            && !proven_machine_contracts
+                .iter()
+                .any(|(existing, _)| *existing == symbol)
+        {
+            proven_machine_contracts.push((symbol, judged));
+        }
+        arithmetic_decisions.append(machine.arithmetic_decisions);
+        stored_integer_writes.extend(machine.stored_integer_writes);
+        // A site validated twice keeps its first application and reports an
+        // inconsistent second one, exactly as one shared roster did.
+        for application in machine.boundary_operator_applications {
+            crate::declarations::operators::retain_validated_boundary_operator_application(
+                &mut boundary_operator_applications,
+                application,
+                &mut diagnostics,
+            );
+        }
+        self_call_descents.extend(machine.self_call_descents);
     }
     drop(machine_loop_guard);
     let _post_machine_guard = phase_profile::guard("05.d.2.a.3.post_machine_validators");
@@ -1067,4 +1115,31 @@ fn validate_cleanup_normal_completion(
             );
         }
     }
+}
+
+/// One machine's validation outputs, produced by a worker that owns them and
+/// merged into the program's rows in roster order.
+struct MachineValidation {
+    diagnostics: Vec<Diagnostic>,
+    proven_machine_contract: Option<(symbols::SymbolHandle, ProvenContractExpressions)>,
+    arithmetic_decisions: arithmetic_domains::ArithmeticDecisions,
+    stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
+    boundary_operator_applications: Vec<ValidatedBoundaryOperatorApplication>,
+    self_call_descents: Vec<crate::ValidatedSelfCallDescent>,
+}
+
+/// Machine validation recurses as deeply as the compile thread does, so its
+/// workers carry that thread's stack budget instead of the host default.
+/// The stage owns this pool; no caller configures the process-wide one.
+const CHECKING_STACK_SIZE: usize = 256 * 1024 * 1024;
+
+fn checking_thread_pool() -> &'static rayon::ThreadPool {
+    static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .thread_name(|index| format!("omega-check-{index}"))
+            .stack_size(CHECKING_STACK_SIZE)
+            .build()
+            .expect("machine validation worker pool")
+    })
 }

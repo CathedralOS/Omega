@@ -62,7 +62,10 @@ pub(super) struct DataMemberIndex {
 }
 
 impl crate::TypedTrees {
-    fn with_state_declarations<R>(&self, run: impl FnOnce(&StateDeclarationIndex) -> R) -> R {
+    pub(super) fn with_state_declarations<R>(
+        &self,
+        run: impl FnOnce(&StateDeclarationIndex) -> R,
+    ) -> R {
         let revision = self
             .tables
             .machines
@@ -142,7 +145,7 @@ impl crate::TypedTrees {
         })
     }
 
-    fn with_data_members<R>(&self, run: impl FnOnce(&DataMemberIndex) -> R) -> R {
+    pub(super) fn with_data_members<R>(&self, run: impl FnOnce(&DataMemberIndex) -> R) -> R {
         let revision = self
             .tables
             .data_definitions

@@ -261,6 +261,49 @@ impl std::fmt::Debug for DeclarationIndexes {
 }
 
 impl super::TypedTrees {
+    /// Build every declaration index once for a program that stops mutating
+    /// and seal it, so readers of the frozen program look up declarations
+    /// without locking. Verdict memos that grow per query stay lazy.
+    pub(super) fn seal_declaration_indexes(&mut self) {
+        let any_symbol = self.symbols.root();
+        self.with_machine_position_index(|_| ());
+        self.with_state_position_index(|_| ());
+        self.with_state_declarations(|_| ());
+        self.with_data_members(|_| ());
+        self.with_data_definition_index(|_| ());
+        self.data_type_parameter_by_symbol(any_symbol);
+        self.domain_position_by_symbol(any_symbol);
+        self.attached_drop_machine_exists(any_symbol);
+        self.with_call_target_index(|_| ());
+        self.with_requirement_application_index(|_| ());
+        let indexes = &mut self.declaration_indexes;
+        indexes.machines.seal();
+        indexes.states.seal();
+        indexes.state_declarations.seal();
+        indexes.data_members.seal();
+        indexes.data_definitions.seal();
+        indexes.type_parameters.seal();
+        indexes.domains.seal();
+        indexes.attached_drops.seal();
+        indexes.call_targets.seal();
+        indexes.requirement_applications.seal();
+    }
+
+    /// Return sealed indexes to their lazy slots before the program mutates.
+    pub(super) fn unseal_declaration_indexes(&mut self) {
+        let indexes = &mut self.declaration_indexes;
+        indexes.machines.unseal();
+        indexes.states.unseal();
+        indexes.state_declarations.unseal();
+        indexes.data_members.unseal();
+        indexes.data_definitions.unseal();
+        indexes.type_parameters.unseal();
+        indexes.domains.unseal();
+        indexes.attached_drops.unseal();
+        indexes.call_targets.unseal();
+        indexes.requirement_applications.unseal();
+    }
+
     /// One freshness counter over the whole program: every table arena's
     /// revision, every root span's marker, and the lengths of the side Vecs
     /// and intern tables that have no revision of their own. Checking-phase
