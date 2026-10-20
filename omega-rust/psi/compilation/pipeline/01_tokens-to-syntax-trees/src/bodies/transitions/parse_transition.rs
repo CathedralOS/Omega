@@ -40,6 +40,8 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     // call `make` once for `x` and again for `y`, nor skip the field law merely
     // because the authored subject was not already a place.
     let mut subject_captures: Vec<(Identifier, ExpressionHandle)> = Vec::new();
+    // Selectors of an uncaptured place subject that must still run exactly once.
+    let mut selector_captures: Vec<(Identifier, ExpressionHandle)> = Vec::new();
     // Capture is a property of subject evaluation, not of the arm's spelling.
     // In particular, ordinary case payloads and proof-bearing payloads retain
     // the same owner while their selected fields are transferred separately.
@@ -53,6 +55,21 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         if expression_is_place(syntax_trees, *subject_expression)
             || expression_is_closed_boolean(syntax_trees, *subject_expression)
         {
+            continue;
+        }
+        // A subject that is a PLACE READ stays the authored place. A dispatch
+        // TESTS its subject and reads each arm's payload from it: an owned
+        // capture moves an affine element out of borrowed storage and leaves a
+        // restoration debt no arm can discharge, while a reference capture
+        // hides the sum the payload extraction, the constant projection and the
+        // index bounds proof all read. Its EFFECTFUL selectors are captured
+        // instead, so the address is still evaluated exactly once.
+        if expression_is_storage_read(syntax_trees, *subject_expression) {
+            capture_effectful_selectors(
+                syntax_trees,
+                *subject_expression,
+                &mut selector_captures,
+            );
             continue;
         }
         let captured = *subject_expression;
@@ -171,6 +188,28 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         return Err(input.error_here(
             "a transition block must carry at least one arm; an empty dispatch can never proceed",
         ));
+    }
+
+    // An uncaptured place subject's effectful selectors evaluate before the
+    // subject is read, in address order (collection before selector).
+    for (name, initial_value) in selector_captures {
+        let capture = syntax_trees.statements.insert(StatementNode::LocalData(
+            syntax_trees::statement::TableLocalData {
+                role: language_core::LocalBindingRole::Value,
+                name,
+                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
+                initial_value,
+                is_mutable: false,
+                relevance: language_core::BindingRelevance::Relevant,
+            },
+        ));
+        let handle = syntax_trees.items.append_statement_handle(capture);
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("transition block statement span count overflow");
     }
 
     for (name, initial_value) in subject_captures {
@@ -332,6 +371,90 @@ fn expression_is_place(syntax_trees: &SyntaxTrees, expression: ExpressionHandle)
         syntax_trees::expression::ExpressionNode::Name(_) => true,
         syntax_trees::expression::ExpressionNode::Member(member) => {
             expression_is_place(syntax_trees, member.receiver)
+        }
+        _ => false,
+    }
+}
+
+/// Whether `expression` names STORAGE -- a name, a member chain, or an indexed
+/// element of one. Such a subject stays the authored place: the dispatch tests
+/// it and reads each arm's payload from it. Only its effectful selectors are
+/// captured, by [`capture_effectful_selectors`].
+fn expression_is_storage_read(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
+    match syntax_trees.expressions.expression(expression) {
+        syntax_trees::expression::ExpressionNode::Name(_) => true,
+        syntax_trees::expression::ExpressionNode::Member(member) => {
+            expression_is_storage_read(syntax_trees, member.receiver)
+        }
+        syntax_trees::expression::ExpressionNode::Indexed(indexed) => {
+            expression_is_storage_read(syntax_trees, indexed.collection)
+        }
+        _ => false,
+    }
+}
+
+/// Bind every SELECTOR in this place read that may call or store into a
+/// generated local, so an uncaptured subject still evaluates its address
+/// exactly once before arm dispatch. A pure selector stays authored: re-reading
+/// it is unobservable, and the bounds proof and payload extraction keep reading
+/// the projection they can prove. Captures are recorded collection-first, the
+/// order the address evaluates in.
+fn capture_effectful_selectors(
+    syntax_trees: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+    captures: &mut Vec<(Identifier, ExpressionHandle)>,
+) {
+    match syntax_trees.expressions.expression(expression).clone() {
+        ExpressionNode::Member(member) => {
+            capture_effectful_selectors(syntax_trees, member.receiver, captures);
+        }
+        ExpressionNode::Indexed(mut indexed) => {
+            capture_effectful_selectors(syntax_trees, indexed.collection, captures);
+            let selector = indexed.index;
+            if expression_may_have_effects(syntax_trees, selector) {
+                let name = Identifier::generated(format!(
+                    "__transition_selector#{}",
+                    selector.arena_index()
+                ));
+                let path_start = syntax_trees
+                    .expressions
+                    .append_identifier_path_member(name.clone());
+                let path = HandleSpan::from_parts(path_start, 1);
+                indexed.index = syntax_trees.expressions.insert(ExpressionNode::Name(path));
+                syntax_trees
+                    .expressions
+                    .replace_expression(expression, ExpressionNode::Indexed(indexed));
+                captures.push((name, selector));
+            } else {
+                capture_effectful_selectors(syntax_trees, selector, captures);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Whether an index expression performs a call or an atomic event. A selector
+/// over names, fields, literals and arithmetic only reads, so re-evaluating it
+/// per arm observes no effect.
+fn expression_may_have_effects(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
+    match syntax_trees.expressions.expression(expression) {
+        ExpressionNode::Call(_) | ExpressionNode::Atomic(_) => true,
+        ExpressionNode::Binary(binary) => {
+            expression_may_have_effects(syntax_trees, binary.left)
+                || expression_may_have_effects(syntax_trees, binary.right)
+        }
+        ExpressionNode::Unary(unary) => expression_may_have_effects(syntax_trees, unary.operand),
+        ExpressionNode::Cast(cast) => expression_may_have_effects(syntax_trees, cast.value),
+        ExpressionNode::Member(member) => {
+            expression_may_have_effects(syntax_trees, member.receiver)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            expression_may_have_effects(syntax_trees, indexed.collection)
+                || expression_may_have_effects(syntax_trees, indexed.index)
+        }
+        ExpressionNode::Range(range) => {
+            (range.start.is_valid() && expression_may_have_effects(syntax_trees, range.start))
+                || (range.end.is_valid() && expression_may_have_effects(syntax_trees, range.end))
         }
         _ => false,
     }
