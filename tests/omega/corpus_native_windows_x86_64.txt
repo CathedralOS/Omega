@@ -1548,6 +1548,15 @@ pass/facts/unsigned_64bit_shift_left_bound_through_other_machine_exit built 3177
 pass/facts/unsigned_64bit_shift_left_bound_through_other_state_exit built 31890ms exit:0 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_shift_left_bound_through_parameter_exit built 31724ms exit:0 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_shift_left_bound_through_target_body_exit built 31749ms exit:0 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_call_result_exit built 24159ms exit:0 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_const_name_exit built 23897ms exit:0 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_field_exit built 23595ms exit:0 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_local_exit built 24250ms exit:0 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_match_join_exit built 23523ms exit:0 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_other_machine_exit built 23845ms exit:0 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_other_state_exit built 24210ms exit:0 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_parameter_exit built 24092ms exit:0 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_target_body_exit built 23874ms exit:0 @da99a3ccd03e+wt
 pass/facts/view_extent_after_write_through_call_result_exit built 5643ms exit:0 @17acd2776c21
 pass/facts/view_extent_after_write_through_const_name_exit built 5611ms exit:0 @17acd2776c21
 pass/facts/view_extent_after_write_through_field_exit built 5873ms exit:0 @17acd2776c21
