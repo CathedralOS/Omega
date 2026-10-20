@@ -4130,52 +4130,66 @@ fail/facts/signed_32bit_bitwise_or_bound_through_other_state_rejected rejected 1
 fail/facts/signed_32bit_bitwise_or_bound_through_parameter_rejected rejected 12258ms expected @1258d561e0cf+wt
 	cannot prove requires contract for call verify_combined from bitwise_or_param: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_32bit_bitwise_or_bound_through_target_body_rejected rejected 12496ms expected @1258d561e0cf+wt
-	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/signed_32bit_bitwise_xor_bound_through_call_result_rejected rejected 17846ms expected @dcfab1e4eda9
 	cannot prove requires contract for call verify_xored from probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-fail/facts/signed_32bit_bitwise_xor_bound_through_const_name_rejected rejected 15193ms expected @dcfab1e4eda9
-	cannot prove requires contract for call verify_xored from probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-fail/facts/signed_32bit_bitwise_xor_bound_through_field_rejected rejected 18153ms expected @dcfab1e4eda9
-	cannot prove requires contract for call verify_xored from probe: holder.val >= 40 && holder.val <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-fail/facts/signed_32bit_bitwise_xor_bound_through_local_rejected rejected 16245ms expected @dcfab1e4eda9
-	cannot prove requires contract for call verify_xored from probe: local_res >= 40 && local_res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-fail/facts/signed_32bit_bitwise_xor_bound_through_match_join_rejected rejected 17217ms expected @dcfab1e4eda9
-	cannot prove requires contract for call choose from probe: res >= 40 && res <= 63 && 50 >= 40 && 50 <= 63 (needs fact `first >= 40 && first <= 63 && second >= 40 && second <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-fail/facts/signed_32bit_bitwise_xor_bound_through_other_machine_rejected rejected 21095ms expected @dcfab1e4eda9
-	cannot prove requires contract for call other_machine from probe: res >= 40 && res <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-fail/facts/signed_32bit_bitwise_xor_bound_through_other_state_rejected rejected 13471ms expected @dcfab1e4eda9
-	cannot prove requires contract for call next_state from probe: res >= 40 && res <= 63 (needs fact `forwarded_res >= 40 && forwarded_res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-fail/facts/signed_32bit_bitwise_xor_bound_through_parameter_rejected rejected 12857ms expected @dcfab1e4eda9
-	cannot prove requires contract for call pass_parameter from probe: res >= 40 && res <= 63 (needs fact `param_res >= 40 && param_res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-fail/facts/signed_32bit_bitwise_xor_bound_through_target_body_rejected rejected 11603ms expected @dcfab1e4eda9
-	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-fail/facts/signed_32bit_division_remainder_bound_through_call_result_rejected rejected 14730ms expected @3045ef49d634+wt
-	cannot prove ensures contract for exit from remainder at statement 0: result >= 0 && result <= 15
-fail/facts/signed_32bit_division_remainder_bound_through_const_name_rejected rejected 14306ms expected @3045ef49d634+wt
-	cannot prove requires contract for call verify_rem from probe: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/signed_32bit_division_remainder_bound_through_field_rejected rejected 13964ms expected @3045ef49d634+wt
-	cannot prove requires contract for call verify_rem from compute_field: holder.rem >= 0 && holder.rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/signed_32bit_division_remainder_bound_through_local_rejected rejected 15986ms expected @3045ef49d634+wt
-	cannot prove requires contract for call verify_rem from compute_local: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/signed_32bit_division_remainder_bound_through_match_join_rejected rejected 16508ms expected @3045ef49d634+wt
-	cannot prove ensures contract for exit from choose_rem at statement 0: result >= 0 && result <= 15
-fail/facts/signed_32bit_division_remainder_bound_through_other_machine_rejected rejected 23082ms expected @3045ef49d634+wt
-	cannot prove requires contract for call forward from compute_forward: dividend % divisor >= 0 && dividend % divisor <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/signed_32bit_division_remainder_bound_through_other_state_rejected rejected 21241ms expected @3045ef49d634+wt
 	cannot prove requires contract for call step from verify_state: dividend % divisor >= 0 && dividend % divisor <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/signed_32bit_division_remainder_bound_through_parameter_rejected rejected 15534ms expected @3045ef49d634+wt
+	cannot prove requires contract for call pass_parameter from probe: res >= 40 && res <= 63 (needs fact `param_res >= 40 && param_res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove ensures contract for exit from remainder at statement 0: result >= 0 && result <= 15
+	cannot prove requires contract for call verify_diff from evaluate_diff: diff >= 40 && diff <= 100 (needs fact `diff >= 40 && diff <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call next_state from probe: res >= 40 && res <= 63 (needs fact `forwarded_res >= 40 && forwarded_res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call other_machine from probe: res >= 40 && res <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from probe: held.diff >= 40 && held.diff <= 100 (needs fact `diff >= 40 && diff <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call forward from compute_forward: dividend % divisor >= 0 && dividend % divisor <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call choose from probe: res >= 40 && res <= 63 && 50 >= 40 && 50 <= 63 (needs fact `first >= 40 && first <= 63 && second >= 40 && second <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove ensures contract for exit from choose_rem at statement 0: result >= 0 && result <= 15
+	cannot prove requires contract for call step from probe: diff >= 40 && diff <= 100 (needs fact `diff >= 40 && diff <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call check_param from probe: diff >= 40 && diff <= 100 (needs fact `diff >= 40 && diff <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from compute_field: holder.rem >= 0 && holder.rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_xored from probe: local_res >= 40 && local_res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call verify_rem from compute_local: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from probe: diff >= 40 && diff <= 100 (needs fact `diff >= 40 && diff <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call forward from probe: diff >= 40 && diff <= 100 (needs fact `diff >= 40 && diff <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_xored from probe: holder.val >= 40 && holder.val <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call verify_rem from probe: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_parameter from compute_param: dividend % divisor >= 0 && dividend % divisor <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_bitwise_xor_bound_through_call_result_rejected rejected 11111ms expected @1258d561e0cf+wt
+fail/facts/signed_32bit_bitwise_xor_bound_through_call_result_rejected rejected 17846ms expected @dcfab1e4eda9
+fail/facts/signed_32bit_bitwise_xor_bound_through_const_name_rejected rejected 10935ms expected @1258d561e0cf+wt
+fail/facts/signed_32bit_bitwise_xor_bound_through_const_name_rejected rejected 15193ms expected @dcfab1e4eda9
+fail/facts/signed_32bit_bitwise_xor_bound_through_field_rejected rejected 10898ms expected @1258d561e0cf+wt
+fail/facts/signed_32bit_bitwise_xor_bound_through_field_rejected rejected 18153ms expected @dcfab1e4eda9
+fail/facts/signed_32bit_bitwise_xor_bound_through_local_rejected rejected 11465ms expected @1258d561e0cf+wt
+fail/facts/signed_32bit_bitwise_xor_bound_through_local_rejected rejected 16245ms expected @dcfab1e4eda9
+fail/facts/signed_32bit_bitwise_xor_bound_through_match_join_rejected rejected 11816ms expected @1258d561e0cf+wt
+fail/facts/signed_32bit_bitwise_xor_bound_through_match_join_rejected rejected 17217ms expected @dcfab1e4eda9
+fail/facts/signed_32bit_bitwise_xor_bound_through_other_machine_rejected rejected 11660ms expected @1258d561e0cf+wt
+fail/facts/signed_32bit_bitwise_xor_bound_through_other_machine_rejected rejected 21095ms expected @dcfab1e4eda9
+fail/facts/signed_32bit_bitwise_xor_bound_through_other_state_rejected rejected 10588ms expected @1258d561e0cf+wt
+fail/facts/signed_32bit_bitwise_xor_bound_through_other_state_rejected rejected 13471ms expected @dcfab1e4eda9
+fail/facts/signed_32bit_bitwise_xor_bound_through_parameter_rejected rejected 10762ms expected @1258d561e0cf+wt
+fail/facts/signed_32bit_bitwise_xor_bound_through_parameter_rejected rejected 12857ms expected @dcfab1e4eda9
+fail/facts/signed_32bit_bitwise_xor_bound_through_target_body_rejected rejected 10697ms expected @1258d561e0cf+wt
+fail/facts/signed_32bit_bitwise_xor_bound_through_target_body_rejected rejected 11603ms expected @dcfab1e4eda9
+fail/facts/signed_32bit_division_remainder_bound_through_call_result_rejected rejected 14730ms expected @3045ef49d634+wt
+fail/facts/signed_32bit_division_remainder_bound_through_const_name_rejected rejected 14306ms expected @3045ef49d634+wt
+fail/facts/signed_32bit_division_remainder_bound_through_field_rejected rejected 13964ms expected @3045ef49d634+wt
+fail/facts/signed_32bit_division_remainder_bound_through_local_rejected rejected 15986ms expected @3045ef49d634+wt
+fail/facts/signed_32bit_division_remainder_bound_through_match_join_rejected rejected 16508ms expected @3045ef49d634+wt
+fail/facts/signed_32bit_division_remainder_bound_through_other_machine_rejected rejected 23082ms expected @3045ef49d634+wt
+fail/facts/signed_32bit_division_remainder_bound_through_other_state_rejected rejected 21241ms expected @3045ef49d634+wt
+fail/facts/signed_32bit_division_remainder_bound_through_parameter_rejected rejected 15534ms expected @3045ef49d634+wt
 fail/facts/signed_32bit_division_remainder_bound_through_target_body_rejected rejected 16205ms expected @3045ef49d634+wt
-	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_saturating_subtraction_bound_through_call_result_rejected rejected 19417ms expected @e24fc35e68bf+wt
+fail/facts/signed_32bit_saturating_subtraction_bound_through_const_name_rejected rejected 13747ms expected @e24fc35e68bf+wt
+fail/facts/signed_32bit_saturating_subtraction_bound_through_field_rejected rejected 19401ms expected @e24fc35e68bf+wt
+fail/facts/signed_32bit_saturating_subtraction_bound_through_local_rejected rejected 17745ms expected @e24fc35e68bf+wt
+fail/facts/signed_32bit_saturating_subtraction_bound_through_match_join_rejected rejected 16329ms expected @e24fc35e68bf+wt
+fail/facts/signed_32bit_saturating_subtraction_bound_through_other_machine_rejected rejected 31988ms expected @e24fc35e68bf+wt
+fail/facts/signed_32bit_saturating_subtraction_bound_through_other_state_rejected rejected 16005ms expected @e24fc35e68bf+wt
+fail/facts/signed_32bit_saturating_subtraction_bound_through_parameter_rejected rejected 17681ms expected @e24fc35e68bf+wt
+fail/facts/signed_32bit_saturating_subtraction_bound_through_target_body_rejected rejected 15973ms expected @e24fc35e68bf+wt
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_rejected rejected 19310ms expected @9a273b151c31+wt
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_rejected rejected 18871ms expected @9a273b151c31+wt
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_field_rejected rejected 15266ms expected @9a273b151c31+wt
@@ -9203,14 +9217,23 @@ pass/facts/signed_32bit_bitwise_or_bound_through_other_machine_exit checked 3296
 pass/facts/signed_32bit_bitwise_or_bound_through_other_state_exit checked 32304ms check-target:macos_arm64 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_or_bound_through_parameter_exit checked 32951ms check-target:macos_arm64 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_or_bound_through_target_body_exit checked 33087ms check-target:macos_arm64 @1258d561e0cf+wt
+pass/facts/signed_32bit_bitwise_xor_bound_through_call_result_exit checked 28008ms check-target:macos_arm64 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_xor_bound_through_call_result_exit checked 46535ms check-target:macos_arm64 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_const_name_exit checked 28435ms check-target:macos_arm64 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_xor_bound_through_const_name_exit checked 43969ms check-target:macos_arm64 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_field_exit checked 28551ms check-target:macos_arm64 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_xor_bound_through_field_exit checked 46534ms check-target:macos_arm64 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_local_exit checked 27995ms check-target:macos_arm64 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_xor_bound_through_local_exit checked 44731ms check-target:macos_arm64 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_match_join_exit checked 27914ms check-target:macos_arm64 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_xor_bound_through_match_join_exit checked 42018ms check-target:macos_arm64 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_other_machine_exit checked 27909ms check-target:macos_arm64 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_xor_bound_through_other_machine_exit checked 45963ms check-target:macos_arm64 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_other_state_exit checked 28122ms check-target:macos_arm64 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_xor_bound_through_other_state_exit checked 44866ms check-target:macos_arm64 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_parameter_exit checked 28602ms check-target:macos_arm64 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_xor_bound_through_parameter_exit checked 44687ms check-target:macos_arm64 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_target_body_exit checked 28745ms check-target:macos_arm64 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_xor_bound_through_target_body_exit checked 43056ms check-target:macos_arm64 @dcfab1e4eda9
 pass/facts/signed_32bit_division_remainder_bound_through_call_result_exit checked 39056ms check-target:macos_arm64 @3045ef49d634+wt
 pass/facts/signed_32bit_division_remainder_bound_through_const_name_exit checked 45869ms check-target:macos_arm64 @3045ef49d634+wt
@@ -9221,6 +9244,15 @@ pass/facts/signed_32bit_division_remainder_bound_through_other_machine_exit chec
 pass/facts/signed_32bit_division_remainder_bound_through_other_state_exit checked 45738ms check-target:macos_arm64 @3045ef49d634+wt
 pass/facts/signed_32bit_division_remainder_bound_through_parameter_exit checked 43771ms check-target:macos_arm64 @3045ef49d634+wt
 pass/facts/signed_32bit_division_remainder_bound_through_target_body_exit checked 47414ms check-target:macos_arm64 @3045ef49d634+wt
+pass/facts/signed_32bit_saturating_subtraction_bound_through_call_result_exit checked 60723ms check-target:macos_arm64 @e24fc35e68bf+wt
+pass/facts/signed_32bit_saturating_subtraction_bound_through_const_name_exit checked 44938ms check-target:macos_arm64 @e24fc35e68bf+wt
+pass/facts/signed_32bit_saturating_subtraction_bound_through_field_exit checked 41019ms check-target:macos_arm64 @e24fc35e68bf+wt
+pass/facts/signed_32bit_saturating_subtraction_bound_through_local_exit checked 67011ms check-target:macos_arm64 @e24fc35e68bf+wt
+pass/facts/signed_32bit_saturating_subtraction_bound_through_match_join_exit checked 41083ms check-target:macos_arm64 @e24fc35e68bf+wt
+pass/facts/signed_32bit_saturating_subtraction_bound_through_other_machine_exit checked 42005ms check-target:macos_arm64 @e24fc35e68bf+wt
+pass/facts/signed_32bit_saturating_subtraction_bound_through_other_state_exit checked 41058ms check-target:macos_arm64 @e24fc35e68bf+wt
+pass/facts/signed_32bit_saturating_subtraction_bound_through_parameter_exit checked 46055ms check-target:macos_arm64 @e24fc35e68bf+wt
+pass/facts/signed_32bit_saturating_subtraction_bound_through_target_body_exit checked 67144ms check-target:macos_arm64 @e24fc35e68bf+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_exit checked 39212ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_exit checked 43877ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_field_exit checked 44917ms check-target:macos_arm64 @9a273b151c31+wt
