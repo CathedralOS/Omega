@@ -1,2 +1,1 @@
-cannot check prepared project: checked compilation failed for package `narrow_to_wide_signed_8to16_extension_match_join_invalid` with 1 diagnostic(s)
-  error: cannot prove requires contract for call verify_wide from probe: wide >= 30 && wide <= 100 (needs fact `wide >= 30 && wide <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+cannot prove requires contract for call verify_wide from probe: wide >= 30 && wide <= 100
