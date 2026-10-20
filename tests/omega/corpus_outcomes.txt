@@ -11546,6 +11546,7 @@ pass/proofs/proof_remainder_range checked 1775ms @a9ae30e1c334+wt
 pass/proofs/proposition_const_operand_application checked 1615ms @a9ae30e1c334+wt
 pass/proofs/proposition_reference_operand_application checked 1601ms @a9ae30e1c334+wt
 pass/proofs/proposition_relation_hierarchy_compile checked 1809ms @47fae30824a7+wt
+pass/proofs/qualified_scalar_operand_exit checked 14472ms check-target:macos_arm64 @e956f61c5543
 pass/proofs/quotient_define_managed_compile checked 11130ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/proofs/quotient_equivalence_compile checked 1752ms @a9ae30e1c334+wt
 pass/proofs/quotient_lift_managed_compile checked 11287ms check-target:linux_x86_64 @a9ae30e1c334+wt
