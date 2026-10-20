@@ -3810,6 +3810,27 @@ fail/facts/unsigned_64bit_shift_left_bound_through_target_body_rejected rejected
 	cannot prove requires contract for call verify_shifted from compute_target_body: shifted >= 40 && shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_shifted from compute_target_body: shifted >= 40 && shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_shifted from compute_target_body: shifted >= 40 && shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_call_result_rejected rejected 12357ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_prod from probe: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_const_name_rejected rejected 12250ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_prod from probe: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_field_rejected rejected 12465ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_prod from probe: held.prod >= 50 && held.prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_local_rejected rejected 12161ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_prod from probe: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_match_join_rejected rejected 12039ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_prod from probe: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_other_machine_rejected rejected 11790ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call forward from probe: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_other_state_rejected rejected 12027ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call step from probe: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_parameter_rejected rejected 12671ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call check_param from probe: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_target_body_rejected rejected 13005ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_prod from evaluate_prod: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from evaluate_prod: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from evaluate_prod: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from evaluate_prod: prod >= 50 && prod <= 200 (needs fact `prod >= 50 && prod <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_64bit_wrapping_subtraction_bound_through_call_result_rejected rejected 6645ms expected @da99a3ccd03e+wt
 	exact arithmetic in machine `compute_call` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_64bit_wrapping_subtraction_bound_through_const_name_rejected rejected 6544ms expected @da99a3ccd03e+wt
@@ -8378,6 +8399,15 @@ pass/facts/unsigned_64bit_shift_left_bound_through_other_machine_exit checked 29
 pass/facts/unsigned_64bit_shift_left_bound_through_other_state_exit checked 29697ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_shift_left_bound_through_parameter_exit checked 29622ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_shift_left_bound_through_target_body_exit checked 29672ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_call_result_exit checked 32474ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_const_name_exit checked 32229ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_field_exit checked 32350ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_local_exit checked 32075ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_match_join_exit checked 32172ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_other_machine_exit checked 32102ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_other_state_exit checked 32200ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_parameter_exit checked 32434ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_target_body_exit checked 31923ms check-target:macos_arm64 @da99a3ccd03e+wt
 pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_call_result_exit checked 21042ms check-target:macos_arm64 @da99a3ccd03e+wt
 pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_const_name_exit checked 21117ms check-target:macos_arm64 @da99a3ccd03e+wt
 pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_field_exit checked 21376ms check-target:macos_arm64 @da99a3ccd03e+wt
