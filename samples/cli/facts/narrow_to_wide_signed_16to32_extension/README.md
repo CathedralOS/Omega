@@ -43,7 +43,11 @@ omega run --both samples/cli/facts/narrow_to_wide_signed_16to32_extension/target
 
 All 10 samples report `native exit 0` and `interp exit: 0`.
 
-Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the narrow bound is widened to `501i16` (`501i32`), failing to discharge `requires wide >= 300i32 && wide <= 500i32`. Check each twin with:
+### The oracle discriminates
+
+The recorded 0 exit is discriminating:
+- In every positive place, sign-extending `narrow = 400i16` (`300i16 <= narrow <= 500i16`) to `i32` yields `wide = 400i32` within static interval `300i32..500i32`. Passing `wide` to `verify_wide(wide)` satisfies its contract `wide >= 300i32 && wide <= 500i32`, evaluates exact subtractions `500i32 - 400i32 == 100i32` and `400i32 - 300i32 == 100i32`, and returns `0i32`. In `main`, `transition exit_code == 0i32` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition exit_code == 0i32` to `transition exit_code == 1i32`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the narrow bound is widened to `501i16` (`501i32`), failing closed at compile time under the **Contract precondition** obligation class because `wide <= 500i32` cannot be established for `verify_wide`. Check each twin with:
 
 ```sh
 omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/local/invalid/main.omg
@@ -57,8 +61,55 @@ omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/other_mac
 omega --check samples/cli/facts/narrow_to_wide_signed_16to32_extension/target_body/invalid/main.omg
 ```
 
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+
 Every reject twin fails closed with:
 `error: cannot prove requires contract for call verify_wide from ...: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard)`
+
+### Acceptance Gate
+
+```sh
+python tools/sample_native_gate.py --filter cli/facts/narrow_to_wide_signed_16to32_extension --jobs 4
+```
+
+`sample_native_gate.py` reports:
+- 10/10 samples meet their documented oracle on `windows_x86_64`.
+- 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract for call verify_wide`).
+
+## Pinned Fixtures
+
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/narrow_to_wide_signed_16to32_extension_through_local_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_16to32_extension_through_field_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_16to32_extension_through_parameter_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_16to32_extension_through_call_result_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_16to32_extension_through_match_join_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_16to32_extension_through_const_name_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_16to32_extension_through_other_state_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_16to32_extension_through_other_machine_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_signed_16to32_extension_through_target_body_exit/`
+- **Fail fixtures (`expected.txt`):**
+  - `tests/omega/fail/facts/narrow_to_wide_signed_16to32_extension_through_local_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_16to32_extension_through_field_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_16to32_extension_through_parameter_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_16to32_extension_through_call_result_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_16to32_extension_through_match_join_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_16to32_extension_through_const_name_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_16to32_extension_through_other_state_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_16to32_extension_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_signed_16to32_extension_through_target_body_rejected/`
+The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
 
 ## Requirements and Evidence
 

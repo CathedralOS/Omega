@@ -3166,6 +3166,27 @@ fail/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_target_body_reje
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/narrow_to_wide_signed_16to32_extension_through_call_result_rejected rejected 27623ms expected @6aabe1cc18ef+wt
+	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_16to32_extension_through_const_name_rejected rejected 20871ms expected @6aabe1cc18ef+wt
+	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_16to32_extension_through_field_rejected rejected 23845ms expected @6aabe1cc18ef+wt
+	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_16to32_extension_through_local_rejected rejected 18110ms expected @6aabe1cc18ef+wt
+	cannot prove requires contract for call verify_wide from exercise: w >= 300 && w <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_16to32_extension_through_match_join_rejected rejected 20009ms expected @6aabe1cc18ef+wt
+	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_16to32_extension_through_other_machine_rejected rejected 16268ms expected @6aabe1cc18ef+wt
+	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_16to32_extension_through_other_state_rejected rejected 15662ms expected @6aabe1cc18ef+wt
+	cannot prove requires contract for call verify_wide from exercise: w >= 300 && w <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/narrow_to_wide_signed_16to32_extension_through_parameter_rejected rejected 14392ms expected @6aabe1cc18ef+wt
+	cannot prove requires contract for call verify_wide from helper: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/narrow_to_wide_signed_16to32_extension_through_target_body_rejected rejected 14694ms expected @6aabe1cc18ef+wt
+	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_wide from exercise: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/narrow_to_wide_signed_16to64_extension_through_call_result_rejected rejected 15706ms expected @9a273b151c31+wt
 	cannot prove requires contract for call verify_wide from ext_call_result: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/narrow_to_wide_signed_16to64_extension_through_const_name_rejected rejected 15706ms expected @9a273b151c31+wt
@@ -8471,6 +8492,15 @@ pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_other_machine_ex
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_other_state_exit checked 39079ms check-target:macos_arm64 @7dc9c049a48b
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_parameter_exit checked 35188ms check-target:macos_arm64 @7dc9c049a48b
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_target_body_exit checked 37965ms check-target:macos_arm64 @7dc9c049a48b
+pass/facts/narrow_to_wide_signed_16to32_extension_through_call_result_exit checked 46852ms check-target:macos_arm64 @6aabe1cc18ef+wt
+pass/facts/narrow_to_wide_signed_16to32_extension_through_const_name_exit checked 44970ms check-target:macos_arm64 @6aabe1cc18ef+wt
+pass/facts/narrow_to_wide_signed_16to32_extension_through_field_exit checked 45498ms check-target:macos_arm64 @6aabe1cc18ef+wt
+pass/facts/narrow_to_wide_signed_16to32_extension_through_local_exit checked 44137ms check-target:macos_arm64 @6aabe1cc18ef+wt
+pass/facts/narrow_to_wide_signed_16to32_extension_through_match_join_exit checked 42294ms check-target:macos_arm64 @6aabe1cc18ef+wt
+pass/facts/narrow_to_wide_signed_16to32_extension_through_other_machine_exit checked 49393ms check-target:macos_arm64 @6aabe1cc18ef+wt
+pass/facts/narrow_to_wide_signed_16to32_extension_through_other_state_exit checked 51770ms check-target:macos_arm64 @6aabe1cc18ef+wt
+pass/facts/narrow_to_wide_signed_16to32_extension_through_parameter_exit checked 46372ms check-target:macos_arm64 @6aabe1cc18ef+wt
+pass/facts/narrow_to_wide_signed_16to32_extension_through_target_body_exit checked 49452ms check-target:macos_arm64 @6aabe1cc18ef+wt
 pass/facts/narrow_to_wide_signed_16to64_extension_through_call_result_exit checked 40066ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/narrow_to_wide_signed_16to64_extension_through_const_name_exit checked 41418ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/narrow_to_wide_signed_16to64_extension_through_field_exit checked 38025ms check-target:macos_arm64 @9a273b151c31+wt
