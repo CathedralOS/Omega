@@ -940,8 +940,8 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                             "machine `{}` ensures contract proof fact `{}` speaks about proof-only \
                              `{held}`, which no entailment tier judges yet -- accepting it would \
                              certify an unproven structural claim. Spell the fact over integer \
-                             measures, or wait for the structural extraction tier (math roster \
-                             N3){suggestion}",
+                             measures, or cite a checked theorem establishing it \
+                             (wiki/spec/proofs/contracts.md#citation-and-induction){suggestion}",
                             machine.name,
                             program.expression_table.display_name(*fact),
                         )));

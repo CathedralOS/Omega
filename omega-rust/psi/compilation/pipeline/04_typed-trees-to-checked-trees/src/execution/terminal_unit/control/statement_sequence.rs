@@ -421,7 +421,7 @@ pub(in crate::execution::terminal_unit) fn build(
         }
         // A fact-only citation emits no runtime call or work; its flow row
         // is retired (`execution::citation_erasure`), so it plans nothing.
-        if validation::is_fact_only_citation(program, statement) {
+        if crate::execution::citation_erasure::is_fact_only_citation(program, facts, statement) {
             continue;
         }
         // A value-returning body's completing expression is its final

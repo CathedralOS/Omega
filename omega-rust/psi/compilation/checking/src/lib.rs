@@ -52,6 +52,7 @@ pub use machine_calls::calls::{
 };
 pub use machine_calls::fact_only_citations::{
     fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
+    validate_runtime_proof_citations,
 };
 pub use machine_calls::static_machine_call_contracts::{
     static_machine_call_binding_bytes, static_machine_parameter_contract_bytes,

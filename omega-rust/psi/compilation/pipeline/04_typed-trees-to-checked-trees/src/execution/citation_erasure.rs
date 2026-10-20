@@ -15,6 +15,19 @@
 
 use checked_trees::CheckFacts;
 
+pub(crate) fn is_fact_only_citation(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    statement: &typed_trees::statement::StatementNode,
+) -> bool {
+    validation::is_fact_only_citation(program, statement, &|machine| {
+        facts
+            .termination
+            .for_machine(machine)
+            .map(|plan| plan.checked_summary.clone())
+    })
+}
+
 pub(crate) fn retire_fact_only_citations(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
@@ -25,11 +38,15 @@ pub(crate) fn retire_fact_only_citations(
                 .statement_table
                 .indexed_statements(state.statement_nodes)
             {
-                if validation::is_fact_only_citation(program, statement) {
-                    if let Some(theorem) = statement
-                        .as_call()
-                        .and_then(|call| validation::fact_only_theorem(program, call.target_symbol))
-                    {
+                if is_fact_only_citation(program, facts, statement) {
+                    if let Some(theorem) = statement.as_call().and_then(|call| {
+                        validation::fact_only_theorem(program, call.target_symbol, &|machine| {
+                            facts
+                                .termination
+                                .for_machine(machine)
+                                .map(|plan| plan.checked_summary.clone())
+                        })
+                    }) {
                         if validation::mathematical_applications::is_indexed_logical_machine(
                             program, theorem,
                         ) {

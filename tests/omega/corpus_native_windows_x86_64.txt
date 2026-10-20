@@ -2454,7 +2454,7 @@ pass/proofs/accepted_axiom_cited_exit built 5648ms exit:70 @6c49683ce714
 pass/proofs/accumulator_guarantee_exit built 5790ms exit:70 @6c49683ce714
 pass/proofs/axiom_citation checked 12784ms @91bbf3e29aa9
 pass/proofs/case_call_premises checked 1287ms @6c49683ce714
-pass/proofs/cauchy_predicates_compile rejected 628ms @e3eb5bdd566b
+pass/proofs/cauchy_predicates_compile checked 4175ms @78f48cd3217e+wt
 pass/proofs/citation_requires_discharged checked 5813ms @6c49683ce714
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 4453ms @91bbf3e29aa9
 pass/proofs/defined_proposition_premises checked 4171ms @91bbf3e29aa9
@@ -2513,6 +2513,7 @@ pass/proofs/runtime_ranked_intermediary_accumulator_exit built 12453ms exit:70 @
 pass/proofs/runtime_ranked_store_through_local_exit built 12967ms exit:70 @91bbf3e29aa9
 pass/proofs/runtime_sequential_ranked_components_exit built 12182ms exit:70 @91bbf3e29aa9
 pass/proofs/runtime_sequential_relational_accumulator_exit built 12532ms exit:70 @91bbf3e29aa9
+pass/proofs/runtime_static_result_projection_citation_exit built 24127ms exit:70 @78f48cd3217e+wt
 pass/proofs/runtime_two_state_accumulator_exit built 13420ms exit:70 @91bbf3e29aa9
 pass/proofs/stride_pair_telescope checked 12741ms @91bbf3e29aa9
 pass/providers/binding_param_capability checked 13452ms @91bbf3e29aa9

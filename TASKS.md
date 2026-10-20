@@ -1175,12 +1175,6 @@ defines the complete product bar.
     authority carried into native `NormalizedForeign`, not a fixture permission.
     Keep `pass/filesystem/runtime_local_host_result_dispatch_exit` as the Linux
     effect-ordering customer.
-  - **PROOF-CONTRACT-MIGRATION** owns `pass/proofs/cauchy_predicates_compile`
-    (recorded rejected on main), generalized fact-only citation erasure and
-    the missing native citation witness. Its task below records the remaining
-    checks and diagnostic repair; do not treat unpublished checkpoints as a
-    corpus result. Keep exact bounds in
-    `pass/proofs/proof_inductive_climbing_sum` and its unbounded negative.
 
   Native customers (under `tests/omega/pass`):
   - `host/runtime_console_bounded_line_exit` and its
@@ -4470,26 +4464,6 @@ and `mapped` need matching-host measurements, including the full-i32 status.
      without hidden extensionality or new reduction; a quotient-refusing policy
      accepts representative operations and congruence but rejects the
      assumption-bearing quotient theorem.
-
-  Concrete remaining controls:
-  - Reproduce `omega --check tests/omega/pass/proofs/cauchy_predicates_compile/main.omg`.
-    It rejects an unmet instantiated `rat_close_triangle_split` premise and an
-    unsupported proof-only `Nat` guarantee. Establish both judgments without
-    weakening the theorem.
-    `checking/src/proof_contracts/contract_entailment.rs` tells users to wait
-    for undocumented "math roster N3"; replace that with an actionable missing
-    capability or a documented reference, not another untracked tier.
-  - `checking/src/machine_calls/fact_only_citations.rs` recognizes only empty
-    nongeneric theorem bodies. Replace that source-shape rule with checked
-    termination, effect and custody eligibility, settled before execution
-    planning; integrate with stage 04's
-    `execution/terminal_unit/control/statement_sequence.rs`. Keep exact callable
-    substitution, nested field identity and isolated-parameter preservation.
-  - Add the planned `pass/proofs/runtime_static_result_projection_citation_exit`
-    fixture (absent from main): a theorem citation must establish the required
-    result-projection fact without becoming a runtime structural call. Ordinary
-    package review and native execution must reach authored exit 70. Preserve
-    effectful/nonterminating and linear-receipt-reuse rejection controls.
 
 - **PROOF-RELEVANCE-MIGRATION.** Erased arguments are not carrier-independent
   under [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).

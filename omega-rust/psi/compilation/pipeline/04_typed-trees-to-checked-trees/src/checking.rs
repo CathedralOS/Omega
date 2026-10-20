@@ -316,6 +316,12 @@ fn check_program(
     )?;
     crate::quotient_eligibility::check(&program, &facts)?;
     checks::validate_selected_cleanup_guarantees(&program, &facts)?;
+    validation::validate_runtime_proof_citations(&program, &|machine| {
+        facts
+            .termination
+            .for_machine(machine)
+            .map(|plan| plan.checked_summary.clone())
+    })?;
     facts
         .constant_recipe_obligations
         .extend(proof_recipe_obligations);
