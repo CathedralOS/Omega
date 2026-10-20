@@ -1,2 +1,2 @@
-a mutable recast must prove fact implication in BOTH directions
-not proven representation-equivalent
+a qualification reference view must retain existing source qualifications in BOTH directions for mutable storage
+`as` cannot mint routed provenance
