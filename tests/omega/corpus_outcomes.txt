@@ -6426,7 +6426,8 @@ fail/proofs/mathematical_routed_generic_argument rejected 111ms expected @69cfef
 fail/proofs/mathematical_routed_literal_result rejected 105ms expected @69cfefcd2bf1+wt
 	invalid mathematical application `0`: mathematical result does not preserve its declared carrier and policy
 fail/proofs/mathematical_term_in_runtime_arguments rejected 865ms expected @a9ae30e1c334+wt
-fail/proofs/mathematical_wrapping_capture rejected 252ms expected @8a884ecc43d5+wt
+fail/proofs/mathematical_wrapping_capture rejected 924ms expected @9e0e4bb7ffbd
+	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/proofs/mutable_ranked_accumulator_wrong_step rejected 3874ms expected @1727c70d2f7e+wt
 fail/proofs/nat_exact_subtraction_requires_order rejected 1577ms expected @a9ae30e1c334+wt
 fail/proofs/nat_metric_false_gap_zero rejected 1008ms expected @a9ae30e1c334+wt
