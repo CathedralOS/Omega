@@ -42,7 +42,7 @@ pub(super) fn build_state_flow_fact<'plans>(
     // them afresh.
     build
         .element_store_potentials
-        .retain(|(stored_state, _, _)| *stored_state != state.symbol);
+        .retain(|(stored_state, _, _, _)| *stored_state != state.symbol);
 
     super::state_values::append_entry_context(program, semantic, build, machine, state);
     let declaration_contexts = declaration_groups

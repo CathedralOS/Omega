@@ -104,14 +104,18 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
     pub(super) dirty_state_value_inputs: Vec<SymbolHandle>,
     pub(super) new_state_field_input_height: usize,
-    /// Per (state, carrier field) byte-class evidence of this pass's element
-    /// stores, intersected across the state's stores: the greatest claim the
-    /// state's outgoing edges could carry for the carrier once the carrier's
-    /// own premise is satisfied. Captured at store time; read by field
-    /// capture as each edge's delivery potential and reset when a state
-    /// rebuilds.
+    /// Per (state, carrier root, carrier segments) byte-class evidence of this
+    /// pass's element stores, intersected across the state's stores: the
+    /// greatest claim the state's outgoing edges could carry for the carrier
+    /// once the carrier's own premise is satisfied. Captured at store time;
+    /// read by field capture as each edge's delivery potential and reset when
+    /// a state rebuilds. The carrier root is part of the key because attached
+    /// machine storage and a named `&mut T` parameter's fields are two root
+    /// spellings of the same carrier kind: the same segments under a different
+    /// root are different storage.
     pub(super) element_store_potentials: Vec<(
         SymbolHandle,
+        facts::PlaceRoot,
         Vec<facts::PlaceSegment>,
         Vec<validation::field_domains::ByteSequencePredicate>,
     )>,

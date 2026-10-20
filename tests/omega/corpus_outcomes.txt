@@ -1449,6 +1449,8 @@ fail/domains/byte_predicate_operand_callee_crash rejected 815ms expected @ef7962
 fail/domains/call_requires_invalidated_by_mutation rejected 1674ms expected @a9ae30e1c334+wt
 fail/domains/call_requires_unproven rejected 1542ms expected @a9ae30e1c334+wt
 fail/domains/capacity_specializations_disagree_in_one_owner rejected 896ms expected @a9ae30e1c334+wt
+fail/domains/captured_guard_bound_replaced_by_call rejected 480ms expected @0d11811e9fa9
+	cannot prove default-domain field requirement for return from store at statement 1: buffer.label requires [u8; N]::Utf8
 fail/domains/captured_predicate_write_retires_membership rejected 587ms expected @cc9e4517d62d+wt
 	cannot prove requires contract for call checked from producer: value.number in u64::Small in state `entry`
 fail/domains/case_child_membership_requires_issuance rejected 876ms expected @2ef2ab353498+wt
@@ -1471,6 +1473,8 @@ fail/domains/domain_alias_reports_atomic_requirement rejected 1641ms expected @a
 fail/domains/domain_carrier_mismatch rejected 802ms expected @a9ae30e1c334+wt
 fail/domains/domain_operator_competing_spelling_meanings rejected 1671ms expected @a9ae30e1c334+wt
 fail/domains/exit_ensures_unproven rejected 1682ms expected @a9ae30e1c334+wt
+fail/domains/fixed_array_domain_split_after_class_store rejected 478ms expected @0d11811e9fa9
+	cannot prove default-domain field requirement for return from store at statement 2: buffer.label requires [u8; N]::Utf8
 fail/domains/fixed_byte_array_ascii_copy_no_nul rejected 818ms expected @ef7962801508
 fail/domains/fixed_byte_array_dynamic_candidate_membership rejected 839ms expected @bee4a8dcfd7e
 fail/domains/fixed_byte_array_predicate_copy_route rejected 830ms expected @ef7962801508
@@ -9224,6 +9228,7 @@ pass/domains/qualified_record_wrapped_arithmetic checked 2483ms @868a854ecd4d+wt
 pass/domains/record_interval_domain_member_exit checked 11741ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/record_literal_view_member_store_exit checked 11555ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/record_predicate_domain_member_exit checked 11607ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/referent_field_byte_store_keeps_fixed_array_domain checked 536ms @0d11811e9fa9
 pass/domains/refinement_chain_predicates checked 1707ms @a9ae30e1c334+wt
 pass/domains/refinement_chain_routed_provenance checked 1643ms @a9ae30e1c334+wt
 pass/domains/retained_routed_qualification_cast checked 1530ms @e74967d11875

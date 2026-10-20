@@ -181,6 +181,22 @@ pub(in crate::flow) fn append_comparison_bounds_context(
     // Arm tests arrive as `<guard> == true`; peel that wrapper off before
     // reading conjuncts, then split `&&` as the arm's own test would.
     append_true_arm_conjuncts(program, expression, &mut conjuncts);
+    // A COMPUTED transition subject is evaluated once into a generated local
+    // immediately before the arm, and the taken arm then reads that capture's
+    // truth test. The authored predicate still holds on this arm, so its
+    // conjuncts bound the same operands an authored comparison guard would.
+    // Without them `<operand> < 128` establishes nothing about `operand`, and a
+    // later element store of that operand loses the byte class the guard proved.
+    if let Some(captured) = captured_subject_predicate(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        build.call_frames,
+    ) {
+        append_true_arm_conjuncts(program, captured, &mut conjuncts);
+    }
     struct GuardBound {
         place: facts::PlaceHandle,
         carrier: facts::IntegerRange,
@@ -452,6 +468,68 @@ fn append_case_constraint_context(
     }
     let context = semantic.append_context(point, refs);
     retain_semantic_context(build, active_contexts, active_constraints, context);
+}
+
+/// The predicate a COMPUTED transition subject was captured from, when the
+/// taken arm's guard is that capture's truth test.
+///
+/// `parse_transition` evaluates a computed subject once, before arm dispatch,
+/// and captures it into a generated local (`__transition_subject#N`); the arms
+/// then read `__transition_subject#N == true`. What this arm establishes is
+/// therefore the capture's initial value, not the truth test, and it is
+/// recoverable only while the capture is the statement immediately before the
+/// arm: any statement between them could replace an operand the predicate read.
+/// The recovered predicate must also carry a COMPLETE EMPTY write frame. The
+/// truth test's own frame is empty and says nothing about short-circuited
+/// conjuncts, so a call inside the capture may replace an operand an earlier
+/// conjunct already bounded; a fact minted from such a predicate would be false
+/// at the jump. `checks/contracts/calls/transition_guards.rs` applies this same
+/// empty-frame rule when it recovers the predicate for requirement matching
+/// (`guard_preserves_values`), so both consumers of the recovery read one
+/// condition off the call-frame resolver.
+fn captured_subject_predicate<'program>(
+    program: &dyn ::validation::CheckingInput,
+    machine: &'program typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    guard: ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'program>>,
+) -> Option<ExpressionHandle> {
+    let subject = subject_truth_test_symbol(program, guard)?;
+    let capture = program
+        .statement_table
+        .statement_at(state, statement_index.checked_sub(1)?)?;
+    let local = capture.as_local_data()?;
+    if local.symbol != subject || !local.initial_value.is_valid() {
+        return None;
+    }
+    let frame_is_empty = call_frames.is_some_and(|frames| {
+        frames
+            .expression_write_frame(machine, local.initial_value)
+            .into_complete_paths()
+            .is_some_and(|writes| writes.is_empty())
+    });
+    frame_is_empty.then_some(local.initial_value)
+}
+
+/// The local a `<subject> == true` guard tests, or `None` for any other guard.
+fn subject_truth_test_symbol(
+    program: &dyn ::validation::CheckingInput,
+    guard: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let binary = program.expression_table.binary_node(guard)?;
+    if binary.operator != typed_trees::expression::BinaryOperator::Equal
+        || !matches!(
+            program.expression_table.expression(binary.right),
+            ExpressionNode::Boolean(true)
+        )
+    {
+        return None;
+    }
+    match program.expression_table.expression(binary.left) {
+        ExpressionNode::Name(path) => Some(path.symbol),
+        _ => None,
+    }
 }
 
 /// Conjuncts asserted by taking the `true` arm: split `&&` recursively, and

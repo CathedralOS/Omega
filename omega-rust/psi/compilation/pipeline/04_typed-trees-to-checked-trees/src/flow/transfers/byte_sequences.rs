@@ -290,15 +290,13 @@ pub(super) fn append_element_replacement_predicates(
         canonical_place_from_semantic_place(program, semantic, semantic.places.get(carrier));
     let carrier_ceiling: Vec<validation::field_domains::ByteSequencePredicate> = canonical_carrier
         .as_ref()
-        .and_then(|place| {
-            (place.root == facts::PlaceRoot::Symbol(machine_symbol)).then(|| {
-                crate::flow::state_values::field_predicate_ceiling(
-                    contexts,
-                    state_symbol,
-                    place.root,
-                    &place.segments,
-                )
-            })
+        .map(|place| {
+            crate::flow::state_values::field_predicate_ceiling(
+                contexts,
+                state_symbol,
+                place.root,
+                &place.segments,
+            )
         })
         .map(<[_]>::to_vec)
         .unwrap_or_default();
@@ -344,10 +342,7 @@ pub(super) fn append_element_replacement_predicates(
             .any(|(class, stored)| *class == predicate && *stored)
     };
     let ascii_stored = stored_in(validation::field_domains::ByteSequencePredicate::AsciiOnly);
-    if let Some(carrier_place) = canonical_carrier
-        .as_ref()
-        .filter(|place| place.root == facts::PlaceRoot::Symbol(machine_symbol))
-    {
+    if let Some(carrier_place) = canonical_carrier.as_ref() {
         // The byte side of this store alone -- no carrier premise -- is what
         // the outgoing edges could deliver for the carrier if the state's
         // predicate candidate holds. `valid_utf8` on the byte side is only
@@ -364,12 +359,14 @@ pub(super) fn append_element_replacement_predicates(
                 }
             })
             .collect();
-        if let Some((_, _, joined)) =
+        if let Some((_, _, _, joined)) =
             contexts
                 .element_store_potentials
                 .iter_mut()
-                .find(|(state, segments, _)| {
-                    *state == state_symbol && *segments == carrier_place.segments
+                .find(|(state, root, segments, _)| {
+                    *state == state_symbol
+                        && *root == carrier_place.root
+                        && *segments == carrier_place.segments
                 })
         {
             // Every store into the carrier must keep the class, so the
@@ -378,6 +375,7 @@ pub(super) fn append_element_replacement_predicates(
         } else {
             contexts.element_store_potentials.push((
                 state_symbol,
+                carrier_place.root,
                 carrier_place.segments.clone(),
                 byteok,
             ));
