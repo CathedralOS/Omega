@@ -3,7 +3,7 @@
 Fact: zero-extending a bounded 8-bit unsigned u8 value (narrow >= 50u8 && narrow <= 180u8) to u64 (narrow as u64) preserves the exact interval (wide >= 50u64 && wide <= 180u64), discharging exact 64-bit subtractions 180u64 - wide and wide - 50u64 across all nine places.
 
 Owning Task: `NUMERIC-SCALARS` / `CONSERVATION-CONTRACT` (`TASKS.md`)
-Claim Ticket: `c4a19385b27e4018ad93ef6128d56b33`
+Claim Ticket: `ce9e78fdc9b24a98a851e03e8abe7f62`
 
 Every positive place and reject twin tests unsigned zero extension from 8-bit `u8` to 64-bit `u64` (`narrow as u64`).
 When the 8-bit input is bounded to interval `narrow >= 50u8 && narrow <= 180u8`, zero-extending to `u64` statically preserves the interval `wide >= 50u64 && wide <= 180u64`.
@@ -27,7 +27,7 @@ Subsequent exact 64-bit subtractions `180u64 - wide` and `wide - 50u64` are prov
 ## Execution
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets
-(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`.
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg`, carries `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
 `omega run --both` verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
@@ -51,7 +51,7 @@ In each positive place, evaluating `probe(110u8)` computes `wide = 110u8 as u64 
 Because `narrow in [50, 180]`, zero extension statically proves `wide in [50, 180]`.
 Subsequent exact subtractions `headroom = 180u64 - wide` (`70u64`) and `margin = wide - 50u64` (`60u64`) are proved underflow-free, and their sum `headroom + margin` evaluates to `130u64`.
 The transition guard `combined == 130u64` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
-If extension or subtraction evaluation is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
+A 1-token perturbation of the demanded value (`transition combined == 130u64` to `transition combined == 131u64`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 
 ### Invalid controls and reject twins
 
@@ -59,17 +59,41 @@ Each place has an `invalid/` reject twin that widens the narrow input preconditi
 When `narrow == 181u8`, `wide` reaches `181u64 > 180u64`, which would make `180u64 - wide` underflow `u64` (potential underflow wrap to `2^64 - 1`).
 The compiler strictly fails closed at compile time:
 
-| Place | `omega run --both` | Reject twin diagnostic |
-| --- | --- | --- |
-| `local` | native 0 / interp 0 | `error: exact arithmetic in machine \`probe\` state \`entry\` local \`headroom\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)` |
-| `field` | native 0 / interp 0 | `error: exact arithmetic in machine \`probe\` state \`entry\` local \`headroom\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)` |
-| `parameter` | native 0 / interp 0 | `cannot prove requires contract for call consume_wide from probe: wide >= 50 && wide <= 180` |
-| `call_result` | native 0 / interp 0 | `cannot prove ensures contract for exit from extend_u8 at statement 0: result >= 50 && result <= 180` |
-| `match_join` | native 0 / interp 0 | `cannot prove requires contract for call choose from probe: wide >= 50 && wide <= 180` |
-| `const_name` | native 0 / interp 0 | `error: exact arithmetic in machine \`probe\` state \`entry\` local \`headroom\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)` |
-| `other_state` | native 0 / interp 0 | `cannot prove requires contract for call consume from probe: wide >= 50 && wide <= 180` |
-| `other_machine` | native 0 / interp 0 | `cannot prove requires contract for call forward_wide from probe: wide >= 50 && wide <= 180` |
-| `target_body` | native 0 / interp 0 | `error: exact arithmetic in machine \`target_probe\` state \`entry\` local \`headroom\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)` |
+| Place | `omega run --both` | Obligation Class | Reject twin diagnostic |
+| --- | --- | --- | --- |
+| `local` | native 0 / interp 0 | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic in machine \`probe\` state \`entry\` local \`headroom\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).` |
+| `field` | native 0 / interp 0 | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic in machine \`probe\` state \`entry\` local \`headroom\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).` |
+| `parameter` | native 0 / interp 0 | Contract precondition | `cannot prove requires contract for call consume_wide from probe: wide >= 50 && wide <= 180` |
+| `call_result` | native 0 / interp 0 | Contract postcondition | `cannot prove ensures contract for exit from extend_u8 at statement 0: result >= 50 && result <= 180` |
+| `match_join` | native 0 / interp 0 | Contract precondition | `cannot prove requires contract for call choose from probe: wide >= 50 && wide <= 180` |
+| `const_name` | native 0 / interp 0 | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic in machine \`probe\` state \`entry\` local \`headroom\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).` |
+| `other_state` | native 0 / interp 0 | Contract precondition | `cannot prove requires contract for call consume from probe: wide >= 50 && wide <= 180` |
+| `other_machine` | native 0 / interp 0 | Contract precondition | `cannot prove requires contract for call forward_wide from probe: wide >= 50 && wide <= 180` |
+| `target_body` | native 0 / interp 0 | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic in machine \`target_probe\` state \`entry\` local \`headroom\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).` |
+
+## Pinned Fixtures
+
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_local_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_field_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_parameter_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_call_result_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_match_join_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_const_name_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_other_state_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_other_machine_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_target_body_exit/`
+- **Fail fixtures (`expected.txt`):**
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_local_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_field_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_parameter_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_call_result_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_match_join_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_const_name_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_other_state_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_target_body_rejected/`
 
 ## Requirements and Evidence (AGENTS.md)
 
@@ -81,4 +105,4 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent 1-byte `u8` and 8-byte `u64` in their respective stored widths (`IntegerAt 1-byte` and `IntegerAt 8-byte`) across all four hosted ABI calling conventions (CL on `windows_x86_64`, DIL on `linux_x86_64`, W0 on `macos_arm64` and `linux_arm64`), returning 64-bit unsigned results in RAX / X0.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA zero-extension instructions: `movzx r64, r/m8` on `x86_64` and `uxtb x0, w0` on `arm64`, followed by 64-bit subtraction `sub rax, ...` / `sub x0, ...`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 9 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None for this fact row; all 9 places and 9 reject twins pass both native and interpreter gates with documented exit 0, verified negative control rejection, and pinned corpus fixtures.
