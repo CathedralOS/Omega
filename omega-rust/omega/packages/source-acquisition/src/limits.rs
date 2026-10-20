@@ -25,6 +25,12 @@ pub(crate) const GIT_CONFIG_SHA1: &[u8] =
 pub(crate) const GIT_CONFIG_SHA256: &[u8] = b"[core]\n\trepositoryformatversion = 1\n\tfilemode = false\n\tbare = true\n[extensions]\n\tobjectformat = sha256\n";
 pub(crate) const CACHE_CUSTODY_ENTRY_LIMIT: usize = 65_536;
 pub(crate) const SOURCE_ENTRY_ABSOLUTE_LIMIT: usize = 65_536;
+// Repository discovery retains metadata for unselected workspace members, not
+// their source payloads. Give that graph its own bounded capacity: a repository
+// may exceed one selected package's entry budget. The 16 MiB Git output and
+// depth ceilings still bound discovery; selected source and cache custody keep
+// their independent, smaller limits.
+pub(crate) const GIT_TREE_GRAPH_ENTRY_LIMIT: usize = 131_072;
 pub(crate) const SOURCE_BYTE_ABSOLUTE_LIMIT: u64 = 512 * 1024 * 1024;
 pub(crate) const SOURCE_DEPTH_ABSOLUTE_LIMIT: usize = 256;
 pub(crate) const CACHE_CUSTODY_DEPTH_LIMIT: usize = SOURCE_DEPTH_ABSOLUTE_LIMIT + 4;

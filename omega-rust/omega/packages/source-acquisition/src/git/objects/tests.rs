@@ -692,3 +692,68 @@ fn selected_manifest_directory_prefix_is_not_hidden_by_projection() {
         Err(SourceResolveError::GitSubmodulesUnsupported { .. })
     ));
 }
+
+fn metadata_listing(entry_count: usize) -> (String, String) {
+    use std::fmt::Write;
+
+    let blob = git_object_identity(b"blob", b"", GitObjectIdAlgorithm::Sha1).unwrap();
+    let blob_bytes = decode_git_object_id(&blob, GitObjectIdAlgorithm::Sha1).unwrap();
+    let mut listing = String::new();
+    let mut tree_payload = Vec::new();
+    for entry_number in 0..entry_count {
+        let path = format!("file-{entry_number:06}.omg");
+        write!(listing, "100644 blob {blob} 0\t{path}\0").unwrap();
+        tree_payload.extend_from_slice(format!("100644 {path}\0").as_bytes());
+        tree_payload.extend_from_slice(&blob_bytes);
+    }
+    let tree = git_object_identity(b"tree", &tree_payload, GitObjectIdAlgorithm::Sha1).unwrap();
+    (listing, tree)
+}
+
+#[test]
+fn repository_metadata_budget_does_not_expand_selected_source_budget() {
+    let (listing, tree) = metadata_listing(SOURCE_ENTRY_ABSOLUTE_LIMIT + 1);
+    let repository = Path::new("repository");
+    let entries = parse_git_tree_graph_entries(listing.as_bytes(), repository).unwrap();
+    assert_eq!(entries.len(), SOURCE_ENTRY_ABSOLUTE_LIMIT + 1);
+    let graph = super::graph::AuthenticatedGitTreeGraph::authenticate(&tree, entries).unwrap();
+    let limits = LocalSourceLimits {
+        max_entries: 1,
+        ..LocalSourceLimits::default()
+    };
+    let selected = select_regular_files(&graph, vec![b"file-000000.omg".to_vec()], limits).unwrap();
+    assert_eq!(selected.len(), 1);
+    assert!(matches!(
+        select_regular_files(
+            &graph,
+            vec![b"file-000000.omg".to_vec(), b"file-000001.omg".to_vec()],
+            limits
+        ),
+        Err(SourceResolveError::TooManyFiles { limit: 1 })
+    ));
+    assert!(matches!(
+        parse_git_tree_entries(
+            listing.as_bytes(),
+            repository,
+            LocalSourceLimits {
+                max_entries: SOURCE_ENTRY_ABSOLUTE_LIMIT,
+                ..LocalSourceLimits::default()
+            }
+        ),
+        Err(SourceResolveError::TooManyFiles {
+            limit: SOURCE_ENTRY_ABSOLUTE_LIMIT
+        })
+    ));
+}
+
+#[test]
+fn repository_metadata_still_rejects_its_own_entry_ceiling() {
+    let (listing, _) = metadata_listing(GIT_TREE_GRAPH_ENTRY_LIMIT + 1);
+    assert!(listing.len() < GIT_STDOUT_LIMIT);
+    assert!(matches!(
+        parse_git_tree_graph_entries(listing.as_bytes(), Path::new("repository")),
+        Err(SourceResolveError::TooManyFiles {
+            limit: GIT_TREE_GRAPH_ENTRY_LIMIT
+        })
+    ));
+}

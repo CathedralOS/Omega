@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::error::{GitSubmoduleEdge, SourceResolveError, git_tree_invalid};
-use crate::limits::{LocalSourceLimits, SOURCE_DEPTH_ABSOLUTE_LIMIT, SOURCE_ENTRY_ABSOLUTE_LIMIT};
+use crate::limits::{GIT_TREE_GRAPH_ENTRY_LIMIT, LocalSourceLimits, SOURCE_DEPTH_ABSOLUTE_LIMIT};
 
 use super::identity::is_object_id;
 use super::{GitBlobBytes, GitTreeEntry, GitTreeEntryKind};
@@ -35,7 +35,7 @@ pub(super) fn parse_git_tree_graph_entries(
         listing,
         repository,
         LocalSourceLimits {
-            max_entries: SOURCE_ENTRY_ABSOLUTE_LIMIT,
+            max_entries: GIT_TREE_GRAPH_ENTRY_LIMIT,
             max_bytes: u64::MAX,
             max_depth: SOURCE_DEPTH_ABSOLUTE_LIMIT,
         },
