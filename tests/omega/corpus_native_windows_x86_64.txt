@@ -1234,6 +1234,21 @@ pass/expressions/runtime_widened_comparison_exit built 5414ms exit:70 @6c49683ce
 pass/expressions/scalar_match_boundary_composition_exit built 26000ms exit:70 @91bbf3e29aa9
 pass/expressions/seq_consuming_combinators checked 12793ms @91bbf3e29aa9
 pass/expressions/unit_case_return_call_product built 12621ms exit:70 @91bbf3e29aa9
+pass/facts/atomic_compare_exchange_once_composition_exit built 41950ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_high_bit_exit built 37748ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_local_exit built 40931ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_operand_effect_exit built 42404ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_target_body_exit built 37445ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_call_result_exit built 42589ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_const_name_exit built 38596ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_field_exit built 39564ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_local_exit built 41436ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_match_join_exit built 42729ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_other_machine_exit built 40623ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_other_state_exit built 41800ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_parameter_exit built 39033ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_target_body_exit built 40169ms exit:0 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_wide_exit built 40535ms exit:0 @7df3e6a600f1+wt
 pass/facts/borrowed_restoration_window_through_call_result_exit built 36303ms exit:0 @8f970335dca4+wt
 pass/facts/borrowed_restoration_window_through_const_name_exit built 37364ms exit:0 @8f970335dca4+wt
 pass/facts/borrowed_restoration_window_through_field_exit built 37957ms exit:0 @8f970335dca4+wt

@@ -1933,24 +1933,42 @@ fail/facts/assumed_binding_result_bound_through_target_body_rejected rejected 12
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
 	cannot prove index `Required.get()` is within length 2 in exercise::entry
-fail/facts/atomic_compare_exchange_once_composition_rejected rejected 16ms expected @0e0be918eda9+wt
+fail/facts/atomic_compare_exchange_once_composition_rejected rejected 26ms expected @7df3e6a600f1+wt
 	tests/omega/fail/facts/atomic_compare_exchange_once_composition_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_forged_outcome_rejected rejected 6171ms expected @0e0be918eda9+wt
+fail/facts/atomic_compare_exchange_once_forged_outcome_rejected rejected 10880ms expected @7df3e6a600f1+wt
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
 	machine `mismatch` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_compare_exchange_once_high_bit_rejected rejected 8ms expected @0e0be918eda9+wt
+fail/facts/atomic_compare_exchange_once_high_bit_rejected rejected 27ms expected @7df3e6a600f1+wt
 	tests/omega/fail/facts/atomic_compare_exchange_once_high_bit_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_local_rejected rejected 1ms expected @0e0be918eda9+wt
+fail/facts/atomic_compare_exchange_once_local_rejected rejected 30ms expected @7df3e6a600f1+wt
 	tests/omega/fail/facts/atomic_compare_exchange_once_local_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_operand_effect_rejected rejected 1ms expected @0e0be918eda9+wt
+fail/facts/atomic_compare_exchange_once_operand_effect_rejected rejected 47ms expected @7df3e6a600f1+wt
 	tests/omega/fail/facts/atomic_compare_exchange_once_operand_effect_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_stronger_failure_rejected rejected 1ms expected @0e0be918eda9+wt
+fail/facts/atomic_compare_exchange_once_stronger_failure_rejected rejected 30ms expected @7df3e6a600f1+wt
 	tests/omega/fail/facts/atomic_compare_exchange_once_stronger_failure_rejected/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `Receive`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_target_body_rejected rejected 1ms expected @0e0be918eda9+wt
+fail/facts/atomic_compare_exchange_once_target_body_rejected rejected 29ms expected @7df3e6a600f1+wt
 	tests/omega/fail/facts/atomic_compare_exchange_once_target_body_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_wide_rejected rejected 1ms expected @0e0be918eda9+wt
+fail/facts/atomic_compare_exchange_once_through_call_result_rejected rejected 26ms expected @7df3e6a600f1+wt
+	tests/omega/fail/facts/atomic_compare_exchange_once_through_call_result_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
+fail/facts/atomic_compare_exchange_once_through_const_name_rejected rejected 27ms expected @7df3e6a600f1+wt
+	tests/omega/fail/facts/atomic_compare_exchange_once_through_const_name_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
+fail/facts/atomic_compare_exchange_once_through_field_rejected rejected 27ms expected @7df3e6a600f1+wt
+	tests/omega/fail/facts/atomic_compare_exchange_once_through_field_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
+fail/facts/atomic_compare_exchange_once_through_local_rejected rejected 17ms expected @7df3e6a600f1+wt
+	tests/omega/fail/facts/atomic_compare_exchange_once_through_local_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
+fail/facts/atomic_compare_exchange_once_through_match_join_rejected rejected 24ms expected @7df3e6a600f1+wt
+	tests/omega/fail/facts/atomic_compare_exchange_once_through_match_join_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
+fail/facts/atomic_compare_exchange_once_through_other_machine_rejected rejected 34ms expected @7df3e6a600f1+wt
+	tests/omega/fail/facts/atomic_compare_exchange_once_through_other_machine_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
+fail/facts/atomic_compare_exchange_once_through_other_state_rejected rejected 29ms expected @7df3e6a600f1+wt
+	tests/omega/fail/facts/atomic_compare_exchange_once_through_other_state_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
+fail/facts/atomic_compare_exchange_once_through_parameter_rejected rejected 32ms expected @7df3e6a600f1+wt
+	tests/omega/fail/facts/atomic_compare_exchange_once_through_parameter_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
+fail/facts/atomic_compare_exchange_once_through_target_body_rejected rejected 17ms expected @7df3e6a600f1+wt
+	tests/omega/fail/facts/atomic_compare_exchange_once_through_target_body_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
+fail/facts/atomic_compare_exchange_once_wide_rejected rejected 31ms expected @7df3e6a600f1+wt
 	tests/omega/fail/facts/atomic_compare_exchange_once_wide_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
-fail/facts/atomic_compare_exchange_once_wrong_resident_rejected rejected 6221ms expected @0e0be918eda9+wt
+fail/facts/atomic_compare_exchange_once_wrong_resident_rejected rejected 10692ms expected @7df3e6a600f1+wt
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
 fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite rejected 31057ms expected @fa145e0af975
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
@@ -9275,12 +9293,21 @@ pass/facts/assumed_binding_result_bound_through_other_machine_exit checked 8702m
 pass/facts/assumed_binding_result_bound_through_other_state_exit checked 8821ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_parameter_exit checked 9152ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_target_body_exit checked 8740ms check-target:macos_arm64 @6f94b4f3cae8+wt
-pass/facts/atomic_compare_exchange_once_composition_exit checked 23785ms check-target:macos_arm64 @0e0be918eda9+wt
-pass/facts/atomic_compare_exchange_once_high_bit_exit checked 23719ms check-target:macos_arm64 @0e0be918eda9+wt
-pass/facts/atomic_compare_exchange_once_local_exit checked 21945ms check-target:macos_arm64 @0e0be918eda9+wt
-pass/facts/atomic_compare_exchange_once_operand_effect_exit checked 22350ms check-target:macos_arm64 @0e0be918eda9+wt
-pass/facts/atomic_compare_exchange_once_target_body_exit checked 23943ms check-target:macos_arm64 @0e0be918eda9+wt
-pass/facts/atomic_compare_exchange_once_wide_exit checked 23530ms check-target:macos_arm64 @0e0be918eda9+wt
+pass/facts/atomic_compare_exchange_once_composition_exit checked 40201ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_high_bit_exit checked 38332ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_local_exit checked 39031ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_operand_effect_exit checked 39562ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_target_body_exit checked 40645ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_call_result_exit checked 38858ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_const_name_exit checked 38518ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_field_exit checked 38699ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_local_exit checked 39558ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_match_join_exit checked 38871ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_other_machine_exit checked 39810ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_other_state_exit checked 39678ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_parameter_exit checked 33567ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_through_target_body_exit checked 35071ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/atomic_compare_exchange_once_wide_exit checked 34802ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 68778ms check-target:macos_arm64 @fa145e0af975
 pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 69562ms check-target:macos_arm64 @fa145e0af975
 pass/facts/borrowed_projection_cleanup_through_field_exit checked 68926ms check-target:macos_arm64 @fa145e0af975

@@ -1008,7 +1008,10 @@ defines the complete product bar.
   `pass/atomics/shared_receiver_atomic_store` exits 70 on macOS ARM64 but is
   rejected on Linux x86-64 and Windows x86-64; `samples/cli/systems/atomics_cross`
   runs with exit 70; `pass/atomics/atomic_global_order_operations` only checks
-  (no executable entry).
+  (no executable entry); `samples/cli/facts/atomic_compare_exchange_once`
+  completes all nine standard places (`omega run --both`, exit 0) with 18
+  pinned `atomic_compare_exchange_once_through_<place>_{exit,rejected}` corpus
+  fixtures alongside its existing mechanism and control probes.
 
   - Target operations, selection/encoding and checked refinement for every
     admitted width, alignment and ordering. Swap/fetch return the
