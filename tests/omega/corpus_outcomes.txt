@@ -5465,6 +5465,13 @@ fail/generics/structured_const_ineligible_float_field rejected 20ms expected @a9
 fail/generics/structured_const_rat_unreduced rejected 57ms expected @a9ae30e1c334+wt
 fail/generics/transition_value_generic_result_parameter_mismatch rejected 239ms expected @6ef08ceefee0+wt
 fail/generics/transition_value_slice_element_mismatch rejected 243ms expected @6ef08ceefee0+wt
+fail/generics/type_index_compound_wrong_actual rejected 915ms expected @7b786cd56594+wt
+	index compatibility condition `index-equality:Tagged:wrong::entry:call-0-0:Tagged<Box<Left>>==Tagged<Box<Value>>` is not established: actual `Tagged<Box<Left>>` and expected `Tagged<Box<Value>>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/generics/type_index_distinct_binders rejected 858ms expected @7b786cd56594+wt
+	index compatibility condition `index-equality:Tagged:wrong::entry:exit-0:Tagged<Left>==Tagged<Right>` is not established: actual `Tagged<Left>` and expected `Tagged<Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/generics/type_index_wrong_telescope rejected 906ms expected @7b786cd56594+wt
+	index compatibility condition `index-equality:Pair:wrong::entry:call-0-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Pair:wrong::entry:statement-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/value_binder_unknown_field rejected 312ms expected @16802f0d1e96
 fail/generics/value_binder_used_as_nested_type rejected 3433ms expected @a9ae30e1c334+wt
 fail/generics/value_generic_runtime_static_length rejected 191ms expected @a9ae30e1c334+wt

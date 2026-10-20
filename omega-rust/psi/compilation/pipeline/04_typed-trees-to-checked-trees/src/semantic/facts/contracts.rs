@@ -436,11 +436,10 @@ fn instantiate_inherited_contract_payload(
 /// A callee's declared domain membership keeps its template index binders —
 /// `v in Coordinate<I>` — but this call bound `I` to a caller-side subject or
 /// literal, and the caller's own membership facts intern the bound instance's
-/// identity, not the template's. Rebind each declared index argument to the
-/// caller-side node the call supplied and adopt that instance's already-interned
-/// semantic identity; when no caller node spells the bound index (or the
-/// substituted identity was never interned), keep the declared identity and
-/// let the ordinary entailment checks decide.
+/// identity, not the template's. Ask the domain identity owner to substitute the
+/// complete tuple, then adopt only an already-interned identity. No matching
+/// syntax node needs to exist for a compound index, and identity alone never
+/// establishes membership. Missing evidence still fails ordinary entailment.
 fn instantiate_call_domain_membership_instance(
     program: &dyn ::validation::CheckingInput,
     call: &ContractCallFact,
@@ -482,96 +481,26 @@ fn instantiate_call_domain_membership_instance(
         validation::CallSite::Expression { call, .. } => call.authored_machine_application,
         validation::CallSite::TransitionNamed { .. } => return,
     };
-    let substitutions =
+    let bindings =
         crate::facts::index_compatibility::bound_index_substitutions(program, application);
+    // Algebra and value operands are part of the same telescope: computed
+    // indices retain their selected operator/provider identity under the call.
+    let substitutions = crate::facts::index_compatibility::index_identity_bindings(&bindings);
     if substitutions.is_empty() {
         return;
     }
-    let mut rebound = arguments.to_vec();
-    let mut changed = false;
-    for (parameter, argument) in index_parameters.iter().zip(rebound.iter_mut()) {
-        if !matches!(
-            parameter.kind,
-            typed_trees::data::TypeParameterKind::Const { .. }
-        ) {
-            continue;
-        }
-        match program.type_reference_table.type_reference(*argument) {
-            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
-                let Some((_, bound)) = substitutions.iter().find(|(binder, _)| *binder == *symbol)
-                else {
-                    continue;
-                };
-                let Some(replacement) = bound_index_argument_reference(program, bound) else {
-                    continue;
-                };
-                *argument = replacement;
-                changed = true;
-            }
-            typed_trees::types::TypeReferenceNode::ConstExpression(expression) => {
-                // An index spelled as an expression binds the callee's binder
-                // at leaf positions: the caller-side spelling is the
-                // const-expression reference whose leaves compare equal under
-                // this call's bound substitutions.
-                let sites = program.type_reference_table.const_expression_sites();
-                let Some((replacement, _)) = sites.into_iter().find(|(_, candidate)| {
-                    *candidate != *expression
-                        && !crate::facts::index_compatibility::expression_uses_binder(
-                            program,
-                            *candidate,
-                            &substitutions,
-                        )
-                        && crate::facts::index_compatibility::bound_index_expressions_equal(
-                            program,
-                            *candidate,
-                            *expression,
-                            &substitutions,
-                        )
-                }) else {
-                    continue;
-                };
-                *argument = replacement;
-                changed = true;
-            }
-            _ => continue,
-        }
-    }
-    if !changed {
-        return;
-    }
-    let Ok(identity) = typed_trees::domain::indexed_domain_instance_name(
+    let Ok(identity) = typed_trees::domain::indexed_domain_instance_name_with_substitutions(
         program,
         domain,
         index_parameters,
-        &rebound,
+        arguments,
+        &substitutions,
     ) else {
         return;
     };
     if let Some(id) = program.semantic_domains.lookup(&identity) {
         *semantic_domain = id;
     }
-}
-
-/// The caller-side type node spelling a bound index: the subject's own named
-/// reference (the same node the caller's declared `Coordinate<N>` used), or a
-/// named literal node spelling the bound literal's canonical or authored text.
-fn bound_index_argument_reference(
-    program: &dyn ::validation::CheckingInput,
-    bound: &crate::facts::index_compatibility::BoundIndexArgument,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    if let crate::facts::index_compatibility::BoundIndexArgument::Reference(reference) = bound {
-        return Some(*reference);
-    }
-    program
-        .type_reference_table
-        .named_references()
-        .find(|(_, symbol, _)| match bound {
-            crate::facts::index_compatibility::BoundIndexArgument::Subject(subject) => {
-                *symbol == *subject
-            }
-            _ => false,
-        })
-        .map(|(handle, _, _)| handle)
 }
 
 fn instantiate_call_contract_payload(

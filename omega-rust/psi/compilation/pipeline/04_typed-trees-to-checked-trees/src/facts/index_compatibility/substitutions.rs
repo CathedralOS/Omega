@@ -286,6 +286,8 @@ pub(super) fn call_flow_at_point(
 
 /// Compatibility uses the producer's exact binder associations, not another
 /// walk over argument spellings or a reconstruction of the erased telescope.
+/// Type and const binders both index domain families; omitting either kind
+/// leaves a forwarded requirement in the callee's declaration namespace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BoundIndexArgument<'program> {
     Reference(TypeReferenceHandle),
@@ -313,7 +315,8 @@ pub(crate) fn bound_index_substitutions(
             Some((
                 binding.parameter,
                 match &binding.value {
-                    StaticMachineBindingValue::Const(reference) => {
+                    StaticMachineBindingValue::Type(reference)
+                    | StaticMachineBindingValue::Const(reference) => {
                         BoundIndexArgument::Reference(*reference)
                     }
                     StaticMachineBindingValue::RuntimeValue {

@@ -554,6 +554,30 @@ pub(crate) fn normalize_type_reference(
     }
     if let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(type_reference)
+        && let Some((
+            _,
+            super::IndexIdentityArgument::TypeReference(reference)
+            | super::IndexIdentityArgument::TypeArgument(reference),
+        )) = context
+            .index_substitutions
+            .iter()
+            .find(|(binder, _)| binder == symbol)
+    {
+        // Index tuples can contain compound types. Their nested type leaves
+        // use the same exact caller bindings as a direct index, but retain
+        // type identity rather than the value-name grammar of const indices.
+        // The replacement is simultaneous: its leaves belong to the caller.
+        return normalize_type_reference(
+            program,
+            *reference,
+            &TypeIdentityContext {
+                index_substitutions: &[],
+                ..*context
+            },
+        );
+    }
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(type_reference)
         && let Some(generic_instance) = program
             .data_definition_by_symbol(*symbol)
             .and_then(|definition| definition.generic_instance)

@@ -73,7 +73,21 @@ machine forward_indexed<const RightIndex: u64, const LeftIndex: u64, Addition sa
     left: i64 in Indexed<LeftIndex>,
     right: i64 in Indexed<RightIndex>
 ) -> i64 in Indexed<RightIndex + LeftIndex> {
-    add_indexed<LeftIndex, RightIndex, Addition>(left, right)
+    let combined: i64 in Indexed<LeftIndex + RightIndex> =
+        add_indexed<LeftIndex, RightIndex, Addition>(left, right);
+    relay_indexed<LeftIndex, RightIndex, Addition>(combined)
+}
+
+machine preserve_indexed<const A: u64, const B: u64, Algebra satisfies IndexAdd<u64>>(
+    value: i64 in Indexed<A + B>
+) -> i64 in Indexed<A + B> {
+    value
+}
+
+machine relay_indexed<const X: u64, const Y: u64, Addition satisfies IndexAdd<u64>>(
+    value: i64 in Indexed<X + Y>
+) -> i64 in Indexed<X + Y> {
+    preserve_indexed<X, Y, Addition>(value)
 }
 
 machine establish_three<Algebra satisfies IndexAdd<u64>>(a: u64, b: u64) -> u64

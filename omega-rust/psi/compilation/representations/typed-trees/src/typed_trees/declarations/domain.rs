@@ -1,5 +1,6 @@
 use crate::TypedTrees;
 use crate::name::Identifier;
+use crate::type_identity::{IndexIdentityArgument, normalized_index_identity};
 use crate::types::TypeReferenceHandle;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -82,6 +83,25 @@ pub fn indexed_domain_instance_name(
     parameters: &[crate::data::TypeParameter],
     arguments: &[TypeReferenceHandle],
 ) -> Result<String, Diagnostic> {
+    indexed_domain_instance_name_with_substitutions(program, domain, parameters, arguments, &[])
+}
+
+/// Identify the complete instance under one simultaneous call telescope.
+/// Replacements remain in the caller's scope, including inside compound types
+/// and computed const indices. This query creates no substituted syntax or
+/// membership evidence and preserves the ordinary role-sensitive encoding.
+pub fn indexed_domain_instance_name_with_substitutions(
+    program: &TypedTrees,
+    domain: &DomainDefinition,
+    parameters: &[crate::data::TypeParameter],
+    arguments: &[TypeReferenceHandle],
+    substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
+) -> Result<String, Diagnostic> {
+    if parameters.len() != arguments.len() {
+        return Err(Diagnostic::error(
+            "indexed-domain argument arity does not match its declaration",
+        ));
+    }
     if arguments.is_empty() {
         return Ok(program
             .semantic_domains
@@ -94,12 +114,15 @@ pub fn indexed_domain_instance_name(
         match parameter.kind {
             crate::data::TypeParameterKind::Type => identities.push(format!(
                 "type:{}",
-                program.normalized_type_identity_text(*argument)
+                substituted_type_identity_text(program, *argument, substitutions)?
             )),
             crate::data::TypeParameterKind::Const { type_reference } => {
                 let expected = const_index_type_name(program, type_reference)?;
                 identities.push(closed_domain_argument_identity(
-                    program, *argument, &expected,
+                    program,
+                    *argument,
+                    &expected,
+                    substitutions,
                 )?);
             }
             _ => {
@@ -115,6 +138,19 @@ pub fn indexed_domain_instance_name(
         .name(domain.semantic_id)
         .unwrap_or(domain.name.as_str());
     Ok(format!("{base}<{}>", identities.join(",")))
+}
+
+fn substituted_type_identity_text(
+    program: &TypedTrees,
+    argument: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
+) -> Result<String, Diagnostic> {
+    normalized_index_identity(
+        program,
+        IndexIdentityArgument::TypeArgument(argument),
+        substitutions,
+    )
+    .ok_or_else(|| Diagnostic::error("indexed-domain argument has no valid substitution identity"))
 }
 
 /// Whether the declaration's first type parameter is its generic carrier.
@@ -184,6 +220,7 @@ fn closed_domain_argument_identity(
     program: &TypedTrees,
     argument: TypeReferenceHandle,
     expected: &str,
+    substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
 ) -> Result<String, Diagnostic> {
     let crate::types::TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(argument)
@@ -198,13 +235,30 @@ fn closed_domain_argument_identity(
             // when the instance identities are refreshed a second time.
             return Ok(format!(
                 "expression:{expected}:{}",
-                program.normalized_type_identity_text(argument)
+                substituted_type_identity_text(program, argument, substitutions)?
             ));
         }
         return Err(Diagnostic::error(
             "indexed-domain arguments must be canonical const values, direct const binders, or supported open const expressions",
         ));
     };
+    if let Some((_, replacement)) = substitutions.iter().find(|(binder, _)| binder == symbol) {
+        // A replacement belongs to the caller, not this telescope. In
+        // particular, swapping two binders must not substitute either twice.
+        return match replacement {
+            IndexIdentityArgument::TypeReference(reference)
+            | IndexIdentityArgument::TypeArgument(reference) => {
+                closed_domain_argument_identity(program, *reference, expected, &[])
+            }
+            IndexIdentityArgument::Subject(subject) if subject.is_valid() => Ok(format!(
+                "binder:{}:{expected}",
+                program.symbols.display_path(*subject, "::")
+            )),
+            _ => Err(Diagnostic::error(
+                "indexed-domain const argument requires a type reference or exact subject",
+            )),
+        };
+    }
     if let Some(value) =
         language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
     {

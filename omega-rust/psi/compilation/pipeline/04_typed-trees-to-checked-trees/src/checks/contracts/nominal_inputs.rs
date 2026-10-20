@@ -155,16 +155,41 @@ pub(super) fn check(
                 .is_some_and(|projections| {
                     !projections.is_empty()
                         && projections.iter().all(|captured| {
-                            let contexts = crate::flow::operand_contexts(
-                                program,
-                                &facts.flow,
-                                &facts.semantic,
-                                captured.operand,
-                                captured.type_reference,
-                                call.entry_constraints,
-                            );
-                            crate::flow::captured_value_places(program, &facts.flow, captured)
-                                .is_some_and(|subjects| {
+                            // A reaching producer explains the value, but a
+                            // later observation also retains qualifications
+                            // established on the stored copy. Keep their
+                            // subjects and epochs paired; never union contexts.
+                            [
+                                (
+                                    captured.observation,
+                                    captured.observation_type,
+                                    crate::flow::captured_observation_places(
+                                        program,
+                                        &facts.flow,
+                                        captured,
+                                    ),
+                                ),
+                                (
+                                    captured.operand,
+                                    captured.type_reference,
+                                    crate::flow::captured_value_places(
+                                        program,
+                                        &facts.flow,
+                                        captured,
+                                    ),
+                                ),
+                            ]
+                            .into_iter()
+                            .any(|(operand, reference, subjects)| {
+                                let contexts = crate::flow::operand_contexts(
+                                    program,
+                                    &facts.flow,
+                                    &facts.semantic,
+                                    operand,
+                                    reference,
+                                    call.entry_constraints,
+                                );
+                                subjects.is_some_and(|subjects| {
                                     !subjects.is_empty()
                                         && subjects.iter().all(|place| {
                                             // A captured empty collection has no
@@ -174,7 +199,7 @@ pub(super) fn check(
                                             // pointwise ancestor is vacuous.
                                             if pointwise_field_is_empty(
                                                 program,
-                                                captured,
+                                                operand,
                                                 &place.projected,
                                             ) {
                                                 return true;
@@ -209,6 +234,7 @@ pub(super) fn check(
                                             ))
                                         })
                                 })
+                            })
                         })
                 });
             if !satisfied {
@@ -228,7 +254,7 @@ pub(super) fn check(
 /// Empty pointwise ancestors contain no qualified field occurrences.
 fn pointwise_field_is_empty(
     program: &dyn ::validation::CheckingInput,
-    captured: &crate::flow::CapturedValue<'_>,
+    operand: &checked_trees::FlowOperandFact,
     place: &validation::CanonicalPlace,
 ) -> bool {
     place
@@ -257,8 +283,8 @@ fn pointwise_field_is_empty(
             };
             validation::canonical_place_type_reference(
                 program,
-                captured.operand.state_symbol,
-                captured.operand.statement_index,
+                operand.state_symbol,
+                operand.statement_index,
                 &prefix,
             )
             .is_some_and(|reference| {

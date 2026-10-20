@@ -17,6 +17,7 @@ mod labels;
 mod substitutions;
 mod unevidenced_diagnostics;
 
+pub(crate) use index_terms::index_identity_bindings;
 use index_terms::{bound_index_arguments_equal, is_closed_index_argument};
 use instance_collection::{
     CompatibilityKey, StateCallIndex, append_call_result_ensured_instances,
@@ -31,9 +32,6 @@ use substitutions::{
     enclosing_call_substitutions, established_index_equalities, value_call_substitutions,
 };
 use unevidenced_diagnostics::append_unevidenced_establishment_diagnostics;
-
-pub(crate) use index_terms::{bound_index_expressions_equal, expression_uses_binder};
-
 pub(super) fn build_index_compatibility_facts(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,

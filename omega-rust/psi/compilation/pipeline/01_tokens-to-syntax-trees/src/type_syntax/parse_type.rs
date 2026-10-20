@@ -228,80 +228,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 continue;
             }
 
-            // Const data arguments share the generic argument list with type
-            // arguments. Keep integer atoms and scoped const paths as named
-            // leaves; decimal and operator-bearing arguments retain expressions
-            // when their value requires declaration-aware semantic admission.
-            let (argument, rest) = if input.at_integer()
-                || input
-                    .tokens
-                    .first()
-                    .is_some_and(|token| token.float_literal_kind().is_some())
-                || input.at_punctuation(PunctuationKind::Minus)
-                || input.at_punctuation(PunctuationKind::Exclamation)
-                || input.at_punctuation(PunctuationKind::Tilde)
-                || (input.at_punctuation(PunctuationKind::LeftParen)
-                    && input
-                        .take_punctuation(PunctuationKind::LeftParen, "(")
-                        .is_ok_and(|rest| !rest.at_punctuation(PunctuationKind::RightParen)))
-            {
-                let expression_start = input;
-                let (expression, rest) =
-                    parse_const_integer_expression_handle(syntax_trees, input)?;
-                if const_expression_requires_semantic_admission(syntax_trees, expression)
-                    || syntax_trees.const_expression_contains_name(expression)
-                {
-                    (
-                        syntax_trees
-                            .type_references
-                            .insert(TypeReferenceNode::ConstExpression(expression)),
-                        rest,
-                    )
-                } else {
-                    let value = evaluate_closed_const_integer_expression(syntax_trees, expression)
-                        .map_err(|reason| expression_start.error_here(reason))?;
-                    (
-                        syntax_trees
-                            .type_references
-                            .insert_named(Identifier::generated(value.to_string())),
-                        rest,
-                    )
-                }
-            } else if input
-                .tokens
-                .first()
-                .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
-            {
-                // An identifier-starting argument is ambiguous until the base
-                // declaration supplies its parameter kinds: `Box<T>` is a type
-                // argument, `Buffer<N>` is a const argument, and
-                // `Buffer<N + 1>` is an unmistakable symbolic const expression.
-                // Parse the delimiter-safe integer operator subset first. A
-                // binary result is retained through the pre-resolution generic
-                // instance pass; a lone name keeps the established type/scoped-
-                // const leaf representation.
-                let const_expression =
-                    parse_const_integer_expression_handle(syntax_trees, input).ok();
-                if let Some((expression, expression_rest)) = const_expression
-                    && matches!(
-                        syntax_trees.expressions.expression(expression),
-                        ExpressionNode::Binary(_) | ExpressionNode::Call(_)
-                    )
-                    && (expression_rest.at_punctuation(PunctuationKind::Comma)
-                        || expression_rest.at_punctuation(PunctuationKind::Greater))
-                {
-                    (
-                        syntax_trees
-                            .type_references
-                            .insert(TypeReferenceNode::ConstExpression(expression)),
-                        expression_rest,
-                    )
-                } else {
-                    parse_type_reference_handle(syntax_trees, input)?
-                }
-            } else {
-                parse_type_reference_handle(syntax_trees, input)?
-            };
+            let (argument, rest) = parse_static_argument_reference(syntax_trees, input)?;
             arguments.push(argument);
             input = rest;
 
@@ -375,6 +302,102 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         (type_reference, input)
     };
     Ok((type_reference, input))
+}
+
+/// Data and domain applications share type/value argument syntax. Binder kinds
+/// are decided after resolution, so neither caller may restrict a named index
+/// to a const leaf or discard the structure of a nested type application.
+fn parse_static_argument_reference<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    if input.at_integer()
+        || input
+            .tokens
+            .first()
+            .is_some_and(|token| token.float_literal_kind().is_some())
+        || input.at_punctuation(PunctuationKind::Minus)
+        || input.at_punctuation(PunctuationKind::Exclamation)
+        || input.at_punctuation(PunctuationKind::Tilde)
+        || (input.at_punctuation(PunctuationKind::LeftParen)
+            && input
+                .take_punctuation(PunctuationKind::LeftParen, "(")
+                .is_ok_and(|rest| !rest.at_punctuation(PunctuationKind::RightParen)))
+        || input.at_contextual("true")
+        || input.at_contextual("false")
+    {
+        let expression_start = input;
+        let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
+        if let ExpressionNode::Boolean(value) = syntax_trees.expressions.expression(expression) {
+            let name = Identifier::new(
+                value.to_string(),
+                syntax_trees.expressions.source_span(expression),
+            );
+            return Ok((syntax_trees.type_references.insert_named(name), rest));
+        }
+        if let ExpressionNode::Name(_) = syntax_trees.expressions.expression(expression) {
+            // Parentheses do not turn a direct binder or named constant into
+            // a computed index. Retain the same leaf as its unparenthesized
+            // spelling, independently of which application owns the pack.
+            let name = Identifier::new(
+                syntax_trees.expressions.display_name(expression),
+                syntax_trees.expressions.source_span(expression),
+            );
+            return Ok((syntax_trees.type_references.insert_named(name), rest));
+        }
+        if const_expression_requires_semantic_admission(syntax_trees, expression)
+            || syntax_trees.const_expression_contains_name(expression)
+        {
+            Ok((
+                syntax_trees
+                    .type_references
+                    .insert(TypeReferenceNode::ConstExpression(expression)),
+                rest,
+            ))
+        } else {
+            let value = evaluate_closed_const_integer_expression(syntax_trees, expression)
+                .map_err(|reason| expression_start.error_here(reason))?;
+            Ok((
+                syntax_trees
+                    .type_references
+                    .insert_named(Identifier::generated(value.to_string())),
+                rest,
+            ))
+        }
+    } else if input
+        .tokens
+        .first()
+        .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
+    {
+        // An identifier-starting argument is ambiguous until the base
+        // declaration supplies its parameter kinds: `Box<T>` is a type
+        // argument, `Buffer<N>` is a const argument, and
+        // `Buffer<N + 1>` is an unmistakable symbolic const expression.
+        // Parse the delimiter-safe integer operator subset first. A
+        // binary result is retained through the pre-resolution generic
+        // instance pass; a lone name keeps the established type/scoped-
+        // const leaf representation.
+        let const_expression = parse_const_integer_expression_handle(syntax_trees, input).ok();
+        if let Some((expression, expression_rest)) = const_expression
+            && matches!(
+                syntax_trees.expressions.expression(expression),
+                ExpressionNode::Binary(_) | ExpressionNode::Call(_)
+            )
+            && (expression_rest.at_punctuation(PunctuationKind::Comma)
+                || expression_rest.at_punctuation(PunctuationKind::Greater))
+        {
+            Ok((
+                syntax_trees
+                    .type_references
+                    .insert(TypeReferenceNode::ConstExpression(expression)),
+                expression_rest,
+            ))
+        } else {
+            parse_type_reference_handle(syntax_trees, input)
+        }
+    } else {
+        parse_type_reference_handle(syntax_trees, input)
+    }
 }
 
 /// Shifts and bitwise operations need declared width; remainder needs operand
@@ -579,8 +602,8 @@ fn apply_in_domain_suffix<'tokens, 'source>(
 }
 
 /// Parse the proof-static argument pack used by a domain-family declaration or
-/// application. PDI2 accepts closed literals/named constants and direct const
-/// binders; PDI3 owns operator expressions over those binders.
+/// application. Types retain recursive structure; values retain expressions
+/// requiring semantic admission. Resolution determines the receiving role.
 pub(crate) fn parse_domain_argument_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -591,51 +614,8 @@ pub(crate) fn parse_domain_argument_handles<'tokens, 'source>(
     let mut input = input.take_punctuation(PunctuationKind::Less, "<")?;
     let mut arguments = Vec::new();
     loop {
-        // Parse the whole proof-static expression first. A lone name remains
-        // the PDI2 closed-constant/direct-binder leaf; a compound expression
-        // is retained for PDI3 normalization after names and operators have
-        // exact symbols. This also keeps `>` as the argument-pack delimiter:
-        // the dedicated const-expression parser deliberately stops before the
-        // comparison layer.
-        let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
+        let (argument, rest) = parse_static_argument_reference(syntax_trees, input)?;
         input = rest;
-        let argument = match syntax_trees.expressions.expression(expression) {
-            ExpressionNode::Boolean(value) => {
-                let name = Identifier::new(
-                    value.to_string(),
-                    syntax_trees.expressions.source_span(expression),
-                );
-                syntax_trees.type_references.insert_named(name)
-            }
-            ExpressionNode::Name(path) => {
-                let name = syntax_trees.expressions.display_name(expression);
-                let members = syntax_trees.expressions.identifier_path_members(*path);
-                let Some(first) = members.first() else {
-                    return Err(input.error_here("domain index name requires a path member"));
-                };
-                let mut source_span = first.source_span();
-                if let Some(last) = members.last() {
-                    source_span.span.end = last.source_span().span.end;
-                }
-                syntax_trees
-                    .type_references
-                    .insert_named(Identifier::new(name, source_span))
-            }
-            _ if syntax_trees.const_expression_contains_name(expression)
-                || const_expression_requires_semantic_admission(syntax_trees, expression) =>
-            {
-                syntax_trees
-                    .type_references
-                    .insert(TypeReferenceNode::ConstExpression(expression))
-            }
-            _ => {
-                let value = evaluate_closed_const_integer_expression(syntax_trees, expression)
-                    .map_err(|reason| input.error_here(reason))?;
-                syntax_trees
-                    .type_references
-                    .insert_named(Identifier::generated(value.to_string()))
-            }
-        };
         arguments.push(argument);
         if input.at_punctuation(PunctuationKind::Comma) {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
