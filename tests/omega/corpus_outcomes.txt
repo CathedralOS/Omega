@@ -3745,7 +3745,8 @@ fail/facts/owned_qualified_reference_carrier_reuse rejected 369ms expected @ab16
 	cannot use `carrier.reference` in machine `inspect` state `entry` (statement 1) after `carrier` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `carrier` first
 fail/facts/owned_qualified_reference_field_reuse rejected 1316ms expected @ab16f19fe1b1+wt
 fail/facts/owned_qualified_reference_result_reuse rejected 1305ms expected @ab16f19fe1b1+wt
-fail/facts/owned_qualified_reference_selection_reuse rejected 1288ms expected @ab16f19fe1b1+wt
+fail/facts/owned_qualified_reference_selection_reuse rejected 5597ms expected @46ed51c132c2
+	cannot use `raw.reference` in machine `exercise` state `entry` (statement 3) after `raw` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `raw` first
 fail/facts/placed_stable_write/call_result rejected 14565ms expected @3b18b32f7117+wt
 	placed write application: the placement plan does not permit this operation
 fail/facts/placed_stable_write/const_name rejected 13851ms expected @3b18b32f7117+wt
