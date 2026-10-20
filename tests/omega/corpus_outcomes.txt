@@ -4397,14 +4397,26 @@ fail/facts/signed_64bit_saturating_subtraction_bound_through_other_state_rejecte
 fail/facts/signed_64bit_saturating_subtraction_bound_through_parameter_rejected rejected 11407ms expected @abd18815d46a+wt
 fail/facts/signed_64bit_saturating_subtraction_bound_through_target_body_rejected rejected 11241ms expected @abd18815d46a+wt
 fail/facts/signed_64bit_wrapping_multiplication_bound_through_call_result_rejected rejected 14967ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_call_result: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_wrapping_multiplication_bound_through_const_name_rejected rejected 14579ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_const: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_wrapping_multiplication_bound_through_field_rejected rejected 14470ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_field: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_wrapping_multiplication_bound_through_local_rejected rejected 14240ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_local: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_wrapping_multiplication_bound_through_match_join_rejected rejected 13917ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_match_join: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_wrapping_multiplication_bound_through_other_machine_rejected rejected 14983ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_worker: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_wrapping_multiplication_bound_through_other_state_rejected rejected 14266ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_state: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 fail/facts/signed_64bit_wrapping_multiplication_bound_through_parameter_rejected rejected 14158ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_param: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_wrapping_multiplication_bound_through_target_body_rejected rejected 16356ms expected @7b770f2baf0d+wt
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_prod from sat_target: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_wrapping_subtraction_bound_through_call_result_rejected rejected 12216ms expected @7b770f2baf0d+wt
 fail/facts/signed_64bit_wrapping_subtraction_bound_through_const_name_rejected rejected 15821ms expected @7b770f2baf0d+wt
 fail/facts/signed_64bit_wrapping_subtraction_bound_through_field_rejected rejected 15917ms expected @7b770f2baf0d+wt
