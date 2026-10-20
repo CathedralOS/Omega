@@ -743,8 +743,14 @@ fn qualified_leaf_carrier(
                 variant_scope = Some(*variant);
             }
             PlaceSegment::Field { symbol } => {
-                let data =
-                    validation::field_domains::owned_nominal_data_definition(program, carrier)?;
+                // The path belongs to the selected closed application, not
+                // its unspecialized template. Do not peel a reference: that
+                // would turn borrowed storage into an owned issuance subject.
+                let data = program.closed_data_definition(
+                    program
+                        .type_reference_table
+                        .unconstrained_type_reference(carrier),
+                )?;
                 let field = match variant_scope.take() {
                     Some(variant_symbol) => program
                         .data_members(data)

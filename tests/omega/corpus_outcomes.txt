@@ -5360,6 +5360,16 @@ fail/providers/finite_requirement_crossed_tuple rejected 3542ms expected @a9ae30
 fail/providers/finite_requirement_forwarded_const_without_predicate rejected 3310ms expected @a9ae30e1c334+wt
 fail/providers/foreign_address_fixed_carrier_mismatch rejected 1324ms expected @a9ae30e1c334+wt
 fail/providers/generic_boundary_relay_wrong_argument_rejected rejected 327ms expected @ff34e63b5705+wt
+fail/providers/generic_owned_outcome_unissued rejected 9686ms expected @abd18815d46a+wt
+	cannot prove default-domain field requirement for return from Provider::issue, state ready, at statement 0: Outcome<Token in Issued>::Ready.value requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in Provider::issue state `ready` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Outcome<Token in Issued>` field `value` is not proven in domain `Token::Issued` in Provider::issue state `ready` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/providers/generic_result_borrowed_issuer rejected 103ms expected @abd18815d46a+wt
+	domain `Token::Issued` authorizes `Issuer::issue` but that requirement does not name the domain on its exact result or an exact non-self external-root parameter
+fail/providers/generic_result_phantom_issuer rejected 103ms expected @abd18815d46a+wt
+	domain `Token::Issued` authorizes `Issuer::issue` but that requirement does not name the domain on its exact result or an exact non-self external-root parameter
+fail/providers/generic_result_wrong_carrier rejected 624ms expected @abd18815d46a+wt
+	trait `Issuer` state `issue` return type generic argument uses `in Token::Issued`, but no `domain` named `Token::Issued` is declared for `Other` (domains are bound to their storage type)
 fail/providers/inherited_applied_binding_ambiguous_ancestors rejected 61ms expected @fa48d7bba308+wt
 fail/providers/inherited_boundary_private_field_postcondition rejected 3340ms expected @fa48d7bba308+wt
 fail/providers/inherited_provider_competing_authored_maps rejected 3507ms expected @fa48d7bba308+wt
@@ -9949,7 +9959,9 @@ pass/providers/foreign_packed_record_reuse_exit checked 6220ms check-target:linu
 pass/providers/foreign_record_result_exit checked 6025ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/providers/foreign_register_record_reuse_exit checked 6773ms check-target:linux_x86_64 @589aedee8ebc+wt
 pass/providers/generic_boundary_multiple_arguments_compile checked 7238ms @ff34e63b5705+wt
+pass/providers/generic_owned_outcome_exit checked 15532ms check-target:macos_arm64 @abd18815d46a+wt
 pass/providers/generic_provider_structural_result_composition_exit checked 11133ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/providers/generic_result_recursive_reference_issuer checked 2718ms @abd18815d46a+wt
 pass/providers/inherited_applied_binding_borrowed_result_exit checked 6704ms check-target:macos_arm64 @fa48d7bba308+wt
 pass/providers/inherited_applied_binding_dispatch_exit checked 6704ms check-target:macos_arm64 @fa48d7bba308+wt
 pass/providers/inherited_applied_binding_finite_family_exit checked 6650ms check-target:macos_arm64 @fa48d7bba308+wt

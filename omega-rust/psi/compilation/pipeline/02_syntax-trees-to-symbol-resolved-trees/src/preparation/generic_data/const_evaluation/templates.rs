@@ -774,58 +774,6 @@ fn collect_owned_type_reference_positions(
                     traversal,
                 )
             }
-            Item::Machine(machine) if include_machines && machine.type_parameters.is_empty() => {
-                // Conformance arguments participate in the same concrete
-                // generic-data identity as the machine signature. Rewriting
-                // `-> Algebra<Unit>` while leaving
-                // `satisfies Trait<Algebra<Unit>>` generic makes an otherwise
-                // exact requirement mismatch after instance synthesis.
-                for conformance in syntax.tables.items.satisfies_clauses(machine.satisfies) {
-                    for argument in syntax
-                        .tables
-                        .type_references
-                        .type_reference_handles(conformance.arguments)
-                    {
-                        visit_type_positions(syntax, *argument, &mut positions, false, traversal);
-                    }
-                }
-                for state_handle in syntax.tables.items.state_handles(machine.states) {
-                    let state = syntax.tables.items.state(*state_handle);
-                    visit_type_positions(
-                        syntax,
-                        state.return_type,
-                        &mut positions,
-                        false,
-                        traversal,
-                    );
-                    for parameter_handle in syntax.tables.items.state_parameters(state.parameters) {
-                        visit_type_positions(
-                            syntax,
-                            syntax
-                                .tables
-                                .items
-                                .state_parameter(*parameter_handle)
-                                .type_reference,
-                            &mut positions,
-                            false,
-                            traversal,
-                        );
-                    }
-                    for statement_handle in syntax.tables.items.statements(state.statements) {
-                        if let StatementNode::LocalData(local) =
-                            syntax.tables.statements.statement(*statement_handle)
-                        {
-                            visit_type_positions(
-                                syntax,
-                                local.type_reference,
-                                &mut positions,
-                                false,
-                                traversal,
-                            );
-                        }
-                    }
-                }
-            }
             _ => {}
         }
     }
@@ -836,6 +784,36 @@ fn collect_owned_type_reference_positions(
     // non-generic machines; generic template bodies remain deliberately open.
     if !include_machines {
         return positions;
+    }
+    for machine in super::super::uses::concrete_machine_declarations(syntax, declarations) {
+        // Satisfier arguments and signatures select the same closed carrier.
+        // All states, including inline conformance states, own their type uses.
+        for conformance in syntax.items.satisfies_clauses(machine.satisfies) {
+            for argument in syntax
+                .type_references
+                .type_reference_handles(conformance.arguments)
+            {
+                visit_type_positions(syntax, *argument, &mut positions, false, traversal);
+            }
+        }
+        for state_handle in syntax.items.state_handles(machine.states) {
+            let state = syntax.items.state(*state_handle);
+            visit_type_positions(syntax, state.return_type, &mut positions, false, traversal);
+            for parameter in syntax.items.state_parameters(state.parameters) {
+                visit_type_positions(
+                    syntax,
+                    syntax.items.state_parameter(*parameter).type_reference,
+                    &mut positions,
+                    false,
+                    traversal,
+                );
+            }
+            for statement in syntax.items.statements(state.statements) {
+                for reference in super::super::uses::statement_type_inputs(syntax, *statement) {
+                    visit_type_positions(syntax, reference, &mut positions, false, traversal);
+                }
+            }
+        }
     }
     let concrete_expressions =
         super::super::uses::selected_machine_expression_handles(syntax, declarations);
@@ -856,13 +834,9 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
 ) -> (Vec<TypeReferenceHandle>, Vec<TypeReferenceHandle>) {
     let mut positions = Vec::new();
     let mut public_positions = Vec::new();
-    for item in syntax.root_items() {
-        let Some(machine) = item.as_machine() else {
-            continue;
-        };
-        if !machine.type_parameters.is_empty() {
-            continue;
-        }
+    for machine in
+        super::super::uses::concrete_machine_declarations(syntax, syntax.root_item_handles())
+    {
         for (ordinal, state_handle) in syntax
             .items
             .state_handles(machine.states)

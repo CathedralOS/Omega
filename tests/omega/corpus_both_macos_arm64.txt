@@ -1029,7 +1029,9 @@ pass/providers/finite_requirement_correlated_tuple_exit built 2694ms exit:0 inte
 pass/providers/finite_requirement_direct_provider_exit built 5054ms exit:0 interpreter-exit:0 interpreter:agrees @51cd9b31baf0
 pass/providers/finite_requirement_forwarded_const_exit built 2675ms exit:0 interpreter-exit:0 interpreter:agrees @0cfa2d49940a
 pass/providers/foreign_out_parameter_write_observed_exit built 8787ms exit:70 interpreter-exit:70 interpreter:agrees @5889f8b8208f+wt
+pass/providers/generic_owned_outcome_exit built 15730ms exit:0 interpreter-exit:0 interpreter:agrees @abd18815d46a+wt
 pass/providers/generic_provider_structural_result_composition_exit built 6651ms exit:0 interpreter-exit:0 interpreter:agrees @7084889a08d8+wt
+pass/providers/generic_result_recursive_reference_issuer checked 2701ms @abd18815d46a+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 2754ms exit:41 interpreter-exit:41 interpreter:agrees @cba4ef8c9ab1
 pass/providers/linear_structural_provider_pure_exit built 9190ms exit:0 interpreter-exit:0 interpreter:agrees @e5140c7a7be2+wt
 pass/providers/owned_array_operand_epochs_exit built 1550ms exit:0 interpreter-exit:0 interpreter:agrees @c27519066a03+wt

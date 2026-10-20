@@ -139,6 +139,20 @@ pub(in crate::preparation::generic_data) fn selected_machine_state_handles(
     syntax: &SyntaxTrees,
     declarations: &[syntax_trees::item::ItemHandle],
 ) -> Vec<syntax_trees::item::StateHandle> {
+    concrete_machine_declarations(syntax, declarations)
+        .into_iter()
+        .flat_map(|machine| syntax.items.state_handles(machine.states).iter().copied())
+        .collect()
+}
+
+/// Inline conformance bodies own ordinary machines, including every state.
+/// Their closed type uses must join the same normalization inventory as free
+/// machines; lowering the conformance later cannot repair stale constructor
+/// identities. Open enclosing binders remain templates, not concrete work.
+pub(in crate::preparation::generic_data) fn concrete_machine_declarations<'syntax>(
+    syntax: &'syntax SyntaxTrees,
+    declarations: &[syntax_trees::item::ItemHandle],
+) -> Vec<&'syntax syntax_trees::item::Machine> {
     // Generic data names once, instead of a root-item scan per attached
     // machine.
     let generic_data = syntax
@@ -148,24 +162,35 @@ pub(in crate::preparation::generic_data) fn selected_machine_state_handles(
             _ => None,
         })
         .collect::<HashSet<&str>>();
-    declarations
-        .iter()
-        .map(|declaration| syntax.root_item(*declaration))
-        .filter_map(|item| {
-            let machine = item.as_machine()?;
-            if !machine.type_parameters.is_empty()
-                || machine
-                    .attached_data
-                    .as_ref()
-                    .is_some_and(|attached| generic_data.contains(attached.as_str()))
-            {
-                return None;
+    let is_concrete = |machine: &syntax_trees::item::Machine| {
+        machine.type_parameters.is_empty()
+            && !machine
+                .attached_data
+                .as_ref()
+                .is_some_and(|attached| generic_data.contains(attached.as_str()))
+    };
+    let mut machines = Vec::new();
+    for declaration in declarations {
+        match syntax.root_item(*declaration) {
+            Item::Machine(machine) if is_concrete(machine) => machines.push(machine),
+            Item::Conformance(conformance) if conformance.type_parameters.is_empty() => {
+                for member in syntax.items.conformance_members(conformance.members) {
+                    use syntax_trees::item::ConformanceMember;
+                    let machine = match member {
+                        ConformanceMember::Machine(machine)
+                        | ConformanceMember::Synthesized(machine)
+                        | ConformanceMember::TraitDefault { machine, .. } => machine,
+                        ConformanceMember::Reference { .. } => continue,
+                    };
+                    if is_concrete(machine) {
+                        machines.push(machine);
+                    }
+                }
             }
-            Some(syntax.items.state_handles(machine.states))
-        })
-        .flatten()
-        .copied()
-        .collect()
+            _ => {}
+        }
+    }
+    machines
 }
 
 pub(in crate::preparation::generic_data) fn collect_statement_expression_handles(

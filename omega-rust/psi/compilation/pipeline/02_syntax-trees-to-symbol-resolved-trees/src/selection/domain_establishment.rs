@@ -124,7 +124,7 @@ fn collect_authored_requirement_routes(
                     )));
                 }
                 (Err(_), Ok(machine)) => {
-                    if !machine_authorizes_domain_subject(program, machine.machine, domain.symbol) {
+                    if !machine_authorizes_domain_subject(program, machine.machine, domain.symbol)? {
                         return Err(Diagnostic::error(format!(
                             "domain `{}` authorizes `{rendered}` but that machine does not name the domain on its exact result",
                             domain.name
@@ -187,7 +187,7 @@ fn collect_authored_requirement_routes(
                 requirement,
                 domain.symbol,
                 trait_definition.is_boundary,
-            ) {
+            )? {
                 return Err(Diagnostic::error(format!(
                     "domain `{}` authorizes `{}` but that requirement does not name the domain on its exact result or an exact non-self external-root parameter",
                     domain.name,
@@ -243,21 +243,21 @@ fn machine_authorizes_domain_subject(
     program: &SymbolResolvedTrees,
     machine: &symbol_resolved_trees::machine::Machine,
     domain_symbol: SymbolHandle,
-) -> bool {
+) -> Result<bool, Diagnostic> {
     if ensured_result_domain_symbols(program, program.machine_contracts(machine))
         .contains(&domain_symbol)
     {
-        return true;
+        return Ok(true);
     }
-    program
-        .machine_state_handles(machine.states)
-        .iter()
-        .map(|state_handle| program.machine_state(*state_handle))
-        .any(|state| {
-            state.return_type.as_ref().is_some_and(|return_type| {
-                type_reference_domain_symbols(program, return_type).contains(&domain_symbol)
-            })
-        })
+    for state_handle in program.machine_state_handles(machine.states) {
+        let state = program.machine_state(*state_handle);
+        if let Some(return_type) = &state.return_type
+            && type_reference_domain_symbols(program, return_type)?.contains(&domain_symbol)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn path_source_span(path: &[DiagnosticName]) -> SourceSpan {
@@ -287,30 +287,72 @@ fn requirement_authorizes_domain_subject(
     requirement: &symbol_resolved_trees::signature::StateSignature,
     domain_symbol: SymbolHandle,
     permits_external_root_parameters: bool,
-) -> bool {
-    ensured_result_domain_symbols(program, program.signature_contracts(requirement.contracts))
+) -> Result<bool, Diagnostic> {
+    if ensured_result_domain_symbols(program, program.signature_contracts(requirement.contracts))
         .contains(&domain_symbol)
-        || requirement.return_type.as_ref().is_some_and(|return_type| {
-            type_reference_domain_symbols(program, return_type).contains(&domain_symbol)
-        })
         || ensured_mutable_parameter_domain_symbols(program, requirement).contains(&domain_symbol)
-        || permits_external_root_parameters
-            && program
-                .state_parameters(requirement.parameters)
-                .iter()
-                .any(|parameter| {
-                    type_reference_domain_symbols(program, &parameter.type_reference)
-                        .contains(&domain_symbol)
-                })
+    {
+        return Ok(true);
+    }
+    if let Some(return_type) = &requirement.return_type
+        && type_reference_domain_symbols(program, return_type)?.contains(&domain_symbol)
+    {
+        return Ok(true);
+    }
+    if permits_external_root_parameters {
+        for parameter in program.state_parameters(requirement.parameters) {
+            if type_reference_domain_symbols(program, &parameter.type_reference)?
+                .contains(&domain_symbol)
+            {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 fn type_reference_domain_symbols(
     program: &SymbolResolvedTrees,
     type_reference: &TypeReference,
-) -> Vec<SymbolHandle> {
+) -> Result<Vec<SymbolHandle>, Diagnostic> {
     let mut domains = Vec::new();
-    collect_type_reference_domain_symbols(program, type_reference, &mut Vec::new(), &mut domains);
-    domains
+    let mut subjects = DomainSubjectTraversal {
+        bindings: Vec::new(),
+        ancestors: Vec::new(),
+        remaining: 4096,
+    };
+    collect_type_reference_domain_symbols(
+        program,
+        BoundDomainSubject {
+            reference: type_reference,
+            scope: 0,
+        },
+        DomainSubjectPosition::Root,
+        &mut subjects,
+        &mut domains,
+    )?;
+    Ok(domains)
+}
+
+/// A generic argument is interpreted in its caller's environment, not in the
+/// template being entered. Keeping that prefix is essential for Box<Box<T>>:
+/// both applications bind the same formal symbol but to different subjects.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct BoundDomainSubject<'program> {
+    reference: &'program TypeReference,
+    scope: usize,
+}
+
+struct DomainSubjectTraversal<'program> {
+    bindings: Vec<(SymbolHandle, BoundDomainSubject<'program>)>,
+    ancestors: Vec<(SymbolHandle, usize)>,
+    remaining: usize,
+}
+
+#[derive(Clone, Copy)]
+enum DomainSubjectPosition {
+    Root,
+    OwnedMember,
 }
 
 /// A requirement result or external-root parameter "names" a domain when the
@@ -320,41 +362,97 @@ fn type_reference_domain_symbols(
 /// case-scoped positions the same way
 /// (`declared_owned_field_domain_identities`), so the authorization surface
 /// must traverse them here or `established by` can never route a sum result.
-fn collect_type_reference_domain_symbols(
-    program: &SymbolResolvedTrees,
-    type_reference: &TypeReference,
-    ancestors: &mut Vec<SymbolHandle>,
+fn collect_type_reference_domain_symbols<'program>(
+    program: &'program SymbolResolvedTrees,
+    subject: BoundDomainSubject<'program>,
+    position: DomainSubjectPosition,
+    traversal: &mut DomainSubjectTraversal<'program>,
     domains: &mut Vec<SymbolHandle>,
-) {
-    let constrained = match type_reference {
+) -> Result<(), Diagnostic> {
+    if traversal.remaining == 0 || traversal.ancestors.len() >= 64 {
+        return Err(Diagnostic::error(
+            "domain establishment subject exceeds the bounded generic member traversal; recursive expansion cannot establish a route",
+        ));
+    }
+    traversal.remaining -= 1;
+    let child = |reference| BoundDomainSubject {
+        reference,
+        scope: subject.scope,
+    };
+    let constrained = match subject.reference {
         TypeReference::Reference(reference) => {
-            collect_type_reference_domain_symbols(
+            // Root references can name exact boundary subjects. A reference
+            // stored inside the returned carrier does not own its referent;
+            // walking it would authorize borrowed or recursively reachable
+            // content as if the result had produced that content by value.
+            if matches!(position, DomainSubjectPosition::OwnedMember) {
+                return Ok(());
+            }
+            return collect_type_reference_domain_symbols(
                 program,
-                program.child_type_reference(reference.referee),
-                ancestors,
+                child(program.child_type_reference(reference.referee)),
+                position,
+                traversal,
                 domains,
             );
-            return;
         }
         TypeReference::Constrained(constrained) => constrained,
         TypeReference::Named { symbol, .. } => {
-            collect_member_domain_symbols(program, *symbol, ancestors, domains);
-            return;
-        }
-        TypeReference::FixedArray(array) => {
-            collect_type_reference_domain_symbols(
+            if let Some((_, argument)) = traversal.bindings[..subject.scope]
+                .iter()
+                .rev()
+                .find(|(formal, _)| formal == symbol)
+            {
+                return collect_type_reference_domain_symbols(
+                    program, *argument, position, traversal, domains,
+                );
+            }
+            return collect_member_domain_symbols(
                 program,
-                program.child_type_reference(array.element_type),
-                ancestors,
+                *symbol,
+                subject.scope,
+                traversal,
                 domains,
             );
-            return;
+        }
+        TypeReference::FixedArray(array) => {
+            return collect_type_reference_domain_symbols(
+                program,
+                child(program.child_type_reference(array.element_type)),
+                position,
+                traversal,
+                domains,
+            );
+        }
+        TypeReference::Generic(application) => {
+            let Some(data) = program.data_definition_by_symbol(application.base_symbol) else {
+                return Ok(());
+            };
+            let parameters = program.data_type_parameters(data.type_parameters);
+            let arguments = program.child_type_references(application.arguments);
+            if parameters.len() != arguments.len() {
+                return Err(Diagnostic::error(
+                    "domain establishment subject has a generic carrier with mismatched type arguments",
+                ));
+            }
+            let previous_binding_count = traversal.bindings.len();
+            for (parameter, argument) in parameters.iter().zip(arguments) {
+                traversal.bindings.push((parameter.symbol, child(argument)));
+            }
+            let result = collect_member_domain_symbols(
+                program,
+                application.base_symbol,
+                traversal.bindings.len(),
+                traversal,
+                domains,
+            );
+            traversal.bindings.truncate(previous_binding_count);
+            return result;
         }
         TypeReference::Slice(_)
-        | TypeReference::Generic(_)
         | TypeReference::ConstExpression(_)
         | TypeReference::DynamicTrait { .. }
-        | TypeReference::Unit => return,
+        | TypeReference::Unit => return Ok(()),
     };
     for constraint in program
         .tables
@@ -396,32 +494,35 @@ fn collect_type_reference_domain_symbols(
     }
     collect_type_reference_domain_symbols(
         program,
-        program.child_type_reference(constrained.base_type),
-        ancestors,
+        child(program.child_type_reference(constrained.base_type)),
+        position,
+        traversal,
         domains,
-    );
+    )
 }
 
 /// Domains declared on the owned member positions of a named carrier: record
 /// fields and case payload fields alike. A payload's qualification is
 /// conditional on its exact case, but for route authorization the question is
-/// only whether the domain is named anywhere on the carrier. Generic
-/// arguments are deliberately not consulted — instance member types resolve
-/// to their parameters at this stage, so an instantiated `Reply<T in D>`
-/// cannot serve as the declared authorization spelling.
-fn collect_member_domain_symbols(
-    program: &SymbolResolvedTrees,
+/// only whether the domain is named on an actual subject. Generic arguments
+/// are substituted only when a declared member reaches their formal; scanning
+/// the argument list itself would authorize phantom, unrepresented subjects.
+/// This discovers a route, not a grant: checking still establishes each exact
+/// carrier, selected case, target domain and invocation independently.
+fn collect_member_domain_symbols<'program>(
+    program: &'program SymbolResolvedTrees,
     data_symbol: SymbolHandle,
-    ancestors: &mut Vec<SymbolHandle>,
+    scope: usize,
+    traversal: &mut DomainSubjectTraversal<'program>,
     domains: &mut Vec<SymbolHandle>,
-) {
-    if ancestors.contains(&data_symbol) {
-        return;
+) -> Result<(), Diagnostic> {
+    if traversal.ancestors.contains(&(data_symbol, scope)) {
+        return Ok(());
     }
     let Some(data) = program.data_definition_by_symbol(data_symbol) else {
-        return;
+        return Ok(());
     };
-    ancestors.push(data_symbol);
+    traversal.ancestors.push((data_symbol, scope));
     for member in program.data_members(data.storage.members) {
         let fields = match member {
             symbol_resolved_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
@@ -432,13 +533,18 @@ fn collect_member_domain_symbols(
         for field in fields {
             collect_type_reference_domain_symbols(
                 program,
-                &field.type_reference,
-                ancestors,
+                BoundDomainSubject {
+                    reference: &field.type_reference,
+                    scope,
+                },
+                DomainSubjectPosition::OwnedMember,
+                traversal,
                 domains,
-            );
+            )?;
         }
     }
-    ancestors.pop();
+    traversal.ancestors.pop();
+    Ok(())
 }
 
 fn ensured_result_domain_symbols(

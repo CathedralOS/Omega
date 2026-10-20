@@ -346,8 +346,9 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 .unwrap_or((PlaceRoot::Expression(returned), Vec::new()));
             segments.extend_from_slice(&path);
             diagnostics.push(Diagnostic::error(format!(
-                "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
+                "cannot prove default-domain field requirement for return from {}, state {}, at statement {}: {} requires {}",
                 crate::labels::machine_name(program, exit.machine_symbol),
+                crate::labels::symbol_name(program, exit.state_symbol),
                 exit.statement_index,
                 facts::canonical_place_label_from_parts(program, root, &segments),
                 crate::labels::symbol_name(program, domain_symbol),

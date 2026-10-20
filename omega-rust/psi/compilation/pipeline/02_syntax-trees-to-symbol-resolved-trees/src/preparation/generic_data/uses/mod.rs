@@ -19,38 +19,13 @@ pub(super) use constructors::{
 };
 pub(super) use expressions::{
     ConstructorFrontier, collect_expression_handles, collect_statement_expression_handles,
-    concrete_machine_expression_handles, selected_machine_expression_handles,
-    selected_machine_state_handles,
+    concrete_machine_declarations, concrete_machine_expression_handles,
+    selected_machine_expression_handles, selected_machine_state_handles,
 };
 pub(super) use patterns::{
     closed_sum_path, named_type_name, relabel_closed_sum_memberships_from_local_types,
     relabel_unique_closed_sum_paths,
 };
-
-/// State handles of every generic-free machine in `declarations` — the
-/// prelude the local-type scans share.
-fn concrete_state_handles(
-    syntax: &super::SyntaxTrees,
-    declarations: &[syntax_trees::item::ItemHandle],
-) -> Vec<syntax_trees::item::StateHandle> {
-    declarations
-        .iter()
-        .map(|declaration| syntax.root_item(*declaration))
-        .filter_map(|item| match item {
-            super::Item::Machine(machine) if machine.type_parameters.is_empty() => Some(machine),
-            _ => None,
-        })
-        .flat_map(|machine| {
-            syntax
-                .tables
-                .items
-                .state_handles(machine.states)
-                .iter()
-                .copied()
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>()
-}
 
 /// Concrete machine states and their declared parameter/local types — the
 /// shared prelude every local-typed relabel pass walks before its own scan.
@@ -63,7 +38,7 @@ pub(super) fn concrete_state_local_types(
     Vec<syntax_trees::statement::StatementHandle>,
 )> {
     use super::StatementNode;
-    let concrete_states = concrete_state_handles(syntax, declarations);
+    let concrete_states = selected_machine_state_handles(syntax, declarations);
 
     let mut states = Vec::with_capacity(concrete_states.len());
     for state_handle in concrete_states {

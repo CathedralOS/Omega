@@ -1,0 +1,1 @@
+domains are bound to their storage type
