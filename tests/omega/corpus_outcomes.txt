@@ -2371,12 +2371,33 @@ fail/facts/compound_index_guard_through_target_body_rejected rejected 7427ms exp
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
-fail/facts/computed_constant_array_extent_index rejected 8090ms expected @7ee7ea840945+wt
+fail/facts/computed_constant_array_extent_index rejected 12852ms expected @7d49d2c3a6f2+wt
 	cannot prove index `1` is within length 1
-fail/facts/computed_constant_array_extent_mismatch rejected 300ms expected @7ee7ea840945+wt
+fail/facts/computed_constant_array_extent_mismatch rejected 535ms expected @7d49d2c3a6f2+wt
 	constant initializer: fixed-array const value requires 1 elements but has 2
-fail/facts/computed_constant_array_extent_qualification rejected 181ms expected @7ee7ea840945+wt
+fail/facts/computed_constant_array_extent_qualification rejected 306ms expected @7d49d2c3a6f2+wt
 	constant initializer: data constant `Cell` violates its default-domain predicate
+fail/facts/computed_constant_array_extent_through_call_result_rejected rejected 13281ms expected @7d49d2c3a6f2+wt
+	cannot prove index `1` is within length 1
+fail/facts/computed_constant_array_extent_through_const_name_rejected rejected 12668ms expected @7d49d2c3a6f2+wt
+	cannot prove index `1` is within length 1
+fail/facts/computed_constant_array_extent_through_field_rejected rejected 13009ms expected @7d49d2c3a6f2+wt
+	cannot prove index `1` is within length 1
+fail/facts/computed_constant_array_extent_through_local_rejected rejected 14737ms expected @7d49d2c3a6f2+wt
+	cannot prove index `1` is within length 1
+fail/facts/computed_constant_array_extent_through_match_join_rejected rejected 13826ms expected @7d49d2c3a6f2+wt
+	cannot prove index `1` is within length 1
+fail/facts/computed_constant_array_extent_through_other_machine_rejected rejected 13692ms expected @7d49d2c3a6f2+wt
+	cannot prove index `1` is within length 1
+fail/facts/computed_constant_array_extent_through_other_state_rejected rejected 13306ms expected @7d49d2c3a6f2+wt
+	cannot prove index `1` is within length 1
+fail/facts/computed_constant_array_extent_through_parameter_rejected rejected 13559ms expected @7d49d2c3a6f2+wt
+	cannot prove index `1` is within length 1
+fail/facts/computed_constant_array_extent_through_target_body_rejected rejected 13124ms expected @7d49d2c3a6f2+wt
+	cannot prove index `1` is within length 1
+	cannot prove index `1` is within length 1
+	cannot prove index `1` is within length 1
+	cannot prove index `1` is within length 1
 fail/facts/computed_record_window_nonhost_body_rejected rejected 3410ms expected @dd658fb23eef
 	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 fail/facts/computed_record_window_through_call_result_rejected rejected 3581ms expected @dd658fb23eef
@@ -9458,7 +9479,16 @@ pass/facts/compound_index_guard_through_other_machine_exit checked 81376ms check
 pass/facts/compound_index_guard_through_other_state_exit checked 54653ms check-target:macos_arm64 @8137d4f697de+wt
 pass/facts/compound_index_guard_through_parameter_exit checked 54193ms check-target:macos_arm64 @8137d4f697de+wt
 pass/facts/compound_index_guard_through_target_body_exit checked 54819ms check-target:macos_arm64 @8137d4f697de+wt
-pass/facts/computed_constant_array_extent_exit checked 21578ms check-target:macos_arm64 @7ee7ea840945+wt
+pass/facts/computed_constant_array_extent_exit checked 32318ms check-target:macos_arm64 @7d49d2c3a6f2+wt
+pass/facts/computed_constant_array_extent_through_call_result_exit checked 47400ms check-target:macos_arm64 @7d49d2c3a6f2+wt
+pass/facts/computed_constant_array_extent_through_const_name_exit checked 33605ms check-target:macos_arm64 @7d49d2c3a6f2+wt
+pass/facts/computed_constant_array_extent_through_field_exit checked 33304ms check-target:macos_arm64 @7d49d2c3a6f2+wt
+pass/facts/computed_constant_array_extent_through_local_exit checked 32820ms check-target:macos_arm64 @7d49d2c3a6f2+wt
+pass/facts/computed_constant_array_extent_through_match_join_exit checked 32962ms check-target:macos_arm64 @7d49d2c3a6f2+wt
+pass/facts/computed_constant_array_extent_through_other_machine_exit checked 32324ms check-target:macos_arm64 @7d49d2c3a6f2+wt
+pass/facts/computed_constant_array_extent_through_other_state_exit checked 32618ms check-target:macos_arm64 @7d49d2c3a6f2+wt
+pass/facts/computed_constant_array_extent_through_parameter_exit checked 32327ms check-target:macos_arm64 @7d49d2c3a6f2+wt
+pass/facts/computed_constant_array_extent_through_target_body_exit checked 33050ms check-target:macos_arm64 @7d49d2c3a6f2+wt
 pass/facts/computed_record_window_mixed_lifecycle_exit checked 25778ms check-target:macos_arm64 @dd658fb23eef
 pass/facts/computed_record_window_original_exit checked 8376ms check-target:macos_arm64 @408e4fc23fbc
 pass/facts/computed_record_window_through_call_result_exit checked 24962ms check-target:macos_arm64 @dd658fb23eef

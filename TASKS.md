@@ -5226,7 +5226,11 @@ wait for Cathedral's instruction coverage. The interpreter is
     nested array/case and whole-aggregate subjects, open applications and
     abstract-carrier constraints over explicit named subjects. Keep alias-owned
     bounds/index tuples
-    through `omega-rust/psi/compilation/checking/src/proof_contracts/domains.rs`.
+    through `omega-rust/psi/compilation/checking/src/proof_contracts/domains.rs`
+    (`samples/cli/facts/computed_constant_array_extent` completes all nine
+    standard places (`omega run --both`, exit 0) with 18 pinned
+    `computed_constant_array_extent_through_<place>_{exit,rejected}` corpus
+    fixtures alongside its existing mechanism and control probes).
     Computed payloads cannot establish qualifications.
   - Constant invocations share **CRASH-CONTRACT** / **OPERATOR-MACHINE-SUPPLY**
     premise transport through
