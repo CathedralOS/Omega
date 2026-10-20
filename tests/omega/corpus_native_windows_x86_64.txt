@@ -1513,6 +1513,15 @@ pass/facts/signed_64bit_bitwise_or_bound_through_other_machine_exit built 39208m
 pass/facts/signed_64bit_bitwise_or_bound_through_other_state_exit built 42050ms exit:0 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_or_bound_through_parameter_exit built 43432ms exit:0 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_or_bound_through_target_body_exit built 45570ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_xor_bound_through_call_result_exit built 43897ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_xor_bound_through_const_name_exit built 45047ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_xor_bound_through_field_exit built 43843ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_xor_bound_through_local_exit built 46666ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_xor_bound_through_match_join_exit built 46615ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_xor_bound_through_other_machine_exit built 46551ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_xor_bound_through_other_state_exit built 44659ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_xor_bound_through_parameter_exit built 44600ms exit:0 @9a273b151c31+wt
+pass/facts/signed_64bit_bitwise_xor_bound_through_target_body_exit built 44313ms exit:0 @9a273b151c31+wt
 pass/facts/signed_64bit_shift_right_arithmetic_bound_through_call_result built 42968ms exit:0 @7dc9c049a48b
 pass/facts/signed_64bit_shift_right_arithmetic_bound_through_const_name built 42897ms exit:0 @7dc9c049a48b
 pass/facts/signed_64bit_shift_right_arithmetic_bound_through_field built 42919ms exit:0 @7dc9c049a48b

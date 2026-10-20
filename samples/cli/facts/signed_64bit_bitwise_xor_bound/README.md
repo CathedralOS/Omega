@@ -20,8 +20,8 @@ Every place performs the same operation: define bounded signed 64-bit input `raw
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 64-bit signed bitwise XOR and verifies the bounds |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
-`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
-`Expected exit: 0`.
+`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
+authored `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
 
 ## Execution
 
@@ -45,14 +45,26 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `raw ^ 15` with input `59i64` establishes xored value `52i64` within static interval `40i64..63i64`. Passing `xored` to `verify_xored(res)` satisfies its contract `res >= 40 && res <= 63`. `verify_xored` evaluates exact subtractions `63 - 52 == 11` and `52 - 40 == 12`, sums their values (23), and subtracts 23 returning `0i32`. In `main`, `transition res == 0` transitions to `state done() {}`, terminating with native exit 0. If bitwise XOR or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
-- Each invalid twin sets `raw >= 64 && raw <= 64` (or `const RAW: i64 = 64`), so `raw ^ 15` yields `79i64`. Calling `verify_xored(xored)` fails closed at compile time with `cannot prove requires contract for call verify_xored`. None reaches native execution.
+- In every positive place, evaluating `raw ^ 15` with input `59i64` establishes xored value `52i64` within static interval `40i64..63i64`. Passing `xored` to `verify_xored(res)` satisfies its contract `res >= 40 && res <= 63`. `verify_xored` evaluates exact subtractions `63 - 52 == 11` and `52 - 40 == 12`, sums their values (23), and subtracts 23 returning `0i32`. In `main`, `transition res == 0` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition res == 0` to `transition res == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- Each invalid twin sets `raw >= 64 && raw <= 64` (or `const RAW: i64 = 64`), so `raw ^ 15` yields `79i64`. Calling `verify_xored(xored)` fails closed at compile time under the **Contract precondition** obligation class with `cannot prove requires contract for call verify_xored`. None reaches native execution.
 
 Check all nine invalid twins with:
 
 ```sh
 omega --check samples/cli/facts/signed_64bit_bitwise_xor_bound/<place>/invalid/main.omg
 ```
+
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
 
 The same nine twins are also mirrored under `invalid/<place>/` with an authored
 `expected.txt`, so the invalid controls are discoverable by both the per-place
@@ -61,7 +73,7 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/signed_64bit_bitwise_xor_bound --jobs 4
+python tools/sample_native_gate.py --filter cli/facts/signed_64bit_bitwise_xor_bound --jobs 4
 ```
 
 `sample_native_gate.py` reports:
@@ -70,8 +82,27 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_*` and
-`tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_unproved_*` fixtures.
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_local_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_field_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt`):**
+  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_target_body_rejected/`
 The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
 
 ## Requirements and Evidence
