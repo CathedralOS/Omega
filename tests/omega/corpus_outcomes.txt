@@ -2791,14 +2791,26 @@ fail/facts/guarded_line_loan_through_target_body_held rejected 29494ms expected 
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/guarded_record_line_loan_through_call_result_shared_record rejected 2068ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 fail/facts/guarded_record_line_loan_through_const_name_shared_record rejected 2058ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 fail/facts/guarded_record_line_loan_through_field_shared_record rejected 2208ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 fail/facts/guarded_record_line_loan_through_local_shared_record rejected 2206ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 fail/facts/guarded_record_line_loan_through_match_join_shared_record rejected 2097ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 fail/facts/guarded_record_line_loan_through_other_machine_shared_record rejected 2170ms expected @e7cf0c8c7f70+wt
+	machine `forward` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 fail/facts/guarded_record_line_loan_through_other_state_shared_record rejected 2127ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 fail/facts/guarded_record_line_loan_through_parameter_shared_record rejected 2069ms expected @e7cf0c8c7f70+wt
+	machine `exercise` state `observe` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 fail/facts/guarded_record_line_loan_through_target_body_shared_record rejected 2065ms expected @e7cf0c8c7f70+wt
+	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
 fail/facts/ieee_float_32bit_ordered_bound_through_call_result_rejected rejected 7972ms expected @a6b4f5c6d966+wt
 	cannot prove requires contract for call verify_f32_window from probe: source(reading) >= 1.0 && source(reading) <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/ieee_float_32bit_ordered_bound_through_const_name_rejected rejected 7846ms expected @a6b4f5c6d966+wt
