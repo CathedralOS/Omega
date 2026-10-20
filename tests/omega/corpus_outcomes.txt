@@ -4798,6 +4798,10 @@ fail/facts/unsigned_32bit_bitwise_xor_bound_through_other_state_rejected rejecte
 fail/facts/unsigned_32bit_bitwise_xor_bound_through_parameter_rejected rejected 9538ms expected @d6d8b5ac9c9d+wt
 	cannot prove requires contract for call pass_parameter from probe: res >= 40 && res <= 63 (needs fact `param_res >= 40 && param_res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
 fail/facts/unsigned_32bit_bitwise_xor_bound_through_target_body_rejected rejected 9499ms expected @d6d8b5ac9c9d+wt
+	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
 fail/facts/unsigned_32bit_saturating_multiplication_bound_through_call_result_rejected rejected 17211ms expected @f5ba8b2d7223+wt
 	cannot prove requires contract for call verify_prod from exercise: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_32bit_saturating_multiplication_bound_through_const_name_rejected rejected 17128ms expected @f5ba8b2d7223+wt
