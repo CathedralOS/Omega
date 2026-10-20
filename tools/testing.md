@@ -656,9 +656,25 @@ that turned green. It edits no golden or board; the report is for whoever
 files the item. Run it every few hours on each host that has a native
 golden — the scratch checkout and its mbx cache are removed after each run:
 
+**Shard the leg now that the corpus is over ten thousand fixtures.** One
+invocation does not fit this class of host: on 2026-10-20 a monolithic run on a
+10-core, 16 GB machine spent 119 minutes, its runner's RSS climbed
+1.25 → 2.80 → 3.83 → 4.05 → 6.83 GB, and the 4 GB safety bound killed it. The
+gate writes its verdict document once, at the end, so that kill lost every
+fixture outcome and the baseline stayed three weeks stale — a partial
+measurement is only possible if the leg is divided before it starts. `--shards N`
+runs N hash slices (`corpus_gate.py --shard k/N`, disjoint and stable across
+fixture additions), persists each finished shard as
+`build/native_watch/shard-<revision>-<k>of<N>.json`, and merges them into the
+same snapshot the diff reads; re-running with the same `--shards` resumes from
+the finished shards. Pass `--minimum-fixtures <count>` so an incomplete shard
+set is refused instead of written as a composite snapshot. Shards run one at a
+time under the host's corpus-slot discipline, and a shard that dies costs one
+shard, not the leg.
+
 ```bash
 # macOS: every 4 hours via launchd (~/Library/LaunchAgents/dev.omega.native-watch.plist)
-#   ProgramArguments: /usr/bin/python3 <repo>/tools/native_watch.py
+#   ProgramArguments: /usr/bin/python3 <repo>/tools/native_watch.py --shards 12 --minimum-fixtures 10298
 #   WorkingDirectory: <repo>   StartInterval: 14400
 launchctl load ~/Library/LaunchAgents/dev.omega.native-watch.plist
 ```
