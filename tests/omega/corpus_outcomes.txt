@@ -2572,6 +2572,7 @@ fail/facts/dynamic_trait_dispatch_unproved_target_body rejected 4465ms expected 
 fail/facts/entry_domain_return_after_write rejected 730ms expected @ab16f19fe1b1+wt
 	cannot prove ensures contract for exit from invalid at statement 1: result == 1
 fail/facts/entry_domain_return_other_state_binding rejected 720ms expected @ab16f19fe1b1+wt
+	cannot prove ensures contract for exit from invalid at statement 0: result == 1
 fail/facts/erased_reference_contract_through_call_result_rejected rejected 991ms expected @327a3ccb7744+wt
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/erased_reference_contract_through_const_name_rejected rejected 866ms expected @327a3ccb7744+wt
