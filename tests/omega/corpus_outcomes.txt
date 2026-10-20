@@ -6886,7 +6886,6 @@ fail/providers/authored_same_stack_without_via rejected 1ms @fa0a8b1267bb+wt
 fail/providers/authored_same_stack_zero rejected 0ms @fa0a8b1267bb+wt
 fail/providers/binding_formal_runtime_operand rejected 618ms expected @ff11b3a0f8c7
 	selected checked adapter `named-callable(path(BadProvider::read),parameters(),result-dispatch())` is generic over 1 machine binders; only an exact nongeneric realization can settle a boundary row
-fail/providers/borrowed_binding_local_fabricated_carrier rejected 123ms expected @619f89e4fed6+wt
 fail/providers/borrowed_claim_report_does_not_discharge_owner rejected 2025ms expected @4f0af8695cfb+wt
 	linear value `token` reaches scope exit without being consumed or transferred
 fail/providers/borrowed_membership_current_subject rejected 686ms expected @d75fe4ba5012+wt
@@ -6905,7 +6904,6 @@ fail/providers/checked_completion_returning_branch rejected 3438ms expected @ad4
 fail/providers/checked_completion_service_redispatch rejected 3227ms expected @ad4def8456dc+wt
 fail/providers/checked_reference_provider_local_escape rejected 1208ms expected @001fe6f26d2c
 fail/providers/checked_view_provider_wrong_extent rejected 271ms expected @71e65af3059c+wt
-fail/providers/computed_binding_receiver_fabricated_carrier rejected 3603ms expected @a9ae30e1c334+wt
 fail/providers/consuming_requirement_without_provider rejected 5554ms expected @308fbdc54ba0
 fail/providers/consuming_trait_requirement_without_provider rejected 6626ms expected @308fbdc54ba0
 fail/providers/demanded_unavailable_target_provider rejected 12668ms expected @c78998036afd+wt

@@ -1,1 +1,0 @@
-opaque boundary data `Binding` has no public constructor
