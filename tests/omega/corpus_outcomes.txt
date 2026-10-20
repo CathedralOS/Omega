@@ -351,7 +351,8 @@ fail/borrows/assignment_rhs_carrier_preserves_final_backing rejected 537ms expec
 fail/borrows/assignment_rhs_carrier_preserves_sibling_backing rejected 449ms expected @1d894d08858b+wt
 fail/borrows/assignment_rhs_rebind_preserves_stored_backing rejected 454ms expected @1d894d08858b+wt
 fail/borrows/bare_self_mut_operand_beside_self_view rejected 1513ms expected @a9ae30e1c334+wt
-fail/borrows/binding_state_mutable_from_shared rejected 837ms expected @a9ae30e1c334+wt
+fail/borrows/binding_state_mutable_from_shared rejected 943ms expected @ad1067ed445d
+	argument `cell` for state `finish` is declared `&mut` (`&mut Cell`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/borrow_duplicate_mut rejected 1565ms expected @a9ae30e1c334+wt
 fail/borrows/borrow_local_alias_active rejected 1516ms expected @a9ae30e1c334+wt
 fail/borrows/borrow_mut_and_read rejected 1566ms expected @a9ae30e1c334+wt

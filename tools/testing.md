@@ -1199,21 +1199,18 @@ collected target directories took every binary with them.
   measured by the discovery lane, where `cargo` failed with the same `Not a
   directory (os error 20)` until `rmdir target` and a rebuild.
 
-Reclaiming the old cache before repointing the links is what turned this into an
-outage, because every worktree fails at once and the failure does not read like
-one. A gate reports it as `corpus_gate: runner build failed (101)` or as an
-`os error 20` from a Cargo dependency, both of which look like a compiler or
-runner defect; a build that never started is infrastructure. A `target` has
-three states after the move, and only the first is fine: absent (`mbx` recreates
-it), a symlink into the old cache (`rm target`), and a plain empty directory,
-where `cargo` reports `Not a directory (os error 20)` and `mbx` never recreates
-it (`rmdir target`, then rebuild). Inspect with `ls -ld target`; `readlink`
-reports that third state as "no symlink", which reads as fine.
+Inspect each worktree's `target` with `ls -ld target`, not `readlink`: a plain
+empty directory is the third state above, and `readlink` reports it as "no
+symlink", which reads as fine.
 
-Do it in order: change `cache_dir`, fix `target` in every worktree, verify one
-`mbx build` in one of them, and only then reclaim the old cache. A measurement
-run that started before the move measured a runner that no longer exists, so
-re-run it rather than reusing its result.
+Reclaiming the old cache before the links are fixed is what turned this into an
+outage, because every worktree fails at once and the failure does not read like
+one: a gate reports it as `corpus_gate: runner build failed (101)` and a
+dependency as the same `os error 20`, both of which look like a compiler or
+runner defect. Do it in order: change `cache_dir`, fix `target` in every
+worktree, verify one `mbx build` in one of them, and only then reclaim the old
+cache. A measurement run that started before the move measured a runner that no
+longer exists, so re-run it rather than reusing its result.
 
 Moving a cache between volumes has its own trap. macOS ships `openrsync` as
 `/usr/bin/rsync`: it rejects GNU-only flags such as `--info=...` by printing
