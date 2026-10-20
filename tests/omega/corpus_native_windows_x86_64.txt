@@ -353,7 +353,7 @@ pass/build/runtime_opaque_by_value_selected_exit built 22304ms exit:72 @91bbf3e2
 pass/build/runtime_static_service_exclusion_exit built 15644ms exit:0 @91bbf3e29aa9
 pass/build/same_leaf_runner_entry_left_exit built 12953ms exit:11 @91bbf3e29aa9
 pass/build/same_leaf_runner_entry_right_exit built 12440ms exit:37 @91bbf3e29aa9
-pass/build/selected_const_array_length_exit rejected 2584ms @91bbf3e29aa9
+pass/build/selected_const_array_length_exit built 53972ms exit:0 @b24be450e4c2+wt
 pass/build/sibling_module_service_exclusion_exit built 13072ms exit:0 @91bbf3e29aa9
 pass/build/sibling_module_slot_family_rows_exit built 12867ms exit:70 @91bbf3e29aa9
 pass/build/static_assumed_binding_spelling_exit built 13127ms exit:0 @91bbf3e29aa9
@@ -1269,15 +1269,15 @@ pass/facts/case_where_equality_through_other_machine_exit built 5791ms exit:0 @e
 pass/facts/case_where_equality_through_other_state_exit built 5972ms exit:0 @ec38c6dfcf45
 pass/facts/case_where_equality_through_parameter_exit built 5827ms exit:0 @ec38c6dfcf45
 pass/facts/case_where_equality_through_target_body_exit built 5650ms exit:0 @ec38c6dfcf45
-pass/facts/checked_asm_register_contract_bound_through_call_result_exit built 20334ms exit:0 @8f970335dca4+wt
-pass/facts/checked_asm_register_contract_bound_through_const_name_exit built 20691ms exit:0 @8f970335dca4+wt
-pass/facts/checked_asm_register_contract_bound_through_field_exit built 20568ms exit:0 @8f970335dca4+wt
-pass/facts/checked_asm_register_contract_bound_through_local_exit built 17828ms exit:0 @8f970335dca4+wt
-pass/facts/checked_asm_register_contract_bound_through_match_join_exit built 20544ms exit:0 @8f970335dca4+wt
-pass/facts/checked_asm_register_contract_bound_through_other_machine_exit built 18029ms exit:0 @8f970335dca4+wt
-pass/facts/checked_asm_register_contract_bound_through_other_state_exit built 21354ms exit:0 @8f970335dca4+wt
-pass/facts/checked_asm_register_contract_bound_through_parameter_exit built 21243ms exit:0 @8f970335dca4+wt
-pass/facts/checked_asm_register_contract_bound_through_target_body_exit built 21197ms exit:0 @8f970335dca4+wt
+pass/facts/checked_asm_register_contract_bound_through_call_result_exit built 6636ms exit:0 @b24be450e4c2+wt
+pass/facts/checked_asm_register_contract_bound_through_const_name_exit built 6622ms exit:0 @b24be450e4c2+wt
+pass/facts/checked_asm_register_contract_bound_through_field_exit built 6730ms exit:0 @b24be450e4c2+wt
+pass/facts/checked_asm_register_contract_bound_through_local_exit built 6709ms exit:0 @b24be450e4c2+wt
+pass/facts/checked_asm_register_contract_bound_through_match_join_exit built 6549ms exit:0 @b24be450e4c2+wt
+pass/facts/checked_asm_register_contract_bound_through_other_machine_exit built 6499ms exit:0 @b24be450e4c2+wt
+pass/facts/checked_asm_register_contract_bound_through_other_state_exit built 6580ms exit:0 @b24be450e4c2+wt
+pass/facts/checked_asm_register_contract_bound_through_parameter_exit built 6663ms exit:0 @b24be450e4c2+wt
+pass/facts/checked_asm_register_contract_bound_through_target_body_exit built 6690ms exit:0 @b24be450e4c2+wt
 pass/facts/compound_index_guard_through_call_result_exit built 5937ms exit:0 @ec38c6dfcf45
 pass/facts/compound_index_guard_through_const_name_exit built 5584ms exit:0 @ec38c6dfcf45
 pass/facts/compound_index_guard_through_field_exit built 5715ms exit:0 @ec38c6dfcf45

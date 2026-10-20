@@ -75,11 +75,14 @@ pub(crate) fn expression_call_has_operator_namespace(
         .iter()
         .map(|member| member.as_str())
         .collect();
+    let target_symbol = typed_trees::operator::resolve_named_expression_call(program, call)
+        .map(|operator| operator.symbol)
+        .unwrap_or(call.target_symbol);
     is_named_operator_namespace(
         program,
         &receiver_symbols,
         &namespace,
-        call.target_symbol,
+        target_symbol,
         call.target.as_str(),
         table.expression_handles(call.arguments).len(),
     )

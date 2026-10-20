@@ -762,6 +762,36 @@ fn ensures_result_interval(
     machine: &Machine,
     entry: &State,
 ) -> Interval {
+    if machine.target_family_interface {
+        let Some(members) = crate::machine_calls::calls::target_family_members(program, machine)
+        else {
+            return Interval::UNBOUNDED;
+        };
+        let mut union: Option<Interval> = None;
+        for member in members {
+            let Some(member_machine) = program.machine(member.machine) else {
+                return Interval::UNBOUNDED;
+            };
+            let Some(member_entry) = program.machine_states(member_machine).first() else {
+                return Interval::UNBOUNDED;
+            };
+            let member_interval =
+                declared_ensures_result_interval(program, member_machine, member_entry);
+            union = Some(match union {
+                Some(existing) => existing.union(member_interval),
+                None => member_interval,
+            });
+        }
+        return union.unwrap_or(Interval::UNBOUNDED);
+    }
+    declared_ensures_result_interval(program, machine, entry)
+}
+
+fn declared_ensures_result_interval(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    entry: &State,
+) -> Interval {
     let mut interval = Interval::UNBOUNDED;
     let ensures = program
         .machine_contracts(machine)

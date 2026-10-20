@@ -26,7 +26,29 @@ pub fn resolve_named_call<'program>(
             && named_operator_arity_fits_call(program, operator, argument_count, has_value_receiver)
     });
     let first = candidates.next()?;
-    candidates.next().is_none().then_some(first)
+    candidates
+        .all(|other| same_authored_operator_declaration(program, first.symbol, other.symbol))
+        .then_some(first)
+}
+
+fn same_authored_operator_declaration(
+    program: &TypedTrees,
+    left: SymbolHandle,
+    right: SymbolHandle,
+) -> bool {
+    let Some(left_span) = program.symbols.symbol_provenance_source_span(left) else {
+        return false;
+    };
+    let Some(right_span) = program.symbols.symbol_provenance_source_span(right) else {
+        return false;
+    };
+    left_span.span == right_span.span
+        && left_span.span.start != left_span.span.end
+        && program
+            .symbols
+            .source_file(left_span)
+            .zip(program.symbols.source_file(right_span))
+            .is_some_and(|(left_file, right_file)| left_file.path == right_file.path)
 }
 
 /// Resolve an expression-position named operator call using the receiver path
@@ -84,26 +106,40 @@ pub fn named_expression_call_candidates<'program>(
     let static_segments = expression_static_receiver_segments(program, call);
     let has_value_receiver = call.receiver.is_valid() && static_segments.is_none();
     let static_receiver_segments = static_segments.as_deref();
-    let argument_count = program
-        .expression_table
-        .expression_handles(call.arguments)
-        .len();
+    let argument_handles = program.expression_table.expression_handles(call.arguments);
+    let argument_count = argument_handles.len();
+    let use_site = call
+        .receiver
+        .is_valid()
+        .then(|| program.expression_table.source_span(call.receiver))
+        .filter(|span| span.span.start != span.span.end)
+        .or_else(|| {
+            argument_handles
+                .iter()
+                .map(|argument| program.expression_table.source_span(*argument))
+                .find(|span| span.span.start != span.span.end)
+        })
+        .unwrap_or_default();
     program
         .operators()
         .iter()
         .chain(program.machine_token_bindings())
         .filter(|operator| {
-            named_operator_path_matches_call(
-                program,
-                operator,
-                static_receiver_segments,
-                call.target.as_str(),
-            ) && named_operator_arity_fits_call(
-                program,
-                operator,
-                argument_count,
-                has_value_receiver,
-            )
+            program
+                .symbols
+                .source_reference_can_see_symbol(use_site, operator.symbol)
+                && named_operator_path_matches_call(
+                    program,
+                    operator,
+                    static_receiver_segments,
+                    call.target.as_str(),
+                )
+                && named_operator_arity_fits_call(
+                    program,
+                    operator,
+                    argument_count,
+                    has_value_receiver,
+                )
         })
         .collect()
 }
@@ -251,25 +287,32 @@ pub fn named_statement_call_candidates<'program>(
             .collect::<Vec<_>>()
     });
     let has_value_receiver = !receiver.is_empty() && !is_static_namespace;
-    let argument_count = program
-        .statement_table
-        .expression_handles(call.arguments)
-        .len();
+    let argument_handles = program.statement_table.expression_handles(call.arguments);
+    let argument_count = argument_handles.len();
+    let use_site = argument_handles
+        .iter()
+        .map(|argument| program.expression_table.source_span(*argument))
+        .find(|span| span.span.start != span.span.end)
+        .unwrap_or_default();
     program
         .operators()
         .iter()
         .filter(|operator| {
-            named_operator_path_matches_call(
-                program,
-                operator,
-                static_segments.as_deref(),
-                call.target.as_str(),
-            ) && named_operator_arity_fits_call(
-                program,
-                operator,
-                argument_count,
-                has_value_receiver,
-            )
+            program
+                .symbols
+                .source_reference_can_see_symbol(use_site, operator.symbol)
+                && named_operator_path_matches_call(
+                    program,
+                    operator,
+                    static_segments.as_deref(),
+                    call.target.as_str(),
+                )
+                && named_operator_arity_fits_call(
+                    program,
+                    operator,
+                    argument_count,
+                    has_value_receiver,
+                )
         })
         .collect()
 }

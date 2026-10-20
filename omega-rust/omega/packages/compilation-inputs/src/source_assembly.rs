@@ -181,10 +181,12 @@ impl ImmutableSourceParseCheckpoint {
         // an authored import. Loading supplies no selection or provider
         // authority: normal operand applicability, ambiguity, checked boundary
         // applications and selected ProviderPlans still own those judgments.
-        imports.seed(
-            core_root.join("float_operations.omg"),
-            source::DependencyScope::Product,
-        );
+        if product_sources_mention_floats(&source_storage) {
+            imports.seed(
+                core_root.join("float_operations.omg"),
+                source::DependencyScope::Product,
+            );
+        }
         load_imports(
             &mut source_storage,
             &mut imports,
@@ -473,6 +475,41 @@ fn load_imports(
 
 /// Observe Psi's source work using the package invocation's existing report.
 struct ParsingTimings<'timings>(&'timings mut CompileTimings);
+
+fn product_sources_mention_floats(source_storage: &crate::source_imports::SourceStorage) -> bool {
+    source_storage
+        .sources
+        .files()
+        .filter(|file| file.dependency_scope == source::DependencyScope::Product)
+        .any(|file| {
+            let text = file.source.as_ref();
+            text.contains("f32")
+                || text.contains("f64")
+                || text.contains("Float")
+                || text.contains("F32")
+                || text.contains("F64")
+        })
+        || source_storage
+            .syntax_trees
+            .tables
+            .expressions
+            .iter_expressions()
+            .any(|(handle, node)| {
+                matches!(node, syntax_trees::expression::ExpressionNode::Float(_))
+                    && source_storage
+                        .sources
+                        .file_at(
+                            source_storage
+                                .syntax_trees
+                                .tables
+                                .expressions
+                                .source_span(handle),
+                        )
+                        .is_some_and(|file| {
+                            file.dependency_scope == source::DependencyScope::Product
+                        })
+            })
+}
 
 impl PsiCompilationObserver for ParsingTimings<'_> {
     fn record_result<Value, Error>(

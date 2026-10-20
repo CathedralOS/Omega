@@ -55,6 +55,52 @@ pub(crate) fn ensured_call_result_interval(
     call: &TableCallExpression,
     actuals: &super::call_result_bounds::ArgumentBounds,
 ) -> Option<Interval> {
+    if let Some((machine, state)) =
+        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
+        && machine.target_family_interface
+        && program.machine_states(machine).first()?.symbol == state.symbol
+    {
+        let parameters = program.state_parameters(state);
+        let members = crate::machine_calls::calls::target_family_members(program, machine)?;
+        let mut union: Option<Interval> = None;
+        for member in members {
+            let member_machine = program.machine(member.machine)?;
+            let member_entry = program.machine_states(member_machine).first()?;
+            let member_callee =
+                crate::machine_calls::calls::callee_entry_contract(program, member_entry.symbol)?;
+            if member_callee.parameters.len() != parameters.len() {
+                return None;
+            }
+            let remap = |items: &[(symbols::SymbolHandle, Interval)]| {
+                parameters
+                    .iter()
+                    .zip(member_callee.parameters)
+                    .filter_map(|(interface_param, member_param)| {
+                        items
+                            .iter()
+                            .find(|(symbol, _)| *symbol == interface_param.symbol)
+                            .map(|(_, interval)| (member_param.symbol, *interval))
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let member_actuals = super::call_result_bounds::ArgumentBounds {
+                values: remap(&actuals.values),
+                lengths: remap(&actuals.lengths),
+            };
+            let member_interval = super::call_result_bounds::normal_return_interval(
+                program,
+                &member_callee,
+                Interval::UNBOUNDED,
+                &member_actuals,
+            );
+            union = Some(match union {
+                Some(existing) => existing.union(member_interval),
+                None => member_interval,
+            });
+        }
+        let interval = union?;
+        return (interval != Interval::UNBOUNDED).then_some(interval);
+    }
     let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
     // One contract projector serves every selected call. The old static-call
     // shortcut and the weaker ordinary-call parser disagreed on the same

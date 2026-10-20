@@ -134,11 +134,17 @@ pub(super) fn receiver_is_operator_namespace(
         .iter()
         .map(|member| member.as_str())
         .collect();
+    let candidates =
+        typed_trees::operator::named_statement_call_candidates(scope.program, scope.call);
+    let target_symbol = match candidates.as_slice() {
+        [selected] => selected.symbol,
+        _ => scope.call.target_symbol,
+    };
     crate::declarations::operators::namespaces::is_named_operator_namespace(
         scope.program,
         &[scope.call.receiver_symbol],
         &namespace,
-        scope.call.target_symbol,
+        target_symbol,
         scope.call.target.as_str(),
         argument_count,
     )

@@ -71,10 +71,13 @@ pub fn resolve_spelling<'program>(
             program
                 .symbols
                 .source_reference_may_select_symbol(use_site, candidate.operator.symbol)
-                || super::primitive_float::is_default_primitive_operator(
-                    program,
-                    candidate.operator,
-                )
+                || (program
+                    .symbols
+                    .source_reference_can_see_symbol(use_site, candidate.operator.symbol)
+                    && super::primitive_float::is_default_primitive_operator(
+                        program,
+                        candidate.operator,
+                    ))
         })
         .filter(|candidate| match receiver_type {
             Some(receiver_type) => {

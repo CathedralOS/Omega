@@ -609,12 +609,13 @@ fn validate_machine_operator_conformance(
         return true;
     }
 
-    let operator = if let Some(operator) = typed_trees::operator::resolve_satisfied_checked_operator(
-        program,
-        machine,
-        namespace,
-        requirement_name,
-    ) {
+    let operator = if let Some(operator) =
+        typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+            program,
+            machine,
+            conformance,
+        )
+    {
         operator
     } else {
         let retained = typed_trees::operator::resolve_specialized_checked_operator_application(
