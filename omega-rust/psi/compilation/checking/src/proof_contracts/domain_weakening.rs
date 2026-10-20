@@ -164,7 +164,12 @@ fn validate_domain_delivery(
     obligations: &[DomainAtom],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if !value.is_valid() || !target_type.is_valid() {
+    if !value.is_valid()
+        || !target_type.is_valid()
+        || crate::proof_contracts::arithmetic_domains::expression_reads_unresolved_local_initializer(
+            program, machine, state, value,
+        )
+    {
         return;
     }
     let source = expression_atoms(program, machine, state, value);

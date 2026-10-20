@@ -333,13 +333,21 @@ impl Operation<'_, '_> {
                 [left, right],
             );
         }
-        self.left.primitive.or(self.right.primitive).or_else(|| {
-            if interval.low.is_some() && interval.high.is_some() {
-                self.walk.target_primitive
-            } else {
-                None
-            }
-        })
+        self.left
+            .primitive
+            .filter(|primitive| *primitive != PrimitiveType::Bool)
+            .or_else(|| {
+                self.right
+                    .primitive
+                    .filter(|primitive| *primitive != PrimitiveType::Bool)
+            })
+            .or_else(|| {
+                if interval.low.is_some() && interval.high.is_some() {
+                    self.walk.target_primitive
+                } else {
+                    None
+                }
+            })
     }
 
     fn has_address_operand(&self) -> bool {
@@ -627,14 +635,22 @@ impl Operation<'_, '_> {
 
     fn bitwise_result(&self, domain: Option<ArithmeticDomain>) -> Analysis {
         let (left, right) = (&self.left, &self.right);
-        let primitive = left.primitive.or(right.primitive).or_else(|| {
-            (left.interval.low.is_some()
-                && left.interval.high.is_some()
-                && right.interval.low.is_some()
-                && right.interval.high.is_some())
-            .then_some(self.walk.target_primitive)
-            .flatten()
-        });
+        let primitive = left
+            .primitive
+            .filter(|primitive| *primitive != PrimitiveType::Bool)
+            .or_else(|| {
+                right
+                    .primitive
+                    .filter(|primitive| *primitive != PrimitiveType::Bool)
+            })
+            .or_else(|| {
+                (left.interval.low.is_some()
+                    && left.interval.high.is_some()
+                    && right.interval.low.is_some()
+                    && right.interval.high.is_some())
+                .then_some(self.walk.target_primitive)
+                .flatten()
+            });
         Analysis {
             recipe: None,
             domain,

@@ -118,7 +118,8 @@ fail/arithmetic/short_circuit_cast_wrong_path rejected 905ms expected @a9ae30e1c
 fail/arithmetic/signed_zero_does_not_prove_positive rejected 3907ms expected @7875d3411f26+wt
 fail/arithmetic/stale_named_state_operand_bound rejected 851ms expected @a9ae30e1c334+wt
 fail/arithmetic/suffix_magnitude_overflow_rejected rejected 2695ms expected @a9ae30e1c334+wt
-fail/arithmetic/suffix_type_disagrees_rejected rejected 2754ms expected @a9ae30e1c334+wt
+fail/arithmetic/suffix_type_disagrees_rejected rejected 4303ms expected @78f48cd3217e+wt
+	literal `5` is suffixed `i8` but lands in a `u32` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/arithmetic/total_contract_division_wrong_arm rejected 841ms expected @a9ae30e1c334+wt
 fail/arithmetic/total_contract_guarded_trapping_division rejected 882ms expected @a9ae30e1c334+wt
 fail/arithmetic/total_contract_signed_division_unproven rejected 820ms expected @a9ae30e1c334+wt
@@ -128,7 +129,8 @@ fail/arithmetic/transitive_bit_guard_nonstrict_count rejected 821ms expected @a9
 fail/arithmetic/truncating_reconstruction_negative_dividend rejected 958ms expected @cc35a4f0d368+wt
 fail/arithmetic/truncating_reconstruction_too_tight rejected 909ms expected @cc35a4f0d368+wt
 fail/arithmetic/unconstrained_disjunction_exact_product rejected 283ms @fa9134cda58d+wt
-fail/arithmetic/undeclared_bare_name_rejected rejected 2792ms expected @a9ae30e1c334+wt
+fail/arithmetic/undeclared_bare_name_rejected rejected 4298ms expected @78f48cd3217e+wt
+	machine `Main::main` state `main` uses `undeclared_var`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/arithmetic/unequal_observations_do_not_compose rejected 848ms expected @a9ae30e1c334+wt
 fail/arithmetic/unknown_field_write_rejected rejected 2711ms expected @a9ae30e1c334+wt
 fail/arithmetic/unqualified_case_value_rejected rejected 36ms expected @a9ae30e1c334+wt
@@ -861,7 +863,8 @@ fail/calls/terminal_call_marked_state rejected 1620ms expected @1ade44fe20d0+wt
 fail/calls/terminal_call_redundant_block rejected 2829ms expected @1ade44fe20d0+wt
 fail/calls/terminal_call_result_type_mismatch_rejected rejected 897ms expected @a9ae30e1c334+wt
 fail/calls/terminal_call_reversed_markers rejected 1ms expected @1ade44fe20d0+wt
-fail/calls/terminal_return_type_mismatch_rejected rejected 893ms expected @a9ae30e1c334+wt
+fail/calls/terminal_return_type_mismatch_rejected rejected 1012ms expected @78f48cd3217e+wt
+	machine `Main::main` state `main` stores a boolean into a `i32` return value, which holds a numeric value
 fail/calls/terminal_state_jump_block_acknowledgement rejected 291ms expected @f966c3673236
 fail/calls/unresolved_value_call_rejected rejected 2702ms expected @a9ae30e1c334+wt
 fail/calls/value_call_wrong_argument_count_rejected rejected 2942ms expected @a9ae30e1c334+wt
@@ -1707,7 +1710,8 @@ fail/expressions/anonymous_structural_match_undefined_subject rejected 79ms expe
 fail/expressions/anonymous_structural_match_unselected_arm_type rejected 161ms expected @5c4c9bc0ebab
 fail/expressions/arithmetic_domain_literal_target_overflow rejected 2800ms expected @a9ae30e1c334+wt
 fail/expressions/arithmetic_domain_mixed rejected 2717ms expected @a9ae30e1c334+wt
-fail/expressions/bool_numeric_operand_mixing_rejected rejected 2730ms expected @a9ae30e1c334+wt
+fail/expressions/bool_numeric_operand_mixing_rejected rejected 4288ms expected @78f48cd3217e+wt
+	machine `Main::main` state `main` applies an operator to a boolean and a numeric value -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
 fail/expressions/call_result_case_membership_foreign_case_rejected rejected 1450ms expected @7c0518fd7afd+wt
 fail/expressions/cast_result_range rejected 880ms expected @a9ae30e1c334+wt
 fail/expressions/cast_struct_to_number_rejected rejected 2820ms expected @a9ae30e1c334+wt

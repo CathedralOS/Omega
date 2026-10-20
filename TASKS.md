@@ -1150,10 +1150,6 @@ defines the complete product bar.
     separate executable customer is `samples/cli/proofs/quotient_runtime_carrier`.
 
   Diagnostic acceptance:
-  - **IMPLICIT-STORE-CONVERSION** owns duplicate conversion/weakening reports in
-    `fail/calls/terminal_return_type_mismatch_rejected`,
-    `fail/expressions/bool_numeric_operand_mixing_rejected` and
-    `fail/arithmetic/{suffix_type_disagrees,undeclared_bare_name}_rejected`.
   - Keep `fail/arithmetic/narrowing_anonymous_expression_unproven` (range
     obligation) distinct from `narrowing_signedness_rejected` (carrier), and
     the `fail/modules/duplicate_data_keeps_guard_facts` control.
@@ -5044,18 +5040,17 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Resolved fixed-integer value deliveries leave arithmetic-policy refusal to
     the shared carrier check, including local/field/array stores, arguments and returns;
     `fail/arithmetic/implicit_integer_policy_erasure_rejected` pins one
-    conversion report per occurrence. Semantic/provenance atoms, reference
+    conversion report per occurrence, and cross-class boolean stores, direct
+    suffixed literal landings and unresolved-initializer local deliveries
+    (`fail/calls/terminal_return_type_mismatch_rejected`,
+    `fail/expressions/bool_numeric_operand_mixing_rejected` and
+    `fail/arithmetic/{suffix_type_disagrees,undeclared_bare_name}_rejected`)
+    report only their primary diagnostic. Semantic/provenance atoms, reference
     qualifications and float policy still retain their own obligations.
-    Remaining: diagnostic cascades after a primary type, suffix or
-    unresolved-name error and duplicate non-integer or unresolved deliveries.
-    Coordinate
-    `omega-rust/psi/compilation/checking/src/program_validation/statements/`,
-    `omega-rust/psi/compilation/checking/src/machine_calls/calls/argument_bounds.rs`
-    and `omega-rust/psi/compilation/checking/src/proof_contracts/domain_weakening.rs`.
-    Reproduction: `fail/arithmetic/implicit_store_call_result_conversion_rejected`
-    reports an arity error, then an overflow, then the conversion. Keep real
-    primary subjects and independent errors; do not blanket-suppress domain
-    obligations.
+    Remaining: `fail/arithmetic/implicit_store_call_result_conversion_rejected`
+    still carries a retired value-qualified call diagnostic alongside the
+    conversion. Keep real primary subjects and independent errors; do not
+    blanket-suppress domain obligations.
   - Float-policy customers: revalidate the reported Windows named-operator
     admission failure; the saturation, overflow-trap, propagated-NaN-trap and
     two-rounding multiply-then-add oracles now execute correctly on macOS ARM64.

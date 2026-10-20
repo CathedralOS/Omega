@@ -193,6 +193,71 @@ fn carrier_spelling(primitive: PrimitiveType, domain: Option<ArithmeticDomain>) 
     }
 }
 
+fn is_direct_suffixed_integer_literal(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    let mut current = expression;
+    loop {
+        match program.expression_table.expression(current) {
+            ExpressionNode::Borrow(inner) => current = inner.target,
+            ExpressionNode::Integer(literal) => return literal.landing().is_some(),
+            ExpressionNode::Match(dispatch) => {
+                let arms = program.expression_table.match_arms(dispatch.arms);
+                return !arms.is_empty()
+                    && arms
+                        .iter()
+                        .any(|arm| is_direct_suffixed_integer_literal(program, arm.value));
+            }
+            _ => return false,
+        }
+    }
+}
+
+fn is_unresolved_bare_name(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(path) = program.expression_table.name_path_node(expression) else {
+        return false;
+    };
+    let [first] = program.expression_table.name_path_members(path.members) else {
+        return false;
+    };
+    !path.symbol.is_valid()
+        && !path.head_symbol.is_valid()
+        && language_semantics::const_value::boolean_literal_spelling(first.as_str()).is_none()
+        && super::declared_place_type_raw(program, machine, Some(state), expression).is_none()
+}
+
+pub(crate) fn expression_reads_unresolved_local_initializer(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(state) = state else {
+        return false;
+    };
+    let Some(path) = program.expression_table.name_path_node(expression) else {
+        return false;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return false;
+    };
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        let Some(local) = statement.as_local_data() else {
+            continue;
+        };
+        if local.name.as_str() == name.as_str() && local.initial_value.is_valid() {
+            return is_unresolved_bare_name(program, machine, state, local.initial_value);
+        }
+    }
+    false
+}
+
 /// Supply a stored value's declared integer carrier when interval analysis
 /// names none. A selected expression result remains typed even when the
 /// interval walk cannot describe it; the destination cannot choose its type.
@@ -208,8 +273,13 @@ pub(crate) fn stored_value_carrier(
     analyzed: Option<PrimitiveType>,
     analyzed_domain: Option<ArithmeticDomain>,
 ) -> (Option<PrimitiveType>, Option<ArithmeticDomain>) {
+    if !value.is_valid()
+        || is_direct_suffixed_integer_literal(program, value)
+        || expression_reads_unresolved_local_initializer(program, machine, state, value)
+    {
+        return (None, None);
+    }
     if analyzed.is_some()
-        || !value.is_valid()
         || crate::value_custody::literals::has_anonymous_numeric_results(program, value)
     {
         return (analyzed, analyzed_domain);
@@ -261,10 +331,10 @@ pub(crate) fn check_narrowing_assignment(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(primitive) = target else {
+    let Some(primitive) = target.filter(|primitive| *primitive != PrimitiveType::Bool) else {
         return;
     };
-    if let Some(source_primitive) = source
+    if let Some(source_primitive) = source.filter(|primitive| *primitive != PrimitiveType::Bool)
         && (source_primitive != primitive
             || source_domain.is_some_and(|domain| domain != target_domain))
     {
