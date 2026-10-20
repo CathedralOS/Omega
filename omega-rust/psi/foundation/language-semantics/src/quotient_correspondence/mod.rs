@@ -54,18 +54,17 @@ pub enum QuotientPositionalRelation {
     },
 }
 
-/// One retained runtime-argument correspondence.
-///
-/// Rows are stored in representative order, so `representative_position`
-/// always equals the row index. A faithful `define` also keeps
-/// `public_position` equal to that index; a transport-backed `lift` records
-/// the actual argument-adaptation map, so `public_position` selects the
-/// public parameter feeding this representative position and may select,
-/// permute, repeat, or omit public parameters.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct QuotientDefineRuntimePosition {
-    pub public_position: u32,
-    pub representative_position: u32,
+/// Normalized source actual in representative order. This judgment remains in
+/// checked trees; ordinary evaluated call operands cross the Terminal boundary.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum QuotientRuntimeArgument {
+    PublicParameter {
+        public_position: u32,
+    },
+    ClosedLiteral {
+        value_identity: String,
+        representative_type: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -247,24 +246,22 @@ pub enum QuotientResultFlow {
     },
 }
 
-/// Complete source-free correspondence for a selected quotient operation.
+/// Normalized checking judgment for a selected quotient operation.
 ///
-/// Construction is non-authoritative. Terminal publication binds source-checked
-/// admission to actual calls and adaptations; this is not a PCC theorem proof.
+/// This remains on the source side of the firewall. Lowering emits ordinary
+/// calls and nominal copy licenses; it never serializes this proof judgment.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CanonicalQuotientCorrespondence {
+pub struct QuotientCorrespondenceJudgment {
     pub operation_kind: QuotientCorrespondenceOperationKind,
     pub public_operation: QuotientCallableIdentity,
     pub representative: QuotientMachineApplication,
-    /// One retained input relation per `runtime_positions` row, indexed by
+    /// One retained input relation per `runtime_arguments` row, indexed by
     /// representative position for `lift` and by the shared faithful position
     /// for `define`.
     pub input_relations: Vec<QuotientPositionalRelation>,
     pub result_relation: QuotientPositionalRelation,
-    /// The runtime-argument map in representative order; see
-    /// [`QuotientDefineRuntimePosition`] for `define` versus adapted `lift`
-    /// semantics.
-    pub runtime_positions: Vec<QuotientDefineRuntimePosition>,
+    /// Exact source actuals in representative order, including literal landing.
+    pub runtime_arguments: Vec<QuotientRuntimeArgument>,
     pub theorem_evidence: Vec<QuotientTheoremEvidence>,
     pub representative_eligibility: QuotientRepresentativeEligibility,
     pub result_flow: QuotientResultFlow,

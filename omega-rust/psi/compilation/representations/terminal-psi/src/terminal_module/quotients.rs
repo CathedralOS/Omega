@@ -4,7 +4,7 @@
 //! these rows bind formation or a checked operation to the actual copy/call
 //! occurrence. The ordinary storage and call operations perform computation.
 use language_semantics::quotient_correspondence::{
-    CanonicalQuotientCorrespondence, QuotientRelationIdentity,
+    QuotientPositionalRelation, QuotientRelationIdentity,
 };
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
 
@@ -31,10 +31,10 @@ pub struct TerminalQuotientOperation {
     pub public_machine: MachineId,
     pub representative_machine: MachineId,
     pub call: OperationId,
-    pub correspondence: CanonicalQuotientCorrespondence,
-    /// Ordered selected theorem declarations. The normalized schemas and
-    /// exact fact-coordinate mapping are in correspondence.theorem_evidence.
-    pub theorems: Vec<TerminalQuotientTheorem>,
+    /// Nominal runtime adaptation joins only. Source theorem schemas and the
+    /// checking judgment are erased before this catalog is emitted.
+    pub input_relations: Vec<QuotientPositionalRelation>,
+    pub result_relation: QuotientPositionalRelation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,15 +54,4 @@ pub struct TerminalQuotientAdaptation {
     pub result_type: StructuralTypeId,
     pub representation: u32,
     pub license: TerminalQuotientAdaptationLicense,
-}
-
-/// Source admission is explicit; this is not an independently checked PCC proof.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TerminalQuotientTheoremAdmission {
-    SourceCheckedBodyfulResultless,
-}
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalQuotientTheorem {
-    pub declaration: crate::CheckedMachineDeclaration,
-    pub admission: TerminalQuotientTheoremAdmission,
 }

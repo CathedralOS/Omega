@@ -627,9 +627,17 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 168 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 171 + `u16` vocabulary
 marker 129 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with boundary-application candidates.
+
+The quotient catalog retains nominal formations and executable copy/call joins.
+A call join names the public machine, representative machine and call occurrence,
+then its structural-input relations and result relation. Scalar actuals use the
+ordinary scalar call lane. Correspondence checking judgments, selected theorem
+schemas and automatic/selected implication evidence remain source-side and are
+not serialized here. Marker 171 replaces the earlier proof-row catalog layout;
+older markers are rejected before their payload is read.
 
 <!-- module-table-order -->
 | # | Module table | Row |

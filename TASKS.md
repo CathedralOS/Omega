@@ -4450,7 +4450,7 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     path/result availability and assumption closure; remove the retired
     parser/carrier paths and the replacement proof rows in
     `omega-rust/omega/packages/review-evidence/EVIDENCE_SCHEMA.md`, plus
-    **QUOTIENT-THEOREM-LIFT**'s congruence-only lift.
+    the remaining transitive assumption closure for quotient selections.
   - Complete arbitrary mathematical application and theorem-only logical
     hypotheses: `TraitRequirement` needs predicate/function terms beyond
     lifetime/type arguments. Keep executable callback selection, local
@@ -5773,25 +5773,30 @@ wait for Cathedral's instruction coverage. The interpreter is
 - **QUOTIENT-THEOREM-LIFT.** Extend quotient correspondence beyond public
   parameter positions under [lifting operations](wiki/spec/proofs/quotients.md#lifting-operations)
   and the [correspondence judgment](wiki/spec/proofs/quotients.md#quotient-correspondence-judgment).
-  `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/terminal_bridge.rs`
-  already handles parameter selection/permutation/repetition/omission,
-  immutable result aliases and finite state forwarding; reuse it. It is now
-  only the admission judgment (`admit_checked_quotient_requests` admits a
-  batch the bridge can express) and still builds the old Terminal row shape
-  and its `correspondence_certificate.rs` certificate to decide; replace that
-  row-shaped output with the normalized judgments as the forms broaden.
-  - Its `canonical_lift_runtime_positions` covers only public-parameter
-    positions; the bridge requires empty static applications and single
-    representative/theorem states and refuses `define` preconditions. Support
-    closed literal arguments, preconditioned `define`, result computation and
-    generic applications, replacing those source-shape gates with the
-    normalized judgments and keeping ordered theorem roles.
+  The normalized source judgment in
+  `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/normalized_judgment.rs`
+  retains exact argument identities and ordered theorem roles. Ordinary checked
+  calls carry runtime realization; Terminal retains nominal adaptations rather
+  than source correspondence schemas.
+  - Closed literal arguments now use exact typed value identities alongside
+    public parameters. `samples/cli/facts/quotient_closed_literal` covers complete
+    automatic transport, selected transport and scalar-first argument order,
+    with wrong-value, wrong-type, altered-theorem and missing-legality controls.
+    The frozen baseline failed specification-call formation despite a prior
+    integer premise; source arithmetic binding and pure contract-call terms
+    now preserve that premise through checked ordinary-call lowering.
+  - Remaining forms include preconditioned `define`, result computation and
+    generic applications. Replace their remaining source-shape gates with
+    normalized judgments while keeping ordered theorem roles. Existing
+    parameter selection/permutation/repetition/omission, immutable result
+    aliases and finite state forwarding remain supported.
   - Package review has no quotient capture (the unused non-executable one
     was deleted); project the broader applications and private
     dependencies under visibility rules when review needs them.
   - Selected theorems stay bodyful, terminating, pure and assumption-free.
-    **PROOF-CONTRACT-MIGRATION** owns transitive assumption closure and the
-    congruence-only `lift<F, Congruence>` payload.
+    **PROOF-CONTRACT-MIGRATION** owns transitive assumption closure. Complete
+    automatic `lift<F, Congruence>` and selected forward-transport lifting both
+    have executable closed-literal witnesses; broader forms remain here.
   Acceptance: package-backed `define` and `lift` with the broader forms pass
   `omega --check`; the existing `fail/proofs/quotient_*` rejections (missing,
   surplus or reversed roles, missing respect/symmetry, admitted/boundary

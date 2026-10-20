@@ -52,12 +52,11 @@ pub(crate) fn emit_call(
     // bounded lane emits no continuations only when the effective checked
     // ceiling is empty, including the representative's helper closure.
     let crash_routes = crate::unit::effective_crash_routes(checked, representative.symbol)?;
-    if !signature.scalar_parameters.is_empty()
-        || !signature.erased_scalar_parameters.is_empty()
+    if !signature.erased_scalar_parameters.is_empty()
         || !signature.erased_proof_parameters.is_empty()
-        || !signature.requires.is_empty()
         || !crash_routes.is_empty()
-        || signature.parameters.len() != arguments.len()
+        || signature.parameters.len() + signature.scalar_parameters.len() != arguments.len()
+        || checked.typed.state_parameters(state).len() != actuals.len()
     {
         return unsupported(
             "quotient invocation requires an unimplemented operand or contract lane",
@@ -83,20 +82,76 @@ pub(crate) fn emit_call(
         return unsupported("quotient invocation result carries custody or qualifications");
     }
     let mut arguments = Vec::new();
-    for ((actual, ty), formal) in actuals.iter().zip(&signature.parameters) {
-        if *ty != formal.structural_type
-            || !actual.path.is_empty()
-            || formal.multiplicity != StructuralMultiplicity::Unrestricted
-            || !formal.qualifications.is_empty()
-            || !formal.projected_qualifications.is_empty()
-        {
-            return unsupported("quotient invocation input is not an exact custody-free carrier");
+    let mut scalar_arguments = Vec::new();
+    let mut structural_formals = signature.parameters.iter();
+    let mut scalar_formals = signature.scalar_parameters.iter();
+    for ((actual, ty), source_formal) in actuals.iter().zip(checked.typed.state_parameters(state)) {
+        if !actual.path.is_empty() {
+            return unsupported("quotient invocation input is not a whole checked value");
         }
-        arguments.push(StructuralArgument {
-            access: formal.access,
-            ..actual.clone()
-        });
+        if let Some(primitive) = checked
+            .typed
+            .primitive_type_reference(source_formal.type_reference)
+        {
+            let scalar_type = crate::emission::scalar_types::terminal_scalar_type(primitive)?;
+            let formal = scalar_formals.next().ok_or(LoweringError::Unsupported(
+                "quotient scalar formal is absent",
+            ))?;
+            if formal.scalar_type != scalar_type
+                || !formal.qualifications.is_empty()
+                || !calls.structural_types.iter().any(|declaration| {
+                    declaration.id == *ty
+                        && declaration.shape
+                            == terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type)
+                })
+            {
+                return unsupported("quotient scalar input has a different checked carrier");
+            }
+            scalar_arguments.push(
+                crate::emission::operation_emission::expressions::emit_scalar_leaf(
+                    terminal_psi::OperationKind::PrimitiveScalarRead {
+                        source: actual.place,
+                        path: Vec::new(),
+                    },
+                    scalar_type,
+                    next_value,
+                    operations,
+                ),
+            );
+        } else {
+            let formal = structural_formals.next().ok_or(LoweringError::Unsupported(
+                "quotient structural formal is absent",
+            ))?;
+            if *ty != formal.structural_type
+                || formal.multiplicity != StructuralMultiplicity::Unrestricted
+                || !formal.qualifications.is_empty()
+                || !formal.projected_qualifications.is_empty()
+            {
+                return unsupported(
+                    "quotient invocation input is not an exact custody-free carrier",
+                );
+            }
+            arguments.push(StructuralArgument {
+                access: formal.access,
+                ..actual.clone()
+            });
+        }
     }
+    if structural_formals.next().is_some() || scalar_formals.next().is_some() {
+        return unsupported("quotient invocation argument lanes are incomplete");
+    }
+    // The source correspondence established every authored precondition at this
+    // exact call. Use the complete ordinary requirement roster: only authored
+    // source-checked rows receive that discharge; generated carrier predicates
+    // remain ordinary verifier obligations. The runtime-requirement projection
+    // needs special substitution only for crash continuations, excluded above.
+    // Quotient theorem schemas are not runtime witnesses or a second verifier.
+    let requirement_obligations =
+        crate::unit::attached_unit::ordinary_calls::prepare_requirement_obligations(
+            &signature.call_target(),
+            calls,
+            operations,
+        )?;
     let callee =
         crate::terminal_identities::lookup_machine_id(calls.machine_ids, representative.symbol)?;
     let (result, mode, scalar) = if let Some(scalar) = signature.scalar_result {
@@ -137,12 +192,12 @@ pub(crate) fn emit_call(
         result,
         DirectCall::new(
             callee,
-            Vec::new(),
+            scalar_arguments,
             Vec::new(),
             Vec::new(),
             arguments,
             Vec::new(),
-            Vec::new(),
+            requirement_obligations,
             Vec::new(),
             mode,
         ),

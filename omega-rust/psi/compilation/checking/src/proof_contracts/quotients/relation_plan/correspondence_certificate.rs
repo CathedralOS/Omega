@@ -399,7 +399,7 @@ pub(super) fn proof_value_substitutions(
     (public_values, representative_values)
 }
 
-fn proof_value_for_literal(
+pub(super) fn proof_value_for_literal(
     symbol: SymbolHandle,
     literal: &super::runtime_correspondence::ClosedLiftLiteral,
 ) -> ProofValueSubstitution {

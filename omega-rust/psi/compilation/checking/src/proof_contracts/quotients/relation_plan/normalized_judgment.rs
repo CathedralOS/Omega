@@ -1,16 +1,17 @@
-//! Canonical source erasure for bounded direct quotient correspondences.
+//! Normalize admitted source correspondence without retaining a Terminal proof row.
 
 use language_semantics::quotient_correspondence::{
-    CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientCongruenceCorrespondence,
-    QuotientContractFactCoordinate, QuotientContractOwner, QuotientCorrespondenceOperationKind,
-    QuotientCrashCertificate, QuotientDefineRuntimePosition,
-    QuotientForwardPreconditionTransportCorrespondence, QuotientForwardPreconditionTransportFact,
-    QuotientMachineApplication, QuotientPositionalRelation, QuotientPurityCertificate,
-    QuotientRelationIdentity, QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
-    QuotientResultFlow, QuotientResultRelation, QuotientStateForwarding, QuotientStaticApplication,
-    QuotientTerminationCertificate, QuotientTheoremConclusion, QuotientTheoremCorrespondence,
-    QuotientTheoremEligibility, QuotientTheoremEvidence, QuotientTheoremParameter,
-    QuotientTheoremParameterRole, QuotientTheoremRelationPremise, QuotientTheoremRole,
+    QuotientCallableIdentity, QuotientCongruenceCorrespondence, QuotientContractFactCoordinate,
+    QuotientContractOwner, QuotientCorrespondenceJudgment, QuotientCorrespondenceOperationKind,
+    QuotientCrashCertificate, QuotientForwardPreconditionTransportCorrespondence,
+    QuotientForwardPreconditionTransportFact, QuotientMachineApplication,
+    QuotientPositionalRelation, QuotientPurityCertificate, QuotientRelationIdentity,
+    QuotientRepresentativeApplication, QuotientRepresentativeEligibility, QuotientResultFlow,
+    QuotientResultRelation, QuotientRuntimeArgument, QuotientStateForwarding,
+    QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremConclusion,
+    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
+    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
+    QuotientTheoremRole,
 };
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -28,16 +29,10 @@ use super::theorem_schema::TheoremParameterRole;
 use super::transport_schema::VerifiedForwardPreconditionTransportSchema;
 use super::{DirectTerminalRelationPlan, ExactQuotientRelation, PositionalRelation};
 
-/// Compose the one canonical Terminal correspondence row this plan's own
-/// certificate licenses.
-///
-/// The bridged form is read from the composed certificate rather than from the
-/// authored request kind, so ordinary validation and the source-erasure
-/// extractor cannot disagree about which row a request earns. A congruence-only
-/// `lift`, whose Q => P authority is the automatic implication rung, has no
-/// canonical payload yet and is refused here rather than silently mapped onto
-/// the transport-backed row.
-pub(in crate::proof_contracts::quotients) fn canonical_direct_correspondence(
+/// Publish the complete checked join: the selected theorem and exact actuals,
+/// automatic or explicitly selected forward implication, eligibility and normal
+/// result flow. These are source checking judgments, not executable dictionaries.
+pub(in crate::proof_contracts::quotients) fn normalized_direct_correspondence(
     program: &dyn crate::CheckingInput,
     public_machine: &Machine,
     public_state: &State,
@@ -45,7 +40,7 @@ pub(in crate::proof_contracts::quotients) fn canonical_direct_correspondence(
     plan: &DirectTerminalRelationPlan,
     representative_purity: MachineStateCoordinate,
     result_flow: CompleteResultFlow,
-) -> Result<CanonicalQuotientCorrespondence, String> {
+) -> Result<QuotientCorrespondenceJudgment, String> {
     let transport_lift = match plan
         .correspondence_certificate
         .as_ref()
@@ -53,15 +48,10 @@ pub(in crate::proof_contracts::quotients) fn canonical_direct_correspondence(
     {
         Some(QuotientCorrespondenceEvidence::Define { .. }) => false,
         Some(QuotientCorrespondenceEvidence::DirectLiftWithTransport { .. }) => true,
-        Some(QuotientCorrespondenceEvidence::DirectLift { .. }) => {
-            return Err(
-                "the proof-only bridge admits faithful `define` or direct transport-backed `lift` only"
-                    .to_owned(),
-            );
-        }
+        Some(QuotientCorrespondenceEvidence::DirectLift { .. }) => false,
         None => return Err("the complete correspondence certificate is absent".to_owned()),
     };
-    canonical_correspondence(
+    normalized_correspondence(
         program,
         public_machine,
         public_state,
@@ -74,7 +64,7 @@ pub(in crate::proof_contracts::quotients) fn canonical_direct_correspondence(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn canonical_correspondence(
+fn normalized_correspondence(
     program: &dyn crate::CheckingInput,
     public_machine: &Machine,
     public_state: &State,
@@ -83,7 +73,7 @@ fn canonical_correspondence(
     representative_purity: MachineStateCoordinate,
     result_flow: CompleteResultFlow,
     transport_lift: bool,
-) -> Result<CanonicalQuotientCorrespondence, String> {
+) -> Result<QuotientCorrespondenceJudgment, String> {
     let planned_theorem = plan
         .theorem_evidence
         .first()
@@ -193,7 +183,7 @@ fn canonical_correspondence(
         .correspondence_certificate
         .as_ref()
         .ok_or_else(|| "the complete correspondence certificate is absent".to_owned())?;
-    let (operation_kind, runtime_positions, transport) = match &certificate.evidence {
+    let (operation_kind, runtime_arguments, transport) = match &certificate.evidence {
         QuotientCorrespondenceEvidence::Define {
             runtime,
             precondition,
@@ -204,7 +194,7 @@ fn canonical_correspondence(
                         .to_owned(),
                 );
             }
-            let positions = canonical_define_runtime_positions(
+            let positions = canonical_define_runtime_arguments(
                 &public_parameters,
                 &plan.representative.parameters,
                 &runtime.positions,
@@ -214,7 +204,8 @@ fn canonical_correspondence(
         QuotientCorrespondenceEvidence::DirectLiftWithTransport { runtime, transport }
             if transport_lift =>
         {
-            let positions = canonical_lift_runtime_positions(
+            let positions = canonical_lift_runtime_arguments(
+                program,
                 &public_parameters,
                 &plan.representative.parameters,
                 &runtime.positions,
@@ -225,9 +216,19 @@ fn canonical_correspondence(
                 Some(transport),
             )
         }
+        QuotientCorrespondenceEvidence::DirectLift { runtime, .. } if !transport_lift => (
+            QuotientCorrespondenceOperationKind::Lift,
+            canonical_lift_runtime_arguments(
+                program,
+                &public_parameters,
+                &plan.representative.parameters,
+                &runtime.positions,
+            )?,
+            None,
+        ),
         _ => return Err("the proof-only bridge operation/certificate kind drifted".to_owned()),
     };
-    if !transport_lift {
+    if operation_kind == QuotientCorrespondenceOperationKind::Define {
         require_empty_partition(plan.public_precondition.as_ref(), "public")?;
         require_empty_partition(plan.representative_precondition.as_ref(), "representative")?;
         if !plan.expected_theorem_schema.legality_premises.is_empty()
@@ -275,17 +276,17 @@ fn canonical_correspondence(
         )?,
     };
 
-    if transport_lift {
+    if operation_kind != QuotientCorrespondenceOperationKind::Define {
         // A transport-backed `lift` may adapt arguments: runtime rows and
         // input relations are indexed by representative position while the
         // public telescope may be longer (omitted parameters).
-        if runtime_positions.len() != plan.representative.parameters.len()
+        if runtime_arguments.len() != plan.representative.parameters.len()
             || plan.input_relations.len() != plan.representative.parameters.len()
         {
             return Err("transport lift runtime correspondence arity drifted".to_owned());
         }
     } else if public_parameters.len() != plan.representative.parameters.len()
-        || runtime_positions.len() != public_parameters.len()
+        || runtime_arguments.len() != public_parameters.len()
         || plan.input_relations.len() != public_parameters.len()
     {
         return Err("faithful runtime correspondence arity drifted".to_owned());
@@ -326,15 +327,15 @@ fn canonical_correspondence(
             }
         }
     };
-    let theorem = theorem_correspondence(program, plan, certificate, transport_lift)?;
+    let theorem = theorem_correspondence(program, plan, certificate, true)?;
 
-    Ok(CanonicalQuotientCorrespondence {
+    Ok(QuotientCorrespondenceJudgment {
         operation_kind,
         public_operation: callable_identity(program, public_machine)?,
         representative: machine_application(program, representative_machine)?,
         input_relations,
         result_relation,
-        runtime_positions,
+        runtime_arguments,
         theorem_evidence: {
             let mut evidence = vec![QuotientTheoremEvidence {
                 role: QuotientTheoremRole::Congruence,
@@ -381,7 +382,7 @@ fn canonical_correspondence(
 /// public telescope.
 ///
 /// The result state's own telescope is what the runtime map calls "public":
-/// `input_relations` and `runtime_positions` index `public_state`'s parameters
+/// `input_relations` and `runtime_arguments` index `public_state`'s parameters
 /// while `public_operation` names the machine's entry signature. A forwarded
 /// machine only keeps those telescopes identical when each transition binds
 /// every target parameter to the source parameter at the same position —
@@ -608,11 +609,11 @@ fn theorem_correspondence(
     })
 }
 
-fn canonical_define_runtime_positions(
+fn canonical_define_runtime_arguments(
     public: &[&typed_trees::signature::StateParameter],
     representative: &[super::representative::RepresentativeRuntimeParameter],
     runtime: &[super::runtime_correspondence::DefineRuntimePosition],
-) -> Result<Vec<QuotientDefineRuntimePosition>, String> {
+) -> Result<Vec<QuotientRuntimeArgument>, String> {
     if runtime.len() != public.len() || representative.len() != public.len() {
         return Err("faithful runtime correspondence arity drifted".to_owned());
     }
@@ -630,58 +631,54 @@ fn canonical_define_runtime_positions(
         .collect()
 }
 
-/// Retain the exact argument-adaptation map the runtime correspondence
-/// already judged.
-///
-/// Runtime rows stay in representative order, so `representative_position` is
-/// the row index. `public_position` resolves the source argument's position
-/// inside the public non-const telescope: the direct-lift judgment already
-/// permits selection, permutation, repetition, and omission of direct public
-/// parameters. A closed-literal source has no public position; retaining one
-/// on this pair-only row would erase the literal's evidence, so literal
-/// arguments still refuse canonical publication here.
-fn canonical_lift_runtime_positions(
+/// Preserve exact actual identity in the checking judgment. A constant has no
+/// public parameter position: forcing it onto a pair-only Terminal row used to
+/// erase its landing and value, so that publication gate refused every literal.
+fn canonical_lift_runtime_arguments(
+    program: &dyn crate::CheckingInput,
     public: &[&typed_trees::signature::StateParameter],
     representative: &[super::representative::RepresentativeRuntimeParameter],
     runtime: &[super::runtime_correspondence::DirectLiftRuntimePosition],
-) -> Result<Vec<QuotientDefineRuntimePosition>, String> {
+) -> Result<Vec<QuotientRuntimeArgument>, String> {
     if runtime.len() != representative.len() {
-        return Err("transport lift runtime correspondence arity drifted".to_owned());
+        return Err("lift runtime correspondence arity drifted".to_owned());
     }
     runtime
         .iter()
-        .enumerate()
-        .map(|(position, runtime)| {
-            if runtime.representative_parameter != representative[position].symbol {
-                return Err(
-                    "transport lift runtime correspondence lost representative order".to_owned(),
-                );
+        .zip(representative)
+        .map(|(runtime, parameter)| {
+            if runtime.representative_parameter != parameter.symbol {
+                return Err("lift runtime correspondence lost representative order".to_owned());
             }
-            let public_position = match &runtime.source {
-                DirectLiftArgumentSource::PublicParameter(symbol) => public
-                    .iter()
-                    .position(|parameter| parameter.symbol == *symbol)
-                    .ok_or_else(|| {
-                        "transport lift runtime source is not a public parameter".to_owned()
-                    })?,
-                DirectLiftArgumentSource::Literal(_) => {
-                    return Err(
-                        "the proof-only bridge retains no closed literal lift arguments".to_owned(),
-                    );
+            match &runtime.source {
+                DirectLiftArgumentSource::PublicParameter(symbol) => {
+                    let position = public
+                        .iter()
+                        .position(|parameter| parameter.symbol == *symbol)
+                        .ok_or_else(|| {
+                            "lift runtime source is not a public parameter".to_owned()
+                        })?;
+                    canonical_runtime_position(position)
                 }
-            };
-            Ok(QuotientDefineRuntimePosition {
-                public_position: to_u32(public_position, "public parameter position")?,
-                representative_position: to_u32(position, "representative parameter position")?,
-            })
+                DirectLiftArgumentSource::Literal(literal) => {
+                    Ok(QuotientRuntimeArgument::ClosedLiteral {
+                        value_identity: super::correspondence_certificate::proof_value_for_literal(
+                            parameter.symbol,
+                            literal,
+                        )
+                        .canonical_identity()
+                        .to_owned(),
+                        representative_type: canonical_type(program, parameter.type_reference)?,
+                    })
+                }
+            }
         })
         .collect()
 }
 
-fn canonical_runtime_position(position: usize) -> Result<QuotientDefineRuntimePosition, String> {
-    Ok(QuotientDefineRuntimePosition {
+fn canonical_runtime_position(position: usize) -> Result<QuotientRuntimeArgument, String> {
+    Ok(QuotientRuntimeArgument::PublicParameter {
         public_position: to_u32(position, "public parameter position")?,
-        representative_position: to_u32(position, "representative parameter position")?,
     })
 }
 

@@ -77,14 +77,16 @@ impl Builder<'_, '_> {
         }
         let mut arguments = Vec::new();
         for (position, (actual, formal)) in actuals.into_iter().zip(&parameters).enumerate() {
-            // Scalar actuals retain their scalar evaluation lane; until that
-            // producer is installed, decline rather than invent structural ABI.
+            // A primitive operand uses the same contextual scalar constructor
+            // as a primitive field or ordinary argument. Its checked home is
+            // read into the representative's scalar lane during call emission.
             if self
                 .program
                 .primitive_type_reference(formal.type_reference)
                 .is_some()
             {
-                return None;
+                arguments.push(self.structural_value(actual, formal.type_reference)?);
+                continue;
             }
             let actual_type = validation::expression_type_reference_in_state(
                 self.program,

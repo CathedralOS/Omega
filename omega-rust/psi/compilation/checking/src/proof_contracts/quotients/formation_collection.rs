@@ -173,7 +173,7 @@ pub(crate) fn reject_quotient_operation_requests(
                         .clone()
                         .zip(representative_purity)
                         .map(|(result_flow, purity)| {
-                            relation_plan::canonical_direct_correspondence(
+                            relation_plan::normalized_direct_correspondence(
                                 program,
                                 machine,
                                 state,
@@ -185,10 +185,10 @@ pub(crate) fn reject_quotient_operation_requests(
                         });
                     let canonical_join = match &canonical_correspondence {
                         Some(Ok(_)) => {
-                            " plus rederived canonical Terminal correspondence".to_owned()
+                            " plus rederived normalized source correspondence".to_owned()
                         }
                         Some(Err(reason)) => {
-                            format!(" (canonical Terminal correspondence unavailable: {reason})")
+                            format!(" (normalized source correspondence unavailable: {reason})")
                         }
                         None => String::new(),
                     };
@@ -367,7 +367,7 @@ pub(crate) fn reject_quotient_operation_requests(
                         remaining.push("fixed representative call obligations".to_owned());
                     }
                     if !matches!(canonical_correspondence, Some(Ok(_))) {
-                        remaining.push("canonical Terminal correspondence".to_owned());
+                        remaining.push("normalized source correspondence".to_owned());
                     }
                     let fence = if remaining.is_empty() {
                         "but the complete checked quotient request batch was not admitted"

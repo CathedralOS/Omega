@@ -1,4 +1,4 @@
-//! Bind admitted correspondence to the emitted public and representative bodies.
+//! Validate the nominal runtime copy/call joins after source proof erasure.
 use super::origins::{scalar_origin, whole_origin};
 use super::*;
 /// Reconstruct executable graph correspondence only. The producer separately
@@ -8,104 +8,14 @@ pub(super) fn validate_operation(
     index: usize,
     row: &terminal_psi::TerminalQuotientOperation,
 ) -> Result<(), &'static str> {
-    use language_semantics::quotient_correspondence::{
-        QuotientCorrespondenceOperationKind as Kind, QuotientPositionalRelation as Relation,
-    };
+    use language_semantics::quotient_correspondence::QuotientPositionalRelation as Relation;
     let public = module
         .machine(row.public_machine)
         .ok_or("quotient public body is absent")?;
     let representative = module
         .machine(row.representative_machine)
         .ok_or("quotient representative body is absent")?;
-    let contract = &row.correspondence;
-    validate_congruence_schema(contract)?;
-    let declaration = |machine: &TerminalMachine| {
-        machine
-            .declaration
-            .as_ref()
-            .and_then(|declaration| module.identities.text(declaration.semantic_declaration))
-    };
-    if declaration(public) != Some(contract.public_operation.declaration.as_str())
-        || declaration(representative)
-            != Some(contract.representative.callable.declaration.as_str())
-        || public
-            .declaration
-            .as_ref()
-            .and_then(|row| module.identities.text(row.callable))
-            != Some(contract.public_operation.overload.as_str())
-        || representative
-            .declaration
-            .as_ref()
-            .and_then(|row| module.identities.text(row.callable))
-            != Some(contract.representative.callable.overload.as_str())
-        || !contract
-            .representative
-            .static_application
-            .bindings
-            .is_empty()
-    {
-        return Err("quotient selected declaration identity drifted");
-    }
-    if row.theorems.len() != contract.theorem_evidence.len() || row.theorems.is_empty() {
-        return Err("quotient theorem declaration roster is incomplete");
-    }
-    for (position, (retained, selected)) in row
-        .theorems
-        .iter()
-        .zip(&contract.theorem_evidence)
-        .enumerate()
-    {
-        use language_semantics::quotient_correspondence::{
-            QuotientTheoremCorrespondence as Schema, QuotientTheoremRole as Role,
-        };
-        let declaration = &retained.declaration;
-        if module.identities.text(declaration.semantic_declaration)
-            != Some(selected.selected_application.callable.declaration.as_str())
-            || module.identities.text(declaration.callable)
-                != Some(selected.selected_application.callable.overload.as_str())
-            || declaration.contract == [0; 32]
-            || module.identities.text(declaration.result_type) != Some("unit")
-            || !selected
-                .selected_application
-                .static_application
-                .bindings
-                .is_empty()
-        {
-            return Err("quotient selected theorem declaration drifted");
-        }
-        match (&selected.role, &selected.correspondence, position) {
-            (Role::Congruence, Schema::Congruence(schema), 0)
-                if schema.legality_premises.is_empty() => {}
-            (
-                Role::ForwardPreconditionTransport,
-                Schema::ForwardPreconditionTransport(schema),
-                1,
-            ) if contract.operation_kind == Kind::LiftWithForwardPreconditionTransport
-                && schema.public_premises.is_empty()
-                && schema.representative_conclusions.is_empty() => {}
-            _ => return Err("quotient theorem role or unsupported precondition roster"),
-        }
-    }
-    let expected_theorems = if contract.operation_kind == Kind::LiftWithForwardPreconditionTransport
-    {
-        2
-    } else {
-        1
-    };
-    if row.theorems.len() != expected_theorems {
-        return Err("quotient selected theorem role roster drifted");
-    }
-    for machine in [public, representative] {
-        if !machine.parameters.is_empty()
-            || !machine.entry_claims.is_empty()
-            || !machine.contract.source_checked_requires.is_empty()
-            || !machine.contract.erased_scalar_formals.is_empty()
-            || !machine.contract.erased_proof_formals.is_empty()
-            || !machine.contract.crash_routes.is_empty()
-        {
-            return Err("quotient invocation has an unsupported contract lane");
-        }
-    }
+    let contract = row;
     let call = public
         .operation(row.call)
         .ok_or("quotient selected call is absent")?;
@@ -114,7 +24,6 @@ pub(super) fn validate_operation(
     }
     let arguments = call.kind.structural_arguments();
     if arguments.len() != representative.structural_parameters.len()
-        || arguments.len() != contract.runtime_positions.len()
         || arguments.len() != contract.input_relations.len()
     {
         return Err("quotient argument correspondence is incomplete");
@@ -125,25 +34,13 @@ pub(super) fn validate_operation(
         .zip(&contract.input_relations)
         .enumerate()
     {
-        let mapping = contract.runtime_positions[position];
-        let source = public
-            .structural_parameters
-            .get(mapping.public_position as usize)
-            .ok_or("quotient public input is absent")?;
-        if mapping.representative_position as usize != position
-            || (contract.operation_kind == Kind::Define
-                && mapping.public_position as usize != position)
-            || !actual.path.is_empty()
+        if !actual.path.is_empty()
             || actual.access != formal.access
-            || source.multiplicity != StructuralMultiplicity::Unrestricted
             || formal.multiplicity != StructuralMultiplicity::Unrestricted
-            || source.access != formal.access
-            || !source.qualifications.is_empty()
-            || !source.projected_qualifications.is_empty()
             || !formal.qualifications.is_empty()
             || !formal.projected_qualifications.is_empty()
         {
-            return Err("quotient input modes or positions drifted");
+            return Err("quotient input modes drifted");
         }
         match relation {
             Relation::Quotient(relation) => {
@@ -163,13 +60,14 @@ pub(super) fn validate_operation(
                 if adaptation.machine != public.id || adaptation.result != actual.place {
                     return Err("quotient input adaptation does not supply the selected call");
                 }
-                if whole_origin(public, adaptation.source) != Some(source.place) {
-                    return Err(
-                        "quotient input adaptation does not originate at its public formal",
-                    );
-                }
-                if adaptation.source_type != source.structural_type
+                let representation = module
+                    .quotients
+                    .representations
+                    .get(adaptation.representation as usize)
+                    .ok_or("quotient input representation is absent")?;
+                if adaptation.source_type != representation.quotient
                     || adaptation.result_type != formal.structural_type
+                    || adaptation.result_type != representation.carrier
                 {
                     return Err("quotient input adaptation types differ from the selected formals");
                 }
@@ -213,21 +111,8 @@ pub(super) fn validate_operation(
                 public_type,
                 representative_type,
             } => {
-                if source.structural_type != formal.structural_type
-                    || whole_origin(public, actual.place) != Some(source.place)
+                if quotient_place_type(public, actual.place) != Some(formal.structural_type)
                     || public_type != representative_type
-                    || public
-                        .declaration
-                        .as_ref()
-                        .and_then(|row| row.parameter_types.get(source.position as usize))
-                        .and_then(|id| module.identities.text(*id))
-                        != Some(public_type.as_str())
-                    || representative
-                        .declaration
-                        .as_ref()
-                        .and_then(|row| row.parameter_types.get(formal.position as usize))
-                        .and_then(|id| module.identities.text(*id))
-                        != Some(representative_type.as_str())
                 {
                     return Err("quotient ordinary input identity drifted");
                 }

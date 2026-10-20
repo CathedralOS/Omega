@@ -17,14 +17,14 @@ use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
 mod correspondence_certificate;
+mod normalized_judgment;
 mod precondition;
 mod proof_fact_identity;
 mod representative;
 mod result_flow;
 mod runtime_correspondence;
 mod static_application;
-mod terminal_bridge;
-pub(super) use terminal_bridge::relation_identity;
+pub(super) use normalized_judgment::relation_identity;
 mod theorem;
 mod theorem_schema;
 mod theorem_schema_verification;
@@ -77,8 +77,8 @@ use transport_schema::{
     VerifiedForwardPreconditionTransportSchema, verify_forward_precondition_transport_schema,
 };
 
+pub(super) use normalized_judgment::normalized_direct_correspondence;
 pub(super) use result_flow::{CompleteResultFlow, complete_result_flow, fallthrough_result_root};
-pub(super) use terminal_bridge::canonical_direct_correspondence;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ExactQuotientRelation {

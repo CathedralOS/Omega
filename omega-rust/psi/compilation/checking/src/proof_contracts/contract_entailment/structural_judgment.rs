@@ -298,6 +298,11 @@ pub(super) struct StructuralJudge<'program> {
     // law normalization can retain applications without asserting completion.
     require_closed_computation: bool,
     runtime_body_values: bool,
+    // Contract terms retain live operand observations, but denote admitted pure
+    // calls rather than creating new executed result occurrences. Guard
+    // refinement shares this term policy after its evaluations have returned;
+    // actual body values still belong to the completed-occurrence owner.
+    specification_terms: bool,
     case_facts_only: bool,
     pub(super) substitutions: Arc<Vec<(String, StructuralTerm)>>,
     /// Application REWRITES (`add_zero_right(prev) -> prev`): hypothesis
@@ -345,6 +350,7 @@ impl Clone for StructuralJudge<'_> {
             resolve_applications: self.resolve_applications,
             require_closed_computation: self.require_closed_computation,
             runtime_body_values: self.runtime_body_values,
+            specification_terms: self.specification_terms,
             case_facts_only: self.case_facts_only,
             substitutions: Arc::clone(&self.substitutions),
             rewrites: Arc::clone(&self.rewrites),
@@ -500,6 +506,7 @@ impl<'program> StructuralJudge<'program> {
             resolve_applications,
             require_closed_computation: false,
             runtime_body_values: false,
+            specification_terms: false,
             case_facts_only: false,
             substitutions: Arc::new(Vec::new()),
             rewrites: Arc::new(rewrite_table::RewriteTable::default()),
@@ -575,7 +582,9 @@ impl<'program> StructuralJudge<'program> {
             // the same read owner as completed operands. Exact replacements
             // can be observed; retired roots still decline there. Abstract
             // entry terms must never reinterpret an old binder as new contents.
-            return self.callee_term_in_scope(
+            let mut specification = self.clone();
+            specification.specification_terms = true;
+            return specification.callee_term_in_scope(
                 Some((machine, state, state.return_type)),
                 expression,
                 &environment,
@@ -635,7 +644,9 @@ impl<'program> StructuralJudge<'program> {
             None,
         )?;
         let resolve_observed = |reference, term: &StructuralTerm| {
-            let resolved = self.resolve(term.clone());
+            let mut specification = self.clone();
+            specification.specification_terms = true;
+            let resolved = specification.resolve(term.clone());
             if !super::structural_terms::scalar_operand_is_observed(
                 self.program,
                 reference,
@@ -1688,6 +1699,58 @@ impl<'program> StructuralJudge<'program> {
         self.callee_term(expression, environment, &[], scope, depth)
     }
 
+    /// Source formation separately establishes exact preconditions and checked
+    /// termination. This gate supplies operational eligibility only, retaining
+    /// the same current-storage observation environment for every operand.
+    fn specification_call_candidate(
+        &self,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> bool {
+        if !self.specification_terms
+            || !self.application_is_independent(call.target_symbol, &call.machine_arguments)
+        {
+            return false;
+        }
+        let Some(machine) = self
+            .entry_machines
+            .machine(self.program, call.target_symbol)
+        else {
+            return false;
+        };
+        let Some(state) = self.program.machine_states(machine).first() else {
+            return false;
+        };
+        let proof_only = crate::proof_only_classification(self.program);
+        if crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
+            self.program,
+            &proof_only,
+            state.return_type,
+        ) || self
+            .program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| {
+                crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
+                    self.program,
+                    &proof_only,
+                    parameter.type_reference,
+                )
+            })
+        {
+            return false;
+        }
+        let plans =
+            crate::machine_calls::calls::operand_call_plans(self.program, self.frame_resolver());
+        crate::machine_calls::denotational_calls::checked_value_call_candidate(
+            self.program,
+            machine,
+            state,
+            &plans.0,
+            &plans.1,
+        )
+        .is_ok()
+    }
+
     fn callee_term(
         &self,
         expression: ExpressionHandle,
@@ -1924,7 +1987,8 @@ impl<'program> StructuralJudge<'program> {
             }
             ExpressionNode::Call(call) => {
                 if (self.runtime_body_values
-                    && !normal_returns::call_has_mathematical_denotation(program, call))
+                    && !normal_returns::call_has_mathematical_denotation(program, call)
+                    && !self.specification_call_candidate(call))
                     || (call.receiver.is_valid()
                         && !super::structural_terms::static_call_receiver(program, call))
                     || !call.evidence_arguments.is_empty()

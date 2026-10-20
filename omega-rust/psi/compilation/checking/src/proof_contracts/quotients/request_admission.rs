@@ -1,6 +1,6 @@
 //! All-or-nothing admission of exact selected quotient operation correspondences.
 
-use language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence;
+use language_semantics::quotient_correspondence::QuotientCorrespondenceJudgment;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn extract(
@@ -38,7 +38,7 @@ pub(super) fn extract(
     if !errors.is_empty() {
         return Err(errors);
     }
-    let statement_position = |row: &CanonicalQuotientCorrespondence| match &row.result_flow {
+    let statement_position = |row: &QuotientCorrespondenceJudgment| match &row.result_flow {
         language_semantics::quotient_correspondence::QuotientResultFlow::Direct {
             statement_position,
             ..
@@ -125,7 +125,7 @@ fn extract_one(
     // The composed certificate, not the authored request kind, decides which
     // canonical row the request earns. `derive_direct_terminal_plan` already
     // refused a missing, duplicated, surplus, or reordered role collection.
-    let correspondence = super::relation_plan::canonical_direct_correspondence(
+    let correspondence = super::relation_plan::normalized_direct_correspondence(
         program,
         machine,
         state,
@@ -140,10 +140,5 @@ fn extract_one(
         public_state: state.symbol,
         representative_state: request.representative_operation.symbol,
         correspondence,
-        theorems: request
-            .theorem_evidence
-            .iter()
-            .map(|selected| selected.application.symbol)
-            .collect(),
     })
 }

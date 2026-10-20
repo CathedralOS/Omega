@@ -33,6 +33,10 @@ fn nested_array_rendered<T: std::fmt::Debug>(rows: &[std::sync::Arc<[T]>]) -> St
 }
 
 impl ProofValueSubstitution {
+    pub(super) fn canonical_identity(&self) -> &str {
+        &self.trace
+    }
+
     pub(super) fn symbolic(symbol: SymbolHandle, identity: String) -> Self {
         Self {
             symbol,

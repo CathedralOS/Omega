@@ -1117,6 +1117,17 @@ fn arithmetic_requirement(
         bindings: parameters
             .iter()
             .zip(arguments)
+            // An arithmetic requirement cannot interpret a record argument
+            // merely because another formal is numeric. Install only integer
+            // formals; a goal that actually needs an unsupported subject still
+            // remains unknown rather than acquiring an invented denotation.
+            .filter(|(parameter, _)| {
+                crate::value_custody::recasts::exact_primitive_type(
+                    program,
+                    parameter.type_reference,
+                )
+                .is_some_and(|primitive| primitive.accepts_integer_literal())
+            })
             .map(|(parameter, argument)| ScopedArithmeticBinding {
                 binder: ScopedArithmeticBinder::Symbol(parameter.symbol),
                 value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {

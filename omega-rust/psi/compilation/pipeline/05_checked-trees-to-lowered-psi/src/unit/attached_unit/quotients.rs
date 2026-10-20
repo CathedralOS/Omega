@@ -10,8 +10,8 @@ use terminal_psi::{
 
 pub(super) fn retain(
     checked: &CheckedTrees,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    _identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    _exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     emitted: &[SourceQuotientAdaptation],
     calls: &[crate::emission::operation_emission::buffer::SourceQuotientCall],
@@ -100,26 +100,33 @@ pub(super) fn retain(
             validation::find_machine_by_entry_state(&checked.typed, *representative_state).ok_or(
                 LoweringError::Unsupported("quotient representative is absent"),
             )?;
-        let theorems = row.theorems.iter().map(|theorem| {
-            let (machine, state) = validation::find_machine_by_entry_state(&checked.typed, *theorem)
-                .ok_or(LoweringError::Unsupported("quotient theorem declaration is absent"))?;
-            if !machine.body_is_present || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                || !matches!(checked.typed.type_reference_table.type_reference(state.return_type), typed_trees::types::TypeReferenceNode::Unit)
-            { return Err(LoweringError::Unsupported("quotient theorem lost bodyful resultless admission")); }
-            Ok(terminal_psi::TerminalQuotientTheorem {
-                declaration: crate::machine_lowering::declarations::identity(identities, checked, exact_toolchain_sources, machine.symbol)
-                    .map_err(LoweringError::Unsupported)?,
-                admission: terminal_psi::TerminalQuotientTheoremAdmission::SourceCheckedBodyfulResultless,
+        let (_, entry) =
+            validation::find_machine_by_entry_state(&checked.typed, *representative_state).ok_or(
+                LoweringError::Unsupported("quotient representative is absent"),
+            )?;
+        // Scalar formals travel through the ordinary scalar lane. Runtime
+        // nominal adaptations index only the structural call lane.
+        let input_relations = checked
+            .typed
+            .state_parameters(entry)
+            .iter()
+            .zip(&row.correspondence.input_relations)
+            .filter(|(parameter, _)| {
+                checked
+                    .typed
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
             })
-        }).collect::<Result<Vec<_>, LoweringError>>()?;
+            .map(|(_, relation)| relation.clone())
+            .collect();
         catalog
             .operations
             .push(terminal_psi::TerminalQuotientOperation {
                 public_machine: lookup_machine_id(machine_ids, node.machine)?,
                 representative_machine: lookup_machine_id(machine_ids, representative.symbol)?,
                 call: call.call,
-                correspondence: row.correspondence.clone(),
-                theorems,
+                input_relations,
+                result_relation: row.correspondence.result_relation.clone(),
             });
     }
     for row in emitted {
@@ -151,6 +158,42 @@ pub(super) fn retain(
             }
             CheckedQuotientAdaptationLicense::Input { request, position } => {
                 let operation = operation_index(checked, calls, node.machine, request)?;
+                let invocation = checked
+                    .facts
+                    .quotient_operations
+                    .iter()
+                    .find(|operation| {
+                        operation.request == request && operation.public_machine == node.machine
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "quotient input lost its invocation",
+                    ))?;
+                let (_, entry) = validation::find_machine_by_entry_state(
+                    &checked.typed,
+                    invocation.representative_state,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "quotient input lost its representative",
+                ))?;
+                let parameters = checked.typed.state_parameters(entry);
+                let prefix =
+                    parameters
+                        .get(..position as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "quotient input source position is absent",
+                        ))?;
+                let position = u32::try_from(
+                    prefix
+                        .iter()
+                        .filter(|parameter| {
+                            checked
+                                .typed
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_none()
+                        })
+                        .count(),
+                )
+                .map_err(|_| LoweringError::Unsupported("quotient structural position overflow"))?;
                 (
                     row.result_type,
                     TerminalQuotientAdaptationLicense::Input {

@@ -293,7 +293,6 @@ fn check_program(
                 public_state: operation.public_state,
                 representative_state: operation.representative_state,
                 correspondence: operation.correspondence,
-                theorems: operation.theorems,
             }
         }));
     checks::initialize_checked_direct_borrow_resources(&program, &mut facts, &mutation_summaries)?;

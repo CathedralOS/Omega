@@ -9,13 +9,11 @@ mod opacity;
 mod operation;
 mod origins;
 mod representations;
-mod schema;
 use opacity::validate_quotient_opacity;
 use operation::validate_operation;
 pub use representations::{
     validate_quotient_representation_identities, validate_quotient_representations,
 };
-use schema::validate_congruence_schema;
 
 pub fn quotient_place_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
     machine
@@ -81,7 +79,7 @@ pub fn quotient_copy_adaptation<'a>(
                     && call.kind.direct_callee() == Some(owner.representative_machine)
                     && call.kind.structural_arguments().get(position as usize)
                         .is_some_and(|argument| argument.place == result.place && argument.path.is_empty())
-                    && owner.correspondence.input_relations.get(position as usize)
+                    && owner.input_relations.get(position as usize)
                         == Some(&language_semantics::quotient_correspondence::QuotientPositionalRelation::Quotient(representation.formation.clone())))
                     .then_some(row)
         }
@@ -94,7 +92,7 @@ pub fn quotient_copy_adaptation<'a>(
             (owner.public_machine == machine.id
                     && call.kind.direct_callee() == Some(owner.representative_machine)
                     && call.result.structural().is_some_and(|result| result.place == *source)
-                    && owner.correspondence.result_relation
+                    && owner.result_relation
                         == language_semantics::quotient_correspondence::QuotientPositionalRelation::Quotient(representation.formation.clone()))
                     .then_some(row)
         }

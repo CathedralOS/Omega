@@ -99,7 +99,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Completed content transformations retain exact input/output claims; structural
 // declarations retain their own linear obligation beneath whole parent claims.
 // Scalar result memberships retain independent predicate and return provenance.
-pub(crate) const FORMAT_MARKER: u16 = 170;
+// Quotient source judgments are erased; only nominal copy/call joins remain.
+pub(crate) const FORMAT_MARKER: u16 = 171;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

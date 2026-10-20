@@ -374,15 +374,19 @@ full source acceptance or executable Terminal realization.
 ## Quotient correspondence
 
 The [correspondence judgment](../../../../wiki/spec/proofs/quotients.md#quotient-correspondence-judgment)
-is implemented through [quotients/terminal_bridge.rs](src/proof_contracts/quotients/terminal_bridge.rs)
-and the relation-plan bridge. Checked facts retain its exact selected applications,
-relations, theorem roles and positional result flow. After ordinary contract facts
+is implemented through [quotients/request_admission.rs](src/proof_contracts/quotients/request_admission.rs)
+and [normalized source judgments](src/proof_contracts/quotients/relation_plan/normalized_judgment.rs). Checked facts retain its exact selected applications,
+relations, exact public-parameter or closed-literal actuals, theorem roles and
+normal result flow. Both lift forms consume their complete source implication
+judgments; selected transport never mixes with automatic evidence. After ordinary contract facts
 are recorded, executable eligibility requires the selected representative's checked
 call to have no surviving crash and selected theorem bodies to remain crash-free.
 
 Runtime demand over custody-free copy representatives elaborates into ordinary
 calls and nominal leaf copies. Terminal retains the public/representative join and
-each adaptation's exact occurrence; equal layout alone supplies no license.
+each adaptation's exact occurrence; equal layout alone supplies no license. The
+source correspondence and theorem schemas are erased, while ordinary scalar
+and structural call operands retain their normal typed lanes and requirements.
 Proof-only correspondence remains available without runtime materialization.
 The retained source admission is not an independently checked PCC theorem proof.
 Affine/linear or routed carriers, representative-sensitive observers, effectful

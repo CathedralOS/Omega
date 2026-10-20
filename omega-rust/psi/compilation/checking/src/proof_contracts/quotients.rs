@@ -29,7 +29,7 @@ mod carrier_fence;
 mod equivalence_selection;
 mod formation_collection;
 mod relation_plan;
-mod terminal_bridge;
+mod request_admission;
 
 pub(crate) use equivalence_selection::exact_relation_application_matches;
 
@@ -130,11 +130,7 @@ pub struct ValidatedQuotientOperation {
     pub public_machine: SymbolHandle,
     pub public_state: SymbolHandle,
     pub representative_state: SymbolHandle,
-    pub correspondence:
-        language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence,
-    /// Entry-state symbols of the request's selected theorem machines, in
-    /// role order.
-    pub theorems: Box<[SymbolHandle]>,
+    pub correspondence: language_semantics::quotient_correspondence::QuotientCorrespondenceJudgment,
 }
 
 /// Rerun the complete quotient-formation judgment without considering any
@@ -189,7 +185,7 @@ pub(crate) fn validate_quotients(
 /// This is the [`QuotientRequestAdmission::AfterCheckedFacts`] half: the
 /// checked stage calls it once its termination facts exist, answering
 /// `termination` from them. A program without requests admits trivially. A
-/// program whose whole request batch the proof-only bridge can express admits;
+/// program whose whole request batch earns a normalized source judgment admits;
 /// the batch is all-or-nothing, so any other request keeps every request's
 /// rejection diagnostic, rendered against the same checked termination.
 /// Admission publishes the exact checked correspondence. Runtime demand must
@@ -211,7 +207,7 @@ pub fn admit_checked_quotient_requests(
     {
         return Ok(Vec::new());
     }
-    if let Ok(rows) = terminal_bridge::extract(program, termination)
+    if let Ok(rows) = request_admission::extract(program, termination)
         && !rows.is_empty()
     {
         return Ok(rows);
@@ -219,8 +215,8 @@ pub fn admit_checked_quotient_requests(
     let mut diagnostics = Vec::new();
     reject_quotient_operation_requests(program, termination, &mut diagnostics);
     if diagnostics.is_empty() {
-        // The bridge and the rejection walk judge the same plans; a batch the
-        // bridge refused must name its reason rather than pass silently.
+        // Admission and the diagnostic walk judge the same plans; a refused
+        // batch must name its reason rather than pass silently.
         diagnostics.push(Diagnostic::error(
             "quotient operation requests were not admitted by the proof-only bridge".to_owned(),
         ));
