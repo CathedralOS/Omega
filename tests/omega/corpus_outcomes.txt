@@ -2324,14 +2324,26 @@ fail/facts/computed_constant_array_extent_qualification rejected 181ms expected 
 	constant initializer: data constant `Cell` violates its default-domain predicate
 fail/facts/computed_record_window_nonhost_body_rejected rejected 3410ms expected @dd658fb23eef
 fail/facts/computed_record_window_through_call_result_rejected rejected 3581ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 fail/facts/computed_record_window_through_const_name_rejected rejected 3326ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 fail/facts/computed_record_window_through_field_rejected rejected 3466ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 fail/facts/computed_record_window_through_local_rejected rejected 3254ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 1: result.len == 2
 fail/facts/computed_record_window_through_match_join_rejected rejected 3484ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 fail/facts/computed_record_window_through_other_machine_rejected rejected 3334ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from select_window at statement 0: result.len == 2
 fail/facts/computed_record_window_through_other_state_rejected rejected 3308ms expected @dd658fb23eef
+	cannot prove requires contract for call carry from window: match which { 0 => mut samples[0..which + 1], _ => mut samples[2..4] }.len == 2 (needs fact `selected.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/computed_record_window_through_parameter_rejected rejected 3537ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 fail/facts/computed_record_window_through_target_body_rejected rejected 3481ms expected @dd658fb23eef
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
+	cannot prove ensures contract for exit from window at statement 0: result.len == 2
 fail/facts/computed_subslice_extent_call_result_insufficient_bound rejected 27026ms expected @3f2f7090cbe0
 	cannot prove requires contract for call range from window: __hoist_35 <= __hoist_36 && __hoist_36 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/computed_subslice_extent_const_name_insufficient_bound rejected 29828ms expected @3f2f7090cbe0
