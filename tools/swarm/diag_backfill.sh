@@ -45,6 +45,33 @@ git fetch origin -q 2>/dev/null
 # the working tree while recording guarded_line_loan; the commit was safe, the tree
 # was not).
 echo "== operating on: $(pwd) =="
+# Capture every fact's diagnostic count BEFORE touching the goldens. A diagnostic can
+# vanish while its row KEY survives, so the LOST check cannot see it: a lane's second
+# fact re-synced the golden to main, which reverted its FIRST fact's diagnostics, and
+# `git add -A` committed that revert under the second fact's message. Nothing reported
+# it. Compare before/after and fail loudly on any regression.
+PRE_COUNTS=$(mktemp)
+python3 tools/swarm/diag_counts.py tests/omega/corpus_outcomes.txt > "$PRE_COUNTS" 2>/dev/null || true
+DIAG_REGRESSION() {
+  python3 - "$PRE_COUNTS" <<'PYEOF'
+import subprocess, sys
+from pathlib import Path
+sys.path.insert(0, 'tools/swarm')
+import importlib.util
+spec = importlib.util.spec_from_file_location('dc', 'tools/swarm/diag_counts.py')
+dc = importlib.util.module_from_spec(spec); spec.loader.exec_module(dc)
+pre = {}
+for line in Path(sys.argv[1]).read_text().splitlines():
+    f, c = line.rsplit(' ', 1)
+    wd, tot = c.split('/')
+    pre[f] = (int(wd), int(tot))
+now = dc.counts('tests/omega/corpus_outcomes.txt')
+regressed = [f for f, (wd, tot) in pre.items()
+             if wd > 0 and now.get(f, (0, 0))[0] < wd]
+if regressed:
+    print("REGRESSED " + " ".join(f"{f}:{pre[f][0]}->{now.get(f,(0,0))[0]}" for f in sorted(regressed)))
+PYEOF
+}
 if [ "$(pwd -P)" = "/Volumes/Crucial/CathedralOS/Omega" ]; then
   echo "   ABORT: this is the MAIN CHECKOUT. This tool acts on the tree it lives in," >&2
   echo "   and the main checkout working tree carries an unlanded migration. Copy the" >&2
@@ -55,8 +82,14 @@ echo "== re-sync goldens from origin/main (once) =="
 # `git checkout <ref> -- <path>` stages the file as well as writing it, so a later
 # abort left a STAGED golden diff the lane never authored. Restore the working tree and
 # unstage these two paths, so the index is exactly as the lane left it.
+# MERGE origin/main's rows into the golden; do not overwrite it. An overwrite lost a
+# lane's already-committed fact A when it ran the tool for fact B, because main did not
+# yet carry A's diagnostics -- and `git add -A` then committed that revert under B's
+# message. Merging keeps every row present on either side, preferring the side that
+# carries a diagnostic, so a run can never un-record an earlier fact.
 for g in tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt; do
-  git restore --source=origin/main --worktree "$g" 2>/dev/null \
+  python3 tools/swarm/merge_rows.py "$g" origin/main >/dev/null 2>&1 \
+    || git restore --source=origin/main --worktree "$g" 2>/dev/null \
     || git checkout origin/main -- "$g" 2>/dev/null
   git reset -q HEAD -- "$g" 2>/dev/null
 done
@@ -180,7 +213,7 @@ RECORD_SLOTS=${RECORD_SLOTS:-1}
   timeouts=$(awk '/timeout/{n++} END{print n+0}' tests/omega/corpus_outcomes.txt)
   echo "   post-record LOST=$after timeouts=$timeouts"
   recording=""
-  rm -f "$acquired"; trap - EXIT INT TERM HUP
+  rm -f "$acquired" "$PRE_COUNTS" 2>/dev/null; trap - EXIT INT TERM HUP
   # LOST and timeout counts CANNOT detect a source tree that does not compile: no row
   # is lost and no timeout is written, yet the rows recorded are parse errors rather
   # than the fact's obligation. Observed with a contaminated tree:
@@ -189,6 +222,13 @@ RECORD_SLOTS=${RECORD_SLOTS:-1}
   # where the real row is `rejected ~1700ms expected` naming the fact's obligation.
   # Three independent signatures, any one of which catches it.
   bad=0
+  # Did any ALREADY-diagnosed fact lose its diagnostic? That is silent data loss.
+  reg=$(DIAG_REGRESSION)
+  if [ -n "$reg" ]; then
+    echo "   ABORT: earlier facts lost their diagnostics: ${reg#REGRESSED }" >&2
+    echo "   (the row keys survive, so LOST cannot see this)" >&2
+    bad=1
+  fi
   if grep -qE "^fail/facts/${fact}[^ ]* rejected [0-9]+ms unexpected" tests/omega/corpus_outcomes.txt 2>/dev/null; then
     echo "   ABORT: a row for $fact is marked 'unexpected' (not the authored rejection)."
     bad=1
