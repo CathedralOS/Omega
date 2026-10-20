@@ -2301,6 +2301,7 @@ fail/facts/compound_guard_through_target_body_compile rejected 2356ms expected @
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/facts/compound_guard_unequal_match_arm_compile rejected 2639ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/compound_index_guard_through_call_result_rejected rejected 6799ms expected @8137d4f697de+wt
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/compound_index_guard_through_const_name_rejected rejected 6672ms expected @8137d4f697de+wt
