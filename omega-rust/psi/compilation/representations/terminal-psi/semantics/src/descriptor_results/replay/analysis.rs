@@ -287,11 +287,13 @@ impl<'a> DescriptorAnalysis<'a> {
                 operation,
                 place,
                 carrier,
+                projection,
             }) => DescriptorStoredOrigin::PlacedFormation {
                 machine: *machine,
                 operation: *operation,
                 place: *place,
                 carrier: *carrier,
+                projection: projection.clone(),
             },
             DescriptorSourceOrigin::IncomingSlot(location) => {
                 let (position, _, ty) = self.replay.parameter(callee, location.root)?;

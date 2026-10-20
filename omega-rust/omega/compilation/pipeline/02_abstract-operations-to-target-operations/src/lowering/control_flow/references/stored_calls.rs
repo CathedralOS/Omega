@@ -27,6 +27,10 @@ pub(in crate::lowering) struct StoredEffects {
     provider_outputs: BTreeMap<(BoundaryMachineId, u32), (StructuralTypeId, StructuralAccess)>,
     pub(super) observations:
         BTreeMap<MachineId, terminal_semantics::descriptor_results::DescriptorSourceObservations>,
+    pub(super) placed_results: BTreeMap<
+        MachineId,
+        Option<Vec<optimization_unit_semantics::descriptor_results::placed_results::ResultSlot>>,
+    >,
 }
 pub(in crate::lowering) type StoredEffectCatalog = std::sync::Arc<StoredEffects>;
 
@@ -101,6 +105,7 @@ pub(in crate::lowering) fn catalog(
     let mut effects = StoredEffects {
         provider_outputs: BTreeMap::new(),
         observations: BTreeMap::new(),
+        placed_results: BTreeMap::new(),
         machines: candidates
             .iter()
             .map(|function| (function.machine, None))
@@ -188,6 +193,23 @@ pub(in crate::lowering) fn catalog(
         effects
             .observations
             .insert(machine.id, analysis.source_observations(machine.id));
+        let result = functions.get(&machine.id).and_then(|function| {
+            let result = function.result.structural()?;
+            optimization_unit_semantics::descriptor_results::placed_results::summarize(
+                types.catalog(),
+                &function.structural_parameters,
+                result.structural_type,
+                &analysis.result_slots(machine.id)?,
+                |machine, operation| {
+                    functions
+                        .get(&machine)?
+                        .operations
+                        .iter()
+                        .find(|candidate| candidate.psi_operation() == Some(operation))
+                },
+            )
+        });
+        effects.placed_results.insert(machine.id, result);
     }
     for function in candidates {
         let summary = analysis.stored_effects(function.machine).and_then(|rows| {

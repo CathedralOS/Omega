@@ -5994,6 +5994,15 @@ fail/layouts/placed_primitive_unused_invalid rejected 9163ms expected @3b18b32f7
 fail/layouts/placed_primitive_wrong_value rejected 9006ms expected @3b18b32f7117+wt
 	placed read application: value type does not match the placed field's exact value type
 fail/layouts/placed_ram_mixed_callback rejected 40033ms expected @c48489ea6ad6
+fail/layouts/placed_reference_results/overlapping_loans rejected 8297ms expected @ca1b6be3f607
+	state `forward_holder` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
+	state `package_view` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 creates local borrow `second_holder` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 mutates `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/layouts/placed_reference_results/stale_after_write rejected 7963ms expected @ca1b6be3f607
+	cannot prove requires contract for call require_seventeen from main: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
+fail/layouts/placed_reference_results/wrong_backing rejected 7676ms expected @ca1b6be3f607
+	machine `borrow_view` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
 fail/layouts/placed_shared_formal_cannot_write rejected 5899ms expected @287adceca130+wt
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/layouts/placement_policy_unproved_callee_premise rejected 34ms expected @171dad7fbf01+wt
@@ -11047,6 +11056,10 @@ pass/layouts/placed_primitive_returned_backing checked 32866ms check-target:maco
 pass/layouts/placed_primitive_stored_backing checked 32881ms check-target:macos_arm64 @3b18b32f7117+wt
 pass/layouts/placed_primitive_unused_valid checked 32704ms check-target:macos_arm64 @3b18b32f7117+wt
 pass/layouts/placed_ram_mixed_callback checked 9120ms @7c1edd43e7e4+wt
+pass/layouts/placed_reference_results/forwarded checked 16872ms check-target:macos_arm64 @ca1b6be3f607
+pass/layouts/placed_reference_results/nested checked 16476ms check-target:macos_arm64 @ca1b6be3f607
+pass/layouts/placed_reference_results/returned checked 16289ms check-target:macos_arm64 @ca1b6be3f607
+pass/layouts/placed_reference_results/two_live checked 16624ms check-target:macos_arm64 @ca1b6be3f607
 pass/layouts/placed_view_call_custody checked 52441ms terminal-inspections:match @ce05f6f0788b
 pass/layouts/placed_view_source_access_compile checked 13118ms @a9ae30e1c334+wt
 pass/layouts/portable_data_layout_queries checked 11681ms check-target:macos_arm64 @a9ae30e1c334+wt

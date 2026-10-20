@@ -189,6 +189,7 @@ impl<'a> PlacedRamOriginAnalysis<'a> {
                     operation,
                     place,
                     carrier,
+                    projection: _,
                 }) => {
                     let source = self
                         .module

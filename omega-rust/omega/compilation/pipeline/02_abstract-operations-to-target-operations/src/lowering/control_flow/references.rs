@@ -1391,6 +1391,10 @@ pub(super) fn call_results(
     if !contains_reference(types, result.structural_type) {
         return Ok(Vec::new());
     }
+    let callee = match &declaration {
+        abstract_operations::AbstractCallSignature::Machine(callee) => Some(*callee),
+        abstract_operations::AbstractCallSignature::Requirement(_) => None,
+    };
     let contract = match declaration {
         abstract_operations::AbstractCallSignature::Machine(callee) => {
             let result = callee
@@ -1443,6 +1447,7 @@ pub(super) fn call_results(
             })
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let mut candidates = Vec::with_capacity(mapping.sources.len());
+        let mut public_interpretations = Vec::with_capacity(mapping.sources.len());
         for binding in &mapping.sources {
             let (source, transfers_existing) = match &binding.origin {
                 terminal_semantics::ReferenceCallOrigin::Parameter {
@@ -1479,6 +1484,7 @@ pub(super) fn call_results(
                         referent: expected,
                         placed: None,
                     });
+                    public_interpretations.push(None);
                     continue;
                 }
             };
@@ -1503,7 +1509,7 @@ pub(super) fn call_results(
                     reason: "returned reference origin does not resolve to its declared referent storage type",
                 });
             }
-            let leaf = if transfers_existing {
+            let mut leaf = if transfers_existing {
                 // An owned-carrier ingress mapping relocates one of the leaves the
                 // moved arguments just transferred; possible backing follows
                 // the descriptor bytes to the declared result path.
@@ -1532,20 +1538,14 @@ pub(super) fn call_results(
                     carrier_type: leaf_type(types, result.structural_type, &mapping.path)
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
                     referent: expected,
-                    placed: placed_source(live, &source),
+                    placed: placed_source(live, source),
                 }
             };
-            // A region-relative return proves containment, not the exact
-            // whole-view displacement required by a sealed placed association.
-            if leaf.placed.is_some()
-                && (!binding.suffix.is_empty()
-                    || binding.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
-                    || leaf.referent != expected)
-            {
-                return Err(LoweringError::PlacedReturnRequiresWholeView {
-                    machine: function.machine,
-                });
-            }
+            public_interpretations.push(leaf.placed.take().filter(|_| {
+                binding.suffix.is_empty()
+                    && binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+                    && leaf.referent == expected
+            }));
             candidates.push(leaf);
         }
         if candidates.is_empty() {
@@ -1554,6 +1554,54 @@ pub(super) fn call_results(
         let mut leaf = combine_alternatives(function, candidates)?;
         leaf.carrier_type = leaf_type(types, result.structural_type, &mapping.path)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        if types
+            .catalog()
+            .placed_views()
+            .iter()
+            .any(|plan| plan.carrier == expected)
+        {
+            let private = callee.and_then(|callee| {
+                let slots = live
+                    .stored_reference_effects
+                    .placed_results
+                    .get(&callee.machine)?
+                    .as_ref()?;
+                optimization_unit_semantics::descriptor_results::placed_results::resolve(
+                    slots,
+                    &mapping.path,
+                    |formal| {
+                        let actual = abstract_operations::call_source(
+                            &callee.structural_parameters,
+                            structural_arguments,
+                            formal,
+                        )?;
+                        if let Some((StructuralPathSegment::Referent, path)) =
+                            actual.path.split_last()
+                            && let Some(transferred) = moved.get(&(actual.place, path.to_vec()))
+                        {
+                            return transferred.placed.clone();
+                        }
+                        placed_source(live, &actual)
+                    },
+                    |correspondence| {
+                        target_operations::TargetPlacedInterpretation::Captured(
+                            correspondence.clone(),
+                        )
+                    },
+                )
+            });
+            let association =
+                optimization_unit_semantics::descriptor_results::placed_results::reconcile(
+                    optimization_unit_semantics::descriptor_results::placed_results::agree(
+                        public_interpretations,
+                    ),
+                    private,
+                )
+                .ok_or(LoweringError::PlacedReturnRequiresWholeView {
+                    machine: function.machine,
+                })?;
+            leaf.placed = Some(association);
+        }
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             origins: leaf.root.origins(),

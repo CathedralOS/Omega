@@ -86,6 +86,9 @@ pub enum DescriptorCallOrigin {
         operation: semantic_vocabulary::OperationId,
         place: PlaceId,
         carrier: StructuralTypeId,
+        /// Projection from the formed interpretation, not from its backing.
+        /// Formation provenance alone does not prove whole-view identity.
+        projection: Projection,
     },
     Empty,
     Argument {

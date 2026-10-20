@@ -19,6 +19,8 @@ use terminal_semantics::descriptor_results::{
     writable_descriptor_slots,
 };
 
+pub mod placed_results;
+
 /// Adapt current flat abstract bodies through the same block reconstruction
 /// and descriptor flow used by optimization-unit consumers. No retained source
 /// summary supplies origin authority after transformations.
@@ -742,6 +744,7 @@ fn adapt(
                             operation: *psi_operation,
                             place: result.place,
                             carrier: correspondence.carrier,
+                            projection: Projection::new(&[]),
                         },
                     ));
                 }

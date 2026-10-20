@@ -1931,7 +1931,13 @@ impl TerminalExecution<'_> {
             }
             let mut matched = false;
             for backing in expected {
-                if let Some(projected) = self.resolve_return_origin(backing, actual)? {
+                if let Some(mut projected) = self.resolve_return_origin(backing, actual)? {
+                    self.retain_returned_placed_interpretation(
+                        &mut projected,
+                        actual,
+                        referent_type,
+                        access,
+                    )?;
                     let view = match projected.view_tip {
                         Some(AggregateViewTip::Aggregate { view, .. }) => Some(view),
                         _ => None,

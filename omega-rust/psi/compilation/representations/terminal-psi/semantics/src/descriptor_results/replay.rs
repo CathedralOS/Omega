@@ -42,6 +42,7 @@ pub enum DescriptorStoredOrigin {
         operation: semantic_vocabulary::OperationId,
         place: PlaceId,
         carrier: StructuralTypeId,
+        projection: Projection,
     },
     Empty,
     Parameter {

@@ -442,6 +442,7 @@ pub(super) fn adapt(
                             operation: operation.id,
                             place: result.place,
                             carrier,
+                            projection: Projection::new(&[]),
                         },
                     ));
                 }

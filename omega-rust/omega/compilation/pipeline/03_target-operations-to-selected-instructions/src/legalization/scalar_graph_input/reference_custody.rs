@@ -1424,6 +1424,7 @@ fn commit_argument_moves(
 /// leaf roster the target row must carry.
 fn call_results(
     function: &PsiOptimizationFunction,
+    callee: Option<&PsiOptimizationFunction>,
     contract: terminal_semantics::ReferenceCallContract<'_>,
     types: &[StructuralTypeDeclaration],
     result: &StructuralOperationResult,
@@ -1469,6 +1470,7 @@ fn call_results(
             return Err(invalid());
         }
         let mut candidates = Vec::with_capacity(mapping.sources.len());
+        let mut public_interpretations = Vec::with_capacity(mapping.sources.len());
         for binding in &mapping.sources {
             let (source, transfers_existing) = match &binding.origin {
                 terminal_semantics::ReferenceCallOrigin::Parameter {
@@ -1502,6 +1504,7 @@ fn call_results(
                         result,
                         expected,
                     ));
+                    public_interpretations.push(None);
                     continue;
                 }
             };
@@ -1519,7 +1522,7 @@ fn call_results(
             {
                 return Err(invalid());
             }
-            let leaf = if transfers_existing {
+            let mut leaf = if transfers_existing {
                 // An owned-carrier ingress mapping relocates one of the leaves the
                 // moved arguments just transferred; the leaf keeps its identity,
                 // root and parent, and lands at the declared result path.
@@ -1560,24 +1563,18 @@ fn call_results(
                     result,
                     expected,
                 );
-                leaf.placed = placed_source(custody, &source);
+                leaf.placed = placed_source(custody, source);
                 leaf.backing = backing;
                 leaf.parents.extend(backing_parents);
                 leaf.parents.sort();
                 leaf.parents.dedup();
                 leaf
             };
-            // A region-relative return proves containment, not the exact
-            // whole-view displacement required by a sealed placed association.
-            if leaf.placed.is_some()
-                && (!binding.suffix.is_empty()
-                    || binding.extent != semantic_vocabulary::ReferenceOriginExtent::Projected
-                    || leaf.referent != expected)
-            {
-                return Err(LegalizationError::ReferenceResult {
-                    reason: "placed return requires exact whole-view origin",
-                });
-            }
+            public_interpretations.push(leaf.placed.take().filter(|_| {
+                binding.suffix.is_empty()
+                    && binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+                    && leaf.referent == expected
+            }));
             candidates.push(leaf);
         }
         if candidates.is_empty() {
@@ -1585,6 +1582,54 @@ fn call_results(
         }
         let joining = candidates.len() > 1;
         let mut leaf = combine_alternatives(candidates)?;
+        if custody
+            .placement_catalog
+            .placed_views()
+            .iter()
+            .any(|plan| plan.carrier == expected)
+        {
+            let private = callee.and_then(|callee| {
+                let slots = custody
+                    .stored_calls
+                    .placed_results
+                    .get(&callee.machine)?
+                    .as_ref()?;
+                optimization_unit_semantics::descriptor_results::placed_results::resolve(
+                    slots,
+                    &mapping.path,
+                    |formal| {
+                        let actual = abstract_operations::call_source(
+                            &callee.structural_parameters,
+                            structural_arguments,
+                            formal,
+                        )?;
+                        if let Some((StructuralPathSegment::Referent, path)) =
+                            actual.path.split_last()
+                            && let Some(transferred) = moved.get(&(actual.place, path.to_vec()))
+                        {
+                            return transferred.placed.clone();
+                        }
+                        placed_source(custody, &actual)
+                    },
+                    |correspondence| {
+                        target_operations::TargetPlacedInterpretation::Captured(
+                            correspondence.clone(),
+                        )
+                    },
+                )
+            });
+            let association =
+                optimization_unit_semantics::descriptor_results::placed_results::reconcile(
+                    optimization_unit_semantics::descriptor_results::placed_results::agree(
+                        public_interpretations,
+                    ),
+                    private,
+                )
+                .ok_or(LegalizationError::ReferenceResult {
+                    reason: "placed result has no complete whole-view interpretation",
+                })?;
+            leaf.placed = Some(association);
+        }
         if joining {
             // The selected descriptor is one result resource, conservatively
             // pinning the complete union of the consumed input permissions.
@@ -2635,16 +2680,30 @@ fn transfer_return_custody(
                 let Some(endpoint) = terminal_semantics::reference_origin_type(
                     types.iter(), parameter.structural_type, &path,
                 ) else { return false; };
-                if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected && endpoint != leaf.referent {
-                    if !find_structural_type(types, endpoint).is_some_and(|declaration|
+                let mut extent = origin.extent;
+                if extent == semantic_vocabulary::ReferenceOriginExtent::Projected && endpoint != leaf.referent {
+                    if find_structural_type(types, endpoint).is_some_and(|declaration|
                         matches!(declaration.shape, StructuralTypeShape::Reference { referent, access: supplied }
                             if referent == leaf.referent && access_covers(supplied, access)))
-                    { return false; }
-                    path.push(ReferenceOriginProjection::Exact(StructuralPathSegment::Referent));
+                    {
+                        path.push(ReferenceOriginProjection::Exact(StructuralPathSegment::Referent));
+                    } else if matches!(&leaf.placed,
+                        Some(target_operations::TargetPlacedInterpretation::Captured(correspondence))
+                            if correspondence.carrier == leaf.referent)
+                    {
+                        // Formation authenticated an interpretation of this
+                        // backing, not a typed Placed object stored there. Its
+                        // physical origin must fit a public region ceiling;
+                        // it cannot satisfy a typed projected-origin promise.
+                        // The live leaf retains the separately checked formation.
+                        extent = semantic_vocabulary::ReferenceOriginExtent::WithinRegion;
+                    } else {
+                        return false;
+                    }
                 }
                 let actual = terminal_psi::ReferenceOriginSource {
                     place: root, path, access,
-                    extent: origin.extent,
+                    extent,
                 };
                 // Supplying permission is attenuated to the requested view;
                 // the complete declared roster still covers its geometry.
@@ -3443,7 +3502,7 @@ fn call_transition(
     commit_argument_moves(custody, &moved);
     let results = match (result_contract, result) {
         (Some(contract), Some(result)) => call_results(
-            caller, contract, types, result, operation, arguments, custody, &moved,
+            caller, callee, contract, types, result, operation, arguments, custody, &moved,
         )?,
         (None, None) => Vec::new(),
         _ => return Err(invalid()),

@@ -906,6 +906,10 @@ pass/layouts/placed_primitive_mixed_backing_rejected rejected 39846ms expected n
 pass/layouts/placed_primitive_returned_backing built 34156ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_stored_backing built 33875ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_unused_valid built 33913ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
+pass/layouts/placed_reference_results/forwarded built 16783ms exit:0 interpreter-exit:0 interpreter:agrees @ca1b6be3f607
+pass/layouts/placed_reference_results/nested built 16311ms exit:0 interpreter-exit:0 interpreter:agrees @ca1b6be3f607
+pass/layouts/placed_reference_results/returned built 16091ms exit:0 interpreter-exit:0 interpreter:agrees @ca1b6be3f607
+pass/layouts/placed_reference_results/two_live built 16570ms exit:0 interpreter-exit:0 interpreter:agrees @ca1b6be3f607
 pass/layouts/runtime_callee_integer_at_fitting_write_exit built 1758ms exit:0 interpreter-exit:0 interpreter:agrees @acdf102c21ea+wt
 pass/layouts/runtime_callee_owned_local_origins_exit built 2446ms exit:0 interpreter-exit:0 interpreter:agrees @9660dd146223
 pass/layouts/runtime_captured_encoded_reference_replacement_exit built 1862ms exit:0 interpreter-exit:0 interpreter:agrees @0234777c1cd7+wt

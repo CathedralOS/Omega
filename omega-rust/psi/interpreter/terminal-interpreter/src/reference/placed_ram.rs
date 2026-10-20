@@ -49,6 +49,39 @@ pub(crate) struct PrivateEntryRamAllocation {
 }
 
 impl TerminalExecution<'_> {
+    /// A callee may form a new interpretation of its captured ingress backing.
+    /// Return checking already matched the physical source against the caller's
+    /// public origin bound. Retain the actual live formation, not an association
+    /// reconstructed from the result type. A previously captured interpretation
+    /// must still match exactly; it cannot be replaced by a different view.
+    pub(super) fn retain_returned_placed_interpretation(
+        &self,
+        projected: &mut super::ResolvedStructuralProjection,
+        actual: &super::ReferenceReferent,
+        referent: semantic_vocabulary::StructuralTypeId,
+        access: StructuralAccess,
+    ) -> Result<(), TerminalInterpretError> {
+        let Some(captured) = &actual.placed_ram else {
+            return Ok(());
+        };
+        self.validate_placed_ram_home(captured)?;
+        if projected.placed_ram.is_some() {
+            return Ok(());
+        }
+        if captured.selected_field.is_none()
+            && captured.presentation.structural_type == referent
+            && captured.correspondence.carrier == referent
+            && captured.source == actual.view
+            && projected.value == captured.source
+            && projected.view_tip.is_none()
+            && actual.aggregate_view.is_none()
+            && super::access_covers(captured.access, access)
+        {
+            projected.placed_ram = Some(captured.clone());
+        }
+        Ok(())
+    }
+
     pub(crate) fn validate_placed_ram_home(
         &self,
         captured: &PlacedRamReference,

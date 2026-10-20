@@ -526,10 +526,21 @@ impl<'a> Replay<'a> {
                     source,
                     projection: prefix.then(projection),
                 })),
+                Origin::Backing(DescriptorCallOrigin::PlacedFormation {
+                    machine,
+                    operation,
+                    place,
+                    carrier,
+                    projection: prefix,
+                }) => Some(Origin::Backing(DescriptorCallOrigin::PlacedFormation {
+                    machine,
+                    operation,
+                    place,
+                    carrier,
+                    projection: prefix.then(projection),
+                })),
                 literal @ Origin::Backing(
-                    DescriptorCallOrigin::Literal { .. }
-                    | DescriptorCallOrigin::Empty
-                    | DescriptorCallOrigin::PlacedFormation { .. },
+                    DescriptorCallOrigin::Literal { .. } | DescriptorCallOrigin::Empty,
                 ) => Some(literal),
                 // Incoming descriptor extents may be narrowed, but its storage
                 // identity remains the same until substituted in the caller.
@@ -916,12 +927,14 @@ impl<'a> Replay<'a> {
                 operation,
                 place,
                 carrier,
+                projection,
             } => Some(BTreeSet::from([Origin::Backing(
                 DescriptorCallOrigin::PlacedFormation {
                     machine: *machine,
                     operation: *operation,
                     place: *place,
                     carrier: *carrier,
+                    projection: projection.clone(),
                 },
             )])),
             DescriptorStoredOrigin::Empty => Some(BTreeSet::from([Origin::Backing(
@@ -991,11 +1004,13 @@ impl<'a> Replay<'a> {
                 operation,
                 place,
                 carrier,
+                projection,
             }) => Some(DescriptorStoredOrigin::PlacedFormation {
                 machine: *machine,
                 operation: *operation,
                 place: *place,
                 carrier: *carrier,
+                projection: projection.clone().without_runtime_coordinates(),
             }),
             Origin::Backing(DescriptorCallOrigin::Empty) => Some(DescriptorStoredOrigin::Empty),
             Origin::Storage(location) => self.exported(
