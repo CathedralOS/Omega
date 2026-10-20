@@ -1091,6 +1091,9 @@ pass/domains/policy_plan_shapes checked 9859ms @5041ef1af684+wt
 pass/domains/predicate_domain_param checked 9523ms @5041ef1af684+wt
 pass/domains/progress_domain_provider checked 9245ms @5041ef1af684+wt
 pass/domains/qualified_mutable_field_exit built 1115ms exit:0 @b027f59996c3+wt
+pass/domains/qualified_structural_argument_inline_constructor built 1039ms exit:0 @fb2277badb2e+wt
+pass/domains/qualified_structural_argument_plain_types_call built 1034ms exit:0 @fb2277badb2e+wt
+pass/domains/qualified_structural_argument_same_shape_no_call built 1033ms exit:0 @fb2277badb2e+wt
 pass/domains/record_interval_domain_member_exit built 857ms exit:70 @aff5e029f28c+wt
 pass/domains/record_literal_view_member_store_exit built 1047ms exit:70 stdout:match @bd26d3a01ac1+wt
 pass/domains/record_predicate_domain_member_exit built 970ms exit:70 @2efb222df04d

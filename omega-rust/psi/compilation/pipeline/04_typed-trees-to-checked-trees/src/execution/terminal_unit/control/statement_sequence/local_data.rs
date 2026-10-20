@@ -70,7 +70,33 @@ pub(super) enum LocalPlan {
     StructuralCall(CheckedUnitStructuralResultBindingPlan),
 }
 
+/// Plan one `let`, and leave the construction trace where it found it when the
+/// local is declined.
+///
+/// The trace's phase is what the diagnostic names when a body has no executable
+/// plan. A `None` from this function is a *decline*: the caller (`?` in the
+/// statement sequence) abandons the state, and the refusal surfaced later is
+/// raised by whoever actually could not plan it. Setting the phase on the way
+/// out blamed the last sub-phase tried here instead — a witness whose refusing
+/// construct was elsewhere reported `local data: structural call binding`
+/// because the ternary in that sub-phase declined for an unrelated local.
+/// Restoring the entry mark keeps the phase naming the site that refused.
 pub(super) fn plan(
+    planner: Planner<'_, '_, '_>,
+    index: usize,
+    statement_index: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<LocalPlan> {
+    let trace = planner.trace;
+    let entry = trace.mark();
+    let planned = plan_inner(planner, index, statement_index, local);
+    if planned.is_none() {
+        trace.restore(&entry);
+    }
+    planned
+}
+
+fn plan_inner(
     planner: Planner<'_, '_, '_>,
     index: usize,
     statement_index: u32,
