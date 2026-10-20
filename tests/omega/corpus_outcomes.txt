@@ -2588,6 +2588,7 @@ fail/facts/guarded_record_line_loan_through_other_machine_shared_record rejected
 fail/facts/guarded_record_line_loan_through_other_state_shared_record rejected 2127ms expected @e7cf0c8c7f70+wt
 fail/facts/guarded_record_line_loan_through_parameter_shared_record rejected 2069ms expected @e7cf0c8c7f70+wt
 fail/facts/guarded_record_line_loan_through_target_body_shared_record rejected 2065ms expected @e7cf0c8c7f70+wt
+<<<<<<< HEAD
 fail/facts/ieee_float_ordered_comparison_through_call_result_rejected rejected 15971ms expected @a6b4f5c6d966+wt
 	cannot prove requires contract for call verify_window from probe: source(reading) >= 1.0 && source(reading) <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/ieee_float_ordered_comparison_through_const_name_rejected rejected 15528ms expected @a6b4f5c6d966+wt
@@ -2609,6 +2610,29 @@ fail/facts/ieee_float_ordered_comparison_through_target_body_rejected rejected 1
 	cannot prove requires contract for call verify_window from probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_window from probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_window from probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+=======
+fail/facts/ieee_float_32bit_ordered_bound_through_call_result_rejected rejected 7972ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_f32_window from probe: source(reading) >= 1.0 && source(reading) <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ieee_float_32bit_ordered_bound_through_const_name_rejected rejected 7846ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_f32_window from probe: value >= 1.0 && value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ieee_float_32bit_ordered_bound_through_field_rejected rejected 7819ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_f32_window from probe: holder.reading.value >= 1.0 && holder.reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ieee_float_32bit_ordered_bound_through_local_rejected rejected 8301ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_f32_window from probe: value >= 1.0 && value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ieee_float_32bit_ordered_bound_through_match_join_rejected rejected 8284ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_f32_window from probe: value >= 1.0 && value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ieee_float_32bit_ordered_bound_through_other_machine_rejected rejected 8331ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_f32_window from deliver: value >= 1.0 && value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ieee_float_32bit_ordered_bound_through_other_state_rejected rejected 9160ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_f32_window from probe: value >= 1.0 && value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
+fail/facts/ieee_float_32bit_ordered_bound_through_parameter_rejected rejected 9718ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_f32_window from probe: value >= 1.0 && value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/ieee_float_32bit_ordered_bound_through_target_body_rejected rejected 9685ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_f32_window from probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_f32_window from probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_f32_window from probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_f32_window from probe: reading.value >= 1.0 && reading.value <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+>>>>>>> 24685072262 (tests(facts): pin ieee_float_32bit_ordered_bound fixtures and goldens)
 fail/facts/ieee_guard_i32_from_f64_call_result_invalid rejected 4433ms expected @1cf00aa9ba90+wt
 fail/facts/ieee_guard_i32_from_f64_const_name_invalid rejected 4495ms expected @1cf00aa9ba90+wt
 fail/facts/ieee_guard_i32_from_f64_field_invalid rejected 4476ms expected @1cf00aa9ba90+wt
@@ -7694,6 +7718,7 @@ pass/facts/guarded_record_line_loan_through_other_machine_exit checked 7000ms ch
 pass/facts/guarded_record_line_loan_through_other_state_exit checked 7062ms check-target:macos_arm64 @e7cf0c8c7f70+wt
 pass/facts/guarded_record_line_loan_through_parameter_exit checked 7121ms check-target:macos_arm64 @e7cf0c8c7f70+wt
 pass/facts/guarded_record_line_loan_through_target_body_exit checked 7046ms check-target:macos_arm64 @e7cf0c8c7f70+wt
+<<<<<<< HEAD
 pass/facts/ieee_float_ordered_comparison_through_call_result_exit checked 40797ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/ieee_float_ordered_comparison_through_const_name_exit checked 50185ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/ieee_float_ordered_comparison_through_field_exit checked 40680ms check-target:macos_arm64 @a6b4f5c6d966+wt
@@ -7703,6 +7728,17 @@ pass/facts/ieee_float_ordered_comparison_through_other_machine_exit checked 5221
 pass/facts/ieee_float_ordered_comparison_through_other_state_exit checked 45006ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/ieee_float_ordered_comparison_through_parameter_exit checked 43377ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/ieee_float_ordered_comparison_through_target_body_exit checked 43462ms check-target:macos_arm64 @a6b4f5c6d966+wt
+=======
+pass/facts/ieee_float_32bit_ordered_bound_through_call_result_exit checked 22106ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/ieee_float_32bit_ordered_bound_through_const_name_exit checked 21726ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/ieee_float_32bit_ordered_bound_through_field_exit checked 21954ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/ieee_float_32bit_ordered_bound_through_local_exit checked 21362ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/ieee_float_32bit_ordered_bound_through_match_join_exit checked 21888ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/ieee_float_32bit_ordered_bound_through_other_machine_exit checked 21840ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/ieee_float_32bit_ordered_bound_through_other_state_exit checked 21223ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/ieee_float_32bit_ordered_bound_through_parameter_exit checked 21064ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/ieee_float_32bit_ordered_bound_through_target_body_exit checked 21432ms check-target:macos_arm64 @a6b4f5c6d966+wt
+>>>>>>> 24685072262 (tests(facts): pin ieee_float_32bit_ordered_bound fixtures and goldens)
 pass/facts/ieee_guard_i32_from_f64_call_result checked 13505ms check-target:macos_arm64 @1cf00aa9ba90+wt
 pass/facts/ieee_guard_i32_from_f64_const_name checked 13526ms check-target:macos_arm64 @1cf00aa9ba90+wt
 pass/facts/ieee_guard_i32_from_f64_field checked 13495ms check-target:macos_arm64 @1cf00aa9ba90+wt

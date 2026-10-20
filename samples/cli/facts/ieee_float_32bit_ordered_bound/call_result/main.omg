@@ -9,7 +9,12 @@ data Reading [copy] where value >= 1.25f32 && value <= 2.75f32 {
 machine verify_f32_window(reading: f32) -> i32
 requires reading >= 1.0f32 && reading <= 3.0f32
 {
-    0i32
+    transition reading >= 1.25f32 && reading <= 2.75f32 {
+        true -> ok()
+        _ -> out_of_window()
+    }
+    state ok() -> i32 { 0i32 }
+    state out_of_window() -> i32 { 1i32 }
 }
 
 machine source(reading: Reading) -> f32
