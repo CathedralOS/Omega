@@ -26,6 +26,7 @@ mod moves;
 mod reads;
 mod resources;
 mod statements;
+mod successor_cleanup;
 
 // Shared by the checks: compatibility judgments, and binding and loan
 // details.

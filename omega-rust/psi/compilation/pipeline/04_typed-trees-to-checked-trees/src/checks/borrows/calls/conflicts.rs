@@ -173,7 +173,13 @@ pub(super) fn check_call_access_conflicts<'p>(
             // carried loans and unclosed observations remain active.
             !exiting_source.is_some_and(|source| {
                 super::super::statements::local_loan_ends_before_successor(
-                    program, facts, state_flow, source, *loan,
+                    program,
+                    facts,
+                    state_flow,
+                    source,
+                    *loan,
+                    borrow_call,
+                    call_frames,
                 )
             })
         })

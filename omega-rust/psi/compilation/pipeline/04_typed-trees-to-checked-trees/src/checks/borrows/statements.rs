@@ -476,6 +476,8 @@ fn check_call_mutation_borrows<'p>(
                         state_flow,
                         source,
                         loan_handle,
+                        borrow_call,
+                        call_frames,
                     )
                 })
                 .map(|_| {
@@ -558,7 +560,15 @@ fn loans_live_at_call(
     loans
         .filter(|loan_handle| {
             !exiting_source.is_some_and(|state| {
-                local_loan_ends_before_successor(program, facts, state_flow, state, *loan_handle)
+                local_loan_ends_before_successor(
+                    program,
+                    facts,
+                    state_flow,
+                    state,
+                    *loan_handle,
+                    borrow_call,
+                    call_frames,
+                )
             })
         })
         .collect()
@@ -737,21 +747,28 @@ pub(super) fn local_loan_ends_before_successor(
     flow: &FlowStateFact,
     source: &typed_trees::state::State,
     loan_handle: arena::Handle<checked_trees::BorrowLoanFact>,
+    call: &checked_trees::BorrowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let loan = facts.borrow.loans.get(loan_handle);
-    if !loan.owner_path.is_empty()
-        || !program
-            .state_local_declaration(source, loan.owner_symbol)
-            .is_some_and(|(_, local)| {
-                matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(local.type_reference),
-                    typed_trees::types::TypeReferenceNode::Reference { .. }
-                )
-            })
-    {
+    let Some((_, local)) = program.state_local_declaration(source, loan.owner_symbol) else {
         return false;
+    };
+    if !loan.owner_path.is_empty()
+        || !matches!(
+            program
+                .type_reference_table
+                .type_reference(local.type_reference),
+            typed_trees::types::TypeReferenceNode::Reference { .. }
+        )
+    {
+        // A record's carried reference survives lexical last use: its nominal
+        // hook still receives the intact record. Only that leaf's selected
+        // structural disposition closes it. No carried child can be restored
+        // by this rule; each surviving loan remains in the conflict frontier.
+        return source_exiting_without_local_loan_carriers(program, flow, call, call_frames)
+            .is_some()
+            && super::successor_cleanup::disposes_loan(program, facts, flow, call, loan);
     }
     // Source correspondence authenticates every loan's formation and last use,
     // including derived views. Scope closure ends a non-carried local binding;

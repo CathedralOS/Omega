@@ -1,0 +1,1 @@
+state `prepare` receives `counter` while local borrow `cleanup` is still active
