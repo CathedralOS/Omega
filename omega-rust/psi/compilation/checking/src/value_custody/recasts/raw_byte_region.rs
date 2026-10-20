@@ -423,10 +423,18 @@ pub(super) fn record_view_type_is_fact_free(
     visiting: &mut HashSet<SymbolIdentity>,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { symbol, name } => {
-            PrimitiveType::from_name(name.as_str())
-                .is_some_and(|primitive| primitive != PrimitiveType::Bool)
-                || record_view_is_fact_free(program, *symbol, visiting)
+        TypeReferenceNode::Named { symbol, .. } => {
+            // Storage atoms retain their operation protocol. Carrier-name
+            // normalization also maps atomic integers to ordinary integers;
+            // raw byte geometry establishes neither atomic authority nor the
+            // backing alignment those operations require. Ordinary typed
+            // atomic views use the independent representation judgment.
+            if program.symbols.builtin_type_atom(*symbol).is_some() {
+                super::representation_types::exact_primitive_type(program, type_reference)
+                    .is_some_and(|primitive| primitive != PrimitiveType::Bool)
+            } else {
+                record_view_is_fact_free(program, *symbol, visiting)
+            }
         }
         TypeReferenceNode::FixedArray {
             element_type,

@@ -1312,7 +1312,9 @@ pub fn structural_call_custody(
                 }
                 let expected_bound = if *operation == crate::ActivationStorageOperation::Establish {
                     Some(crate::activation_storage_bound(program, target)?)
-                } else { None };
+                } else {
+                    None
+                };
                 if *bound != expected_bound {
                     return Err("activation operation differs from its selected static bound");
                 }

@@ -72,9 +72,13 @@ impl OperationFrame<'_, '_> {
         // The route and result select the emitter; each receives the call
         // plan and the result binding this match already destructured.
         match (call.route(), call.result()) {
-            (CheckedUnitCallRoute::ActivationStorage { operation: action, bound }, _) => {
-                self.activation_storage(identities, operation, call, *action, *bound, &inputs)
-            }
+            (
+                CheckedUnitCallRoute::ActivationStorage {
+                    operation: action,
+                    bound,
+                },
+                _,
+            ) => self.activation_storage(identities, operation, call, *action, *bound, &inputs),
             (
                 CheckedUnitCallRoute::Module { .. },
                 CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },

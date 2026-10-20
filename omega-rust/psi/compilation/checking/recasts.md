@@ -25,6 +25,10 @@ geometry, not atomic mutation or embedded-descriptor authority. This is the
 route's supported subset, not a language prohibition on exclusive or atomic
 recasts whose operation authority is retained. A shared target may forget field
 membership only when its reachable contents have no shared mutation.
+Source byte-region eligibility likewise resolves the actual builtin storage
+atom rather than its carrier spelling. Typed-place slice weakening retains
+atomic source observation through the ordinary leaf-wise judgment, even when
+every target scalar is fact-free.
 
 Domain-owned `read by` and `written by` clauses are not implemented by this
 qualification repair. Their restrictions must survive erasure when that policy

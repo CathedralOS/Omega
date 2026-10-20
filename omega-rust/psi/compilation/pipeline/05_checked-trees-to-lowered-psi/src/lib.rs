@@ -67,6 +67,7 @@ mod proofs;
 mod retention;
 
 // Beside the route: shared producer vocabulary and diagnostic source attribution.
+mod activation_storage;
 mod call_sites;
 mod content_classes;
 mod declarations;
@@ -75,7 +76,6 @@ mod lowered_machine_provenance;
 mod lowering_error;
 mod producer_result;
 mod reference_custody;
-mod activation_storage;
 mod structural_types;
 mod terminal_identities;
 

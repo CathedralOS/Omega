@@ -58,9 +58,12 @@ must reject that erasure. A reference to the record retains its declared field
 contract, and shared bare observations cannot write or manufacture membership.
 Explicit byte-offset aggregate re-views do not yet retain scalar-field origin
 correspondence; they cannot introduce membership or erase a writable invariant.
-Shared views into a bare aggregate may only forget those observations.
-Wire controls also reject zero provisioning, detached initializers, wrong
-domain identities and stronger provider requirements.
+Shared views into a bare aggregate may forget those observations only when
+the target permits no shared mutation. Developmental wire checks exercised
+zero provisioning, detached initializers, wrong domain identities and stronger
+provider requirements; their producer-bound observations remain qualification
+evidence, not permanent compiler-internal Rust tests. Permanent language
+controls live beside the executable fact fixtures.
 
 This is macOS ARM64 execution evidence, not a four-host runtime claim. Windows
 runtime acceptance and the full portable provider remain unfinished under the

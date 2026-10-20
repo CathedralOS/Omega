@@ -215,24 +215,30 @@ impl CheckedUnitCallPlan {
             BoundaryCompletion::NormalReturn => match (&route, &result, &transfers) {
                 (
                     CheckedUnitCallRoute::ActivationStorage {
-                        operation: language_core::activation_storage::ActivationStorageOperation::Establish,
+                        operation:
+                            language_core::activation_storage::ActivationStorageOperation::Establish,
                         bound: Some(_),
                     },
-                    Result::Structural { .. }, Transfers::StructuralCustody(_),
+                    Result::Structural { .. },
+                    Transfers::StructuralCustody(_),
                 ) => true,
                 (
                     CheckedUnitCallRoute::ActivationStorage {
-                        operation: language_core::activation_storage::ActivationStorageOperation::BorrowBytes,
+                        operation:
+                            language_core::activation_storage::ActivationStorageOperation::BorrowBytes,
                         bound: None,
                     },
-                    Result::Structural { .. }, Transfers::StructuralCustody(_),
+                    Result::Structural { .. },
+                    Transfers::StructuralCustody(_),
                 ) => true,
                 (
                     CheckedUnitCallRoute::ActivationStorage {
-                        operation: language_core::activation_storage::ActivationStorageOperation::Release,
+                        operation:
+                            language_core::activation_storage::ActivationStorageOperation::Release,
                         bound: None,
                     },
-                    Result::Unit, Transfers::Claims(_),
+                    Result::Unit,
+                    Transfers::Claims(_),
                 ) => true,
                 (
                     CheckedUnitCallRoute::Module {
@@ -365,7 +371,9 @@ impl CheckedUnitCallPlan {
                 contract_commitment,
                 ..
             } => *contract_commitment,
-            CheckedUnitCallRoute::ActivationStorage { .. } | CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
+            CheckedUnitCallRoute::ActivationStorage { .. }
+            | CheckedUnitCallRoute::Boundary
+            | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
     }
 
@@ -377,7 +385,9 @@ impl CheckedUnitCallPlan {
                 erased_scalar_arguments,
                 ..
             } => Some(erased_scalar_arguments),
-            CheckedUnitCallRoute::ActivationStorage { .. } | CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
+            CheckedUnitCallRoute::ActivationStorage { .. }
+            | CheckedUnitCallRoute::Boundary
+            | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
     }
 
@@ -389,7 +399,9 @@ impl CheckedUnitCallPlan {
                 erased_proof_arguments,
                 ..
             } => Some(erased_proof_arguments),
-            CheckedUnitCallRoute::ActivationStorage { .. } | CheckedUnitCallRoute::Boundary | CheckedUnitCallRoute::Dynamic { .. } => None,
+            CheckedUnitCallRoute::ActivationStorage { .. }
+            | CheckedUnitCallRoute::Boundary
+            | CheckedUnitCallRoute::Dynamic { .. } => None,
         }
     }
 

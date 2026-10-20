@@ -736,7 +736,14 @@ fn judge_slice_recast(
     let source_fact_free = record_view_type_is_fact_free(program, source_type, &mut HashSet::new());
     let target_fact_free =
         record_view_type_is_fact_free(program, element_type, &mut HashSet::new());
-    let compatible = if source_tiled && target_tiled && target_fact_free {
+    // Plain target bits do not erase a source observation protocol. Atomic
+    // storage still uses the leaf-wise operation/representation judgment,
+    // including for a shared slice that performs no ordinary writes.
+    let compatible = if source_tiled
+        && target_tiled
+        && target_fact_free
+        && !source_representation.permits_shared_mutation()
+    {
         !mutable_recast || source_fact_free
     } else if mutable_recast {
         mutable_record_representations_equivalent(

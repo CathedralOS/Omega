@@ -1,0 +1,4 @@
+data Cell { value: AtomicU64; }
+machine main(cell: &Cell) {
+    let values: &[u64] = cell as &[u64];
+}

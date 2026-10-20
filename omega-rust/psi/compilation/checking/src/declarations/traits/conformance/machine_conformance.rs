@@ -614,8 +614,7 @@ fn validate_machine_operator_conformance(
             program,
             machine,
             conformance,
-        )
-    {
+        ) {
         operator
     } else {
         let retained = typed_trees::operator::resolve_specialized_checked_operator_application(
