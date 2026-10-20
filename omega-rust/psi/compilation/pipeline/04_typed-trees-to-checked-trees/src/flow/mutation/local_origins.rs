@@ -24,9 +24,8 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 mod coordinates;
-pub(crate) use coordinates::{
-    OriginPrecision, origin_place, sole_local_referent_origin, structural_origin,
-};
+pub(super) use coordinates::write_source_place;
+pub(crate) use coordinates::{OriginPrecision, origin_place, sole_local_referent_origin};
 
 pub(crate) fn close_storage_places_over_aliases(
     program: &dyn ::validation::CheckingInput,
@@ -290,6 +289,14 @@ pub(super) fn rebase_local_write_places(
     place: CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
+    // Evaluation identity is not backing identity. In particular, an inline
+    // reference-producing call may return a descriptor for caller storage.
+    // If its captured referent could not be projected, keeping the expression
+    // root here would turn an unknown write into a disjoint temporary write.
+    // The caller must retain its opaque footprint until an origin is known.
+    if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid()) {
+        return None;
+    }
     if !place_requires_local_write_origin(
         program,
         state_symbol,
@@ -355,16 +362,19 @@ pub(super) fn rebase_local_write_places(
             {
                 continue;
             }
-            let (mut canonical, precision) = origin_place(program, state, statement_index, origin)?;
-            if place.segments.len() >= origin.local_segments.len() {
+            let relative = if place.segments.len() >= origin.local_segments.len() {
                 retains_private_storage = false;
-                if precision != OriginPrecision::Enclosing {
-                    canonical.segments = facts::project_captured_view_segments(
-                        &canonical.segments,
-                        &place.segments[origin.local_segments.len()..],
-                    )?;
-                }
-            }
+                &place.segments[origin.local_segments.len()..]
+            } else {
+                &[]
+            };
+            let canonical = write_source_place(
+                program,
+                state,
+                statement_index,
+                origin.source.as_ref()?,
+                relative,
+            )?;
             // A captured self-origin already names its storage. Other cycles
             // cannot establish a finite footprint, including cycles which
             // grow a selector suffix on each crossing. Refuse rather than

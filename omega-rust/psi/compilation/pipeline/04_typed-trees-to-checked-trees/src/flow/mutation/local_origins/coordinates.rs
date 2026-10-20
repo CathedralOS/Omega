@@ -28,9 +28,34 @@ pub(crate) fn origin_place(
     origin: &validation::LocalWriteOrigin,
 ) -> Option<(CanonicalPlace, OriginPrecision)> {
     let source = origin.source.as_ref()?;
-    if source.collection_coarse
-        && let Some(place) = structural_origin(program, state, statement_index, source)
-    {
+    source_place(program, state, statement_index, source)
+}
+
+fn source_place(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    source: &validation::LocalWriteSource,
+) -> Option<(CanonicalPlace, OriginPrecision)> {
+    if let Some(first) = source.recasts.first() {
+        // A view's field symbols describe its interpretation, not the
+        // declaration backing it. Without a translated leaf footprint, keep
+        // the complete pre-view storage and prohibit descendant projection.
+        // This also withholds value-transfer precision across a recast.
+        let backing = validation::LocalWriteSource {
+            root: first.root,
+            segments: first.segments.clone(),
+            recasts: Vec::new(),
+            representation: None,
+            ..source.clone()
+        };
+        let (place, _) = structural_origin(program, state, statement_index, &backing)?;
+        return Some((place, OriginPrecision::Enclosing));
+    }
+    if source.representation.is_some() {
+        return None;
+    }
+    if let Some(place) = structural_origin(program, state, statement_index, source) {
         return Some(place);
     }
     place_from_origin_path(program, state, statement_index, &source.path).map(|place| {
@@ -45,7 +70,38 @@ pub(crate) fn origin_place(
     })
 }
 
-pub(crate) fn structural_origin(
+/// Translate a callee's logical write into the captured actual's storage.
+/// Exact scalar geometry preserves disjoint backing fields. When a view has
+/// no exact leaf translation, its enclosing footprint is still a write;
+/// that conservative answer never becomes value-preservation evidence.
+pub(in crate::flow::mutation) fn write_source_place(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    source: &validation::LocalWriteSource,
+    relative: &[facts::PlaceSegment],
+) -> Option<CanonicalPlace> {
+    if !source.root.is_valid() {
+        return None;
+    }
+    if !source.recasts.is_empty() {
+        let mut projected = source.clone();
+        projected.segments.extend_from_slice(relative);
+        if let Some((_, selectors)) = &mut projected.representation {
+            selectors.extend_from_slice(relative);
+        }
+        if let Some(coordinate) = projected.scalar_storage_coordinate(program, state) {
+            return Some(coordinate.place);
+        }
+    }
+    let (place, precision) = source_place(program, state, statement_index, source)?;
+    if precision == OriginPrecision::Enclosing {
+        return Some(place);
+    }
+    crate::flow::project_captured_view_place(place, relative)
+}
+
+fn structural_origin(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     statement_index: usize,

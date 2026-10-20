@@ -6797,6 +6797,16 @@ fail/recast/shared_record_to_atomic rejected 667ms expected @8137d4f697de+wt
 fail/recast/shared_reference_recast_cannot_lend_mutable rejected 1674ms expected @c48489ea6ad6
 fail/recast/slice_view_non_tiling_rejected rejected 2884ms expected @a9ae30e1c334+wt
 fail/recast/unbounded_offset_names_the_bound rejected 2846ms expected @a9ae30e1c334+wt
+fail/recast/write_footprint/call_result rejected 2027ms expected @c72b78bbf94a+wt
+	cannot prove requires contract for call require_seventeen from main: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
+fail/recast/write_footprint/disjoint rejected 2023ms expected @c72b78bbf94a+wt
+	cannot prove requires contract for call require_seventeen from main: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
+fail/recast/write_footprint/inline rejected 2007ms expected @c72b78bbf94a+wt
+	cannot prove requires contract for call require_seventeen from main: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
+fail/recast/write_footprint/local rejected 2041ms expected @c72b78bbf94a+wt
+	cannot prove requires contract for call require_seventeen from main: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
+fail/recast/write_footprint/state rejected 2033ms expected @c72b78bbf94a+wt
+	cannot prove requires contract for call require_seventeen from main: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
 fail/relax/retired_relax_statement rejected 0ms expected @a9ae30e1c334+wt
 fail/relevance/erased_array_missing rejected 328ms expected @763aa6f05710+wt
 fail/relevance/erased_array_runtime_read rejected 350ms expected @763aa6f05710+wt
@@ -11747,6 +11757,11 @@ pass/recast/u16_signed_view_compile checked 1551ms @a9ae30e1c334+wt
 pass/recast/u32_signed_bits_view_compile checked 2656ms @a9ae30e1c334+wt
 pass/recast/u8_signed_bits_view_compile checked 1768ms @a9ae30e1c334+wt
 pass/recast/unsigned_signed_bits_view_compile checked 1547ms @a9ae30e1c334+wt
+pass/recast/write_footprint/call_result checked 4318ms check-target:macos_arm64 @c72b78bbf94a+wt
+pass/recast/write_footprint/disjoint checked 4317ms check-target:macos_arm64 @c72b78bbf94a+wt
+pass/recast/write_footprint/inline checked 4320ms check-target:macos_arm64 @c72b78bbf94a+wt
+pass/recast/write_footprint/local checked 4316ms check-target:macos_arm64 @c72b78bbf94a+wt
+pass/recast/write_footprint/state checked 4320ms check-target:macos_arm64 @c72b78bbf94a+wt
 pass/references/mutable_loan_member_read_initializes_local_exit checked 11750ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/references/runtime_shared_ref_param_guard_exit checked 11012ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/references/selected_record_loan_disjoint_fields_exit checked 11938ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -700,6 +700,25 @@ fn instantiate_call_relative_writes(
             {
                 return Some(Vec::new());
             }
+            if matches!(namespace, WritePlaceNamespace::Storage) {
+                // Every actual uses its captured storage interpretation.
+                // A declaration-looking expression can still be a recast:
+                // appending the callee's field symbols to that declaration
+                // would confuse logical selectors with physical storage.
+                // Unknown origins keep the conservative signature ceiling.
+                return captured_argument_write_places(
+                    program,
+                    caller_machine_symbol,
+                    caller_state_symbol,
+                    borrow_call.statement_index,
+                    borrow_call.call_ordinal,
+                    &call_site,
+                    argument_index.checked_sub(1)?,
+                    &relative_place.segments,
+                    call_frames,
+                )
+                .map(attributed);
+            }
             if let Some(expression) = argument
                 && matches!(namespace, WritePlaceNamespace::AccessRoute)
                 && matches!(
@@ -732,35 +751,7 @@ fn instantiate_call_relative_writes(
         instantiated
             .segments
             .extend(relative_place.segments.iter().copied());
-        return match namespace {
-            WritePlaceNamespace::AccessRoute => Some(attributed(vec![instantiated])),
-            WritePlaceNamespace::Storage if !storage_place_has_declared_identity(&instantiated) => {
-                // Expression identity describes evaluation, not storage. Bind
-                // this formal's write to its own captured actual origins; a
-                // whole-call footprint loses which formal wrote each place.
-                // Unknown origins still make the summary unavailable, so the
-                // caller retains its conservative unattributed frame.
-                captured_argument_write_places(
-                    program,
-                    caller_machine_symbol,
-                    caller_state_symbol,
-                    borrow_call.statement_index,
-                    &call_site,
-                    argument_index.checked_sub(1)?,
-                    &relative_place.segments,
-                    call_frames,
-                )
-                .map(attributed)
-            }
-            WritePlaceNamespace::Storage => rebase_local_write_places(
-                program,
-                caller_state_symbol,
-                borrow_call.statement_index,
-                instantiated,
-                call_frames,
-            )
-            .map(attributed),
-        };
+        return Some(attributed(vec![instantiated]));
     }
 
     None
@@ -771,6 +762,7 @@ fn captured_argument_write_places(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
+    call_ordinal: usize,
     site: &validation::CallSite<'_>,
     position: usize,
     relative: &[facts::PlaceSegment],
@@ -784,25 +776,26 @@ fn captured_argument_write_places(
         validation::CallSite::Expression { expression, .. } => {
             resolver.expression_call_write_origins(machine, *expression)
         }
-        validation::CallSite::TransitionNamed { .. } => return None,
+        validation::CallSite::TransitionNamed { .. } => resolver.transition_write_origins(
+            machine,
+            validation::transition_call_target(
+                program,
+                machine,
+                state,
+                statement_index,
+                call_ordinal,
+            )?,
+        ),
     }?;
     let mut places = Vec::new();
     for source in origins.arguments.get(position)?.as_ref()? {
-        // A recast's logical selectors are not the raw backing's selectors.
-        // The coarse frame remains responsible when exact projection is absent.
-        if !source.root.is_valid() || !source.recasts.is_empty() || source.representation.is_some()
-        {
-            return None;
-        }
-        // Normalize captured windows and unknown indexes before appending
-        // callee selectors. An enclosing footprint has lost the dimension
-        // needed for descendant projection and cannot carry this attribution.
-        let (place, precision) =
-            super::local_origins::structural_origin(program, state, statement_index, source)?;
-        if precision == super::local_origins::OriginPrecision::Enclosing {
-            return None;
-        }
-        let projected = crate::flow::project_captured_view_place(place, relative)?;
+        let projected = super::local_origins::write_source_place(
+            program,
+            state,
+            statement_index,
+            source,
+            relative,
+        )?;
         if !storage_place_has_declared_identity(&projected) {
             return None;
         }
