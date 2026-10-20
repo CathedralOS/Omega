@@ -311,7 +311,7 @@ impl<'a> Elaborator<'a> {
         let source_type =
             validation::mathematical_applications::operand_type_reference(self.program, handle);
         let source_domain = source_type
-            .map(|reference| self.elaborate_type_reference(reference))
+            .map(|reference| self.elaborate_source_operand_type(reference))
             .transpose()?;
         let Some(carrier) = self.operand_carrier(handle) else {
             return Err(self.unsupported_expression(handle));

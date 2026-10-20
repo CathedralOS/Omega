@@ -97,7 +97,7 @@ impl Elaborator<'_> {
                     // Capture the complete evaluated value. Splitting a fixed
                     // Wrapping computation into source leaves would silently
                     // replace its denotation with unbounded arithmetic.
-                    let domain = self.elaborate_type_reference(reference)?;
+                    let domain = self.elaborate_source_operand_type(reference)?;
                     if let TypeReferenceNode::Generic { base_symbol, .. } =
                         self.program.type_reference_table.type_reference(reference)
                         && self.indexed_families.contains_key(base_symbol)

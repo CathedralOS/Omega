@@ -11,7 +11,9 @@ use proof_admission::{
 };
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::type_identity::TypeIdentityRequest;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(super) struct SourceAlias {
     pub reference: TypeReferenceHandle,
@@ -109,7 +111,7 @@ impl Elaborator<'_> {
         };
         reference
             .map(|reference| {
-                self.elaborate_type_reference(reference)
+                self.elaborate_source_operand_type(reference)
                     .map_err(|mut diagnostics| {
                         // Operand formation can run after the authored declaration
                         // telescope. Its error belongs to this expression, not to
@@ -122,6 +124,72 @@ impl Elaborator<'_> {
                     })
             })
             .transpose()
+    }
+
+    pub(super) fn elaborate_source_operand_type(
+        &mut self,
+        reference: TypeReferenceHandle,
+    ) -> Result<TermHandle, Vec<Diagnostic>> {
+        if let Some(projected) = self.scalar_operand_carrier(reference)
+            && let Some(alias) = self.source_alias_for_carrier(reference, projected)?
+        {
+            return Ok(alias);
+        }
+        self.elaborate_type_reference(reference)
+    }
+
+    /// Preparation may refine a scalar temporary with an inferred interval.
+    /// That interval is a value fact, not a new mathematical carrier. Project
+    /// only these operand shells, retaining the complete reference in its
+    /// source alias. Declaration/formal admission deliberately does not use
+    /// this projection: alias correspondence cannot establish a demanded range.
+    fn scalar_operand_carrier(
+        &self,
+        mut reference: TypeReferenceHandle,
+    ) -> Option<TypeReferenceHandle> {
+        while let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = self.program.type_reference_table.type_reference(reference)
+        {
+            if !self
+                .program
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .all(|constraint| {
+                    matches!(
+                        constraint,
+                        TypeConstraintNode::Range { .. } | TypeConstraintNode::ArithmeticDomain(_)
+                    )
+                })
+            {
+                return None;
+            }
+            reference = *base_type;
+        }
+        // Primitive queries may look through other shapes (notably dynamic
+        // selectors). Require the ordinary named scalar node independently.
+        (matches!(
+            self.program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. }
+        ) && matches!(
+            self.program.primitive_type_reference(reference),
+            Some(
+                PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
+                    | PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+                    | PrimitiveType::Addr
+                    | PrimitiveType::F32
+                    | PrimitiveType::F64
+            )
+        ))
+        .then_some(reference)
     }
 
     pub(super) fn retain_source_result(
@@ -161,6 +229,14 @@ impl Elaborator<'_> {
             .program
             .type_reference_table
             .unconstrained_type_reference(reference);
+        self.source_alias_for_carrier(reference, projected)
+    }
+
+    fn source_alias_for_carrier(
+        &mut self,
+        reference: TypeReferenceHandle,
+        projected: TypeReferenceHandle,
+    ) -> Result<Option<TermHandle>, Vec<Diagnostic>> {
         if !matches!(
             self.program.type_reference_table.type_reference(projected),
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Unit

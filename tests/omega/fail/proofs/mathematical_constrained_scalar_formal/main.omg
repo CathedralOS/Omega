@@ -1,0 +1,3 @@
+// Operand interval projection does not admit constrained mathematical formals.
+let same(value:i64 [0..=4]):core::Strict<0> = value == value;
+machine main() {}
