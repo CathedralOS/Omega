@@ -125,9 +125,26 @@ Full 8-layer specification and lowering evidence:
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `cannot prove requires contract for call verify_wide` because `501i32` violates the contract upper bound `wide <= 500i32`. The compiler soundly refuses any program where sign-extended bounds cannot guarantee arrival contracts.
 - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Signed extension cast expressions (`as i32`) and integer range certificates lower cleanly into canonical Terminal Psi (`PSITERM\0`). The narrow range `[300, 500]` is preserved in the Terminal Psi integer certificate through intermediate optimization passes, and the Terminal Psi interpreter agrees with native execution on exit code 0 (`omega run --both`).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout planning evaluates `size_of<i16>() == 2`, `align_of<i16>() == 2`, `size_of<i32>() == 4`, `align_of<i32>() == 4`, and `size_of<NarrowCarrier>() == 2`. In `CallPlan` and `StatePlan`, 16-bit values pass in 16-bit register/stack lanes and widen to 32-bit general-purpose registers (`ecx`/`edi`/`w0`).
-- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects signed sign-extending instructions: `movsx r32, r/m16` on x86_64 and signed halfword extension (`sxth w, w`) on arm64 architectures. Exact subtraction selects 32-bit `sub`. Disjoint activation frames allocate standard stack slots, honoring worst-case stack usage (WCSU) and bounded activation claims (`committed <= bound`).
+- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects the destination-width-independent `SignExtendI16`, which writes the full 64-bit normalized carrier: `movsx r64, r/m16` (REX.W; build bytes `48 0F BF`; AT&T `movswq`) on x86_64 and `sxth xN, wN` (word `0x9340_3c00`) on arm64. The destination logical width does not change the selected form; the extension is keyed on the source width, so this 16→32 row selects exactly the form the 16→64 row selects, and `i32`-typed boundaries add only an ordinary `sxtw` carrier normalization. Exact subtraction runs on the same 64-bit carrier (`subq` / `sub xN`), not a 32-bit `sub`. Disjoint activation frames allocate standard stack slots, honoring worst-case stack usage (WCSU) and bounded activation claims (`committed <= bound`). Measured at the tip on the macos_arm64 build with `otool -tvV <build-dir>/omega-program` and on the linux_x86_64 build with `objdump -d <build-dir>/omega-program`.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi (`omega run --both`).
 
 ## What remains open
 
 Signed 32-to-64 sign extension (`i32 as i64`), signed 8-to-16 extension (`i8 as i16`), narrow-to-wide floating point conversions, and SIMD vector widening remain governed under the wider numeric value roadmap.
+
+## Queue classification
+
+This entry is a redundant count variant, not a new mechanism. Narrow-to-wide
+extension is selected by the **source** width and signedness
+(`SignExtendI8`/`SignExtendI16`/`SignExtendI32` and the matching zero-extend
+kinds), and its realized form is destination-width-independent: the 16→32 and
+16→64 rows both select `SignExtendI16` and emit the same instruction. The landed
+`narrow_to_wide_signed_16to64_extension` row already exercises `SignExtendI16`
+across the nine places, so recording this row would add golden churn without
+new coverage. It was declined on 2026-10-20 after measuring both rows; the full
+evidence is in `build/swarm/w33/slot-8-narrow16to32-verdict.txt`.
+
+Genuinely new signed entries by the same rule are the source widths whose
+selected instruction differs and is not yet covered: the `i8` source
+(`SignExtendI8`) and the `i32` source (`SignExtendI32`). Additional destination
+widths for an already-covered source width are count variants.
