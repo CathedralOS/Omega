@@ -3918,6 +3918,24 @@ fail/facts/signed_division_quotient_unproved_target_body rejected 2471ms expecte
 	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/slice_view_layout_geometry_through_call_result_rejected rejected 19381ms expected @e44ed43aefa9
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/slice_view_layout_geometry_through_const_name_rejected rejected 20515ms expected @e44ed43aefa9
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/slice_view_layout_geometry_through_field_rejected rejected 24142ms expected @e44ed43aefa9
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/slice_view_layout_geometry_through_local_rejected rejected 20647ms expected @e44ed43aefa9
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/slice_view_layout_geometry_through_match_join_rejected rejected 20534ms expected @e44ed43aefa9
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/slice_view_layout_geometry_through_other_machine_rejected rejected 18965ms expected @e44ed43aefa9
+	machine `query_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/slice_view_layout_geometry_through_other_state_rejected rejected 14408ms expected @e44ed43aefa9
+	machine `main` state `compute` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/slice_view_layout_geometry_through_parameter_rejected rejected 14241ms expected @e44ed43aefa9
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/slice_view_layout_geometry_through_target_body_rejected rejected 14529ms expected @e44ed43aefa9
+	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/stack_frame_slot_isolation_unproved_call_result rejected 2409ms expected @45cbafd80d9c
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/stack_frame_slot_isolation_unproved_const_name rejected 2328ms expected @45cbafd80d9c
@@ -8665,6 +8683,15 @@ pass/facts/signed_division_quotient_through_other_machine_exit checked 7732ms ch
 pass/facts/signed_division_quotient_through_other_state_exit checked 7768ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_parameter_exit checked 7682ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_target_body_exit checked 7726ms check-target:macos_arm64 @45cbafd80d9c
+pass/facts/slice_view_layout_geometry_through_call_result_exit checked 39506ms check-target:macos_arm64 @e44ed43aefa9
+pass/facts/slice_view_layout_geometry_through_const_name_exit checked 42742ms check-target:macos_arm64 @e44ed43aefa9
+pass/facts/slice_view_layout_geometry_through_field_exit checked 41786ms check-target:macos_arm64 @e44ed43aefa9
+pass/facts/slice_view_layout_geometry_through_local_exit checked 44624ms check-target:macos_arm64 @e44ed43aefa9
+pass/facts/slice_view_layout_geometry_through_match_join_exit checked 42706ms check-target:macos_arm64 @e44ed43aefa9
+pass/facts/slice_view_layout_geometry_through_other_machine_exit checked 40363ms check-target:macos_arm64 @e44ed43aefa9
+pass/facts/slice_view_layout_geometry_through_other_state_exit checked 41360ms check-target:macos_arm64 @e44ed43aefa9
+pass/facts/slice_view_layout_geometry_through_parameter_exit checked 40383ms check-target:macos_arm64 @e44ed43aefa9
+pass/facts/slice_view_layout_geometry_through_target_body_exit checked 42711ms check-target:macos_arm64 @e44ed43aefa9
 pass/facts/stack_frame_slot_isolation_through_call_result_exit checked 7758ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/stack_frame_slot_isolation_through_const_name_exit checked 7782ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/stack_frame_slot_isolation_through_field_exit checked 7886ms check-target:macos_arm64 @45cbafd80d9c
