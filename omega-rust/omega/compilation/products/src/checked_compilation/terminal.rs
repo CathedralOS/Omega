@@ -74,9 +74,8 @@ impl CheckedCompilation {
                         plan: &retained.plan, row_executions: &retained.row_compiler_intrinsic_executions,
                     }
                 }).collect(),
-                calling_applications: providers.boundary_calling_plan_realizations.iter()
-                    .map(|realization| realization.native_application().map_err(|reason| vec![Diagnostic::error(reason)]))
-                    .collect::<Result<Vec<_>, _>>()?,
+                calling_applications: providers.calling_applications()
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
             },
             native_target: execution.selected_native_target(),
             program_entry: execution.selected_program_entry.as_ref().map(|entry| {

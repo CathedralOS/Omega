@@ -22,6 +22,7 @@ mod buffered_output;
 pub(super) mod clock;
 mod descriptor_io;
 mod descriptor_mode;
+mod network_address;
 mod numeric;
 mod standard_input;
 
@@ -54,6 +55,9 @@ pub(super) fn bind<'host>(
     // Different selected poll and clock slots inhabit one invocation, not
     // independent timelines. Another execute request gets another backing.
     let clock = clock.map(|snapshot| std::sync::Arc::new(std::sync::Mutex::new(snapshot)));
+    let addresses = std::sync::Arc::new(std::sync::Mutex::new(
+        network_address::AddressValues::default(),
+    ));
     for slot in imports {
         let provision = provisions
             .and_then(|provisions| {
@@ -156,6 +160,17 @@ pub(super) fn bind<'host>(
                     provisions.map_or(&[], TerminalRuntimeProvisions::borrowed_storage_layouts),
                     input.as_ref().cloned(),
                     output.clone(),
+                )? {
+                    instance
+                        .bind_import(*slot, adapter)
+                        .map_err(TerminalRuntimeError::Binding)?;
+                    continue;
+                }
+                if let Some(adapter) = network_address::NetworkAddressImport::admit(
+                    declaration,
+                    binding,
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                    std::sync::Arc::clone(&addresses),
                 )? {
                     instance
                         .bind_import(*slot, adapter)

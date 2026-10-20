@@ -266,6 +266,7 @@ fn project_terminal_native_body(
             integer_comparisons: comparisons.integer,
         },
         boundary_applications: TerminalNativeBoundaryApplications {
+            calling: request.boundaries.calling_applications.clone(),
             coverage: boundary_application_coverage,
         },
         behavior_exclusions: effects::authored_behavior_exclusion_set_in(

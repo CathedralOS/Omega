@@ -54,6 +54,9 @@ pub struct TerminalNativeOccurrences {
 /// discard its already-constructed identity references only to rebuild them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeBoundaryApplications {
+    /// Retain the producer's complete geometry for typed host admission.
+    /// Opaque application digests alone cannot authorize a host ABI shape.
+    pub calling: Vec<calling_conventions::BoundaryCallingApplication>,
     pub coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
 }
 

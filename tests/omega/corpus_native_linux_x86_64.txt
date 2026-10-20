@@ -1673,6 +1673,15 @@ pass/facts/no_wrap_domain_through_other_state_exit built 8896ms exit:0 @d2f0e31c
 pass/facts/no_wrap_domain_through_parameter_exit built 8691ms exit:0 @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_target_body_exit built 8261ms exit:0 @d2f0e31ca0d4+wt
 pass/facts/opaque_closed_carrier_exchange_exit built 105588ms exit:70 terminal-runtime.observe:unrequested terminal-inspections:match @4bae60101579
+pass/facts/opaque_closed_carrier_through_call_result_exit built 1389ms exit:0 @30a3df3bc2fe
+pass/facts/opaque_closed_carrier_through_const_name_exit built 1399ms exit:0 @30a3df3bc2fe
+pass/facts/opaque_closed_carrier_through_field_exit built 1432ms exit:0 @30a3df3bc2fe
+pass/facts/opaque_closed_carrier_through_local_exit built 1418ms exit:0 @30a3df3bc2fe
+pass/facts/opaque_closed_carrier_through_match_join_exit built 1425ms exit:0 @30a3df3bc2fe
+pass/facts/opaque_closed_carrier_through_other_machine_exit built 1489ms exit:0 @30a3df3bc2fe
+pass/facts/opaque_closed_carrier_through_other_state_exit built 1418ms exit:0 @30a3df3bc2fe
+pass/facts/opaque_closed_carrier_through_parameter_exit built 1511ms exit:0 @30a3df3bc2fe
+pass/facts/opaque_closed_carrier_through_target_body_exit built 1603ms exit:0 @30a3df3bc2fe
 pass/facts/opaque_inactive_carrier_payload_exit built 53162ms exit:70 @4bae60101579
 pass/facts/opaque_nested_carrier_exchange_exit built 155651ms exit:70 terminal-runtime.observe:unrequested terminal-runtime.observe_replacement:unrequested terminal-runtime.relay:unrequested terminal-inspections:match @4bae60101579
 pass/facts/opaque_wrapped_carrier_exchange_exit built 64992ms exit:70 terminal-runtime.observe:unrequested terminal-inspections:match @4bae60101579

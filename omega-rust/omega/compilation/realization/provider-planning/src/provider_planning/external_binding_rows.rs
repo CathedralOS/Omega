@@ -78,7 +78,7 @@ pub(crate) fn extract_native_external_binding_rows(
                 | ProviderBinding::VtableSlot { .. }
                 | ProviderBinding::CheckedAdapter { .. } => continue,
             };
-            let boundary_entry_plan = selected_source_boundary_entry_plan(
+            let calling_application = selected_source_calling_application(
                 typed,
                 boundary_calling_plan_realizations,
                 plan,
@@ -93,10 +93,10 @@ pub(crate) fn extract_native_external_binding_rows(
                 }
                 _ => Some(CallingPolicy::native_for_target(native_target)),
             };
-            let boundary_entry_plan = match (boundary_entry_plan, compatibility_policy) {
+            let calling_application = match (calling_application, compatibility_policy) {
                 (Some(plan), _) => Some(plan),
                 (None, Some(policy)) => {
-                    crate::calling_policy_plans::evaluate_compatibility_boundary_entry_plan(
+                    crate::calling_policy_plans::evaluate_default_calling_application(
                         typed,
                         native_target,
                         plan.schema.identity_text(plan.schema.trait_name),
@@ -109,7 +109,7 @@ pub(crate) fn extract_native_external_binding_rows(
                     )
                     .map_err(|reason| {
                         vec![Diagnostic::error(format!(
-                            "cannot evaluate compatibility calling plan for `{}::{}`: {reason}",
+                            "cannot evaluate default native calling application for `{}::{}`: {reason}",
                             plan.schema.identity_text(plan.schema.trait_name),
                             row.method
                         ))]
@@ -127,7 +127,7 @@ pub(crate) fn extract_native_external_binding_rows(
                 method: row.method.clone(),
                 requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
                 table_type: plan.provider_type.clone(),
-                boundary_entry_plan,
+                calling_application,
                 binding,
             });
         }
@@ -139,7 +139,7 @@ pub(crate) fn extract_native_external_binding_rows(
 /// selection admitted. The public provider/schema identity carries the
 /// canonical fingerprint; the typed program retains the corresponding plan
 /// internally so lowering never has to rediscover or re-run policy source.
-fn selected_source_boundary_entry_plan(
+fn selected_source_calling_application(
     typed: &checked_trees::typed_trees::TypedTrees,
     boundary_calling_plan_realizations: &[
         crate::calling_policy_plans::BoundaryCallingPlanRealization
@@ -148,7 +148,7 @@ fn selected_source_boundary_entry_plan(
     trait_name: &str,
     method_name: &str,
     requirement_identity: &str,
-) -> Result<Option<calling_conventions::BoundaryEntryPlan>, Diagnostic> {
+) -> Result<Option<calling_conventions::BoundaryCallingApplication>, Diagnostic> {
     if plan.name.is_empty() {
         return Err(Diagnostic::error(
             "selected source boundary entry plan has an empty ProviderPlan name",
@@ -403,5 +403,8 @@ fn selected_source_boundary_entry_plan(
         )));
     }
 
-    Ok(Some(realization.exact_boundary_entry_plan().clone()))
+    realization
+        .native_application()
+        .map(Some)
+        .map_err(Diagnostic::error)
 }

@@ -37,4 +37,4 @@ pub use opaque_representations::{
     BoundaryOpaqueRepresentationUse,
 };
 pub use plan_computation::compute_boundary_calling_plans;
-pub(crate) use plan_computation::evaluate_compatibility_boundary_entry_plan;
+pub(crate) use plan_computation::evaluate_default_calling_application;

@@ -1,5 +1,5 @@
-// Expected exit: 70
-// libc returns an IPv4 address record and consumes the same record by value.
+// Expected exit: 0
+// Closed nested Inert carrier transport preserves libc host numbers 66051 and 513 and replacement 1027 while retaining the disjoint sibling.
 use omega::language::core::external_binding;
 use omega_language_std::console;
 
@@ -62,6 +62,18 @@ macos_arm64 machine host(address: InternetAddress) -> u32
 linux_x86_64 machine host(address: InternetAddress) -> u32
     satisfies AddressParts::host via linux_x86_64_host_binding();
 
+linux_arm64 machine linux_arm64_make_binding() -> ForeignBinding<9, 13, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_makeaddr", version: "GLIBC_2.17" } }
+}
+linux_arm64 machine make(network: u32, host: u32) -> InternetAddress
+    satisfies AddressParts::make via linux_arm64_make_binding();
+
+linux_arm64 machine linux_arm64_host_binding() -> ForeignBinding<9, 10, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_lnaof", version: "GLIBC_2.17" } }
+}
+linux_arm64 machine host(address: InternetAddress) -> u32
+    satisfies AddressParts::host via linux_arm64_host_binding();
+
 public data AddressBox { value: InternetAddress; }
 public data AddressPair { first: InternetAddress; second: InternetAddress; }
 
@@ -100,6 +112,6 @@ machine Main::main(main: &mut Main) reaches AddressParts + Console {
         true -> passed(main)
         _ -> failed(main)
     }
-    state passed(main: &mut Main) { Console::exit_process(70); }
+    state passed(main: &mut Main) { Console::exit_process(0); }
     state failed(main: &mut Main) { Console::exit_process(71); }
 }

@@ -129,7 +129,7 @@ pub(crate) fn settle_callback_registrar_imports(
                 matching_rows.len(),
             ));
         };
-        row.boundary_entry_plan = Some(materialization.registrar_boundary_entry_plan.clone());
+        row.calling_application = Some(materialization.registrar_application.clone());
     }
 
     Ok(rows)

@@ -4380,8 +4380,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   **NORMALIZED-ABI-LOWERING**. The existing host-boundary path supports closed
   generic Inert carriers, including nested applications and record transport;
   [closed carrier exchange](samples/cli/facts/opaque_closed_carrier_exchange/README.md)
-  checks actual libc values and cleanup-only rejects. This does not establish
-  independent-component composition or mismatched-component admission.
+  checks actual libc values through public Terminal/native agreement on Linux
+  x86-64 across transport places, with cleanup-only rejects. Its named constants
+  are construction inputs, not compile-time opaque occurrences. Matching-host
+  qualification on macOS/Linux ARM64 and a verified Windows provider remain;
+  entry declarations do not establish those results. Independent-component
+  composition and mismatched-component admission also remain open.
   `omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
   derives occurrence paths and placements; connect them to provider call-frame
   transport and backend emission. Physical copies preserve one semantic

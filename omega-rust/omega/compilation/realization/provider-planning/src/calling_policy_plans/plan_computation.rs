@@ -23,8 +23,8 @@ use crate::calling_policy_plans::{
 use build_time_evaluation::{BuildTimeProgram, BuildTimeValue};
 use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{
-    BoundaryEntryPlan, BoundaryPlanResult, CallSignature, CallingPolicy, NativePlace,
-    ValidatedBoundaryEntryPlan, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    BoundaryPlanResult, CallSignature, CallingPolicy, NativePlace, ValidatedBoundaryEntryPlan,
+    ValueShape, evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
 use checked_trees::typed_trees::TypedTrees;
@@ -32,7 +32,7 @@ use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
 
-pub(crate) fn evaluate_compatibility_boundary_entry_plan(
+pub(crate) fn evaluate_default_calling_application(
     typed: &TypedTrees,
     native_target: NativeTarget,
     trait_name: &str,
@@ -42,7 +42,7 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
     policy: CallingPolicy,
     dispatch_only_parameter_count: usize,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
-) -> Result<Option<BoundaryEntryPlan>, String> {
+) -> Result<Option<calling_conventions::BoundaryCallingApplication>, String> {
     let trait_candidates = typed
         .traits()
         .iter()
@@ -135,9 +135,12 @@ pub(crate) fn evaluate_compatibility_boundary_entry_plan(
     };
     let classified =
         compatibility_call_signature(&materialized, policy, dispatch_only_parameter_count)?;
-    evaluate_ordinary_boundary_entry_plan(policy, &classified)
-        .map(|validated| Some(validated.plan().clone()))
-        .map_err(|diagnostic| diagnostic.to_string())
+    let validated = evaluate_ordinary_boundary_entry_plan(policy, &classified)
+        .map_err(|diagnostic| diagnostic.to_string())?;
+    for representation in materialized.opaque_representation_uses() {
+        materialized.opaque_representation_movement(representation, &validated)?;
+    }
+    publish_materialized_application(&materialized, &validated).map(Some)
 }
 
 /// Discover concrete `Calling<Policy>` relationships, evaluate the selected implementation row once for
@@ -830,13 +833,24 @@ pub(crate) fn boundary_plan_application_identity(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
 ) -> Result<(u64, [u8; 32]), String> {
-    let application = super::callback_bindings::source_free_application(signature, validated)?;
-    let commitment = application.recomputed_commitment()?;
-    let report = callback_nominal_report_fingerprint(
+    let application = publish_materialized_application(signature, validated)?;
+    Ok((application.report_fingerprint, application.commitment))
+}
+
+/// Both authored and default policies publish the complete source-free C shape
+/// together with its validated plan. Returning only a bare plan discarded the
+/// opaque representation graph before the runtime could admit a typed host.
+fn publish_materialized_application(
+    signature: &MaterializedBoundarySignature,
+    validated: &ValidatedBoundaryEntryPlan,
+) -> Result<calling_conventions::BoundaryCallingApplication, String> {
+    let mut application = super::callback_bindings::source_free_application(signature, validated)?;
+    application.commitment = application.recomputed_commitment()?;
+    application.report_fingerprint = callback_nominal_report_fingerprint(
         b"omega.boundary-plan-application-report.v3",
-        &[&commitment],
+        &[&application.commitment],
     );
-    Ok((report, commitment))
+    Ok(application)
 }
 
 fn invalid_authored_plan(reason: String) -> String {

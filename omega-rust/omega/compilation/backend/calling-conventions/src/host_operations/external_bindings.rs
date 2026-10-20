@@ -16,9 +16,20 @@ pub struct ExternalBindingRow {
     /// The attached provider data type that owns the table layout. Empty for
     /// free leaves and required for table-field bindings.
     pub table_type: String,
-    /// Canonical source-selected plan for this concrete service method.
-    pub boundary_entry_plan: Option<BoundaryEntryPlan>,
+    /// Complete admitted geometry and plan for this concrete service method,
+    /// whether its policy is authored or the target's ordinary native default.
+    pub calling_application: Option<crate::BoundaryCallingApplication>,
     pub binding: ExternalBindingKind,
+}
+
+impl ExternalBindingRow {
+    /// Physical placement and semantic geometry have one immutable owner.
+    /// Consumers cannot update one while accidentally retaining the other.
+    pub fn boundary_entry_plan(&self) -> Option<&BoundaryEntryPlan> {
+        self.calling_application
+            .as_ref()
+            .map(|application| application.plan.plan())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

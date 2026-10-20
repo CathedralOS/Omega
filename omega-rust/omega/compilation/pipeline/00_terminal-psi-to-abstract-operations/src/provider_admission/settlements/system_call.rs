@@ -81,8 +81,7 @@ pub(super) fn rejoin_system_call(
         )));
     }
     let entry = external
-        .boundary_entry_plan
-        .as_ref()
+        .boundary_entry_plan()
         .ok_or_else(|| invalid("has no retained calling plan"))?;
     if entry.call.policy != policy {
         return Err(invalid(

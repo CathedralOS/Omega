@@ -93,8 +93,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                     }
                 };
                 let entry = external
-                    .boundary_entry_plan
-                    .as_ref()
+                    .boundary_entry_plan()
                     .ok_or_else(|| vec![Diagnostic::error("table binding has no calling plan")])?;
                 let signature = calling_conventions::CallSignature::of_placements(
                     &entry.call.parameters,
@@ -136,7 +135,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                 let Some(boundary_entry_plan) = rows
                     .external
                     .filter(|_| rows.external_count == 1)
-                    .and_then(|external| external.boundary_entry_plan.as_ref())
+                    .and_then(|external| external.boundary_entry_plan())
                 else {
                     return Err(vec![Diagnostic::error(format!(
                         "demanded normalized import `{requirement}` resolves to {} retained external implementation contracts",

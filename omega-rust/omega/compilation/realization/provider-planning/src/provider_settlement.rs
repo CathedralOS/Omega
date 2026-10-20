@@ -259,6 +259,46 @@ pub struct ProviderSettlement {
         Vec<package_compilation::IndependentComponentDescription>,
 }
 
+impl ProviderSettlement {
+    /// Publish the complete calling catalog from its producing owners. Explicit
+    /// policy rows can also own an external import; retain that same application
+    /// once. Default native policies retain their materialized geometry here too.
+    pub fn calling_applications(
+        &self,
+    ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, String> {
+        let mut applications = self
+            .boundary_calling_plan_realizations
+            .iter()
+            .map(BoundaryCallingPlanRealization::native_application)
+            .collect::<Result<Vec<_>, _>>()?;
+        let explicit_count = applications.len();
+        for application in self
+            .external_binding_rows
+            .iter()
+            .filter_map(|row| row.calling_application.as_ref())
+        {
+            // Callback closure updates the explicit policy catalog. Its
+            // finalized application supersedes the earlier external-row view;
+            // registrar settlement transfers that same completed application
+            // to the physical import before native admission.
+            if let Some(index) = applications.iter().position(|retained| {
+                retained.requirement_identity == application.requirement_identity
+                    && retained.target == application.target
+            }) {
+                if index >= explicit_count && applications[index] != *application {
+                    return Err(
+                        "default native policies disagree on one exact calling application"
+                            .to_owned(),
+                    );
+                }
+            } else {
+                applications.push(application.clone());
+            }
+        }
+        Ok(applications)
+    }
+}
+
 /// Derive and select providers against the immutable, source-checked roster.
 /// A realization cannot rewrite source contracts or fold target values into them.
 pub fn settle_checked_providers(

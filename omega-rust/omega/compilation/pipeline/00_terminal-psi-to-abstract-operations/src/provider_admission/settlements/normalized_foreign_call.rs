@@ -43,7 +43,7 @@ pub(super) fn rejoin_normalized_foreign_call(
         ))]);
     };
     if let (Some(boundary_entry_plan), selected, retained) = (
-        &external.boundary_entry_plan,
+        external.boundary_entry_plan(),
         &selected_row.binding,
         &external.binding,
     ) {
@@ -94,7 +94,7 @@ pub(super) fn rejoin_normalized_foreign_call(
     ) = (
         &selected_row.binding,
         &external.binding,
-        &external.boundary_entry_plan,
+        external.boundary_entry_plan(),
     )
     else {
         return Err(vec![Diagnostic::error(format!(

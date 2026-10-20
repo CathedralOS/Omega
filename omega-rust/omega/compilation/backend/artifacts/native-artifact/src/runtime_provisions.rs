@@ -27,6 +27,7 @@ struct RuntimeHostRequirement {
     boundary_identity: String,
     selected_requirement_identity: String,
     provider_plan_report_identity: u64,
+    calling_application: Option<calling_conventions::BoundaryCallingApplication>,
 }
 
 /// Entry and provider facts for the exact produced Terminal program. Source
@@ -82,6 +83,7 @@ impl TerminalRuntimeProvisions {
         identities: &terminal_psi::TerminalIdentityTable,
         plan_identities: &terminal_psi::TerminalIdentityTable,
         target_slot: target::ProgramEntrySlotDeclaration,
+        calling_applications: &[calling_conventions::BoundaryCallingApplication],
     ) -> Result<Self, &'static str> {
         let mut host_requirements = Vec::new();
         for provision in &host {
@@ -107,6 +109,24 @@ impl TerminalRuntimeProvisions {
             {
                 return Err("runtime host provision lost its exact selected requirement row");
             }
+            let requirement = binding
+                .requirement_identity(selected.identities())
+                .ok_or("runtime foreign calling application lost its selected requirement")?;
+            // The same producer has already settled these applications. Retain
+            // its exact shape and strong selected commitment, not a reconstructed
+            // shape inferred from a placement's byte extent or report coordinate.
+            let mut applications = calling_applications.iter().filter(|application| {
+                selected.selected_row_matches_requirement(
+                    &application.requirement_identity,
+                    requirement,
+                    binding.provider_plan_report_identity(),
+                ) && Some(application.target) == binding.native_target()
+                    && application.plan.plan() == &binding.boundary_entry_plan
+            });
+            let calling_application = applications.next().cloned();
+            if applications.next().is_some() {
+                return Err("runtime foreign calling application is ambiguous");
+            }
             host_requirements.push(RuntimeHostRequirement {
                 boundary: boundary.id,
                 boundary_identity: identities
@@ -118,6 +138,7 @@ impl TerminalRuntimeProvisions {
                     .unwrap_or_default()
                     .to_owned(),
                 provider_plan_report_identity: binding.provider_plan_report_identity(),
+                calling_application,
             });
         }
         let mut fused_service_boundary_slots = Vec::with_capacity(fused_services.len());
@@ -212,6 +233,20 @@ impl TerminalRuntimeProvisions {
                 && row.selected_requirement_identity == selected_requirement
                 && row.provider_plan_report_identity == provider_plan_report_identity
         }) && matching.next().is_none()
+    }
+
+    /// The admitted foreign row's complete source-free calling application.
+    /// Runtime adapters must inspect this geometry before interpreting opaque
+    /// owned bytes; equal-sized native placements do not establish a C shape.
+    pub fn host_calling_application(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<&calling_conventions::BoundaryCallingApplication> {
+        self.host_requirements
+            .iter()
+            .find(|row| row.boundary == boundary)?
+            .calling_application
+            .as_ref()
     }
 
     pub const fn identity(&self) -> TerminalPsiIdentity {

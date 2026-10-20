@@ -14,19 +14,11 @@ mod linux {
     };
     use terminal_psi::BoundaryMachineResult;
 
-    #[derive(Clone, Copy)]
-    #[repr(C)]
-    struct InternetAddress {
-        address: u32,
-    }
-    unsafe extern "C" {
-        fn inet_makeaddr(network: u32, host: u32) -> InternetAddress;
-        fn inet_lnaof(address: InternetAddress) -> u32;
-    }
+    use runtime_abi::HostInternetAddress;
     #[derive(Default)]
     struct Values {
         next: u64,
-        addresses: BTreeMap<u64, InternetAddress>,
+        addresses: BTreeMap<u64, HostInternetAddress>,
         observed: Vec<u32>,
     }
     struct Adapter {
@@ -78,12 +70,11 @@ mod linux {
                     }
                     // The declared C function returns its actual value. Nothing in
                     // the adapter knows the guest's expected host-number oracle.
-                    let address = unsafe {
-                        inet_makeaddr(
-                            u32::try_from(*network).unwrap(),
-                            u32::try_from(*host).unwrap(),
-                        )
-                    };
+                    let address = HostInternetAddress::make(
+                        u32::try_from(*network).unwrap(),
+                        u32::try_from(*host).unwrap(),
+                    )
+                    .expect("Linux supplies native inet operations");
                     values.next += 1;
                     let identity = 90_000 + values.next;
                     values.addresses.insert(identity, address);
@@ -110,7 +101,9 @@ mod linux {
                         .ok_or_else(|| {
                             TerminalEffectRejection::new("guest lost the original opaque value")
                         })?;
-                    let host = unsafe { inet_lnaof(address) };
+                    let host = address
+                        .host_number()
+                        .expect("Linux supplies native inet operations");
                     values.observed.push(host);
                     Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
                         scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
@@ -185,7 +178,7 @@ mod linux {
         let [parameter] = program.entry().unwrap().structural_parameters else {
             panic!("one opaque ingress")
         };
-        let original = unsafe { inet_makeaddr(10, 66051) };
+        let original = HostInternetAddress::make(10, 66051).unwrap();
         let argument =
             TerminalStructuralValue::minted(90001, parameter.structural_type, Vec::new());
         let mut instance = program
@@ -210,7 +203,7 @@ mod linux {
             "whole host payload survives changed storage homes"
         );
         assert!(returned.claims.is_empty());
-        assert_eq!(unsafe { inet_lnaof(original) }, 66051);
+        assert_eq!(original.host_number(), Some(66051));
         instance.close().unwrap();
     }
 
