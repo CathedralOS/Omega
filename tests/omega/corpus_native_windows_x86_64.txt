@@ -1386,6 +1386,15 @@ pass/facts/range_fact_delivery_through_other_machine_exit built 7363ms exit:0 @e
 pass/facts/range_fact_delivery_through_other_state_exit built 7805ms exit:0 @ec38c6dfcf45
 pass/facts/range_fact_delivery_through_parameter_exit built 7421ms exit:0 @ec38c6dfcf45
 pass/facts/range_fact_delivery_through_target_body_exit built 6944ms exit:0 @ec38c6dfcf45
+pass/facts/readonly_byte_pool_relocation_bound_through_call_result_exit built 21744ms exit:0 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_const_name_exit built 22088ms exit:0 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_field_exit built 21503ms exit:0 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_local_exit built 21530ms exit:0 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_match_join_exit built 21371ms exit:0 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit built 21304ms exit:0 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit built 19733ms exit:0 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit built 20901ms exit:0 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit built 21160ms exit:0 @8f970335dca4+wt
 pass/facts/remainder_width_through_call_result_exit built 5810ms exit:0 @d070d134851d+wt
 pass/facts/remainder_width_through_const_name_exit built 5793ms exit:0 @d070d134851d+wt
 pass/facts/remainder_width_through_field_exit built 5725ms exit:0 @d070d134851d+wt

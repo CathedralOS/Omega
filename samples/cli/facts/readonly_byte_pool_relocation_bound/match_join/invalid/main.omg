@@ -19,18 +19,12 @@ ensures result == 0u64
     }
 }
 
-machine probe(flag: bool) -> u64 crashes Trap
-ensures result == 0u64
-{
-    let bytes: &[u8] = match flag {
+machine main() crashes Trap {
+    let first: &[u8] = match true {
         true -> "omeg",
         false -> "omeg",
     };
-    inspect_bytes(bytes)
-}
-
-machine main() crashes Trap {
-    transition probe(true) == 0 && probe(false) == 0 {
+    transition inspect_bytes(first) == 0 {
         true -> done()
         _ -> bad()
     }

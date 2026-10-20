@@ -10,6 +10,7 @@ Only the transport mechanism of the read-only byte-pool slice literal changes ac
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
+| root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness inspecting the read-only byte-pool slice literal |
 | local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the slice literal is assigned to a local variable before inspection |
 | field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the slice literal is stored into and read from a struct field |
 | parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the slice literal is passed through a machine parameter with required length contract |
@@ -22,7 +23,7 @@ Only the transport mechanism of the read-only byte-pool slice literal changes ac
 
 ## Execution
 
-Each positive place is an application that exits 0, and every positive place (and the root `main.omg`) carries an authored `expected_native_exit.txt` declaring `0`. `omega run --both` verifies agreement between Terminal Psi interpreter and native compilation:
+Each positive place is an application that exits 0, binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and carries an authored `expected_native_exit.txt` declaring `0`. `omega run --both` verifies agreement between Terminal Psi interpreter and native compilation:
 
 ```sh
 omega run --both samples/cli/facts/readonly_byte_pool_relocation_bound/main.omg
@@ -41,13 +42,13 @@ All ten positive places produce `native exit 0` and `interp exit: 0`.
 
 ### The Oracle Discriminates
 
-The authored exit code `0` is not an unconstrained default. If the caller expectation in `probe()` is modified to require a non-zero exit or if an unexpected character is encountered, execution transitions to `state bad() { crash Trap; }` with `native signal 5` and `interp crash: Trap`, yielding exit code 255. The oracle therefore strictly discriminates between correct evaluation and faulty execution.
+The authored exit code `0` is strictly discriminative. A 1-token perturbation of the demanded byte value in `inspect_bytes()` (from `transition b == 97u8` to `transition b == 98u8`) or of the caller expectation (`transition probe() == 0` to `transition probe() == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines with `native signal 5` and `interp crash: Trap` (exit code 255).
 
 ### Reject Twins
 
-Each place has an `invalid/` twin that breaks only that fact or obligation:
-- In `local`, `field`, `parameter`, `call_result`, `match_join`, `other_state`, `other_machine`, and `target_body`, the input literal is shortened to 4 bytes (`"omeg"`), failing the required 5-byte length contract with `cannot prove requires contract`.
-- In `const_name`, the named length subtrahend constant is increased to `6u64`, causing exact subtraction `bytes.len - SUBTRAHEND` to fail closed at compile time with `may overflow `u64``.
+Each place has an `invalid/` twin (`sample.json` + `expected.txt`) that breaks only the construct's own contract, input, or domain (never a post-hoc caller guard):
+- **Obligation class (`local`, `field`, `parameter`, `call_result`, `match_join`, `other_state`, `other_machine`, `target_body`):** Call/transition contract precondition (`cannot prove requires contract`) when the read-only byte-pool literal is shortened from 5 bytes (`"omega"`) to 4 bytes (`"omeg"`), failing `bytes.len >= 5u64 && bytes.len <= 5u64`.
+- **Obligation class (`const_name`):** Exact unsigned subtraction range obligation (`may overflow `u64``) when the named subtrahend constant is increased from `5u64` to `6u64`, failing `bytes.len - SUBTRAHEND` under `bytes.len >= 5u64 && bytes.len <= 5u64`.
 
 None reaches native execution.
 
@@ -56,17 +57,41 @@ Check each twin with:
 omega --check samples/cli/facts/readonly_byte_pool_relocation_bound/<place>/invalid/main.omg
 ```
 
-| Place | Reject Twin | Authored Diagnostic Fragment |
-| --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `cannot prove requires contract` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `cannot prove requires contract` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `cannot prove requires contract` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove requires contract` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove requires contract` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `may overflow `u64`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract` |
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic range | `may overflow `u64`` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+
+## Pinned Fixtures
+
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_local_exit/`
+  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_field_exit/`
+  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt`):**
+  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/readonly_byte_pool_relocation_bound_through_target_body_rejected/`
 
 ## Requirements and Evidence
 

@@ -3213,6 +3213,27 @@ fail/facts/readonly_byte_literal_subslice_unproved_target_body rejected 2904ms e
 	exact arithmetic in machine `evaluate_window` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate_window` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate_window` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/readonly_byte_pool_relocation_bound_through_call_result_rejected rejected 8802ms expected @8f970335dca4+wt
+	cannot prove requires contract for call inspect_bytes from probe: bytes.len >= 5 && bytes.len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/readonly_byte_pool_relocation_bound_through_const_name_rejected rejected 6720ms expected @8f970335dca4+wt
+	exact arithmetic in machine `inspect_bytes` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/readonly_byte_pool_relocation_bound_through_field_rejected rejected 9322ms expected @8f970335dca4+wt
+	cannot prove requires contract for call inspect_bytes from probe: held.bytes.len >= 5 && held.bytes.len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/readonly_byte_pool_relocation_bound_through_local_rejected rejected 10380ms expected @8f970335dca4+wt
+	cannot prove requires contract for call inspect_bytes from probe: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/readonly_byte_pool_relocation_bound_through_match_join_rejected rejected 10039ms expected @8f970335dca4+wt
+	cannot prove requires contract for call inspect_bytes from main: match true { true => [111, 109, 101, 103], false => [111, 109, 101, 103] }.len >= 5 && match true { true => [111, 109, 101, 103], false => [111, 109, 101, 103] }.len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/readonly_byte_pool_relocation_bound_through_other_machine_rejected rejected 9332ms expected @8f970335dca4+wt
+	cannot prove requires contract for call forward from probe: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/readonly_byte_pool_relocation_bound_through_other_state_rejected rejected 7567ms expected @8f970335dca4+wt
+	cannot prove requires contract for call step from main: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `forwarded.len >= 5 && forwarded.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/readonly_byte_pool_relocation_bound_through_parameter_rejected rejected 7085ms expected @8f970335dca4+wt
+	cannot prove requires contract for call check_param from probe: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/readonly_byte_pool_relocation_bound_through_target_body_rejected rejected 6902ms expected @8f970335dca4+wt
+	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/record_layout_geometry_unproved_call_result rejected 3932ms expected @45cbafd80d9c
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/record_layout_geometry_unproved_const_name rejected 3954ms expected @45cbafd80d9c
@@ -7802,6 +7823,15 @@ pass/facts/readonly_byte_literal_subslice_through_other_machine_exit checked 848
 pass/facts/readonly_byte_literal_subslice_through_other_state_exit checked 8084ms check-target:macos_arm64 @69725a85bb43
 pass/facts/readonly_byte_literal_subslice_through_parameter_exit checked 8233ms check-target:macos_arm64 @69725a85bb43
 pass/facts/readonly_byte_literal_subslice_through_target_body_exit checked 8395ms check-target:macos_arm64 @69725a85bb43
+pass/facts/readonly_byte_pool_relocation_bound_through_call_result_exit checked 22729ms check-target:macos_arm64 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_const_name_exit checked 22779ms check-target:macos_arm64 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_field_exit checked 22320ms check-target:macos_arm64 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_local_exit checked 21343ms check-target:macos_arm64 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_match_join_exit checked 22282ms check-target:macos_arm64 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit checked 22867ms check-target:macos_arm64 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 22317ms check-target:macos_arm64 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 22767ms check-target:macos_arm64 @8f970335dca4+wt
+pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 21843ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/record_layout_geometry_through_call_result_exit checked 7952ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_const_name_exit checked 7761ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_field_exit checked 7941ms check-target:macos_arm64 @45cbafd80d9c
