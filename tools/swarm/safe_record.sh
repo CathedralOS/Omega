@@ -80,15 +80,28 @@ for attempt in $(seq 1 120); do
   sleep 5
 done
 [ -n "$acquired" ] || { echo "   ABORT: no record slot; retry later." >&2; exit 1; }
-trap 'rm -f "$acquired"' EXIT
+recording=""
+on_exit() {
+  rm -f "$acquired"
+  if [ -n "${recording:-}" ]; then
+    for f in tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt; do
+      git checkout HEAD -- "$f" 2>/dev/null
+      git reset -q HEAD -- "$f" 2>/dev/null
+    done
+    echo "   (interrupted: restored goldens from HEAD)" >&2
+  fi
+}
+trap on_exit EXIT INT TERM HUP
 
 echo "== filter: $filter | legs:${legs} | load ${load} | free ${free_mb}MB =="
 # Raise the per-fixture ceiling: fixtures can need ~110s under load and the default 120s
 # produces timeouts that look like recorded evidence.
+recording=1
 OMEGA_CORPUS_JOBS=${OMEGA_CORPUS_JOBS:-3} OMEGA_CORPUS_FIXTURE_SECS=${OMEGA_CORPUS_FIXTURE_SECS:-900} \
   python3 tools/corpus_gate.py --filter "$filter" $legs --record 2>&1 | tail -5
 
-rm -f "$acquired"; trap - EXIT
+recording=""
+rm -f "$acquired"; trap - EXIT INT TERM HUP
 
 bad=0
 for f in tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt; do

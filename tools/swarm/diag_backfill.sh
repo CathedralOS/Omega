@@ -51,8 +51,14 @@ if [ "$(pwd -P)" = "/Volumes/Crucial/CathedralOS/Omega" ]; then
   exit 2
 fi
 echo "== re-sync goldens from origin/main (once) =="
-git checkout origin/main -- tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt 2>/dev/null
-git checkout origin/main -- tests/omega/corpus_native_macos_arm64.txt 2>/dev/null
+# `git checkout <ref> -- <path>` stages the file as well as writing it, so a later
+# abort left a STAGED golden diff the lane never authored. Restore the working tree and
+# unstage these two paths, so the index is exactly as the lane left it.
+for g in tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt; do
+  git restore --source=origin/main --worktree "$g" 2>/dev/null \
+    || git checkout origin/main -- "$g" 2>/dev/null
+  git reset -q HEAD -- "$g" 2>/dev/null
+done
 
 for fact in "$@"; do
   echo "== $fact =="
@@ -113,8 +119,20 @@ for fact in "$@"; do
     echo "   ABORT: no record slot available; retry later."
     continue
   fi
-  trap 'rm -f "$acquired"' EXIT
+  # EXIT alone does not fire on SIGTERM/SIGINT/HUP. A lane's recorder was SIGTERM'd
+  # mid-run and the revert never happened, leaving a PARTIAL golden staged (LOST=84).
+  on_exit() {
+    rm -f "$acquired"
+    if [ -n "${recording:-}" ]; then
+      git checkout HEAD -- tests/omega/corpus_outcomes.txt 2>/dev/null
+      git reset -q HEAD -- tests/omega/corpus_outcomes.txt 2>/dev/null
+      echo "   (interrupted: restored the outcomes golden from HEAD)" >&2
+    fi
+  }
+  recording=""
+  trap on_exit EXIT INT TERM HUP
   echo "   load ${load}; recording with jobs=3"
+  recording=1
   out=$(OMEGA_CORPUS_JOBS=3 OMEGA_CORPUS_FIXTURE_SECS=600 \
     python3 tools/corpus_gate.py --filter "$fact" --record 2>&1)
   # A record is only trustworthy if no compile was still in flight when it ended.
@@ -132,7 +150,8 @@ for fact in "$@"; do
   # exits 0 and is used here; the lane's suggested grep+${x:-0} form is equivalent.
   timeouts=$(awk '/timeout/{n++} END{print n+0}' tests/omega/corpus_outcomes.txt)
   echo "   post-record LOST=$after timeouts=$timeouts"
-  rm -f "$acquired"; trap - EXIT
+  recording=""
+  rm -f "$acquired"; trap - EXIT INT TERM HUP
   # LOST and timeout counts CANNOT detect a source tree that does not compile: no row
   # is lost and no timeout is written, yet the rows recorded are parse errors rather
   # than the fact's obligation. Observed with a contaminated tree:
