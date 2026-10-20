@@ -1,9 +1,22 @@
-// A logical application can be checked without selecting a provider, but
-// neither its nested shape nor a helper establishes runtime authority.
+// A boundary requirement can be checked without selecting a provider, but
+// neither a nested record path nor a helper machine establishes runtime
+// authority: the entry reads a nested field, passes it to a helper that reaches
+// `Reading::read`, and still has no selected provider.
 
 public boundary trait Reading { machine read() -> u64; }
-data Main {}
+data Session { reading: u64; }
+data Main { session: Session; }
+
+machine helper(session: &Session) -> u64 reaches Reading {
+    Reading::read()
+}
 
 machine Main::main(main: &mut Main) reaches Reading {
-    let value: u64 = Reading::read();
+    let observed: u64 = helper(&main.session);
+    transition observed == main.session.reading {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() {}
 }
