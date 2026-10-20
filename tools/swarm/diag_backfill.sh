@@ -34,9 +34,35 @@ print(len(m - n))
 PY
 }
 
-LOCKDIR=build/swarm/record-slots
+# ONE lock scheme, host-wide, keyed by the CHECKOUT: slot files live inside
+# <checkout>/build/swarm/record-slots and every worktree of this checkout resolves the
+# same directory, the way tools/build_slot.py's slot_directory does it. The sibling path
+# this script used to write (`build/swarm/record-slots.record0`, resolved against
+# whatever worktree ran it) was invisible to the in-directory scheme other lanes used,
+# and its reclaim guard could not clear an EMPTY file, which then blocked every lane for
+# the whole wait cycle. safe_record.sh carries the same helper; keep them in step.
+common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+if [ -n "$common" ]; then checkout_root=$(dirname "$common"); else checkout_root=$(pwd -P); fi
+SLOT_DIR=$checkout_root/build/swarm/record-slots
+mkdir -p "$SLOT_DIR"
+
+# Take slot $1: print its path, or return 1 while another live owner holds it.
+acquire_record_slot() {
+  local file="$SLOT_DIR/record$1"
+  if ( set -o noclobber; printf '%s' "$$" > "$file" ) 2>/dev/null; then
+    printf '%s' "$file"; return 0
+  fi
+  local owner
+  owner=$(cat "$file" 2>/dev/null)
+  if [ -z "$owner" ] || ! kill -0 "$owner" 2>/dev/null; then
+    rm -f "$file"
+    if ( set -o noclobber; printf '%s' "$$" > "$file" ) 2>/dev/null; then
+      printf '%s' "$file"; return 0
+    fi
+  fi
+  return 1
+}
 REC_LOG=${REC_LOG:-/tmp/diag-record-$$.log}
-mkdir -p "$(dirname "$LOCKDIR")"
 git fetch origin -q 2>/dev/null
 # Sync ONCE, before the loop. Syncing per fact would `git checkout origin/main --`
 # the goldens at the start of every iteration, silently discarding the recording the
@@ -148,15 +174,10 @@ RECORD_SLOTS=${RECORD_SLOTS:-1}
   acquired=""
   for attempt in $(seq 1 120); do
     for s in $(seq 0 $((RECORD_SLOTS-1))); do
-      if ( set -o noclobber; printf '%s' "$$" > "$LOCKDIR.record$s" ) 2>/dev/null; then
-        acquired="$LOCKDIR.record$s"; break
-      fi
-      # reclaim a slot whose owner is gone
-      owner=$(cat "$LOCKDIR.record$s" 2>/dev/null)
-      [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null && rm -f "$LOCKDIR.record$s"
+      if acquired=$(acquire_record_slot "$s"); then break; fi
     done
     [ -n "$acquired" ] && break
-    echo "   waiting for a record slot (${attempt}/120)..."
+    echo "   waiting for a record slot (${attempt}/120); pool ${SLOT_DIR}..."
     sleep 5
   done
   if [ -z "$acquired" ]; then

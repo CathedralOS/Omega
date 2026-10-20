@@ -44,8 +44,39 @@ for a in "$@"; do
 done
 if [ "$native" = 1 ] || [ "$check" = 0 ]; then legs="--native"; fi
 
-LOCKDIR=build/swarm/record-slots
-mkdir -p "$LOCKDIR"
+# ONE lock scheme, host-wide, keyed by the CHECKOUT: the slot files live inside
+# <checkout>/build/swarm/record-slots and every worktree of this checkout resolves the
+# same directory, the way tools/build_slot.py's slot_directory does it. Two earlier
+# defects made the cap imaginary. (1) This script wrote the SIBLING path
+# `build/swarm/record-slots.record0`, resolved against whatever worktree ran it, while
+# other lanes wrote `build/swarm/record-slots/record0`: two schemes, mutually invisible,
+# so a lane could hold one while another "acquired" the other. (2) The reclaim guard
+# `[ -n "$owner" ] && ! kill -0 "$owner"` could not clear an EMPTY file -- the state a
+# writer killed between truncate and write leaves behind -- so one zero-byte file blocked
+# every later lane for the full wait cycle.
+common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+if [ -n "$common" ]; then checkout_root=$(dirname "$common"); else checkout_root=$(pwd -P); fi
+SLOT_DIR=$checkout_root/build/swarm/record-slots
+mkdir -p "$SLOT_DIR"
+
+# Take slot $1: print its path, or return 1 while another live owner holds it. A file is
+# reclaimable when it is empty or its owner is gone; reclaim and takeover are separate
+# exclusive creates, so a racing lane loses the slot instead of sharing it.
+acquire_record_slot() {
+  local file="$SLOT_DIR/record$1"
+  if ( set -o noclobber; printf '%s' "$$" > "$file" ) 2>/dev/null; then
+    printf '%s' "$file"; return 0
+  fi
+  local owner
+  owner=$(cat "$file" 2>/dev/null)
+  if [ -z "$owner" ] || ! kill -0 "$owner" 2>/dev/null; then
+    rm -f "$file"
+    if ( set -o noclobber; printf '%s' "$$" > "$file" ) 2>/dev/null; then
+      printf '%s' "$file"; return 0
+    fi
+  fi
+  return 1
+}
 
 git fetch origin -q 2>/dev/null
 echo "== operating on: $(pwd) =="
@@ -85,12 +116,10 @@ RECORD_SLOTS=${RECORD_SLOTS:-1}
 acquired=""
 for attempt in $(seq 1 120); do
   for s in $(seq 0 $((RECORD_SLOTS-1))); do
-    if ( set -o noclobber; printf '%s' "$$" > "$LOCKDIR.record$s" ) 2>/dev/null; then acquired="$LOCKDIR.record$s"; break; fi
-    owner=$(cat "$LOCKDIR.record$s" 2>/dev/null)
-    [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null && rm -f "$LOCKDIR.record$s"
+    if acquired=$(acquire_record_slot "$s"); then break; fi
   done
   [ -n "$acquired" ] && break
-  echo "   waiting for a record slot (${attempt}/120)..."
+  echo "   waiting for a record slot (${attempt}/120); pool ${SLOT_DIR}..."
   sleep 5
 done
 [ -n "$acquired" ] || { echo "   ABORT: no record slot; retry later." >&2; exit 1; }
