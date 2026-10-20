@@ -510,7 +510,23 @@ pub fn materialize_aggregate_layout_into(
     for (entry, scalar) in deferred_fragments {
         let fragment = scalar_fragment(entry, scalar.width_bits)?;
         for bit in fragment.destination_lsb..fragment.destination_lsb + fragment.width {
-            let byte = usize::try_from(fragment.container_byte_offset + u64::from(bit) / 8)
+            // Destination bits are numbered in the numeric container, whereas
+            // whole-field placements claim physical bytes. Use the same byte
+            // order as apply_scalar_entry when joining those two footprints.
+            let relative_byte = match byte_order {
+                ByteOrder::LittleEndian => bit / 8,
+                ByteOrder::BigEndian => fragment.container_width_bits / 8 - 1 - bit / 8,
+            };
+            let physical_byte = fragment
+                .container_byte_offset
+                .checked_add(u64::from(relative_byte))
+                .ok_or_else(|| {
+                    MaterializationDiagnostic(format!(
+                        "aggregate field `{}` fragment destination range overflows",
+                        entry.field
+                    ))
+                })?;
+            let byte = usize::try_from(physical_byte)
                 .map_err(|_| {
                     MaterializationDiagnostic(format!(
                         "aggregate field `{}` fragment destination cannot be represented on this compiler host",

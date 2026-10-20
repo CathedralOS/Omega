@@ -707,6 +707,132 @@ fn aggregate_materialization_shares_fragment_bytes_but_rejects_bit_drift() {
 }
 
 #[test]
+fn aggregate_fragment_overlap_uses_physical_bytes_in_both_byte_orders() {
+    let fields = [
+        AggregateFieldSchema::new("whole", 1).expect("whole byte"),
+        AggregateFieldSchema::new("fragment", 1).expect("fragment byte"),
+    ];
+    let values = [
+        AggregateFieldValue::new("whole", [0x17]).expect("whole value"),
+        AggregateFieldValue::new("fragment", [0x29]).expect("fragment value"),
+    ];
+    for (byte_order, fragment_byte) in [(ByteOrder::LittleEndian, 0), (ByteOrder::BigEndian, 1)] {
+        for whole_byte in [fragment_byte, 1 - fragment_byte] {
+            let layout = layout_report(
+                vec![
+                    layout_field_entry(
+                        "whole",
+                        LayoutPlacementReport::At { offset: whole_byte },
+                    ),
+                    layout_field_entry(
+                        "fragment",
+                        LayoutPlacementReport::Bits {
+                            container: 0,
+                            container_width: 16,
+                            destination_lsb: 0,
+                            source_lsb: 0,
+                            width: 8,
+                        },
+                    ),
+                ],
+                None,
+                Some(2),
+                1,
+            );
+            let mut destination = [0xa5; 3];
+            let result = materialize_aggregate_layout_into(
+                &layout,
+                &fields,
+                &values,
+                byte_order,
+                &mut destination,
+            );
+            if whole_byte == fragment_byte {
+                assert!(
+                    result
+                        .expect_err("a fragment must not overwrite another complete field")
+                        .0
+                        .contains("fragment destination overlaps a whole-extent placement")
+                );
+                assert_eq!(destination, [0xa5; 3], "rejection must not change any byte");
+            } else {
+                result.expect("disjoint physical bytes may share a transfer container");
+                assert_eq!(destination[whole_byte as usize], 0x17);
+                assert_eq!(destination[fragment_byte as usize], 0x29);
+                assert_eq!(
+                    destination[2], 0xa5,
+                    "the unused allocation tail is unchanged"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn aggregate_fragment_overlap_compares_different_container_widths() {
+    let fields = [
+        AggregateFieldSchema::new("narrow", 1).expect("narrow carrier"),
+        AggregateFieldSchema::new("wide", 1).expect("wide carrier"),
+    ];
+    let values = [
+        AggregateFieldValue::new("narrow", [0x17]).expect("narrow value"),
+        AggregateFieldValue::new("wide", [0x29]).expect("wide value"),
+    ];
+    for (byte_order, wide_byte) in [(ByteOrder::LittleEndian, 0), (ByteOrder::BigEndian, 1)] {
+        for narrow_byte in [wide_byte, 1 - wide_byte] {
+            let layout = layout_report(
+                vec![
+                    layout_field_entry(
+                        "narrow",
+                        LayoutPlacementReport::Bits {
+                            container: narrow_byte,
+                            container_width: 8,
+                            destination_lsb: 0,
+                            source_lsb: 0,
+                            width: 8,
+                        },
+                    ),
+                    layout_field_entry(
+                        "wide",
+                        LayoutPlacementReport::Bits {
+                            container: 0,
+                            container_width: 16,
+                            destination_lsb: 0,
+                            source_lsb: 0,
+                            width: 8,
+                        },
+                    ),
+                ],
+                None,
+                Some(2),
+                1,
+            );
+            let mut destination = [0xa5; 2];
+            let result = materialize_aggregate_layout_into(
+                &layout,
+                &fields,
+                &values,
+                byte_order,
+                &mut destination,
+            );
+            if narrow_byte == wide_byte {
+                assert!(
+                    result
+                        .expect_err("different containers cannot overwrite the same physical bit")
+                        .0
+                        .contains("fragment destination overlaps an earlier fragment")
+                );
+                assert_eq!(destination, [0xa5; 2]);
+            } else {
+                result.expect("disjoint fragment bytes may have overlapping container ranges");
+                assert_eq!(destination[narrow_byte as usize], 0x17);
+                assert_eq!(destination[wide_byte as usize], 0x29);
+            }
+        }
+    }
+}
+
+#[test]
 fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
     let fields = [
         AggregateFieldSchema::new("id", 4).expect("id carrier"),
