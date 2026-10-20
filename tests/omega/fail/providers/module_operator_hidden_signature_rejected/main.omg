@@ -1,5 +1,19 @@
 // A source-visible owner with a bool result cannot license a same-spelled
 // i32 requirement in an unrelated module, even when that signature is unique.
+//
+// RECORDED REACHABILITY GAP. The exactness obligation this fixture names is
+// enforced earlier, at overload resolution, and pinned twice by
+// `fail/operators/result_domain_operator_family_wrong_signature` and
+// `fail/providers/module_operator_satisfier_signature_mismatch`. The authored
+// message "does not retain the exact selected overload"
+// (checking/src/declarations/traits/conformance/machine_conformance.rs:661) is
+// no longer reached by this program or by three measured shapes: the same
+// conformance without `hidden`, two same-named overloads on one owner, and the
+// original cross-module pair. Filed as `psi:unreached-guard-reachability` in
+// the claims registry: either a shape reaches that branch, or the branch and
+// this pin go together, because a fail-closed branch no source can reach is
+// dead code rather than a rule. This row is intentionally left rejecting for
+// the resolution-time reason instead of being re-pinned over the gap.
 use visible;
 use hidden;
 machine main() { visible::exercise(); }
