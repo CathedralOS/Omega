@@ -18,8 +18,8 @@
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped implementations across all four platforms perform saturating multiplication and interval verification |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
-`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
-`Expected exit: 0`.
+`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
+authored `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
 
 ## Execution
 
@@ -47,8 +47,8 @@ The recorded 0 exit is discriminating:
 - The saturating multiplication product interval is statically proved: `min = 10 * 5 = 50u64`, `max = 20 * 10 = 200u64`.
 - 64-bit unsigned saturating multiplication evaluates to `120u64` and is verified overflow-free.
 - Consuming exact subtractions `let headroom: u64 = 200u64 - prod` (`80u64`) and `let margin: u64 = prod - 50u64` (`70u64`) are statically proved safe in interval `[0u64, 150u64]`.
-- At runtime, `prod == 120u64 && headroom + margin == 150u64` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy.
-- Each invalid twin widens the `lhs` bound to `lhs <= 21u64`, allowing `prod` to take value `21 * 10 = 210u64 > 200u64`. The headroom subtraction `200u64 - prod` fails closed at compile time with diagnostic `exact arithmetic in machine ... local \`headroom\` may overflow \`u64\``. None reaches native execution.
+- At runtime, `prod == 120u64 && headroom + margin == 150u64` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy. A 1-token perturbation of the demanded result (`transition res == 0` to `transition res == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- Each invalid twin widens the `lhs` bound to `lhs <= 21u64`, allowing `prod` to take value `21 * 10 = 210u64 > 200u64`. The headroom subtraction `200u64 - prod` fails closed at compile time under the **Exact arithmetic overflow** obligation class with diagnostic `exact arithmetic in machine ... local \`headroom\` may overflow \`u64\``. None reaches native execution.
 
 Check all nine invalid twins with:
 
@@ -56,20 +56,57 @@ Check all nine invalid twins with:
 omega --check samples/cli/facts/unsigned_64bit_saturating_multiplication_bound/<place>/invalid/main.omg
 ```
 
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
+
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/unsigned_64bit_saturating_multiplication_bound --jobs 4
+python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\cargo-target\debug\omega-latest.exe --filter cli/facts/unsigned_64bit_saturating_multiplication_bound --jobs 4
 ```
 
 `sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64`.
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
 
+## Pinned Fixtures
+
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_multiplication_bound_through_local_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_multiplication_bound_through_field_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_multiplication_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_multiplication_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_multiplication_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_multiplication_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_multiplication_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_multiplication_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_multiplication_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt`):**
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_multiplication_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_multiplication_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_multiplication_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_multiplication_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_multiplication_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_multiplication_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_multiplication_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_multiplication_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_multiplication_bound_through_target_body_rejected/`
+The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `TERMINAL-INTEGER-ARITHMETIC-INTERVALS` ([`TASKS.md`](../../../../TASKS.md)).
-- **Requirement established:** End-to-end nine-place 64-bit unsigned (`u64`) bounded saturating multiplication, product interval synthesis (`[50, 200]`), consuming exact subtractions (`200 - prod` and `prod - 50`), non-negative range verification, and native realization agreement.
+- **Requirement established:** End-to-end nine-place 64-bit unsigned (`u64`) bounded saturating multiplication ([numeric values](../../../../wiki/spec/language/numeric_values.md), [integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md)), product interval synthesis (`[50, 200]`), consuming exact subtractions (`200 - prod` and `prod - 50`), non-negative range verification, and native realization agreement.
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
   - **Establishment:** Bounded entry contracts `requires lhs >= 10u64 && lhs <= 20u64` and `requires rhs >= 5u64 && rhs <= 10u64` establish non-overlapping unsigned operand bounds. Saturating multiplication `a * b` in domain `Saturating` synthesizes interval `[10 * 5, 20 * 10] = [50, 200]`, directly discharging consuming exact subtractions `200u64 - prod` and `prod - 50u64` without runtime checks or post-hoc equality guards.
