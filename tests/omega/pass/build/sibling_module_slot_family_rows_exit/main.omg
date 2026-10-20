@@ -3,14 +3,13 @@
 // declared in the sibling module `gate`, and the build selects the provider
 // before binding the entries. The realized member must still answer the call.
 use omega_language_std::console;
-use omega::language::core::binding;
 use gate::Gate;
 
-data Main { gate: Binding<Gate>; ticket: i32; code: i32; console: Binding<Console>; }
+data Main { ticket: i32; code: i32; }
 machine Main::main(main: &mut Main) reaches Gate + Console {
-    main.ticket = main.gate.open();
-    main.code = main.gate.close(main.ticket);
-    transition main.code == 70 { true -> good(&main.console) _ -> bad(&main.console) }
-    state good(console: &Binding<Console>) { Console::exit_process(console, 70); }
-    state bad(console: &Binding<Console>) { Console::exit_process(console, 72); }
+    main.ticket = Gate::open();
+    main.code = Gate::close(main.ticket);
+    transition main.code == 70 { true -> good() _ -> bad() }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(72); }
 }

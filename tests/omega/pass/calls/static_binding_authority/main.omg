@@ -1,28 +1,25 @@
-use omega::language::core::binding;
-
 public boundary trait Service {
     machine send(value: i32) reaches Service;
     machine read() -> i32 reaches Service;
 }
-data Context { service: Binding<Service>; value: i32; }
-machine identity<'loan>(service: &'loan Binding<Service>) -> &'loan Binding<Service> { service }
+data Context { value: i32; }
 machine argument() -> i32 { 65 }
 machine mutate(context: &mut Context) { context.value = 0; }
-machine forwarded(service: &Binding<Service>) reaches Service {
-    Service::send(service, argument());
-    _ = Service::read(service);
+machine forwarded() reaches Service {
+    Service::send(argument());
+    _ = Service::read();
 }
 machine inspect(context: &mut Context) reaches Service {
-    Service::send(&context.service, argument());
-    let result: i32 = Service::read(&context.service);
-    Service::send(identity(&context.service), Service::read(&context.service));
+    Service::send(argument());
+    let result: i32 = Service::read();
+    Service::send(Service::read());
     mutate(context);
     context.value = result;
-    forwarded(&context.service);
+    forwarded();
 }
-machine owned(binding: Binding<Service>) reaches Service {
-    Service::send(&binding, argument());
-    Service::send(&binding, argument());
+machine owned() reaches Service {
+    Service::send(argument());
+    Service::send(argument());
 }
 
 ServiceImplementation satisfies Service {

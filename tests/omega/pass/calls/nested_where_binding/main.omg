@@ -1,20 +1,18 @@
-// A record carrying `data Session where retries <= 3` facts can nest
-// a Binding field: the facts constrain the record's scalar field;
-// they do not hide the service field from establishment — the entry
-// receiver establishes `main.session.host` through the nested record.
-use omega::language::core::binding;
+// A record carrying `data Session where retries <= 3` facts can carry its
+// nested service: the facts constrain the record's scalar field; they do not
+// hide the requirement application from establishment through the nested
+// record.
 public boundary trait Host {
     machine ping() reaches Host;
 }
 data Session where retries <= 3 {
-    host: Binding<Host>;
     retries: u64;
 }
 data Main {
     session: Session;
 }
 machine Main::main(main: &mut Main) reaches Host {
-    main.session.host.ping();
+    Host::ping();
     transition main.session.retries <= 3 {
         true -> done()
         _ -> bad()

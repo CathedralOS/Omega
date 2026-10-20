@@ -1,12 +1,11 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main { console: Binding<Console>; }
+data Main { }
 
 machine inspect(value: &mut i32) -> i32 { 70 }
 
 machine Main::main(main: &mut Main) reaches Console {
     let mut value: i32 = 3;
     let code: i32 = inspect(&mut value);
-    main.console.exit_process(code);
+    Console::exit_process(code);
 }

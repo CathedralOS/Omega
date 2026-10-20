@@ -1,35 +1,30 @@
-// A hosted entry lends its console binding field, not the whole record, to a
-// state: `speak(&mut main.console, main.count)`. The state calls the bound
-// service through its `&mut Binding<Console>` formal and forwards the same
-// loan to a second state, which writes again and exits. The loan of a
-// binding field declares a reference type over the binding itself; that type
-// carries no storage of its own and must not stop native production.
+// A hosted entry passes its stored count to a state: `speak(main.count)`. The
+// state applies the exact console requirement and forwards the same ordinary
+// data to a second state, which writes again and exits.
 //
-// exits: 70 = both writes ran through the lent binding with the stored count;
-// 71 = the count did not arrive.
+// exits: 70 = both writes ran through the direct requirement with the stored
+// count; 71 = the count did not arrive.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Main {
-    console: Binding<Console>;
     count: u64;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.count = 3;
-    transition { _ -> speak(&mut main.console, main.count) }
+    transition { _ -> speak(main.count) }
 
-    state speak(console: &mut Binding<Console>, count: u64) {
-        console.write_line("first");
+    state speak(count: u64) {
+        Console::write_line("first");
         transition count == 3 {
-            true -> finish(console, 70)
-            _ -> finish(console, 71)
+            true -> finish(70)
+            _ -> finish(71)
         }
     }
 
-    state finish(console: &mut Binding<Console>, code: i32) {
-        console.write_line("second");
-        console.exit_process(code);
+    state finish(code: i32) {
+        Console::write_line("second");
+        Console::exit_process(code);
     }
 }

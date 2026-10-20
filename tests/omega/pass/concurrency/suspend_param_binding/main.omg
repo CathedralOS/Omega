@@ -1,17 +1,13 @@
-// Suspend through a Binding parameter (not a carrier field):
-// `inspect(message, scheduler: Binding<Scheduler>) suspends;
-// reaches Scheduler` — the explicit parameter stops
-// contributing after its last field read, then `suspend
-// scheduler.park()` parks.
+// Suspend through an exact boundary-trait requirement:
+// `inspect(message) suspends; reaches Scheduler` — the explicit message
+// parameter stops contributing after its last field read, then
+// `suspend Scheduler::park()` parks.
 //
 //   * `boundary data Lease` opaque boundary payload.
 //   * `machine inspect(...) suspends;` on an ordinary
 //     machine — no carrier needed.
 //
-// Compile-checked only: `use omega::language::core::binding`
-// is depend-free; no provider selection at --check.
-
-use omega::language::core::binding;
+// Compile-checked only: no provider selection at --check.
 
 boundary data Lease;
 
@@ -22,10 +18,10 @@ data Message {
 
 public boundary trait Scheduler { machine park() suspends; }
 
-machine inspect(message: Message, scheduler: Binding<Scheduler>)
+machine inspect(message: Message)
 suspends; reaches Scheduler {
     let value: i32 = message.value;
-    suspend scheduler.park();
+    suspend Scheduler::park();
 }
 
 machine main() {}

@@ -1,7 +1,6 @@
-// Checking retains the same logical Binding through a nested field and a
-// borrowed parameter; merely checking a helper's Binding must not demand
-// an unrelated selection.
-use omega::language::core::binding;
+// Checking applies an exact boundary-trait requirement through a nested helper
+// and a later state; merely checking a helper's unselected requirement must not
+// demand an unrelated selection.
 
 public boundary trait Reading {
     machine read() -> u64;
@@ -10,19 +9,19 @@ data ReadingProvider {}
 machine ReadingProvider::read() -> u64 satisfies Reading::read { 42 }
 
 public boundary trait Unselected { machine read() -> u64; }
-machine unused(binding: &Binding<Unselected>) -> u64 reaches Unselected {
-    binding.read()
+machine unused() -> u64 reaches Unselected {
+    Unselected::read()
 }
 
-data Session { reading: Binding<Reading>; }
+data Session { }
 data Main { session: Session; }
 
-machine read(binding: &mut Binding<Reading>) -> u64 reaches Reading {
-    binding.read()
+machine read() -> u64 reaches Reading {
+    Reading::read()
 }
 
 machine Main::main(main: &mut Main) reaches Reading crashes Trap {
-    let value: u64 = read(&mut main.session.reading);
+    let value: u64 = read();
     transition value == 42 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }
