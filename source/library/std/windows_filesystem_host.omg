@@ -17,11 +17,15 @@
 //   ERROR_INVALID_PARAMETER; a handle refusal also sets GetLastError.
 // - Read/write operations return byte counts or negated Win32 errors.
 // - `close_handle` returns 0, or the negated Win32 error.
+// - Status-only i32 results use -ERROR_GEN_FAILURE if the native error is zero
+//   or cannot be negated in i32; last_error retains the original u32 code.
 // - `last_error` reads the thread's `GetLastError` for callers that need the
 //   code behind a failed `create_file` or `duplicate_handle`.
 use filesystem_host;
 use omega::language::core::filesystem_authority;
 use targets::windows_x86_64::windows_filesystem_impl;
+use targets::windows_x86_64::windows_filesystem_native;
+use targets::windows_x86_64::windows_filesystem_transfer_native;
 
 // An untouched result is an error. Timestamp zero remains a valid FILETIME.
 public data WindowsFileTimeResult {
@@ -41,25 +45,51 @@ public boundary trait WindowsFilesystemHost {
         share_mode: u32,
         creation_disposition: u32,
         flags_and_attributes: u32
-    ) -> u64 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-    machine write_file(handle: u64, bytes: &[u8]) -> i64 reaches FilesystemContentWrite;
+    ) -> u64 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    blocks;
+    invokes WindowsFilesystemIo;
+    machine write_file(handle: u64, bytes: &[u8]) -> i64 reaches FilesystemContentWrite
+    blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemTransferIo;
     // Byte counts must fit DWORD and the caller's live buffer. Invalid extents
     // refuse with -ERROR_INVALID_PARAMETER before entering the OS.
-    machine read_file(handle: u64, buffer: &mut [u8], count: u64) -> i64 reaches FilesystemContentRead;
-    machine flush_file_buffers(handle: u64) -> i32;
-    machine set_file_pointer(handle: u64, distance: i64, method: u32) -> i64;
-    machine duplicate_handle(handle: u64) -> u64;
-    machine set_file_attributes(path: &[u8] in Path, attributes: u32) -> i32 reaches FilesystemMetadataMutation;
+    machine read_file(handle: u64, buffer: &mut [u8], count: u64) -> i64 reaches FilesystemContentRead
+    blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemTransferIo;
+    machine flush_file_buffers(handle: u64) -> i32 blocks;
+    invokes WindowsFilesystemIo;
+    machine set_file_pointer(handle: u64, distance: i64, method: u32) -> i64 blocks;
+    invokes WindowsFilesystemIo;
+    machine duplicate_handle(handle: u64) -> u64 invokes WindowsFilesystemIo;
+    machine set_file_attributes(path: &[u8] in Path, attributes: u32) -> i32 reaches FilesystemMetadataMutation
+    blocks;
+    invokes WindowsFilesystemIo;
     // Flags include MOVEFILE_COPY_ALLOWED: cross-volume moves can copy data
     // and attributes before deleting, so this raw ceiling is not rename-only.
-    machine move_file(from: &[u8] in Path, to: &[u8] in Path, flags: u32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-    machine create_directory(path: &[u8] in Path) -> i32 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
-    machine remove_directory(path: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation;
-    machine delete_file(path: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation;
+    machine move_file(from: &[u8] in Path, to: &[u8] in Path, flags: u32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    blocks;
+    invokes WindowsFilesystemIo;
+    machine create_directory(path: &[u8] in Path) -> i32 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    blocks;
+    invokes WindowsFilesystemIo;
+    machine remove_directory(path: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation
+    blocks;
+    invokes WindowsFilesystemIo;
+    machine delete_file(path: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation
+    blocks;
+    invokes WindowsFilesystemIo;
     // FILETIME values are unsigned 100-ns ticks since 1601. Creation time stays
-    // unchanged; access and write times are supplied explicitly.
-    machine set_file_time(handle: u64, access_time: u64, write_time: u64) -> i32 reaches FilesystemMetadataMutation;
-    machine get_file_time(handle: u64) -> WindowsFileTimeResult reaches FilesystemMetadataQuery;
-    machine close_handle(handle: u64) -> i32;
-    machine last_error() -> u32;
+    // unchanged; access/write retain Win32's zero (unchanged) and all-ones
+    // (suppress automatic updates through this handle) special values.
+    machine set_file_time(handle: u64, access_time: u64, write_time: u64) -> i32 reaches FilesystemMetadataMutation
+    blocks;
+    invokes WindowsFilesystemIo;
+    machine get_file_time(handle: u64) -> WindowsFileTimeResult reaches FilesystemMetadataQuery
+    blocks;
+    invokes WindowsFilesystemIo;
+    machine close_handle(handle: u64) -> i32 blocks;
+    invokes WindowsFilesystemIo;
+    machine last_error() -> u32 invokes WindowsFilesystemIo;
 }

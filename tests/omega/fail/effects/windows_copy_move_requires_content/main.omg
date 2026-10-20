@@ -5,4 +5,4 @@ use omega::language::core::filesystem_authority;
 
 machine move_without_content(from: &[u8] in Path, to: &[u8] in Path) -> i32
 reaches FilesystemNamespaceMutation
-{ WindowsFilesystemHost::move_file(from, to, 2) }
+{ block WindowsFilesystemHost::move_file(from, to, 2) }

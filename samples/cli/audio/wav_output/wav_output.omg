@@ -12,6 +12,7 @@ use omega_language_std::windows_filesystem_host;
 public boundary trait WavOutput {
     machine write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64
         reaches WavOutput + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+        blocks;
         invokes PosixFilesystemHost;
         invokes WindowsFilesystemHost;
 }
@@ -39,12 +40,12 @@ WindowsWavOutput satisfies WavOutput {
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     invokes WindowsFilesystemHost;
     {
-        let handle: u64 = WindowsFilesystemHost::create_file(path, 1073741824, 0, 2, 128);
+        let handle: u64 = block WindowsFilesystemHost::create_file(path, 1073741824, 0, 2, 128);
         transition handle != 0 { true -> write(handle, bytes) _ -> failed() }
 
         state write(handle: u64, bytes: &[u8]) -> i64 {
-            let n: i64 = WindowsFilesystemHost::write_file(handle, bytes);
-            let rc: i32 = WindowsFilesystemHost::close_handle(handle);
+            let n: i64 = block WindowsFilesystemHost::write_file(handle, bytes);
+            let rc: i32 = block WindowsFilesystemHost::close_handle(handle);
             transition { _ -> (n) }
         }
         state failed() -> i64 {

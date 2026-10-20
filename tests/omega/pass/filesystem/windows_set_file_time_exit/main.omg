@@ -9,15 +9,15 @@ use omega::language::core::numeric_conversion;
 
 data Main { handle: u64; bytes: [u8; 8]; }
 machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
-    main.handle = WindowsFilesystemHost::create_file("omega_wsft_probe.txt", 1073741824, 7, 2, 128);
+    main.handle = block WindowsFilesystemHost::create_file("omega_wsft_probe.txt", 1073741824, 7, 2, 128);
     transition main.handle != 0 { true -> seed(main) _ -> bad(main, 71) }
     state seed(main: &mut Main) {
-        let written: i64 = WindowsFilesystemHost::write_file(main.handle, "stamp");
-        let closed: i32 = WindowsFilesystemHost::close_handle(main.handle);
+        let written: i64 = block WindowsFilesystemHost::write_file(main.handle, "stamp");
+        let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
         transition written == 5 && closed == 0 { true -> reopen(main) _ -> bad(main, 71) }
     }
     state reopen(main: &mut Main) {
-        main.handle = WindowsFilesystemHost::create_file("omega_wsft_probe.txt", 3221225472, 7, 3, 128);
+        main.handle = block WindowsFilesystemHost::create_file("omega_wsft_probe.txt", 3221225472, 7, 3, 128);
         transition main.handle != 0 { true -> stamp(main) _ -> bad(main, 72) }
     }
     state stamp(main: &mut Main) {
@@ -34,18 +34,18 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
             | (widen_u8_to_u64(main.bytes[5]) << 40)
             | (widen_u8_to_u64(main.bytes[6]) << 48)
             | (widen_u8_to_u64(main.bytes[7]) << 56);
-        let status: i32 = WindowsFilesystemHost::set_file_time(main.handle, ticks, ticks);
-        let closed: i32 = WindowsFilesystemHost::close_handle(main.handle);
+        let status: i32 = block WindowsFilesystemHost::set_file_time(main.handle, ticks, ticks);
+        let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
         transition status == 0 && closed == 0 { true -> reopen_metadata(main) _ -> bad(main, 73) }
     }
     state reopen_metadata(main: &mut Main) {
-        main.handle = WindowsFilesystemHost::create_file("omega_wsft_probe.txt", 2147483648, 7, 3, 128);
+        main.handle = block WindowsFilesystemHost::create_file("omega_wsft_probe.txt", 2147483648, 7, 3, 128);
         transition main.handle != 0 { true -> metadata(main) _ -> bad(main, 74) }
     }
     state metadata(main: &mut Main) {
-        let result: WindowsFileTimeResult = WindowsFilesystemHost::get_file_time(main.handle);
-        let closed: i32 = WindowsFilesystemHost::close_handle(main.handle);
-        let removed: i32 = WindowsFilesystemHost::delete_file("omega_wsft_probe.txt");
+        let result: WindowsFileTimeResult = block WindowsFilesystemHost::get_file_time(main.handle);
+        let closed: i32 = block WindowsFilesystemHost::close_handle(main.handle);
+        let removed: i32 = block WindowsFilesystemHost::delete_file("omega_wsft_probe.txt");
         transition result {
             WindowsFileTimeResult::Value { access_time, write_time } -> decode(main, write_time)
             WindowsFileTimeResult::Error { code } -> bad(main, 74)

@@ -133,7 +133,7 @@ machine Main::main(main: &mut Main) reaches Console + WavOutput + AudioPlayback 
     }
 
     state write_file(main: &mut Main) {
-        main.n = WavOutput::write_wav("sine_tone.wav", &main.buffer);
+        main.n = block WavOutput::write_wav("sine_tone.wav", &main.buffer);
         transition main.n == 8044 { true -> play_it(main) _ -> bad(main) }
     }
     state play_it(main: &mut Main) {

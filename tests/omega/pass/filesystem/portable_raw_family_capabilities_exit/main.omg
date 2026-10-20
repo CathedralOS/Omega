@@ -7,7 +7,7 @@ machine main()
 reaches WavOutput + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 crashes Trap
 {
-    let written: i64 = WavOutput::write_wav("omega_portable_capabilities.txt", "capabilities");
+    let written: i64 = block WavOutput::write_wav("omega_portable_capabilities.txt", "capabilities");
     transition written == 12 {
         true -> done()
         false -> bad()

@@ -17,15 +17,15 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
-    main.handle = WindowsFilesystemHost::create_file("omega_fswin_native.bin", 1073741824, 0, 2, 128);
+    main.handle = block WindowsFilesystemHost::create_file("omega_fswin_native.bin", 1073741824, 0, 2, 128);
     transition main.handle != 0 { true -> write(main) _ -> bad(main, 71) }
 
     state write(main: &mut Main) {
-        main.written = WindowsFilesystemHost::write_file(main.handle, "winnat");
+        main.written = block WindowsFilesystemHost::write_file(main.handle, "winnat");
         transition main.written == 6 { true -> close_it(main) _ -> bad(main, 72) }
     }
     state close_it(main: &mut Main) {
-        main.rc = WindowsFilesystemHost::close_handle(main.handle);
+        main.rc = block WindowsFilesystemHost::close_handle(main.handle);
         transition main.rc == 0 { true -> good(main) _ -> bad(main, 73) }
     }
     state good(main: &mut Main) { Console::exit_process(70); }
