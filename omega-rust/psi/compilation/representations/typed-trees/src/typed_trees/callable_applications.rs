@@ -22,12 +22,53 @@ use crate::{TypedTrees, data, signature, types};
 use symbols::SymbolHandle;
 
 impl TypedTrees {
+    /// Applied contracts remain owned by their declaring trait, including open
+    /// logical views and closed executable instances. Reference walks retain
+    /// these payloads only when that owner belongs to their selected roots.
+    pub fn applied_trait_signatures(
+        &self,
+        trait_symbol: SymbolHandle,
+    ) -> impl Iterator<Item = &signature::StateSignature> {
+        self.applied_callable_signatures
+            .iter()
+            .filter(|(_, prepared)| self.callable_application_owner_is_live(prepared))
+            .filter_map(move |(_, prepared)| match prepared.owner {
+                AppliedCallableOwner::Trait { declaration, .. }
+                | AppliedCallableOwner::RequirementInstance { declaration, .. }
+                    if declaration == trait_symbol =>
+                {
+                    Some(&prepared.signature)
+                }
+                _ => None,
+            })
+    }
+
+    /// Invocation contracts follow the selected caller, not the trait roster.
+    /// A selective reference walk must not retain another caller's local tuple
+    /// merely because both callers use the same requirement.
+    pub fn requirement_invocation_signatures(
+        &self,
+        caller: SymbolHandle,
+    ) -> impl Iterator<Item = &signature::StateSignature> {
+        self.applied_callable_signatures
+            .iter()
+            .filter_map(move |(_, prepared)| match prepared.owner {
+                AppliedCallableOwner::RequirementInvocation { lexical_owner, .. }
+                    if lexical_owner == caller =>
+                {
+                    Some(&prepared.signature)
+                }
+                _ => None,
+            })
+    }
+
     /// Read every prepared callable's declaration scope without replacing the
     /// authored roster. Contract occurrence readers need both: applied facts
     /// retain fresh formal symbols and their own substituted result carrier.
     pub fn prepared_callable_signatures(&self) -> impl Iterator<Item = &signature::StateSignature> {
         self.applied_callable_signatures
             .iter()
+            .filter(|(_, prepared)| self.callable_application_owner_is_live(prepared))
             .flat_map(|(_, prepared)| {
                 let counterparts = match &prepared.owner {
                     AppliedCallableOwner::MachineSelection {
@@ -41,6 +82,15 @@ impl TypedTrees {
                     .into_iter()
                     .flatten()
             })
+    }
+
+    fn callable_application_owner_is_live(&self, prepared: &AppliedCallableSignature) -> bool {
+        match prepared.owner {
+            AppliedCallableOwner::RequirementInvocation { lexical_owner, .. } => {
+                self.machine_by_symbol(lexical_owner).is_some()
+            }
+            _ => true,
+        }
     }
 
     /// Project declaration-owned application rows with the declaration roster.
@@ -58,6 +108,7 @@ impl TypedTrees {
             .filter_map(|(handle, application)| match application.owner {
                 AppliedCallableOwner::Trait { declaration, .. }
                 | AppliedCallableOwner::RequirementInstance { declaration, .. }
+                | AppliedCallableOwner::RequirementInvocation { declaration, .. }
                     if removed(declaration) =>
                 {
                     Some(handle)
@@ -91,6 +142,11 @@ enum AppliedCallableOwner {
     Trait {
         declaration: SymbolHandle,
         application: crate::type_identity::NormalizedTypeIdentity,
+    },
+    RequirementInvocation {
+        declaration: SymbolHandle,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        lexical_owner: SymbolHandle,
     },
     RequirementInstance {
         declaration: SymbolHandle,

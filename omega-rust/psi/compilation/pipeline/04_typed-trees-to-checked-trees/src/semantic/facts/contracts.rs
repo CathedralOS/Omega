@@ -454,19 +454,13 @@ fn instantiate_call_domain_membership_instance(
     else {
         return;
     };
-    let Some(membership) = program.proof_facts.get(contract.fact).as_membership() else {
+    let Some(mut membership) = program.proof_facts.get(contract.fact).as_membership() else {
         return;
     };
     let Some(domain) = program.domain_definition(*domain_symbol) else {
         return;
     };
     let index_parameters = typed_trees::domain::index_parameters(program, domain);
-    let arguments = program
-        .type_reference_table
-        .type_reference_handles(membership.domain_arguments);
-    if arguments.is_empty() || arguments.len() != index_parameters.len() {
-        return;
-    }
     let Some(site) = validation::find_call_site(
         program,
         call.caller_machine_symbol,
@@ -476,19 +470,52 @@ fn instantiate_call_domain_membership_instance(
     ) else {
         return;
     };
-    let application = match &site {
-        validation::CallSite::Statement(call) => call.authored_machine_application,
-        validation::CallSite::Expression { call, .. } => call.authored_machine_application,
-        validation::CallSite::TransitionNamed { .. } => return,
-    };
-    let bindings =
-        crate::facts::index_compatibility::bound_index_substitutions(program, application);
+    // An applied trait owns a complete prepared contract. Reading the bare
+    // requirement's index operands here would discard its enclosing telescope.
+    // Rejoin this exact clause instead of adding application-specific facts to
+    // the declaration's global (trait, requirement) contract roster.
+    if let validation::CallSite::Expression {
+        call: expression, ..
+    } = &site
+        && (expression.requirement_application.is_valid()
+            || program
+                .closed_requirement_application(expression.target_symbol)
+                .is_some())
+        && let ContractProofFactOwner::StateSignature { state_symbol, .. } = contract.owner
+    {
+        let Some((_, declared)) = program.trait_machine_signature(state_symbol) else {
+            return;
+        };
+        let Some(selected) =
+            program.requirement_call_signature(call.caller_machine_symbol, expression)
+        else {
+            return;
+        };
+        let Some(selected_membership) = program
+            .applied_signature_contract_fact(declared, selected, contract.fact)
+            .and_then(typed_trees::domain::ProofFact::as_membership)
+        else {
+            return;
+        };
+        if selected_membership.domain_symbol != membership.domain_symbol {
+            return;
+        }
+        membership = selected_membership;
+    }
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(membership.domain_arguments);
+    if arguments.is_empty() || arguments.len() != index_parameters.len() {
+        return;
+    }
+    let bindings = crate::facts::index_compatibility::call_index_substitutions(
+        program,
+        call.caller_machine_symbol,
+        &site,
+    );
     // Algebra and value operands are part of the same telescope: computed
     // indices retain their selected operator/provider identity under the call.
     let substitutions = crate::facts::index_compatibility::index_identity_bindings(&bindings);
-    if substitutions.is_empty() {
-        return;
-    }
     let Ok(identity) = typed_trees::domain::indexed_domain_instance_name_with_substitutions(
         program,
         domain,

@@ -6348,6 +6348,24 @@ fail/providers/applied_requirement_call_property_bound rejected 294ms expected @
 fail/providers/applied_requirement_call_shared_argument_for_mutable rejected 373ms expected @308fbdc54ba0
 fail/providers/applied_requirement_mutable_result_shared_source rejected 919ms expected @a9ae30e1c334+wt
 fail/providers/applied_requirement_unselected_ancestor_application rejected 6555ms expected @308fbdc54ba0
+fail/providers/applied_routed_index_forged rejected 2062ms expected @19c1ee2ad76b+wt
+	cannot prove default-domain field requirement for return from forged, state entry, at statement 0: Token requires Issued
+	construction value is not proven in domain `Issued` in forged state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/providers/applied_routed_index_wrong_actual rejected 1176ms expected @19c1ee2ad76b+wt
+	index compatibility condition `index-equality:Issued:wrong::entry:call-1-0:Issued<Word>==Issued<Other>` is not established: actual `Issued<Word>` and expected `Issued<Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/providers/applied_routed_member_wrong_actual rejected 1143ms expected @19c1ee2ad76b+wt
+	index compatibility condition `index-equality:Issued:wrong::entry:call-2-0:Issued<Word, Other>==Issued<Word, Word>` is not established: actual `Issued<Word, Other>` and expected `Issued<Word, Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/providers/applied_routed_parameter_mint rejected 2145ms expected @19c1ee2ad76b+wt
+	cannot establish call-result qualification `Issued` in `refresh`, state `entry` (statement 0, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+	cannot establish call-result qualification `Issued` in `refresh$specialized$4996a36ff7fd00b6$0`, state `entry` (statement 0, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+fail/providers/applied_type_index_nested_wrong_actual rejected 1131ms expected @19c1ee2ad76b+wt
+	index compatibility condition `index-equality:Pair:wrong::entry:call-0-0:Pair<Outer, Right>==Pair<Outer, Left>` is not established: actual `Pair<Outer, Right>` and expected `Pair<Outer, Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/providers/applied_type_index_wrong_actual rejected 1102ms expected @19c1ee2ad76b+wt
+	index compatibility condition `index-equality:Tagged:wrong::entry:call-0-0:Tagged<Left>==Tagged<Right>` is not established: actual `Tagged<Left>` and expected `Tagged<Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/providers/applied_type_index_wrong_field rejected 1111ms expected @19c1ee2ad76b+wt
+	index compatibility condition `index-equality:Tagged:wrong::entry:call-0-0:Tagged<Left>==Tagged<Right>` is not established: actual `Tagged<Left>` and expected `Tagged<Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/providers/applied_type_index_wrong_result rejected 2062ms expected @19c1ee2ad76b+wt
+	cannot prove ensures contract for exit from wrong at statement 0: result in unmanaged:product::Tagged<type:named(name(Right))>
 fail/providers/assumed_result_bound_bad_supplier_body_rejected rejected 3117ms expected @6f94b4f3cae8+wt
 	machine `Actual::get` realizes `Supplied::get` but does not guarantee its `ensures result == 0`; callers of the requirement assume it
 fail/providers/assumed_result_bound_blocking_rejected rejected 4557ms expected @6f94b4f3cae8+wt
@@ -11297,6 +11315,7 @@ pass/providers/applied_binding_field_telescopes_exit checked 6307ms check-target
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
 pass/providers/applied_header_dependent_const_carrier_exit checked 12536ms check-target:macos_arm64 @37afc401493b+wt
 pass/providers/applied_requirement_calls_exit checked 6806ms check-target:macos_arm64 @308fbdc54ba0
+pass/providers/applied_routed_index_forwarding_exit checked 25014ms check-target:macos_arm64 terminal-inspections:match @19c1ee2ad76b+wt
 pass/providers/assumed_result_bound_call_result_exit checked 8553ms check-target:linux_x86_64 @6f94b4f3cae8+wt
 pass/providers/assumed_result_bound_const_name_exit checked 8656ms check-target:linux_x86_64 @6f94b4f3cae8+wt
 pass/providers/assumed_result_bound_field_exit checked 9094ms check-target:linux_x86_64 @6f94b4f3cae8+wt

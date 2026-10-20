@@ -520,6 +520,21 @@ pub fn collect_program_references_with_roles(
         ..ReferenceCollector::default()
     };
     visit_program(program, &mut roots);
+    finish_references(roots)
+}
+
+/// References owned by one newly produced callable, without making unrelated
+/// declarations or stale arena payloads roots of the producing operation.
+pub fn collect_signature_references(
+    program: &TypedTrees,
+    signature: &crate::signature::StateSignature,
+) -> ProgramReferences {
+    let mut roots = ReferenceCollector::default();
+    visit_signature(program, &mut roots, signature);
+    finish_references(roots)
+}
+
+fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
     let mut type_references = roots.types.into_iter().collect::<Vec<_>>();
     type_references.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     let mut proof_facts = roots.facts.into_iter().collect::<Vec<_>>();
@@ -925,7 +940,14 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
                 visit_type_reference(program, retained, *argument);
             }
         }
-        for signature in program.trait_machine_signatures(definition) {
+        // Application copies own distinct proof/type payloads. Omitting them
+        // leaves their indexed identities frozen at the declaration's tuple
+        // even after the copied operands have been substituted.
+        for signature in program
+            .trait_machine_signatures(definition)
+            .iter()
+            .chain(program.applied_trait_signatures(definition.symbol))
+        {
             visit_signature(program, retained, signature);
         }
     }
@@ -1669,6 +1691,9 @@ pub fn visit_machine(
 ) {
     retained.enter_lexical_scope(machine.symbol);
     visit_owned_implementation_arguments(program, retained, machine.symbol);
+    for signature in program.requirement_invocation_signatures(machine.symbol) {
+        visit_signature(program, retained, signature);
+    }
     if let Some(origin) = machine.entry_context_origin {
         visit_symbol(retained, origin.entry);
         visit_symbol(retained, origin.context_parameter);

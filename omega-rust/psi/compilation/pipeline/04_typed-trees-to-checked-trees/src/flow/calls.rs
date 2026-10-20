@@ -420,32 +420,7 @@ fn append_call_result_field_domain_facts<'plans>(
     borrow_call: &BorrowCallFact,
     exit: &mut CallFlowContexts,
 ) {
-    // These are provisional checked-signature facts, not new issuance. The
-    // content checker independently rejoins routed result claims to this
-    // invocation after linear claim reconstruction; ordinary callee exits
-    // must establish every qualification before CheckedTrees can be accepted.
-    if !build
-        .call_result_identities
-        .contains_key(&borrow_call.target_symbol)
-    {
-        let computed = std::rc::Rc::new(call_result_qualification_identities_indexed(
-            program,
-            build,
-            borrow_call.target_symbol,
-        ));
-        build
-            .call_result_identities
-            .insert(borrow_call.target_symbol, computed);
-    }
-    let paths = build
-        .call_result_identities
-        .get(&borrow_call.target_symbol)
-        .expect("call-result identities are inserted on miss")
-        .clone();
-    if paths.is_empty() {
-        return;
-    }
-    let Some(validation::CallSite::Expression { expression, .. }) = memoized_find_call_site(
+    let Some(validation::CallSite::Expression { expression, call }) = memoized_find_call_site(
         program,
         build,
         machine.symbol,
@@ -455,6 +430,28 @@ fn append_call_result_field_domain_facts<'plans>(
     ) else {
         return;
     };
+    let key = (machine.symbol, expression);
+    // These are provisional checked-signature facts, not new issuance. The
+    // content checker independently rejoins routed result claims to this
+    // invocation after linear claim reconstruction; ordinary callee exits
+    // must establish every qualification before CheckedTrees can be accepted.
+    if !build.call_result_identities.contains_key(&key) {
+        let computed = std::rc::Rc::new(call_result_qualification_identities_indexed(
+            program,
+            build,
+            borrow_call.target_symbol,
+            program.requirement_call_signature(machine.symbol, call),
+        ));
+        build.call_result_identities.insert(key, computed);
+    }
+    let paths = build
+        .call_result_identities
+        .get(&key)
+        .expect("call-result identities are inserted on miss")
+        .clone();
+    if paths.is_empty() {
+        return;
+    }
     let point = ProgramPoint::CallEnsures {
         machine_symbol: machine.symbol,
         state_symbol: state.symbol,
@@ -505,27 +502,6 @@ fn append_call_parameter_domain_facts<'plans>(
     exit: &mut CallFlowContexts,
     argument_sources: Option<&super::call_phases::ArgumentSources<'_, '_>>,
 ) {
-    if !build
-        .call_parameter_identities
-        .contains_key(&borrow_call.target_symbol)
-    {
-        let computed = std::rc::Rc::new(call_parameter_qualification_identities_indexed(
-            program,
-            build,
-            borrow_call.target_symbol,
-        ));
-        build
-            .call_parameter_identities
-            .insert(borrow_call.target_symbol, computed);
-    }
-    let claims = build
-        .call_parameter_identities
-        .get(&borrow_call.target_symbol)
-        .expect("call-parameter identities are inserted on miss")
-        .clone();
-    if claims.is_empty() {
-        return;
-    }
     let Some(site) = memoized_find_call_site(
         program,
         build,
@@ -536,6 +512,35 @@ fn append_call_parameter_domain_facts<'plans>(
     ) else {
         return;
     };
+    let selected = match site {
+        validation::CallSite::Expression { call, .. } => {
+            program.requirement_call_signature(machine.symbol, call)
+        }
+        _ => None,
+    };
+    let key = (
+        machine.symbol,
+        state.symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    );
+    if !build.call_parameter_identities.contains_key(&key) {
+        let computed = std::rc::Rc::new(call_parameter_qualification_identities_indexed(
+            program,
+            build,
+            borrow_call.target_symbol,
+            selected,
+        ));
+        build.call_parameter_identities.insert(key, computed);
+    }
+    let claims = build
+        .call_parameter_identities
+        .get(&key)
+        .expect("call-parameter identities are inserted on miss")
+        .clone();
+    if claims.is_empty() {
+        return;
+    }
     let arguments = validation::call_site_argument_expressions(program, &site);
     let point = ProgramPoint::CallEnsures {
         machine_symbol: machine.symbol,
@@ -658,37 +663,64 @@ fn collect_callable_contracts_indexed<'plans>(
 pub(crate) fn call_result_qualification_identities(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
+    selected: Option<&typed_trees::signature::StateSignature>,
 ) -> Vec<(
     Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
-    let Some(return_type) = call_target_return_type(program, target) else {
+    let Some(return_type) = selected
+        .map(|signature| signature.return_type)
+        .or_else(|| call_target_return_type(program, target))
+    else {
         return Vec::new();
     };
-    let parameters = validation::call_target_parameters(program, target);
-    let contracts = collect_callable_contracts(program, target);
+    let parameters = selected
+        .map(|signature| program.state_signature_parameters(signature))
+        .or_else(|| validation::call_target_parameters(program, target));
+    let contracts = selected
+        .map(|signature| {
+            program
+                .state_signature_contracts(signature)
+                .iter()
+                .collect()
+        })
+        .unwrap_or_else(|| collect_callable_contracts(program, target));
     result_identity_rows(program, return_type, parameters, &contracts)
 }
 
 /// `call_result_qualification_identities` on the context's memoized lookups
 /// and symbol indexes -- identical rows, computed without the whole-program
-/// scans. Used inside `call_result_identities`, so each target pays the
-/// indexed lookup at most once per build.
+/// scans. Used inside `call_result_identities`, so each call occurrence pays
+/// the indexed lookup at most once per build. Two calls to one requirement
+/// can have different local index tuples and therefore different result facts.
 fn call_result_qualification_identities_indexed<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
+    selected: Option<&'plans typed_trees::signature::StateSignature>,
 ) -> Vec<(
     Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
-    let Some(return_type) = memoized_call_target_return_type(program, build, target) else {
+    let Some(return_type) = selected
+        .map(|signature| signature.return_type)
+        .or_else(|| memoized_call_target_return_type(program, build, target))
+    else {
         return Vec::new();
     };
-    let parameters = memoized_call_target_parameters(program, build, target);
-    let contracts = collect_callable_contracts_indexed(program, build, target);
+    let parameters = selected
+        .map(|signature| program.state_signature_parameters(signature))
+        .or_else(|| memoized_call_target_parameters(program, build, target));
+    let contracts = selected
+        .map(|signature| {
+            program
+                .state_signature_contracts(signature)
+                .iter()
+                .collect()
+        })
+        .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
     if !result_type_carries_identity_rows(program, return_type) {
         return Vec::new();
     }
@@ -823,36 +855,58 @@ fn append_ensures_result_rows(
 pub(crate) fn call_parameter_qualification_identities(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
+    selected: Option<&typed_trees::signature::StateSignature>,
 ) -> Vec<(
     usize,
     SymbolHandle,
     language_semantics::SemanticDomainId,
     bool,
 )> {
-    let Some(parameters) = validation::call_target_parameters(program, target) else {
+    let Some(parameters) = selected
+        .map(|signature| program.state_signature_parameters(signature))
+        .or_else(|| validation::call_target_parameters(program, target))
+    else {
         return Vec::new();
     };
-    let contracts = collect_callable_contracts(program, target);
+    let contracts = selected
+        .map(|signature| {
+            program
+                .state_signature_contracts(signature)
+                .iter()
+                .collect()
+        })
+        .unwrap_or_else(|| collect_callable_contracts(program, target));
     parameter_identity_rows(program, parameters, &contracts)
 }
 
 /// `call_parameter_qualification_identities` on the context's memoized
-/// lookups and symbol indexes, memoized per target inside
+/// lookups and symbol indexes, memoized per call occurrence inside
 /// `call_parameter_identities`.
 fn call_parameter_qualification_identities_indexed<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
+    selected: Option<&'plans typed_trees::signature::StateSignature>,
 ) -> Vec<(
     usize,
     SymbolHandle,
     language_semantics::SemanticDomainId,
     bool,
 )> {
-    let Some(parameters) = memoized_call_target_parameters(program, build, target) else {
+    let Some(parameters) = selected
+        .map(|signature| program.state_signature_parameters(signature))
+        .or_else(|| memoized_call_target_parameters(program, build, target))
+    else {
         return Vec::new();
     };
-    let contracts = collect_callable_contracts_indexed(program, build, target);
+    let contracts = selected
+        .map(|signature| {
+            program
+                .state_signature_contracts(signature)
+                .iter()
+                .collect()
+        })
+        .unwrap_or_else(|| collect_callable_contracts_indexed(program, build, target));
     parameter_identity_rows(program, parameters, &contracts)
 }
 

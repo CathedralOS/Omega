@@ -96,22 +96,20 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
     {
         return unit_type(program, operator.return_type);
     }
-    let requirement = match program.machine_parameter_signature(call.target_symbol) {
-        Some((owner, signature)) if owner.symbol == machine.symbol => signature.symbol,
+    let signature = match program.machine_parameter_signature(call.target_symbol) {
+        Some((owner, signature)) if owner.symbol == machine.symbol => Some(signature),
         Some(_) => return false,
-        None => call.target_symbol,
+        None => program.requirement_call_signature(machine.symbol, call),
     };
-    let mut results = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-        .flat_map(|definition| program.trait_machine_instances(definition))
-        .filter(|signature| signature.symbol == requirement)
-        .map(|signature| signature.return_type);
-    results
-        .next()
-        .is_some_and(|result| unit_type(program, result))
-        && results.next().is_none()
+    signature.is_some_and(|signature| {
+        let declaration = program
+            .closed_requirement_application(signature.symbol)
+            .map_or(signature.symbol, |application| application.template);
+        program
+            .trait_machine_signature(declaration)
+            .is_some_and(|(definition, _)| definition.is_boundary)
+            && unit_type(program, signature.return_type)
+    })
 }
 
 /// The checker establishes the Build namespace and explicit argument before validation;

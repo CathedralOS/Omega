@@ -313,28 +313,21 @@ pub(crate) fn nested_structural_call_return_type(
         }
         target.return_type
     } else {
-        if !call.carries_only_positional_arguments() {
-            return None;
-        }
-        let selected = program.machine_parameter_signature(call.target_symbol);
-        let requirement = match selected {
-            Some((owner, signature)) if owner.symbol == caller => signature.symbol,
-            Some(_) => return None,
-            None => call.target_symbol,
+        let signature = if let Some((owner, signature)) =
+            program.machine_parameter_signature(call.target_symbol)
+        {
+            if owner.symbol != caller || !call.carries_only_positional_arguments() {
+                return None;
+            }
+            signature
+        } else {
+            // Result discovery consumes the same applied view as ordinary call
+            // checking. Scanning the authored trait roster loses closed member
+            // instances and reads open declaration indices for applied calls.
+            program.requirement_call_signature(caller, call)?
         };
-        let mut signatures = program
-            .traits()
-            .iter()
-            .filter(|definition| definition.is_boundary)
-            .flat_map(|definition| {
-                program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .filter(move |signature| signature.symbol == requirement)
-                    .map(move |signature| (definition, signature))
-            });
-        let (_, signature) = signatures.next()?;
-        if signatures.next().is_some() {
+        let (declaration, _) = program.trait_machine_signature(signature.symbol)?;
+        if !declaration.is_boundary {
             return None;
         }
         // The exact requirement owns the result type for every operand

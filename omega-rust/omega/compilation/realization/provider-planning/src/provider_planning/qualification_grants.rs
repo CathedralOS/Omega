@@ -81,14 +81,13 @@ pub(super) fn validate(
         let requirement_owners = typed
             .traits()
             .iter()
-            .flat_map(|candidate_owner| {
+            .filter_map(|candidate_owner| {
                 typed
-                    .trait_machine_signatures(candidate_owner)
-                    .iter()
-                    .filter(move |requirement| {
-                        requirement.symbol == fact.evidence.requirement_symbol
-                    })
-                    .map(move |requirement| (candidate_owner, requirement))
+                    .trait_machine_signature_by_symbol(
+                        candidate_owner,
+                        fact.evidence.requirement_symbol,
+                    )
+                    .map(|requirement| (candidate_owner, requirement))
             })
             .collect::<Vec<_>>();
         let requirement = match requirement_owners.as_slice() {

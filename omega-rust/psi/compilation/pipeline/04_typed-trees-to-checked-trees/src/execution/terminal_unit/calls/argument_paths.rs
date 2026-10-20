@@ -1189,6 +1189,8 @@ pub(crate) fn target_contract_mentions_projected_parameter(
 /// A declared root qualification also appears as a source requires fact.
 /// Argument formation already retains and checks that exact domain; projecting
 /// the actual does not create a second contract obligation or membership grant.
+/// Indexed families use their normalized instance identity, not the family's
+/// declaration identity or an empty-argument restriction.
 /// Extra authored memberships and all exit contracts still need their own
 /// represented correspondence. This is independent of the carrier's storage.
 fn parameter_qualification_carries_membership(
@@ -1197,11 +1199,9 @@ fn parameter_qualification_carries_membership(
     membership: &typed_trees::domain::ProofMembershipFact,
 ) -> bool {
     if !membership.semantic_domain.is_valid()
-        || !membership.domain_arguments.is_empty()
-        || !program.domain_definitions().iter().any(|definition| {
-            definition.symbol == membership.domain_symbol
-                && definition.semantic_id == membership.semantic_domain
-        })
+        || program
+            .domain_definition(membership.domain_symbol)
+            .is_none()
     {
         return false;
     }
@@ -1220,8 +1220,7 @@ fn parameter_qualification_carries_membership(
                     .any(|constraint| {
                         matches!(constraint, typed_trees::types::TypeConstraintNode::Domain(domain)
                         if domain.symbol == membership.domain_symbol
-                            && domain.semantic_id == membership.semantic_domain
-                            && domain.arguments.is_empty())
+                            && domain.semantic_id == membership.semantic_domain)
                     })
                 {
                     return true;

@@ -436,13 +436,20 @@ pub fn boundary_qualification_authorization(
     {
         return None;
     }
+    // Specialization changes executable identity, not the declaration that
+    // owns issuance authority. Only the retained application joins those
+    // identities; a provider or matching carrier cannot supply that authority.
+    let authority_signature = program
+        .closed_requirement_application(signature.symbol)
+        .filter(|application| application.declaring_trait == owner_symbol)
+        .map_or(signature.symbol, |application| application.template);
     if !domain.establishment_routes.iter().any(|route| {
         matches!(
             route,
             DomainEstablishmentRoute::BoundaryRequirement {
                 boundary_trait,
                 requirement,
-            } if *boundary_trait == owner_symbol && *requirement == signature.symbol
+            } if *boundary_trait == owner_symbol && *requirement == authority_signature
         )
     }) {
         return None;

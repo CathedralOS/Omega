@@ -233,6 +233,10 @@ fn result_type(
             // signature. Keep this owner distinction instead of making the
             // context-free call query guess a generic instantiation.
             let scoped_requirement_result = match owner {
+                ExpressionOwner::State { machine, .. } => program
+                    .requirement_call_signature(machine.symbol, call)
+                    .filter(|signature| signature.return_type.is_valid())
+                    .map(|signature| signature.return_type),
                 ExpressionOwner::Declaration { owner_symbol, .. }
                     if call.target_symbol.is_valid() =>
                 {

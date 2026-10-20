@@ -238,6 +238,23 @@ impl CallableApplication {
             types::TypeReferenceNode::ConstExpression(value) => {
                 Ok(program.expression_table.insert_copy(value))
             }
+            types::TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
+                // Const bindings use canonical leaves, while callable views
+                // may retain expression-valued operands. Transport the same
+                // Boolean value in either representation, as for integers
+                // above; this does not admit the source argument or predicate.
+                let value =
+                    language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+                        .and_then(|value| value.decode_encoding());
+                match value {
+                    Some(language_semantics::const_value::DecodedCanonicalConstValue::Boolean(
+                        value,
+                    )) => Ok(program
+                        .expression_table
+                        .insert(expression::ExpressionNode::Boolean(value))),
+                    _ => Err("callable expression argument has no represented canonical value"),
+                }
+            }
             types::TypeReferenceNode::Named { symbol, name } if symbol.is_valid() => {
                 if let Some(declaration) = program.const_declaration_by_symbol(symbol) {
                     if declaration.evaluated_value.is_some()

@@ -81,16 +81,26 @@ fn is_declared_open_tuple(
     program: &dyn crate::CheckingInput,
     application: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
+    requirement_application: TypeReferenceHandle,
 ) -> bool {
     let Some((declaring_trait, _)) =
         program.trait_machine_signature(application.binding_declaration)
     else {
         return false;
     };
-    // The raw declaration is the receiving scope only when no outer
-    // substitution is required. Applied outer telescopes retain the existing
-    // exact closed-scope route; this source-schema judgment cannot replace it.
-    if !program.trait_type_parameters(declaring_trait).is_empty()
+    let mut open = false;
+    if requirement_application.is_valid() {
+        let Some(scope) = program
+            .applied_requirement_scope(application.lexical_owner, requirement_application)
+            .and_then(|scope| scope.declaring_scope(program, declaring_trait.symbol))
+        else {
+            return false;
+        };
+        if program.require_declared_trait_operands(&scope).is_err() {
+            return false;
+        }
+        open |= program.require_receiving_trait_operands(&scope).is_err();
+    } else if !program.trait_type_parameters(declaring_trait).is_empty()
         || !declaring_trait.lifetime_parameters.is_empty()
     {
         return false;
@@ -111,7 +121,7 @@ fn is_declared_open_tuple(
     {
         return false;
     }
-    let mut open = program
+    open |= program
         .require_owned_application_operands(&operands, owner)
         .is_err();
     let Some(declaration) = StaticDeclaration::find(program, owner) else {
@@ -167,7 +177,11 @@ pub fn validate_static_machine_bindings(
         .filter_map(
             |expression| match program.expression_table.expression(*expression) {
                 ExpressionNode::Call(call) => {
-                    call_targets.push((call.authored_machine_application, call.target_symbol));
+                    call_targets.push((
+                        call.authored_machine_application,
+                        call.target_symbol,
+                        call.requirement_application,
+                    ));
                     Some(call.authored_machine_application)
                 }
                 _ => None,
@@ -183,8 +197,11 @@ pub fn validate_static_machine_bindings(
                     .iter()
                     .filter_map(|statement| match statement {
                         StatementNode::Call(call) => {
-                            call_targets
-                                .push((call.authored_machine_application, call.target_symbol));
+                            call_targets.push((
+                                call.authored_machine_application,
+                                call.target_symbol,
+                                TypeReferenceHandle::invalid(),
+                            ));
                             Some(call.authored_machine_application)
                         }
                         _ => None,
@@ -221,7 +238,11 @@ pub fn validate_static_machine_bindings(
                 .map(|view| (view.provider, view.selected_entry))
         })
         .collect::<Vec<_>>();
-    call_targets.extend(providers.iter().copied());
+    call_targets.extend(
+        providers
+            .iter()
+            .map(|(application, target)| (*application, *target, TypeReferenceHandle::invalid())),
+    );
     applications.extend(providers.into_iter().map(|(provider, _)| provider));
     for handle in applications {
         let application = program.expression_table.static_machine_application(handle);
@@ -237,7 +258,7 @@ pub fn validate_static_machine_bindings(
             bindings,
             call_targets
                 .iter()
-                .filter_map(|(source, target)| (*source == handle).then_some(*target)),
+                .filter_map(|(source, target, _)| (*source == handle).then_some(*target)),
         ) {
             diagnostics.push(diagnostic);
         }
@@ -255,14 +276,22 @@ pub fn validate_static_machine_bindings(
             // trait application, not another equal tuple in an outer scope.
             let mut selected = None;
             let mut valid = true;
-            for (_, target) in call_targets.iter().filter(|(source, _)| *source == handle) {
+            for (_, target, requirement_application) in call_targets
+                .iter()
+                .filter(|(source, _, _)| *source == handle)
+            {
                 let Some(closed) = program.closed_requirement_application(*target) else {
                     // A live universal call keeps its exact authored declaration
                     // until its own operands close. It still owes every ordinary
                     // lifetime, bound, const and forwarded-evidence check below.
                     if *target == application.binding_declaration
                         && !selected.is_some_and(|previous| previous != *target)
-                        && is_declared_open_tuple(program, application, bindings)
+                        && is_declared_open_tuple(
+                            program,
+                            application,
+                            bindings,
+                            *requirement_application,
+                        )
                     {
                         selected = Some(*target);
                         continue;

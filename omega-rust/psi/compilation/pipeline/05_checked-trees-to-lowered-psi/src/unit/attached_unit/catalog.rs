@@ -1471,16 +1471,58 @@ fn lower_establishment_route(
 /// Normalize one authored establishment catalog to its source-free form.
 /// The emitted rows are strictly ordered; each identity is the declaration's
 /// canonical normalized overload identity, so private issuers retain their
-/// exact names without gaining consumer authority.
+/// exact names without gaining consumer authority. A declaration authorizes its
+/// retained executable applications, not a provider chosen by this pass. Expand
+/// that same roster used by boundary publication; each application's contract
+/// still determines which exact domain instance it can return.
 pub(super) fn lower_establishment_routes(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     routes: &[language_semantics::DomainEstablishmentRoute],
 ) -> Result<Vec<terminal_psi::StructuralEstablishmentRoute>, LoweringError> {
-    let mut lowered = routes
-        .iter()
-        .map(|route| lower_establishment_route(identities, checked, *route))
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut lowered = Vec::new();
+    for route in routes {
+        let (owner, requirement) = match route {
+            language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition,
+                requirement,
+            } => (*trait_definition, *requirement),
+            language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait,
+                requirement,
+            } => (*boundary_trait, *requirement),
+            language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => {
+                lowered.push(lower_establishment_route(identities, checked, *route)?);
+                continue;
+            }
+        };
+        let definition =
+            checked
+                .trait_definition_by_symbol(owner)
+                .ok_or(LoweringError::Unsupported(
+                    "domain establishment route names an absent trait",
+                ))?;
+        let declared = checked
+            .trait_machine_signature_by_symbol(definition, requirement)
+            .ok_or(LoweringError::Unsupported(
+                "domain establishment route names an absent requirement",
+            ))?;
+        for signature in checked.requirement_machine_instances(declared) {
+            let mut application = *route;
+            match &mut application {
+                language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+                    requirement,
+                    ..
+                }
+                | language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                    requirement,
+                    ..
+                } => *requirement = signature.symbol,
+                language_semantics::DomainEstablishmentRoute::ExactMachine { .. } => {}
+            }
+            lowered.push(lower_establishment_route(identities, checked, application)?);
+        }
+    }
     lowered.sort();
     if lowered.windows(2).any(|pair| pair[0] == pair[1]) {
         return unsupported("domain establishment catalog retains a duplicate route");
@@ -1557,28 +1599,22 @@ pub(super) fn call_result_qualification_establishments(
             continue;
         }
         let catalog = lower_establishment_routes(identities, checked, &plan.establishment_routes)?;
-        for route in &plan.establishment_routes {
-            let authorized = matches!(
-                route,
-                language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
-                    requirement,
-                    ..
-                } if *requirement == boundary_callee
-            );
-            if !authorized {
-                continue;
-            }
-            let row = lower_establishment_route(identities, checked, *route)?;
-            let Some(index) = catalog.iter().position(|candidate| *candidate == row) else {
-                continue;
-            };
+        let Some((owner, signature)) = checked.trait_machine_signature(boundary_callee) else {
+            continue;
+        };
+        let requirement =
+            identities.intern(&checked.trait_requirement_callable_identity_text(owner, signature));
+        if let Some(index) = catalog.iter().position(|route| {
+            matches!(route, terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
+                requirement: candidate,
+            } if *candidate == requirement)
+        }) {
             establishments.push(terminal_psi::ResultQualificationEstablishment {
                 domain: lookup_domain_id(domain_ids, *domain)?,
                 route: u32::try_from(index).map_err(|_| {
                     LoweringError::Unsupported("establishment route index exceeds u32")
                 })?,
             });
-            break;
         }
     }
     establishments.sort_by_key(|binding| (binding.domain, binding.route));

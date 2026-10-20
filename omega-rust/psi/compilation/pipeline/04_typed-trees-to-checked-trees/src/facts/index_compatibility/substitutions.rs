@@ -24,16 +24,26 @@ pub(super) fn established_index_equalities(
     contexts: HandleSpan<FlowSemanticContextRef>,
     actual: &[TypeReferenceHandle],
     expected: &[TypeReferenceHandle],
-    bound_substitutions: &BoundIndexSubstitutions,
+    actual_substitutions: &BoundIndexSubstitutions,
+    expected_substitutions: &BoundIndexSubstitutions,
 ) -> Option<Vec<FactHandle>> {
     if actual.len() != expected.len() {
         return None;
     }
-    let bindings = index_identity_bindings(bound_substitutions);
+    let actual_bindings = index_identity_bindings(actual_substitutions);
+    let expected_bindings = index_identity_bindings(expected_substitutions);
     let differing = actual
         .iter()
         .zip(expected)
-        .filter(|(left, right)| !index_arguments_equal(program, **left, **right, &bindings))
+        .filter(|(left, right)| {
+            !index_arguments_equal(
+                program,
+                **left,
+                **right,
+                &actual_bindings,
+                &expected_bindings,
+            )
+        })
         .collect::<Vec<_>>();
     if differing.is_empty() {
         return None;
@@ -49,7 +59,8 @@ pub(super) fn established_index_equalities(
             contexts,
             *actual,
             *expected,
-            bound_substitutions,
+            actual_substitutions,
+            expected_substitutions,
         )?;
         if !evidence.contains(&fact) {
             evidence.push(fact);
@@ -66,7 +77,8 @@ pub(super) fn established_index_equality_for_argument(
     contexts: HandleSpan<FlowSemanticContextRef>,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
-    bound_substitutions: &BoundIndexSubstitutions,
+    actual_substitutions: &BoundIndexSubstitutions,
+    expected_substitutions: &BoundIndexSubstitutions,
 ) -> Option<FactHandle> {
     for context_ref in flow.contexts.semantic_context_refs.span_or_empty(contexts) {
         let context = semantic.contexts.get(context_ref.context);
@@ -83,7 +95,8 @@ pub(super) fn established_index_equality_for_argument(
                 &substitutions,
                 actual,
                 expected,
-                bound_substitutions,
+                actual_substitutions,
+                expected_substitutions,
             ) {
                 return Some(fact_ref.fact);
             }
@@ -99,7 +112,8 @@ pub(super) fn expression_proves_index_equality(
     substitutions: &BoundIndexSubstitutions,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
-    bound_substitutions: &BoundIndexSubstitutions,
+    actual_substitutions: &BoundIndexSubstitutions,
+    expected_substitutions: &BoundIndexSubstitutions,
 ) -> bool {
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
@@ -115,7 +129,8 @@ pub(super) fn expression_proves_index_equality(
             substitutions,
             actual,
             expected,
-            bound_substitutions,
+            actual_substitutions,
+            expected_substitutions,
         ) || expression_proves_index_equality(
             program,
             operators,
@@ -123,7 +138,8 @@ pub(super) fn expression_proves_index_equality(
             substitutions,
             actual,
             expected,
-            bound_substitutions,
+            actual_substitutions,
+            expected_substitutions,
         );
     }
     if binary.operator != BinaryOperator::Equal
@@ -136,26 +152,26 @@ pub(super) fn expression_proves_index_equality(
         binary.left,
         substitutions,
         actual,
-        bound_substitutions,
+        actual_substitutions,
     ) && substituted_expression_matches_index_argument(
         program,
         binary.right,
         substitutions,
         expected,
-        bound_substitutions,
+        expected_substitutions,
     );
     let symmetric = substituted_expression_matches_index_argument(
         program,
         binary.left,
         substitutions,
         expected,
-        bound_substitutions,
+        expected_substitutions,
     ) && substituted_expression_matches_index_argument(
         program,
         binary.right,
         substitutions,
         actual,
-        bound_substitutions,
+        actual_substitutions,
     );
     direct || symmetric
 }
@@ -339,11 +355,60 @@ pub(crate) fn bound_index_substitutions(
         .collect()
 }
 
+/// Keep both declaration and prepared-view binders attached to the exact
+/// invocation operands. Contract authority still names the declaration, while
+/// its selected payload uses freshly scoped member parameters.
+pub(crate) fn call_index_substitutions<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    lexical_owner: SymbolHandle,
+    site: &validation::CallSite<'_>,
+) -> BoundIndexSubstitutions<'program> {
+    let (application, target) = match site {
+        validation::CallSite::Statement(call) => {
+            (call.authored_machine_application, call.target_symbol)
+        }
+        validation::CallSite::Expression { call, .. } => (
+            call.authored_machine_application,
+            call.static_requirement_dispatch
+                .as_ref()
+                .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol()),
+        ),
+        validation::CallSite::TransitionNamed { .. } => return Vec::new(),
+    };
+    let mut bindings = bound_index_substitutions(program, application);
+    if let Some(parameters) = validation::call_target_parameters(program, target) {
+        bindings.extend(
+            parameters
+                .iter()
+                .zip(validation::call_site_argument_expressions(program, site))
+                .map(|(parameter, actual)| {
+                    (parameter.symbol, BoundIndexArgument::Expression(*actual))
+                }),
+        );
+    }
+    if let validation::CallSite::Expression { call, .. } = site
+        && let Some((_, declared)) = program.trait_machine_signature(target)
+        && let Some(selected) = program.requirement_call_signature(lexical_owner, call)
+    {
+        let aliases = bindings
+            .iter()
+            .filter_map(|(parameter, actual)| {
+                let applied =
+                    program.applied_signature_parameter(declared, selected, *parameter)?;
+                (applied != *parameter).then_some((applied, *actual))
+            })
+            .collect::<Vec<_>>();
+        bindings.extend(aliases);
+    }
+    bindings
+}
+
 /// The substitutions implied by the call at `point`, if `point` is a call
 /// boundary — this is what lets an argument in `Coordinate<N>` discharge a
 /// parameter declared `in Coordinate<I>` when the call bound `I` to `N`.
 pub(super) fn enclosing_call_substitutions<'program>(
     program: &'program dyn ::validation::CheckingInput,
+    lexical_owner: SymbolHandle,
     state_calls: &StateCallIndex<'_, '_>,
     point: ProgramPoint,
 ) -> BoundIndexSubstitutions<'program> {
@@ -361,12 +426,7 @@ pub(super) fn enclosing_call_substitutions<'program>(
     }) else {
         return Vec::new();
     };
-    let application = match &resolved.site {
-        validation::CallSite::Statement(call) => call.authored_machine_application,
-        validation::CallSite::Expression { call, .. } => call.authored_machine_application,
-        validation::CallSite::TransitionNamed { .. } => return Vec::new(),
-    };
-    bound_index_substitutions(program, application)
+    call_index_substitutions(program, lexical_owner, &resolved.site)
 }
 
 /// The substitutions implied by `value` itself when the checked value is a
@@ -374,6 +434,7 @@ pub(super) fn enclosing_call_substitutions<'program>(
 /// `Coordinate<I>` compares as `Coordinate<N>` under the call's own binding.
 pub(super) fn value_call_substitutions(
     program: &dyn ::validation::CheckingInput,
+    lexical_owner: SymbolHandle,
     value: ExpressionHandle,
 ) -> BoundIndexSubstitutions<'_> {
     let mut node = value;
@@ -385,7 +446,14 @@ pub(super) fn value_call_substitutions(
             _ => return Vec::new(),
         }
     };
-    bound_index_substitutions(program, call.authored_machine_application)
+    call_index_substitutions(
+        program,
+        lexical_owner,
+        &validation::CallSite::Expression {
+            expression: node,
+            call,
+        },
+    )
 }
 
 /// Substitute exact fact parameters and call indices in their respective scopes,

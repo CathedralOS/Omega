@@ -343,6 +343,7 @@ fn dispatch_instance(
 }
 
 pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let mut invocations = Vec::new();
     let mut expression_updates = Vec::new();
     let mut expression_dispatch_updates = Vec::new();
     let mut diagnostics = Vec::new();
@@ -355,6 +356,13 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                 .indexed_statements(state.statement_nodes)
             {
                 if let Some(call) = statement.as_call() {
+                    invocations.push((
+                        super::super::CallSite::Statement(
+                            state.statement_nodes.handle_at(position as u32),
+                        ),
+                        machine.symbol,
+                        call.target_symbol,
+                    ));
                     if let Some(dispatch) = &call.static_requirement_dispatch {
                         let selected = dispatch_instance(
                             program,
@@ -408,6 +416,11 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                     let Some(call) = program.expression_table.call_node(expression) else {
                         continue;
                     };
+                    invocations.push((
+                        super::super::CallSite::Expression(expression),
+                        machine.symbol,
+                        call.target_symbol,
+                    ));
                     if let Some(dispatch) = &call.static_requirement_dispatch {
                         let selected = dispatch_instance(
                             program,
@@ -480,6 +493,35 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
+    for &(site, owner, target) in &invocations {
+        let template = program
+            .closed_requirement_application(target)
+            .map_or(target, |closed| closed.template);
+        let Some((_, signature)) = program.trait_machine_signature(template) else {
+            continue;
+        };
+        let parameters = program.state_signature_type_parameters(signature).to_vec();
+        if parameters.is_empty() {
+            continue;
+        }
+        let application = super::super::applications::retain_authored_call(program, site, owner);
+        let arguments = program
+            .expression_table
+            .static_machine_application_arguments(application)
+            .to_vec();
+        if arguments.len() != parameters.len() {
+            // Argument admission owns malformed source telescopes.
+            continue;
+        }
+        let bindings = super::invocation_bindings(program, &parameters, &arguments)?;
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .binding_declaration = template;
+        program
+            .expression_table
+            .set_static_machine_application_bindings(application, &bindings);
+    }
     for (handle, selected) in expression_updates {
         if let typed_trees::expression::ExpressionNode::Call(call) =
             program.expression_table.expression_mut(handle)
@@ -508,6 +550,23 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             && let Some(dispatch) = &mut call.static_requirement_dispatch
         {
             dispatch.contract_signature = selected;
+        }
+    }
+    for (site, owner, _) in invocations {
+        let super::super::CallSite::Expression(expression) = site else {
+            continue;
+        };
+        let Some(call) = program.expression_table.call_node(expression).cloned() else {
+            continue;
+        };
+        if let Some(signature) = program
+            .prepare_requirement_invocation(owner, &call)
+            .map_err(|message| vec![Diagnostic::error(message)])?
+        {
+            let references =
+                typed_trees::references::collect_signature_references(program, &signature);
+            super::super::finalize_referenced_domain_instance_identities(program, references)
+                .map_err(|diagnostic| vec![diagnostic])?;
         }
     }
     Ok(())

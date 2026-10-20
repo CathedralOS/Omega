@@ -6,6 +6,7 @@
 //! conformance. No private body supplies missing arguments or public premises.
 
 use super::{Diagnostic, TypedTrees, candidate, explicit_arguments, saved_calls};
+use typed_trees::trait_definition::AppliedTraitScope;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
 pub(crate) fn generate_requirement_provider_specializations(
@@ -16,6 +17,11 @@ pub(crate) fn generate_requirement_provider_specializations(
         if !machine.supplies_checked_body() || !machine.has_specialization_parameters() {
             continue;
         }
+        // Both source forms declare candidate membership. Named map rows do
+        // not also carry a machine satisfaction edge; requiring one silently
+        // omitted their local generic instances. Gather their exact declaring
+        // scopes before using the shared tuple specialization path.
+        let mut requirements = Vec::new();
         for conformance in program.machine_trait_conformances(machine) {
             if conformance.external_binding.is_some() || conformance.via_expression.is_valid() {
                 continue;
@@ -30,19 +36,36 @@ pub(crate) fn generate_requirement_provider_specializations(
             if !definition.is_boundary {
                 continue;
             }
+            if let Some(scope) =
+                AppliedTraitScope::from_machine_conformance(program, machine, conformance)
+            {
+                requirements.push((requirement.symbol, scope));
+            }
+        }
+        for conformance in program.conformances() {
+            if !conformance.type_parameters.is_empty() {
+                continue;
+            }
+            let Some(scope) = AppliedTraitScope::from_conformance(program, conformance) else {
+                continue;
+            };
+            for row in &conformance.rows {
+                if row.realization_machine != machine.symbol {
+                    continue;
+                }
+                let Some(declaring) = scope.declaring_scope(program, row.declaring_trait) else {
+                    continue;
+                };
+                if declaring.declaration.is_boundary {
+                    requirements.push((row.requirement, declaring));
+                }
+            }
+        }
+        for (requirement, scope) in requirements {
             for application in program.closed_requirement_applications() {
-                if application.template == requirement.symbol
-                    && typed_trees::trait_definition::AppliedTraitScope::from_machine_conformance(
-                        program,
-                        machine,
-                        conformance,
-                    )
-                    .is_some_and(|scope| {
-                        program.requirement_application_matches_scope(
-                            application.signature.symbol,
-                            &scope,
-                        )
-                    })
+                if application.template == requirement
+                    && program
+                        .requirement_application_matches_scope(application.signature.symbol, &scope)
                 {
                     demands.push((index, application.application));
                 }

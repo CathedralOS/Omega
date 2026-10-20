@@ -37,20 +37,36 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     domains: &DomainFacts,
     writes: Option<&[crate::flow::mutation::CallMutationWrite]>,
 ) {
-    let Some(parameters) = super::super::calls::memoized_call_target_parameters(
-        program,
-        build,
-        borrow_call.target_symbol,
-    ) else {
+    let key = (
+        machine.symbol,
+        state.symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    );
+    let selected =
+        super::super::calls::memoized_find_call_site(program, build, key.0, key.1, key.2, key.3)
+            .and_then(|site| match site {
+                validation::CallSite::Expression { call, .. } => {
+                    program.requirement_call_signature(machine.symbol, call)
+                }
+                _ => None,
+            });
+    let Some(parameters) = selected
+        .map(|signature| program.state_signature_parameters(signature))
+        .or_else(|| {
+            super::super::calls::memoized_call_target_parameters(
+                program,
+                build,
+                borrow_call.target_symbol,
+            )
+        })
+    else {
         return;
     };
     let mut rows = Vec::new();
     let mut preserved = Vec::new();
     let mut guarantees = Vec::new();
-    let parameter_claims = build
-        .call_parameter_identities
-        .get(&borrow_call.target_symbol)
-        .cloned();
+    let parameter_claims = build.call_parameter_identities.get(&key).cloned();
     for (argument_position, parameter) in parameters.iter().enumerate() {
         let referent =
             crate::checks::contracts::exclusive_referent_type(program, parameter.type_reference);

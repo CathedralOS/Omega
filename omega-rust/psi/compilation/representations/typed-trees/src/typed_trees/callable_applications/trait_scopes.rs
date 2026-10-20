@@ -20,17 +20,48 @@ impl TypedTrees {
         lexical_owner: SymbolHandle,
         call: &crate::expression::TableCallExpression,
     ) -> Option<&signature::StateSignature> {
-        if let Some(closed) = self.closed_requirement_application(call.target_symbol) {
+        let target = call
+            .static_requirement_dispatch
+            .as_ref()
+            .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol());
+        if let Some(closed) = self.closed_requirement_application(target) {
             if call.requirement_application.is_valid() {
                 let scope =
                     self.applied_requirement_scope(lexical_owner, call.requirement_application)?;
-                if !self.requirement_application_matches_scope(call.target_symbol, &scope) {
+                if !self.requirement_application_matches_scope(target, &scope) {
                     return None;
                 }
             }
             return Some(closed.signature);
         }
-        let (declaration, signature) = self.trait_machine_signature(call.target_symbol)?;
+        let outer = self.requirement_outer_signature(lexical_owner, call, target)?;
+        if let Some(signature) =
+            self.applied_callable_signatures
+                .iter()
+                .find_map(|(_, prepared)| {
+                    matches!(prepared.owner, AppliedCallableOwner::RequirementInvocation {
+                application,
+                lexical_owner: owner,
+                ..
+            } if application == call.authored_machine_application
+                && application.is_valid()
+                && owner == lexical_owner
+                && prepared.signature.symbol == target)
+                    .then_some(&prepared.signature)
+                })
+        {
+            return Some(signature);
+        }
+        Some(outer)
+    }
+
+    fn requirement_outer_signature(
+        &self,
+        lexical_owner: SymbolHandle,
+        call: &crate::expression::TableCallExpression,
+        target: SymbolHandle,
+    ) -> Option<&signature::StateSignature> {
+        let (declaration, signature) = self.trait_machine_signature(target)?;
         if call.requirement_application.is_valid() {
             let scope = self
                 .applied_requirement_scope(lexical_owner, call.requirement_application)?
@@ -39,6 +70,92 @@ impl TypedTrees {
         }
         (declaration.type_parameters.is_empty() && declaration.lifetime_parameters.is_empty())
             .then_some(signature)
+    }
+
+    /// Prepare the remaining member telescope in this source invocation.
+    /// The outer trait view alone cannot describe `Trait<Outer>::member<Inner>`:
+    /// consumers need the same complete contract, including result memberships.
+    /// This is a logical checking view and never an executable specialization.
+    pub fn prepare_requirement_invocation(
+        &mut self,
+        lexical_owner: SymbolHandle,
+        call: &crate::expression::TableCallExpression,
+    ) -> Result<Option<signature::StateSignature>, &'static str> {
+        let target = call
+            .static_requirement_dispatch
+            .as_ref()
+            .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol());
+        if self.closed_requirement_application(target).is_some()
+            || !call.authored_machine_application.is_valid()
+        {
+            return Ok(None);
+        }
+        let Some((declaration, declared)) = self.trait_machine_signature(target) else {
+            return Ok(None);
+        };
+        if declared.type_parameters.is_empty() {
+            return Ok(None);
+        }
+        let declaration = declaration.symbol;
+        let declared = declared.clone();
+        // Preparation revisits mutable applications. Derive from the canonical
+        // outer view, never a previously substituted invocation output.
+        let Some(selected) = self
+            .requirement_outer_signature(lexical_owner, call, target)
+            .cloned()
+        else {
+            return Ok(None);
+        };
+        let bindings = self
+            .expression_table
+            .static_machine_application_bindings(call.authored_machine_application);
+        let mut application = CallableApplication {
+            region_scope: lexical_owner,
+            ..CallableApplication::default()
+        };
+        for binding in bindings {
+            let Some(parameter) =
+                self.applied_signature_parameter(&declared, &selected, binding.parameter)
+            else {
+                return Err("requirement invocation lost its prepared member binder");
+            };
+            match &binding.value {
+                crate::static_applications::StaticMachineBindingValue::Type(actual)
+                | crate::static_applications::StaticMachineBindingValue::Const(actual) => {
+                    application.types.push((parameter, *actual));
+                }
+                crate::static_applications::StaticMachineBindingValue::Machine(actual)
+                | crate::static_applications::StaticMachineBindingValue::Conformance(actual) => {
+                    application
+                        .static_arguments
+                        .push((parameter, actual.clone()));
+                }
+                _ => return Err("requirement invocation has an unsupported runtime binding"),
+            }
+        }
+        let signature = application.signature(self, &selected)?;
+        let owner = AppliedCallableOwner::RequirementInvocation {
+            declaration,
+            application: call.authored_machine_application,
+            lexical_owner,
+        };
+        let previous = self
+            .applied_callable_signatures
+            .iter()
+            .find_map(|(handle, previous)| {
+                (previous.owner == owner && previous.signature.symbol == signature.symbol)
+                    .then_some(handle)
+            });
+        if let Some(previous) = previous {
+            self.applied_callable_signatures.get_mut(previous).signature = signature.clone();
+        } else {
+            self.applied_callable_signatures
+                .insert(AppliedCallableSignature {
+                    owner,
+                    signature: signature.clone(),
+                });
+        }
+        Ok(Some(signature))
     }
 
     /// Retained rows must keep both the handle and the key it names. Unused

@@ -26,7 +26,7 @@ use instance_collection::{
 };
 use labels::compatibility_name;
 pub(crate) use substitutions::{
-    BoundIndexArgument, BoundIndexSubstitutions, bound_index_substitutions,
+    BoundIndexArgument, BoundIndexSubstitutions, call_index_substitutions,
 };
 use substitutions::{
     enclosing_call_substitutions, established_index_equalities, value_call_substitutions,
@@ -55,8 +55,7 @@ pub(super) fn build_index_compatibility_facts(
         let state_calls = StateCallIndex::new(program, flow, state_flow);
         for resolved in &state_calls.calls {
             let call = resolved.fact;
-            let Some(parameters) = validation::call_target_parameters(program, call.target_symbol)
-            else {
+            let Some(parameters) = resolved.parameters(program, machine.symbol) else {
                 continue;
             };
             let arguments = validation::call_site_argument_expressions(program, &resolved.site);
@@ -266,15 +265,12 @@ fn append_expression_compatibilities(
     // this boundary. Recompute this for recursive literal members as well as
     // top-level stores/returns.
     let contexts = state_calls.contexts_after_value(statement_index, value, contexts);
-    let mut substitutions = enclosing_call_substitutions(program, state_calls, point);
-    for substitution in value_call_substitutions(program, value) {
-        if !substitutions
-            .iter()
-            .any(|(binder, _)| *binder == substitution.0)
-        {
-            substitutions.push(substitution);
-        }
-    }
+    let expected_substitutions =
+        enclosing_call_substitutions(program, machine.symbol, state_calls, point);
+    // Two nested calls to the same declaration share binder identities but
+    // not actuals. Normalize the produced value and receiving formal in their
+    // own invocation namespaces, including when their template IDs are equal.
+    let actual_substitutions = value_call_substitutions(program, machine.symbol, value);
     let mut actual =
         expression_indexed_instances(program, operators, machine, state, statement_index, value);
     append_call_result_ensured_instances(
@@ -301,36 +297,20 @@ fn append_expression_compatibilities(
             {
                 continue;
             }
-            let discharge = if actual.semantic_id == expected.semantic_id {
-                if actual
-                    .arguments
-                    .iter()
-                    .chain(&expected.arguments)
-                    .all(|argument| is_closed_index_argument(program, *argument, &Vec::new()))
-                {
-                    IndexCompatibilityDischarge::ClosedEvaluation
-                } else {
-                    IndexCompatibilityDischarge::LicensedNormalization {
-                        operation_count: selected_operation_count(
-                            program,
-                            actual.arguments.iter().chain(&expected.arguments).copied(),
-                        ),
-                    }
-                }
-            } else if bound_index_arguments_equal(
+            let discharge = if bound_index_arguments_equal(
                 program,
                 &actual.arguments,
                 &expected.arguments,
-                &substitutions,
+                &actual_substitutions,
+                &expected_substitutions,
             ) {
                 // Simultaneous call bindings and the same selected laws compose
                 // in the canonical normalizer, without manufacturing typed nodes.
-                if actual
-                    .arguments
-                    .iter()
-                    .chain(&expected.arguments)
-                    .all(|argument| is_closed_index_argument(program, *argument, &substitutions))
-                {
+                if actual.arguments.iter().all(|argument| {
+                    is_closed_index_argument(program, *argument, &actual_substitutions)
+                }) && expected.arguments.iter().all(|argument| {
+                    is_closed_index_argument(program, *argument, &expected_substitutions)
+                }) {
                     IndexCompatibilityDischarge::ClosedEvaluation
                 } else {
                     IndexCompatibilityDischarge::LicensedNormalization {
@@ -348,7 +328,8 @@ fn append_expression_compatibilities(
                 contexts,
                 &actual.arguments,
                 &expected.arguments,
-                &substitutions,
+                &actual_substitutions,
+                &expected_substitutions,
             ) {
                 IndexCompatibilityDischarge::EstablishedLocalFacts { facts }
             } else {

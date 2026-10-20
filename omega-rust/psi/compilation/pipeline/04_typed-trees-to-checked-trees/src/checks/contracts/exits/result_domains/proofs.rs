@@ -619,6 +619,21 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
         return false;
     }
     subject.extend_segments(facts.semantic.place_segments.span_or_empty(place.segments));
+    // An indexed ensures clause asks for this instance, not membership in
+    // the family. The family-only prover deliberately refuses that reduction.
+    if program
+        .domain_definition(domain_symbol)
+        .is_some_and(|domain| !typed_trees::domain::index_parameters(program, domain).is_empty())
+    {
+        return super::super::super::prover::prove_indexed_domain_at_place(
+            program,
+            &facts.semantic,
+            contexts,
+            &subject,
+            domain_symbol,
+            semantic_domain,
+        );
+    }
     super::super::super::prover::prove_domain_at_place(
         program,
         &facts.semantic,

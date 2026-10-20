@@ -130,8 +130,12 @@ pub(super) fn check_call_result_qualifications(
                 expression,
                 call,
             };
-            let declared =
-                crate::flow::call_result_qualification_identities(program, call.target_symbol);
+            let selected = program.requirement_call_signature(machine_symbol, call);
+            let declared = crate::flow::call_result_qualification_identities(
+                program,
+                call.target_symbol,
+                selected,
+            );
             if !declared.iter().any(|(declared_path, symbol, identity)| {
                 declared_path == path && *symbol == domain_symbol && *identity == semantic_domain
             }) {
@@ -171,7 +175,9 @@ pub(super) fn check_call_result_qualifications(
                 return Some(());
             }
 
-            let call_parameters = validation::call_target_parameters(program, call.target_symbol);
+            let call_parameters = selected
+                .map(|signature| program.state_signature_parameters(signature))
+                .or_else(|| validation::call_target_parameters(program, call.target_symbol));
 
             // Preserve the existing bare-result issuance route, including its
             // exact carrier/subject checks. Fresh supply must be fresh: a
@@ -210,8 +216,14 @@ pub(super) fn check_call_result_qualifications(
                     {
                         return false;
                     }
-                    let Some(membership) = program.proof_facts.get(contract.fact).as_membership()
-                    else {
+                    let Some(membership) = invocation_contract_fact(
+                        program,
+                        selected,
+                        owner_symbol,
+                        state_symbol,
+                        contract.fact,
+                    )
+                    .and_then(|fact| fact.as_membership()) else {
                         return false;
                     };
                     if membership.domain_symbol != domain_symbol
@@ -220,7 +232,7 @@ pub(super) fn check_call_result_qualifications(
                         return false;
                     }
                     authorized_ensures_signature(program, owner_symbol, state_symbol, contract.fact)
-                }) || result_type_issuance_route(program, call.target_symbol, domain))
+                }) || result_type_issuance_route(program, call.target_symbol, selected, domain))
             {
                 return Some(());
             }
@@ -238,7 +250,7 @@ pub(super) fn check_call_result_qualifications(
             if path
                 .iter()
                 .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
-                && case_payload_issuance_route(program, call.target_symbol, domain, path)
+                && case_payload_issuance_route(program, call.target_symbol, selected, domain, path)
                 && match (call_parameters, projection) {
                     (Some(parameters), Some(projection)) => !consumes_qualified_input(
                         program,
@@ -361,8 +373,9 @@ pub(super) fn check_call_result_qualifications(
 /// root and field memberships at every normal exit. Authored parameter
 /// guarantees also join here. Each promise must name the exact domain instance
 /// and project onto the completed argument's captured storage. A bodyless
-/// boundary still needs an authorized `established by` route; its declarations
-/// alone do not mint routed field membership.
+/// boundary call must carry the membership into the invocation. Fresh parameter
+/// introduction belongs to an installed external root, not an ordinary call,
+/// even when the domain names this requirement as an issuer.
 #[allow(clippy::too_many_arguments)]
 fn call_parameter_qualification_join(
     program: &dyn ::validation::CheckingInput,
@@ -395,7 +408,15 @@ fn call_parameter_qualification_join(
     {
         return None;
     }
-    let parameters = validation::call_target_parameters(program, call_target)?;
+    let selected = match site {
+        validation::CallSite::Expression { call, .. } => {
+            program.requirement_call_signature(machine_symbol, call)
+        }
+        _ => None,
+    };
+    let parameters = selected
+        .map(|signature| program.state_signature_parameters(signature))
+        .or_else(|| validation::call_target_parameters(program, call_target))?;
     let arguments = validation::call_site_argument_expressions(program, &site);
     let state_flow = facts.flow.control.states.iter().find_map(|(_, state)| {
         (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
@@ -428,7 +449,8 @@ fn call_parameter_qualification_join(
         return None;
     }
     let checked_body = validation::call_target_has_checked_body_contract(program, call_target);
-    let identities = crate::flow::call_parameter_qualification_identities(program, call_target);
+    let identities =
+        crate::flow::call_parameter_qualification_identities(program, call_target, selected);
     let position = parameters
         .iter()
         .enumerate()
@@ -518,38 +540,32 @@ fn call_parameter_qualification_join(
     if checked_body {
         return Some(());
     }
-    let parameter = parameters.iter().nth(position)?;
+    let parameter = parameters.get(position)?;
     if !crate::checks::contracts::is_readable_mutable_reference(program, parameter.type_reference) {
         return None;
     }
+    // The public ensures preserves the exact entry subject. Issuer metadata is
+    // not an installation receipt: an ordinary invocation may not manufacture a
+    // parameter premise from its own normal-return promise.
     facts
-        .proof
-        .contract_facts
-        .iter()
-        .any(|(_, contract)| {
-            let checked_trees::ContractProofFactOwner::StateSignature {
-                owner_symbol,
-                state_symbol,
-            } = contract.owner
-            else {
-                return false;
-            };
-            if state_symbol != call_target
-                || contract.kind != checked_trees::ContractProofFactKind::Ensures
-            {
-                return false;
-            }
-            let Some(membership) = program.proof_facts.get(contract.fact).as_membership() else {
-                return false;
-            };
-            if membership.domain_symbol != domain_symbol
-                || membership.semantic_domain != semantic_domain
-                || crate::flow::ensured_parameter_position(program, parameters, membership.value)
-                    != Some(position)
-            {
-                return false;
-            }
-            authorized_ensures_signature(program, owner_symbol, state_symbol, contract.fact)
+        .flow
+        .semantic_constraint_contexts(call_flow.entry_constraints)
+        .any(|context| {
+            facts
+                .semantic
+                .context_view(facts.semantic.contexts.get(context))
+                .facts()
+                .any(|fact| {
+                    fact.payload
+                        .domain_membership()
+                        .is_some_and(|(_, _, symbol, instance)| {
+                            symbol == domain_symbol && instance == semantic_domain
+                        })
+                        && matches!(fact.place, FactPlace::Place(place)
+                            if facts.semantic.places.get(place).root == root
+                                && facts.semantic.place_segments.span_or_empty(
+                                    facts.semantic.places.get(place).segments) == path)
+                })
         })
         .then_some(())
 }
@@ -629,6 +645,24 @@ fn replay_equation(
 
 /// The signature `state_symbol` on the `owner_symbol` trait carries `ensures`
 /// authorization for `fact`, when the owner and its requirement exist.
+/// Match the invocation's payload while retaining the declaration's original
+/// clause as the authorization witness. Applying a telescope cannot turn a
+/// provider's stronger guarantee into a public issuer grant.
+fn invocation_contract_fact<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    selected: Option<&typed_trees::signature::StateSignature>,
+    owner: SymbolHandle,
+    requirement: SymbolHandle,
+    fact: arena::Handle<typed_trees::domain::ProofFact>,
+) -> Option<&'program typed_trees::domain::ProofFact> {
+    let Some(selected) = selected else {
+        return Some(program.proof_facts.get(fact));
+    };
+    let owner = program.trait_definition_by_symbol(owner)?;
+    let declared = program.trait_machine_signature_by_symbol(owner, requirement)?;
+    program.applied_signature_contract_fact(declared, selected, fact)
+}
+
 fn authorized_ensures_signature(
     program: &dyn ::validation::CheckingInput,
     owner_symbol: SymbolHandle,
@@ -665,6 +699,10 @@ fn boundary_requirement_signature<'a>(
                 .is_some()
     })?;
     let signature = program.trait_machine_signature_by_symbol(owner, target_symbol)?;
+    let authority_signature = program
+        .closed_requirement_application(target_symbol)
+        .filter(|application| application.declaring_trait == owner.symbol)
+        .map_or(signature.symbol, |application| application.template);
     domain
         .establishment_routes
         .iter()
@@ -674,7 +712,7 @@ fn boundary_requirement_signature<'a>(
                 DomainEstablishmentRoute::BoundaryRequirement {
                     boundary_trait,
                     requirement,
-                } if *boundary_trait == owner.symbol && *requirement == signature.symbol
+                } if *boundary_trait == owner.symbol && *requirement == authority_signature
             )
         })
         .then_some(signature)
@@ -689,6 +727,7 @@ fn boundary_requirement_signature<'a>(
 fn result_type_issuance_route(
     program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
+    selected: Option<&typed_trees::signature::StateSignature>,
     domain: &typed_trees::domain::DomainDefinition,
 ) -> bool {
     let Some(signature) = boundary_requirement_signature(program, target_symbol, domain) else {
@@ -696,7 +735,7 @@ fn result_type_issuance_route(
     };
     crate::facts::qualification_evidence::unwrapped_type_references_match(
         program,
-        signature.return_type,
+        selected.unwrap_or(signature).return_type,
         domain.target_type,
     )
 }
@@ -711,19 +750,22 @@ fn result_type_issuance_route(
 fn case_payload_issuance_route(
     program: &dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
+    selected: Option<&typed_trees::signature::StateSignature>,
     domain: &typed_trees::domain::DomainDefinition,
     path: &[PlaceSegment],
 ) -> bool {
     let Some(signature) = boundary_requirement_signature(program, target_symbol, domain) else {
         return false;
     };
-    qualified_leaf_carrier(program, signature.return_type, path).is_some_and(|carrier| {
-        crate::facts::qualification_evidence::unwrapped_type_references_match(
-            program,
-            carrier,
-            domain.target_type,
-        )
-    })
+    qualified_leaf_carrier(program, selected.unwrap_or(signature).return_type, path).is_some_and(
+        |carrier| {
+            crate::facts::qualification_evidence::unwrapped_type_references_match(
+                program,
+                carrier,
+                domain.target_type,
+            )
+        },
+    )
 }
 
 /// The declared type of the field at `path` inside an owned result carrier:

@@ -38,17 +38,18 @@ pub(super) fn index_arguments_equal(
     program: &dyn ::validation::CheckingInput,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
+    actual_substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
+    expected_substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
 ) -> bool {
     normalized_index_identity(
         program,
         IndexIdentityArgument::TypeReference(actual),
-        substitutions,
+        actual_substitutions,
     )
     .zip(normalized_index_identity(
         program,
         IndexIdentityArgument::TypeReference(expected),
-        substitutions,
+        expected_substitutions,
     ))
     .is_some_and(|(actual, expected)| actual == expected)
 }
@@ -57,15 +58,22 @@ pub(super) fn bound_index_arguments_equal(
     program: &dyn ::validation::CheckingInput,
     actual: &[TypeReferenceHandle],
     expected: &[TypeReferenceHandle],
-    substitutions: &BoundIndexSubstitutions,
+    actual_substitutions: &BoundIndexSubstitutions,
+    expected_substitutions: &BoundIndexSubstitutions,
 ) -> bool {
-    let bindings = index_identity_bindings(substitutions);
+    let actual_bindings = index_identity_bindings(actual_substitutions);
+    let expected_bindings = index_identity_bindings(expected_substitutions);
     !actual.is_empty()
         && actual.len() == expected.len()
-        && actual
-            .iter()
-            .zip(expected)
-            .all(|(actual, expected)| index_arguments_equal(program, *actual, *expected, &bindings))
+        && actual.iter().zip(expected).all(|(actual, expected)| {
+            index_arguments_equal(
+                program,
+                *actual,
+                *expected,
+                &actual_bindings,
+                &expected_bindings,
+            )
+        })
 }
 
 pub(super) fn is_closed_index_argument(

@@ -132,6 +132,23 @@ impl TypedTrees {
         &self,
         scope: &crate::trait_definition::AppliedTraitScope<'_>,
     ) -> Result<(), &'static str> {
+        self.require_trait_operand_bindings(scope, false)
+    }
+
+    /// Check an exact universal source application without requiring its
+    /// caller-owned binders to be closed executable operands.
+    pub fn require_declared_trait_operands(
+        &self,
+        scope: &crate::trait_definition::AppliedTraitScope<'_>,
+    ) -> Result<(), &'static str> {
+        self.require_trait_operand_bindings(scope, true)
+    }
+
+    fn require_trait_operand_bindings(
+        &self,
+        scope: &crate::trait_definition::AppliedTraitScope<'_>,
+        allow_declared_binders: bool,
+    ) -> Result<(), &'static str> {
         for parameter in self.trait_type_parameters(scope.declaration) {
             let (actual, preceding_frames) = scope
                 .parameter_application(parameter.symbol)
@@ -139,7 +156,7 @@ impl TypedTrees {
             self.require_application_operand_bindings(
                 &[actual],
                 scope.argument_owner,
-                false,
+                allow_declared_binders,
                 Some((scope, preceding_frames)),
             )?;
         }

@@ -138,37 +138,7 @@ pub(crate) fn instantiate_requirement_applications(
             if open {
                 continue;
             }
-            let mut bindings = Vec::with_capacity(parameters.len());
-            for (parameter, argument) in parameters.iter().zip(&arguments) {
-                bindings.push(StaticMachineBinding {
-                    parameter: parameter.symbol,
-                    value: match &parameter.kind {
-                        typed_trees::data::TypeParameterKind::Type => {
-                            StaticMachineBindingValue::Type(
-                                program
-                                    .static_operand_type_reference(argument)
-                                    .map_err(|message| vec![Diagnostic::error(message)])?,
-                            )
-                        }
-                        typed_trees::data::TypeParameterKind::Const { .. }
-                        | typed_trees::data::TypeParameterKind::Value { .. } => {
-                            StaticMachineBindingValue::Const(
-                                program
-                                    .static_operand_type_reference(argument)
-                                    .map_err(|message| vec![Diagnostic::error(message)])?,
-                            )
-                        }
-                        typed_trees::data::TypeParameterKind::Machine { .. } => {
-                            StaticMachineBindingValue::Machine(argument.clone())
-                        }
-                        _ => {
-                            return Err(vec![Diagnostic::error(
-                                "static requirement invocation has an unsupported binder category",
-                            )]);
-                        }
-                    },
-                });
-            }
+            let bindings = invocation_bindings(program, &parameters, &arguments)?;
             let application = program.expression_table.retain_static_machine_application(
                 requirement,
                 name.clone(),
@@ -189,7 +159,7 @@ pub(crate) fn instantiate_requirement_applications(
             program
                 .expression_table
                 .set_static_machine_application_bindings(application, &bindings);
-            program
+            let instance = program
                 .instantiate_requirement_application(
                     &demand.environment,
                     requirement,
@@ -197,11 +167,82 @@ pub(crate) fn instantiate_requirement_applications(
                     application,
                 )
                 .map_err(|message| vec![Diagnostic::error(message)])?;
+            // Deep substitution produces new membership operands as well as
+            // carriers. Publish their identities with this exact signature;
+            // the earlier template normalization cannot describe this tuple.
+            let signature = program
+                .closed_requirement_application(instance)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "closed requirement lost its produced callable signature",
+                    )]
+                })?
+                .signature;
+            let references =
+                typed_trees::references::collect_signature_references(program, signature);
+            super::finalize_referenced_domain_instance_identities(program, references)
+                .map_err(|diagnostic| vec![diagnostic])?;
         }
     }
     calls::retarget(program)?;
     super::contextual_calls::retain_closed_requirement_demands(program)?;
     Ok(())
+}
+
+/// Symbolic and executable requirement calls share one binding roster.
+/// Openness prevents executable instantiation, not substitution in a contract.
+fn invocation_bindings(
+    program: &mut TypedTrees,
+    parameters: &[typed_trees::data::TypeParameter],
+    arguments: &[StaticMachineArgument],
+) -> Result<Vec<StaticMachineBinding>, Vec<Diagnostic>> {
+    parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| {
+            Ok(StaticMachineBinding {
+                parameter: parameter.symbol,
+                value: match &parameter.kind {
+                    typed_trees::data::TypeParameterKind::Type => StaticMachineBindingValue::Type(
+                        program
+                            .static_operand_type_reference(argument)
+                            .map_err(|message| vec![Diagnostic::error(message)])?,
+                    ),
+                    typed_trees::data::TypeParameterKind::Const { .. }
+                    | typed_trees::data::TypeParameterKind::Value { .. } => {
+                        // Retained bindings use the ordinary static-value
+                        // namespace, not a new expression recipe. Authored
+                        // operands remain on the application for carrier and
+                        // bounds admission. Other operands retain their exact
+                        // reference; immutable checking still judges closure.
+                        let actual = if let Some(atom) =
+                            super::const_arguments::spelling(program, argument)
+                        {
+                            program.type_reference_table.insert(
+                                typed_trees::types::TypeReferenceNode::Named {
+                                    symbol: symbols::SymbolHandle::invalid(),
+                                    name: typed_trees::name::Identifier::generated(atom),
+                                },
+                            )
+                        } else {
+                            program
+                                .static_operand_type_reference(argument)
+                                .map_err(|message| vec![Diagnostic::error(message)])?
+                        };
+                        StaticMachineBindingValue::Const(actual)
+                    }
+                    typed_trees::data::TypeParameterKind::Machine { .. } => {
+                        StaticMachineBindingValue::Machine(argument.clone())
+                    }
+                    _ => {
+                        return Err(vec![Diagnostic::error(
+                            "static requirement invocation has an unsupported binder category",
+                        )]);
+                    }
+                },
+            })
+        })
+        .collect()
 }
 
 fn tuple_argument(identity: &str) -> Result<StaticMachineArgument, Vec<Diagnostic>> {

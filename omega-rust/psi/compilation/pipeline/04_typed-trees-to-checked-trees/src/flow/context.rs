@@ -127,8 +127,10 @@ pub(super) struct FlowBuildContext<'plans> {
         HashMap<SymbolHandle, Option<&'plans [typed_trees::signature::StateParameter]>>,
     pub(super) call_target_returns:
         HashMap<SymbolHandle, Option<typed_trees::types::TypeReferenceHandle>>,
+    /// Result contracts are invocation-owned: a shared requirement target
+    /// does not imply the same applied local index tuple.
     pub(super) call_result_identities: HashMap<
-        SymbolHandle,
+        (SymbolHandle, typed_trees::expression::ExpressionHandle),
         Rc<
             Vec<(
                 Vec<facts::PlaceSegment>,
@@ -151,10 +153,10 @@ pub(super) struct FlowBuildContext<'plans> {
             )>,
         >,
     >,
-    /// Out-parameter `ensures <parameter> in D` rows per callable: the same
+    /// Out-parameter `ensures <parameter> in D` rows per invocation: the same
     /// program-pure contract collection as `call_result_identities`.
     pub(super) call_parameter_identities: HashMap<
-        SymbolHandle,
+        (SymbolHandle, SymbolHandle, usize, usize),
         Rc<
             Vec<(
                 usize,

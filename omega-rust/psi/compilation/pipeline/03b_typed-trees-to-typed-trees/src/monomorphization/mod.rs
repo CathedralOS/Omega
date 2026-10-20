@@ -799,6 +799,13 @@ pub(crate) fn finalize_domain_instance_identities(
 ) -> Result<(), Diagnostic> {
     let references =
         typed_trees::references::collect_selected_program_references(program, declarations);
+    finalize_referenced_domain_instance_identities(program, references)
+}
+
+pub(crate) fn finalize_referenced_domain_instance_identities(
+    program: &mut TypedTrees,
+    references: typed_trees::references::ProgramReferences,
+) -> Result<(), Diagnostic> {
     finalize_type_domain_instance_identities(program, references.type_references)?;
     let mut expressions = references.expressions.into_iter().collect::<Vec<_>>();
     expressions.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));

@@ -4,6 +4,69 @@ use super::CallableApplication;
 use crate::{TypedTrees, data, domain, signature};
 use arena::{Handle, HandleSpan};
 
+impl TypedTrees {
+    /// Callable application preserves telescope positions while freshening
+    /// unsupplied local binders. Rejoin by those positions, never by spelling:
+    /// the caller's actual can have the same name as an unrelated local.
+    pub fn applied_signature_parameter(
+        &self,
+        declared: &signature::StateSignature,
+        applied: &signature::StateSignature,
+        parameter: symbols::SymbolHandle,
+    ) -> Option<symbols::SymbolHandle> {
+        let declared_types = self.state_signature_type_parameters(declared);
+        let applied_types = self.state_signature_type_parameters(applied);
+        if declared_types.len() == applied_types.len()
+            && let Some(position) = declared_types
+                .iter()
+                .position(|candidate| candidate.symbol == parameter)
+        {
+            return Some(applied_types[position].symbol);
+        }
+        let declared_values = self.state_signature_parameters(declared);
+        let applied_values = self.state_signature_parameters(applied);
+        if declared_values.len() != applied_values.len() {
+            return None;
+        }
+        declared_values
+            .iter()
+            .position(|candidate| candidate.symbol == parameter)
+            .map(|position| applied_values[position].symbol)
+    }
+
+    /// Rejoin one declaration clause to the corresponding applied clause.
+    /// Callable application preserves contract and fact order while replacing
+    /// their payloads. The original fact remains the authority/subject identity;
+    /// this query supplies only its selected payload, never a global fact row.
+    pub fn applied_signature_contract_fact(
+        &self,
+        declared: &signature::StateSignature,
+        applied: &signature::StateSignature,
+        fact: Handle<domain::ProofFact>,
+    ) -> Option<&domain::ProofFact> {
+        let declared_contracts = self.state_signature_contracts(declared);
+        let applied_contracts = self.state_signature_contracts(applied);
+        if declared_contracts.len() != applied_contracts.len() {
+            return None;
+        }
+        for (source, selected) in declared_contracts.iter().zip(applied_contracts) {
+            if source.kind != selected.kind || source.facts.len() != selected.facts.len() {
+                return None;
+            }
+            for offset in 0..source.facts.len() {
+                let offset = u32::try_from(offset).ok()?;
+                if source.facts.handle_at(offset) == fact {
+                    return self
+                        .proof_facts
+                        .span_or_empty(selected.facts)
+                        .get(offset as usize);
+                }
+            }
+        }
+        None
+    }
+}
+
 impl CallableApplication {
     pub(super) fn signature(
         &mut self,

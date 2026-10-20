@@ -46,41 +46,52 @@ pub(crate) fn closed_integer_index_bindings(
     {
         return None;
     }
-    parameters
-        .iter()
-        .zip(arguments)
-        .map(|(parameter, argument)| {
-            let TypeParameterKind::Const { type_reference } = parameter.kind else {
-                return None;
-            };
-            if !parameter.symbol.is_valid() {
-                return None;
-            }
-            let carrier = program.primitive_type_reference(type_reference)?;
-            let (minimum, maximum) =
-                crate::proof_contracts::proof_embeddings::primitive_range(carrier)?;
-            let value = match program.type_reference_table.type_reference(*argument) {
-                TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
-                    if let Some(canonical) = CanonicalConstValue::from_atom(name.as_str()) {
-                        if PrimitiveType::from_name(&canonical.type_name) != Some(carrier) {
-                            return None;
-                        }
-                        let DecodedCanonicalConstValue::Integer { value, .. } =
-                            canonical.decode_encoding()?
-                        else {
-                            return None;
-                        };
-                        BigInt::from_i128(value)
-                    } else {
-                        BigInt::from_decimal_str(name.as_str())?
+    let mut integer_bindings = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        if !parameter.symbol.is_valid() {
+            return None;
+        }
+        // A type index contributes to the exact application identity above,
+        // but is not an integer variable in a runtime predicate. Validate its
+        // complete closure before projecting only the integer-valued binders.
+        // Predicate evaluation still declines any unsupported use of a type.
+        if matches!(parameter.kind, TypeParameterKind::Type) {
+            program
+                .require_closed_application_operands(std::slice::from_ref(argument))
+                .ok()?;
+            continue;
+        }
+        let TypeParameterKind::Const { type_reference } = parameter.kind else {
+            return None;
+        };
+        let carrier = program.primitive_type_reference(type_reference)?;
+        let (minimum, maximum) =
+            crate::proof_contracts::proof_embeddings::primitive_range(carrier)?;
+        let value = match program.type_reference_table.type_reference(*argument) {
+            TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
+                if let Some(canonical) = CanonicalConstValue::from_atom(name.as_str()) {
+                    if PrimitiveType::from_name(&canonical.type_name) != Some(carrier) {
+                        return None;
                     }
+                    let DecodedCanonicalConstValue::Integer { value, .. } =
+                        canonical.decode_encoding()?
+                    else {
+                        return None;
+                    };
+                    BigInt::from_i128(value)
+                } else {
+                    BigInt::from_decimal_str(name.as_str())?
                 }
-                TypeReferenceNode::ConstExpression(expression) => {
-                    crate::closed_integer_range_bound(program, *expression)?
-                }
-                _ => return None,
-            };
-            (minimum <= value && value <= maximum).then_some((parameter.symbol, value))
-        })
-        .collect()
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                crate::closed_integer_range_bound(program, *expression)?
+            }
+            _ => return None,
+        };
+        if value < minimum || value > maximum {
+            return None;
+        }
+        integer_bindings.push((parameter.symbol, value));
+    }
+    Some(integer_bindings)
 }
