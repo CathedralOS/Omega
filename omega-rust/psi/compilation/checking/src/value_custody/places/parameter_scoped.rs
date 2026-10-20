@@ -3,10 +3,10 @@
 //! place paths can substitute a foreign declaration. Resolve roots from the
 //! supplied telescope, then reuse nominal field and call-result queries.
 
-use super::{exact_data_member_field, unwrapped_type_reference};
+use super::unwrapped_type_reference;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn parameter_scoped_type_reference(
     program: &dyn crate::CheckingInput,
@@ -56,21 +56,8 @@ fn expression_type(
         ExpressionNode::Borrow(borrow) => child_type(borrow.target)?,
         ExpressionNode::Member(member) => {
             let receiver = unwrapped_type_reference(program, child_type(member.receiver)?)?;
-            let owner = match program.type_reference_table.type_reference(receiver) {
-                TypeReferenceNode::Named { symbol, .. } => *symbol,
-                TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                _ => return None,
-            };
-            let data =
-                crate::declarations::data_queries::data_definition_by_symbol(program, owner)?;
-            exact_data_member_field(
-                program,
-                data,
-                member.member_symbol,
-                member.member.as_str(),
-                member.case_variant.as_ref().map(|case| case.as_str()),
-            )?
-            .type_reference
+            super::projected_members::applied_data_member_field(program, receiver, member)?
+                .type_reference
         }
         ExpressionNode::Indexed(indexed) => {
             if program.expression_table.indexed_on_range(indexed) {

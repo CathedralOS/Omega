@@ -204,6 +204,7 @@ pub(super) fn call_effects(
         machine,
         caller_state,
         call.target_symbol,
+        ExpressionHandle::invalid(),
         program.statement_table.expression_handles(call.arguments),
         call.machine_arguments.is_empty(),
         context,
@@ -217,6 +218,7 @@ fn invocation_effects(
     machine: &Machine,
     caller_state: &State,
     target: SymbolHandle,
+    call_expression: ExpressionHandle,
     arguments: &[ExpressionHandle],
     machine_arguments_empty: bool,
     context: &CollectedStatementPrefix,
@@ -228,6 +230,15 @@ fn invocation_effects(
             crate::selected_requirement_signature(program, target)
             && definition.is_boundary
         {
+            let signature = if call_expression.is_valid() {
+                let call = program.expression_table.call_node(call_expression)?;
+                if call.target_symbol != target {
+                    return None;
+                }
+                program.requirement_call_signature(machine.symbol, call)?
+            } else {
+                signature
+            };
             let parameters = program.state_signature_parameters(signature);
             return opaque_outputs::effects(
                 program, machine, parameters, arguments, context, symbols, inference,
@@ -304,12 +315,28 @@ fn destination_inventory(
 /// obligation query, not provider admission and not an empty-summary fallback.
 pub(super) fn provider_output_relation_required(
     program: &dyn crate::CheckingInput,
+    machine: SymbolHandle,
     target: symbols::SymbolHandle,
+    call_expression: ExpressionHandle,
 ) -> bool {
     let parameters = if let Some((definition, signature)) =
         crate::selected_requirement_signature(program, target)
         && definition.is_boundary
     {
+        let signature = if call_expression.is_valid() {
+            let Some(call) = program.expression_table.call_node(call_expression) else {
+                return true;
+            };
+            if call.target_symbol != target {
+                return true;
+            }
+            let Some(signature) = program.requirement_call_signature(machine, call) else {
+                return true;
+            };
+            signature
+        } else {
+            signature
+        };
         program.state_signature_parameters(signature)
     } else if let Some(state) = crate::call_target_state(program, target)
         && let Some(machine) = program.machine_holding_state(state.symbol)
@@ -324,8 +351,14 @@ pub(super) fn provider_output_relation_required(
     } else {
         return false;
     };
+    // A symbolic-only frontier supplies no concrete destination relation yet.
+    // Its transfer remains incomplete and invalidates possible origins; it
+    // never becomes an empty preserving effect. Known slots still require a
+    // relation beside symbolic leaves, and an uncomputable inventory fails
+    // closed. Exact applied parameters above prevent concrete calls from
+    // borrowing this deferral from an open declaration.
     parameter_destination_inventory(program, parameters)
-        .is_none_or(|inventory| inventory.template_dependent || !inventory.slots.is_empty())
+        .is_none_or(|inventory| !inventory.slots.is_empty())
 }
 
 fn parameter_destination_inventory(

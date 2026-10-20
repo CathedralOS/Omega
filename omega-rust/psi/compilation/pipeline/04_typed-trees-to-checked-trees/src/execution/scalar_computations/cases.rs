@@ -3,7 +3,7 @@
 //! operators; knowing the constructed case does not erase their evaluation.
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
-    ExpressionNode, PrimitiveType,
+    PrimitiveType,
 };
 use checked_trees::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
@@ -20,30 +20,14 @@ impl Builder<'_, '_> {
         };
         let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self.program.state_in_machine(machine, self.state)?;
-        if !validation::has_exact_case_membership_meaning(
+        let case = validation::applied_case_membership_variant(
             self.program,
             machine,
             Some(state),
             expression,
             binary,
-        ) {
-            return None;
-        }
-        let selected_case = match self.program.expression_table.expression(binary.right) {
-            ExpressionNode::Name(selected) => Some(selected.symbol),
-            ExpressionNode::StructLiteral(literal)
-                if self
-                    .program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .is_empty() =>
-            {
-                literal.case_symbol
-            }
-            _ => None,
-        };
+        )?;
         if let Some((_, subject)) = self.readable_case_subject(binary.left, self.statement_index) {
-            let case = selected_case?;
             return Some(self.insert(
                 PrimitiveType::Bool,
                 CheckedScalarComputationKind::CaseMembership {
@@ -62,13 +46,8 @@ impl Builder<'_, '_> {
             .call_node(binary.left)
             .is_some()
         {
-            let case = selected_case?;
             return self.computed_case_membership(expression, binary.left, case);
         }
-        let Some(selected) = self.program.expression_table.name_path_node(binary.right) else {
-            return None;
-        };
-        let case = selected.symbol;
         let constructor = self.case_construction(binary.left)?;
         Some(self.insert(
             PrimitiveType::Bool,

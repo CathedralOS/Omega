@@ -409,7 +409,15 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         program,
         trait_definition,
         target_symbol,
-        receiver_reference,
+        // Namespace calls carry their owner tuple on the requirement
+        // application, not on a runtime receiver. Open caller binders are
+        // still exact operands; dropping this reference loses the call's
+        // write ceiling before a following guard can observe its result.
+        if has_runtime_receiver {
+            receiver_reference
+        } else {
+            applied.unwrap_or(receiver_reference)
+        },
     )?;
     let mut signatures = program
         .trait_machine_signatures(trait_definition)

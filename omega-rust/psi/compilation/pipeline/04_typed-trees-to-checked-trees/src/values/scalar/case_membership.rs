@@ -117,13 +117,11 @@ fn case_identity(
         return None;
     }
     match program.expression_table.expression(binary.right) {
-        ExpressionNode::Name(selected) => {
-            if !validation::has_exact_case_membership_meaning(
+        ExpressionNode::Name(_) => {
+            let selected = validation::applied_case_membership_variant(
                 program, machine, state, expression, binary,
-            ) {
-                return None;
-            }
-            structural_case_name(program, selected.symbol)
+            )?;
+            structural_case_name(program, selected)
         }
         // A payload-free case spelled as a value (`subject == T::Case`) arrives
         // as a construction, not a name: the authored test carries no

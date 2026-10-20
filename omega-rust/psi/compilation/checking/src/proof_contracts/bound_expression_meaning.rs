@@ -535,6 +535,43 @@ pub fn has_exact_case_membership_meaning(
     })
 }
 
+/// Resolve an admitted membership test's tag in its subject's field namespace.
+/// Authored selections retain declaration symbols through specialization; live
+/// tag facts and payload places instead refer to the exact prepared carrier.
+/// This translation supplies identity, not evidence that the test is true.
+pub fn applied_case_membership_variant(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+) -> Option<symbols::SymbolHandle> {
+    if !has_exact_case_membership_meaning(program, machine, state, expression, comparison) {
+        return None;
+    }
+    let selected = program
+        .expression_table
+        .name_path_node(comparison.right)?
+        .symbol;
+    let mut subject = comparison.left;
+    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(subject) {
+        subject = borrow.target;
+    }
+    let reference = operand_type(program, machine, state, subject).map(|reference| {
+        program
+            .type_reference_table
+            .peeled_type_reference(reference)
+    });
+    if let Some(reference) = reference
+        && program.closed_data_definition(reference).is_some()
+    {
+        return program
+            .closed_data_constructor_case(reference, selected)
+            .map(|case| case.symbol);
+    }
+    Some(selected)
+}
+
 /// Rejoin membership in an abstract signature's exact parameter scope. A
 /// parameter from another declaration cannot supply this subject's carrier.
 pub fn has_exact_parameter_case_membership_meaning(

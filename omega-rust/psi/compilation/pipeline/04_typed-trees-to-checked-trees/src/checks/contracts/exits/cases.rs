@@ -140,26 +140,21 @@ impl CaseObservation<'_> {
         let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return None;
         };
-        if !validation::has_exact_case_membership_meaning(
+        let case = validation::applied_case_membership_variant(
             self.program,
             self.machine,
             Some(self.state),
             expression,
             binary,
-        ) {
-            return None;
-        }
+        )?;
         let subject = validation::reserved_result_place(self.program, binary.left)?;
         if subject.machine_symbol != self.machine.symbol {
             return None;
         }
-        let Some(case) = self.program.expression_table.name_path_node(binary.right) else {
-            return None;
-        };
         let returned = exit_return_expression(self.program, self.exit);
-        if self.returned_case(returned, &subject.segments, case.symbol, true, true, 0) {
+        if self.returned_case(returned, &subject.segments, case, true, true, 0) {
             Some(true)
-        } else if self.returned_case(returned, &subject.segments, case.symbol, false, true, 0) {
+        } else if self.returned_case(returned, &subject.segments, case, false, true, 0) {
             Some(false)
         } else {
             None

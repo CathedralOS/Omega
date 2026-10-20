@@ -309,6 +309,9 @@ pub(super) fn build(
             TransitionGuardNode::When(guard) => {
                 let (expression, case_symbol) =
                     crate::proof::exact_outcome_case_test(program, guard)?;
+                let case_symbol = program
+                    .closed_data_constructor_case(type_reference, case_symbol)?
+                    .symbol;
                 if !dispatch.names(program, state, ordinal as usize, expression) {
                     return None;
                 }

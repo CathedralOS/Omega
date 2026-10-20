@@ -389,9 +389,10 @@ fn scan_expression(
                         selection.kind() == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::CaseMembership
                     })
                 }) {
-                    diagnostics.push(Diagnostic::error(
-                        "case membership must test a value of the exact declaring data type",
-                    ));
+                    diagnostics.push(Diagnostic::error(format!(
+                        "case membership must test a value of the exact declaring data type (machine `{}`, state `{}`)",
+                        machine.name, state.name,
+                    )));
                 }
                 scan_expression(
                     program,

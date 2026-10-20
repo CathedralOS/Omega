@@ -11,6 +11,36 @@ use crate::{TypedTrees, signature, trait_definition::AppliedTraitScope};
 use symbols::SymbolHandle;
 
 impl TypedTrees {
+    /// The logical signature selected by this exact requirement invocation.
+    /// Open trait operands still substitute the caller's binders; they do not
+    /// need an executable instance to describe a result. Neither a provider's
+    /// signature nor a receiving annotation can supply missing operands.
+    pub fn requirement_call_signature(
+        &self,
+        lexical_owner: SymbolHandle,
+        call: &crate::expression::TableCallExpression,
+    ) -> Option<&signature::StateSignature> {
+        if let Some(closed) = self.closed_requirement_application(call.target_symbol) {
+            if call.requirement_application.is_valid() {
+                let scope =
+                    self.applied_requirement_scope(lexical_owner, call.requirement_application)?;
+                if !self.requirement_application_matches_scope(call.target_symbol, &scope) {
+                    return None;
+                }
+            }
+            return Some(closed.signature);
+        }
+        let (declaration, signature) = self.trait_machine_signature(call.target_symbol)?;
+        if call.requirement_application.is_valid() {
+            let scope = self
+                .applied_requirement_scope(lexical_owner, call.requirement_application)?
+                .declaring_scope(self, declaration.symbol)?;
+            return self.applied_callable_signature(&scope, signature.symbol);
+        }
+        (declaration.type_parameters.is_empty() && declaration.lifetime_parameters.is_empty())
+            .then_some(signature)
+    }
+
     /// Retained rows must keep both the handle and the key it names. Unused
     /// query keys may grow independently after cloning; they are not storage
     /// obligations. Compare only keys referenced by the retained signatures.

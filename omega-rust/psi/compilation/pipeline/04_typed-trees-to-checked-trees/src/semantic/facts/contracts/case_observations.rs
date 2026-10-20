@@ -192,17 +192,14 @@ fn selected_cases(
             pending.extend([binary.left, binary.right]);
             continue;
         }
-        if !validation::has_exact_case_membership_meaning(
+        if let Some(case) = validation::applied_case_membership_variant(
             program,
             machine,
             Some(state),
             expression,
             binary,
         ) {
-            continue;
-        }
-        if let Some(case) = program.expression_table.name_path_node(binary.right) {
-            cases.push((binary.left, case.symbol));
+            cases.push((binary.left, case));
         }
     }
     cases

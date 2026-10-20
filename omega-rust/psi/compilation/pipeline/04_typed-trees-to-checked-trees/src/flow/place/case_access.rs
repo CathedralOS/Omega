@@ -282,17 +282,14 @@ impl CaseAccess<'_> {
             {
                 self.predicate(binary.right, value, subject, case, required, depth + 1)
             }
-            ExpressionNode::Binary(binary)
-                if validation::has_exact_case_membership_meaning(
+            ExpressionNode::Binary(binary) => {
+                let Some(observed) = validation::applied_case_membership_variant(
                     self.program,
                     self.machine,
                     Some(self.state),
                     expression,
                     binary,
-                ) =>
-            {
-                let Some(observed) = self.program.expression_table.name_path_node(binary.right)
-                else {
+                ) else {
                     return false;
                 };
                 canonical_place_from_expression_in_state(
@@ -303,12 +300,12 @@ impl CaseAccess<'_> {
                 )
                 .as_ref()
                     == Some(subject)
-                    && self.program.symbols.get(observed.symbol).parent
+                    && self.program.symbols.get(observed).parent
                         == self.program.symbols.get(case).parent
                     && if value {
-                        (observed.symbol == case) == required
+                        (observed == case) == required
                     } else {
-                        observed.symbol == case && !required
+                        observed == case && !required
                     }
             }
             _ => false,

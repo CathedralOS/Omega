@@ -291,8 +291,18 @@ impl<'program> CallFrameResolver<'program> {
     /// A reachable opaque output slot needs a complete normal-exit relation,
     /// even when failed attribution installed no loans. Nested borrowed slots
     /// use the same inventory as effect construction; unknown is not empty.
-    pub fn provider_output_relation_required(&self, target: SymbolHandle) -> bool {
-        super::stored_calls::provider_output_relation_required(self.program, target)
+    pub fn provider_output_relation_required(
+        &self,
+        machine: SymbolHandle,
+        target: SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> bool {
+        super::stored_calls::provider_output_relation_required(
+            self.program,
+            machine,
+            target,
+            expression,
+        )
     }
 
     /// Reference inventory after destination and RHS evaluation, before the

@@ -6,7 +6,7 @@
 //! before querying a field. Symbolic views keep their template symbols; neither
 //! route substitutes another declaration's same-named field or supplies membership.
 
-use super::{declared_place_type_raw, unwrapped_type_reference};
+use super::declared_place_type_raw;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -22,6 +22,22 @@ pub(crate) fn applied_data_member_field<'program>(
     reference: TypeReferenceHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<&'program typed_trees::data::DataField> {
+    applied_data_field(
+        program,
+        reference,
+        member.member_symbol,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|variant| variant.as_str()),
+    )
+}
+
+pub(super) fn applied_data_field<'program>(
+    program: &'program dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    retained: SymbolHandle,
+    member_name: &str,
+    case_variant: Option<&str>,
+) -> Option<&'program typed_trees::data::DataField> {
     let reference = program
         .type_reference_table
         .peeled_type_reference(reference);
@@ -32,20 +48,14 @@ pub(crate) fn applied_data_member_field<'program>(
             .data_application_definition(reference)
             .or_else(|| super::data_definition_for_type(program, reference))?,
     };
-    let selected = if closed.is_some() && member.member_symbol.is_valid() {
+    let selected = if closed.is_some() && retained.is_valid() {
         program
-            .closed_data_constructor_field(reference, data.symbol, member.member_symbol)?
+            .closed_data_constructor_field(reference, data.symbol, retained)?
             .symbol
     } else {
-        member.member_symbol
+        retained
     };
-    exact_data_member_field(
-        program,
-        data,
-        selected,
-        member.member.as_str(),
-        member.case_variant.as_ref().map(|variant| variant.as_str()),
-    )
+    exact_data_member_field(program, data, selected, member_name, case_variant)
 }
 
 pub(super) fn contains_case_projection(
@@ -100,10 +110,7 @@ pub(crate) fn declared_case_projection_field<'program>(
         }
         _ => {
             let receiver_type = declared_place_type_raw(program, machine, state, member.receiver)?;
-            let receiver_type = unwrapped_type_reference(program, receiver_type)?;
-            program
-                .type_reference_table
-                .type_head_symbol(receiver_type)?
+            return applied_data_member_field(program, receiver_type, member);
         }
     };
     let data = program

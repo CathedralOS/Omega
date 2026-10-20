@@ -577,6 +577,36 @@ impl TypedTrees {
         (declaration(instance.symbol)? == declaration(authored)?).then_some(instance)
     }
 
+    /// Select a case through the receiver's exact closed declaration.
+    /// A template classifier and its prepared storage tag correspond only
+    /// within that application, never by a matching name in another carrier.
+    pub fn closed_data_constructor_case(
+        &self,
+        reference: TypeReferenceHandle,
+        retained: SymbolHandle,
+    ) -> Option<&crate::data::DataVariant> {
+        use crate::data::DataMember;
+        if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Variant {
+            return None;
+        }
+        let owner = self.symbols.get(retained).parent;
+        let instance = self.closed_data_constructor_definition(reference, owner)?;
+        let source = self.unique_data_definition_by_symbol(owner)?;
+        let (ordinal, original) = self.data_members(source).iter().enumerate().find_map(
+            |(ordinal, member)| match member {
+                DataMember::Variant(variant) if variant.symbol == retained => {
+                    Some((ordinal, variant))
+                }
+                _ => None,
+            },
+        )?;
+        let DataMember::Variant(selected) = self.data_members(instance).get(ordinal)? else {
+            return None;
+        };
+        (original.name == selected.name && original.identity == selected.identity)
+            .then_some(selected)
+    }
+
     /// Select a constructor child through the exact closed declaration's
     /// member correspondence. Source template symbols remain valid selectors
     /// only at the same declaration position under this retained origin.

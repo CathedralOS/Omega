@@ -28,6 +28,11 @@ pub(super) fn bindings(
             program.state_signature_parameters(signature),
             &signature.lifetime_parameters,
         )
+    } else if let Some(signature) = program.requirement_call_signature(caller.symbol, call) {
+        (
+            program.state_signature_parameters(signature),
+            &signature.lifetime_parameters,
+        )
     } else {
         return Ok(Vec::new());
     };

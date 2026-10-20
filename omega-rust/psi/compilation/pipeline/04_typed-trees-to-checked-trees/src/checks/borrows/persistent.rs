@@ -164,7 +164,11 @@ fn check_stored_output_relations(
                 let requires_relation = calls.iter().any(|call| {
                     call.statement_index == statement_index
                         && (frames.is_none_or(|frames| {
-                            frames.provider_output_relation_required(call.target_symbol)
+                            frames.provider_output_relation_required(
+                                machine.symbol,
+                                call.target_symbol,
+                                call.authored_expression,
+                            )
                         }) || validation::call_target_state(program, call.target_symbol)
                             .and_then(|target| program.machine_holding_state(target.symbol))
                             .is_some_and(|callee| obligated.contains(&callee.symbol)))

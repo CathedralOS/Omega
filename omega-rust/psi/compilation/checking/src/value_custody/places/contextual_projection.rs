@@ -193,15 +193,16 @@ pub(super) fn resolve_member_symbol_from_place(
     let position =
         member_resolution::member_position_after_segments(program, position, &place.segments)?;
 
+    if let Some(symbol) = member_resolution::closed_generic_member_symbol(
+        program,
+        Some(position),
+        member_name,
+        case_variant,
+        retained,
+    ) {
+        return Some(symbol);
+    }
     if case_variant.is_none() {
-        if let Some(symbol) = member_resolution::closed_generic_member_symbol(
-            program,
-            Some(position),
-            member_name,
-            retained,
-        ) {
-            return Some(symbol);
-        }
         if retained.is_valid() {
             return Some(retained);
         }

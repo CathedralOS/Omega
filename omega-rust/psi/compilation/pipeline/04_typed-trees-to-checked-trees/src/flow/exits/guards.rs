@@ -675,17 +675,13 @@ pub(in crate::flow) fn append_predicate_context(
             let Some(binary) = program.expression_table.binary_node(observation) else {
                 continue;
             };
-            if !validation::has_exact_case_membership_meaning(
+            let Some(case) = validation::applied_case_membership_variant(
                 program,
                 machine,
                 Some(state),
                 observation,
                 binary,
-            ) {
-                continue;
-            }
-            let ExpressionNode::Name(case) = program.expression_table.expression(binary.right)
-            else {
+            ) else {
                 continue;
             };
             if position != last
@@ -715,9 +711,7 @@ pub(in crate::flow) fn append_predicate_context(
                 statement_index,
                 &[binary.left],
                 if selected {
-                    FactPayload::AssignedCase {
-                        variant: case.symbol,
-                    }
+                    FactPayload::AssignedCase { variant: case }
                 } else {
                     FactPayload::BooleanValue {
                         expression: observation,

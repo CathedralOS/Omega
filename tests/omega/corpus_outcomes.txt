@@ -336,6 +336,10 @@ fail/borrows/affine_record_copy_handoff rejected 1237ms expected @a9ae30e1c334+w
 fail/borrows/aliased_descriptor_slot_suspended_call rejected 620ms expected @3ea0aec65b44+wt
 fail/borrows/aliased_descriptor_slot_suspended_read rejected 626ms expected @3ea0aec65b44+wt
 fail/borrows/aliased_descriptor_slot_suspended_reborrow rejected 622ms expected @3ea0aec65b44+wt
+fail/borrows/applied_provider_output_requires_backing rejected 1840ms expected @632377c34d0a+wt
+	machine `expression` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
+	machine `statement` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
+	machine `mixed_expression` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
 fail/borrows/array_carried_reference_live_source_move rejected 1533ms expected @a9ae30e1c334+wt
 fail/borrows/array_carried_reference_live_source_write rejected 5100ms expected @a9ae30e1c334+wt
 fail/borrows/array_carried_reference_range_narrowing rejected 2882ms expected @a9ae30e1c334+wt
@@ -4905,6 +4909,23 @@ fail/generics/equation_named_array_actual_open rejected 52ms expected @a9ae30e1c
 fail/generics/erased_static_arguments_keep_binder_order rejected 729ms expected @a9ae30e1c334+wt
 fail/generics/erased_static_const_keeps_declared_carrier rejected 722ms expected @a9ae30e1c334+wt
 fail/generics/erased_static_const_keeps_literal_landing rejected 783ms expected @a9ae30e1c334+wt
+fail/generics/extraction_borrowed_payload_escape rejected 1915ms expected @632377c34d0a+wt
+	machine `leak` returns a view borrowing the local `backing`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/generics/extraction_foreign_case rejected 724ms expected @632377c34d0a+wt
+	case membership must test a value of the exact declaring data type (machine `unpack`, state `entry`)
+	case `Foreign::Moved` has a payload; construct it with a case literal
+	case membership must test a value of the exact declaring data type (machine `unpack$specialized$969b19dd495faa28$0`, state `entry`)
+	case `Foreign::Moved` has a payload; construct it with a case literal
+fail/generics/extraction_inactive_case rejected 1911ms expected @632377c34d0a+wt
+	machine `unpack` state `entry` statement 0: cannot prove selected case for payload access
+	machine `unpack$specialized$969b19dd495faa28$0` state `entry` statement 0: cannot prove selected case for payload access
+fail/generics/extraction_linear_payload_reuse rejected 1044ms expected @632377c34d0a+wt
+	cannot use `result` in machine `reuse` state `entry` (statement 2) after `result` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/generics/extraction_retagged_payload rejected 1905ms expected @632377c34d0a+wt
+	machine `unpack` state `replaced` statement 1: cannot prove selected case for payload access
+	machine `unpack$specialized$969b19dd495faa28$0` state `replaced` statement 1: cannot prove selected case for payload access
+fail/generics/extraction_wrong_application rejected 735ms expected @632377c34d0a+wt
+	argument `result` for state `entry` expects `Extraction<Second>`, got `named value`
 fail/generics/field_store_generic_result_parameter_mismatch rejected 231ms expected @6ef08ceefee0+wt
 fail/generics/forwarded_const_argument_conflicts_with_explicit_selection rejected 1983ms expected @d1fa4738e67a+wt
 fail/generics/forwarded_slice_argument_element_mismatch rejected 159ms expected @71e65af3059c+wt
@@ -10533,6 +10554,7 @@ pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 9447ms c
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit checked 16098ms check-target:macos_arm64 @7e6c0ae564d2+wt
 pass/providers/runtime_generic_boundary_relay_exit checked 7246ms check-target:linux_x86_64 @ff34e63b5705+wt
 pass/providers/runtime_generic_boundary_relay_places_exit checked 7094ms check-target:linux_x86_64 @ff34e63b5705+wt
+pass/providers/runtime_generic_case_extraction_exit checked 13663ms check-target:macos_arm64 @632377c34d0a+wt
 pass/providers/runtime_linear_provider_results_exit checked 11050ms check-target:macos_arm64 @83314997c2b2
 pass/providers/runtime_named_provider_explicit_state_exit checked 11429ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/providers/runtime_provider_mutable_reference_exit checked 7573ms check-target:linux_x86_64 @001fe6f26d2c

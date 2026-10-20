@@ -171,7 +171,12 @@ pub fn authored_data_member(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> SymbolHandle {
-    let owner = program.symbols.get(symbol).parent;
+    let parent = program.symbols.get(symbol).parent;
+    let owner = if program.symbols.get(parent).kind == symbols::SymbolKind::Variant {
+        program.symbols.get(parent).parent
+    } else {
+        parent
+    };
     let Some(instance) = program.data_definition_by_symbol(owner) else {
         return symbol;
     };
@@ -186,19 +191,21 @@ pub fn authored_data_member(
     let Some(template) = program.data_definition_by_symbol(*base_symbol) else {
         return symbol;
     };
-    for (instance_member, template_member) in program
-        .data_members(instance)
-        .iter()
-        .zip(program.data_members(template))
-    {
-        if let (
-            typed_trees::data::DataMember::Field(instance_field),
-            typed_trees::data::DataMember::Field(template_field),
-        ) = (instance_member, template_member)
-            && instance_field.symbol == symbol
-            && instance_field.name == template_field.name
-        {
-            return template_field.symbol;
+    // The ledger reverses the same exact correspondence used by executable
+    // projections. Case payloads are declaration children too; their immediate
+    // parent is the variant, not the specialized data declaration.
+    for member in program.data_members(template) {
+        let fields = match member {
+            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+            typed_trees::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
+        };
+        for field in fields {
+            if program
+                .closed_data_constructor_field(origin, template.symbol, field.symbol)
+                .is_some_and(|selected| selected.symbol == symbol)
+            {
+                return field.symbol;
+            }
         }
     }
     symbol

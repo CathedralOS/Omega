@@ -76,7 +76,12 @@ pub(in super::super) fn statement_effects(
                             &context,
                             call.target_symbol,
                             false,
-                            super::provider_output_relation_required(program, call.target_symbol),
+                            super::provider_output_relation_required(
+                                program,
+                                machine.symbol,
+                                call.target_symbol,
+                                ExpressionHandle::invalid(),
+                            ),
                         )
                     });
             install(program, &mut context, &mut effects, called, inference);
@@ -195,6 +200,7 @@ impl Evaluation<'_, '_> {
                 self.machine,
                 self.state,
                 call.target_symbol,
+                expression,
                 self.program
                     .expression_table
                     .expression_handles(call.arguments),
@@ -208,7 +214,12 @@ impl Evaluation<'_, '_> {
                     context,
                     call.target_symbol,
                     false,
-                    super::provider_output_relation_required(self.program, call.target_symbol),
+                    super::provider_output_relation_required(
+                        self.program,
+                        self.machine.symbol,
+                        call.target_symbol,
+                        expression,
+                    ),
                 )
             });
             install(self.program, context, effects, called, inference);

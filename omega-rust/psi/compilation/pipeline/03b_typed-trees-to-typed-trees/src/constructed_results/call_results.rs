@@ -56,6 +56,14 @@ pub(super) fn retain(
         (state.return_type, substitutions)
     } else if let Some((_, signature)) = program.machine_parameter_signature(call.target_symbol) {
         (signature.return_type, Vec::new())
+    } else if let Some(signature) = program.requirement_call_signature(machine_symbol, call) {
+        // The trait application already substitutes its complete outer
+        // telescope, including open caller binders. Local method binders need
+        // their own invocation application before becoming a result carrier.
+        if !signature.type_parameters.is_empty() {
+            return Ok(None);
+        }
+        (signature.return_type, Vec::new())
     } else {
         return Ok(None);
     };

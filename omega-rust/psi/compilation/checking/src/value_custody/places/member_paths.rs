@@ -124,14 +124,10 @@ pub(crate) fn first_unknown_nested_field(
         let container = data_definition_for_type(program, receiver_type)?;
         let field_exists = match member.case_variant.as_ref() {
             // A case projection names exactly one variant's payload field.
-            Some(case_variant) => super::exact_data_member_field(
-                program,
-                container,
-                member.member_symbol,
-                member.member.as_str(),
-                Some(case_variant.as_str()),
-            )
-            .is_some(),
+            Some(_) => {
+                super::projected_members::applied_data_member_field(program, receiver_type, member)
+                    .is_some()
+            }
             // An unprojected read (`choice.view`) names a common field or a
             // payload field by its spelling, exactly as `declared_place_type_raw`
             // types it. Whether that payload's case is live is the selected-case

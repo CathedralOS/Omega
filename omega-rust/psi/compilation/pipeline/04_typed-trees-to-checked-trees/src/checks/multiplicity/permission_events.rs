@@ -745,7 +745,12 @@ fn proven_conditional_entry_claims(
 
     for entry in incoming.iter().filter(|entry| entry.holds_at(state.symbol)) {
         let mut case_tests = Vec::new();
-        collect_positive_case_tests(program, entry.guard(), &mut case_tests);
+        collect_positive_case_tests(
+            program,
+            entry.evaluation_state(),
+            entry.guard(),
+            &mut case_tests,
+        );
         for (subject, variant) in case_tests {
             let Some(subject) = crate::flow::source_independent_place(program, subject) else {
                 continue;
@@ -802,6 +807,7 @@ fn proven_conditional_entry_claims(
 /// not infer through negation or disjunction here.
 pub(crate) fn collect_positive_case_tests(
     program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
     tests: &mut Vec<(typed_trees::expression::ExpressionHandle, SymbolHandle)>,
 ) {
@@ -811,11 +817,14 @@ pub(crate) fn collect_positive_case_tests(
         return;
     };
     if binary.operator == BinaryOperator::And {
-        collect_positive_case_tests(program, binary.left, tests);
-        collect_positive_case_tests(program, binary.right, tests);
+        collect_positive_case_tests(program, state_symbol, binary.left, tests);
+        collect_positive_case_tests(program, state_symbol, binary.right, tests);
         return;
     }
-    if binary.operator != BinaryOperator::Equal {
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::CaseMembership
+    ) {
         return;
     }
 
@@ -826,39 +835,34 @@ pub(crate) fn collect_positive_case_tests(
         )
     };
     if is_true(binary.left) {
-        collect_positive_case_tests(program, binary.right, tests);
+        collect_positive_case_tests(program, state_symbol, binary.right, tests);
         return;
     }
     if is_true(binary.right) {
-        collect_positive_case_tests(program, binary.left, tests);
+        collect_positive_case_tests(program, state_symbol, binary.left, tests);
         return;
     }
 
-    let case_variant = |candidate| match program.expression_table.expression(candidate) {
-        ExpressionNode::Name(path)
-            if program.data_definitions().iter().any(|definition| {
-                program.data_members(definition).iter().any(|member| {
-                    matches!(
-                        member,
-                        typed_trees::data::DataMember::Variant(variant)
-                            if variant.symbol == path.symbol
-                    )
-                })
-            }) =>
-        {
-            Some(path.symbol)
-        }
-        _ => None,
+    let Some(machine) = program.machine_holding_state(state_symbol) else {
+        return;
     };
-    if let Some(variant) = case_variant(binary.right) {
+    // Custody paths name the applied carrier's cases, not the template's
+    // authored selectors. Rejoin the same checked membership meaning used by
+    // payload access before excluding any sibling claim.
+    if let Some(variant) = validation::applied_case_membership_variant(
+        program,
+        machine,
+        program.state_by_symbol(state_symbol),
+        expression,
+        binary,
+    ) {
         tests.push((binary.left, variant));
-    } else if let Some(variant) = case_variant(binary.left) {
-        tests.push((binary.right, variant));
     }
 }
 
 pub(crate) fn exact_positive_case_test(
     program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<(typed_trees::expression::ExpressionHandle, SymbolHandle)> {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
@@ -866,7 +870,10 @@ pub(crate) fn exact_positive_case_test(
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
-    if binary.operator != BinaryOperator::Equal {
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::CaseMembership
+    ) {
         return None;
     }
     let is_true = |candidate| {
@@ -876,13 +883,13 @@ pub(crate) fn exact_positive_case_test(
         )
     };
     if is_true(binary.left) {
-        return exact_positive_case_test(program, binary.right);
+        return exact_positive_case_test(program, state_symbol, binary.right);
     }
     if is_true(binary.right) {
-        return exact_positive_case_test(program, binary.left);
+        return exact_positive_case_test(program, state_symbol, binary.left);
     }
     let mut tests = Vec::new();
-    collect_positive_case_tests(program, expression, &mut tests);
+    collect_positive_case_tests(program, state_symbol, expression, &mut tests);
     let [test] = tests.as_slice() else {
         return None;
     };
@@ -891,6 +898,7 @@ pub(crate) fn exact_positive_case_test(
 
 pub(crate) fn case_transition_run_is_exhaustive(
     program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
     statements: &[StatementNode],
     arm_indices: &[usize],
 ) -> bool {
@@ -903,12 +911,13 @@ pub(crate) fn case_transition_run_is_exhaustive(
         let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
             return false;
         };
-        let Some((subject, variant)) = exact_positive_case_test(program, guard) else {
+        let Some((subject, variant)) = exact_positive_case_test(program, state_symbol, guard)
+        else {
             // A guarded arm (`Case { .. } if extra -> ...`) tests its case and
             // more, so it covers nothing: a later arm must still cover that
             // case. It continues the run rather than ending it.
             let mut tests = Vec::new();
-            collect_positive_case_tests(program, guard, &mut tests);
+            collect_positive_case_tests(program, state_symbol, guard, &mut tests);
             if tests.is_empty() {
                 return false;
             }

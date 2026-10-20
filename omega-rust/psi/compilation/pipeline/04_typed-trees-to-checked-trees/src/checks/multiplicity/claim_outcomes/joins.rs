@@ -228,7 +228,7 @@ fn state_frontiers(
             if !matches!(transition.guard, typed_trees::statement::TransitionGuardNode::Always)
                 && !transition.continuation.is_valid()
                 && !crate::checks::multiplicity::permission_events::case_transition_run_is_exhaustive(
-                    program, statements, &transition_indices)
+                    program, state.symbol, statements, &transition_indices)
             { return None; }
         }
         let mut frontiers = Vec::new();

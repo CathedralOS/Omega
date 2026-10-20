@@ -111,6 +111,7 @@ pub(super) fn walk<S: Clone>(
     if !transitions.is_empty()
         && super::permission_events::case_transition_run_is_exhaustive(
             program,
+            state.symbol,
             statements,
             &transitions,
         )
@@ -216,7 +217,12 @@ pub(super) fn select_cases(
     };
     if target == Some(transition.target) {
         let mut positive = Vec::new();
-        super::permission_events::collect_positive_case_tests(program, guard, &mut positive);
+        super::permission_events::collect_positive_case_tests(
+            program,
+            state.symbol,
+            guard,
+            &mut positive,
+        );
         for (subject, variant) in positive {
             super::permission_events::select_case_alternative_from_guard(
                 program,
@@ -228,7 +234,7 @@ pub(super) fn select_cases(
             );
         }
     } else if let Some((subject, variant)) =
-        super::permission_events::exact_positive_case_test(program, guard)
+        super::permission_events::exact_positive_case_test(program, state.symbol, guard)
     {
         super::permission_events::exclude_case_alternative(
             program,

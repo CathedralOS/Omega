@@ -178,13 +178,13 @@ pub use value_custody::places::{
 };
 
 pub use proof_contracts::bound_expression_meaning::{
-    exact_case_reference_owner, exact_domain_subject_type, has_builtin_binary_expression_meaning,
-    has_builtin_bound_expression_meaning, has_builtin_decomposed_guard_meaning,
-    has_builtin_domain_decomposed_guard_meaning, has_builtin_or_sealed_float_comparison_meaning,
-    has_exact_case_membership_meaning, has_exact_data_case_membership_meaning,
-    has_exact_domain_case_membership_meaning, has_exact_integer_domain_subject,
-    has_exact_parameter_case_membership_meaning, sealed_float_comparison,
-    sealed_float_comparison_declaration,
+    applied_case_membership_variant, exact_case_reference_owner, exact_domain_subject_type,
+    has_builtin_binary_expression_meaning, has_builtin_bound_expression_meaning,
+    has_builtin_decomposed_guard_meaning, has_builtin_domain_decomposed_guard_meaning,
+    has_builtin_or_sealed_float_comparison_meaning, has_exact_case_membership_meaning,
+    has_exact_data_case_membership_meaning, has_exact_domain_case_membership_meaning,
+    has_exact_integer_domain_subject, has_exact_parameter_case_membership_meaning,
+    sealed_float_comparison, sealed_float_comparison_declaration,
 };
 pub use proof_contracts::contextual_identity::{
     contextual_identity_subject_type, contextual_proposition_children,

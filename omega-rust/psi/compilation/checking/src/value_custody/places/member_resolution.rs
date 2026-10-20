@@ -74,6 +74,7 @@ pub(super) fn closed_generic_member_symbol(
     program: &dyn crate::CheckingInput,
     position: Option<MemberPosition>,
     member_name: &str,
+    case_variant: Option<&str>,
     retained: SymbolHandle,
 ) -> Option<SymbolHandle> {
     let MemberPosition::Reference(reference) = position? else {
@@ -86,9 +87,14 @@ pub(super) fn closed_generic_member_symbol(
     // The application is the receiver, not its erased specialization origin.
     // Reopening that origin can select another prepared field namespace even
     // when the receiver already retains the exact closed member selection.
-    let selected = program
-        .closed_data_member_field(reference, retained, member_name)
-        .map(|field| field.symbol);
+    let selected = super::projected_members::applied_data_field(
+        program,
+        reference,
+        retained,
+        member_name,
+        case_variant,
+    )
+    .map(|field| field.symbol);
     Some(selected.unwrap_or_else(SymbolHandle::invalid))
 }
 
@@ -775,14 +781,13 @@ pub(super) fn effective_member_symbol_from_position(
     receiver_position: Option<MemberPosition>,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
-    if member.case_variant.is_none()
-        && let Some(symbol) = closed_generic_member_symbol(
-            program,
-            receiver_position,
-            member.member.as_str(),
-            member.member_symbol,
-        )
-    {
+    if let Some(symbol) = closed_generic_member_symbol(
+        program,
+        receiver_position,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|variant| variant.as_str()),
+        member.member_symbol,
+    ) {
         return symbol;
     }
     // A case-qualified projection must not select the first same-named field

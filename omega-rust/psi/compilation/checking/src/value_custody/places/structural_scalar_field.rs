@@ -584,20 +584,7 @@ fn selected_member_field<'program>(
     member: &typed_trees::expression::TableMemberExpression,
     path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
 ) -> Option<&'program typed_trees::data::DataField> {
-    let field = if record.generic_instance.is_some() && member.case_variant.is_none() {
-        // Normalization may retain a template field selection. Translate it
-        // only through this receiver's exact instance/member correspondence;
-        // a sibling instance's field cannot be selected by equal spelling.
-        program.closed_data_member_field(carrier, member.member_symbol, member.member.as_str())?
-    } else {
-        super::exact_data_member_field(
-            program,
-            record,
-            member.member_symbol,
-            member.member.as_str(),
-            member.case_variant.as_ref().map(|variant| variant.as_str()),
-        )?
-    };
+    let field = super::projected_members::applied_data_member_field(program, carrier, member)?;
     if field.relevance.is_erased()
         || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
     {
