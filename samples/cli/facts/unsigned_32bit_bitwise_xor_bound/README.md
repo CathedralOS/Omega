@@ -29,7 +29,8 @@ Subtracting `23i32` returns `0i32`, terminating with exit 0.
 ## Execution
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets
-(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`.
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg`, carries an
+authored `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
 `omega run --both` verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
@@ -54,7 +55,7 @@ The bitwise XOR interval arithmetic proves `xored <= 63u32` from `raw in [59, 59
 Subsequent exact subtractions in `verify_xored` (`headroom = 63u32 - res = 11u32` and `margin = res - 40u32 = 12u32`) evaluate to `11u32 + 12u32 = 23u32`.
 Subtracting `23i32` evaluates `23 - 23 = 0i32`.
 The transition guard `res == 0i32` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
-If bitwise XOR evaluation or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
+A 1-token perturbation of the demanded result (`transition res == 0i32` to `transition res == 1i32`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 
 ### Invalid controls and reject twins
 
@@ -62,19 +63,57 @@ Each place has an `invalid/` reject twin that widens the XOR operand (`raw ^ 127
 With a 7-bit mask `127u32`, the upper bound expands to $2^7 - 1 = 127$, so `res <= 63u32` cannot be proved.
 The compiler strictly fails closed at compile time:
 
-| Place | `omega run --both` | Reject twin diagnostic |
-| --- | --- | --- |
-| `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_xored from probe: res >= 40 && res <= 63` |
-| `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_xored from probe: res >= 40 && res <= 63` |
-| `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call pass_parameter from probe: res >= 40 && res <= 63` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_xored from probe: res >= 40 && res <= 63` |
-| `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 63 && 50 >= 40 && 50 <= 63` |
-| `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_xored from probe: res >= 40 && res <= 63` |
-| `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call next_state from probe: res >= 40 && res <= 63` |
-| `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call other_machine from probe: res >= 40 && res <= 63` |
-| `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63` |
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| `local` | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored from probe: local_res >= 40 && local_res <= 63` |
+| `field` | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored from probe: holder.val >= 40 && holder.val <= 63` |
+| `parameter` | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call pass_parameter from probe: res >= 40 && res <= 63` |
+| `call_result` | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored from probe: res >= 40 && res <= 63` |
+| `match_join` | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call choose from probe: res >= 40 && res <= 63 && 50 >= 40 && 50 <= 63` |
+| `const_name` | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored from probe: res >= 40 && res <= 63` |
+| `other_state` | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call next_state from probe: res >= 40 && res <= 63` |
+| `other_machine` | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call other_machine from probe: res >= 40 && res <= 63` |
+| `target_body` | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63` |
+
+### Acceptance Gate
+
+```sh
+python tools/sample_native_gate.py --filter cli/facts/unsigned_32bit_bitwise_xor_bound --jobs 4
+```
+
+`sample_native_gate.py` reports:
+- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
+- 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract`).
+
+## Pinned Fixtures
+
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/unsigned_32bit_bitwise_xor_bound_through_local_exit/`
+  - `tests/omega/pass/facts/unsigned_32bit_bitwise_xor_bound_through_field_exit/`
+  - `tests/omega/pass/facts/unsigned_32bit_bitwise_xor_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/unsigned_32bit_bitwise_xor_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/unsigned_32bit_bitwise_xor_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/unsigned_32bit_bitwise_xor_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/unsigned_32bit_bitwise_xor_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/unsigned_32bit_bitwise_xor_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/unsigned_32bit_bitwise_xor_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt`):**
+  - `tests/omega/fail/facts/unsigned_32bit_bitwise_xor_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/unsigned_32bit_bitwise_xor_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/unsigned_32bit_bitwise_xor_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/unsigned_32bit_bitwise_xor_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/unsigned_32bit_bitwise_xor_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/unsigned_32bit_bitwise_xor_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/unsigned_32bit_bitwise_xor_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/unsigned_32bit_bitwise_xor_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/unsigned_32bit_bitwise_xor_bound_through_target_body_rejected/`
+The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
 
 ## Requirements and Evidence (AGENTS.md)
+
+- **Parent outcome:** `NUMERIC-VALUES` / `INTEGER-CERTIFICATES` / `BITWISE-XOR-BOUND` (`TASKS.md`).
+- **Ticket:** `8316da4d89e04c35869aca03f32ec032`.
 
 - **Establishment**: 32-bit unsigned bitwise XOR `raw ^ 15u32` with bounded input `raw in [59, 59]` and mask `15u32` establishes `xored <= 63u32` via non-negative bitwise interval bounds analysis. The dominating guard `transition xored >= 40u32` establishes the lower bound, proving the composite interval `40u32 <= xored <= 63u32` without post-hoc caller equality guards.
 - **Identity and lifetime**: The established interval `res in [40, 63]` is preserved across local bindings, carrier record fields, machine parameters, helper call returns, match join arms, named constants, state transitions, helper forwarding machines, and target-scoped bodies without semantic loss.
