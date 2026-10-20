@@ -46,3 +46,7 @@ and a matching Terminal `Trap`; the existing copy-carrier program retained exit
 and are retained as historical evidence, requiring affected requalification.
 The CLI retains the native ELF product; its in-memory Terminal artifact is the
 interpreter input, but this path does not persist separate Terminal bytes.
+
+The root regression also selects `lifted` for separate canonical-artifact
+inspection. Its external byte ingress must preserve the exact semantic bytes
+and manifest. This transport oracle is distinct from the runtime artifact.
