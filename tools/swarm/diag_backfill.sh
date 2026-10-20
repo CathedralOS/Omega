@@ -137,7 +137,11 @@ RECORD_SLOTS=${RECORD_SLOTS:-1}
       echo "   (interrupted: killed the recorder process group $recorder_pid)" >&2
     fi
     if [ -n "${recording:-}" ]; then
-      git checkout HEAD -- tests/omega/corpus_outcomes.txt 2>/dev/null
+      # Restore ONLY this fact's row blocks. A whole-file `git checkout HEAD --` cannot
+      # preserve this run's earlier facts: after a rebase HEAD holds MAIN's golden,
+      # where an earlier fact is still bare, so reverting one bad fact would discard
+      # every earlier fact's diagnostic and LOST would not notice (the key survives).
+      python3 tools/swarm/revert_block.py tests/omega/corpus_outcomes.txt HEAD "$fact" >/dev/null 2>&1
       git reset -q HEAD -- tests/omega/corpus_outcomes.txt 2>/dev/null
       echo "   (interrupted: restored the outcomes golden from HEAD)" >&2
     fi
@@ -202,14 +206,22 @@ RECORD_SLOTS=${RECORD_SLOTS:-1}
   fi
   if [ "$bad" != "0" ]; then
     echo "   REVERTING this fact (record is not the fact's obligation); earlier facts preserved"
-    git checkout HEAD -- tests/omega/corpus_outcomes.txt 2>/dev/null
+    # Restore ONLY this fact's row blocks. A whole-file `git checkout HEAD --` cannot
+      # preserve this run's earlier facts: after a rebase HEAD holds MAIN's golden,
+      # where an earlier fact is still bare, so reverting one bad fact would discard
+      # every earlier fact's diagnostic and LOST would not notice (the key survives).
+      python3 tools/swarm/revert_block.py tests/omega/corpus_outcomes.txt HEAD "$fact" >/dev/null 2>&1
     continue
   fi
   if [ "$after" != "0" ] || [ "$timeouts" != "0" ]; then
     # Restore only THIS fact's rows from HEAD, so a bad record cannot carry a loss
     # forward while earlier facts in the same run keep their diagnostics.
     echo "   REVERTING this fact (LOST=$after timeouts=$timeouts); earlier facts preserved"
-    git checkout HEAD -- tests/omega/corpus_outcomes.txt 2>/dev/null
+    # Restore ONLY this fact's row blocks. A whole-file `git checkout HEAD --` cannot
+      # preserve this run's earlier facts: after a rebase HEAD holds MAIN's golden,
+      # where an earlier fact is still bare, so reverting one bad fact would discard
+      # every earlier fact's diagnostic and LOST would not notice (the key survives).
+      python3 tools/swarm/revert_block.py tests/omega/corpus_outcomes.txt HEAD "$fact" >/dev/null 2>&1
   else
     echo "   OK: no rows lost, no timeouts"
     echo "   COMMIT THIS FACT NOW so the next iteration cannot affect it:"
