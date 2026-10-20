@@ -95,12 +95,17 @@ for fact in "$@"; do
   free_mb=$(vm_stat 2>/dev/null | awk '/page size of/{ps=$8} /Pages free/{gsub(/\./,"",$3); printf "%d", int(int($3)*ps/1048576)}')
   free_mb=${free_mb%%.*}
   ps_bytes=$(vm_stat 2>/dev/null | awk '/page size of/{print $8}')
-  if [ "${free_mb:-999}" -lt 512 ]; then
-    echo "   ABORT: only ${free_mb} MB free; a record here risks an OOM kill. Retry later."
+  if [ "${free_mb:-999}" -lt 1200 ]; then
+    echo "   ABORT: only ${free_mb} MB free (floor 1.2 GB); a record here risks an OOM kill. Retry later."
     continue
   fi
   # Serialize records host-wide: at most RECORD_SLOTS concurrent.
-  RECORD_SLOTS=${RECORD_SLOTS:-3}
+  # Default 1: with ~16 lanes live the host oscillated between 74 MB and 1050 MB
+# free, two records were OOM-killed mid-run (jetsam entries in the log at the
+# same second), and a brief pass of the memory floor did not prevent the kill --
+# memory collapses DURING the run. Serializing to one record at a time is the
+# only setting that has kept a record alive. Raise only with a measured reason.
+RECORD_SLOTS=${RECORD_SLOTS:-1}
   acquired=""
   for attempt in $(seq 1 120); do
     for s in $(seq 0 $((RECORD_SLOTS-1))); do

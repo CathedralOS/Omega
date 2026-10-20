@@ -61,13 +61,18 @@ if [ "${load:-0}" -gt 60 ]; then
   echo "   ABORT: load ${load} too high to record (timeout rows). Retry when load < 60." >&2
   exit 1
 fi
-if [ "${free_mb:-0}" -lt 512 ]; then
-  echo "   ABORT: only ${free_mb} MB free (page size ${ps_bytes}). Retry when >= 512 MB." >&2
+if [ "${free_mb:-0}" -lt 1200 ]; then
+  echo "   ABORT: only ${free_mb} MB free (page size ${ps_bytes}). Retry when >= 1.2 GB." >&2
   exit 1
 fi
 
 # Serialize records host-wide so lanes do not multiply compiles into an OOM.
-RECORD_SLOTS=${RECORD_SLOTS:-3}
+# Default 1: with ~16 lanes live the host oscillated between 74 MB and 1050 MB
+# free, two records were OOM-killed mid-run (jetsam entries in the log at the
+# same second), and a brief pass of the memory floor did not prevent the kill --
+# memory collapses DURING the run. Serializing to one record at a time is the
+# only setting that has kept a record alive. Raise only with a measured reason.
+RECORD_SLOTS=${RECORD_SLOTS:-1}
 acquired=""
 for attempt in $(seq 1 120); do
   for s in $(seq 0 $((RECORD_SLOTS-1))); do
