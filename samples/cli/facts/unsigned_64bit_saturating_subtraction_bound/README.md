@@ -20,8 +20,8 @@ Every place performs the same operation: define bounded unsigned 64-bit inputs `
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 64-bit unsigned saturating subtraction and verifies the bounds |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
-`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
-`Expected exit: 0`.
+`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
+authored `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
 
 ## Execution
 
@@ -45,8 +45,8 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating saturating subtraction with inputs `100u64` and `30u64` produces `diff == 70u64` within static interval `40u64..100u64`. Passing `diff` to `verify_diff(diff)` satisfies its contract `value >= 40 && value <= 100`. `verify_diff` evaluates exact subtractions `head = 100 - 70 == 30u64` and `tail = 70 - 40 == 30u64`, sums them to `60u64`, and returns `60u64`. In `main`, `transition res == 60` transitions to `state done() {}`, terminating with native exit 0. If saturating subtraction or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
-- Each invalid twin widens the `lhs` bound (e.g. `lhs <= 125u64` or `const RHS: u64 = 15;`), so `diff` reaches `105u64 > 100u64`. Calling `verify_diff(diff)` fails closed at compile time with `cannot prove requires contract for call verify_diff`. None reaches native execution.
+- In every positive place, evaluating saturating subtraction with inputs `100u64` and `30u64` produces `diff == 70u64` within static interval `40u64..100u64`. Passing `diff` to `verify_diff(diff)` satisfies its contract `value >= 40 && value <= 100`. `verify_diff` evaluates exact subtractions `head = 100 - 70 == 30u64` and `tail = 70 - 40 == 30u64`, sums them to `60u64`, and returns `60u64`. In `main`, `transition res == 60` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition res == 60` to `transition res == 61`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- Each invalid twin widens the `lhs` bound (`lhs <= 125u64` or `const RHS: u64 = 15;`), so `diff` reaches `105u64 > 100u64`. Calling `verify_diff(diff)` fails closed at compile time under the **Contract precondition** obligation class with `cannot prove requires contract for call verify_diff`. None reaches native execution.
 
 Check all nine invalid twins with:
 
@@ -61,7 +61,7 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/unsigned_64bit_saturating_subtraction_bound --jobs 4
+python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\cargo-target\debug\omega-latest.exe --filter cli/facts/unsigned_64bit_saturating_subtraction_bound --jobs 4
 ```
 
 `sample_native_gate.py` reports:
@@ -70,14 +70,33 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_*` and
-`tests/omega/fail/facts/unsigned_64bit_saturating_subtraction_bound_unproved_*` fixtures.
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_local_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_field_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt`):**
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_subtraction_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_subtraction_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_subtraction_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_subtraction_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_subtraction_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_subtraction_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_subtraction_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_subtraction_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/unsigned_64bit_saturating_subtraction_bound_through_target_body_rejected/`
 The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
 
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
-- **Requirement established:** End-to-end nine-place fact preservation and native realization for 64-bit unsigned saturating subtraction (`u64 in Saturating`, `[numeric values](wiki/spec/language/numeric_values.md)`). Specifically, 64-bit unsigned saturating subtraction `lhs -| rhs` with bounded interval `40u64 <= diff <= 100u64` establishes `40u64 <= diff <= 100u64` across all nine places so exact subtractions `100u64 - diff` and `diff - 40u64` are safe without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
+- **Requirement established:** End-to-end nine-place fact preservation and native realization for 64-bit unsigned saturating subtraction (`u64 in Saturating`, [numeric values](../../../../wiki/spec/language/numeric_values.md), [integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md)). Specifically, 64-bit unsigned saturating subtraction `lhs -| rhs` with bounded interval `40u64 <= diff <= 100u64` establishes `40u64 <= diff <= 100u64` across all nine places so exact subtractions `100u64 - diff` and `diff - 40u64` are safe without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
   - **Establishment:** Bounded integer preconditions (`requires lhs >= 80 && lhs <= 120 && rhs >= 20 && rhs <= 40`) and 64-bit unsigned saturating subtraction (`(lhs as u64 in Saturating) - (rhs as u64 in Saturating)`) establish the difference interval `[80 - 40, 120 - 20] = [40, 100]`. Because `[40, 100]` does not underflow zero or saturate, recasting to `u64` preserves the interval fact, discharging downstream precondition `value >= 40 && value <= 100` and exact subtractions `100 - value` and `value - 40` without requiring post-hoc caller equality guards (`transition x == 70`).

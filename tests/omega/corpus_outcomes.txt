@@ -3726,6 +3726,27 @@ fail/facts/unsigned_64bit_bitwise_or_bound_through_target_body_rejected rejected
 	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_saturating_subtraction_bound_through_call_result_rejected rejected 14113ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_diff from compute_call_result: transported >= 40 && transported <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_saturating_subtraction_bound_through_const_name_rejected rejected 14500ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_diff from compute_const: diff >= 40 && diff <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_saturating_subtraction_bound_through_field_rejected rejected 15219ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_diff from compute_field: transported >= 40 && transported <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_saturating_subtraction_bound_through_local_rejected rejected 14092ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_diff from compute_local: transported >= 40 && transported <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_saturating_subtraction_bound_through_match_join_rejected rejected 14414ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_diff from compute_match_join: joined >= 40 && joined <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_saturating_subtraction_bound_through_other_machine_rejected rejected 14331ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_diff from compute_other_machine: transported >= 40 && transported <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_saturating_subtraction_bound_through_other_state_rejected rejected 14290ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_diff from compute_other_state: d >= 40 && d <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_64bit_saturating_subtraction_bound_through_parameter_rejected rejected 14448ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_diff from compute_parameter: transported >= 40 && transported <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_saturating_subtraction_bound_through_target_body_rejected rejected 15867ms expected @da99a3ccd03e+wt
+	cannot prove requires contract for call verify_diff from compute_target_body: diff >= 40 && diff <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from compute_target_body: diff >= 40 && diff <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from compute_target_body: diff >= 40 && diff <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from compute_target_body: diff >= 40 && diff <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_64bit_shift_left_bound_through_call_result_rejected rejected 11600ms expected @a6b4f5c6d966+wt
 	cannot prove requires contract for call verify_shifted from compute_call_result: shifted >= 40 && shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_64bit_shift_left_bound_through_const_name_rejected rejected 11644ms expected @a6b4f5c6d966+wt
@@ -8245,6 +8266,15 @@ pass/facts/unsigned_64bit_bitwise_or_bound_through_other_machine_exit checked 40
 pass/facts/unsigned_64bit_bitwise_or_bound_through_other_state_exit checked 46165ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_bitwise_or_bound_through_parameter_exit checked 42176ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_bitwise_or_bound_through_target_body_exit checked 39303ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_saturating_subtraction_bound_through_call_result_exit checked 36981ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_saturating_subtraction_bound_through_const_name_exit checked 37377ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_saturating_subtraction_bound_through_field_exit checked 36156ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_saturating_subtraction_bound_through_local_exit checked 36103ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_saturating_subtraction_bound_through_match_join_exit checked 35400ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_saturating_subtraction_bound_through_other_machine_exit checked 37140ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_saturating_subtraction_bound_through_other_state_exit checked 39195ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_saturating_subtraction_bound_through_parameter_exit checked 38419ms check-target:macos_arm64 @da99a3ccd03e+wt
+pass/facts/unsigned_64bit_saturating_subtraction_bound_through_target_body_exit checked 35611ms check-target:macos_arm64 @da99a3ccd03e+wt
 pass/facts/unsigned_64bit_shift_left_bound_through_call_result_exit checked 29593ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_shift_left_bound_through_const_name_exit checked 29544ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_shift_left_bound_through_field_exit checked 29761ms check-target:macos_arm64 @a6b4f5c6d966+wt
