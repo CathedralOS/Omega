@@ -35,6 +35,7 @@ PY
 }
 
 LOCKDIR=build/swarm/record-slots
+REC_LOG=${REC_LOG:-/tmp/diag-record-$$.log}
 mkdir -p "$(dirname "$LOCKDIR")"
 git fetch origin -q 2>/dev/null
 # Sync ONCE, before the loop. Syncing per fact would `git checkout origin/main --`
@@ -128,6 +129,13 @@ RECORD_SLOTS=${RECORD_SLOTS:-1}
   # mid-run and the revert never happened, leaving a PARTIAL golden staged (LOST=84).
   on_exit() {
     rm -f "$acquired"
+    # Kill the recorder's process group so it cannot keep writing after we exit.
+    if [ -n "${recorder_pid:-}" ] && kill -0 "$recorder_pid" 2>/dev/null; then
+      kill -TERM -"$recorder_pid" 2>/dev/null || kill -TERM "$recorder_pid" 2>/dev/null
+      sleep 2
+      kill -KILL -"$recorder_pid" 2>/dev/null || kill -KILL "$recorder_pid" 2>/dev/null
+      echo "   (interrupted: killed the recorder process group $recorder_pid)" >&2
+    fi
     if [ -n "${recording:-}" ]; then
       git checkout HEAD -- tests/omega/corpus_outcomes.txt 2>/dev/null
       git reset -q HEAD -- tests/omega/corpus_outcomes.txt 2>/dev/null
@@ -138,8 +146,20 @@ RECORD_SLOTS=${RECORD_SLOTS:-1}
   trap on_exit EXIT INT TERM HUP
   echo "   load ${load}; recording with jobs=3"
   recording=1
-  out=$(OMEGA_CORPUS_JOBS=3 OMEGA_CORPUS_FIXTURE_SECS=600 \
-    python3 tools/corpus_gate.py --filter "$fact" --record 2>&1)
+  # Run the recorder in its OWN PROCESS GROUP and remember it, so a signal to this
+  # wrapper kills the recorder too. Without this, SIGTERM to the wrapper orphans the
+  # python3 corpus_gate child; the orphan keeps running and writes the golden against
+  # whatever base it re-synced at start, which may be stale by then. A lane hit this
+  # twice: the orphan's write silently reverted already-COMMITTED diagnostics to bare
+  # `rejected` (0/9) while the lane believed the record had been aborted, and the
+  # wrapper's post-record verification never ran so nothing caught it.
+  set -m 2>/dev/null || true
+  OMEGA_CORPUS_JOBS=3 OMEGA_CORPUS_FIXTURE_SECS=600 \
+    python3 tools/corpus_gate.py --filter "$fact" --record >"$REC_LOG" 2>&1 &
+  recorder_pid=$!
+  set +m 2>/dev/null || true
+  wait "$recorder_pid"
+  out=$(cat "$REC_LOG")
   # A record is only trustworthy if no compile was still in flight when it ended.
   if echo "$out" | grep -qE '[1-9][0-9]* compile\(s\) in flight'; then
     echo "   ABORT: compiles were still in flight; that record wrote timeout rows."
