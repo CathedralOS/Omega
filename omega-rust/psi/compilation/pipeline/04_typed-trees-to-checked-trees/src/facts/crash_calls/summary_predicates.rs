@@ -104,6 +104,25 @@ fn summary_integer_literal(
     if let CrashPredicateExpression::IntegerWiden { operand, .. } = expression {
         return summary_integer_literal(operand);
     }
+    if let CrashPredicateExpression::RepresentationView {
+        source_type,
+        target_type,
+        operand,
+    } = expression
+    {
+        // Interpret the captured source's bits, never its numeric value on
+        // the target carrier. Only a closed authenticated integer observation
+        // folds here; unknown subjects retain their exact view identity.
+        let source = *source_type;
+        let target = *target_type;
+        if source.bits() != target.bits() {
+            return None;
+        }
+        let value = summary_integer_literal(operand)?;
+        let value = crate::values::admitted_integer(source, &value)?;
+        let viewed = crate::values::representation_view_value(target, value)?;
+        return Some(crate::values::integer_magnitude(viewed));
+    }
     let CrashPredicateExpression::Integer(text) = expression else {
         return None;
     };
@@ -407,12 +426,12 @@ pub(super) fn executable_entry_predicate(
             Scalar::IntegerBinary { left, right, .. } => scalar(left) && scalar(right),
             Scalar::IntegerBitwiseNot { operand, .. }
             | Scalar::IntegerWiden { operand, .. }
-            | Scalar::IntegerExactCast { operand, .. } => scalar(operand),
+            | Scalar::IntegerExactCast { operand, .. }
+            | Scalar::RepresentationView { operand, .. } => scalar(operand),
             Scalar::Boolean(value) => executable_entry_predicate(value),
-            Scalar::ErasedParameter { .. }
-            | Scalar::Local { .. }
-            | Scalar::StorageRead { .. }
-            | Scalar::RepresentationView { .. } => false,
+            Scalar::ErasedParameter { .. } | Scalar::Local { .. } | Scalar::StorageRead { .. } => {
+                false
+            }
         }
     }
     match expression {

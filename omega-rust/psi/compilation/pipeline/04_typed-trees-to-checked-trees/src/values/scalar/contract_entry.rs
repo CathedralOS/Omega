@@ -241,8 +241,11 @@ impl EntryOperands<'_> {
             }
             CheckedScalarExpression::Local { .. }
             | CheckedScalarExpression::StructuralSequenceLength { .. }
-            | CheckedScalarExpression::RepresentationView { .. }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
+            // A checked view changes interpretation, not storage identity.
+            // Authenticate the original read recursively; accepting the outer
+            // carrier alone would let a local or stale read pose as entry data.
+            CheckedScalarExpression::RepresentationView { operand, .. } => self.scalar(operand)?,
             CheckedScalarExpression::IntegerBinary { left, right, .. } => {
                 self.scalar(left)?;
                 self.scalar(right)?;

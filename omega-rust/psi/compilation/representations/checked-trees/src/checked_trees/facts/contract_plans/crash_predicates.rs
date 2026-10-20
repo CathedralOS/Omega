@@ -62,6 +62,15 @@ pub enum CrashPredicateExpression {
         domain: u8,
         operand: Box<Self>,
     },
+    /// An authenticated storage observation interpreted at another carrier.
+    /// Unlike widening, this preserves bits, not the mathematical value.
+    /// Retaining both carriers prevents a saved view from impersonating its
+    /// backing operand during crash-route substitution and deduplication.
+    RepresentationView {
+        source_type: semantic_vocabulary::IntegerType,
+        target_type: semantic_vocabulary::IntegerType,
+        operand: Box<Self>,
+    },
     Integer(String),
     /// A float literal's exact source spelling (the `FloatLiteral` text:
     /// suffix-free, text-only identity like the integer carrier). The literal
@@ -110,9 +119,9 @@ impl CrashPredicateExpression {
             match expression {
                 Self::StructuralIdentity { .. } => return true,
                 Self::Binary { left, right, .. } => pending.extend([left.as_ref(), right.as_ref()]),
-                Self::Unary { operand, .. } | Self::IntegerWiden { operand, .. } => {
-                    pending.push(operand)
-                }
+                Self::Unary { operand, .. }
+                | Self::IntegerWiden { operand, .. }
+                | Self::RepresentationView { operand, .. } => pending.push(operand),
                 Self::Member { receiver, .. } => pending.push(receiver),
                 Self::Indexed { collection, index } => {
                     pending.extend([collection.as_ref(), index.as_ref()])
@@ -190,7 +199,9 @@ impl CrashPredicateExpression {
                         pending.push(Step::Visit(right));
                         pending.push(Step::Visit(left));
                     }
-                    Self::Unary { operand, .. } | Self::IntegerWiden { operand, .. } => {
+                    Self::Unary { operand, .. }
+                    | Self::IntegerWiden { operand, .. }
+                    | Self::RepresentationView { operand, .. } => {
                         pending.push(Step::Finalize(term));
                         pending.push(Step::Visit(operand));
                     }
@@ -275,6 +286,17 @@ impl CrashPredicateExpression {
                                 operand: Box::new(operand),
                             }
                         }
+                        Self::RepresentationView {
+                            source_type,
+                            target_type,
+                            ..
+                        } => Self::RepresentationView {
+                            source_type: *source_type,
+                            target_type: *target_type,
+                            operand: Box::new(
+                                built.pop().expect("view operand rebuilt before parent"),
+                            ),
+                        },
                         Self::Member { member, .. } => {
                             let receiver = built.pop().expect("receiver rebuilt before its parent");
                             Self::Member {
@@ -454,6 +476,20 @@ impl CrashPredicateExpression {
                         operand,
                     } => {
                         out.extend([0x0e, *source_type, *target_type, *domain]);
+                        pending.push(Step::Node(operand));
+                    }
+                    Self::RepresentationView {
+                        source_type,
+                        target_type,
+                        operand,
+                    } => {
+                        out.extend([
+                            0x10,
+                            source_type.sign() as u8,
+                            source_type.bits() as u8,
+                            target_type.sign() as u8,
+                            target_type.bits() as u8,
+                        ]);
                         pending.push(Step::Node(operand));
                     }
                     Self::Integer(value) => {

@@ -162,8 +162,18 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
     match expression {
         CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::Local { .. }
-        | CheckedScalarExpression::ImplementationSelection { .. }
-        | CheckedScalarExpression::RepresentationView { .. } => false,
+        | CheckedScalarExpression::ImplementationSelection { .. } => false,
+        CheckedScalarExpression::RepresentationView {
+            primitive_type,
+            operand,
+        } => {
+            primitive_type.is_fixed_integer()
+                && operand.primitive_type().is_some_and(|source| {
+                    source.is_fixed_integer()
+                        && source.scalar_byte_size() == primitive_type.scalar_byte_size()
+                })
+                && contract_scoped_scalar(operand)
+        }
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::ErasedParameter { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }

@@ -437,14 +437,33 @@ fn captured_place_subject(
     {
         return Ok(None);
     }
-    let (owner, _) = crate::declarations::state_declaration(checked, state)?;
+    let (owner, state_declaration) = crate::declarations::state_declaration(checked, state)?;
     let source = match loan.root {
         checked_trees::CheckedPlaceLoanRoot::StructuralParameter { parameter_index } => {
             LoanedSource::Parameter(parameter_index)
         }
         checked_trees::CheckedPlaceLoanRoot::Local { symbol } => LoanedSource::Local(symbol),
-        checked_trees::CheckedPlaceLoanRoot::ScalarParameter { .. } => {
-            return unsupported("record loan captured a non-structural parameter");
+        checked_trees::CheckedPlaceLoanRoot::ScalarParameter { position } => {
+            let parameter = checked
+                .state_parameters(state_declaration)
+                .get(position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "place loan lost its scalar formal",
+                ))?;
+            if parameter.relevance.is_erased()
+                || checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+                || checked.normalized_type_identity(parameter.type_reference)
+                    != checked.normalized_type_identity(loan.root_type)
+            {
+                return unsupported("place loan changes its scalar formal's declared carrier");
+            }
+            // Mutable scalar formals already publish their owned home under
+            // the authored symbol in the common storage roster. Observe that
+            // same home, so a copied read stays a snapshot after a later write;
+            // no structural parameter or second storage home is invented.
+            LoanedSource::Local(parameter.symbol)
         }
     };
     let root_identity = carrier_identity(checked, owner, loan.root_type)?;

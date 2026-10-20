@@ -134,6 +134,26 @@ fn substitute(value: &Expression, equations: &[(Expression, Expression)]) -> Exp
             operator: *operator,
             operand: Box::new(substitute(operand, equations)),
         },
+        Expression::RepresentationView {
+            source_type,
+            target_type,
+            operand,
+        } => Expression::RepresentationView {
+            source_type: *source_type,
+            target_type: *target_type,
+            operand: Box::new(substitute(operand, equations)),
+        },
+        Expression::IntegerWiden {
+            source_type,
+            target_type,
+            domain,
+            operand,
+        } => Expression::IntegerWiden {
+            source_type: *source_type,
+            target_type: *target_type,
+            domain: *domain,
+            operand: Box::new(substitute(operand, equations)),
+        },
         // Whole selected observations are exact keys. Do not distribute an
         // equation through a place's root/selector and manufacture a new place.
         _ => value.clone(),

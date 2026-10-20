@@ -173,7 +173,7 @@ fn integer(
         } => {
             let target = integer_type(*primitive_type)?;
             let (_, value) = integer(operand, resolve_binding)?;
-            Some((target, representation_view_value(*primitive_type, value)?))
+            Some((target, representation_view_value(target, value)?))
         }
         CheckedScalarExpression::IntegerExactCast {
             primitive_type,
@@ -360,20 +360,23 @@ pub(crate) fn integer_type(primitive: PrimitiveType) -> Option<IntegerType> {
 
 /// An admitted representation view interprets the source bits with the target
 /// signedness. Its caller has already established the carrier relation.
-fn representation_view_value(target: PrimitiveType, value: IntegerValue) -> Option<IntegerValue> {
+pub(crate) fn representation_view_value(
+    target: IntegerType,
+    value: IntegerValue,
+) -> Option<IntegerValue> {
     let bits = match value {
         IntegerValue::Signed(value) => value as u128,
         IntegerValue::Unsigned(value) => value,
     };
-    Some(match target {
-        PrimitiveType::I8 => IntegerValue::Signed(i128::from(bits as i8)),
-        PrimitiveType::I16 => IntegerValue::Signed(i128::from(bits as i16)),
-        PrimitiveType::I32 => IntegerValue::Signed(i128::from(bits as i32)),
-        PrimitiveType::I64 => IntegerValue::Signed(i128::from(bits as i64)),
-        PrimitiveType::U8 => IntegerValue::Unsigned(u128::from(bits as u8)),
-        PrimitiveType::U16 => IntegerValue::Unsigned(u128::from(bits as u16)),
-        PrimitiveType::U32 => IntegerValue::Unsigned(u128::from(bits as u32)),
-        PrimitiveType::U64 => IntegerValue::Unsigned(u128::from(bits as u64)),
+    Some(match (target.sign(), target.bits()) {
+        (IntegerSign::Signed, 8) => IntegerValue::Signed(i128::from(bits as i8)),
+        (IntegerSign::Signed, 16) => IntegerValue::Signed(i128::from(bits as i16)),
+        (IntegerSign::Signed, 32) => IntegerValue::Signed(i128::from(bits as i32)),
+        (IntegerSign::Signed, 64) => IntegerValue::Signed(i128::from(bits as i64)),
+        (IntegerSign::Unsigned, 8) => IntegerValue::Unsigned(u128::from(bits as u8)),
+        (IntegerSign::Unsigned, 16) => IntegerValue::Unsigned(u128::from(bits as u16)),
+        (IntegerSign::Unsigned, 32) => IntegerValue::Unsigned(u128::from(bits as u32)),
+        (IntegerSign::Unsigned, 64) => IntegerValue::Unsigned(u128::from(bits as u64)),
         _ => return None,
     })
 }

@@ -434,10 +434,21 @@ fn scalar_evidence_is_crash_lane_lowerable(
 ) -> bool {
     use checked_trees::CheckedScalarExpression;
     match expression {
-        // The crash lane replays no representation re-view.
         CheckedScalarExpression::StructuralSequenceLength { .. }
-        | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
-        | CheckedScalarExpression::RepresentationView { .. } => false,
+        | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
+        CheckedScalarExpression::RepresentationView {
+            primitive_type,
+            operand,
+        } => {
+            // Integer views replay through the existing modular bit-image
+            // algebra. Cross-family views still need portable scalar terms.
+            primitive_type.is_fixed_integer()
+                && operand.primitive_type().is_some_and(|source| {
+                    source.is_fixed_integer()
+                        && source.scalar_byte_size() == primitive_type.scalar_byte_size()
+                })
+                && scalar_evidence_is_crash_lane_lowerable(operand)
+        }
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             scalar_evidence_is_crash_lane_lowerable(left)
                 && scalar_evidence_is_crash_lane_lowerable(right)
@@ -740,8 +751,16 @@ fn substitute_checked_scalar_expression(
         CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::StructuralSequenceLength { .. }
-        | CheckedScalarExpression::RepresentationView { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
+        CheckedScalarExpression::RepresentationView {
+            primitive_type,
+            operand,
+        } => CheckedScalarExpression::RepresentationView {
+            primitive_type: *primitive_type,
+            operand: Box::new(substitute_checked_scalar_expression(
+                operand, arguments, fields,
+            )?),
+        },
         // A standalone integer field leaf uses the same projected entry custody
         // the Boolean channel carries: the callee position binds the actual's
         // caller parameter and member spine, and the leaf path appends below

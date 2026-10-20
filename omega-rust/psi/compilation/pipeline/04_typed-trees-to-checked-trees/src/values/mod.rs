@@ -27,6 +27,7 @@ pub(crate) use evaluation::boolean as evaluate_checked_boolean;
 pub(crate) use evaluation::evaluate as evaluate_checked_scalar;
 pub(crate) use evaluation::{
     BoundScalarValues, ScalarValueSource, admitted_integer, integer_magnitude, integer_type,
+    representation_view_value,
 };
 pub(crate) use place_intervals::LivePlaceIntervals;
 pub(crate) use snapshots::{

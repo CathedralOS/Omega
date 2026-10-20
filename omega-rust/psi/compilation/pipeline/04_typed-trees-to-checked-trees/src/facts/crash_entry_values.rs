@@ -570,6 +570,45 @@ fn entry_operand_at(
         ExpressionNode::Float(value) => {
             Some(CrashPredicateExpression::Float(value.text().to_owned()))
         }
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            let (machine, state) =
+                validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
+            let source_reference =
+                validation::expression_result_type_reference(program, machine, state, cast.value)?;
+            let source_type = program.primitive_type_reference(
+                program
+                    .type_reference_table
+                    .peeled_type_reference(source_reference),
+            )?;
+            let target_type = program.primitive_type_reference(
+                program
+                    .type_reference_table
+                    .peeled_type_reference(cast.target_type),
+            )?;
+            // This transports an already checked whole integer view. It does
+            // not grant a borrow or establish representation compatibility.
+            // In particular, an interior byte region is not one scalar entry
+            // operand, and a contextual Boolean landing is not a total view.
+            if !source_type.is_fixed_integer()
+                || !target_type.is_fixed_integer()
+                || source_type.scalar_byte_size() != target_type.scalar_byte_size()
+            {
+                return None;
+            }
+            let operand = entry_operand_at(
+                program,
+                machine_symbol,
+                state_symbol,
+                before_statement,
+                cast.value,
+                depth + 1,
+            )?;
+            Some(CrashPredicateExpression::RepresentationView {
+                source_type: crate::values::integer_type(source_type)?,
+                target_type: crate::values::integer_type(target_type)?,
+                operand: Box::new(operand),
+            })
+        }
         ExpressionNode::Cast(cast) if !cast.form.is_recast() && cast.semantic_domain.is_empty() => {
             let (machine, state) =
                 validation::machine_state_by_symbols(program, machine_symbol, state_symbol)?;
@@ -1208,6 +1247,15 @@ pub(super) fn substitute_entry(
             domain: *domain,
             operand: Box::new(substitute_entry(operand, operands)?),
         },
+        CrashPredicateExpression::RepresentationView {
+            source_type,
+            target_type,
+            operand,
+        } => CrashPredicateExpression::RepresentationView {
+            source_type: *source_type,
+            target_type: *target_type,
+            operand: Box::new(substitute_entry(operand, operands)?),
+        },
         CrashPredicateExpression::Member { receiver, member } => CrashPredicateExpression::Member {
             receiver: Box::new(substitute_entry(receiver, operands)?),
             member: member.clone(),
@@ -1339,6 +1387,15 @@ pub(super) fn substitute_entry_projected(
             source_type: *source_type,
             target_type: *target_type,
             domain: *domain,
+            operand: Box::new(substitute_entry_projected(operand, resolve)?),
+        },
+        CrashPredicateExpression::RepresentationView {
+            source_type,
+            target_type,
+            operand,
+        } => CrashPredicateExpression::RepresentationView {
+            source_type: *source_type,
+            target_type: *target_type,
             operand: Box::new(substitute_entry_projected(operand, resolve)?),
         },
         // An indexed read's `Parameter` collection resolves at the whole
