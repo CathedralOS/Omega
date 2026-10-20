@@ -44,9 +44,9 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 
 ### The oracle discriminates
 
-The recorded 0 exit is discriminating:
-- In every positive place, `Window` is bounded with `where used <= 90` and initialized with `used: 40`. Shared borrow field projection yields `view.used == 40u64`. Exact subtraction `90u64 - used` produces `50u64`. In `main`, `transition diff == 50` transitions to `state done() {}`, terminating with native exit 0. If field projection returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
-- Each invalid twin widens the field bound to `where used <= 91`. Exact subtraction `90u64 - used` could underflow if `used == 91`, so compile-time proof obligation checking fails closed with `exact arithmetic in machine ... may overflow \`u64\``. None reaches native execution.
+The recorded 0 exit is discriminating across both the observable runtime value and the static proof obligation:
+- **Observable value discrimination (1-token consumer perturbation):** In every positive place, `Window` is bounded with `where used <= 90` and initialized with `used: 40`. Shared borrow field projection yields `view.used == 40u64`, and exact subtraction `90u64 - used` produces `50u64`. In `main`, `transition diff == 50` transitions to `state done() {}`, terminating with `native exit 0` and `interp exit: 0`. Perturbing the demanded value by 1 token (`transition diff == 50` -> `transition diff == 51` in `local/main.omg`) traps both engines (`native exit -1073741795`, `interp crash: Trap (host presentation agrees)`), proving the runtime oracle reads the projected field and executes the subtraction rather than succeeding vacuously.
+- **Obligation class and soundness discrimination (1-token bound perturbation):** This fact belongs to the **value/arithmetic bound** obligation class: the record invariant `where used <= 90` is preserved through shared-borrow field projection (`view.used`) to discharge the compile-time exact subtraction proof obligation on `90u64 - used`. Each invalid twin widens only the construct's field bound by 1 token (`where used <= 90` -> `where used <= 91`) with no caller guard changes. Because `90u64 - used` could underflow if `used == 91`, compile-time proof checking fails closed with `exact arithmetic in machine ... may overflow \`u64\`` before any runtime realization.
 
 Check all nine invalid twins with:
 
@@ -61,7 +61,7 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/shared_borrow_field_projection --jobs 4
+python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\cargo-target\debug\omega-latest.exe --filter cli/facts/shared_borrow_field_projection --jobs 4
 ```
 
 `sample_native_gate.py` reports:
@@ -70,9 +70,9 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/shared_borrow_field_projection_through_*` and
-`tests/omega/fail/facts/shared_borrow_field_projection_unproved_*` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+Each of the nine places is pinned twice in the compiler corpus:
+- **Positive native-exit fixtures:** `tests/omega/pass/facts/shared_borrow_field_projection_through_<place>_exit/` (`build.omg`, `main.omg`, `expected_native_exit.txt`), binding `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and recorded in `tests/omega/corpus_native_windows_x86_64.txt` (`built ... exit:0`) and `tests/omega/corpus_outcomes.txt` (`checked`).
+- **Reject twin fixtures:** `tests/omega/fail/facts/shared_borrow_field_projection_through_<place>_rejected/` (`build.omg`, `main.omg`, `expected.txt`), recorded in `tests/omega/corpus_outcomes.txt` (`rejected`).
 
 ## Requirements and Evidence
 
