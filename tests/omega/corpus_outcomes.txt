@@ -3703,6 +3703,7 @@ fail/facts/outcome_structural_evidence_parameter rejected 3617ms expected @97fca
 fail/facts/outcome_structural_evidence_target_body rejected 3179ms expected @97fca7a18f74+wt
 	outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through pick::entry
 fail/facts/owned_qualified_reference_carrier_reuse rejected 369ms expected @ab16f19fe1b1+wt
+	cannot use `carrier.reference` in machine `inspect` state `entry` (statement 1) after `carrier` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `carrier` first
 fail/facts/owned_qualified_reference_field_reuse rejected 1316ms expected @ab16f19fe1b1+wt
 fail/facts/owned_qualified_reference_result_reuse rejected 1305ms expected @ab16f19fe1b1+wt
 fail/facts/owned_qualified_reference_selection_reuse rejected 1288ms expected @ab16f19fe1b1+wt
