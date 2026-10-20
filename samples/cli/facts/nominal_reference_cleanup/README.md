@@ -72,6 +72,61 @@ the compiler rejects all 10 invalid controls at compile time:
 - Positives: `tests/omega/pass/facts/nominal_reference_cleanup_through_<place>_exit` (9 places pinned, each byte-identical to `<place>/main.omg` with native exit 0).
 - Reject twins: `tests/omega/fail/facts/nominal_reference_cleanup_through_<place>_prerequisite` (9 places pinned, each byte-identical to `<place>/invalid/main.omg`, rejecting with `cannot prove automatic cleanup requires Keeper::drop clause keeper.code == 7`).
 
+### Recorded native evidence (macos_arm64)
+
+Measured on `macos_arm64` at revision `fa5d68d80e9a` with the producer built
+from that revision (`opt_level 1`):
+
+```sh
+python3 tools/corpus_gate.py --native --filter pass/facts/nominal_reference_cleanup_through
+```
+
+Before the record the gate reported all nine positives as `new fixture
+(built)`, and the run reported `9 fixtures ({'built': 9})`,
+`executed 9 (exit codes {'0': 9})`, 0 rejected without their expected fragment
+and 0 fail fixtures that did not reject, so the gap was the durable native row,
+not a compiler refusal. The nine rows now read `built ... exit:0
+@fa5d68d80e9a` in `tests/omega/corpus_native_macos_arm64.txt`, spliced in as a
+pure addition (+9 lines, 0 deletions, no timeout rows, LOST 0).
+
+The `--both` leg already carried this fact's nine agreement rows (`built ...
+exit:0 interpreter-exit:0 interpreter:agrees @d7a10cf8ff64+wt` in
+`tests/omega/corpus_both_macos_arm64.txt`), so native-versus-interpreter
+agreement was recorded before this record; what this row adds is the native leg
+its own acceptance names.
+
+The mechanism is exercised on this host rather than merely compiled for it:
+only `target_body` is target-scoped, and its `macos_arm64` body is where the
+cleanup runs — the lent `Keeper` reaches `Keeper::drop`, which writes
+`keeper.output.value = keeper.code` through the retained exclusive reference,
+and the following `check` observes `7` in the original `Counter`. The other
+eight places are target-neutral.
+
+The record discriminates in both directions. Corrupting the authored
+observation in the local positive (`transition output.value == 7` to
+`== 8`) says nothing statically; the program builds and traps, and the gate
+reports `expected native 0, observed built {'exit': 'signal', 'signal': '5'}`
+with the structural move `exit:0` to `exit:signal signal:5` (exit 3).
+Restoring the fixture byte-for-byte returned the same filter to `clean — 1
+fixtures ({'built': 1})`. Corrupting the hook's subject instead
+(`Seed { code: 7 }` to `Seed { code: 8 }`) is refused before execution with
+exactly this row's obligation: `cannot prove automatic cleanup requires at
+selected edge from main state entry after statement 2: Keeper does not
+establish Keeper::drop clause `keeper.code == 7``. A compiler commit landed
+between the record and publication (`ff96e24570b8`, 2 Rust files in the scalar
+conditions check), so the leg was re-measured with a producer rebuilt from that
+base: `clean — 9 fixtures ({'built': 9})`, `executed 9 (exit codes {'0': 9})`,
+0 rejected without their expected fragment, 0 fail fixtures that did not
+reject.
+
+The nine reject twins were re-verified on the check leg: `clean — 9 fixtures
+({'rejected': 9})`, 0 rejected without their expected fragment, 0 fail
+fixtures that did not reject.
+
+Remaining open on other hosts: `tests/omega/corpus_native_linux_x86_64.txt` and
+`tests/omega/corpus_native_windows_x86_64.txt` carry no row for this fact and
+need those hosts; `linux_arm64` has no native golden in this checkout.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CML4` intact reference-bearing nominal receiver requirement ([TASKS.md](../../../../TASKS.md)).
