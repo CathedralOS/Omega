@@ -6852,7 +6852,8 @@ fail/proofs/wrapping_zero_product_does_not_cancel_factor rejected 3456ms expecte
 fail/proofs/zero_value_executable_rejected rejected 869ms expected @a9ae30e1c334+wt
 fail/proofs/zero_value_gated_home_rejected rejected 840ms expected @a9ae30e1c334+wt
 fail/providers/applied_binding_borrowed_result_wrong_source rejected 1597ms expected @a9ae30e1c334+wt
-fail/providers/applied_binding_field_wrong_receiver rejected 7284ms expected @23c57bab5d6a+wt
+fail/providers/applied_binding_field_wrong_receiver rejected 1257ms expected @77554b7685c5+wt
+	no provider is selected for boundary requirement `Reading::read`, which the program entry reaches on target `macos_arm64`
 fail/providers/applied_binding_mutable_result_live_source_write rejected 1577ms expected @a9ae30e1c334+wt
 fail/providers/applied_binding_unused_const_carrier rejected 476ms expected @ff11b3a0f8c7
 	const parameter `Count` of `Parent` requires an integer literal argument or an in-scope const parameter, got `bool`

@@ -1,5 +1,8 @@
 // A bool provider cannot settle the same field declaration applied to u8.
 // The consumer demands that u8 application; no argument-type mismatch masks it.
+// The entry context is an exact data declaration, so the two applications of
+// `Session` are exact field types rather than one generic context applied to
+// `u64`: provider selection still has to answer the `Session<u8>` field.
 
 public boundary trait Reading<Value> { machine read() -> i32; }
 public boundary trait UnsignedReading: Reading<u64> { machine choose_unsigned() -> i32; }
@@ -24,10 +27,10 @@ macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProv
 }
 data Session<Value> { value: Value; }
 data Wrapper<Value> { value: Value; }
-data Main<Value> {
-    unsigned: Session<Value>;
+data Main {
+    unsigned: Session<u64>;
     boolean: Session<u8>;
-    nested: Wrapper<Wrapper<Session<Value>>>;
+    nested: Wrapper<Wrapper<Session<u64>>>;
 }
 machine unsigned_observed(session: &Session<u64>) -> i32 reaches Reading {
     Reading<u64>::read()
@@ -35,7 +38,7 @@ machine unsigned_observed(session: &Session<u64>) -> i32 reaches Reading {
 machine boolean_observed(session: &Session<u8>) -> i32 reaches Reading {
     Reading<u8>::read()
 }
-machine Main::main<'activation>(main: &'activation mut Main<u64>)
+machine Main::main(main: &mut Main)
 reaches Reading + UnsignedReading + BooleanReading crashes Trap {
     let first: i32 = unsigned_observed(&main.unsigned);
     let second: i32 = boolean_observed(&main.boolean);
