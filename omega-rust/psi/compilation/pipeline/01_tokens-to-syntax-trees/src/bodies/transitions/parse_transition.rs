@@ -44,7 +44,15 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     // In particular, ordinary case payloads and proof-bearing payloads retain
     // the same owner while their selected fields are transferred separately.
     for subject_expression in &mut subject {
-        if expression_is_place(syntax_trees, *subject_expression) {
+        // A closed boolean subject needs no capture: there is no evaluation to
+        // perform once and no declared pattern carrier to infer. Capturing it
+        // would hide the literal behind a generated name, and the exhaustiveness
+        // proof reads the subject's own value to close
+        // `transition true { true -> X }` like `_` instead of counting one arm
+        // of a boolean axis.
+        if expression_is_place(syntax_trees, *subject_expression)
+            || expression_is_closed_boolean(syntax_trees, *subject_expression)
+        {
             continue;
         }
         let captured = *subject_expression;
@@ -294,6 +302,26 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
     let statements = HandleSpan::from_parts_or_empty(start, count);
     Ok((statements, input))
+}
+
+/// A boolean literal, or an equality of two boolean literals: the subject shapes
+/// whose value is fixed without evaluation, so no capture binds anything.
+fn expression_is_closed_boolean(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
+    match syntax_trees.expressions.expression(expression) {
+        ExpressionNode::Boolean(_) => true,
+        ExpressionNode::Binary(binary) => {
+            binary.operator == syntax_trees::expression::BinaryOperator::Equal
+                && matches!(
+                    syntax_trees.expressions.expression(binary.left),
+                    ExpressionNode::Boolean(_)
+                )
+                && matches!(
+                    syntax_trees.expressions.expression(binary.right),
+                    ExpressionNode::Boolean(_)
+                )
+        }
+        _ => false,
+    }
 }
 
 /// A pure re-readable place (Name / self / member chain) -- the same gate as

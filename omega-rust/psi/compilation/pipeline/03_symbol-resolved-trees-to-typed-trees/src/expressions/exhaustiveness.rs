@@ -558,6 +558,30 @@ pub(crate) fn closed_boolean_guard(
     }
 }
 
+/// A closed Boolean guard, seeing through the name a desugared subject introduces.
+///
+/// `transition true { true -> X }` does not reach here as `true == true`: the
+/// subject is a resolved name whose declaration carries the literal, so the arm
+/// arrives as `<subject-name> == true`. `closed_boolean_guard` reads that name as
+/// an ordinary subject and the dispatch as a one-sided boolean axis, which
+/// rejects an authored block that cannot fall through at all. Resolve the name to
+/// its declared initializer and decide the arm from the value it denotes; a name
+/// that is not a constant declaration stays unknown, as before.
+fn closed_boolean_guard_through_names(
+    program: &SymbolResolvedTrees,
+    expression: ExpressionHandle,
+) -> Option<bool> {
+    if let Some(value) = closed_boolean_guard(program, expression) {
+        return Some(value);
+    }
+    let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(expression)
+    else {
+        return None;
+    };
+    let declaration = program.const_declaration(path.symbol)?;
+    closed_boolean_guard(program, declaration.initializer)
+}
+
 fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> ArmShape {
     let TransitionGuardNode::When(expression) = guard else {
         return ArmShape::Default;
@@ -595,17 +619,40 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
                 if let ExpressionNode::Boolean(value) =
                     program.tables.bodies.expressions.expression(binary.right)
                 {
+                    let value = *value;
+                    // `transition true { true -> .. }` desugars to a name against
+                    // a boolean literal: a closed subject decides the arm, so the
+                    // block closes like `_` instead of counting half an axis.
+                    if let Some(subject) =
+                        closed_boolean_guard_through_names(program, binary.left)
+                    {
+                        return if subject == value {
+                            ArmShape::Default
+                        } else {
+                            ArmShape::Opaque
+                        };
+                    }
                     return ArmShape::Finite(vec![FiniteConstraint::Bool {
                         subject: binary.left,
-                        value: *value,
+                        value,
                     }]);
                 }
                 if let ExpressionNode::Boolean(value) =
                     program.tables.bodies.expressions.expression(binary.left)
                 {
+                    let value = *value;
+                    if let Some(subject) =
+                        closed_boolean_guard_through_names(program, binary.right)
+                    {
+                        return if subject == value {
+                            ArmShape::Default
+                        } else {
+                            ArmShape::Opaque
+                        };
+                    }
                     return ArmShape::Finite(vec![FiniteConstraint::Bool {
                         subject: binary.right,
-                        value: *value,
+                        value,
                     }]);
                 }
             }
