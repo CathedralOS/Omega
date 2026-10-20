@@ -1323,6 +1323,15 @@ pass/facts/guarded_line_loan_through_other_machine_exit built 5122ms exit:0 @866
 pass/facts/guarded_line_loan_through_other_state_exit built 5057ms exit:0 @866a955e52f8
 pass/facts/guarded_line_loan_through_parameter_exit built 5136ms exit:0 @866a955e52f8
 pass/facts/guarded_line_loan_through_target_body_exit built 5033ms exit:0 @866a955e52f8
+pass/facts/ieee_float_ordered_comparison_through_call_result_exit built 37025ms exit:0 @a6b4f5c6d966+wt
+pass/facts/ieee_float_ordered_comparison_through_const_name_exit built 47491ms exit:0 @a6b4f5c6d966+wt
+pass/facts/ieee_float_ordered_comparison_through_field_exit built 37024ms exit:0 @a6b4f5c6d966+wt
+pass/facts/ieee_float_ordered_comparison_through_local_exit built 47198ms exit:0 @a6b4f5c6d966+wt
+pass/facts/ieee_float_ordered_comparison_through_match_join_exit built 46034ms exit:0 @a6b4f5c6d966+wt
+pass/facts/ieee_float_ordered_comparison_through_other_machine_exit built 43971ms exit:0 @a6b4f5c6d966+wt
+pass/facts/ieee_float_ordered_comparison_through_other_state_exit built 43852ms exit:0 @a6b4f5c6d966+wt
+pass/facts/ieee_float_ordered_comparison_through_parameter_exit built 43548ms exit:0 @a6b4f5c6d966+wt
+pass/facts/ieee_float_ordered_comparison_through_target_body_exit built 36731ms exit:0 @a6b4f5c6d966+wt
 pass/facts/ieee_guard_i32_from_f64_call_result built 13164ms exit:0 @1cf00aa9ba90+wt
 pass/facts/ieee_guard_i32_from_f64_const_name built 13219ms exit:0 @1cf00aa9ba90+wt
 pass/facts/ieee_guard_i32_from_f64_field built 13024ms exit:0 @1cf00aa9ba90+wt

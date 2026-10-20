@@ -42,11 +42,67 @@ omega run --both samples/cli/facts/ieee_float_ordered_comparison/other_machine/m
 omega run --both samples/cli/facts/ieee_float_ordered_comparison/target_body/main.omg
 ```
 
-Each place has an `invalid/` twin that widens the upper bound to `3.5` (violating `reading <= 3.0`), causing entry into `verify_window` to fail closed at compile time. The control must reject with `cannot prove requires contract for call verify_window`. Check each twin with:
+### Reject twins and obligation class
+
+Each place has an `invalid/` twin (`sample.json` + `expected.txt`) that breaks only the construct's own domain/contract upper bound (widening `2.5` to `3.5`, violating the downstream precondition `reading <= 3.0`), never a post-hoc caller guard:
+- **Obligation class (all 9 places):** Call contract precondition (`cannot prove requires contract for call verify_window`) when the upstream IEEE `f64` interval upper bound is widened from `2.5` to `3.5`, leaving `reading >= 1.0 && reading <= 3.0` unprovable at `verify_window(reading)`.
+
+Check each twin with:
 
 ```sh
 omega --check samples/cli/facts/ieee_float_ordered_comparison/<place>/invalid/main.omg
 ```
+
+| Place | Reject twin | Obligation class | Authored diagnostic fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+
+## Pinned fixtures
+
+All 18 positive and reject places are pinned as byte-identical copies in the compiler corpus under `tests/omega/{pass,fail}/facts/`:
+
+| Place | Positive fixture (`expected_native_exit.txt` = `0`) | Reject twin fixture (`expected.txt`) |
+| --- | --- | --- |
+| local | [`pass/facts/ieee_float_ordered_comparison_through_local_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_local_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_local_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_local_rejected/main.omg) |
+| field | [`pass/facts/ieee_float_ordered_comparison_through_field_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_field_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_field_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_field_rejected/main.omg) |
+| parameter | [`pass/facts/ieee_float_ordered_comparison_through_parameter_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_parameter_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_parameter_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_parameter_rejected/main.omg) |
+| call result | [`pass/facts/ieee_float_ordered_comparison_through_call_result_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_call_result_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_call_result_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_call_result_rejected/main.omg) |
+| match join | [`pass/facts/ieee_float_ordered_comparison_through_match_join_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_match_join_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_match_join_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_match_join_rejected/main.omg) |
+| const name | [`pass/facts/ieee_float_ordered_comparison_through_const_name_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_const_name_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_const_name_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_const_name_rejected/main.omg) |
+| another state | [`pass/facts/ieee_float_ordered_comparison_through_other_state_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_other_state_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_other_state_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_other_state_rejected/main.omg) |
+| another machine | [`pass/facts/ieee_float_ordered_comparison_through_other_machine_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_other_machine_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_other_machine_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_other_machine_rejected/main.omg) |
+| another target body | [`pass/facts/ieee_float_ordered_comparison_through_target_body_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_target_body_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_target_body_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_target_body_rejected/main.omg) |
+
+## Measured discrimination
+
+- **Runtime oracle discrimination:** A 1-token perturbation of the demanded verification result in `local/main.omg` (`transition probe(reading) == 0` perturbed to `transition probe(reading) == 1`) routes execution to `state bad() { crash Trap; }` and traps both engines identically: `native exit -1073741795` (`0xC000001D` illegal instruction trap on `windows_x86_64`) and `interp crash: Trap (host presentation agrees)`.
+- **Static domain-construction discrimination:** A 1-token perturbation of the float literal at `Reading` construction in `local/main.omg` (`Reading { value: 2.0 }` perturbed to `Reading { value: 3.25 }`) fails closed before code generation with ``error: data `Reading` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)``.
+- **Static contract-refinement discrimination:** A 1-token perturbation of the interval upper bound from `2.5` to `3.5` in `<place>/invalid/main.omg` fails closed at the consuming `verify_window` call with ``error: cannot prove requires contract for call verify_window ... (needs fact `reading >= 1.0 && reading <= 3.0` here)``.
+
+## Run record
+
+Producer: `omega` (`--build-profile` reporting `{"schema":"omega-compiler-build-profile-v1","opt_level":"1"}`). Host: `windows_x86_64`. Command per place: `omega run --both <place>/main.omg`.
+
+| Place | Positive (`--both`) | Reject twin (`--check`) |
+| --- | --- | --- |
+| root | `native exit 0` / `interp exit: 0` | — |
+| local | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: value >= 1.0 && value <= 3.0` |
+| field | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: holder.reading.value >= 1.0 && holder.reading.value <= 3.0` |
+| parameter | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: value >= 1.0 && value <= 3.0` |
+| call result | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: source(reading) >= 1.0 && source(reading) <= 3.0` |
+| match join | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: value >= 1.0 && value <= 3.0` |
+| const name | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: value >= 1.0 && value <= 3.0` |
+| another state | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: value >= 1.0 && value <= 3.0` |
+| another machine | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from deliver: value >= 1.0 && value <= 3.0` |
+| another target body | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: reading.value >= 1.0 && reading.value <= 3.0` |
 
 ## Requirements and Evidence
 
@@ -63,5 +119,5 @@ This row establishes that an IEEE `f64` ordered comparison guard establishing `r
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** The backend selects IEEE 754 ordered comparison instructions: on `x86_64`, `ucomisd` with parity flag check (`jp`/`jbe`) ensuring unordered/NaN results branch to rejection, and scalar move instructions (`movsd`); on `arm64`, `fcmp` setting condition codes (checked via `b.ls`/`b.hi` respecting unordered/NaN) and `fmov`. Register homes in floating-point register groups (`xmm`/`v`) and stack frames with appropriate alignment are assigned.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Relocation fixups resolve symbolic displacements and float literal byte-pool references, basic blocks and branch offsets reflow across entry and return epilogues, transitive machine-state footprint evidence is validated (`actual_transitive_footprint ⊆ permitted_transitive_use`), and native executable binaries (PE/ELF/Mach-O) are emitted, passing native execution and Terminal Psi agreement (`omega run --both`, exit 0) across all hosted targets.
 
-The row is verified by `samples/cli/facts/ieee_float_ordered_comparison` where every positive records native exit 0 and Terminal Psi execution agreement (`omega run --both`), and every invalid twin rejects with `cannot prove requires contract for call verify_window`.
+The row is verified by `samples/cli/facts/ieee_float_ordered_comparison` and pinned under `tests/omega/{pass,fail}/facts/ieee_float_ordered_comparison_through_*`, where every positive records native exit 0 and Terminal Psi execution agreement (`omega run --both`), and every invalid twin rejects with `cannot prove requires contract for call verify_window`.
 What remains open: Dynamic NaN-tag payload preservation across foreign FFI boundary crossings and non-standard denormalized subnormal arithmetic flush-to-zero hardware modes.
