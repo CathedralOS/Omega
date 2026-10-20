@@ -101,6 +101,48 @@ This row established coverage, not a compiler repair: all ten positive
 projects already ran green on the base, and the gap was that no host-pinned
 golden row had been recorded. No compiler source changed.
 
+## Pinned golden records
+
+The fact is pinned in both corpus goldens on main.
+
+- **Check leg** (`tests/omega/corpus_outcomes.txt`): 9
+  `checked ... check-target:macos_arm64` rows for the positive places and 9
+  `rejected` rows for the twins, recorded at revision `cc6fcc708be` by the
+  check leg filtered to this fact's 18 fixtures
+  (`python3 tools/corpus_gate.py --filter <the 18 fixture paths> --record`,
+  `OMEGA_CORPUS_JOBS=2`, one host-wide record slot). The reject diagnostics name
+  the refusing machine and state: six places report ``exact arithmetic in machine
+  `main` state `entry` local `diff` may overflow `u64` ``; another state reports
+  ``machine `main` state `evaluate` ``; another machine reports ``machine
+  `forward` state `entry` terminal expression ``; and another target body reports
+  ``machine `compute_target` state `entry` terminal expression `` once for each
+  hosted target. A fresh check-leg run of the same 18 fixtures on that revision
+  is clean: `0 structural moves, 0 rejected without their expected fragment,
+  0 fail fixtures did not reject`.
+- **Native leg** (`tests/omega/corpus_native_macos_arm64.txt`): the nine
+  `built ... exit:0` rows are retained evidence stamped `@143f0b3e0428`. They
+  were re-measured on revision `cc6fcc708be` by a clean `--native` run:
+  `9 fixtures {'built': 9}`, 9 of 9 authored exits met, 0 stdout differences,
+  no structural move (the `perf_faster` flags come from a job-count difference
+  against the golden and are the gate's own noise warning). No re-record was
+  needed to retain them; a later session refreshing the stamp should expect to
+  change only the `@revision` token.
+
+Both oracles were shown to discriminate on that revision, so the pinned rows
+are evidence rather than a description of the environment.
+
+- **Native oracle.** Mutating the `local` positive program's own outcome
+  (`state done() {}` to `state done() { crash Trap; }`, which still checks) made
+  the built artifact trap: the gate reported
+  `expected native 0, observed built {'exit': 'signal', 'signal': '5'}`,
+  1 unmet oracle, 1 structural move, exit 3, while the other eight places still
+  exited 0. Restoring the program returned the native run to clean exit 0.
+- **Check oracle.** Replacing one twin's authored `expected.txt` fragment with an
+  unrelated sentence moved its row's `expected_satisfied` from `True` to `False`:
+  the gate reported `1 rejected without their expected fragment ... it no longer
+  pins its authored reason`, verdict `regressed`, exit 3. Restoring the fragment
+  returned the check run to clean exit 0.
+
 ## Dispatch discrimination
 
 The obligation's class decides where a violation is caught. For this fact the
