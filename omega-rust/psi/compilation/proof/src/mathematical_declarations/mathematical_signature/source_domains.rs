@@ -401,12 +401,7 @@ impl Elaborator<'_> {
     ) -> Result<bool, Vec<Diagnostic>> {
         let expected = self.source_domain_head(signature, expected, budget)?;
         if let Some(reference) = self.source_alias_reference(expected)
-            && !matches!(
-                self.program
-                    .type_reference_table
-                    .type_reference(validation::peel_arithmetic_policy(self.program, reference)),
-                TypeReferenceNode::Constrained { .. }
-            )
+            && !self.source_requires_exact_qualification(reference)
             && let Some(expression) = expression
             && validation::has_anonymous_numeric_results(self.program, expression)
         {
@@ -448,25 +443,27 @@ impl Elaborator<'_> {
         })
     }
 
+    fn source_requires_exact_qualification(&self, reference: TypeReferenceHandle) -> bool {
+        self.scalar_operand_carrier(reference).is_none()
+            && matches!(
+                self.program
+                    .type_reference_table
+                    .type_reference(validation::peel_arithmetic_policy(self.program, reference)),
+                TypeReferenceNode::Constrained { .. }
+            )
+    }
+
     fn source_references_correspond(
         &self,
         left: TypeReferenceHandle,
         right: TypeReferenceHandle,
     ) -> bool {
-        // The primitive query deliberately sees through qualification. Its
-        // carrier/policy comparison is sufficient only for policy-only types;
-        // any other theory must retain its exact normalized identity.
-        if matches!(
-            self.program
-                .type_reference_table
-                .type_reference(validation::peel_arithmetic_policy(self.program, left)),
-            TypeReferenceNode::Constrained { .. }
-        ) || matches!(
-            self.program
-                .type_reference_table
-                .type_reference(validation::peel_arithmetic_policy(self.program, right)),
-            TypeReferenceNode::Constrained { .. }
-        ) {
+        // Internal intervals are value facts, not nominal source theories.
+        // Preserve exact identity for every other qualification; sharing a
+        // scalar carrier cannot establish predicates or issuer provenance.
+        if self.source_requires_exact_qualification(left)
+            || self.source_requires_exact_qualification(right)
+        {
             return self
                 .program
                 .type_identity(TypeIdentityRequest::ordinary(left))
