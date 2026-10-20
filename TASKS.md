@@ -6088,8 +6088,11 @@ wait for Cathedral's instruction coverage. The interpreter is
   it across suspension and release in reverse order. Ordinary calls/core
   declarations expose it; no new keyword or owner decision is needed.
   - The bounded serial establishment/access/release path is implemented and
-    pinned by `samples/cli/facts/bounded_activation` and its matching corpus
-    fixtures. Ordinary sealed core calls retain static bounds and runtime
+    pinned by `samples/cli/facts/bounded_activation` (including all nine
+    standard transport places and 18
+    `bounded_activation_through_<place>_{exit,rejected}` corpus fixtures) and
+    its matching mechanism corpus fixtures. Ordinary sealed core calls retain
+    static bounds and runtime
     committed extents through Terminal operations, activation identity, exact
     loan custody, reverse release and stable backing. Current-flow replay
     consumes the foundation ledger; native fixed frames cover complete bounds

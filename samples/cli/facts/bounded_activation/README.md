@@ -22,23 +22,67 @@ probe and unwind coverage; Terminal keeps stable backing per activation.
 Successful committed bytes are initialized before readable loans are exposed.
 Requests above the bound produce `Rejected`, without clamping or trapping.
 
-The mechanism witnesses exercise distinct paths rather than a transport matrix:
+All nine standard transport places (`local`, `field`, `parameter`, `call_result`,
+`match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) and
+their `invalid/` reject twins carry the bounded activation claim
+(`Activation::try_claim<8>(3)`, committed byte write/read `37u8`, LIFO release,
+and over-bound `9` rejection) across all four hosted targets alongside the
+mechanism witnesses:
 
-| Witness | Obligation |
-| --- | --- |
-| root and `field_transport` | Same 3/37/9 observation, local and owned field transport |
-| `parameter_committed` | Runtime operand through a helper; scalar return after release |
-| `named_attempt` | Conditional claim survives a named sum before selection |
-| `named_bound`, `computed_bound`, `generic_bound` | Closed bound through static identity and specialization |
-| `zero_bound`, `unsigned_max_request` | Empty grant and unsigned checked admission |
-| `nested_lifo`, `multiple_bounds` | Co-live demand, reverse release and disjoint full backing |
-| `cleanup_pure` and the cleanup-crossing reject control | Real nominal hook preserves live claims only with a closed pure call graph |
-| `page_bound` | Full 8192-byte bound crosses a 4096-byte host page with committed extent three |
+| Place / Witness | Positive (`main.omg`) | Reject twin (`invalid/main.omg`) | Obligation |
+| --- | --- | --- | --- |
+| root | [`main.omg`](main.omg) | - | Root probe committing 3 bytes under bound 8, writing/reading byte 2 as 37u8, releasing, and observing `Rejected` for 9. |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | Local `ActivationClaim` binding (`live`), `bytes` slice borrow, write/read, release, and over-bound check. |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | Linear `ActivationClaim` transported through `Holder.claim` field (`&mut holder.claim`). |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Runtime `committed: u64` parameter passed to `exercise(3)` and `exercise(9)`. |
+| call_result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Helper machine `run_attempt() -> bool` establishes, accesses, releases, and verifies over-bound rejection. |
+| match_join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `ActivationClaimAttempt` unified across conditional `match` arms before claim access and release. |
+| const_name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Symbolic constants (`BOUND`, `COMMITTED`, `OVER_BOUND`, `MARKER`) supply static bound and runtime extents. |
+| other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Linear `ActivationClaim` carried across state transition `state hop(claim) -> state established(claim)`. |
+| other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Cross-machine `Accessor::write_read(bytes)` accesses the borrowed activation slice before release. |
+| target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped `target_exercise` bodies across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`. |
+| `field_transport`, `parameter_committed`, `named_attempt`, `named_bound`, `computed_bound`, `generic_bound`, `zero_bound`, `unsigned_max_request`, `nested_lifo`, `multiple_bounds`, `cleanup_pure`, `page_bound` | `<witness>/main.omg` | `tests/omega/fail/facts/bounded_activation_*_rejected` | Specialized mechanism witnesses for generic/computed/page bounds, co-live LIFO claims, and pure nominal cleanup hooks. |
 
-Matching `bounded_activation_*` corpus fixtures pin both engine exits as zero.
+Matching `bounded_activation_*` and `bounded_activation_through_<place>_{exit,rejected}` corpus fixtures pin both engine exits as zero and verify source-check rejections.
 Source assertions check extent and contents; those values are not printed
-measurements. An independent oracle falsifier changes the expected byte to 36
-while retaining the store of 37 and must reach a matching runtime Trap.
+measurements. Perturbing a single token in the root oracle (`observed == 37u8` -> `observed == 36u8`) while retaining the store of 37 causes both engines to trap (`interp crash: Trap`, `native exit -1073741795`).
+
+## Pinned fixtures
+
+- Standard 9-place positive fixtures (9):
+  - `tests/omega/pass/facts/bounded_activation_through_local_exit`
+  - `tests/omega/pass/facts/bounded_activation_through_field_exit`
+  - `tests/omega/pass/facts/bounded_activation_through_parameter_exit`
+  - `tests/omega/pass/facts/bounded_activation_through_call_result_exit`
+  - `tests/omega/pass/facts/bounded_activation_through_match_join_exit`
+  - `tests/omega/pass/facts/bounded_activation_through_const_name_exit`
+  - `tests/omega/pass/facts/bounded_activation_through_other_state_exit`
+  - `tests/omega/pass/facts/bounded_activation_through_other_machine_exit`
+  - `tests/omega/pass/facts/bounded_activation_through_target_body_exit`
+- Standard 9-place reject fixtures (9):
+  - `tests/omega/fail/facts/bounded_activation_through_local_rejected`
+  - `tests/omega/fail/facts/bounded_activation_through_field_rejected`
+  - `tests/omega/fail/facts/bounded_activation_through_parameter_rejected`
+  - `tests/omega/fail/facts/bounded_activation_through_call_result_rejected`
+  - `tests/omega/fail/facts/bounded_activation_through_match_join_rejected`
+  - `tests/omega/fail/facts/bounded_activation_through_const_name_rejected`
+  - `tests/omega/fail/facts/bounded_activation_through_other_state_rejected`
+  - `tests/omega/fail/facts/bounded_activation_through_other_machine_rejected`
+  - `tests/omega/fail/facts/bounded_activation_through_target_body_rejected`
+- Additional mechanism & control fixtures:
+  - `tests/omega/pass/facts/bounded_activation_{main,field_transport,parameter_committed,named_attempt,named_bound,computed_bound,generic_bound,zero_bound,unsigned_max_request,nested_lifo,multiple_bounds,cleanup_pure,page_bound}_exit`
+  - `tests/omega/fail/facts/bounded_activation_{escape,stale_loan,wrong_activation,release_order,cleanup_crossing}_rejected`
+
+| Obligation Class | How This Fact Row Establishes It |
+|---|---|
+| **Establishment** | `Activation::try_claim<8>(3)` checks `committed <= bound` (`3 <= 8`) and establishes a caller-scoped linear `ActivationClaim` whose borrowed `&mut [u8]` slice has runtime length `3`, while `Activation::try_claim<8>(9)` returns `ActivationClaimAttempt::Rejected` without trapping or clamping ([activation storage](../../../../wiki/spec/resources/activation_storage.md)). |
+| **Identity and lifetime** | `ActivationClaim::bytes(&mut live)` ties the mutable slice loan `&mut [u8]` to the linear `ActivationClaim` owner (`live` or `holder.claim`), requiring all slice accesses (`write_read(bytes)`) to complete before `ActivationClaim::release(live)` retires the claim. |
+| **Composition** | Across all nine standard transport places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`), the linear `ActivationClaim` and its `&mut [u8]` view compose through record fields, state hops, cross-machine calls, and target bodies. |
+| **Soundness boundaries** | Each `<place>/invalid/main.omg` attempts `ActivationClaim::release(...)` while `bytes` is still borrowed and used afterward, failing closed in source checking with `local borrow \`bytes\` is still active`; `escape`, `wrong_activation`, `release_order`, and `cleanup_crossing` reject escaping claims, wrong activation release, non-LIFO release, and suspension crossings. |
+| **Checked-to-Terminal Psi lowering (`Psi 05–07`)** | `Activation::try_claim`, `ActivationClaim::bytes`, and `ActivationClaim::release` lower into canonical `PSITERM\0` bounded-activation operations and execute in the Terminal Psi interpreter (`omega run --both`). |
+| **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)** | `ProgramEntry` settles for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`; fixed-bound activation storage and slice descriptor calling plans validate without any external provider. |
+| **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)** | Backend lowering reserves the static bound in the activation frame, composes worst-case stack usage (WCSU) and page probes (`page_bound`), and zero-initializes committed bytes before exposing `&mut [u8]`. |
+| **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)** | Native PE/ELF/Mach-O images emit and execute on `windows_x86_64` and `linux_x86_64` with exit code `0`, agreeing with Terminal Psi (`omega run --both`). |
 
 The four original one-obligation negative controls under `tests/omega/fail/facts` reject
 escape and stale loans during source checking, and wrong activation and non-LIFO

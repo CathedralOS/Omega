@@ -1,6 +1,5 @@
+// Fact: Commit three bytes under bound eight, write/read the committed region, release it, and observe checked rejection of a request for nine bytes.
 // Expected exit: 0
-// Commit three bytes under bound eight, write/read the committed region,
-// release it, and observe checked rejection of a request for nine bytes.
 use omega::language::core::activation;
 
 machine write_read(bytes: &mut [u8]) -> u8 {

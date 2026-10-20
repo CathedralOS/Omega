@@ -2070,6 +2070,39 @@ fail/facts/bounded_activation_release_order_rejected rejected 38642ms expected @
 fail/facts/bounded_activation_stale_loan_rejected rejected 14297ms expected @03517371da00
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
 	state `release` receives `owner` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/bounded_activation_through_call_result_rejected rejected 5599ms expected @f74c72195fbf+wt
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/facts/bounded_activation_through_const_name_rejected rejected 5592ms expected @f74c72195fbf+wt
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/facts/bounded_activation_through_field_rejected rejected 6604ms expected @f74c72195fbf+wt
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `holder.claim` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/facts/bounded_activation_through_local_rejected rejected 6045ms expected @f74c72195fbf+wt
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/facts/bounded_activation_through_match_join_rejected rejected 5937ms expected @f74c72195fbf+wt
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/facts/bounded_activation_through_other_machine_rejected rejected 5981ms expected @f74c72195fbf+wt
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/facts/bounded_activation_through_other_state_rejected rejected 7259ms expected @f74c72195fbf+wt
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/facts/bounded_activation_through_parameter_rejected rejected 5167ms expected @f74c72195fbf+wt
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/facts/bounded_activation_through_target_body_rejected rejected 5012ms expected @f74c72195fbf+wt
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 fail/facts/bounded_activation_wrong_activation_rejected rejected 32809ms expected @03517371da00
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
 fail/facts/bounded_products_through_call_result_rejected rejected 3984ms expected @86e2299c7307
@@ -9401,6 +9434,15 @@ pass/facts/boundary_provider_call_through_other_machine_exit checked 84245ms che
 pass/facts/boundary_provider_call_through_other_state_exit checked 83776ms check-target:macos_arm64 @2f87a2fd7fac+wt
 pass/facts/boundary_provider_call_through_parameter_exit checked 84256ms check-target:macos_arm64 @2f87a2fd7fac+wt
 pass/facts/boundary_provider_call_through_target_body_exit checked 84193ms check-target:macos_arm64 @2f87a2fd7fac+wt
+pass/facts/bounded_activation_through_call_result_exit checked 13151ms check-target:macos_arm64 @f74c72195fbf+wt
+pass/facts/bounded_activation_through_const_name_exit checked 13627ms check-target:macos_arm64 @f74c72195fbf+wt
+pass/facts/bounded_activation_through_field_exit checked 15654ms check-target:macos_arm64 @f74c72195fbf+wt
+pass/facts/bounded_activation_through_local_exit checked 15521ms check-target:macos_arm64 @f74c72195fbf+wt
+pass/facts/bounded_activation_through_match_join_exit checked 13145ms check-target:macos_arm64 @f74c72195fbf+wt
+pass/facts/bounded_activation_through_other_machine_exit checked 13338ms check-target:macos_arm64 @f74c72195fbf+wt
+pass/facts/bounded_activation_through_other_state_exit checked 13865ms check-target:macos_arm64 @f74c72195fbf+wt
+pass/facts/bounded_activation_through_parameter_exit checked 12979ms check-target:macos_arm64 @f74c72195fbf+wt
+pass/facts/bounded_activation_through_target_body_exit checked 13714ms check-target:macos_arm64 @f74c72195fbf+wt
 pass/facts/bounded_products_through_call_result_exit checked 13581ms check-target:macos_arm64 @86e2299c7307
 pass/facts/bounded_products_through_const_name_exit checked 13614ms check-target:macos_arm64 @86e2299c7307
 pass/facts/bounded_products_through_field_exit checked 13578ms check-target:macos_arm64 @86e2299c7307
