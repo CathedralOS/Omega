@@ -1249,13 +1249,13 @@ pub(super) fn discard_subtree(
 /// selector prefixes enumerate their declared candidates, each of which must
 /// retain its live permission. The final backing may use an interpreted byte
 /// presentation: authority does not require it to have the referent's type.
-pub(super) fn window_descriptors<'live>(
+pub(super) fn window_descriptors(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
-    live: &'live LiveDefinitions,
+    live: &LiveDefinitions,
     place: PlaceId,
     path: &[StructuralPathSegment],
-) -> Result<Vec<&'live ReferenceStorage>, LoweringError> {
+) -> Result<Vec<ReferenceStorage>, LoweringError> {
     let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let crossing = path
         .iter()
@@ -1282,6 +1282,8 @@ pub(super) fn window_descriptors<'live>(
             let leaf = live
                 .references
                 .get(&(carrier, candidate.clone()))
+                .cloned()
+                .or_else(|| observations::observe(function, live, types, carrier, &candidate))
                 .ok_or_else(invalid)?;
             if leaf_type(types, root, &candidate) != Some(leaf.carrier_type) {
                 return Err(invalid());

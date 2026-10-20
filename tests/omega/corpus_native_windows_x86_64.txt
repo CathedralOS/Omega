@@ -154,6 +154,7 @@ pass/borrows/borrowed_array_loop checked 8047ms @91bbf3e29aa9
 pass/borrows/borrowed_case_leaf_copy_exit built 7751ms exit:70 @91bbf3e29aa9
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 7713ms exit:70 @91bbf3e29aa9
 pass/borrows/borrowed_sum_dispatch checked 7982ms @91bbf3e29aa9
+pass/borrows/borrowed_window_parameter_provenance_exit built 43351ms exit:0 @b24be450e4ce+wt
 pass/borrows/branch_selected_record_composed_receiver_exit built 8001ms exit:70 @91bbf3e29aa9
 pass/borrows/branch_selected_record_receiver_exit built 7842ms exit:70 @91bbf3e29aa9
 pass/borrows/callee_returned_shared_reborrow_chain_exit built 8032ms exit:0 @91bbf3e29aa9

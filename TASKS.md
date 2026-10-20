@@ -586,12 +586,7 @@ defines the complete product bar.
   - **Aggregate construction, replacement and reads.** Finish runtime/case
     projections of stored references and opaque incoming referents that need
     retained inner-loan evidence; a reference-shaped type alone must not
-    invent it. Omega's
-    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_windows.rs`
-    needs exact activation/incoming storage and retained descriptor origins;
-    complete missing provenance cases, including values arriving as owned
-    parameters/block arguments, without double disposal or a fabricated move
-    window. Unbounded `UInt`/`Int` fields have no runtime
+    invent it. Unbounded `UInt`/`Int` fields have no runtime
     representation and stay rejected. `pass/filesystem/windows_canonicalize_exit`
     is recorded rejected ("performed write has unknown destination origins")
     and needs its stored UnitResult; coordinate **FILESYSTEM-RELEASE-CONTRACT**,
@@ -600,6 +595,7 @@ defines the complete product bar.
     `pass/expressions/borrow_carrying_data_field_exit`,
     `pass/borrows/stored_reference_projection_exit`,
     `pass/borrows/nested_reference_crossings_exit`,
+    `pass/borrows/borrowed_window_parameter_provenance_exit` (0),
     `pass/collections/runtime_{projected_element_descriptor,owned_descriptor_parameter}_read_exit`
     (0; projected views keep their live extent and backing through borrowed
     and owned record arrivals), with

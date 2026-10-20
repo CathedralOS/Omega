@@ -17,7 +17,22 @@ pub(in super::super) fn storage_regions(
     // rebasing resident leaves. The logical path can cross several carriers;
     // incoming descriptor origins acquire a typed Referent storage cursor;
     // explicit writes may install known leaves there without seeding pointees.
-    let mut cursors = vec![(source, Vec::new())];
+    let mut cursors = if let Some(sources) = live.borrowed_reference_sources.get(&source) {
+        let sources = sources
+            .as_ref()
+            .filter(|sources| !sources.is_empty())
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+        let mut cursors = Vec::with_capacity(sources.len());
+        for candidate in sources {
+            let cursor = (candidate.place, candidate.path.clone());
+            if !cursors.contains(&cursor) {
+                cursors.push(cursor);
+            }
+        }
+        cursors
+    } else {
+        vec![(source, Vec::new())]
+    };
     let mut segment_start = 0;
     let budget = live
         .references
@@ -45,6 +60,8 @@ pub(in super::super) fn storage_regions(
                 let leaf = live
                     .references
                     .get(&(carrier, selected.clone()))
+                    .cloned()
+                    .or_else(|| observations::observe(function, live, types, carrier, &selected))
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 if leaf_type(types, root, &selected) != Some(leaf.carrier_type) {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -85,7 +102,10 @@ fn storage_cursor(
     let root = source_contract(function, live, place).ok_or_else(invalid)?;
     let selected = leaf_type(types, root, &path).ok_or_else(invalid)?;
     if selected != expected {
-        let parameter = function.structural_parameter(place).ok_or_else(invalid)?;
+        let parameter = function
+            .structural_parameter(place)
+            .or_else(|| function.block_structural_parameter(place))
+            .ok_or_else(invalid)?;
         if parameter.structural_type != root
             || path.iter().any(|segment| {
                 !matches!(

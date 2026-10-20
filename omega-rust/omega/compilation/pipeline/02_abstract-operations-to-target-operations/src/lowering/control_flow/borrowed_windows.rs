@@ -258,11 +258,12 @@ pub(super) fn store_field(
         // code generation still emits only the incoming value's store.
         super::references::discard_subtree(function, types, live, storage, &custody_path)?;
     }
-    if live
-        .references
-        .keys()
-        .any(|(carrier, path)| *carrier == storage && path.starts_with(&custody_path))
-    {
+    if live.references.keys().any(|(carrier, path)| {
+        *carrier == storage
+            && path
+                .strip_prefix(custody_path.as_slice())
+                .is_some_and(|relative| !relative.contains(&StructuralPathSegment::Referent))
+    }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let mut relocations = Vec::new();
@@ -279,11 +280,6 @@ pub(super) fn store_field(
         &mut moved_leaves,
     )?;
     super::references::relocate_leaves(live, storage, relocations, moved_leaves);
-    // The store consumes an owned value as record construction consumes a
-    // field operand; an unrestricted value's home stays readable.
-    if multiplicity != StructuralMultiplicity::Unrestricted {
-        live.structural_homes.remove(&value.place);
-    }
     operations.push(TargetUnitOperation::StoreStructuralField {
         psi_operation: *psi_operation,
         destination: destination.clone(),
@@ -391,7 +387,15 @@ fn root_window_loan(
                             ..
                         } => true,
                     }
-            })
+            }) || (live.owned_arrivals.contains(&place)
+                && function.structural_parameter(place).is_some_and(|parameter| {
+                    parameter.access == StructuralAccess::Owned
+                        && parameter.multiplicity != StructuralMultiplicity::Linear
+                        && !function
+                            .entry_claims
+                            .iter()
+                            .any(|claim| claim.input == place)
+                }))
         },
     )
 }

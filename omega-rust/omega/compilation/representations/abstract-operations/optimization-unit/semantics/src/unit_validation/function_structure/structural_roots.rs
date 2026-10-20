@@ -1505,7 +1505,9 @@ fn borrowed_window_root(
                 .chain(function.block_structural_parameters())
                 .find(|candidate| candidate.place == parameter.place)
                 == Some(parameter)
-                && required_access.admits_referent(parameter.access)
+                && ((parameter.access == terminal_psi::StructuralAccess::Owned
+                    && function.structural_parameters.contains(parameter))
+                    || required_access.admits_referent(parameter.access))
                 && matches!(
                     parameter.multiplicity,
                     terminal_psi::StructuralMultiplicity::Unrestricted

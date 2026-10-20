@@ -7544,6 +7544,7 @@ pass/borrows/borrowed_array_loop checked 9903ms @5041ef1af684+wt
 pass/borrows/borrowed_case_leaf_copy_exit checked 11053ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/borrowed_record_stack_parameter_writeback_exit checked 11190ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/borrowed_sum_dispatch checked 9483ms @5041ef1af684+wt
+pass/borrows/borrowed_window_parameter_provenance_exit checked 40570ms check-target:macos_arm64 @b24be450e4ce+wt
 pass/borrows/boundary_scalar_slice_write_exit checked 3682ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/branch_selected_record_composed_receiver_exit checked 11336ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/branch_selected_record_receiver_exit checked 11241ms check-target:macos_arm64 @a9ae30e1c334+wt
