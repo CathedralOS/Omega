@@ -103,6 +103,48 @@ All 18 positive and reject places are pinned in the compiler corpus:
   - `tests/omega/fail/facts/slice_view_layout_geometry_through_other_machine_rejected/`
   - `tests/omega/fail/facts/slice_view_layout_geometry_through_target_body_rejected/`
 
+### Recorded native evidence (macos_arm64)
+
+Measured on `macos_arm64` at revision `e73cff353a52` with the producer built
+from that revision (`opt_level 1`):
+
+```sh
+python3 tools/corpus_gate.py --native --filter pass/facts/slice_view_layout_geometry_through
+```
+
+Before the record, the gate reported all nine positives as `new fixture
+(built)`; the run reported `built 9`, `executed 9 (exit codes {'0': 9})`, 0
+rejected without their expected fragment and 0 fail fixtures that did not
+reject. The nine rows now read `built ... exit:0 @e73cff353a52` in
+`tests/omega/corpus_native_macos_arm64.txt`, spliced as a pure addition
+(+9 lines, 0 deletions, LOST 0 against `origin/main`). Root and all nine places
+pass `omega run --both`: ten applications, each `native exit 0` and
+`interp exit: 0`.
+
+The recorded 0 discriminates in both directions on this host. Replacing
+`size_of<&[u64]>()` with `size_of<u64>()` is refused statically with the
+computed bounds `[-8, -8] lie outside [0, 18446744073709551615]`, so the 16-byte
+two-word descriptor size is derived by the compiler rather than assumed.
+Replacing `align_of<&[u64]>()` with `align_of<u8>()` gives
+`16u64 - (1u64 * 2u64) == 14u64`, which the checker cannot fold away: the
+program traps at runtime in both engines (`native signal 5` /
+`interp crash: Trap (host presentation agrees)`), so the transition really
+depends on the measured geometry.
+
+Re-measured on the integration base `c72b78bbf94a` with a producer built from
+that base, after two compiler commits landed (`69cfefcd2bf`, `c72b78bbf94a`):
+the same gate reported `clean — 9 fixtures ({'built': 9})`, `executed 9 (exit
+codes {'0': 9})`, 0 rejected without their expected fragment, 0 fail fixtures
+that did not reject, with no structural move (the only notes were two
+`perf_faster` rows, and the gate's own context says the golden was recorded at
+a different worker count). All ten applications still agree at that base
+(`native exit 0` / `interp exit: 0`), so the rows carry forward: the recorded
+revision is `e73cff353a52`, which is what the rows are stamped with.
+
+Remaining open on other hosts: `windows_x86_64` already carries 9 native rows
+for this fact, while `tests/omega/corpus_native_linux_x86_64.txt` carries 0 and
+needs a Linux x86-64 host; `linux_arm64` has no native golden in this checkout.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
