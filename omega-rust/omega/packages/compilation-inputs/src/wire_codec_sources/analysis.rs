@@ -134,7 +134,7 @@ pub(super) struct DomainPredicate {
 /// names, member labels, comments and quoted text retain their authored bytes.
 /// The parser already owns binder scope; source synthesis must not rediscover
 /// it by matching identifier spellings or rename through an intermediate `self`.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct StorePredicate {
     pub(super) segments: Vec<String>,
 }
@@ -268,7 +268,9 @@ pub(super) fn constraint_facts(
                     if let Some(carriers) = domains.get(key) {
                         for predicate in carriers {
                             if predicate.carrier == base_name {
-                                facts.push(predicate.predicate.clone());
+                                if !facts.contains(&predicate.predicate) {
+                                    facts.push(predicate.predicate.clone());
+                                }
                                 matched = true;
                             }
                         }

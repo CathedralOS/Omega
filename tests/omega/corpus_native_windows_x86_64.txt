@@ -3002,7 +3002,7 @@ pass/text/runtime_view_local_state_transfer_exit incomplete 6670ms @91bbf3e29aa9
 pass/text/state_parameter_byte_replacement_exit built 12965ms exit:70 @91bbf3e29aa9
 pass/text/text_concat_assign checked 13191ms @91bbf3e29aa9
 pass/text/utf8_boundary_established checked 446ms @0484de104502
-pass/text/utf8_member_verdict rejected 6447ms @91bbf3e29aa9
+pass/text/utf8_member_verdict checked 44051ms @7b786cd56594+wt
 pass/text/view_field_literal_store_outlives_helper_exit built 12232ms exit:70 @91bbf3e29aa9
 pass/text/zii_default_string_equality_exit built 11349ms exit:70 @e3eb5bdd566b
 pass/time/runtime_checked_time_arith_exit built 16428ms exit:70 @6c49683ce714
@@ -3071,7 +3071,7 @@ pass/wire/runtime_wire_encode_interior_scalar_slice_exit built 12321ms exit:70 @
 pass/wire/runtime_wire_exact_array_without_count_exit built 9031ms exit:70 @e3eb5bdd566b
 pass/wire/runtime_wire_policy_authored_plan_exit built 9511ms exit:70 @e3eb5bdd566b
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 10517ms exit:70 @e3eb5bdd566b
-pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 7047ms @e3eb5bdd566b
+pass/wire/runtime_wire_utf8_edge_verdicts_exit built 72301ms exit:70 @7b786cd56594+wt
 pass/wire/wire_compatibility_migration_across_shapes built 4802ms exit:0 @6c49683ce714
 pass/wire/wire_data_reserved_field built 6583ms @6c49683ce714
 pass/wire/wire_field_numbers checked 13150ms @91bbf3e29aa9

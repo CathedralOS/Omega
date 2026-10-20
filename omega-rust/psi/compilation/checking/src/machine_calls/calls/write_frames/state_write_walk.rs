@@ -1156,10 +1156,16 @@ fn walk_state_write_prefix_inner(
                 });
             }
             StatementNode::Transition(transition) => {
-                if matches!(query, Some(StateWriteQuery::OriginTransfer { .. })) {
+                if matches!(
+                    query,
+                    Some(
+                        StateWriteQuery::OriginTransfer { .. }
+                            | StateWriteQuery::StatementPrefixes { .. }
+                    )
+                ) {
                     // Operand effects and frozen-binding exposure were checked
-                    // above. The relation solver composes each named successor
-                    // using this statement's captured prefix, including cycles.
+                    // above. Named successors neither alter later transition
+                    // arms' incoming prefixes nor belong to the local transfer.
                     continue;
                 }
                 for target in transition.targets() {
