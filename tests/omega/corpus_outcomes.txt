@@ -2810,6 +2810,7 @@ fail/facts/ieee_guard_i32_from_f64_const_name_invalid rejected 4495ms expected @
 fail/facts/ieee_guard_i32_from_f64_field_invalid rejected 10967ms expected @4e77584323e4
 	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/facts/ieee_guard_i32_from_f64_local_invalid rejected 3891ms expected @1cf00aa9ba90+wt
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `copied` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/facts/ieee_guard_i32_from_f64_match_join_invalid rejected 3933ms expected @1cf00aa9ba90+wt
 fail/facts/ieee_guard_i32_from_f64_other_machine_invalid rejected 3892ms expected @1cf00aa9ba90+wt
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
