@@ -2802,14 +2802,26 @@ fail/facts/independent_content_partition_through_target_body rejected 4135ms exp
 	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 fail/facts/index_every_width_through_call_result_rejected rejected 4857ms expected @465f5043822d+wt
+	cannot prove index `picked_i64` is within length 4 in read_all::entry
 fail/facts/index_every_width_through_const_name_rejected rejected 2801ms expected @465f5043822d+wt
+	cannot prove index `4` is within length 4
 fail/facts/index_every_width_through_field_rejected rejected 3006ms expected @465f5043822d+wt
+	cannot prove index `indices.index_i64` is within length 4 in read_all::entry
 fail/facts/index_every_width_through_local_rejected rejected 5011ms expected @465f5043822d+wt
+	cannot prove index `local_i64` is within length 4 in read_all::entry
 fail/facts/index_every_width_through_match_join_rejected rejected 5713ms expected @465f5043822d+wt
+	cannot prove index `joined_i64` is within length 4 in read_all::entry
 fail/facts/index_every_width_through_other_machine_rejected rejected 3953ms expected @465f5043822d+wt
+	cannot prove index `index_i64` is within length 4 in read_indices::entry
 fail/facts/index_every_width_through_other_state_rejected rejected 3471ms expected @465f5043822d+wt
+	cannot prove index `index_i64` is within length 4 in read_all::pick
 fail/facts/index_every_width_through_parameter_rejected rejected 3426ms expected @465f5043822d+wt
+	cannot prove index `index_i64` is within length 4 in read_all::entry
 fail/facts/index_every_width_through_target_body_rejected rejected 13159ms expected @465f5043822d+wt
+	cannot prove index `index_i64` is within length 4 in read_all::entry
+	cannot prove index `index_i64` is within length 4 in read_all::entry
+	cannot prove index `index_i64` is within length 4 in read_all::entry
+	cannot prove index `index_i64` is within length 4 in read_all::entry
 fail/facts/indexed_crash_guard_through_call_result rejected 4035ms expected @97fca7a18f74+wt
 	call from `read_seven` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/indexed_crash_guard_through_const_name rejected 4128ms expected @97fca7a18f74+wt
