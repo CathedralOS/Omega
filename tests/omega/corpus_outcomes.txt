@@ -757,7 +757,8 @@ fail/calls/boundary_projected_subslice_past_end rejected 1564ms expected @a9ae30
 fail/calls/byte_literal_nested_invalid_encoding rejected 690ms expected @0553d60b9b91+wt
 fail/calls/byte_literal_nested_mutable_authority rejected 198ms expected @0553d60b9b91+wt
 fail/calls/callback_shared_program_excluded_trap rejected 24191ms expected @eee96af606fc+wt
-fail/calls/closed_constructor_divergent_unselected_field_unknown rejected 5424ms expected @197e7e7ec2b9
+fail/calls/closed_constructor_divergent_unselected_field_unknown rejected 4916ms expected @27026b838478
+	specification call `Point::zero` is not denotational: the selected machine is not unconditionally terminating
 fail/calls/closed_constructor_generic_field_recast_not_identity rejected 2096ms expected @197e7e7ec2b9
 fail/calls/closed_constructor_inline_projection_divergence_unknown rejected 1714ms expected @197e7e7ec2b9
 fail/calls/closed_constructor_projection_reference_result_rejected rejected 1611ms expected @197e7e7ec2b9

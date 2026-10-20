@@ -338,8 +338,22 @@ pub(super) fn instantiated_selected_fact_judgment(
         )
     {
         let term = StructuralJudge::substitute_call_term(&term, map, machine_map);
+        // A predicate read through a projection off a call is a value only
+        // once that call's denotational identity is established. A symbolic
+        // machine parameter is closed by its total public signature; a
+        // concrete machine's authority is its checked termination certificate,
+        // which only the checked stage publishes, and that stage owns the
+        // denotational refusal and its wording. Before it runs, `f(…).field`
+        // folds to a field of a result the runtime may never form. Proven
+        // still discharges a genuine requirement, but Refuted is not a
+        // contradiction here: the fact stays for the channels that decide it
+        // with the certificate in hand.
+        let projection_uncertified = uncertified_call_projection(program, &term);
         match judge.judge_observed_predicate(term, 0) {
             StructuralJudgment::Proven => return StructuralJudgment::Proven,
+            StructuralJudgment::Refuted if projection_uncertified => {
+                return StructuralJudgment::Unknown;
+            }
             StructuralJudgment::Refuted => return StructuralJudgment::Refuted,
             StructuralJudgment::Unknown => {}
         }
@@ -403,7 +417,7 @@ pub(super) fn instantiated_selected_fact_judgment(
             ) {
                 return StructuralJudgment::Unknown;
             }
-            let Some((left, right)) = instantiated_operands(
+            let Some((left, right, projection_uncertified)) = instantiated_operands(
                 program,
                 judge,
                 callee_owner,
@@ -416,6 +430,17 @@ pub(super) fn instantiated_selected_fact_judgment(
                 return StructuralJudgment::Unknown;
             };
             let equality = judge.judge_equation(left, right, 0);
+            // The same boundary as the runtime-body predicate above: a
+            // comparison over a projection whose selected call is not yet
+            // certified denotational is not a decided contradiction. Proven
+            // stands, so a genuine requirement still discharges.
+            let equality = if projection_uncertified
+                && matches!(equality, StructuralJudgment::Refuted)
+            {
+                StructuralJudgment::Unknown
+            } else {
+                equality
+            };
             if binary.operator == BinaryOperator::Equal {
                 equality
             } else {
@@ -433,7 +458,7 @@ pub(super) fn instantiated_selected_fact_judgment(
             // Ordering decides only over closed values: an operand that stays
             // symbolic leaves the fact for the positive prover's bound, guard,
             // and hypothesis channels.
-            let Some((left, right)) = instantiated_operands(
+            let Some((left, right, projection_uncertified)) = instantiated_operands(
                 program,
                 judge,
                 callee_owner,
@@ -476,6 +501,8 @@ pub(super) fn instantiated_selected_fact_judgment(
             };
             if verdict {
                 StructuralJudgment::Proven
+            } else if projection_uncertified {
+                StructuralJudgment::Unknown
             } else {
                 StructuralJudgment::Refuted
             }
@@ -484,9 +511,70 @@ pub(super) fn instantiated_selected_fact_judgment(
     }
 }
 
+/// Whether a term reads a field off a call this stage cannot yet certify
+/// denotational. A symbolic machine parameter publishes a total closed-value
+/// signature, and that promise is its authority. A concrete machine's
+/// authority is its checked termination certificate, which only the checked
+/// stage publishes; before that, a projection read off such a call folds to a
+/// field of a result the runtime may never form. Reads arrive both directly
+/// (`f(…).field`) and through the substituted argument terms, so the walk is
+/// over the whole instantiated predicate.
+fn uncertified_call_projection(program: &dyn crate::CheckingInput, term: &StructuralTerm) -> bool {
+    match term {
+        StructuralTerm::CallProjection {
+            target, arguments, ..
+        } => {
+            crate::machine_calls::denotational_calls::abstract_value_call_signature(program, *target)
+                .is_none()
+                || arguments
+                    .iter()
+                    .any(|argument| uncertified_call_projection(program, argument))
+        }
+        StructuralTerm::ObservedValue {
+            value, descriptor, ..
+        } => {
+            uncertified_call_projection(program, value)
+                || descriptor
+                    .as_ref()
+                    .is_some_and(|descriptor| uncertified_call_projection(program, descriptor))
+        }
+        StructuralTerm::IntegerEmbedding { value, .. }
+        | StructuralTerm::Projection { subject: value, .. }
+        | StructuralTerm::CollectionMeasure {
+            collection: value, ..
+        } => uncertified_call_projection(program, value),
+        StructuralTerm::MathematicalBinary { left, right, .. }
+        | StructuralTerm::ScalarBinary { left, right, .. } => {
+            uncertified_call_projection(program, left) || uncertified_call_projection(program, right)
+        }
+        StructuralTerm::Constructor { fields, .. } => fields
+            .iter()
+            .any(|(_, field)| uncertified_call_projection(program, field)),
+        StructuralTerm::Application { arguments, .. } => arguments
+            .iter()
+            .any(|argument| uncertified_call_projection(program, argument)),
+        StructuralTerm::IndexedValue {
+            collection, index, ..
+        } => {
+            uncertified_call_projection(program, collection)
+                || uncertified_call_projection(program, index)
+        }
+        StructuralTerm::Variable(_)
+        | StructuralTerm::BoundValue(_)
+        | StructuralTerm::CapturedValue { .. }
+        | StructuralTerm::BoundProjection { .. }
+        | StructuralTerm::Integer(_)
+        | StructuralTerm::Float(_)
+        | StructuralTerm::Opaque(_) => false,
+    }
+}
+
 /// Both sides of a binary fact, substituted with the call's argument terms and
 /// normalized through the judge: applications resolve under the judge's
 /// machine bodies, constant applications unfold to their closed constructor.
+/// The flag reports whether either substituted side reads a field off a call
+/// this stage cannot yet certify denotational, so the caller can withhold a
+/// refutation the certificate would overturn.
 fn instantiated_operands(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge,
@@ -500,38 +588,29 @@ fn instantiated_operands(
         typed_trees::expression::StaticMachineArgument,
     )],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
-) -> Option<(StructuralTerm, StructuralTerm)> {
+) -> Option<(StructuralTerm, StructuralTerm, bool)> {
     let (left, right) = super::structural_terms::structural_term_pair_for_parameters(
         program,
         callee_owner,
         callee_parameters,
         binary,
     )?;
+    let left = StructuralJudge::substitute_call_term(&left, map, machine_map);
+    let right = StructuralJudge::substitute_call_term(&right, map, machine_map);
+    let projection_uncertified = uncertified_call_projection(program, &left)
+        || uncertified_call_projection(program, &right);
     Some((
         declared_len_extent_term(
             program,
             caller_scope,
-            super::structural_terms::unfold_constant_applications(
-                program,
-                judge.resolve(StructuralJudge::substitute_call_term(
-                    &left,
-                    map,
-                    machine_map,
-                )),
-            ),
+            super::structural_terms::unfold_constant_applications(program, judge.resolve(left)),
         ),
         declared_len_extent_term(
             program,
             caller_scope,
-            super::structural_terms::unfold_constant_applications(
-                program,
-                judge.resolve(StructuralJudge::substitute_call_term(
-                    &right,
-                    map,
-                    machine_map,
-                )),
-            ),
+            super::structural_terms::unfold_constant_applications(program, judge.resolve(right)),
         ),
+        projection_uncertified,
     ))
 }
 
@@ -577,7 +656,7 @@ fn instantiated_fact_spelling(
         | BinaryOperator::LessOrEqual
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual => {
-            let (left, right) = instantiated_operands(
+            let (left, right, _) = instantiated_operands(
                 program,
                 judge,
                 callee_owner,
