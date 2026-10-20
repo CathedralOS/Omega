@@ -12,6 +12,7 @@ path = "src/lib.rs"
 arena = { path = "../../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
 diagnostics = { path = "../../../foundation/diagnostics" }
+phase-profile = { path = "../../../foundation/phase-profile" }
 language-core = { path = "../../../foundation/language-core" }
 language-semantics = { path = "../../../foundation/language-semantics" }
 numerics = { path = "../../../foundation/numerics" }

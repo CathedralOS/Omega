@@ -152,6 +152,9 @@ fn print_elapsed(started: std::time::Instant) {
         "{:>10.3} ms  total elapsed",
         started.elapsed().as_secs_f64() * 1_000.0
     );
+    if phase_profile::enabled() {
+        eprint!("{}", phase_profile::render());
+    }
 }
 
 fn print_outcome(outcome: &omega::compilation::CompileProjectOutcome) {

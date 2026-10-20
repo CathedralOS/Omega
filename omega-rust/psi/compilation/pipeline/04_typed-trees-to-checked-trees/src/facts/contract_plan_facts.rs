@@ -117,11 +117,17 @@ pub(crate) fn build_contract_plans(
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     scalar_computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
-    let mut machines = Vec::new();
-    let mut publications = Vec::new();
+    let mut machines = Vec::with_capacity(program.machines().len());
+    let mut publications = Vec::with_capacity(program.machines().len());
     let content_conservation = validation::content_conservation_plans(program);
-    for machine in program.machines() {
-        let service_fact = service_reaches.for_machine(machine.symbol);
+    let mut trapping_index =
+        PrecomputedTrappingSites::build(scalar_expressions, scalar_computations, operators);
+    for (machine_index, machine) in program.machines().iter().enumerate() {
+        let service_fact = service_reaches
+            .machines()
+            .get(machine_index)
+            .filter(|fact| fact.machine == machine.symbol)
+            .or_else(|| service_reaches.for_machine(machine.symbol));
         let published_service_row = service_fact
             .map(|fact| fact.published_ceiling)
             .unwrap_or(language_semantics::ServiceReachRowTable::EMPTY_ROW);
@@ -133,16 +139,32 @@ pub(crate) fn build_contract_plans(
             .map(|definition| definition.name.clone())
             .collect::<Vec<_>>();
         let synchronous_invocation = synchronous_invocations
-            .for_machine(machine.symbol)
+            .machines
+            .get(machine_index)
+            .filter(|fact| fact.machine == machine.symbol)
+            .map(|fact| &fact.plan)
+            .or_else(|| synchronous_invocations.for_machine(machine.symbol))
             .expect("every checked machine must publish synchronous invocation facts");
         let suspension = suspensions
-            .for_machine(machine.symbol)
+            .machines
+            .get(machine_index)
+            .filter(|fact| fact.machine == machine.symbol)
+            .map(|fact| fact.plan)
+            .or_else(|| suspensions.for_machine(machine.symbol))
             .expect("every checked machine must publish suspension facts");
         let blocking = blocking
-            .for_machine(machine.symbol)
+            .machines
+            .get(machine_index)
+            .filter(|fact| fact.machine == machine.symbol)
+            .map(|fact| fact.plan)
+            .or_else(|| blocking.for_machine(machine.symbol))
             .expect("every checked machine must publish blocking facts");
         let termination = termination
-            .for_machine(machine.symbol)
+            .machines
+            .get(machine_index)
+            .filter(|fact| fact.machine == machine.symbol)
+            .map(|fact| &fact.plan)
+            .or_else(|| termination.for_machine(machine.symbol))
             .expect("every checked machine must publish termination facts");
         let generics = generic_binders(program.machine_type_parameters(machine));
         let mut callables = program
@@ -183,13 +205,7 @@ pub(crate) fn build_contract_plans(
             operators,
             exact_integer_casts,
         )
-        .with_trapping_sites(trapping_sites(
-            program,
-            machine,
-            operators,
-            scalar_expressions,
-            scalar_computations,
-        )?);
+        .with_trapping_sites(trapping_index.sites_for_machine(program, machine)?);
         let binders = program
             .machine_states(machine)
             .first()
@@ -247,18 +263,21 @@ pub(crate) fn build_contract_plans(
             commitment: checked_trees::MachineContractCommitment::from_digest([0; 32]),
         });
     }
-    let mut operator_crashes = operator_crashes::build(program, operators, flow, semantic)?;
+    let operator_crashes = operator_crashes::build(program, operators, flow, semantic)?;
+    let mut operator_crashes_by_machine = symbols::SymbolKeyMap::<
+        symbols::SymbolHandle,
+        Vec<checked_trees::CheckedCrashOperatorSite>,
+    >::default();
+    for (machine, site) in operator_crashes {
+        operator_crashes_by_machine
+            .entry(machine)
+            .or_default()
+            .push(site);
+    }
     for plan in &mut machines {
-        let mut sites = Vec::new();
-        let mut pending = Vec::new();
-        for (machine, site) in operator_crashes {
-            if machine == plan.machine {
-                sites.push(site);
-            } else {
-                pending.push((machine, site));
-            }
-        }
-        operator_crashes = pending;
+        let sites = operator_crashes_by_machine
+            .remove(&plan.machine)
+            .unwrap_or_default();
         plan.crash = plan
             .crash
             .clone()
@@ -269,7 +288,7 @@ pub(crate) fn build_contract_plans(
                 )]
             })?;
     }
-    if !operator_crashes.is_empty() {
+    if !operator_crashes_by_machine.is_empty() {
         return Err(vec![diagnostics::Diagnostic::error(
             "selected operator crash invocation has no owning machine contract",
         )]);
@@ -303,15 +322,32 @@ pub(crate) fn build_contract_plans(
         &mut machines,
         &summary_graph,
     );
+    let mut capabilities_by_machine = symbols::SymbolKeyMap::<
+        symbols::SymbolHandle,
+        Vec<flow_effects::CapabilityFlowFact>,
+    >::default();
+    for flow in capabilities.flows() {
+        capabilities_by_machine
+            .entry(flow.machine_symbol)
+            .or_default()
+            .push(*flow);
+    }
     let realized_envelopes =
         machines
             .iter()
-            .map(|contract| {
+            .enumerate()
+            .map(|(machine_index, contract)| {
                 let machine = program
-                    .machine(contract.machine)
+                    .machines()
+                    .get(machine_index)
+                    .filter(|machine| machine.symbol == contract.machine)
+                    .or_else(|| program.machine(contract.machine))
                     .expect("every contract must retain its exact typed machine");
                 let service_fact = service_reaches
-                    .for_machine(contract.machine)
+                    .machines()
+                    .get(machine_index)
+                    .filter(|fact| fact.machine == contract.machine)
+                    .or_else(|| service_reaches.for_machine(contract.machine))
                     .expect("every checked machine must retain service-reach facts");
                 let effective_service_reach = service_reaches
                     .rows
@@ -328,26 +364,43 @@ pub(crate) fn build_contract_plans(
                     .map(|definition| definition.name.clone())
                     .collect::<Vec<_>>();
                 let invocation = synchronous_invocations
-                    .for_machine(contract.machine)
+                    .machines
+                    .get(machine_index)
+                    .filter(|fact| fact.machine == contract.machine)
+                    .map(|fact| &fact.plan)
+                    .or_else(|| synchronous_invocations.for_machine(contract.machine))
                     .expect("every checked machine must retain invocation facts");
                 let suspension = suspensions
-                    .for_machine(contract.machine)
+                    .machines
+                    .get(machine_index)
+                    .filter(|fact| fact.machine == contract.machine)
+                    .map(|fact| fact.plan)
+                    .or_else(|| suspensions.for_machine(contract.machine))
                     .expect("every checked machine must retain suspension facts");
                 let blocking = blocking
-                    .for_machine(contract.machine)
+                    .machines
+                    .get(machine_index)
+                    .filter(|fact| fact.machine == contract.machine)
+                    .map(|fact| fact.plan)
+                    .or_else(|| blocking.for_machine(contract.machine))
                     .expect("every checked machine must retain blocking facts");
                 let termination = termination
-                    .for_machine(contract.machine)
+                    .machines
+                    .get(machine_index)
+                    .filter(|fact| fact.machine == contract.machine)
+                    .map(|fact| &fact.plan)
+                    .or_else(|| termination.for_machine(contract.machine))
                     .expect("every checked machine must retain termination facts");
                 let mutation = mutation
-                    .for_machine(contract.machine)
+                    .machines
+                    .get(machine_index)
+                    .filter(|fact| fact.machine == contract.machine)
+                    .or_else(|| mutation.for_machine(contract.machine))
                     .map(|fact| fact.state_write_frames.clone())
                     .unwrap_or_default();
-                let capability_rows = capabilities
-                    .flows()
-                    .filter(|flow| flow.machine_symbol == contract.machine)
-                    .copied()
-                    .collect();
+                let capability_rows = capabilities_by_machine
+                    .remove(&contract.machine)
+                    .unwrap_or_default();
                 checked_trees::RealizedMachineContractEnvelope {
                 machine: contract.machine,
                 contract_report_fingerprint: contract.report_fingerprint,
@@ -396,17 +449,27 @@ fn validate_checked_resource_envelope_coverage(
     program: &dyn ::validation::CheckingInput,
     plans: &checked_trees::MachineContractPlans,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    for machine in program.machines() {
-        let contract = plans.for_machine(machine.symbol).ok_or_else(|| {
-            vec![diagnostics::Diagnostic::error(
-                "checked resource-envelope replay is missing an exact machine contract",
-            )]
-        })?;
-        let realized = plans.realized_envelope(machine.symbol).ok_or_else(|| {
-            vec![diagnostics::Diagnostic::error(
-                "checked resource-envelope replay is missing an exact realized machine row",
-            )]
-        })?;
+    for (machine_index, machine) in program.machines().iter().enumerate() {
+        let contract = plans
+            .machines
+            .get(machine_index)
+            .filter(|contract| contract.machine == machine.symbol)
+            .or_else(|| plans.for_machine(machine.symbol))
+            .ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "checked resource-envelope replay is missing an exact machine contract",
+                )]
+            })?;
+        let realized = plans
+            .realized_envelopes
+            .get(machine_index)
+            .filter(|realized| realized.machine == machine.symbol)
+            .or_else(|| plans.realized_envelope(machine.symbol))
+            .ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "checked resource-envelope replay is missing an exact realized machine row",
+                )]
+            })?;
         let expected_entries = program.machine_states(machine);
         if realized.resources.len() != expected_entries.len() {
             return Err(vec![diagnostics::Diagnostic::error(
@@ -509,14 +572,20 @@ pub(crate) fn build_callable_scalar_value_contract_plan(
         signature::SignatureContractKind,
     };
 
-    let boolean_type =
-        program
-            .type_reference_table
-            .named_references()
-            .find_map(|(type_reference, symbol, _)| {
+    let boolean_type = std::cell::Cell::new(None);
+    let resolve_boolean_type = || {
+        if let Some(cached) = boolean_type.get() {
+            return cached;
+        }
+        let resolved = program.type_reference_table.named_references().find_map(
+            |(type_reference, symbol, _)| {
                 (program.symbols.builtin_type_atom(symbol) == Some(symbols::BuiltinTypeAtom::Bool))
                     .then_some(type_reference)
-            });
+            },
+        );
+        boolean_type.set(Some(resolved));
+        resolved
+    };
 
     let lower_closed_clause = |contract: &typed_trees::signature::SignatureContract| {
         let [ProofFact::Expression(expression)] = program.proof_facts.span_or_empty(contract.facts)
@@ -536,20 +605,23 @@ pub(crate) fn build_callable_scalar_value_contract_plan(
                 program.expression_table.expression(operand),
                 ExpressionNode::Boolean(_)
             )
-            .then_some(boolean_type)
+            .then(&resolve_boolean_type)
             .flatten()
         });
-        if operators.uses.iter().any(|(_, operator)| {
-            operator.expression == *expression
-                && operator.status
-                    != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-        }) || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-            program,
-            owner,
-            *expression,
-            language_core::OperatorSpelling::Equal,
-            &operand_types,
-        ) {
+        let mut has_non_builtin_operator = false;
+        operators.for_each_expression_use(*expression, |_, operator| {
+            has_non_builtin_operator |=
+                operator.status != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback;
+        });
+        if has_non_builtin_operator
+            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                owner,
+                *expression,
+                language_core::OperatorSpelling::Equal,
+                &operand_types,
+            )
+        {
             return None;
         }
         match (
@@ -730,78 +802,116 @@ pub(crate) fn build_callable_scalar_value_contract_plan(
 /// ceiling instead has to cover each such operation: the arithmetic-domain
 /// walk decides that coverage over the operation's own operands while it
 /// decides Exact formation (`validation`'s `trap_coverage`).
-fn trapping_sites(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    operators: &checked_trees::CheckedOperatorFacts,
-    scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
-    scalar_computations: &checked_trees::CheckedScalarComputationPlans,
-) -> Result<Vec<checked_trees::CrashSiteLocation>, Vec<diagnostics::Diagnostic>> {
-    let states = program
-        .machine_states(machine)
-        .iter()
-        .map(|state| state.symbol)
-        .collect::<Vec<_>>();
-    let expressions = scalar_expressions
-        .expressions
-        .iter()
-        .filter(|located| {
-            states.contains(&located.state) && located.expression.contains_trapping_operation()
-        })
-        .map(|located| {
-            checked_trees::CrashSiteLocation::new(located.state, located.statement_ordinal)
-        });
-    let computations = scalar_computations
-        .roots
-        .iter()
-        .map(|(_, root)| root)
-        .filter(|root| {
-            root.machine == machine.symbol
-                && computation_contains_trapping_operation(scalar_computations, root.root)
-        })
-        .map(|root| checked_trees::CrashSiteLocation::new(root.state, root.statement_ordinal));
-    // A selected float policy adapts the result after the boundary returns;
-    // the boundary's own crash contract therefore cannot supply this site.
-    // Read exact checked selections across spelled and named requirements,
-    // not a cast's spelling or its operand storage. Selecting a future policy
-    // without executing arithmetic has no result adapter and adds no Trap.
-    // The existing summary fixed point propagates these body sites to private
-    // callers just like integer Trapping sites, without a second call graph.
-    let mut sites = expressions.chain(computations).collect::<Vec<_>>();
-    for (_, origin, _, adapter) in operators.resolved_expression_selections() {
-        if !matches!(
-            adapter,
-            checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite { .. }
-        ) {
-            continue;
+/// Body statements whose planned scalar value executes a Trapping primitive,
+/// indexed once across the program's scalar expression, computation, and
+/// operator plans so per-machine contract assembly performs O(1) lookups.
+struct PrecomputedTrappingSites {
+    expressions_by_state:
+        symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<checked_trees::CrashSiteLocation>>,
+    computations_by_machine:
+        symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<checked_trees::CrashSiteLocation>>,
+    float_adapters_by_machine:
+        symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<(symbols::SymbolHandle, usize)>>,
+}
+
+impl PrecomputedTrappingSites {
+    fn build(
+        scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
+        scalar_computations: &checked_trees::CheckedScalarComputationPlans,
+        operators: &checked_trees::CheckedOperatorFacts,
+    ) -> Self {
+        let mut expressions_by_state = symbols::SymbolKeyMap::<
+            symbols::SymbolHandle,
+            Vec<checked_trees::CrashSiteLocation>,
+        >::default();
+        for located in &scalar_expressions.expressions {
+            if located.expression.contains_trapping_operation() {
+                expressions_by_state.entry(located.state).or_default().push(
+                    checked_trees::CrashSiteLocation::new(located.state, located.statement_ordinal),
+                );
+            }
         }
-        let checked_trees::CheckedValueOrigin::StateStatement {
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            ..
-        } = origin
-        else {
-            continue;
-        };
-        if machine_symbol != machine.symbol {
-            continue;
+        let mut computations_by_machine = symbols::SymbolKeyMap::<
+            symbols::SymbolHandle,
+            Vec<checked_trees::CrashSiteLocation>,
+        >::default();
+        for (_, root) in scalar_computations.roots.iter() {
+            if computation_contains_trapping_operation(scalar_computations, root.root) {
+                computations_by_machine
+                    .entry(root.machine)
+                    .or_default()
+                    .push(checked_trees::CrashSiteLocation::new(
+                        root.state,
+                        root.statement_ordinal,
+                    ));
+            }
         }
-        let invalid_site = || {
-            vec![diagnostics::Diagnostic::error(
-                "selected float result policy has no representable owning statement",
-            )]
-        };
-        if !states.contains(&state_symbol) {
-            return Err(invalid_site());
+        let mut float_adapters_by_machine = symbols::SymbolKeyMap::<
+            symbols::SymbolHandle,
+            Vec<(symbols::SymbolHandle, usize)>,
+        >::default();
+        for (_, origin, _, adapter) in operators.resolved_expression_selections() {
+            if !matches!(
+                adapter,
+                checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite { .. }
+            ) {
+                continue;
+            }
+            let checked_trees::CheckedValueOrigin::StateStatement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                ..
+            } = origin
+            else {
+                continue;
+            };
+            float_adapters_by_machine
+                .entry(machine_symbol)
+                .or_default()
+                .push((state_symbol, statement_index));
         }
-        let statement = u32::try_from(statement_index).map_err(|_| invalid_site())?;
-        sites.push(checked_trees::CrashSiteLocation::new(
-            state_symbol,
-            statement,
-        ));
+        Self {
+            expressions_by_state,
+            computations_by_machine,
+            float_adapters_by_machine,
+        }
     }
-    Ok(sites)
+
+    fn sites_for_machine(
+        &mut self,
+        program: &dyn ::validation::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+    ) -> Result<Vec<checked_trees::CrashSiteLocation>, Vec<diagnostics::Diagnostic>> {
+        let states = program.machine_states(machine);
+        let mut sites = Vec::new();
+        for state in states {
+            if let Some(state_sites) = self.expressions_by_state.get(&state.symbol) {
+                sites.extend_from_slice(state_sites);
+            }
+        }
+        if let Some(comp_sites) = self.computations_by_machine.remove(&machine.symbol) {
+            sites.extend(comp_sites);
+        }
+        if let Some(adapters) = self.float_adapters_by_machine.remove(&machine.symbol) {
+            let invalid_site = || {
+                vec![diagnostics::Diagnostic::error(
+                    "selected float result policy has no representable owning statement",
+                )]
+            };
+            for (state_symbol, statement_index) in adapters {
+                if !states.iter().any(|state| state.symbol == state_symbol) {
+                    return Err(invalid_site());
+                }
+                let statement = u32::try_from(statement_index).map_err(|_| invalid_site())?;
+                sites.push(checked_trees::CrashSiteLocation::new(
+                    state_symbol,
+                    statement,
+                ));
+            }
+        }
+        Ok(sites)
+    }
 }
 
 /// Whether evaluating one computation tree executes a Trapping primitive in

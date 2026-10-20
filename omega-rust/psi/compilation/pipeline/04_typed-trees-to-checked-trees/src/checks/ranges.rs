@@ -94,35 +94,74 @@ pub(crate) fn check_indexed_accesses(
     Vec<Diagnostic>,
 > {
     let field_lengths = fixed_array_field_lengths(program);
+    let bound_lookup = validation::ImmutableBoundLookup::new(program);
     let mut diagnostics = Vec::new();
     let mut verdicts = indexes::IndexVerdicts::default();
     // All states and their branch snapshots query the same immutable program
     // and borrow facts through the pass's shared summary table.
 
     for machine in program.machines() {
-        let calls: Vec<_> = program
-            .machine_states(machine)
+        let machine_states = program.machine_states(machine);
+        let state_has_indexed: Vec<bool> = machine_states
             .iter()
-            .map(|state| {
-                facts::RangeCallContext::new(machine, state, borrows, flow, semantic, call_frames)
-            })
+            .map(|state| state_contains_indexed_expression(program, state))
             .collect();
-        let state_argument_facts = collect_state_argument_facts(
-            program,
-            &field_lengths,
-            machine,
-            call_frames,
-            &calls,
-            operators,
-            mutation_summaries,
-        );
+        if !state_has_indexed
+            .iter()
+            .copied()
+            .any(std::convert::identity)
+        {
+            continue;
+        }
+        let non_entry_has_indexed = state_has_indexed
+            .get(1..)
+            .is_some_and(|rest| rest.iter().copied().any(std::convert::identity));
+        let calls: Vec<_> = phase_profile::scope("05.d.7.9.a.range_call_context", || {
+            let states = if non_entry_has_indexed {
+                machine_states
+            } else {
+                &machine_states[..1]
+            };
+            states
+                .iter()
+                .map(|state| {
+                    facts::RangeCallContext::new(
+                        machine,
+                        state,
+                        borrows,
+                        flow,
+                        semantic,
+                        call_frames,
+                    )
+                })
+                .collect()
+        });
+        let state_argument_facts = if non_entry_has_indexed {
+            phase_profile::scope("05.d.7.9.b.state_argument_facts", || {
+                collect_state_argument_facts(
+                    program,
+                    &field_lengths,
+                    &bound_lookup,
+                    machine,
+                    call_frames,
+                    &calls,
+                    operators,
+                    mutation_summaries,
+                )
+            })
+        } else {
+            Vec::new()
+        };
         let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
-        let loop_invariant_facts = collect_loop_invariant_facts(program, machine, call_frames);
-        // Each state's facts and branch clones borrow this worker-owned lookup.
-        // Declaration bounds are shared invocation data; machine-local calls
-        // and flow facts retain their narrower lifetimes.
-        let bound_lookup = validation::ImmutableBoundLookup::new(program);
-        for (state, calls) in program.machine_states(machine).iter().zip(&calls) {
+        let loop_invariant_facts = phase_profile::scope("05.d.7.9.c.loop_invariant_facts", || {
+            collect_loop_invariant_facts(program, machine, call_frames)
+        });
+        for ((state, calls), has_indexed) in
+            machine_states.iter().zip(&calls).zip(state_has_indexed)
+        {
+            if !has_indexed {
+                continue;
+            }
             let collection_bounds =
                 validation::CollectionBoundsObservations::new(program, machine, state);
             let mut facts = RangeFacts::new(&field_lengths, &bound_lookup);
@@ -144,11 +183,26 @@ pub(crate) fn check_indexed_accesses(
                     None,
                 );
             }
-            seed_state_requires(program, &mut facts, machine, state);
-            seed_state_argument_facts(&mut facts, state, &state_argument_facts);
-            seed_dependent_param_orderings(program, &mut facts, machine, state);
-            seed_incoming_guard_facts(program, machine, &mut facts, state, incoming_guard_facts);
-            seed_loop_invariant_facts(program, machine, &mut facts, state, &loop_invariant_facts);
+            phase_profile::scope("05.d.7.9.d.seed_state", || {
+                seed_state_requires(program, &mut facts, machine, state);
+                seed_state_argument_facts(&mut facts, state, &state_argument_facts);
+                seed_dependent_param_orderings(program, &mut facts, machine, state);
+                seed_incoming_guard_facts(
+                    program,
+                    machine,
+                    &mut facts,
+                    state,
+                    incoming_guard_facts,
+                );
+                seed_loop_invariant_facts(
+                    program,
+                    machine,
+                    &mut facts,
+                    state,
+                    &loop_invariant_facts,
+                );
+            });
+            let _s = phase_profile::guard("05.d.7.9.e.check_statements");
             for (statement_index, statement) in program
                 .statement_table
                 .admitted_execution_statements(state.statement_nodes)
@@ -172,5 +226,157 @@ pub(crate) fn check_indexed_accesses(
         Ok(verdicts.into_parts())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn state_contains_indexed_expression(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+) -> bool {
+    for (_, statement) in program
+        .statement_table
+        .admitted_execution_statements(state.statement_nodes)
+    {
+        if statement_contains_indexed_expression(program, statement) {
+            return true;
+        }
+    }
+    false
+}
+
+fn statement_contains_indexed_expression(
+    program: &dyn ::validation::CheckingInput,
+    statement: &typed_trees::statement::StatementNode,
+) -> bool {
+    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+    match statement {
+        StatementNode::RootBinding(binding) => {
+            expression_contains_indexed(program, binding.receiver, 0)
+                || expression_contains_indexed(program, binding.implementation_operand, 0)
+        }
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
+        StatementNode::Assignment(assignment) => {
+            expression_contains_indexed(program, assignment.target, 0)
+                || expression_contains_indexed(program, assignment.value, 0)
+        }
+        StatementNode::Call(call) => program
+            .statement_table
+            .expression_handles(call.arguments)
+            .iter()
+            .any(|argument| expression_contains_indexed(program, *argument, 0)),
+        StatementNode::Expression(expression) => {
+            expression_contains_indexed(program, *expression, 0)
+        }
+        StatementNode::LocalData(local) => {
+            expression_contains_indexed(program, local.initial_value, 0)
+        }
+        StatementNode::Transition(transition) => {
+            if let TransitionGuardNode::When(guard) = transition.guard
+                && expression_contains_indexed(program, guard, 0)
+            {
+                return true;
+            }
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target) {
+                    TransitionTargetNode::Named { arguments, .. } => {
+                        if program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .any(|argument| expression_contains_indexed(program, *argument, 0))
+                        {
+                            return true;
+                        }
+                    }
+                    TransitionTargetNode::Value(value) => {
+                        if expression_contains_indexed(program, *value, 0) {
+                            return true;
+                        }
+                    }
+                    TransitionTargetNode::Terminal => {}
+                }
+            }
+            false
+        }
+    }
+}
+
+fn expression_contains_indexed(
+    program: &dyn ::validation::CheckingInput,
+    expression: typed_trees::expression::ExpressionHandle,
+    depth: usize,
+) -> bool {
+    use typed_trees::expression::{ExpressionNode, MatchPattern};
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
+        return false;
+    };
+    let next = depth + 1;
+    match node {
+        ExpressionNode::Indexed(_) => true,
+        ExpressionNode::Match(dispatch) => {
+            expression_contains_indexed(program, dispatch.subject, next)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        (match arm.pattern {
+                            MatchPattern::Value(pattern) => {
+                                expression_contains_indexed(program, pattern, next)
+                            }
+                            MatchPattern::Wildcard => false,
+                        }) || expression_contains_indexed(program, arm.value, next)
+                    })
+        }
+        ExpressionNode::Binary(binary) => {
+            expression_contains_indexed(program, binary.left, next)
+                || expression_contains_indexed(program, binary.right, next)
+        }
+        ExpressionNode::Call(call) => {
+            expression_contains_indexed(program, call.receiver, next)
+                || program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|argument| expression_contains_indexed(program, *argument, next))
+        }
+        ExpressionNode::Cast(cast) => expression_contains_indexed(program, cast.value, next),
+        ExpressionNode::Atomic(atomic) => {
+            if let Some(carrier) = validation::atomic_once_carrier(program, expression) {
+                expression_contains_indexed(program, carrier.place, next)
+                    || carrier
+                        .operands
+                        .into_iter()
+                        .any(|operand| expression_contains_indexed(program, operand, next))
+            } else {
+                expression_contains_indexed(program, atomic.value, next)
+            }
+        }
+        ExpressionNode::ArrayLiteral(values) => program
+            .expression_table
+            .expression_handles(*values)
+            .iter()
+            .any(|value| expression_contains_indexed(program, *value, next)),
+        ExpressionNode::Member(member) => {
+            expression_contains_indexed(program, member.receiver, next)
+        }
+        ExpressionNode::Borrow(borrow) => expression_contains_indexed(program, borrow.target, next),
+        ExpressionNode::Unary(unary) => expression_contains_indexed(program, unary.operand, next),
+        ExpressionNode::Range(range) => {
+            expression_contains_indexed(program, range.start, next)
+                || expression_contains_indexed(program, range.end, next)
+        }
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| expression_contains_indexed(program, field.value, next)),
+        typed_trees::literal_expression_pattern!() => false,
     }
 }

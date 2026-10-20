@@ -15,6 +15,8 @@ use typed_trees::types::TypeReferenceNode;
 
 pub(crate) fn validate_fact_call_projections(
     program: &dyn crate::CheckingInput,
+    operational: &flow_effects::OperationalPlan,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<ValidatedFactCallProjection> {
     let mut roots = Vec::new();
@@ -57,16 +59,14 @@ pub(crate) fn validate_fact_call_projections(
     if !has_projection {
         return Vec::new();
     }
-    let operational = crate::infer_operational_may(program);
-    let service_reaches = crate::infer_service_reaches(program, &operational);
     let mut visited = Vec::new();
     let mut admitted = Vec::new();
     for root in roots {
         validate_expression(
             program,
             root,
-            &operational,
-            &service_reaches,
+            operational,
+            service_reaches,
             diagnostics,
             &mut visited,
             &mut admitted,
@@ -85,8 +85,8 @@ pub(crate) fn validate_fact_call_projections(
             call_expression,
             call,
             member,
-            &operational,
-            &service_reaches,
+            operational,
+            service_reaches,
             diagnostics,
         ) {
             admitted.push(row);

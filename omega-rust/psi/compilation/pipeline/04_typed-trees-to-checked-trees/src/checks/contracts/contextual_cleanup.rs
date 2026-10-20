@@ -103,10 +103,13 @@ pub(super) fn check(
     frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let requirements = &facts.contextual_cleanup.entry_requirements;
+    if requirements.rows.is_empty() {
+        return;
+    }
     let Some(target) = target_machine(program, call) else {
         return;
     };
-    let requirements = &facts.contextual_cleanup.entry_requirements;
     for (_, requirement) in requirements
         .rows
         .iter()

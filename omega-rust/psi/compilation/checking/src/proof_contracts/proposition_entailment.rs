@@ -155,12 +155,7 @@ fn intake_proof_output_propositions(
         else {
             continue;
         };
-        let Some(callee) = program.machines().iter().find(|candidate| {
-            program
-                .machine_states(candidate)
-                .iter()
-                .any(|candidate_state| candidate_state.symbol == call.target_symbol)
-        }) else {
+        let Some(callee) = program.machine_by_own_or_state_symbol(call.target_symbol) else {
             continue;
         };
         known.extend(proposition_labels(
@@ -338,15 +333,12 @@ fn call_target<'a>(
     program: &'a dyn crate::CheckingInput,
     call: &TableCall,
 ) -> Option<(&'a Machine, &'a typed_trees::state::State)> {
-    for machine in program.machines() {
-        if machine.symbol == call.target_symbol {
-            return Some((machine, program.machine_states(machine).first()?));
-        }
-        if let Some(state) = program.state_in_machine(machine, call.target_symbol) {
-            return Some((machine, state));
-        }
+    if let Some(machine) = program.machine_by_symbol(call.target_symbol) {
+        return Some((machine, program.machine_states(machine).first()?));
     }
-    None
+    let machine = program.machine_holding_state(call.target_symbol)?;
+    let state = program.state_in_machine(machine, call.target_symbol)?;
+    Some((machine, state))
 }
 
 fn call_parameter_substitutions(

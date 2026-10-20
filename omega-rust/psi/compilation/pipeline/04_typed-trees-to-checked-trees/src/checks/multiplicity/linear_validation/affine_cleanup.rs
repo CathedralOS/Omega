@@ -303,16 +303,11 @@ pub(crate) fn apply_recorded_cleanup_events(
 ) {
     let mut expected = Vec::new();
     let evaluation = exit_evaluation(program, state, coordinate);
-    for (handle, disposition) in cleanup.dispositions.iter().filter(|(_, disposition)| {
-        disposition.machine == machine_symbol
-            && disposition.state == state.symbol
-            && disposition.source == PermissionEventSource::StateExit
-            && disposition.exit == coordinate
-    }) {
-        if cleanup
-            .selected_dispositions
-            .iter()
-            .any(|(_, selected)| *selected == handle)
+    for handle in cleanup.state_disposition_handles(machine_symbol, state.symbol) {
+        let disposition = cleanup.dispositions.get(handle);
+        if disposition.source != PermissionEventSource::StateExit
+            || disposition.exit != coordinate
+            || cleanup.is_selected_disposition(handle)
         {
             continue;
         }

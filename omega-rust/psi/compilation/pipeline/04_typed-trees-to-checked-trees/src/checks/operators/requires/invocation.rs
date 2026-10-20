@@ -142,17 +142,17 @@ impl<'facts> InvocationContexts<'facts> {
         selected: symbols::SymbolHandle,
         operands: &[ExpressionHandle],
     ) -> Self {
-        let spelled = facts
+        let mut spelled = Vec::new();
+        facts
             .operators
-            .uses
-            .iter()
-            .filter(|(_, fact)| {
-                fact.expression == expression
-                    && fact.selected_operator_symbol == selected
+            .for_each_expression_use(expression, |handle, fact| {
+                if fact.selected_operator_symbol == selected
                     && fact.status == checked_trees::CheckedOperatorResolutionStatus::Resolved
                     && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-            })
-            .collect::<Vec<_>>();
+                {
+                    spelled.push((handle, fact));
+                }
+            });
         let named = facts
             .operators
             .named_uses

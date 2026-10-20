@@ -59,7 +59,7 @@ pub(super) fn prepare_state(
     inputs: &StateCallInputs<'_>,
 ) -> Vec<PreparedValueCalls> {
     let mut prepared = Vec::new();
-    for (_, root) in facts.values.structural_values.roots.iter() {
+    for root in facts.values.structural_values.roots_for_state(state) {
         if root.machine != machine
             || root.state != state
             || prepared

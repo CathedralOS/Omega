@@ -447,6 +447,35 @@ impl<T: Default> Arena<T> {
         self.index_from_valid_handle(handle) != invalid_index()
     }
 
+    /// If `item` is a reference to an occupied element in this arena's slice,
+    /// returns its `Handle<T>` in $O(1)$ by pointer-offset arithmetic.
+    #[inline]
+    pub fn handle_of(&self, item: &T) -> Option<Handle<T>> {
+        let size = std::mem::size_of::<T>();
+        if size == 0 {
+            return None;
+        }
+        let base = self.items.as_ptr().addr();
+        let addr = std::ptr::from_ref(item).addr();
+        let offset_bytes = addr.checked_sub(base)?;
+        let index = offset_bytes / size;
+        let candidate = self.items.get(index)?;
+        if !std::ptr::eq(candidate, item) {
+            return None;
+        }
+        if self.fresh {
+            return Some(Handle::from_parts(
+                next_arena_index(index),
+                self.fresh_generation,
+            ));
+        }
+        self.occupied
+            .get(index)
+            .copied()
+            .unwrap_or(false)
+            .then(|| Handle::from_parts(next_arena_index(index), self.generations[index]))
+    }
+
     #[inline]
     pub fn span(&self, span: HandleSpan<T>) -> Option<&[T]> {
         if span.is_empty() {

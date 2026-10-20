@@ -127,8 +127,10 @@ pub(super) fn validate_state_statement_node<'p>(
     }
     // A check mints only message text; the statement under validation owns
     // the authored position every consumer attributes it to.
-    if let Some(source_span) = statement_source_span(program, statement) {
-        for diagnostic in &mut diagnostics[diagnostic_mark..] {
+    if outputs.diagnostics.len() > diagnostic_mark
+        && let Some(source_span) = statement_source_span(program, statement)
+    {
+        for diagnostic in &mut outputs.diagnostics[diagnostic_mark..] {
             if diagnostic.source_span.is_none() {
                 diagnostic.source_span = Some(source_span);
             }

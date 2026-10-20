@@ -16,9 +16,8 @@ impl TypedTrees {
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Option<&trait_definition::TraitDefinition> {
-        self.traits()
-            .iter()
-            .find(|definition| definition.symbol == symbol)
+        self.with_call_target_index(|index| index.trait_by_symbol.get(&symbol).copied())
+            .map(|position| &self.traits()[position as usize])
     }
 
     /// The conformance `symbol` declares, if any.
@@ -108,16 +107,14 @@ impl TypedTrees {
         &'program self,
         signature: &'program signature::StateSignature,
     ) -> impl Iterator<Item = &'program signature::StateSignature> {
+        let instances = self.closed_requirement_instance_handles_for_template(signature.symbol);
+        let has_instances = !instances.is_empty();
         std::iter::once(signature)
-            .filter(|signature| {
-                !self
-                    .closed_requirement_applications()
-                    .any(|application| application.template == signature.symbol)
-            })
+            .filter(move |_| !has_instances)
             .chain(
-                self.closed_requirement_applications()
-                    .filter(move |application| application.template == signature.symbol)
-                    .map(|application| application.signature),
+                instances
+                    .into_iter()
+                    .map(move |handle| self.applied_callable_signatures.get(handle).signature()),
             )
     }
 
@@ -212,10 +209,17 @@ impl TypedTrees {
         &trait_definition::TraitDefinition,
         &signature::StateSignature,
     )> {
-        self.traits().iter().find_map(|trait_definition| {
-            self.trait_machine_signature_by_symbol(trait_definition, symbol)
-                .map(|signature| (trait_definition, signature))
-        })
+        if let Some((trait_index, signature_index)) =
+            self.with_call_target_index(|index| index.trait_signature.get(&symbol).copied())
+        {
+            let trait_definition = &self.traits()[trait_index as usize];
+            let signature =
+                &self.trait_machine_signatures(trait_definition)[signature_index as usize];
+            return Some((trait_definition, signature));
+        }
+        let application = self.closed_requirement_application(symbol)?;
+        let trait_definition = self.trait_definition_by_symbol(application.declaring_trait)?;
+        Some((trait_definition, application.signature))
     }
 
     /// The machine `symbol` declares, if any.

@@ -119,12 +119,7 @@ fn cleanup_rows(
         PlaceRoot,
     ) -> Option<Option<CheckedUnitStructuralArgumentSourcePlan>>,
 ) -> Option<Vec<NormalExitConstruction>> {
-    let flow_state = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, row)| (row.state_symbol == state.symbol).then_some(row))?;
+    let flow_state = facts.flow.control.state(machine, state.symbol)?;
     let mut rows = Vec::<NormalExitConstruction>::new();
     for outgoing in facts
         .flow
@@ -162,17 +157,17 @@ fn cleanup_rows(
     }
     let mut retirements = Vec::new();
     let mut establishment_ordered = Vec::new();
-    for (disposition_handle, disposition) in
-        facts
+    for disposition_handle in facts
+        .contextual_cleanup
+        .state_disposition_handles(machine, state.symbol)
+    {
+        let disposition = facts
             .contextual_cleanup
             .dispositions
-            .iter()
-            .filter(|(_, row)| {
-                row.machine == machine
-                    && row.state == state.symbol
-                    && row.source == PermissionEventSource::StateExit
-            })
-    {
+            .get(disposition_handle);
+        if disposition.source != PermissionEventSource::StateExit {
+            continue;
+        }
         if disposition.exit.state_symbol != state.symbol {
             return None;
         }
@@ -241,9 +236,7 @@ fn cleanup_rows(
         if let Some(row) = rows.iter_mut().find(|row| row.exit == disposition.exit) {
             if facts
                 .contextual_cleanup
-                .selected_dispositions
-                .iter()
-                .any(|(_, candidate)| *candidate == disposition_handle)
+                .is_selected_disposition(disposition_handle)
             {
                 let region = super::actions::selected_region(
                     program,
@@ -365,12 +358,7 @@ pub(in crate::execution::terminal_unit) fn producer_root(
             CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
         ) => facts.values.structural_values.nodes.get(*value).expression,
         CheckedUnitEffectOperationPlan::Call(call) => {
-            let flow = facts
-                .flow
-                .control
-                .states
-                .iter()
-                .find_map(|(_, row)| (row.state_symbol == state).then_some(row))?;
+            let flow = facts.flow.control.state_by_symbol(state)?;
             let mut calls = facts
                 .flow
                 .control

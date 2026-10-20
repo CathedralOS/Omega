@@ -150,9 +150,7 @@ pub(super) fn disposition_actions(
         .get(disposition_handle);
     let selected_disposition = facts
         .contextual_cleanup
-        .selected_dispositions
-        .iter()
-        .any(|(_, handle)| *handle == disposition_handle);
+        .is_selected_disposition(disposition_handle);
     let machine = program.machine_by_symbol(disposition.machine)?;
     let binders = machine_binders(program, machine);
     let statement_index = match disposition.source {
@@ -165,22 +163,23 @@ pub(super) fn disposition_actions(
         _ => disposition.exit.statement_index,
     };
     let selected = crate::flow::selected_cleanup_leaves(program, facts, disposition)?;
-    let contexts = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .find(|(_, state)| {
-            state.machine_symbol == disposition.machine && state.state_symbol == disposition.state
+    let contexts = std::cell::OnceCell::new();
+    let get_contexts = || {
+        contexts.get_or_init(|| {
+            facts
+                .flow
+                .control
+                .state(disposition.machine, disposition.state)
+                .and_then(|state| {
+                    crate::facts::contextual_cleanup::occurrence_contexts(
+                        program,
+                        facts,
+                        state,
+                        disposition,
+                    )
+                })
         })
-        .and_then(|(_, state)| {
-            crate::facts::contextual_cleanup::occurrence_contexts(
-                program,
-                facts,
-                state,
-                disposition,
-            )
-        });
+    };
     let case_reachability = |segments: &[facts::PlaceSegment]| {
         use validation::CleanupCaseReachability;
         if !segments
@@ -189,7 +188,7 @@ pub(super) fn disposition_actions(
         {
             return Some(CleanupCaseReachability::Selected);
         }
-        let contexts = contexts.as_ref()?;
+        let contexts = get_contexts().as_ref()?;
         if contexts.is_empty() {
             return None;
         }

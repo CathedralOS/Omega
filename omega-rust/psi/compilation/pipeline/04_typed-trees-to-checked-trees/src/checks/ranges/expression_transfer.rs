@@ -121,11 +121,15 @@ impl ExpressionTransfer<'_, '_> {
                 // the same checked operator roster used by semantic flow;
                 // missing authority cannot establish comparison evidence.
                 let builtin_comparison = facts.checked_operators.is_some_and(|operators| {
-                    !operators.uses.iter().any(|(_, selected)| {
-                        selected.expression == expression
-                            && selected.occurrence
-                                != checked_trees::CheckedOperatorOccurrence::Expression
-                    })
+                    let mut builtin = true;
+                    operators.for_each_expression_use(expression, |_, selected| {
+                        if selected.occurrence
+                            != checked_trees::CheckedOperatorOccurrence::Expression
+                        {
+                            builtin = false;
+                        }
+                    });
+                    builtin
                 });
                 let mut stable_subject = builtin_comparison && self.is_read_only(dispatch.subject);
                 let mut boolean_coverage = [false; 2];
@@ -188,14 +192,19 @@ impl ExpressionTransfer<'_, '_> {
             }
             ExpressionNode::Call(call) => {
                 facts.begin_result_measurement(expression);
+                let measured_collection =
+                    validation::normal_return_length_collection(self.program, call);
                 self.transfer(facts, call.receiver, sink);
-                if call.receiver.is_valid() {
-                    facts.capture_result_measurement(
+                if call.receiver.is_valid()
+                    && let Some(collection) = measured_collection
+                {
+                    facts.capture_result_measurement_for_collection(
                         self.program,
                         self.machine,
                         self.state,
                         expression,
                         call.receiver,
+                        collection,
                     );
                 }
                 for argument in self
@@ -204,13 +213,16 @@ impl ExpressionTransfer<'_, '_> {
                     .expression_handles(call.arguments)
                 {
                     self.transfer(facts, *argument, sink);
-                    facts.capture_result_measurement(
-                        self.program,
-                        self.machine,
-                        self.state,
-                        expression,
-                        *argument,
-                    );
+                    if let Some(collection) = measured_collection {
+                        facts.capture_result_measurement_for_collection(
+                            self.program,
+                            self.machine,
+                            self.state,
+                            expression,
+                            *argument,
+                            collection,
+                        );
+                    }
                 }
                 sink.call_entry(facts, call);
                 let writes = self.call_frames.and_then(|frames| {

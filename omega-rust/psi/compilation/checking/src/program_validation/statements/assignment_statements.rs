@@ -438,10 +438,12 @@ pub(super) fn validate<'a, 'p>(
         );
     }
     if diagnostics.len() == before {
+        let copied_target_path = assignment_path
+            .clone()
+            .or_else(|| arithmetic_domains::element_place_path(program, assignment.target));
         copied_value.record(
             value_environment,
-            arithmetic_domains::place_path(program, assignment.target)
-                .or_else(|| arithmetic_domains::element_place_path(program, assignment.target)),
+            copied_target_path,
             places::canonical_place_from_expression(program, assignment.target),
         );
         arithmetic_domains::record_boolean_assignment(
@@ -455,13 +457,13 @@ pub(super) fn validate<'a, 'p>(
         arithmetic_domains::record_unsigned_literal_assignment(
             program,
             value_environment,
-            arithmetic_domains::place_path(program, assignment.target),
+            assignment_path.clone(),
             assignment_target_primitive,
             assignment.value,
         );
         arithmetic_domains::record_float_assignment(
             value_environment,
-            arithmetic_domains::place_path(program, assignment.target),
+            assignment_path.clone(),
             copied_float,
         );
         if let (Some(path), Some(reference)) =

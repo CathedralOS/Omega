@@ -64,14 +64,89 @@ fn selected_citation_machine(
     if !symbol.is_valid() {
         return None;
     }
-    program.machines().iter().find(|machine| {
-        machine.attached_data.is_none()
-            && (machine.symbol == symbol
-                || program
-                    .machine_states(machine)
-                    .first()
-                    .is_some_and(|entry| entry.symbol == symbol))
+    program
+        .machine_by_own_or_state_symbol(symbol)
+        .filter(|machine| {
+            machine.attached_data.is_none()
+                && (machine.symbol == symbol
+                    || program
+                        .machine_states(machine)
+                        .first()
+                        .is_some_and(|entry| entry.symbol == symbol))
+        })
+}
+
+/// Fast eligibility check before `establish_citation` clones/re-intakes a
+/// `StructuralJudge` or termifies call arguments on a runtime path.
+pub(super) fn can_establish_citation(
+    program: &dyn crate::CheckingInput,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    machine: &Machine,
+    target: &CitationTarget,
+    arguments_len: usize,
+    runtime_invocation: bool,
+) -> bool {
+    let Some(callee) = selected_citation_machine(program, target.symbol) else {
+        return false;
+    };
+    let self_citation = std::ptr::eq(callee, machine);
+    let Some(entry) = program.machine_states(callee).first() else {
+        return false;
+    };
+    let resultless_entry = !entry.return_type.is_valid();
+    if (runtime_invocation && (self_citation || target.has_static_selection))
+        || (!runtime_invocation
+            && ((self_citation && !resultless_entry)
+                || !classification.is_proof_machine(program, callee)))
+    {
+        return false;
+    }
+    if program.state_parameters(entry).len() != arguments_len {
+        return false;
+    }
+    program.machine_contracts(callee).iter().any(|contract| {
+        contract.kind == SignatureContractKind::Ensures
+            && program
+                .proof_facts
+                .span_or_empty(contract.facts)
+                .iter()
+                .any(|fact| fact.as_expression().is_some())
     })
+}
+
+/// Whether `instantiate_citation` inspects the site-specific hypotheses,
+/// equations, prior citations, or induction hypotheses in `judge` (as opposed
+/// to only `judge.has_runtime_body_values()`). A requires-free citation whose
+/// ensures contain no case observations produces the exact same instantiated
+/// equations from `judge` directly without constructing a temporary `site_judge`.
+pub(super) fn citation_needs_site_judge(
+    program: &dyn crate::CheckingInput,
+    target: &CitationTarget,
+) -> bool {
+    let Some(callee) = selected_citation_machine(program, target.symbol) else {
+        return false;
+    };
+    for contract in program.machine_contracts(callee) {
+        match &contract.kind {
+            SignatureContractKind::Requires => {
+                if !program.proof_facts.span_or_empty(contract.facts).is_empty() {
+                    return true;
+                }
+            }
+            SignatureContractKind::Ensures => {
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    if let Some(expression) = fact.as_expression()
+                        && super::call_requirements::contains_case_premise(program, *expression)
+                    {
+                        return true;
+                    }
+                }
+            }
+            SignatureContractKind::EnsuresForResultCase { .. }
+            | SignatureContractKind::Crashes { .. } => {}
+        }
+    }
+    false
 }
 
 /// The cited entry state's parameter result types in argument order — the

@@ -97,6 +97,18 @@ pub(super) fn check(
     requirements: &DeclaredFieldRequirements,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if requirements.rows.is_empty() {
+        return;
+    }
+    let Some(parameters) = validation::call_target_parameters(program, call.target_symbol) else {
+        return;
+    };
+    if !parameters
+        .iter()
+        .any(|parameter| !requirements.requirements(parameter.symbol).is_empty())
+    {
+        return;
+    }
     let Some(site) = validation::find_call_site(
         program,
         state.machine_symbol,
@@ -104,9 +116,6 @@ pub(super) fn check(
         call.statement_index,
         call.call_ordinal,
     ) else {
-        return;
-    };
-    let Some(parameters) = validation::call_target_parameters(program, call.target_symbol) else {
         return;
     };
     let arguments = validation::call_site_argument_expressions(program, &site);

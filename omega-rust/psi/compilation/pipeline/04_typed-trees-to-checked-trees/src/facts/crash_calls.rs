@@ -237,8 +237,19 @@ pub(super) fn attach_checked_crash_calls(
         plans,
         Some(summary_graph),
     );
+    let mut plan_indices = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    for (index, plan) in plans.iter().enumerate() {
+        plan_indices.entry(plan.machine).or_insert(index);
+    }
+    let mut summary_by_machine =
+        symbols::SymbolKeyMap::<SymbolHandle, &[SummaryCrashBucket]>::default();
+    for (machine, summary) in &inferred_body_summaries {
+        summary_by_machine
+            .entry(*machine)
+            .or_insert(summary.as_slice());
+    }
     let mut calls_by_caller =
-        Vec::<(SymbolHandle, Vec<checked_trees::CheckedCrashCallSite>)>::new();
+        symbols::SymbolKeyMap::<SymbolHandle, Vec<checked_trees::CheckedCrashCallSite>>::default();
     for (_, state_flow) in flow.control.states.iter() {
         for call_flow in flow.control.calls.span_or_empty(state_flow.calls) {
             let Some(call_site) = validation::find_call_site(
@@ -260,7 +271,9 @@ pub(super) fn attach_checked_crash_calls(
                 continue;
             };
             let local_target = program.machine_by_symbol(target_machine_symbol);
-            let local_plan = checked_trees::contract_plan_by_machine(plans, target_machine_symbol);
+            let local_plan = plan_indices
+                .get(&target_machine_symbol)
+                .and_then(|&index| plans.get(index));
             let (
                 target_parameters,
                 target_parameter_names,
@@ -274,10 +287,7 @@ pub(super) fn attach_checked_crash_calls(
                     continue;
                 };
                 let target_routes = if target_machine.target_family_interface {
-                    let Some((_, summary)) = inferred_body_summaries
-                        .iter()
-                        .find(|(machine, _)| *machine == target_machine_symbol)
-                    else {
+                    let Some(&summary) = summary_by_machine.get(&target_machine_symbol) else {
                         // Authored clauses alone do not close a family's private
                         // inferred body causes or unresolved member dependencies.
                         continue;
@@ -291,10 +301,7 @@ pub(super) fn attach_checked_crash_calls(
                 } else if target_machine.supply_mode
                     == language_semantics::MachineSupplyMode::CheckedBody
                 {
-                    let Some((_, summary)) = inferred_body_summaries
-                        .iter()
-                        .find(|(machine, _)| *machine == target_machine_symbol)
-                    else {
+                    let Some(&summary) = summary_by_machine.get(&target_machine_symbol) else {
                         // Dependency-unresolved private bodies remain
                         // unexamined rather than erasing a nested crash.
                         continue;
@@ -417,15 +424,10 @@ pub(super) fn attach_checked_crash_calls(
                 .into_iter()
                 .filter_map(SummaryCrashBucket::into_checked)
                 .collect::<Vec<_>>();
-            let caller_index = calls_by_caller
-                .iter()
-                .position(|(machine, _)| *machine == state_flow.machine_symbol)
-                .unwrap_or_else(|| {
-                    calls_by_caller.push((state_flow.machine_symbol, Vec::new()));
-                    calls_by_caller.len() - 1
-                });
-            calls_by_caller[caller_index].1.push(
-                checked_trees::CheckedCrashCallSite::new_with_commitment(
+            calls_by_caller
+                .entry(state_flow.machine_symbol)
+                .or_default()
+                .push(checked_trees::CheckedCrashCallSite::new_with_commitment(
                     checked_trees::CrashCallSiteLocation::new(
                         state_flow.state_symbol,
                         u32::try_from(call_flow.statement_index)
@@ -438,17 +440,12 @@ pub(super) fn attach_checked_crash_calls(
                     target_contract_fingerprint,
                     target_contract_commitment,
                     surviving_buckets,
-                ),
-            );
+                ));
         }
     }
 
     for plan in plans {
-        let checked_calls = calls_by_caller
-            .iter_mut()
-            .find(|(machine, _)| *machine == plan.machine)
-            .map(|(_, calls)| std::mem::take(calls))
-            .unwrap_or_default();
+        let checked_calls = calls_by_caller.remove(&plan.machine).unwrap_or_default();
         plan.crash = plan
             .crash
             .clone()
@@ -491,22 +488,19 @@ pub(crate) fn infer_checked_crash_causes(
         &facts.contract_plans.machines,
         None,
     );
+    let mut machine_counts = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    for candidate in program.machines() {
+        *machine_counts.entry(candidate.symbol).or_default() += 1;
+    }
+    let mut plan_counts = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    for candidate in &facts.contract_plans.machines {
+        *plan_counts.entry(candidate.machine).or_default() += 1;
+    }
     summaries
         .into_iter()
         .filter(|(machine, _)| {
-            program
-                .machines()
-                .iter()
-                .filter(|candidate| candidate.symbol == *machine)
-                .count()
-                == 1
-                && facts
-                    .contract_plans
-                    .machines
-                    .iter()
-                    .filter(|candidate| candidate.machine == *machine)
-                    .count()
-                    == 1
+            machine_counts.get(machine).copied() == Some(1)
+                && plan_counts.get(machine).copied() == Some(1)
         })
         .map(|(machine, buckets)| {
             let mut causes = buckets

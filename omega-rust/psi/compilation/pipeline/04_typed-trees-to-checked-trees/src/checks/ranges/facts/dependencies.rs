@@ -228,12 +228,19 @@ impl<'field> RangeFacts<'field> {
         machine: &Machine,
         state: &State,
     ) -> Vec<ReceiverLength> {
+        if self.exact_lengths.is_empty() || self.expression_dependencies.is_empty() {
+            return Vec::new();
+        }
         self.expression_dependencies
             .iter()
             .filter_map(|row| {
+                if row.machine != machine.symbol || row.state != state.symbol {
+                    return None;
+                }
                 let [place] = row.reads.as_deref()? else {
                     return None;
                 };
+                let length = self.exact_length(&row.label)?;
                 let place = crate::flow::rebase_exact_local_place(
                     program,
                     state.symbol,
@@ -241,25 +248,21 @@ impl<'field> RangeFacts<'field> {
                     place.clone(),
                     self.checked_calls.and_then(|context| context.call_frames()),
                 )?;
-                (row.machine == machine.symbol
-                    && row.state == state.symbol
-                    && (place.root) == facts::PlaceRoot::Symbol(machine.symbol)
+                ((place.root) == facts::PlaceRoot::Symbol(machine.symbol)
                     && !place.segments.is_empty()
                     && place
                         .segments
                         .iter()
                         .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. })))
-                .then(|| {
-                    Some(ReceiverLength {
-                        expression: row.expression,
-                        label: row.label.clone(),
-                        place: CanonicalPlace {
-                            root: facts::PlaceRoot::Symbol(machine.symbol),
-                            segments: place.segments.clone(),
-                        },
-                        length: self.exact_length(&row.label)?,
-                    })
-                })?
+                .then(|| ReceiverLength {
+                    expression: row.expression,
+                    label: row.label.clone(),
+                    place: CanonicalPlace {
+                        root: facts::PlaceRoot::Symbol(machine.symbol),
+                        segments: place.segments,
+                    },
+                    length,
+                })
             })
             .collect()
     }
@@ -281,6 +284,16 @@ impl<'field> RangeFacts<'field> {
         state: &State,
         storages: &[(CanonicalPlace, SymbolHandle)],
     ) -> Vec<(String, ExpressionHandle, CanonicalPlace)> {
+        if storages.is_empty()
+            || self.expression_dependencies.is_empty()
+            || (self.exact_lengths.is_empty()
+                && self.proven_index_upper_bounds.is_empty()
+                && self.proven_non_negatives.is_empty()
+                && self.minimum_lengths.is_empty()
+                && self.proven_indexes.is_empty())
+        {
+            return Vec::new();
+        }
         self.expression_dependencies
             .iter()
             .filter(|row| row.machine == machine.symbol && row.state == state.symbol)
@@ -289,6 +302,16 @@ impl<'field> RangeFacts<'field> {
             // scalar bounds and value-write dependencies to a collection.
             // Extents travel through the collection-length fact channels.
             .filter(|row| row.descriptor.is_none())
+            .filter(|row| {
+                self.exact_length(&row.label).is_some()
+                    || self.proven_index_upper_bound(&row.label).is_some()
+                    || self.non_negative_is_proven(&row.label)
+                    || self.minimum_length(&row.label).is_some()
+                    || self
+                        .proven_indexes
+                        .iter()
+                        .any(|(collection, index)| collection == &row.label || index == &row.label)
+            })
             .filter_map(|row| {
                 let [place] = row.reads.as_deref()? else {
                     return None;
@@ -586,6 +609,9 @@ impl<'field> RangeFacts<'field> {
         program: &dyn ::validation::CheckingInput,
         writes: Option<&[CanonicalPlace]>,
     ) {
+        if self.measured_results.is_empty() && self.scalar_binding_dependencies.is_empty() {
+            return;
+        }
         self.measured_results.retain(|(_, length)| {
             !writes.is_none_or(|writes| {
                 writes.iter().any(|write| {
@@ -657,6 +683,20 @@ impl<'field> RangeFacts<'field> {
         let Some(collection) = validation::normal_return_length_collection(program, call) else {
             return;
         };
+        self.capture_result_measurement_for_collection(
+            program, machine, state, expression, collection, argument,
+        );
+    }
+
+    pub(in crate::checks::ranges) fn capture_result_measurement_for_collection(
+        &mut self,
+        program: &dyn ::validation::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        collection: ExpressionHandle,
+        argument: ExpressionHandle,
+    ) {
         let actual = match program.expression_table.expression(argument) {
             ExpressionNode::Borrow(borrow) => borrow.target,
             _ => argument,
@@ -843,6 +883,9 @@ impl<'field> RangeFacts<'field> {
         }
         let mut collisions = LabelCollisions::default();
         for (label, rows) in groups {
+            if rows.expressions.is_empty() && rows.bindings.len() == 1 {
+                continue;
+            }
             let mut meanings = rows
                 .expressions
                 .iter()
@@ -903,8 +946,18 @@ impl<'field> RangeFacts<'field> {
         let Some(writes) = writes else {
             return Vec::new();
         };
-        let mut writes = writes.to_vec();
-        for write in &mut writes {
+        if !self
+            .expression_dependencies
+            .iter()
+            .any(|row| row.machine == machine.symbol && row.state == state.symbol)
+            && !self
+                .scalar_binding_dependencies
+                .iter()
+                .any(|row| row.machine == machine.symbol && row.state == state.symbol)
+        {
+            return Vec::new();
+        }
+        for write in writes {
             if !matches!(write.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid() && program.symbols.get(symbol).kind != symbols::SymbolKind::Field)
             {
                 return Vec::new();
@@ -967,6 +1020,13 @@ impl<'field> RangeFacts<'field> {
         state: &State,
         storage_writes: Option<&[CanonicalPlace]>,
     ) -> Vec<String> {
+        if !self
+            .scalar_binding_dependencies
+            .iter()
+            .any(|row| row.machine == machine.symbol && row.state == state.symbol)
+        {
+            return Vec::new();
+        }
         let mut preserved =
             self.preserved_expression_labels(program, machine, state, storage_writes);
         preserved.retain(|label| {
@@ -1045,6 +1105,9 @@ fn same_reads(
     let equal = |left: &CanonicalPlace, right: &CanonicalPlace| {
         crate::flow::canonical_places_agree(program, left, right)
     };
+    if std::ptr::eq(left, right) {
+        return left.iter().all(|read| equal(read, read));
+    }
     left.iter()
         .all(|read| right.iter().any(|other| equal(read, other)))
         && right

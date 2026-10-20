@@ -134,13 +134,7 @@ pub(crate) fn validate_linear_permission_events(
                         ) && let Some((_, receipt)) = facts
                             .flow
                             .ownership
-                            .owned_selections
-                            .iter()
-                            .find(|(_, receipt)| {
-                                receipt.machine == machine.symbol
-                                    && receipt.state == state.symbol
-                                    && receipt.statement_ordinal as usize == statement
-                            })
+                            .owned_selection_at(state.symbol, statement as u32)
                         {
                             if events.iter().any(|event| {
                                 permission_event_statement_index(event.source) == Some(statement)
@@ -375,6 +369,9 @@ fn append_unresolved_state_result_mapping_diagnostics(
         }
     }
 
+    if unresolved_statements.is_empty() {
+        return;
+    }
     let machine_name = validation::find_state(program, state.symbol)
         .map(|(machine, _)| machine.name.as_str())
         .unwrap_or("<unknown machine>");

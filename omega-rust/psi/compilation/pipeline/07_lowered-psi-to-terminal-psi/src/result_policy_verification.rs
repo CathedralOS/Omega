@@ -31,16 +31,20 @@ pub fn verify_boundary_result_policies(
             let Some(NominalMachineUseSite::Expression(expression)) = source.source_site else {
                 return false;
             };
+            let mut has_policy = false;
             checked
                 .facts
                 .operators
-                .resolved_expression_selections()
-                .any(|(candidate, origin, target, policy)| {
-                    candidate == expression
+                .for_each_resolved_expression_selection(expression, |origin, target, policy, _| {
+                    if !has_policy
                         && target == source.source_target
                         && policy != CheckedArithmeticPolicyAdapter::None
                         && source.matches_checked_origin(checked, origin)
-                })
+                    {
+                        has_policy = true;
+                    }
+                });
+            has_policy
         })
         .count();
     let mut matched = 0;
@@ -75,14 +79,24 @@ pub fn verify_boundary_result_policies(
                 let Some(NominalMachineUseSite::Expression(expression)) = source.source_site else {
                     continue;
                 };
-                let mut selections = checked
+                let mut first_selection = None;
+                let mut multiple_selections = false;
+                checked
                     .facts
                     .operators
-                    .resolved_expression_selections()
-                    .filter(|(candidate, origin, _, _)| {
-                        *candidate == expression && source.matches_checked_origin(checked, *origin)
-                    });
-                let Some((_, _, target, policy)) = selections.next() else {
+                    .for_each_resolved_expression_selection(
+                        expression,
+                        |origin, target, policy, _| {
+                            if source.matches_checked_origin(checked, origin) {
+                                if first_selection.is_none() {
+                                    first_selection = Some((target, policy));
+                                } else {
+                                    multiple_selections = true;
+                                }
+                            }
+                        },
+                    );
+                let Some((target, policy)) = first_selection else {
                     if typed_trees::operator::declaration_by_symbol(
                         &checked.typed,
                         source.source_target,
@@ -93,7 +107,7 @@ pub fn verify_boundary_result_policies(
                     }
                     continue;
                 };
-                if selections.next().is_some() || target != source.source_target {
+                if multiple_selections || target != source.source_target {
                     return Err("float result policy changed its exact checked selection");
                 }
                 let control = &checked.facts.flow.control;
@@ -103,10 +117,9 @@ pub fn verify_boundary_result_policies(
                     .and_then(|machine| checked.typed.machine_states(machine).first())
                     .map_or(target, |state| state.symbol);
                 let calls = control
-                    .states
-                    .iter()
-                    .filter(|(_, state)| state.state_symbol == source.source_state)
-                    .flat_map(|(_, state)| control.calls.span_or_empty(state.calls))
+                    .state_by_symbol(source.source_state)
+                    .into_iter()
+                    .flat_map(|state| control.calls.span_or_empty(state.calls))
                     .filter(|call| {
                         call.statement_index == source.statement_index
                             && call.call_ordinal == source.call_ordinal

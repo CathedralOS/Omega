@@ -85,12 +85,29 @@ pub(crate) fn natural_rank_plans(
     Vec<checked_trees::CheckedRankEdgeCoordinate>,
 )> {
     let fused = fused_states(program, machine);
+    natural_rank_plans_for_fused(program, &fused, admitted)
+}
+
+pub(super) fn natural_rank_plans_for_fused(
+    program: &dyn validation::CheckingInput,
+    fused: &FusedStates<'_>,
+    admitted: &checked_trees::CheckedRankArrivalPlan,
+) -> Option<(
+    Vec<checked_trees::CheckedStateNaturalRank>,
+    Vec<checked_trees::CheckedRankEdgeCoordinate>,
+)> {
+    let has_witness = fused
+        .iter()
+        .any(|(owner, _)| owner.termination_plan.implementation_witness.is_some());
+    if !has_witness && admitted.runtime_components.is_empty() {
+        return Some((Vec::new(), Vec::new()));
+    }
     let members = fused
         .iter()
         .map(|(_, state)| state.symbol)
         .collect::<Vec<_>>();
     let mut ranks = Vec::new();
-    for (owner, state) in &fused {
+    for (owner, state) in fused {
         if owner.termination_plan.implementation_witness.is_none() {
             continue;
         }
@@ -119,6 +136,9 @@ pub(crate) fn natural_rank_plans(
         }
     }
     ranks.dedup();
+    if admitted.runtime_components.is_empty() {
+        return Some((ranks, Vec::new()));
+    }
     let mut weak = Vec::new();
     for component in validation::retained_runtime_natural_components(admitted) {
         if !component
@@ -188,8 +208,6 @@ pub(super) fn build_traced(
     CheckedComposedUnitControlMachinePlan,
     Vec<super::structural_value_calls::PreparedValueCalls>,
 )> {
-    let fused_states = fused_states(program, machine);
-    let fused = &fused_states;
     trace.phase("state graph: shape");
     trace.state(None);
     let states = program.machine_states(machine);
@@ -237,9 +255,12 @@ pub(super) fn build_traced(
             return None;
         }
     }
+    let _fused_guard = phase_profile::guard("05.d.8_10.a.3.2c.1.fused_and_ranks");
+    let fused_states = fused_states(program, machine);
+    let fused = &fused_states;
     trace.phase("state graph: natural ranks");
     let (mut natural_ranks, preserving_rank_edges) =
-        natural_rank_plans(program, machine, &facts.termination.rank_arrivals)?;
+        natural_rank_plans_for_fused(program, fused, &facts.termination.rank_arrivals)?;
     for rank in &mut natural_ranks {
         let (owner, _) = validation::find_state(program, rank.state)?;
         let root = facts.values.scalar_computations.root_at(
@@ -252,6 +273,8 @@ pub(super) fn build_traced(
         }
         rank.observation = root.root;
     }
+    drop(_fused_guard);
+    let _sig_guard = phase_profile::guard("05.d.8_10.a.3.2c.2.signatures");
     let mut attachment = None;
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();
@@ -378,9 +401,11 @@ pub(super) fn build_traced(
         state_entry_claims.push(claims);
         signatures.push((structural, scalar));
     }
+    drop(_sig_guard);
     let mut planned = Vec::new();
     let mut prepared_calls = Vec::new();
     for (state_index, &(owner, state)) in fused.iter().enumerate() {
+        let _seq_guard = phase_profile::guard("05.d.8_10.a.3.2c.3.sequence");
         trace.state(Some(state.symbol));
         let (structural, scalar) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -423,15 +448,17 @@ pub(super) fn build_traced(
         // Computation roots retain handles into this arena. Borrow the original
         // occurrences so their exact identity survives nested-call validation.
         trace.phase("state graph: outer calls");
-        let calls = control::outer_calls_in_prefix_traced(
-            program,
-            facts,
-            owner.symbol,
-            state,
-            source_calls,
-            operation_end,
-            trace,
-        )?;
+        let calls = phase_profile::scope("05.d.8_10.a.3.2c.3a.outer_calls", || {
+            control::outer_calls_in_prefix_traced(
+                program,
+                facts,
+                owner.symbol,
+                state,
+                source_calls,
+                operation_end,
+                trace,
+            )
+        })?;
         // Selected operator and FMA applications are not yet routed to the
         // composed states, so the sequence sees none and rewrites no
         // parameter identity; the signature stays the one recorded above.
@@ -445,31 +472,35 @@ pub(super) fn build_traced(
             &[],
             scalar,
         )?;
-        let sequence = control::statement_sequence::build(
-            program,
-            facts,
-            scalar_callees,
-            shapes,
-            owner,
-            state,
-            &mut sequence_structural,
-            scalar,
-            &parameter_storage,
-            &state_entry_claims[state_index],
-            &calls,
-            &[],
-            0,
-            operation_end,
-            call_frames,
-            trace,
-        )?;
+        let sequence = phase_profile::scope("05.d.8_10.a.3.2c.3b.statement_sequence", || {
+            control::statement_sequence::build(
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                owner,
+                state,
+                &mut sequence_structural,
+                scalar,
+                &parameter_storage,
+                &state_entry_claims[state_index],
+                &calls,
+                &[],
+                0,
+                operation_end,
+                call_frames,
+                trace,
+            )
+        })?;
         trace.phase("state graph: operation custody");
         let mut operations = sequence.operations;
         let place_loans = sequence.place_loans;
         operation_custody::admit(program, state, &mut operations, trace)?;
+        drop(_seq_guard);
         // Completion custody, not state count or borrow spelling, determines
         // the returned value. The receiving graph rejoins its exact producer
         // and independently validates the source reference's access and path.
+        let _term_guard = phase_profile::guard("05.d.8_10.a.3.2c.4.terminator");
         let terminator = terminator::build(
             program,
             facts,
@@ -489,6 +520,8 @@ pub(super) fn build_traced(
             terminator_index,
             trace,
         )?;
+        drop(_term_guard);
+        let _cust_guard = phase_profile::guard("05.d.8_10.a.3.2c.5.result_custody");
         // The prefix still owes its exact holes. A normal successor must
         // receive established storage; an all-crash roster returns nothing
         // and owns no repair or cleanup successor. Guarded crash spelling
@@ -574,6 +607,7 @@ pub(super) fn build_traced(
     // custody shape the route lacks, not just the phase. States outside the
     // entry successor closure never execute, so their custody rows cannot
     // disqualify the route — the shape check applies to live positions only.
+    let _finish_guard = phase_profile::guard("05.d.8_10.a.3.2c.6.parameter_custody_and_finish");
     trace.phase("state graph: state signature: parameter custody shape");
     let Some(live_states) = CheckedComposedUnitControlStatePlan::live_mask(&planned) else {
         trace.phase("state graph: state signature: parameter custody shape: edge target missing");

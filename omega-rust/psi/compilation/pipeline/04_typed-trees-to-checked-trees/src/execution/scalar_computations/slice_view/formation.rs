@@ -28,9 +28,11 @@ impl Builder<'_, '_> {
             ),
             language_semantics::ReferenceAccess::WriteOnly => return None,
         };
-        let state = self.borrow.states.iter().find_map(|(_, state)| {
-            (state.machine_symbol == self.machine && state.state_symbol == self.state)
-                .then_some(state)
+        let state = self.borrow.with_state_index(|index| {
+            index
+                .bucket(self.machine, self.state)
+                .first()
+                .map(|handle| self.borrow.states.get(*handle))
         })?;
         let descriptor = if let Some(place) = validation::canonical_place_from_expression_in_state(
             self.program,

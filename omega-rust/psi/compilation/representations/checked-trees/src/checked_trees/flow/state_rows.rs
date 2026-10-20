@@ -14,6 +14,7 @@ use symbols::SymbolHandle;
 #[derive(Clone, Default)]
 struct MachineStateRows {
     rows: Vec<(SymbolHandle, Handle<FlowStateFact>)>,
+    by_state: Vec<(SymbolHandle, Handle<FlowStateFact>)>,
 }
 
 /// Flow-state storage and its derived machine relationships share one owner.
@@ -58,6 +59,16 @@ impl FlowControlFacts {
         machine: SymbolHandle,
         read: impl FnOnce(&[(SymbolHandle, Handle<FlowStateFact>)]) -> Result,
     ) -> Result {
+        self.with_state_rows(|index| {
+            let start = index
+                .rows
+                .partition_point(|(owner, _)| key(*owner) < key(machine));
+            let end = start + index.rows[start..].partition_point(|(owner, _)| *owner == machine);
+            read(&index.rows[start..end])
+        })
+    }
+
+    fn with_state_rows<Result>(&self, read: impl FnOnce(&MachineStateRows) -> Result) -> Result {
         self.states.machine_rows.with(
             self.states.revision(),
             || {
@@ -67,17 +78,27 @@ impl FlowControlFacts {
                     .map(|(handle, state)| (state.machine_symbol, handle))
                     .collect();
                 rows.sort_by_key(|(machine, _)| key(*machine));
-                MachineStateRows { rows }
+                let mut by_state: Vec<_> = self
+                    .states
+                    .iter()
+                    .map(|(handle, state)| (state.state_symbol, handle))
+                    .collect();
+                by_state.sort_by_key(|(state, _)| key(*state));
+                MachineStateRows { rows, by_state }
             },
-            |index| {
-                let start = index
-                    .rows
-                    .partition_point(|(owner, _)| key(*owner) < key(machine));
-                let end =
-                    start + index.rows[start..].partition_point(|(owner, _)| *owner == machine);
-                read(&index.rows[start..end])
-            },
+            read,
         )
+    }
+
+    /// First recorded row with this exact state symbol.
+    pub fn state_by_symbol(&self, state: SymbolHandle) -> Option<&FlowStateFact> {
+        self.with_state_rows(|index| {
+            let start = index
+                .by_state
+                .partition_point(|(candidate, _)| key(*candidate) < key(state));
+            let (candidate, handle) = index.by_state.get(start)?;
+            (*candidate == state).then(|| self.states.get(*handle))
+        })
     }
 
     /// First recorded row with this exact machine and state identity.

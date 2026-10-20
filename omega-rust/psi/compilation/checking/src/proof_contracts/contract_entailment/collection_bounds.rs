@@ -21,6 +21,7 @@ pub struct CollectionBoundsObservations<'program> {
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
     state: &'program State,
+    acyclic: std::cell::Cell<Option<bool>>,
 }
 
 impl<'program> CollectionBoundsObservations<'program> {
@@ -33,6 +34,7 @@ impl<'program> CollectionBoundsObservations<'program> {
             program,
             machine,
             state,
+            acyclic: std::cell::Cell::new(None),
         }
     }
 
@@ -52,13 +54,20 @@ impl<'program> CollectionBoundsObservations<'program> {
             seen: false,
             proven: true,
         };
-        let entry = self.program.machine_states(self.machine).first();
-        let acyclic = entry.is_some_and(|entry| {
-            crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
-                self.program,
-                self.machine,
-                entry,
-            )
+        let acyclic = self.acyclic.get().unwrap_or_else(|| {
+            let computed = self
+                .program
+                .machine_states(self.machine)
+                .first()
+                .is_some_and(|entry| {
+                    crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
+                        self.program,
+                        self.machine,
+                        entry,
+                    )
+                });
+            self.acyclic.set(Some(computed));
+            computed
         });
         let recognized = if acyclic {
             super::structural_prefix::observe_acyclic_invocation_prefix(

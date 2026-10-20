@@ -134,11 +134,10 @@ pub(super) fn transport(
             &facts.semantic,
             &contexts,
         );
-        let origin = facts.flow.control.states.iter().find_map(|(_, origin)| {
-            (origin.machine_symbol == state.machine_symbol
-                && origin.state_symbol == capture.epoch.state_symbol)
-                .then_some(origin)
-        });
+        let origin = facts
+            .flow
+            .control
+            .state(state.machine_symbol, capture.epoch.state_symbol);
         if let (Some(frames), Some(origin)) = (frames, origin) {
             predicates.extend(super::prover::call_guarantees::current_predicates(
                 program,

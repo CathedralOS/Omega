@@ -19,6 +19,19 @@ pub(super) struct ExpressionRoutes {
 }
 
 impl ExpressionRoutes {
+    pub(super) fn from_steps(
+        occurrences: &[crate::checks::ownership_occurrences::StatementOccurrence],
+    ) -> Self {
+        let completed = occurrences
+            .iter()
+            .filter_map(|occurrence| match occurrence.step {
+                StatementStep::Complete(expression) => Some((expression, occurrence.route.clone())),
+                _ => None,
+            })
+            .collect();
+        Self { completed }
+    }
+
     pub(super) fn new(
         program: &dyn validation::CheckingInput,
         machine: &typed_trees::machine::Machine,
@@ -28,7 +41,7 @@ impl ExpressionRoutes {
         operators: &CheckedOperatorFacts,
     ) -> Self {
         let statement = &program.statement_table.statements(state.statement_nodes)[statement_index];
-        let completed = statement_steps_at_evaluation(
+        let occurrences = statement_steps_at_evaluation(
             program,
             machine,
             state,
@@ -37,14 +50,8 @@ impl ExpressionRoutes {
             &[],
             operators,
             Some(evaluation),
-        )
-        .into_iter()
-        .filter_map(|occurrence| match occurrence.step {
-            StatementStep::Complete(expression) => Some((expression, occurrence.route)),
-            _ => None,
-        })
-        .collect();
-        Self { completed }
+        );
+        Self::from_steps(&occurrences)
     }
 
     pub(super) fn expression(&self, expression: ExpressionHandle) -> &[EvaluationBranch] {

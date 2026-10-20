@@ -170,22 +170,14 @@ fn eligible_type(
                         | BuiltinTypeAtom::Int
                 );
             }
-            let mut definitions = program
-                .data_definitions()
-                .iter()
-                .filter(|data| data.symbol == *symbol);
-            let Some(data) = definitions.next() else {
+            let Some(data) = program.data_definition_by_symbol(*symbol) else {
                 return false;
             };
             if !symbol.is_valid()
-                || definitions.next().is_some()
                 || data.properties.multiplicity != Multiplicity::Unrestricted
                 || !program.data_type_parameters(data).is_empty()
                 || active[..active.len() - 1].iter().any(|ancestor| matches!(program.type_reference_table.type_reference(*ancestor), TypeReferenceNode::Named { symbol: previous, .. } if previous == symbol))
-                || program.machines().iter().any(|machine| {
-                    machine.attached_data_symbol == *symbol
-                        && machine.name.as_str().ends_with("::drop")
-                })
+                || program.attached_drop_machine_exists(*symbol)
             {
                 return false;
             }

@@ -62,10 +62,11 @@ pub(in crate::checks::multiplicity) fn check_recorded_invocations(
                 "borrowed-storage invocation has no owning state",
             )]);
         };
-        let Some(flow) = facts.flow.control.states.iter().find_map(|(_, flow)| {
-            (flow.machine_symbol == invocation.machine && flow.state_symbol == invocation.state)
-                .then_some(flow)
-        }) else {
+        let Some(flow) = facts
+            .flow
+            .control
+            .state(invocation.machine, invocation.state)
+        else {
             return Err(vec![Diagnostic::error(
                 "borrowed-storage invocation has no final call flow",
             )]);

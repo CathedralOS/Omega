@@ -177,19 +177,27 @@ pub(super) fn integral_parameter_reflexivity(
     {
         return false;
     }
-    program.state_parameters.iter().any(|(_, parameter)| {
-        parameter.symbol == left.symbol
-            && match program
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-            {
-                TypeReferenceNode::Named { symbol, .. } => program
-                    .symbols
-                    .builtin_type_atom(*symbol)
-                    .is_some_and(|atom| atom.is_fixed_integer()),
-                _ => false,
-            }
-    })
+    left.symbol.is_valid()
+        && program.symbols.get(left.symbol).kind == symbols::SymbolKind::Parameter
+        && validation::find_state(program, program.symbols.get(left.symbol).parent)
+            .and_then(|(_, state)| {
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .find(|parameter| parameter.symbol == left.symbol)
+            })
+            .is_some_and(|parameter| {
+                match program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference)
+                {
+                    TypeReferenceNode::Named { symbol, .. } => program
+                        .symbols
+                        .builtin_type_atom(*symbol)
+                        .is_some_and(|atom| atom.is_fixed_integer()),
+                    _ => false,
+                }
+            })
 }
 
 pub(super) fn transparent_proposition_proves_exit(
@@ -209,10 +217,12 @@ pub(super) fn transparent_proposition_proves_exit(
     let Some(application) = program.proof_facts.get(source).as_proposition() else {
         return false;
     };
-    let Some(machine) = program.machines().iter().find(|machine| {
-        machine.symbol == state_flow.machine_symbol
-            && machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-    }) else {
+    let Some(machine) = program
+        .machine_by_symbol(state_flow.machine_symbol)
+        .filter(|machine| {
+            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+        })
+    else {
         return false;
     };
     let Some(state) = validation::find_state_in_machine(
@@ -431,10 +441,9 @@ fn isolated_proof_values(
     }) && facts
         .flow
         .control
-        .states
-        .iter()
-        .filter(|(_, state)| state.machine_symbol == machine.symbol)
-        .all(|(_, state)| {
+        .machine_states(machine.symbol)
+        .into_iter()
+        .all(|state| {
             facts
                 .flow
                 .control

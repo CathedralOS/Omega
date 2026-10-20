@@ -105,6 +105,49 @@ impl MachineContractPlans {
     /// at checked-Psi time. It does not accept a stack number, a fuel number,
     /// a target footprint, or an installation receipt as an input.
     pub fn validate_resource_envelopes(&self) -> Result<(), &'static str> {
+        let aligned = self.machines.len() == self.realized_envelopes.len()
+            && self
+                .machines
+                .iter()
+                .zip(&self.realized_envelopes)
+                .all(|(contract, realized)| contract.machine == realized.machine)
+            && {
+                let mut seen = symbols::SymbolKeyMap::<SymbolHandle, ()>::default();
+                self.machines
+                    .iter()
+                    .all(|contract| seen.insert(contract.machine, ()).is_none())
+            };
+        if aligned {
+            for (contract, realized) in self.machines.iter().zip(&self.realized_envelopes) {
+                if contract.report_fingerprint == 0 {
+                    return Err(
+                        "checked resource envelope requires a nonzero contract report coordinate",
+                    );
+                }
+                if contract.commitment.is_zero() {
+                    return Err(
+                        "checked resource envelope requires a nonzero machine contract commitment",
+                    );
+                }
+                if realized.contract_report_fingerprint != contract.report_fingerprint
+                    || realized.contract_commitment != contract.commitment
+                {
+                    return Err(
+                        "checked resource envelope contract identity disagrees with its realized machine row",
+                    );
+                }
+                realized.resources.validate()?;
+                if realized.resources.machine != contract.machine
+                    || realized.resources.contract_report_fingerprint != contract.report_fingerprint
+                    || realized.resources.contract_commitment != contract.commitment
+                {
+                    return Err(
+                        "checked resource roster does not bind its exact realized machine contract",
+                    );
+                }
+            }
+            return Ok(());
+        }
         for contract in &self.machines {
             if contract.report_fingerprint == 0 {
                 return Err(

@@ -223,15 +223,9 @@ pub(in crate::checks::contracts) fn check_state_transfer_result_domains(
     call: &checked_trees::FlowCallFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(validation::CallSite::TransitionNamed { path, .. }) = validation::find_call_site(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-        call.statement_index,
-        call.call_ordinal,
-    ) else {
+    if call.authored_expression.is_valid() {
         return;
-    };
+    }
     let Some(machine) = program.machine(state_flow.machine_symbol) else {
         return;
     };
@@ -244,6 +238,15 @@ pub(in crate::checks::contracts) fn check_state_transfer_result_domains(
     {
         return;
     }
+    let Some(validation::CallSite::TransitionNamed { path, .. }) = validation::find_call_site(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    ) else {
+        return;
+    };
     let selected = crate::proof::contract_target_from_state_symbol(program, call.target_symbol);
     let exact_invocation = selected.is_some()
         && crate::proof::contract_target_from_state_symbol(program, path.symbol) == selected;

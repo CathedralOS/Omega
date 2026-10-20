@@ -24,6 +24,7 @@ resolver-execution = { path = "../../packages/resolver-execution" }
 target = { path = "../../compilation/backend/target" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
+phase-profile = { path = "../../../psi/foundation/phase-profile" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }

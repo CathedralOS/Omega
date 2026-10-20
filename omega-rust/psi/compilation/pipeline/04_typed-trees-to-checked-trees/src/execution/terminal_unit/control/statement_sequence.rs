@@ -193,10 +193,13 @@ pub(in crate::execution::terminal_unit) fn build(
     trace: &LocalConstructionTrace,
 ) -> Option<StatementSequence> {
     trace.phase("statement sequence: scalar control guard");
-    let (scalar_control, terminator_start) = match scalar_control(program, facts, machine, state) {
-        Some((control, prefix_count)) => (Some(control), prefix_count),
-        None => (None, usize::MAX),
-    };
+    let (scalar_control, terminator_start) = phase_profile::scope(
+        "05.d.8_10.a.3.2c.3b1.scalar_control",
+        || match scalar_control(program, facts, machine, state) {
+            Some((control, prefix_count)) => (Some(control), prefix_count),
+            None => (None, usize::MAX),
+        },
+    );
     let statements = program.statement_table.statements(state.statement_nodes);
     // The walk plans each statement up to the body's completion: a trailing
     // transition run (each arm's destructure marker before it), the final
@@ -316,7 +319,9 @@ pub(in crate::execution::terminal_unit) fn build(
     // Erased borrow carriers have no storage binding: the sequence advances
     // past their declarations while each use's planner joins the captured
     // referent's checked loan evidence.
-    let erased_locals = erased_alias_locals(program, facts, machine, state);
+    let erased_locals = phase_profile::scope("05.d.8_10.a.3.2c.3b2.erased_locals", || {
+        erased_alias_locals(program, facts, machine, state)
+    });
     let mut scalar_count = program
         .statement_table
         .statements(state.statement_nodes)
@@ -342,7 +347,7 @@ pub(in crate::execution::terminal_unit) fn build(
     let mut call_count = 0_usize;
     let binders = machine_binders(program, machine);
     trace.phase("statement sequence: scalar field store sequence");
-    let mut stores =
+    let mut stores = phase_profile::scope("05.d.8_10.a.3.2c.3b3.stores", || {
         super::super::structural_scalar_store::build_structural_scalar_field_store_sequence_traced(
             program,
             facts,
@@ -353,9 +358,11 @@ pub(in crate::execution::terminal_unit) fn build(
             parameter_storage,
             construction_statement_count,
             trace,
-        )?
-        .into_iter()
-        .peekable();
+        )
+    })?
+    .into_iter()
+    .peekable();
+    let _loop_guard = phase_profile::guard("05.d.8_10.a.3.2c.3b4.statement_loop");
     // A composed state ends its sequence where its terminator begins: a
     // transition into a fused sibling is a successor edge the state graph
     // plans, not a terminal call, so the caller bounds the walk.
@@ -679,31 +686,34 @@ pub(in crate::execution::terminal_unit) fn build(
             },
         )?;
     }
+    drop(_loop_guard);
     trace.statement(None);
-    completion::complete(completion::Completion {
-        program,
-        facts,
-        scalar_callees,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
-        entry_claims,
-        calls,
-        trivial_affine_locals,
-        trace,
-        binders: &binders,
-        scalar_control,
-        operations,
-        place_loans,
-        scalar_count,
-        structural_count,
-        structural_local_symbols,
-        windows,
-        returned_call,
-        returned_scalar_call,
-        structural_results,
-        call_count,
+    phase_profile::scope("05.d.8_10.a.3.2c.3b5.completion", || {
+        completion::complete(completion::Completion {
+            program,
+            facts,
+            scalar_callees,
+            shapes,
+            machine,
+            state,
+            structural_parameters,
+            entry_claims,
+            calls,
+            trivial_affine_locals,
+            trace,
+            binders: &binders,
+            scalar_control,
+            operations,
+            place_loans,
+            scalar_count,
+            structural_count,
+            structural_local_symbols,
+            windows,
+            returned_call,
+            returned_scalar_call,
+            structural_results,
+            call_count,
+        })
     })
 }
 

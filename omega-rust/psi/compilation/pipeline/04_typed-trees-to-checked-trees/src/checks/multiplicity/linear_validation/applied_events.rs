@@ -50,6 +50,13 @@ pub(crate) fn apply_recorded_statement_events(
     places: &mut [LinearPlace],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if !events.iter().any(|event| {
+        permission_event_statement_index(event.source) == Some(statement_index)
+            && event.evaluation == evaluation
+            && event.kind != PermissionEventKind::AffineDrop
+    }) {
+        return;
+    }
     let segments = &facts.flow.ownership.segments;
     let routes = super::super::selected_evaluation::ExpressionRoutes::new(
         program,

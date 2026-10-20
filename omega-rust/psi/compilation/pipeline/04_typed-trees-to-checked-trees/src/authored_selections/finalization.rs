@@ -28,7 +28,6 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelections, BuildOperation,
 };
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use validation::selection_resolution::{
     AuthoredSelectionResolution, AuthoredSelectionResolutionTarget, declaration_target,
@@ -36,7 +35,7 @@ use validation::selection_resolution::{
 };
 
 pub(crate) fn finalize_checked_authored_selections(
-    program: &TypedTrees,
+    program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Result<AuthoredDeclarationSelections, Diagnostic> {
     let mut resolutions = Vec::new();
@@ -48,41 +47,46 @@ pub(crate) fn finalize_checked_authored_selections(
     let mut generic_operator_values: Option<GenericOperatorValueOrigins> = None;
     // One exact-owner index answers every member expression's query in a
     // single pass instead of a whole-program rescan per occurrence.
-    let owner_index = validation::expression_owners::OwnerEnvironmentIndex::new(
-        program,
-        &facts.proof.contract_facts,
-    );
+    let owner_index = {
+        let _s = phase_profile::guard("05.d.11_13.a.1.owner_index");
+        validation::expression_owners::OwnerEnvironmentIndex::new(
+            program,
+            &facts.proof.contract_facts,
+        )
+    };
 
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for (statement_index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
-                let Some(binding) = statement.as_root_binding() else {
-                    continue;
-                };
-                let receiver_type = validation::expression_type_reference_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    binding.receiver,
-                );
-                // Source/result loan checking establishes receiver authority,
-                // including a returned temporary's lifetime across its operand.
-                // Selection finalization checks the exact compiler-owned type;
-                // evaluation separately checks this activation's original cell.
-                let mut receiver = binding.receiver;
-                while let ExpressionNode::Borrow(borrow) = expressions.expression(receiver) {
-                    if borrow.access != language_semantics::ReferenceAccess::Mutable {
-                        return Err(Diagnostic::error(
-                            "root binding requires a compiler-issued &mut Build place",
-                        )
-                        .with_source_span(binding.source_span));
+    {
+        let _s = phase_profile::guard("05.d.11_13.a.2.root_bindings");
+        for machine in program.machines() {
+            for state in program.machine_states(machine) {
+                for (statement_index, statement) in program
+                    .statement_table
+                    .indexed_statements(state.statement_nodes)
+                {
+                    let Some(binding) = statement.as_root_binding() else {
+                        continue;
+                    };
+                    let receiver_type = validation::expression_type_reference_in_state(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        binding.receiver,
+                    );
+                    // Source/result loan checking establishes receiver authority,
+                    // including a returned temporary's lifetime across its operand.
+                    // Selection finalization checks the exact compiler-owned type;
+                    // evaluation separately checks this activation's original cell.
+                    let mut receiver = binding.receiver;
+                    while let ExpressionNode::Borrow(borrow) = expressions.expression(receiver) {
+                        if borrow.access != language_semantics::ReferenceAccess::Mutable {
+                            return Err(Diagnostic::error(
+                                "root binding requires a compiler-issued &mut Build place",
+                            )
+                            .with_source_span(binding.source_span));
+                        }
+                        receiver = borrow.target;
                     }
-                    receiver = borrow.target;
-                }
-                if !receiver_type.is_some_and(|receiver_type| {
+                    if !receiver_type.is_some_and(|receiver_type| {
                     matches!(program.type_reference_table.type_reference(receiver_type),
                         typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
                             if *access == language_semantics::ReferenceAccess::Mutable && validation::compiler_operations::exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
@@ -91,25 +95,25 @@ pub(crate) fn finalize_checked_authored_selections(
                     return Err(Diagnostic::error("root binding requires a compiler-issued &mut Build receiver")
                         .with_source_span(binding.source_span));
                 }
-                if binding.slot.is_empty()
-                    || (binding.implementation.is_empty()
-                        && !binding.implementation_operand.is_valid())
-                {
-                    return Err(Diagnostic::error("root-slot binding requires exactly one slot path and one implementation path or description expression")
+                    if binding.slot.is_empty()
+                        || (binding.implementation.is_empty()
+                            && !binding.implementation_operand.is_valid())
+                    {
+                        return Err(Diagnostic::error("root-slot binding requires exactly one slot path and one implementation path or description expression")
                         .with_source_span(binding.source_span));
-                }
-                if binding.implementation_operand.is_valid() {
-                    // Description expressions undergo the ordinary call,
-                    // effect and ownership checks. Their declared type is not
-                    // issuance authority: build evaluation still rejoins the
-                    // resulting value with this activation's issued entries.
-                    let operand_type = validation::expression_type_reference_in_state(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        binding.implementation_operand,
-                    );
-                    if !operand_type.is_some_and(|operand_type| {
+                    }
+                    if binding.implementation_operand.is_valid() {
+                        // Description expressions undergo the ordinary call,
+                        // effect and ownership checks. Their declared type is not
+                        // issuance authority: build evaluation still rejoins the
+                        // resulting value with this activation's issued entries.
+                        let operand_type = validation::expression_type_reference_in_state(
+                            program,
+                            state.symbol,
+                            statement_index,
+                            binding.implementation_operand,
+                        );
+                        if !operand_type.is_some_and(|operand_type| {
                         validation::compiler_operations::type_reference_names_exact_prelude_data(
                             program,
                             operand_type,
@@ -119,40 +123,45 @@ pub(crate) fn finalize_checked_authored_selections(
                         return Err(Diagnostic::error("delegated root binding requires an operand of the compiler-owned ProductEntryRef description type")
                             .with_source_span(binding.source_span));
                     }
+                    }
                 }
             }
         }
     }
 
-    for (expression, node) in expressions.iter_expressions() {
-        let occurrences = expressions
-            .authored_selection_occurrences(expression)
-            .collect::<Vec<_>>();
-        for (occurrence_offset, occurrence) in occurrences.iter().copied().enumerate() {
-            let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
-                return Err(Diagnostic::error(format!(
-                    "expression retains unknown authored declaration selection occurrence {}",
-                    occurrence.ordinal()
-                )));
-            };
+    {
+        let _s = phase_profile::guard("05.d.11_13.a.3.expression_loop");
+        for (expression, node) in expressions.iter_expressions() {
+            let occurrences = expressions
+                .authored_selection_occurrences(expression)
+                .collect::<Vec<_>>();
+            for (occurrence_offset, occurrence) in occurrences.iter().copied().enumerate() {
+                let Some(selection) = program.authored_declaration_selections().get(occurrence)
+                else {
+                    return Err(Diagnostic::error(format!(
+                        "expression retains unknown authored declaration selection occurrence {}",
+                        occurrence.ordinal()
+                    )));
+                };
 
-            let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target() else {
-                continue;
-            };
+                let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target()
+                else {
+                    continue;
+                };
 
-            if binding == AuthoredDeclarationSelectionLateBinding::CheckedOperator {
-                for selected_symbol in checked_operator_conformance_targets(facts, expression) {
-                    let inferred = (
-                        selection.source_span(),
-                        selection.exposure(),
-                        selected_symbol,
-                    );
-                    if !inferred_conformances.contains(&inferred) {
-                        inferred_conformances.push(inferred);
+                if binding == AuthoredDeclarationSelectionLateBinding::CheckedOperator {
+                    for selected_symbol in checked_operator_conformance_targets(facts, expression) {
+                        let inferred = (
+                            selection.source_span(),
+                            selection.exposure(),
+                            selected_symbol,
+                        );
+                        if !inferred_conformances.contains(&inferred) {
+                            inferred_conformances.push(inferred);
+                        }
                     }
                 }
-            }
-            let target = match (binding, node) {
+                let target = match (binding, node) {
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
                     ExpressionNode::Call(call),
@@ -204,7 +213,9 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
-                ) => validation::compiler_operations::classify_expression_call_intrinsic(program, call)
+                ) => {
+                    let _s = phase_profile::guard("05.d.11_13.a.3.call");
+                    validation::compiler_operations::classify_expression_call_intrinsic(program, call)
                     .map(AuthoredSelectionResolutionTarget::Intrinsic)
                     .or_else(|| {
                         declaration_target(
@@ -222,20 +233,27 @@ pub(crate) fn finalize_checked_authored_selections(
                                 )
                             }),
                         )
-                    }),
+                    })
+                }
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedMember,
                     ExpressionNode::Member(member),
-                ) => checked_member_target(program, facts, expression, member, Some(&owner_index)),
+                ) => {
+                    let _s = phase_profile::guard("05.d.11_13.a.3.member");
+                    checked_member_target(program, facts, expression, member, Some(&owner_index))
+                }
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticPathSegment,
                     ExpressionNode::Name(path),
-                ) => declaration_target(checked_name_path_segment_target(
-                    program,
-                    expression,
-                    path,
-                    late_binding_ordinal(program, &occurrences[..occurrence_offset], binding),
-                )),
+                ) => {
+                    let _s = phase_profile::guard("05.d.11_13.a.3.name_path");
+                    declaration_target(checked_name_path_segment_target(
+                        program,
+                        expression,
+                        path,
+                        late_binding_ordinal(program, &occurrences[..occurrence_offset], binding),
+                    ))
+                }
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralType,
                     ExpressionNode::StructLiteral(literal),
@@ -285,6 +303,7 @@ pub(crate) fn finalize_checked_authored_selections(
                             | ExpressionNode::Unary(_)
                     ) =>
                 {
+                    let _s = phase_profile::guard("05.d.11_13.a.3.operator");
                     checked_generic_operator_target(
                         program,
                         facts,
@@ -344,28 +363,39 @@ pub(crate) fn finalize_checked_authored_selections(
                 }
                 _ => None,
             };
-            if let Some(target) = target {
-                push_consistent_resolution(
-                    &mut resolutions,
-                    AuthoredSelectionResolution {
-                        occurrence,
-                        binding,
-                        target,
-                    },
-                )?;
+                if let Some(target) = target {
+                    push_consistent_resolution(
+                        &mut resolutions,
+                        AuthoredSelectionResolution {
+                            occurrence,
+                            binding,
+                            target,
+                        },
+                    )?;
+                }
             }
         }
     }
 
-    collect_checked_statement_selections(program, facts, &mut resolutions)?;
-    collect_checked_proof_membership_selections(program, facts, &mut resolutions)?;
+    {
+        let _s = phase_profile::guard("05.d.11_13.a.4.statement_selections");
+        collect_checked_statement_selections(program, facts, &mut resolutions)?;
+    }
+    {
+        let _s = phase_profile::guard("05.d.11_13.a.5.membership_selections");
+        collect_checked_proof_membership_selections(program, facts, &mut resolutions)?;
+    }
     let mut unoccurred_view_calls = Vec::new();
-    collect_checked_proof_view_call_selections(
-        program,
-        &mut resolutions,
-        &mut unoccurred_view_calls,
-    )?;
+    {
+        let _s = phase_profile::guard("05.d.11_13.a.6.proof_view_calls");
+        collect_checked_proof_view_call_selections(
+            program,
+            &mut resolutions,
+            &mut unoccurred_view_calls,
+        )?;
+    }
 
+    let _s_apply = phase_profile::guard("05.d.11_13.a.7.apply_resolutions");
     let mut selections = program.authored_declaration_selections().clone();
     for resolution in resolutions {
         let result =
@@ -435,17 +465,14 @@ pub(crate) fn finalize_checked_authored_selections(
         }
     }
     for (source_span, exposure, selected_symbol) in inferred_conformances {
-        let already_retained = selections.iter().any(|selection| {
-            selection.source_span() == source_span
-                && selection.exposure() == exposure
-                && selection.kind()
-                    == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance
-                && matches!(
-                    selection.target(),
-                    AuthoredDeclarationSelectionTarget::Resolved(target)
-                        if target.selected_symbol() == selected_symbol
-                )
-        });
+        let already_retained = selections
+            .resolved_occurrence(
+                source_span,
+                exposure,
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance,
+                selected_symbol,
+            )
+            .is_some();
         if !already_retained {
             selections
                 .record_resolved(

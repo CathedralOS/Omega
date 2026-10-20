@@ -224,7 +224,7 @@ fn validate_declaration_roots(
     if roots.is_empty() {
         return Ok(());
     }
-    let declarations = typed_trees::references::collect_program_references(program).declarations;
+    let declarations = typed_trees::references::collect_program_declarations(program);
     if roots
         .iter()
         .any(|symbol| !symbol.is_valid() || !declarations.contains(symbol))
@@ -265,7 +265,7 @@ fn declaration_dependencies(
     expression_sources: &[SourceSpan],
     declaration_roots: &[SymbolHandle],
 ) -> (DeclarationSelection, DeclarationSelection) {
-    let declarations = typed_trees::references::collect_program_references(program).declarations;
+    let declarations = typed_trees::references::collect_program_declarations(program);
     let roster = DeclarationSelection::from_symbols(declarations.iter().copied());
     let mut selection = DeclarationSelection::from_symbols(execution.iter().copied());
     let mut endpoint_owners = DeclarationSelection::from_symbols([]);

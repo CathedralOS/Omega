@@ -54,13 +54,7 @@ pub(crate) fn contexts_prove_comparison(
         return false;
     };
     let flow = invocation_contexts.flow();
-    let Some(state) = flow
-        .control
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .find(|state| state.state_symbol == captured_operand.state_symbol)
-    else {
+    let Some(state) = flow.control.state_by_symbol(captured_operand.state_symbol) else {
         return false;
     };
     reaching_store_proves_comparison(

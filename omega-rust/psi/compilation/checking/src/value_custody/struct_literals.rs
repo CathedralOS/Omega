@@ -365,14 +365,17 @@ fn scan_expression(
                 stored_integer_writes,
                 statement_index,
             );
-            let membership =
-                crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
-                    program,
-                    machine,
-                    Some(state),
-                    expression,
-                    binary,
-                );
+            let membership = matches!(
+                binary.operator,
+                typed_trees::expression::BinaryOperator::Equal
+                    | typed_trees::expression::BinaryOperator::CaseMembership
+            ) && crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+                binary,
+            );
             if binary.operator == typed_trees::expression::BinaryOperator::CaseMembership
                 && !membership
             {
@@ -385,7 +388,11 @@ fn scan_expression(
                 // A failed nominal membership check is not ordinary equality.
                 // Payload-free cases can share a tag and leaf spelling across
                 // packages; neither is evidence that the subject has this owner.
-                if program.expression_table.authored_selection_occurrences(expression).any(|occurrence| {
+                if matches!(
+                    binary.operator,
+                    typed_trees::expression::BinaryOperator::Equal
+                        | typed_trees::expression::BinaryOperator::CaseMembership
+                ) && program.expression_table.authored_selection_occurrences(expression).any(|occurrence| {
                     program.authored_declaration_selections().get(occurrence).is_some_and(|selection| {
                         selection.kind() == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::CaseMembership
                     })

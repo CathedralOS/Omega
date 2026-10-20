@@ -133,6 +133,17 @@ impl AppliedCallableSignature {
         matches!(self.owner, AppliedCallableOwner::RequirementInstance { .. })
             .then_some(self.signature.symbol)
     }
+
+    pub(super) fn requirement_template_symbol(&self) -> Option<SymbolHandle> {
+        match self.owner {
+            AppliedCallableOwner::RequirementInstance { template, .. } => Some(template),
+            _ => None,
+        }
+    }
+
+    pub(super) fn signature(&self) -> &signature::StateSignature {
+        &self.signature
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

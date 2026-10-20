@@ -21,13 +21,27 @@ pub(crate) fn terminal_field_declaration(
     if !symbol.is_valid() {
         return None;
     }
-    let mut fields = program
-        .data_definitions()
-        .iter()
-        .flat_map(|definition| program.data_member_fields(program.data_members(definition)))
-        .filter(|field| field.symbol == symbol);
-    let field = fields.next()?;
-    fields.next().is_none().then_some(field)
+    let positions = program.data_field_positions_for_symbol(symbol);
+    let &[(data_position, member_position, payload_position)] = positions.as_slice() else {
+        return None;
+    };
+    let definition = program.data_definitions().get(data_position as usize)?;
+    let member = program
+        .data_members(definition)
+        .get(member_position as usize)?;
+    if payload_position == u32::MAX {
+        let typed_trees::data::DataMember::Field(field) = member else {
+            return None;
+        };
+        Some(field)
+    } else {
+        let typed_trees::data::DataMember::Variant(variant) = member else {
+            return None;
+        };
+        program
+            .data_payload_fields(variant)
+            .get(payload_position as usize)
+    }
 }
 
 pub(crate) fn is_reference(

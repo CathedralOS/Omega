@@ -161,27 +161,28 @@ pub(super) fn actions(
     } else {
         None
     };
-    for (disposition_handle, disposition) in
-        facts
+    for disposition_handle in facts
+        .contextual_cleanup
+        .state_disposition_handles(machine, state)
+    {
+        let disposition = facts
             .contextual_cleanup
             .dispositions
-            .iter()
-            .filter(|(_, row)| {
-                row.machine == machine
-                    && row.state == state
-                    && (row.root == root
-                        || replaced_place
-                            .as_ref()
-                            .is_some_and(|replaced| replaced.root == row.root)
-                        || stored_place
-                            .as_ref()
-                            .is_some_and(|stored| stored.root == row.root))
-                    && row.source
-                        == PermissionEventSource::Statement {
-                            statement_index: *statement_index as usize,
-                        }
-            })
-    {
+            .get(disposition_handle);
+        if !(disposition.root == root
+            || replaced_place
+                .as_ref()
+                .is_some_and(|replaced| replaced.root == disposition.root)
+            || stored_place
+                .as_ref()
+                .is_some_and(|stored| stored.root == disposition.root))
+            || disposition.source
+                != (PermissionEventSource::Statement {
+                    statement_index: *statement_index as usize,
+                })
+        {
+            continue;
+        }
         let place = validation::CanonicalPlace {
             root: disposition.root,
             segments: facts
@@ -224,9 +225,7 @@ pub(super) fn actions(
         }
         if facts
             .contextual_cleanup
-            .selected_dispositions
-            .iter()
-            .any(|(_, handle)| *handle == disposition_handle)
+            .is_selected_disposition(disposition_handle)
         {
             // A conditional old value is still selected at its original storage.
             // Owned replacements clean in place; borrowing cannot manufacture an

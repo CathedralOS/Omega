@@ -20,6 +20,13 @@ pub(crate) fn filter_expired_borrow_loans(
     execution_order: &typed_trees::statement::StatementExecutionOrder,
     reason: FlowBorrowWeakeningReason,
 ) -> arena::HandleSpan<FlowConstraintRef> {
+    if !constraint_refs
+        .span_or_empty(source)
+        .iter()
+        .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }))
+    {
+        return source;
+    }
     reference_spans::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
         match constraint_ref.kind {
             FlowConstraintKind::BorrowLoan { loan } => {
@@ -70,6 +77,13 @@ pub(crate) fn filter_reassigned_borrow_loans(
     // including incoming alternatives on no-write routes. Their former
     // occurrences retire only after RHS formation. Weak stores leave other
     // physical slots live. Then apply any enclosing assignment's store.
+    if !constraint_refs
+        .span_or_empty(source)
+        .iter()
+        .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }))
+    {
+        return source;
+    }
     let source = if let Some(effects) =
         call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
     {
@@ -175,6 +189,13 @@ pub(crate) fn filter_reassigned_borrow_loans(
         return source;
     };
 
+    if !constraint_refs
+        .span_or_empty(source)
+        .iter()
+        .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }))
+    {
+        return source;
+    }
     reference_spans::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
         match constraint_ref.kind {
             FlowConstraintKind::BorrowLoan { loan } => {

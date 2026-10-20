@@ -101,6 +101,14 @@ pub(super) fn supplies_group(
 pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_complements(
     retirement: &Retirement<'_>,
 ) -> Option<Vec<CheckedUnitSelectedReferenceRetirementPlan>> {
+    if !retirement.pending.iter().any(|operation| {
+        matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+        )
+    }) {
+        return Some(Vec::new());
+    }
     let mut output = Vec::new();
     for (selection, receipt) in retirement.facts.flow.ownership.owned_selections.iter() {
         if receipt.machine != retirement.machine

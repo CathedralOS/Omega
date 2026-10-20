@@ -124,23 +124,22 @@ pub(super) fn collect_constructor_calls(
     // Structural dispatch operands and constructor fields own their calls.
     // This is the static call roster, not an instruction to evaluate every
     // arm: emission follows the structural value's selected control path.
-    for (_, root) in facts
+    let statement_ordinal = u32::try_from(statement_index).ok()?;
+    for root in facts
         .values
         .scalar_computations
-        .roots
-        .iter()
-        .filter(|(_, root)| {
-            root.state == state.symbol
-                && root.statement_ordinal as usize == statement_index
-                && matches!(
-                    root.role,
-                    CheckedScalarExpressionRole::StructuralValueField { .. }
-                        | CheckedScalarExpressionRole::RecordField { .. }
-                        | CheckedScalarExpressionRole::StructuralArrayElement { .. }
-                        | CheckedScalarExpressionRole::StructuralScalarValue { .. }
-                        | CheckedScalarExpressionRole::StructuralValueSubject { .. }
-                        | CheckedScalarExpressionRole::StructuralValuePattern { .. }
-                )
+        .roots_for_statement(state.symbol, statement_ordinal)
+        .into_iter()
+        .filter(|root| {
+            matches!(
+                root.role,
+                CheckedScalarExpressionRole::StructuralValueField { .. }
+                    | CheckedScalarExpressionRole::RecordField { .. }
+                    | CheckedScalarExpressionRole::StructuralArrayElement { .. }
+                    | CheckedScalarExpressionRole::StructuralScalarValue { .. }
+                    | CheckedScalarExpressionRole::StructuralValueSubject { .. }
+                    | CheckedScalarExpressionRole::StructuralValuePattern { .. }
+            )
         })
     {
         collect_owned_root_calls(
@@ -239,11 +238,12 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         && let typed_trees::statement::TransitionGuardNode::When(expression) = transition.guard
     {
         let plans = &facts.values.scalar_computations;
-        let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
-            root.state == state
-                && root.statement_ordinal as usize == call.statement_index
-                && root.role == CheckedScalarExpressionRole::Guard
-        });
+        let statement_ordinal = u32::try_from(call.statement_index).ok()?;
+        let mut roots = plans.roots_for_statement_role(
+            state,
+            statement_ordinal,
+            CheckedScalarExpressionRole::Guard,
+        );
         if let Some(root) = roots.next() {
             if roots.next().is_some()
                 || !plans.is_authored_root(
@@ -307,13 +307,11 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         )?;
     }
     for nested in structural_operands::for_call(program, facts, owner, source_state, call)? {
-        let mut occurrences = facts.flow.control.calls.iter().filter(|(_, candidate)| {
-            std::ptr::eq(*candidate, nested)
-                && calls.iter().any(|source| std::ptr::eq(source, nested))
-        });
-        let (handle, nested) = occurrences.next()?;
-        if occurrences.next().is_some()
-            || nested.statement_index != call.statement_index
+        if !calls.iter().any(|source| std::ptr::eq(source, nested)) {
+            return None;
+        }
+        let handle = facts.flow.control.calls.handle_of(nested)?;
+        if nested.statement_index != call.statement_index
             || nested.call_ordinal <= call.call_ordinal
             || facts.flow.control.is_retired(state, nested)
             || consumed.contains(&handle)
@@ -571,14 +569,11 @@ pub(super) fn collect_argument_calls(
     // computation between argument roots; retain its completed visit across
     // those roots while distinct nodes still face the exact occurrence check.
     let mut visits = Vec::new();
-    for (_, root) in facts
+    let statement_ordinal = u32::try_from(call.statement_index).ok()?;
+    for root in facts
         .values
         .scalar_computations
-        .roots
-        .iter()
-        .filter(|(_, root)| {
-            root.state == state && root.statement_ordinal as usize == call.statement_index
-        })
+        .roots_for_statement(state, statement_ordinal)
     {
         let plans = &facts.values.scalar_computations;
         let (expression, primitive) = match root.role {
@@ -663,13 +658,12 @@ pub(super) fn collect_range_calls(
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<bool> {
     let plans = &facts.values.scalar_computations;
+    let statement_ordinal = u32::try_from(statement).ok()?;
     let mut computed = false;
     for (endpoint, role, ()) in
         crate::values::subslice_endpoints(program, &facts.operators, expression, site, |_| Some(()))
     {
-        let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
-            root.state == state && root.statement_ordinal as usize == statement && root.role == role
-        });
+        let mut roots = plans.roots_for_statement_role(state, statement_ordinal, role);
         let Some(root) = roots.next() else { continue };
         if roots.next().is_some()
             || !plans.is_authored_root(
@@ -953,10 +947,10 @@ pub(super) fn collect(
                 return None;
             }
             let authored = program.expression_table.call_node(*source_expression)?;
-            let mut occurrences = facts.flow.control.calls.iter().filter(|(_, call)| {
-                call.authored_expression == *source_expression
-                    && calls.iter().any(|candidate| std::ptr::eq(candidate, *call))
-            });
+            let mut occurrences = calls
+                .iter()
+                .filter(|call| call.authored_expression == *source_expression)
+                .filter_map(|call| Some((facts.flow.control.calls.handle_of(call)?, call)));
             if let Some((handle, call)) = occurrences.next() {
                 if occurrences.next().is_some()
                     || call.statement_index != statement

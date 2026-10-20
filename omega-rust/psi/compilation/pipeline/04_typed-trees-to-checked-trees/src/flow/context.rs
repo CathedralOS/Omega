@@ -258,6 +258,8 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) control: FlowControlFacts,
     /// Current state's contiguous statement frontier while its flow is built.
     pub(super) state_statements_start: usize,
+    /// Current state's contiguous outgoing frontier while its flow is built.
+    pub(super) state_outgoing_start: usize,
 }
 
 impl<'plans> FlowBuildContext<'plans> {
@@ -288,6 +290,7 @@ impl<'plans> FlowBuildContext<'plans> {
         }
         Self {
             state_statements_start: 0,
+            state_outgoing_start: 0,
             scalar_expressions,
             operators,
             exact_integer_casts,

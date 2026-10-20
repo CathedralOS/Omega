@@ -1194,11 +1194,7 @@ impl<'program> StructuralJudge<'program> {
                     ) {
                         return resolved;
                     }
-                    if let Some((_, replacement)) = self
-                        .rewrites
-                        .iter()
-                        .find(|(pattern, _)| pattern == &resolved)
-                    {
+                    if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                         term = replacement.clone();
                         continue;
                     }
@@ -1265,18 +1261,9 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
-        let matches = program
-            .machines()
-            .iter()
-            .flat_map(|machine| {
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .filter(move |state| state.symbol == target)
-                    .map(move |state| (machine, state))
-            })
-            .collect::<Vec<_>>();
-        let [(machine, state)] = matches.as_slice() else {
+        let Some((machine, state)) =
+            crate::machine_calls::calls::machine_state_by_symbol(program, target)
+        else {
             return None;
         };
         if state.return_type != result_type {
@@ -2724,15 +2711,18 @@ impl<'program> StructuralJudge<'program> {
         if let StructuralTerm::Constructor { data, case, .. } = &subject {
             // Legacy value terms retain nominal names. Rejoin only a unique
             // declaration; same-spelled foreign data is not this classifier.
-            let mut definitions = self
-                .program
-                .data_definitions()
-                .iter()
-                .filter(|definition| definition.name.as_str() == data);
-            let Some(definition) = definitions.next() else {
+            let Some(definition) = self.program.data_definition_by_symbol(data_symbol) else {
                 return StructuralJudgment::Unknown;
             };
-            if definitions.next().is_some() || definition.symbol != data_symbol {
+            if definition.name.as_str() != data
+                || self
+                    .program
+                    .data_definitions()
+                    .iter()
+                    .filter(|candidate| candidate.name.as_str() == data)
+                    .count()
+                    != 1
+            {
                 return StructuralJudgment::Unknown;
             }
             let observed = self
@@ -3139,30 +3129,33 @@ impl<'program> StructuralJudge<'program> {
             // resolve; this reaches the sub-multisets the rewriter cannot
             // see. Frontier-capped BFS -- over-refusal past the cap, never
             // unsound.
+            let mut rewrite_addends: Vec<(Vec<StructuralTerm>, Vec<StructuralTerm>)> = Vec::new();
+            for (pattern, replacement) in self.rewrites.iter() {
+                for (from, to) in [(pattern, replacement), (replacement, pattern)] {
+                    let mut from_addends = Vec::new();
+                    additive_addends(from, op, &mut from_addends);
+                    let mut to_addends = Vec::new();
+                    additive_addends(to, op, &mut to_addends);
+                    from_addends.sort_by_key(|term| format!("{term:?}"));
+                    rewrite_addends.push((from_addends, to_addends));
+                }
+            }
             let mut frontier: Vec<Vec<StructuralTerm>> = vec![left_addends.clone()];
             for _depth in 0..2 {
                 let mut next: Vec<Vec<StructuralTerm>> = Vec::new();
                 for current in &frontier {
-                    for (pattern, replacement) in self.rewrites.iter() {
-                        for (from, to) in [(pattern, replacement), (replacement, pattern)] {
-                            let mut from_addends = Vec::new();
-                            additive_addends(from, op, &mut from_addends);
-                            let mut to_addends = Vec::new();
-                            additive_addends(to, op, &mut to_addends);
-                            from_addends.sort_by_key(|term| format!("{term:?}"));
-                            let Some(mut candidate) =
-                                sorted_multiset_subtract(current, &from_addends)
-                            else {
-                                continue;
-                            };
-                            candidate.extend(to_addends.iter().cloned());
-                            candidate.sort_by_key(|term| format!("{term:?}"));
-                            if candidate == right_addends {
-                                return true;
-                            }
-                            if next.len() < 64 {
-                                next.push(candidate);
-                            }
+                    for (from_addends, to_addends) in &rewrite_addends {
+                        let Some(mut candidate) = sorted_multiset_subtract(current, from_addends)
+                        else {
+                            continue;
+                        };
+                        candidate.extend(to_addends.iter().cloned());
+                        candidate.sort_by_key(|term| format!("{term:?}"));
+                        if candidate == right_addends {
+                            return true;
+                        }
+                        if next.len() < 64 {
+                            next.push(candidate);
                         }
                     }
                 }

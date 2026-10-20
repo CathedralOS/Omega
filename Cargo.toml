@@ -21,6 +21,7 @@ members = [
     "omega-rust/psi/foundation/layout-plans",
     "omega-rust/psi/foundation/mutation-matrix",
     "omega-rust/psi/foundation/numerics",
+    "omega-rust/psi/foundation/phase-profile",
     "omega-rust/psi/foundation/source",
     "omega-rust/psi/foundation/symbols",
     "omega-rust/psi/foundation/semantic-vocabulary",

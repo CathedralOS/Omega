@@ -19,6 +19,27 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
+pub(in crate::checks::multiplicity) fn may_record_statement(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    statement: &StatementNode,
+) -> bool {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let expression = match statement {
+        StatementNode::LocalData(local) if !local.is_mutable => local.initial_value,
+        StatementNode::Expression(expression) if statement_index + 1 == statements.len() => {
+            *expression
+        }
+        _ => return false,
+    };
+    expression.is_valid()
+        && matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Match(_)
+        )
+}
+
 pub(in crate::checks::multiplicity) fn record_statement(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,

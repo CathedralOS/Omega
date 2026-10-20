@@ -28,16 +28,24 @@ pub(crate) fn prepare_typed_program<'program>(
     // Quotient requests are judged after the checked termination facts exist
     // (`lower_typed_trees` calls `admit_checked_quotient_requests` beside
     // `build_check_facts`); validation keeps formation checking here.
-    let validated = validation::prepare_specialized_program(program, opaque_properties)?;
+    let validated = phase_profile::scope("05.d.2.a.validate", || {
+        validation::prepare_specialized_program(program, opaque_properties)
+    })?;
 
-    let proof_plan = proof::obligations::build_proof_plan(program);
+    let proof_plan = phase_profile::scope("05.d.2.b.build_proof_plan", || {
+        proof::obligations::build_proof_plan(program)
+    });
     let proof::checker::ProofDecisions {
         integer_assignments,
         constant_recipe_obligations,
-    } = proof::checker::check_proof_plan_with_decisions(&proof_plan)?;
+    } = phase_profile::scope("05.d.2.c.check_proof_plan", || {
+        proof::checker::check_proof_plan_with_decisions(&proof_plan)
+    })?;
 
     let operational = validated.operational;
-    validate_no_bare_boundary_trait_values(program)?;
+    phase_profile::scope("05.d.2.d.bare_boundary_trait_values", || {
+        validate_no_bare_boundary_trait_values(program)
+    })?;
 
     Ok(PreparedTypedProgram {
         integer_assignments,
@@ -59,35 +67,34 @@ fn validate_no_bare_boundary_trait_values(
     program: &dyn ::validation::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let mut check = |position: String, type_reference: TypeReferenceHandle| {
+    let mut check = |type_reference: TypeReferenceHandle, position: &dyn Fn() -> String| {
         if let Some(trait_name) = bare_boundary_trait_name(program, type_reference) {
             diagnostics.push(Diagnostic::error(format!(
-                "{position} names bare boundary trait `{trait_name}` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling"
+                "{} names bare boundary trait `{trait_name}` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling",
+                position()
             )));
         }
     };
     for definition in program.data_definitions() {
         for member in program.data_members(definition) {
             match member {
-                DataMember::Field(field) => check(
+                DataMember::Field(field) => check(field.type_reference, &|| {
                     format!(
                         "field `{}` on data `{}`",
                         field.name.as_str(),
                         definition.name.as_str()
-                    ),
-                    field.type_reference,
-                ),
+                    )
+                }),
                 DataMember::Variant(variant) => {
                     for payload in program.data_payload_fields(variant) {
-                        check(
+                        check(payload.type_reference, &|| {
                             format!(
                                 "payload field `{}` on case `{}` of data `{}`",
                                 payload.name.as_str(),
                                 variant.name.as_str(),
                                 definition.name.as_str()
-                            ),
-                            payload.type_reference,
-                        );
+                            )
+                        });
                     }
                 }
             }
@@ -99,47 +106,43 @@ fn validate_no_bare_boundary_trait_values(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
-                check(
+                check(parameter.type_reference, &|| {
                     format!(
                         "parameter `{}` on `{}.{}`",
                         parameter.name.as_str(),
                         machine.name.as_str(),
                         state.name.as_str()
-                    ),
-                    parameter.type_reference,
-                );
+                    )
+                });
             }
-            check(
+            check(state.return_type, &|| {
                 format!(
                     "return type of `{}.{}`",
                     machine.name.as_str(),
                     state.name.as_str()
-                ),
-                state.return_type,
-            );
+                )
+            });
         }
     }
     for trait_definition in program.traits() {
         for signature in program.trait_machine_signatures(trait_definition) {
             for parameter in program.state_signature_parameters(signature) {
-                check(
+                check(parameter.type_reference, &|| {
                     format!(
                         "parameter `{}` on signature `{}.{}`",
                         parameter.name.as_str(),
                         trait_definition.name.as_str(),
                         signature.name.as_str()
-                    ),
-                    parameter.type_reference,
-                );
+                    )
+                });
             }
-            check(
+            check(signature.return_type, &|| {
                 format!(
                     "return type of signature `{}.{}`",
                     trait_definition.name.as_str(),
                     signature.name.as_str()
-                ),
-                signature.return_type,
-            );
+                )
+            });
         }
     }
     if diagnostics.is_empty() {
@@ -175,9 +178,8 @@ fn bare_boundary_trait_name(
             _ => return None,
         };
         return program
-            .traits()
-            .iter()
-            .any(|definition| definition.symbol == symbol && definition.is_boundary)
+            .trait_definition_by_symbol(symbol)
+            .is_some_and(|definition| definition.is_boundary)
             .then(|| name.to_owned());
     }
 }

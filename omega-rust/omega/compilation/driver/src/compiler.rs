@@ -5,9 +5,7 @@
 //! execution, then matching entry closures share Terminal production. Each
 //! target realizes its own native product. No realization reopens checking.
 
-use crate::checked::{
-    check_product_source, prepare_checked_source, prepare_product_source, run_on_compile_thread,
-};
+use crate::checked::{check_product_source, prepare_product_source, run_on_compile_thread};
 use crate::execution_settlement::SelectedProductTarget;
 use crate::native::produce_native_product;
 use crate::terminal::{
@@ -20,7 +18,7 @@ use crate::{
 use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
 use compilation_products::{
     CheckedProductReport, CheckedProductSource, CompileFailure, NativeProductRequest,
-    RequestedCompileProduct, SettledCheckReuse,
+    RequestedCompileProduct,
 };
 use diagnostics::Diagnostic;
 use std::path::PathBuf;
@@ -31,6 +29,14 @@ pub(crate) mod package;
 /// Invalid requests reject before source acquisition. Shared preparation failures
 /// are reported for every target. Publication remains a separate operation.
 pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnostic>> {
+    let mut session = crate::CompilationSession::default();
+    compile_with_session(&mut session, request)
+}
+
+pub(crate) fn compile_with_session(
+    session: &mut crate::CompilationSession,
+    request: CompileRequest,
+) -> Result<CompileOutcomes, Vec<Diagnostic>> {
     run_on_compile_thread(move || {
         let (shared, targets) = request.validate_for_execution()?.into_parts();
         // Admit each target's generated-package custody without executing Build.
@@ -49,26 +55,32 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
             .zip(&admissions)
             .find(|(_, admission)| admission.is_ok())
             .map(|(target, _)| {
-                let parsed = prepare_checked_source(
-                    &shared.root_path,
-                    shared.package_sources.clone(),
-                    shared.timings,
-                )?;
-                prepare_product_source(
+                let parsed = session
+                    .prepare_source_with_inputs(
+                        &shared.root_path,
+                        shared.package_sources.clone(),
+                        shared.timings,
+                    )
+                    .map_err(CompileFailure::into_diagnostics)?;
+                let mut child = target.checked_execution(&shared.build_directory);
+                child.settled_check_reuse = session.reuse();
+                let source = prepare_product_source(
                     &shared.root_path,
                     parsed,
-                    target.checked_execution(&shared.build_directory),
+                    child,
+                    Some(session.pure_builds()),
                 )
-                .map_err(CompileFailure::into_diagnostics)
-                .and_then(|source| {
-                    check_product_source(
-                        source,
-                        target.package_inputs(),
-                        target.optimization_rollback(),
-                        SettledCheckReuse::default(),
-                        &mut psi_compiler::ProductSelections::default(),
-                    )
-                })
+                .map_err(CompileFailure::into_diagnostics)?;
+                let reuse = session.reuse();
+                let checked = check_product_source(
+                    source,
+                    target.package_inputs(),
+                    target.optimization_rollback(),
+                    reuse,
+                    &mut session.selections,
+                )?;
+                session.retain(&checked.retained_checks);
+                Ok(checked)
             });
         let target_count = targets.len();
         let mut profiles = Vec::with_capacity(target_count);

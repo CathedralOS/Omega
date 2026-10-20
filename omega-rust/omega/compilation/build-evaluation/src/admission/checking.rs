@@ -51,7 +51,11 @@ pub(crate) fn prepare_checked_build(
             pending.push(continuation);
         }
     }
-    let provisional = validation::execution_projection::project_build_program(typed, entry)?;
+    let provisional = if pre_checks.is_empty() {
+        projection
+    } else {
+        validation::execution_projection::project_build_program(typed, entry)?
+    };
     let context = provider_planning::ProviderPlanningContext::new(
         &provisional,
         source::DependencyScope::Build,
@@ -93,7 +97,8 @@ pub(crate) fn prepare_checked_build(
             )?;
             provider_planning::selected_provider_plan_facts(context, selected)?
         };
-    if !pending.is_empty() {
+    let had_pending = !pending.is_empty();
+    if had_pending {
         let operator_selections = validation::derive_pre_flow_operator_selections(typed);
         selected_dispatch::SelectedConstantEvaluation::prepare(
             context,
@@ -113,7 +118,11 @@ pub(crate) fn prepare_checked_build(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {
             let started = std::time::Instant::now();
-            let program = validation::execution_projection::project_build_program(typed, entry)?;
+            let program = if had_pending {
+                validation::execution_projection::project_build_program(typed, entry)?
+            } else {
+                provisional
+            };
             let result = psi_compiler::CheckRequest {
                 program,
                 admission: psi_compiler::SourceAdmission {

@@ -54,10 +54,7 @@ pub(super) fn retain(
 ) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            let flow_state = flow.control.states.iter().find_map(|(_, fact)| {
-                (fact.machine_symbol == machine.symbol && fact.state_symbol == state.symbol)
-                    .then_some(fact)
-            });
+            let flow_state = flow.control.state(machine.symbol, state.symbol);
             for (statement_index, statement) in program
                 .statement_table
                 .indexed_statements(state.statement_nodes)

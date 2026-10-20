@@ -58,19 +58,29 @@ pub(crate) fn build_checked_value_computation_plans(
     proof: &ProofFacts,
     pure: &CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> (
     CheckedScalarComputationPlans,
     checked_trees::CheckedStructuralValuePlans,
 ) {
     let mut plans = CheckedScalarComputationPlans::default();
     let mut structural_values = checked_trees::CheckedStructuralValuePlans::default();
-    let call_frames = validation::CallFrameResolver::new(program);
+    let runtime_proof_output_callers: std::collections::HashSet<
+        SymbolHandle,
+        symbols::BuildSymbolHasher,
+    > = proof
+        .proof_output_calls
+        .iter()
+        .filter_map(|(_, call)| {
+            call.runtime_call
+                .is_some()
+                .then_some(call.caller_machine_symbol)
+        })
+        .collect();
     for machine in program.machines() {
         // Existing named-output emission joins statement binding positions.
         // It must not silently reinterpret computation-local call positions.
-        if proof.proof_output_calls.iter().any(|(_, call)| {
-            call.caller_machine_symbol == machine.symbol && call.runtime_call.is_some()
-        }) {
+        if runtime_proof_output_callers.contains(&machine.symbol) {
             continue;
         }
         let states = program.machine_states(machine);
@@ -99,6 +109,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
                 };
+                let statement_nodes_start = plans.nodes.storage_slice().len();
                 let mut builder = Builder {
                     program,
                     operators,
@@ -117,6 +128,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     locals: &locals,
                     plans: &mut plans,
                     structural_values: &mut structural_values,
+                    statement_nodes_start,
                     scalar_occurrences: Vec::new(),
                     integer_occurrences: Vec::new(),
                 };

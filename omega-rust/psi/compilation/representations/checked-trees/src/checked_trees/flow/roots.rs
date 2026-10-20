@@ -81,6 +81,9 @@ pub struct FlowOwnershipFacts {
     pub selection_transfer_claims: Arena<super::FlowOwnedSelectionClaim>,
     pub selection_result_claims: Arena<super::FlowOwnedSelectionResultClaim>,
     pub selection_produced_claims: Arena<super::FlowOwnedSelectionProducedClaim>,
+    pub permissions_by_state: arena::OwnedIndex<
+        symbols::SymbolKeyMap<SymbolHandle, Vec<arena::Handle<FlowPermissionEventFact>>>,
+    >,
 }
 
 impl FlowOwnershipFacts {
@@ -110,7 +113,29 @@ impl FlowOwnershipFacts {
             selection_transfer_claims: Arena::default(),
             selection_result_claims: Arena::default(),
             selection_produced_claims: Arena::default(),
+            permissions_by_state: arena::OwnedIndex::default(),
         }
+    }
+
+    pub fn with_state_permissions<R>(
+        &self,
+        state: SymbolHandle,
+        run: impl FnOnce(&[arena::Handle<FlowPermissionEventFact>]) -> R,
+    ) -> R {
+        self.permissions_by_state.with(
+            self.permissions.revision(),
+            || {
+                let mut index: symbols::SymbolKeyMap<
+                    SymbolHandle,
+                    Vec<arena::Handle<FlowPermissionEventFact>>,
+                > = symbols::SymbolKeyMap::default();
+                for (handle, event) in self.permissions.iter() {
+                    index.entry(event.state_symbol).or_default().push(handle);
+                }
+                index
+            },
+            |index| run(index.get(&state).map_or(&[], Vec::as_slice)),
+        )
     }
 }
 
@@ -216,10 +241,7 @@ impl FlowControlFacts {
         statement_index: usize,
         call_ordinal: usize,
     ) -> Option<&FlowCallFact> {
-        let (_, state) = self
-            .states
-            .iter()
-            .find(|(_, candidate)| candidate.state_symbol == state)?;
+        let state = self.state_by_symbol(state)?;
         self.calls.span_or_empty(state.calls).iter().find(|call| {
             call.statement_index == statement_index && call.call_ordinal == call_ordinal
         })
@@ -234,10 +256,7 @@ impl FlowControlFacts {
         statement_index: usize,
         call_ordinal: usize,
     ) -> Option<usize> {
-        let (_, state) = self
-            .states
-            .iter()
-            .find(|(_, candidate)| candidate.state_symbol == state)?;
+        let state = self.state_by_symbol(state)?;
         self.calls
             .span_or_empty(state.calls)
             .iter()
@@ -267,10 +286,7 @@ impl FlowControlFacts {
         expression: typed_trees::expression::ExpressionHandle,
         statement_root: bool,
     ) -> usize {
-        let Some(span) = self.states.iter().find_map(|(_, candidate)| {
-            (candidate.machine_symbol == machine && candidate.state_symbol == state)
-                .then_some(candidate.calls)
-        }) else {
+        let Some(span) = self.state(machine, state).map(|candidate| candidate.calls) else {
             return 0;
         };
         let mut retired = 0;

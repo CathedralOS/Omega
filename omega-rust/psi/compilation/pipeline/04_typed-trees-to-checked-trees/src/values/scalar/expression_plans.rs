@@ -280,6 +280,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
         expressions,
         source_bindings: retained_bindings,
         binding_symbols,
+        ..Default::default()
     }
 }
 

@@ -190,16 +190,22 @@ impl<'program> Evaluator<'program> {
         // missing row nor conflicting rows authorize quiet-policy execution.
         let mut adapter = CheckedArithmeticPolicyAdapter::None;
         if application.is_valid() {
-            let mut selections = facts
-                .resolved_expression_selections()
-                .filter(|(expression, _, _, _)| *expression == application);
-            let Some((_, _, selected, policy)) = selections.next() else {
+            let mut first_selection = None;
+            let mut multiple_selections = false;
+            facts.for_each_resolved_expression_selection(application, |_, selected, policy, _| {
+                if first_selection.is_none() {
+                    first_selection = Some((selected, policy));
+                } else {
+                    multiple_selections = true;
+                }
+            });
+            let Some((selected, policy)) = first_selection else {
                 return trap("operator application has no checked expression selection");
             };
             if selected != requirement.symbol {
                 return trap("operator application differs from its checked named selection");
             }
-            if selections.next().is_some() {
+            if multiple_selections {
                 return trap("operator application has conflicting checked selections");
             }
             adapter = policy;

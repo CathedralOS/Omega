@@ -22,6 +22,7 @@ source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../foundation/diagnostics" }
+phase-profile = { path = "../../foundation/phase-profile" }
 checked-trees = { path = "../representations/checked-trees" }
 checked-trees-to-lowered-psi = { path = "../pipeline/05_checked-trees-to-lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../pipeline/06_lowered-psi-to-lowered-psi" }

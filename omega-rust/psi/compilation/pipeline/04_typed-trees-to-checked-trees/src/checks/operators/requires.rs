@@ -1135,10 +1135,13 @@ pub(crate) fn closed_operators_are_builtin(
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
 ) -> bool {
-    if operators.uses.iter().any(|(_, operator_use)| {
-        operator_use.expression == expression
-            && !operator_use_is_builtin_meaning(program, operators, operator_use)
-    }) {
+    let mut has_non_builtin = false;
+    operators.for_each_expression_use(expression, |_, operator_use| {
+        if !operator_use_is_builtin_meaning(program, operators, operator_use) {
+            has_non_builtin = true;
+        }
+    });
+    if has_non_builtin {
         return false;
     }
     match program.expression_table.expression(expression) {

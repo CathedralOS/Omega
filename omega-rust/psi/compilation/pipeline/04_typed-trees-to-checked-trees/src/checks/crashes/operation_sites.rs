@@ -15,27 +15,29 @@ pub(super) struct SelectedOperation {
     pub location: CrashSiteLocation,
 }
 
-pub(super) fn collect(
+pub(super) fn collect_by_machine(
     facts: &CheckFacts,
-    machine: symbols::SymbolHandle,
-) -> Vec<SelectedOperation> {
-    facts
-        .operators
-        .resolved_expression_selections()
-        .filter_map(|(expression, origin, selected, adapter)| {
-            let CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite { .. } = adapter else {
-                return None;
-            };
-            let CheckedValueOrigin::StateStatement {
-                machine_symbol,
-                state_symbol,
-                statement_index,
-                ..
-            } = origin
-            else {
-                return None;
-            };
-            (machine_symbol == machine).then(|| SelectedOperation {
+) -> symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<SelectedOperation>> {
+    let mut by_machine =
+        symbols::SymbolKeyMap::<symbols::SymbolHandle, Vec<SelectedOperation>>::default();
+    for (expression, origin, selected, adapter) in facts.operators.resolved_expression_selections()
+    {
+        let CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite { .. } = adapter else {
+            continue;
+        };
+        let CheckedValueOrigin::StateStatement {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            ..
+        } = origin
+        else {
+            continue;
+        };
+        by_machine
+            .entry(machine_symbol)
+            .or_default()
+            .push(SelectedOperation {
                 expression,
                 selected,
                 adapter,
@@ -43,9 +45,9 @@ pub(super) fn collect(
                     state_symbol,
                     u32::try_from(statement_index).expect("statement ordinal fits u32"),
                 ),
-            })
-        })
-        .collect()
+            });
+    }
+    by_machine
 }
 
 /// The operation's sealed raw-result equation supplies the exact finite

@@ -11,19 +11,19 @@ pub(crate) fn checked_operator_conformance_targets(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<SymbolHandle> {
     let mut targets = Vec::new();
-    for (_, operator_use) in facts.operators.uses.iter() {
-        if operator_use.expression != expression
-            || operator_use.status != CheckedOperatorResolutionStatus::Resolved
-        {
-            continue;
-        }
-        let Some(candidate) = facts.operators.selected_candidate(operator_use) else {
-            continue;
-        };
-        if candidate.is_trait_backed() && !targets.contains(&candidate.conformance_symbol) {
-            targets.push(candidate.conformance_symbol);
-        }
-    }
+    facts
+        .operators
+        .for_each_expression_use(expression, |_, operator_use| {
+            if operator_use.status != CheckedOperatorResolutionStatus::Resolved {
+                return;
+            }
+            let Some(candidate) = facts.operators.selected_candidate(operator_use) else {
+                return;
+            };
+            if candidate.is_trait_backed() && !targets.contains(&candidate.conformance_symbol) {
+                targets.push(candidate.conformance_symbol);
+            }
+        });
     targets
 }
 
@@ -38,10 +38,7 @@ pub(crate) fn checked_statement_call_target(
     if authored_target.is_valid() {
         return authored_target;
     }
-    let Some(state) = facts.flow.control.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
-            .then_some(state)
-    }) else {
+    let Some(state) = facts.flow.control.state(machine_symbol, state_symbol) else {
         return SymbolHandle::invalid();
     };
     for call in facts.flow.control.calls.span_or_empty(state.calls) {

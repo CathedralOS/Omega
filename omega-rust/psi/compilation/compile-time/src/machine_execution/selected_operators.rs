@@ -750,13 +750,21 @@ pub fn validate_selected_operators(
                 "selected build-time expression is shared by distinct current origins".into(),
             );
         }
-        let mut matching =
-            facts
-                .resolved_expression_selections()
-                .filter(|(expression, origin, _, _)| {
-                    *expression == row.expression && *origin == row.origin
-                });
-        let (Some((_, _, requirement, policy)), None) = (matching.next(), matching.next()) else {
+        let mut first_selection = None;
+        let mut multiple_selections = false;
+        facts.for_each_resolved_expression_selection(
+            row.expression,
+            |origin, requirement, policy, _| {
+                if origin == row.origin {
+                    if first_selection.is_none() {
+                        first_selection = Some((requirement, policy));
+                    } else {
+                        multiple_selections = true;
+                    }
+                }
+            },
+        );
+        let Some((requirement, policy)) = first_selection.filter(|_| !multiple_selections) else {
             return Err("selected build-time operator has no unique current use".into());
         };
         if requirement != row.requirement || policy != row.policy {

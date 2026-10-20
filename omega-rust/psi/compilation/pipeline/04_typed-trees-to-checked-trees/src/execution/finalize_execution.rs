@@ -10,20 +10,24 @@ pub(crate) fn finalize_execution(
     // One frame resolver answers every planner that still classifies typed
     // call frames.
     let call_frames = validation::CallFrameResolver::new(program);
-    crate::execution::scalar_computations::record_rank_observations(program, &mut facts);
-    facts.flow.terminal_machines =
-        crate::execution::terminal_scalar::build_checked_terminal_machine_selections(
-            program,
-            &facts.termination.rank_arrivals,
-        );
-    crate::execution::citation_erasure::retire_fact_only_citations(program, &mut facts);
+    phase_profile::scope("05.d.8_10.a.1.rank_and_terminal_machines", || {
+        crate::execution::scalar_computations::record_rank_observations(program, &mut facts);
+        facts.flow.terminal_machines =
+            crate::execution::terminal_scalar::build_checked_terminal_machine_selections(
+                program,
+                &facts.termination.rank_arrivals,
+            );
+        crate::execution::citation_erasure::retire_fact_only_citations(program, &mut facts);
+    });
     // This plan must be assembled only after multiplicity and carry checking:
     // their ownership events and claim policies are the authority for the
     // structural/Unit terminal slice.
     facts.flow.terminal_structural_control_cleanups =
-        crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
-            program, &facts,
-        );
+        phase_profile::scope("05.d.8_10.a.2.structural_control_cleanups", || {
+            crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+                program, &facts,
+            )
+        });
     let mut cleanup_diagnostics = Vec::new();
     // Contracts are declaration-owned, not a summary of whichever calls
     // happen to exist. Intern their complete target-neutral reach once before
@@ -45,13 +49,15 @@ pub(crate) fn finalize_execution(
         })
         .collect::<Vec<_>>();
     let (mut terminal_unit_effects, partial_cleanups, prepared_value_calls) =
-        crate::execution::terminal_unit::build_checked_unit_effect_plans(
-            program,
-            &facts,
-            &boundary_signature_reaches,
-            crate::execution::terminal_unit::ScalarCalleeClosure,
-            call_frames.as_ref(),
-        );
+        phase_profile::scope("05.d.8_10.a.3.unit_effect_plans", || {
+            crate::execution::terminal_unit::build_checked_unit_effect_plans(
+                program,
+                &facts,
+                &boundary_signature_reaches,
+                crate::execution::terminal_unit::ScalarCalleeClosure,
+                call_frames.as_ref(),
+            )
+        });
     // The partial-affine roster is built beside the ordinary one, from the
     // same body plans, so its shapes already live in the roster's one type
     // namespace. Nominal metadata retains caller prerequisites, while its
@@ -64,12 +70,14 @@ pub(crate) fn finalize_execution(
     // a planning defect, not a choice for lowering to make.
     facts.flow.terminal_partial_affine_unit_cleanups = partial_cleanups;
     let (nominal_cleanups, nominal_types) =
-        crate::execution::terminal_unit::build_checked_nominal_affine_unit_cleanup_plans(
-            program,
-            &facts,
-            &terminal_unit_effects,
-            &mut cleanup_diagnostics,
-        );
+        phase_profile::scope("05.d.8_10.a.4.nominal_affine_cleanups", || {
+            crate::execution::terminal_unit::build_checked_nominal_affine_unit_cleanup_plans(
+                program,
+                &facts,
+                &terminal_unit_effects,
+                &mut cleanup_diagnostics,
+            )
+        });
     facts.flow.terminal_nominal_affine_unit_cleanups = nominal_cleanups;
     if let Err(identity) = terminal_unit_effects.adopt_structural_types(nominal_types) {
         cleanup_diagnostics.push(Diagnostic::error(format!(

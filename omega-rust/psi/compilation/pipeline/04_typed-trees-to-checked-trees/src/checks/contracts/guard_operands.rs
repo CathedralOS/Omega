@@ -65,20 +65,23 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
     let Some(jump_arm) = arm_of(call_flow.call_ordinal).filter(|arm| arm.is_valid()) else {
         return true;
     };
-    let Some(state_flow_calls) = facts.flow.control.states.iter().find_map(|(_, owner)| {
-        (owner.machine_symbol == machine.symbol && owner.state_symbol == state.symbol)
-            .then(|| facts.flow.control.calls.span_or_empty(owner.calls))
-    }) else {
+    let Some(state_flow_calls) = facts
+        .flow
+        .control
+        .state(machine.symbol, state.symbol)
+        .map(|owner| facts.flow.control.calls.span_or_empty(owner.calls))
+    else {
         return false;
     };
     let borrow_calls = facts
         .borrow
-        .states
-        .iter()
-        .find_map(|(_, owner)| {
-            (owner.machine_symbol == machine.symbol && owner.state_symbol == state.symbol)
-                .then(|| facts.borrow.calls.span_or_empty(owner.calls))
+        .with_state_index(|index| {
+            index
+                .bucket(machine.symbol, state.symbol)
+                .first()
+                .map(|handle| facts.borrow.states.get(*handle))
         })
+        .map(|owner| facts.borrow.calls.span_or_empty(owner.calls))
         .unwrap_or(&[]);
     let summaries = crate::flow::StateMutationSummaryCache::default();
     // Call ordinals number the named jump before the calls inside its

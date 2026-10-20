@@ -721,11 +721,28 @@ impl TypedTrees {
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Option<(&data::DataDefinition, &data::DataField)> {
-        self.data_definitions().iter().find_map(|definition| {
-            self.data_member_fields(self.data_members(definition))
-                .find(|field| field.symbol == symbol)
-                .map(|field| (definition, field))
-        })
+        if let Some(&(data_position, member_position, payload_position)) =
+            self.data_field_positions_for_symbol(symbol).first()
+        {
+            let definition = self.data_definitions().get(data_position as usize)?;
+            let member = self
+                .data_members(definition)
+                .get(member_position as usize)?;
+            let field = if payload_position == u32::MAX {
+                let data::DataMember::Field(field) = member else {
+                    return None;
+                };
+                field
+            } else {
+                let data::DataMember::Variant(variant) = member else {
+                    return None;
+                };
+                self.data_payload_fields(variant)
+                    .get(payload_position as usize)?
+            };
+            return Some((definition, field));
+        }
+        None
     }
 
     /// The `Variant` member `definition` declares as `symbol`, if any.
@@ -762,10 +779,22 @@ impl TypedTrees {
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Option<(&data::DataDefinition, &data::DataField)> {
-        self.data_definitions().iter().find_map(|definition| {
-            self.data_field(definition, symbol)
-                .map(|field| (definition, field))
-        })
+        for (data_position, member_position, payload_position) in
+            self.data_field_positions_for_symbol(symbol)
+        {
+            if payload_position != u32::MAX {
+                continue;
+            }
+            let definition = self.data_definitions().get(data_position as usize)?;
+            let data::DataMember::Field(field) = self
+                .data_members(definition)
+                .get(member_position as usize)?
+            else {
+                continue;
+            };
+            return Some((definition, field));
+        }
+        None
     }
 
     /// The `Variant` member declared as `symbol` by any of the program's data
@@ -774,10 +803,15 @@ impl TypedTrees {
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Option<(&data::DataDefinition, &data::DataVariant)> {
-        self.data_definitions().iter().find_map(|definition| {
-            self.data_variant(definition, symbol)
-                .map(|variant| (definition, variant))
-        })
+        let (data_position, member_position) = self.data_variant_position_for_symbol(symbol)?;
+        let definition = self.data_definitions().get(data_position as usize)?;
+        let data::DataMember::Variant(variant) = self
+            .data_members(definition)
+            .get(member_position as usize)?
+        else {
+            return None;
+        };
+        Some((definition, variant))
     }
 
     pub fn push_data_payload_field(
@@ -827,9 +861,8 @@ impl TypedTrees {
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Option<&domain::DomainDefinition> {
-        self.domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == symbol)
+        self.domain_position_by_symbol(symbol)
+            .map(|position| &self.domain_definitions()[position])
     }
 
     pub fn domain_operators(

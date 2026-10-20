@@ -48,10 +48,11 @@ impl ExitScalars<'_, '_> {
         let entry = self.program.machine_states(self.machine).first()?;
         let state =
             validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
-        let (_, caller) = self.facts.flow.control.states.iter().find(|(_, state)| {
-            state.machine_symbol == self.machine.symbol
-                && state.state_symbol == self.exit.state_symbol
-        })?;
+        let caller = self
+            .facts
+            .flow
+            .control
+            .state(self.machine.symbol, self.exit.state_symbol)?;
         let goal = arithmetic::proposition(
             self.program,
             self.facts,
@@ -295,10 +296,11 @@ impl ExitScalars<'_, '_> {
         {
             return None;
         }
-        let (_, state) = self.facts.flow.control.states.iter().find(|(_, state)| {
-            state.machine_symbol == self.machine.symbol
-                && state.state_symbol == self.exit.state_symbol
-        })?;
+        let state = self
+            .facts
+            .flow
+            .control
+            .state(self.machine.symbol, self.exit.state_symbol)?;
         let place = validation::reserved_result_place(self.program, expression)?;
         super::super::super::prover::captured_scalar_at_path(
             self.program,

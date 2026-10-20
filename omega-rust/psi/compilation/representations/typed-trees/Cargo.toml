@@ -20,5 +20,6 @@ numerics = { path = "../../../foundation/numerics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
+phase-profile = { path = "../../../foundation/phase-profile" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

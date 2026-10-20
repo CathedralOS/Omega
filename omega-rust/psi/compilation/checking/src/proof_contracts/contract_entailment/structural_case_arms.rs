@@ -406,6 +406,12 @@ fn recognize_structural_state_leaves_from<'a>(
             .indexed_statements(state.statement_nodes)
             .filter(|(statement_index, _)| *statement_index >= start_index)
         {
+            if requirement.as_deref().is_some_and(|requirement| {
+                requirement.site().state == state.symbol
+                    && statement_index > requirement.site().statement_index
+            }) {
+                break;
+            }
             if is_arm_pattern_marker(statement) {
                 continue;
             }
@@ -437,6 +443,7 @@ fn recognize_structural_state_leaves_from<'a>(
             if judge.requires_value_preservation()
                 && let StatementNode::Call(call) = statement
             {
+                let _s = phase_profile::guard("05.d.7.3b.1.cap.2d.call_writes");
                 let frames = judge.frame_resolver()?;
                 let mut writes = Vec::new();
                 let mut complete = true;
@@ -457,7 +464,16 @@ fn recognize_structural_state_leaves_from<'a>(
                 && !saw_transition
                 && (!judge.has_runtime_body_values() || matches!(statement, StatementNode::Call(_)))
                 && let Some((target, arguments)) = citation_call_in_statement(program, statement)
+                && super::citations::can_establish_citation(
+                    program,
+                    classification,
+                    machine,
+                    &target,
+                    arguments.len(),
+                    judge.has_runtime_body_values(),
+                )
             {
+                let _s = phase_profile::guard("05.d.7.3b.1.cap.2d.citation");
                 // Value-position runtime calls, including their tag facts,
                 // belong to the normal-return traversal below. Termifying
                 // their operands here would replay an execution and rejects
@@ -498,33 +514,39 @@ fn recognize_structural_state_leaves_from<'a>(
                 } else if !judge.has_runtime_body_values() {
                     return None;
                 }
+                drop(_s);
             }
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
-                    let outcomes = if local.initial_value.is_valid() {
-                        judge
-                            .normal_return_paths(
-                                local.initial_value,
-                                &environment,
-                                (machine, state, local.type_reference),
-                            )?
-                            .into_iter()
-                            .map(|outcome| (Some(outcome.value), outcome.judge))
-                            .collect::<Vec<_>>()
-                    } else {
-                        // Zero storage has no expression to execute. Retain
-                        // the preceding path even when its contents have no
-                        // established mathematical value. Only the ordinary
-                        // zero-value owner may contribute equations; omission
-                        // must not establish a gated domain or invent a value.
-                        vec![(
-                            super::structural_terms::zero_value_structural_term(
-                                program,
-                                local.type_reference,
-                            ),
-                            judge.clone(),
-                        )]
-                    };
+                    let outcomes = phase_profile::scope("05.d.7.3b.1.cap.2d.local_init", || {
+                        if local.initial_value.is_valid() {
+                            judge
+                                .normal_return_paths(
+                                    local.initial_value,
+                                    &environment,
+                                    (machine, state, local.type_reference),
+                                )
+                                .map(|outcomes| {
+                                    outcomes
+                                        .into_iter()
+                                        .map(|outcome| (Some(outcome.value), outcome.judge))
+                                        .collect::<Vec<_>>()
+                                })
+                        } else {
+                            // Zero storage has no expression to execute. Retain
+                            // the preceding path even when its contents have no
+                            // established mathematical value. Only the ordinary
+                            // zero-value owner may contribute equations; omission
+                            // must not establish a gated domain or invent a value.
+                            Some(vec![(
+                                super::structural_terms::zero_value_structural_term(
+                                    program,
+                                    local.type_reference,
+                                ),
+                                judge.clone(),
+                            )])
+                        }
+                    })?;
                     let mut leaves = Vec::new();
                     for (value, outcome_judge) in outcomes {
                         let mut pending_citations = pending_citations.clone();
@@ -575,11 +597,13 @@ fn recognize_structural_state_leaves_from<'a>(
                 StatementNode::Assignment(_)
                     if !saw_transition && judge.has_runtime_body_values() =>
                 {
-                    let outcomes = judge.normal_assignment_paths(
-                        statement,
-                        &environment,
-                        (machine, state, state.return_type),
-                    )?;
+                    let outcomes = phase_profile::scope("05.d.7.3b.1.cap.2d.assign", || {
+                        judge.normal_assignment_paths(
+                            statement,
+                            &environment,
+                            (machine, state, state.return_type),
+                        )
+                    })?;
                     let mut leaves = Vec::new();
                     for outcome in outcomes {
                         leaves.extend(recognize_structural_state_leaves_from(
@@ -622,11 +646,13 @@ fn recognize_structural_state_leaves_from<'a>(
                         )
                         .unwrap_or_default()
                     };
-                    let outcomes = judge.normal_return_paths(
-                        *expression,
-                        &environment,
-                        (machine, state, result_type),
-                    )?;
+                    let outcomes = phase_profile::scope("05.d.7.3b.1.cap.2d.expr", || {
+                        judge.normal_return_paths(
+                            *expression,
+                            &environment,
+                            (machine, state, result_type),
+                        )
+                    })?;
                     let mut leaves = Vec::new();
                     for outcome in outcomes {
                         if is_tail {
@@ -740,6 +766,7 @@ fn recognize_structural_state_leaves_from<'a>(
         // Boolean guard as false, while the chosen arm alone receives its
         // positive refinement. Keep those completed observations on the
         // remaining path, never in a sibling's selected branch environment.
+        let _s_trans = phase_profile::guard("05.d.7.3b.1.cap.2d.transitions");
         let mut leaves = Vec::new();
         let mut remaining_paths = vec![(judge.clone(), case_equations.clone())];
         for (statement_index, transition) in transitions {
@@ -1059,6 +1086,10 @@ fn finalize_structural_case_arm<'program>(
 
     let mut citations = Vec::new();
     if !vacuous {
+        let machine_has_requires = program.machine_contracts(machine).iter().any(|contract| {
+            contract.kind == typed_trees::signature::SignatureContractKind::Requires
+                && !program.proof_facts.span_or_empty(contract.facts).is_empty()
+        });
         for (target, arguments) in pending_citations {
             let established = instantiate_citation(
                 program,
@@ -1075,13 +1106,15 @@ fn finalize_structural_case_arm<'program>(
             // An earlier citation may establish a recursive application's
             // requires, making its conditional IH available to later
             // citations in the same authored statement order.
-            intake_available_self_induction_hypotheses(
-                program,
-                machine,
-                parameter_names,
-                &value,
-                &mut arm_judge,
-            );
+            if machine_has_requires {
+                intake_available_self_induction_hypotheses(
+                    program,
+                    machine,
+                    parameter_names,
+                    &value,
+                    &mut arm_judge,
+                );
+            }
         }
     }
 
@@ -1103,6 +1136,9 @@ pub(super) fn structural_arm_judge<'program>(
     case_equations: &[(StructuralTerm, StructuralTerm)],
 ) -> StructuralJudge<'program> {
     let mut arm_judge = judge.clone();
+    if case_hypotheses.is_empty() && case_equations.is_empty() {
+        return arm_judge;
+    }
     for (subject, constructor) in case_equations {
         arm_judge.intake_case_equation(subject.clone(), constructor.clone(), 0);
         arm_judge.intake_equation(subject.clone(), constructor.clone(), 0);

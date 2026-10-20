@@ -99,10 +99,7 @@ pub(crate) fn exact_resource_lifecycle_handles(
     ),
     Vec<Diagnostic>,
 > {
-    let Some(state) = flow.control.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
-            .then_some(state)
-    }) else {
+    let Some(state) = flow.control.state(machine_symbol, state_symbol) else {
         return Err(reborrow_disposition_drift());
     };
     let activations = flow

@@ -44,7 +44,7 @@ pub(crate) fn infer_entry_requirements(
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<bool, Vec<Diagnostic>> {
     let mut pending = Vec::new();
-    for obligation in selected_requirements(program, facts)? {
+    for obligation in selected_requirements(program, facts, frames)? {
         let place = &obligation.place;
         let instance = facts
             .contextual_cleanup
@@ -104,63 +104,74 @@ pub(crate) fn infer_entry_requirements(
     // Generic forwarding carries the same obligation through the exact actual
     // place. It cannot turn a fixed-type local or unrelated parameter into a
     // new public demand merely because another parameter happens to be generic.
-    for (_, state) in facts.flow.control.states.iter() {
-        let Some(specialization) = program.machine_specialization(state.machine_symbol) else {
-            continue;
-        };
-        for call in facts.flow.control.calls.span_or_empty(state.calls) {
-            let Some(target) = calls::target_machine(program, call) else {
+    if !facts.contextual_cleanup.entry_requirements.rows.is_empty() {
+        for (_, state) in facts.flow.control.states.iter() {
+            let Some(specialization) = program.machine_specialization(state.machine_symbol) else {
                 continue;
             };
-            let contexts: Vec<_> = facts
-                .flow
-                .state_call_entry_semantic_contexts(
-                    state,
-                    call.statement_index,
-                    call.call_ordinal,
-                    call.target_symbol,
-                    call.receiver_symbol,
-                )
-                .collect();
-            for (_, requirement) in facts
-                .contextual_cleanup
-                .entry_requirements
-                .rows
-                .iter()
-                .filter(|(_, row)| row.machine == target)
-            {
-                if calls::proves(program, facts, state, call, &contexts, requirement, frames) {
+            for call in facts.flow.control.calls.span_or_empty(state.calls) {
+                let Some(target) = calls::target_machine(program, call) else {
+                    continue;
+                };
+                if !facts
+                    .contextual_cleanup
+                    .entry_requirements
+                    .rows
+                    .iter()
+                    .any(|(_, row)| row.machine == target)
+                {
                     continue;
                 }
-                let Some(place) = calls::actual_place(program, state, call, requirement) else {
-                    continue;
-                };
-                if !has_symbolic_origin(program, state, call.statement_index, &place) {
-                    continue;
+                let contexts: Vec<_> = facts
+                    .flow
+                    .state_call_entry_semantic_contexts(
+                        state,
+                        call.statement_index,
+                        call.call_ordinal,
+                        call.target_symbol,
+                        call.receiver_symbol,
+                    )
+                    .collect();
+                for (_, requirement) in facts
+                    .contextual_cleanup
+                    .entry_requirements
+                    .rows
+                    .iter()
+                    .filter(|(_, row)| row.machine == target)
+                {
+                    if calls::proves(program, facts, state, call, &contexts, requirement, frames) {
+                        continue;
+                    }
+                    let Some(place) = calls::actual_place(program, state, call, requirement) else {
+                        continue;
+                    };
+                    if !has_symbolic_origin(program, state, call.statement_index, &place) {
+                        continue;
+                    }
+                    let Some(path_condition) =
+                        entry_path_condition(&facts.semantic, &contexts, state.machine_symbol)
+                    else {
+                        continue;
+                    };
+                    let Some(callee_condition) =
+                        calls::entry_antecedent(program, facts, state, call, requirement)
+                    else {
+                        continue;
+                    };
+                    let Some(consequence) =
+                        calls::entry_consequence(program, facts, state, call, requirement)
+                    else {
+                        continue;
+                    };
+                    pending.push(Pending {
+                        machine: state.machine_symbol,
+                        consequence,
+                        antecedent: conjunction(path_condition, callee_condition),
+                        hook_machine: requirement.hook_machine,
+                        hook_clause: requirement.hook_clause,
+                        template_machine: specialization.template,
+                    });
                 }
-                let Some(path_condition) =
-                    entry_path_condition(&facts.semantic, &contexts, state.machine_symbol)
-                else {
-                    continue;
-                };
-                let Some(callee_condition) =
-                    calls::entry_antecedent(program, facts, state, call, requirement)
-                else {
-                    continue;
-                };
-                let Some(consequence) =
-                    calls::entry_consequence(program, facts, state, call, requirement)
-                else {
-                    continue;
-                };
-                pending.push(Pending {
-                    machine: state.machine_symbol,
-                    consequence,
-                    antecedent: conjunction(path_condition, callee_condition),
-                    hook_machine: requirement.hook_machine,
-                    hook_clause: requirement.hook_clause,
-                    template_machine: specialization.template,
-                });
             }
         }
     }
@@ -193,10 +204,11 @@ impl SelectedRequirement {
         retained.extend(self.current.guarantees.iter().cloned());
         let mut required = self.predicate.clone();
         let disposition = facts.contextual_cleanup.dispositions.get(self.disposition);
-        if let Some(state) = facts.flow.control.states.iter().find_map(|(_, state)| {
-            (state.machine_symbol == disposition.machine && state.state_symbol == disposition.state)
-                .then_some(state)
-        }) {
+        if let Some(state) = facts
+            .flow
+            .control
+            .state(disposition.machine, disposition.state)
+        {
             retained.extend(crate::checks::contracts::cleanup_predicates(
                 program,
                 facts,
@@ -277,6 +289,7 @@ impl SelectedRequirement {
 fn selected_requirements(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<Vec<SelectedRequirement>, Vec<Diagnostic>> {
     struct Hook {
         disposition: arena::Handle<checked_trees::ContextualCleanupDisposition>,
@@ -301,10 +314,15 @@ fn selected_requirements(
         entry: Vec<FactContextHandle>,
         current: CurrentCleanupFacts,
     }
+    if facts.contextual_cleanup.dispositions.is_empty() {
+        return Ok(Vec::new());
+    }
     let mut result = Vec::new();
     let proof_only = validation::proof_only_classification(program);
     let summaries = crate::flow::StateMutationSummaryCache::default();
-    let call_frames = validation::CallFrameResolver::new(program);
+    let mut owned_frames = None;
+    let call_frames =
+        crate::flow::shared_call_frames_or(shared_call_frames, program, &mut owned_frames);
     let mut groups = Vec::<Group<'_>>::new();
     for (handle, disposition) in facts.contextual_cleanup.dispositions.iter() {
         let Some(machine) = program.machine_by_symbol(disposition.machine) else {
@@ -313,14 +331,19 @@ fn selected_requirements(
         if proof_only.is_proof_machine(program, machine) {
             continue;
         }
-        let Some((_, state)) = facts.flow.control.states.iter().find(|(_, state)| {
-            state.machine_symbol == disposition.machine && state.state_symbol == disposition.state
-        }) else {
+        let Some(state) = facts
+            .flow
+            .control
+            .state(disposition.machine, disposition.state)
+        else {
             continue;
         };
         let Some(leaves) = selected_cleanup_leaves(program, facts, disposition) else {
             continue;
         };
+        if leaves.is_empty() {
+            continue;
+        }
         let path = facts
             .flow
             .ownership
@@ -334,11 +357,7 @@ fn selected_requirements(
         if hooks.is_empty() {
             continue;
         }
-        let selected = facts
-            .contextual_cleanup
-            .selected_dispositions
-            .iter()
-            .any(|(_, candidate)| *candidate == handle);
+        let selected = facts.contextual_cleanup.is_selected_disposition(handle);
         let points = occurrence_contexts(program, facts, state, disposition).ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "cleanup prerequisite has no exact outgoing edge context in {}",
@@ -507,7 +526,7 @@ fn selected_requirements(
                         predicate,
                     });
                 }
-                current.advance(program, facts, &summaries, call_frames.as_ref(), hook, &place).ok_or_else(|| vec![Diagnostic::error(
+                current.advance(program, facts, &summaries, call_frames, hook, &place).ok_or_else(|| vec![Diagnostic::error(
                     "cannot prove automatic cleanup requires: selected hook completion is unresolved",
                 )])?;
             }
@@ -524,7 +543,7 @@ pub(crate) fn check_cleanup_requirements(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Vec<Diagnostic> {
-    let selected = match selected_requirements(program, facts) {
+    let selected = match selected_requirements(program, facts, None) {
         Ok(selected) => selected,
         Err(diagnostics) => return diagnostics,
     };

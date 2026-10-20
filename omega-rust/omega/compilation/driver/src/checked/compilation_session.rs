@@ -30,7 +30,7 @@ pub struct CompilationSession {
     sources: Vec<PreparedSource>,
     pure_builds: build_evaluation::PureBuildCompilation,
     checks: RetainedCompilationChecks,
-    pub(super) selections: psi_compiler::ProductSelections,
+    pub(crate) selections: psi_compiler::ProductSelections,
 }
 
 struct PreparedSource {
@@ -40,6 +40,15 @@ struct PreparedSource {
 }
 
 impl CompilationSession {
+    /// Compile every requested target against this session's retained source,
+    /// pure-Build and checked-judgment stores.
+    pub fn compile(
+        &mut self,
+        request: crate::CompileRequest,
+    ) -> Result<crate::CompileOutcomes, Vec<diagnostics::Diagnostic>> {
+        crate::compiler::compile_with_session(self, request)
+    }
+
     /// Complete one source request at its requested stop. Intermediate source
     /// custody never leaves the invocation to be handed back for production.
     pub fn produce(
@@ -121,31 +130,43 @@ impl CompilationSession {
             .package_inputs
             .as_ref()
             .map(PackageCompilationInputs::source_inputs);
+        self.prepare_source_with_inputs(&request.root_path, inputs, request.collect_timings)
+    }
+
+    pub(crate) fn prepare_source_with_inputs(
+        &mut self,
+        root_path: &std::path::Path,
+        inputs: Option<Arc<PackageCompilationSourceInputs>>,
+        collect_timings: bool,
+    ) -> Result<PreparedCheckedSource, CompileFailure> {
         if let Some(prepared) = self
             .sources
             .iter()
-            .find(|prepared| prepared.root == request.root_path && prepared.inputs == inputs)
+            .find(|prepared| prepared.root == root_path && prepared.inputs == inputs)
         {
             return Ok(prepared.source.clone());
         }
-        let source =
-            prepare_checked_source(&request.root_path, inputs.clone(), request.collect_timings)?;
+        let source = prepare_checked_source(root_path, inputs.clone(), collect_timings)?;
         self.sources.push(PreparedSource {
-            root: request.root_path.clone(),
+            root: root_path.to_path_buf(),
             inputs,
             source: source.clone(),
         });
         Ok(source)
     }
 
-    pub(super) fn reuse(&self) -> SettledCheckReuse {
+    pub(crate) fn pure_builds(&self) -> &build_evaluation::PureBuildCompilation {
+        &self.pure_builds
+    }
+
+    pub(crate) fn reuse(&self) -> SettledCheckReuse {
         SettledCheckReuse {
             prior: self.checks.clone(),
             retain: true,
         }
     }
 
-    pub(super) fn retain(&mut self, checks: &RetainedCompilationChecks) {
+    pub(crate) fn retain(&mut self, checks: &RetainedCompilationChecks) {
         if let Some(build) = &checks.build {
             retain_judgment(&mut self.checks.sibling_build_checks, build);
         }

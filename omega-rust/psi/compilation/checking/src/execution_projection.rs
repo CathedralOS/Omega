@@ -83,11 +83,20 @@ pub fn project_build_program(
     // work to Product completion, which cannot supply that authority. Target
     // preparation has already bound ordinary calls to the execution-profile
     // member; retaining its siblings does not make those calls target-dependent.
+    let is_build_scope = |symbol| {
+        symbol == entry
+            || original
+                .symbols
+                .symbol_provenance_source_span(symbol)
+                .and_then(|span| original.symbols.source_file(span))
+                .is_some_and(|file| file.dependency_scope == DependencyScope::Build)
+    };
     let generated_methods = original
         .machines()
         .iter()
         .filter(|machine| {
-            machine.generic_data_template.is_valid() && machine.attached_data_symbol.is_valid()
+            machine.attached_data_symbol.is_valid()
+                && (machine.generic_data_template.is_valid() || !is_build_scope(machine.symbol))
         })
         .map(|machine| (machine.attached_data_symbol, machine.symbol))
         .collect::<Vec<_>>();
@@ -100,13 +109,13 @@ pub fn project_build_program(
     let mut program = project_declarations(
         original,
         |symbol| {
-            in_build_context(symbol)
+            is_build_scope(symbol)
                 && !is_generated(symbol)
                 && (machines.contains(&symbol) || !descriptors.contains(&symbol))
         },
         |symbol| {
             is_generated(symbol)
-                || (in_build_context(symbol) && descriptors.contains(&symbol))
+                || in_build_context(symbol)
                 || original
                     .symbols
                     .symbol_provenance_source_span(symbol)

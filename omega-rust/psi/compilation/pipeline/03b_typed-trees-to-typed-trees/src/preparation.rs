@@ -165,6 +165,7 @@ pub fn prepare_typed_trees(
     mut program: TypedTrees,
     request: &PreparationRequest<'_>,
 ) -> Result<(typed_trees::FrozenTypedTrees, TypedPreparation), Vec<diagnostics::Diagnostic>> {
+    let pre_loop_guard = phase_profile::guard("05.c.1.pre_specialization");
     crate::assembly_control::validate_primitive_meanings(&program)?;
     // Declaration descriptions may retain pending implementations, but the
     // executable roster must be complete before any proof or memo lookup.
@@ -240,7 +241,10 @@ pub fn prepare_typed_trees(
         &program,
         &provider_candidates,
     );
+    drop(pre_loop_guard);
+    let spec_loop_guard = phase_profile::guard("05.c.2.specialization_loop");
     loop {
+        phase_profile::count("05.c.2.specialization_loop.iterations", 1);
         // Close ordinary calls before discovering boundary demands. A bound
         // token or generated candidate can expose another ordinary application,
         // so all rounds return through this same specialization entrypoint.
@@ -273,6 +277,8 @@ pub fn prepare_typed_trees(
             break;
         }
     }
+    drop(spec_loop_guard);
+    let _post_loop_guard = phase_profile::guard("05.c.3.post_specialization");
     // Assembly normalization produces ordinary locals and helper bodies.
     // They participate in the same value/default-domain preparation as source.
     crate::assembly_control::normalize(&mut program)?;

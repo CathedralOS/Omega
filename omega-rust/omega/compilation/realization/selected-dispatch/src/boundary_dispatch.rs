@@ -70,8 +70,6 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
     // cannot supply a Product row. Source-free generated roots are included by
     // the context above, just as in the former declaration projection.
     let typed = checked;
-    let product_references =
-        typed_trees::references::collect_selected_program_references(typed, &product_roots);
     let mut adapters = Vec::new();
     let mut generic_requirements: Vec<GenericBoundaryRequirement> = Vec::new();
     let mut diagnostics = Vec::new();
@@ -129,6 +127,9 @@ pub(crate) fn settle_selected_boundary_adapter_dispatch(
     if adapters.is_empty() && generic_requirements.is_empty() {
         return diagnostics.is_empty().then(Vec::new).ok_or(diagnostics);
     }
+
+    let product_references =
+        typed_trees::references::collect_selected_program_references(typed, &product_roots);
 
     // Exact typed field symbol -> exact boundary-trait symbol. Field spellings
     // may repeat across data owners and never participate in dispatch.

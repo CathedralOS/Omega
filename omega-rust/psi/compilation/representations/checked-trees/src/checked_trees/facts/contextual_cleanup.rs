@@ -4,11 +4,20 @@
 //! contextual obligations consume this same selection; an untouched generic
 //! template retains its own rows beside each closed specialization. These rows
 //! select disposition, not entry assumptions or invented authored requirements.
-use arena::{Arena, Handle, HandleSpan};
+use arena::{Arena, Handle, HandleSpan, OwnedIndex};
 use facts::{Place, PlaceSegment};
 
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
+
+#[derive(Clone, Default)]
+pub struct ContextualCleanupStateIndex {
+    by_state: symbols::SymbolKeyMap<
+        (SymbolHandle, SymbolHandle),
+        Vec<Handle<ContextualCleanupDisposition>>,
+    >,
+    selected: Vec<bool>,
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContextualCleanupFacts {
@@ -32,6 +41,98 @@ pub struct ContextualCleanupFacts {
     /// Bound generic obligations are entry inputs to source flow. Their
     /// storage survives refreshing the selected death occurrences.
     pub entry_requirements: ContextualCleanupEntryRequirements,
+    /// `(machine, state)` and selected-disposition lookup owned by this ledger.
+    pub state_index: OwnedIndex<ContextualCleanupStateIndex>,
+}
+
+impl ContextualCleanupFacts {
+    fn with_state_index<R>(&self, run: impl FnOnce(&ContextualCleanupStateIndex) -> R) -> R {
+        let revision =
+            self.dispositions.revision() ^ self.selected_dispositions.revision().rotate_left(32);
+        self.state_index.with(
+            revision,
+            || {
+                let mut by_state = symbols::SymbolKeyMap::<
+                    (SymbolHandle, SymbolHandle),
+                    Vec<Handle<ContextualCleanupDisposition>>,
+                >::default();
+                for (handle, disposition) in self.dispositions.iter() {
+                    by_state
+                        .entry((disposition.machine, disposition.state))
+                        .or_default()
+                        .push(handle);
+                }
+                let mut selected = vec![false; self.dispositions.len()];
+                for (_, candidate) in self.selected_dispositions.iter() {
+                    if let Some(slot) = selected.get_mut(candidate.arena_index() as usize) {
+                        *slot = true;
+                    }
+                }
+                ContextualCleanupStateIndex { by_state, selected }
+            },
+            run,
+        )
+    }
+
+    pub fn is_selected_disposition(&self, handle: Handle<ContextualCleanupDisposition>) -> bool {
+        self.with_state_index(|index| {
+            index
+                .selected
+                .get(handle.arena_index() as usize)
+                .copied()
+                .unwrap_or(false)
+        })
+    }
+
+    pub fn for_each_state_disposition(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        mut visit: impl FnMut(Handle<ContextualCleanupDisposition>, &ContextualCleanupDisposition),
+    ) {
+        self.with_state_index(|index| {
+            if let Some(handles) = index.by_state.get(&(machine, state)) {
+                for &handle in handles {
+                    visit(handle, self.dispositions.get(handle));
+                }
+            }
+        });
+    }
+
+    pub fn any_state_disposition(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        mut predicate: impl FnMut(
+            Handle<ContextualCleanupDisposition>,
+            &ContextualCleanupDisposition,
+        ) -> bool,
+    ) -> bool {
+        self.with_state_index(|index| {
+            index
+                .by_state
+                .get(&(machine, state))
+                .is_some_and(|handles| {
+                    handles
+                        .iter()
+                        .any(|&handle| predicate(handle, self.dispositions.get(handle)))
+                })
+        })
+    }
+
+    pub fn state_disposition_handles(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+    ) -> Vec<Handle<ContextualCleanupDisposition>> {
+        self.with_state_index(|index| {
+            index
+                .by_state
+                .get(&(machine, state))
+                .cloned()
+                .unwrap_or_default()
+        })
+    }
 }
 
 /// One successful receiving write, distinct from the claims it establishes.

@@ -28,6 +28,10 @@ struct Owner {
 }
 
 impl SelectedCleanup {
+    pub(super) fn is_empty(&self) -> bool {
+        self.owners.is_empty()
+    }
+
     /// A value join transfers one candidate, while its complementary owners
     /// remain owed. Keep the pre-transfer occurrences in the ordinary selected
     /// cleanup inventory; all-path unavailability is not a disposal permit.
@@ -110,6 +114,9 @@ impl SelectedCleanup {
         ownership: &mut FlowOwnershipFacts,
         output: &mut ContextualCleanupFacts,
     ) -> Result<(), diagnostics::Diagnostic> {
+        if self.owners.is_empty() && selected.is_empty() && events.is_empty() {
+            return Ok(());
+        }
         for (ordinal, event) in events.iter().enumerate() {
             if event.access != PermissionAccess::Owned {
                 continue;

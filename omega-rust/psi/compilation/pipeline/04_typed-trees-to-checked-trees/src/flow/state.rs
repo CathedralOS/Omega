@@ -199,6 +199,7 @@ pub(super) fn build_state_flow_fact<'plans>(
     let state_case_accesses_start = build.control.case_accesses.len();
     let state_exits_start = build.control.exits.len();
     let state_outgoing_start = build.control.outgoing.len();
+    build.state_outgoing_start = state_outgoing_start;
     let execution_order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);

@@ -68,6 +68,9 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
         .map(|(owner, _)| owner.symbol)
         .collect::<Vec<_>>();
     owners.dedup(); // Discovery appends each owner's complete state roster once.
+    if owners.len() <= 1 {
+        return fused;
+    }
     let mut predecessors = Vec::new();
     for (owner, state) in &fused {
         let Some(source_index) = owners.iter().position(|symbol| *symbol == owner.symbol) else {

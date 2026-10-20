@@ -174,6 +174,14 @@ pub struct CheckedScalarExpressionPlans {
     /// Plans without a retained row cannot reconstruct a positional scope.
     pub source_bindings: Arena<CheckedScalarExpressionBindings>,
     pub binding_symbols: Arena<SymbolHandle>,
+    #[doc(hidden)]
+    pub state_index: arena::OwnedIndex<
+        (
+            symbols::SymbolKeyMap<SymbolHandle, Vec<u32>>,
+            symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedScalarExpressionBindings>>>,
+        ),
+        (usize, u64),
+    >,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -205,6 +213,44 @@ impl Default for CheckedScalarExpressionBindings {
 }
 
 impl CheckedScalarExpressionPlans {
+    fn with_state_index<R>(
+        &self,
+        run: impl FnOnce(
+            &symbols::SymbolKeyMap<SymbolHandle, Vec<u32>>,
+            &symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedScalarExpressionBindings>>>,
+        ) -> R,
+    ) -> R {
+        self.state_index.with(
+            (self.expressions.len(), self.source_bindings.revision()),
+            || {
+                let mut expressions_by_state =
+                    symbols::SymbolKeyMap::<SymbolHandle, Vec<u32>>::default();
+                for (index, expression) in self.expressions.iter().enumerate() {
+                    if let Ok(index) = u32::try_from(index) {
+                        expressions_by_state
+                            .entry(expression.state)
+                            .or_default()
+                            .push(index);
+                    }
+                }
+                let mut bindings_by_state = symbols::SymbolKeyMap::<
+                    SymbolHandle,
+                    Vec<Handle<CheckedScalarExpressionBindings>>,
+                >::default();
+                for (handle, binding) in self.source_bindings.iter() {
+                    bindings_by_state
+                        .entry(binding.state)
+                        .or_default()
+                        .push(handle);
+                }
+                (expressions_by_state, bindings_by_state)
+            },
+            |(expressions_by_state, bindings_by_state)| {
+                run(expressions_by_state, bindings_by_state)
+            },
+        )
+    }
+
     /// Select one custody row and one plan at the exact source coordinate.
     /// Expected handles and destinations are checked only after uniqueness;
     /// filtering by those values could conceal conflicting custody rows.
@@ -214,25 +260,35 @@ impl CheckedScalarExpressionPlans {
         statement_ordinal: u32,
         role: CheckedScalarExpressionRole,
     ) -> Option<(&CheckedScalarExpressionBindings, &CheckedScalarExpression)> {
-        let mut bindings = self.source_bindings.iter().filter(|(_, binding)| {
-            binding.state == state
-                && binding.statement_ordinal == statement_ordinal
-                && binding.role == role
-        });
-        let (_, binding) = bindings.next()?;
-        if bindings.next().is_some() {
-            return None;
-        }
-        let mut expressions = self.expressions.iter().filter(|expression| {
-            expression.state == state
-                && expression.statement_ordinal == statement_ordinal
-                && expression.role == role
-        });
-        let expression = &expressions.next()?.expression;
-        if expressions.next().is_some() {
-            return None;
-        }
-        Some((binding, expression))
+        self.with_state_index(|expressions_by_state, bindings_by_state| {
+            let mut bindings = bindings_by_state
+                .get(&state)?
+                .iter()
+                .map(|handle| self.source_bindings.get(*handle))
+                .filter(|binding| {
+                    binding.state == state
+                        && binding.statement_ordinal == statement_ordinal
+                        && binding.role == role
+                });
+            let binding = bindings.next()?;
+            if bindings.next().is_some() {
+                return None;
+            }
+            let mut expressions = expressions_by_state
+                .get(&state)?
+                .iter()
+                .filter_map(|index| self.expressions.get(*index as usize))
+                .filter(|expression| {
+                    expression.state == state
+                        && expression.statement_ordinal == statement_ordinal
+                        && expression.role == role
+                });
+            let expression = &expressions.next()?.expression;
+            if expressions.next().is_some() {
+                return None;
+            }
+            Some((binding, expression))
+        })
     }
 
     pub fn expression_at(
@@ -241,14 +297,18 @@ impl CheckedScalarExpressionPlans {
         statement_ordinal: u32,
         role: CheckedScalarExpressionRole,
     ) -> Option<&CheckedScalarExpression> {
-        self.expressions
-            .iter()
-            .find(|expression| {
-                expression.state == state
-                    && expression.statement_ordinal == statement_ordinal
-                    && expression.role == role
-            })
-            .map(|expression| &expression.expression)
+        self.with_state_index(|expressions_by_state, _| {
+            expressions_by_state
+                .get(&state)?
+                .iter()
+                .filter_map(|index| self.expressions.get(*index as usize))
+                .find(|expression| {
+                    expression.state == state
+                        && expression.statement_ordinal == statement_ordinal
+                        && expression.role == role
+                })
+                .map(|expression| &expression.expression)
+        })
     }
 }
 

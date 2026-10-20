@@ -798,14 +798,8 @@ fn collect_proof_call_dependencies(
             }
         }
         for target in targets {
-            if let Some(callee) = machines.iter().position(|candidate| {
-                candidate.symbol == target
-                    || typed_trees::state::state_by_symbol(
-                        program.machine_states(candidate),
-                        target,
-                    )
-                    .is_some()
-            }) && callee != caller
+            if let Some(callee) = runtime_ranking::target_machine(program, target)
+                && callee != caller
             {
                 // Keep duplicates: each occurrence needs its own witness.
                 dependencies[caller].push(callee);

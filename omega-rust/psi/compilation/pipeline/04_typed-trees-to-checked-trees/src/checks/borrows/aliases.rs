@@ -97,10 +97,11 @@ pub(in crate::checks::borrows) fn resolve_places(
     }
 
     let borrow = &facts.borrow;
-    let state_borrow = borrow.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == state_flow.machine_symbol
-            && state.state_symbol == state_flow.state_symbol)
-            .then_some(state)
+    let state_borrow = borrow.with_state_index(|index| {
+        index
+            .bucket(state_flow.machine_symbol, state_flow.state_symbol)
+            .first()
+            .map(|handle| borrow.states.get(*handle))
     })?;
     let candidates = facts
         .flow

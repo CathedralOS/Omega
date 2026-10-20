@@ -116,10 +116,21 @@ pub(super) fn validate(
     if let Some(state) = current_state
         && state.return_type.is_valid()
     {
+        let mut return_owner = None;
+        let mut slot_context = None;
         for target in transition.targets() {
             if let TransitionTargetNode::Value(return_expression) =
                 program.statement_table.transition_target(target)
             {
+                let return_owner = return_owner.get_or_insert_with(|| {
+                    format!(
+                        "machine `{}` state `{state_name}` return value",
+                        machine.name
+                    )
+                });
+                let slot_context = slot_context.get_or_insert_with(|| {
+                    format!("machine `{}` state `{state_name}`", machine.name)
+                });
                 crate::value_custody::reference_access::report_reference_access_conflict(
                     program,
                     machine,
@@ -128,10 +139,7 @@ pub(super) fn validate(
                         [..scope.statement_index],
                     *return_expression,
                     state.return_type,
-                    &format!(
-                        "machine `{}` state `{state_name}` return value",
-                        machine.name
-                    ),
+                    return_owner,
                     diagnostics,
                 );
                 struct_literals::validate_array_literal_elements(
@@ -159,7 +167,7 @@ pub(super) fn validate(
                         Some(state),
                         *return_expression,
                         return_primitive,
-                        &format!("machine `{}` state `{state_name}`", machine.name),
+                        slot_context,
                         "return value",
                         diagnostics,
                     );
@@ -169,10 +177,7 @@ pub(super) fn validate(
                     machine.symbol,
                     *return_expression,
                     state.return_type,
-                    &format!(
-                        "machine `{}` state `{state_name}` return value",
-                        machine.name
-                    ),
+                    return_owner,
                     diagnostics,
                 );
                 // Nominal guard: `-> Foo { transition { _ -> (self.bar) } }`
@@ -183,7 +188,7 @@ pub(super) fn validate(
                     Some(state),
                     *return_expression,
                     state.return_type,
-                    &format!("machine `{}` state `{state_name}`", machine.name),
+                    slot_context,
                     "return value",
                     diagnostics,
                 );
@@ -194,7 +199,7 @@ pub(super) fn validate(
                     Some(state),
                     *return_expression,
                     state.return_type,
-                    &format!("machine `{}` state `{state_name}`", machine.name),
+                    slot_context,
                     "return value",
                     diagnostics,
                 );
@@ -204,7 +209,7 @@ pub(super) fn validate(
                     Some(state),
                     *return_expression,
                     state.return_type,
-                    &format!("machine `{}` state `{state_name}`", machine.name),
+                    slot_context,
                     "return value",
                     diagnostics,
                 );
@@ -213,7 +218,7 @@ pub(super) fn validate(
                     machine,
                     state,
                     *return_expression,
-                    &format!("machine `{}` state `{state_name}`", machine.name),
+                    slot_context,
                     diagnostics,
                 );
                 arithmetic_domains::validate_return_value_range(
@@ -222,10 +227,7 @@ pub(super) fn validate(
                     state,
                     *return_expression,
                     return_environment,
-                    &format!(
-                        "machine `{}` state `{state_name}` return value",
-                        machine.name
-                    ),
+                    return_owner,
                     diagnostics,
                     arithmetic_decisions,
                 );
@@ -233,35 +235,37 @@ pub(super) fn validate(
         }
     }
 
+    let mut argument_owner = None;
     for target in transition.targets() {
         if let TransitionTargetNode::Named { arguments, .. } =
             program.statement_table.transition_target(target)
         {
-            for (argument_index, argument) in program
-                .statement_table
-                .expression_handles(*arguments)
-                .iter()
-                .enumerate()
-            {
-                let argument_environment = transition_values
-                    .for_target(target)
-                    .get(argument_index)
-                    .unwrap_or(&narrowed);
-                arithmetic_domains::validate_value_range_retaining_decisions(
-                    program,
-                    machine,
-                    current_state,
-                    *argument,
-                    argument_environment,
-                    None,
-                    numerics::arithmetic::ArithmeticDomain::Exact,
-                    &format!(
+            let arguments = program.statement_table.expression_handles(*arguments);
+            if !arguments.is_empty() {
+                let argument_owner = argument_owner.get_or_insert_with(|| {
+                    format!(
                         "machine `{}` state `{state_name}` transition argument",
                         machine.name
-                    ),
-                    diagnostics,
-                    arithmetic_decisions,
-                );
+                    )
+                });
+                for (argument_index, argument) in arguments.iter().enumerate() {
+                    let argument_environment = transition_values
+                        .for_target(target)
+                        .get(argument_index)
+                        .unwrap_or(&narrowed);
+                    arithmetic_domains::validate_value_range_retaining_decisions(
+                        program,
+                        machine,
+                        current_state,
+                        *argument,
+                        argument_environment,
+                        None,
+                        numerics::arithmetic::ArithmeticDomain::Exact,
+                        argument_owner,
+                        diagnostics,
+                        arithmetic_decisions,
+                    );
+                }
             }
         }
     }

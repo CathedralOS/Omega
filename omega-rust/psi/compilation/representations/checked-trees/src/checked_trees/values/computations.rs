@@ -86,18 +86,87 @@ pub struct CheckedScalarComputationPlans {
     pub claim_transfers: Arena<crate::CheckedUnitClaimTransferPlan>,
     pub dispatch_arms: Arena<CheckedScalarDispatchArm>,
     pub case_fields: Arena<CheckedScalarCaseComputationField>,
+    #[doc(hidden)]
+    pub roots_by_state: arena::OwnedIndex<(
+        u64,
+        usize,
+        symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedScalarComputationRoot>>>,
+    )>,
 }
 
 impl CheckedScalarComputationPlans {
+    fn with_state_roots<R>(
+        &self,
+        state: SymbolHandle,
+        run: impl FnOnce(&[Handle<CheckedScalarComputationRoot>]) -> R,
+    ) -> R {
+        self.roots_by_state.with_mut(
+            0,
+            || (0, 0, symbols::SymbolKeyMap::default()),
+            |(seen_revision, indexed_len, by_state)| {
+                let current_revision = self.roots.revision();
+                if *seen_revision != current_revision {
+                    let slice = self.roots.storage_slice();
+                    let delta = slice.len().checked_sub(*indexed_len);
+                    let rev_delta = current_revision.checked_sub(*seen_revision);
+                    if self.roots.len() == slice.len()
+                        && let (Some(delta), Some(rev_delta)) = (delta, rev_delta)
+                        && rev_delta == delta as u64
+                    {
+                        let mut valid_tail = true;
+                        for (offset, root) in slice[*indexed_len..].iter().enumerate() {
+                            let Some(arena_index) = (*indexed_len + offset)
+                                .checked_add(1)
+                                .and_then(|idx| u32::try_from(idx).ok())
+                            else {
+                                valid_tail = false;
+                                break;
+                            };
+                            let handle = Handle::from_parts(arena_index, 1);
+                            if !self.roots.is_valid(handle) {
+                                valid_tail = false;
+                                break;
+                            }
+                            by_state.entry(root.state).or_default().push(handle);
+                        }
+                        if !valid_tail {
+                            by_state.clear();
+                            for (handle, root) in self.roots.iter() {
+                                by_state.entry(root.state).or_default().push(handle);
+                            }
+                        }
+                    } else {
+                        by_state.clear();
+                        for (handle, root) in self.roots.iter() {
+                            by_state.entry(root.state).or_default().push(handle);
+                        }
+                    }
+                    *seen_revision = current_revision;
+                    *indexed_len = slice.len();
+                }
+                run(by_state.get(&state).map_or(&[], Vec::as_slice))
+            },
+        )
+    }
+
     pub fn root_at(
         &self,
         state: SymbolHandle,
         statement_ordinal: u32,
         role: CheckedScalarExpressionRole,
     ) -> Option<&CheckedScalarComputationRoot> {
-        let mut roots = self.roots_for_statement_role(state, statement_ordinal, role);
-        let root = roots.next()?;
-        roots.next().is_none().then_some(root)
+        self.with_state_roots(state, |handles| {
+            let mut roots = handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| {
+                    root.state == state
+                        && root.statement_ordinal == statement_ordinal
+                        && root.role == role
+                });
+            let root = roots.next()?;
+            roots.next().is_none().then_some(root)
+        })
     }
 
     /// Roots matching one statement's role filter, in arena order — the
@@ -108,8 +177,51 @@ impl CheckedScalarComputationPlans {
         statement_ordinal: u32,
         role: CheckedScalarExpressionRole,
     ) -> impl Iterator<Item = &'plans CheckedScalarComputationRoot> {
-        self.roots.iter().map(|(_, root)| root).filter(move |root| {
-            root.state == state && root.statement_ordinal == statement_ordinal && root.role == role
+        let mut first_two = [None, None];
+        let mut overflow = Vec::new();
+        self.with_state_roots(state, |handles| {
+            for handle in handles {
+                let root = self.roots.get(*handle);
+                if root.state == state
+                    && root.statement_ordinal == statement_ordinal
+                    && root.role == role
+                {
+                    if first_two[0].is_none() {
+                        first_two[0] = Some(root);
+                    } else if first_two[1].is_none() {
+                        first_two[1] = Some(root);
+                    } else {
+                        overflow.push(root);
+                    }
+                }
+            }
+        });
+        first_two.into_iter().flatten().chain(overflow)
+    }
+
+    /// Roots owned by `state` at `statement_ordinal`, in arena order.
+    pub fn roots_for_statement(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+    ) -> Vec<&CheckedScalarComputationRoot> {
+        self.with_state_roots(state, |handles| {
+            handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| root.state == state && root.statement_ordinal == statement_ordinal)
+                .collect()
+        })
+    }
+
+    /// Root handles of computations owned by `state`, in arena order.
+    pub fn roots_for_state(&self, state: SymbolHandle) -> Vec<CheckedScalarComputationHandle> {
+        self.with_state_roots(state, |handles| {
+            handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter_map(|root| (root.state == state).then_some(root.root))
+                .collect()
         })
     }
 

@@ -23,10 +23,13 @@ pub(super) fn collect_state_argument_facts_for_call(
     receiver_transition: bool,
     collected: &mut Vec<StateArgumentFacts>,
 ) {
+    if !target_symbol.is_valid() {
+        return;
+    }
     let Some(target_state) = program
         .machine_states(machine)
-        .iter()
-        .find(|state| target_symbol.is_valid() && state.symbol == target_symbol)
+        .get(1..)
+        .and_then(|states| states.iter().find(|state| state.symbol == target_symbol))
     else {
         return;
     };
@@ -118,6 +121,7 @@ pub(super) fn collect_state_argument_facts_for_call(
     // already-derived bound and its exact receiver dependency through the same
     // all-predecessor meet as argument storage. Ordinary calls never inherit it.
     if receiver_transition
+        && !facts.proven_index_pairs().is_empty()
         && let Some(receiver) = crate::flow::canonical_place_from_symbol(machine.symbol)
     {
         argument_storages.push((receiver, machine.symbol));
@@ -172,27 +176,32 @@ pub(super) fn collect_state_argument_facts_for_call(
         entry.receiver_lengths = Some(incoming_lengths);
     }
 
-    let parameter_arguments: Vec<(usize, ExpressionHandle)> = entry
+    let parameter_arguments: Vec<(usize, ExpressionHandle, String)> = entry
         .parameters
         .iter()
         .enumerate()
         .zip(arguments.iter().copied())
-        .map(|((index, _), argument)| (index, argument))
+        .map(|((index, _), argument)| {
+            (
+                index,
+                argument,
+                program.expression_table.display_name(argument),
+            )
+        })
         .collect();
 
-    for (parameter, argument) in entry.parameters.iter_mut().zip(arguments.iter().copied()) {
-        parameter.length.merge(expression_indexable_length(
-            program, machine, state, facts, argument,
-        ));
-        parameter
-            .integer
-            .merge(expression_integer_value(program, facts, argument));
+    for (parameter, (_, argument, argument_label)) in
+        entry.parameters.iter_mut().zip(parameter_arguments.iter())
+    {
+        let argument = *argument;
+        let indexable_length =
+            expression_indexable_length(program, machine, state, facts, argument);
+        let integer_value = expression_integer_value(program, facts, argument);
+        parameter.length.merge(indexable_length);
+        parameter.integer.merge(integer_value);
         let minimum_length = facts
-            .minimum_length(&program.expression_table.display_name(argument))
-            .or_else(|| {
-                expression_indexable_length(program, machine, state, facts, argument)
-                    .and_then(|length| i64::try_from(length).ok())
-            });
+            .minimum_length(argument_label)
+            .or_else(|| indexable_length.and_then(|length| i64::try_from(length).ok()));
         parameter.minimum_length.merge_lower(minimum_length);
         // R4 transport: every proven bound on the argument is sound for the
         // destination parameter, so meet them. A constant bounds exclusively
@@ -202,11 +211,9 @@ pub(super) fn collect_state_argument_facts_for_call(
         // result at K+1) — the consumer consults the contract rather than
         // weakening the index admission downstream.
         let ensured = ensured_call_result_bounds(program, argument);
-        let argument_label = program.expression_table.display_name(argument);
         let argument_bound = [
-            expression_integer_value(program, facts, argument)
-                .and_then(|value| (value >= 0).then(|| value.checked_add(1)).flatten()),
-            facts.proven_index_upper_bound(&argument_label),
+            integer_value.and_then(|value| (value >= 0).then(|| value.checked_add(1)).flatten()),
+            facts.proven_index_upper_bound(argument_label),
             ensured
                 .and_then(|(_, high)| high)
                 .and_then(|high| high.checked_add(1)),
@@ -220,19 +227,25 @@ pub(super) fn collect_state_argument_facts_for_call(
         // non-negative literal, carries a proven label fact, or the call's
         // ensured conjunct bounds its result `>= 0`. One unproven edge
         // poisons the lane like every other merged fact.
-        let non_negative = (expression_integer_value(program, facts, argument)
-            .is_some_and(|value| value >= 0)
-            || facts.non_negative_is_proven(&argument_label)
+        let non_negative = (integer_value.is_some_and(|value| value >= 0)
+            || facts.non_negative_is_proven(argument_label)
             || ensured.and_then(|(low, _)| low).is_some_and(|low| low >= 0))
         .then_some(());
         parameter.non_negative.merge(non_negative);
-        let below = facts.const_binders_strictly_above(&argument_label);
+        let below = facts.const_binders_strictly_above(argument_label);
         parameter.below_const_binders.merge(&below);
     }
 
+    let data_binding = program
+        .state_data_binding(machine, state)
+        .map(|name| name.as_str());
     let mut index_proofs = Vec::new();
-    for (collection_parameter, collection) in parameter_arguments.iter().copied() {
-        for (index_parameter, index) in parameter_arguments.iter().copied() {
+    for (collection_parameter, collection, collection_label) in &parameter_arguments {
+        let collection_parameter = *collection_parameter;
+        let collection = *collection;
+        for (index_parameter, index, _) in &parameter_arguments {
+            let index_parameter = *index_parameter;
+            let index = *index;
             if collection_parameter == index_parameter {
                 continue;
             }
@@ -249,13 +262,9 @@ pub(super) fn collect_state_argument_facts_for_call(
         // rooted at the data binding names the same storage in every state of
         // this machine, so a proven `(argument, main.field)` pair re-keys onto
         // the destination parameter.
-        let data_binding = program
-            .state_data_binding(machine, state)
-            .map(|name| name.as_str());
-        let collection_label = program.expression_table.display_name(collection);
         index_proofs.extend(
             facts
-                .proven_index_labels(&collection_label)
+                .proven_index_labels(collection_label)
                 .filter(|index| data_binding.is_some_and(|root| is_rooted_at(root, index)))
                 .map(|index| ParameterIndexProof {
                     collection: ParameterIndexProofSide::Parameter(collection_parameter),
@@ -263,16 +272,13 @@ pub(super) fn collect_state_argument_facts_for_call(
                 }),
         );
     }
-    for (index_parameter, index) in parameter_arguments.iter().copied() {
+    for (index_parameter, _, index_label) in &parameter_arguments {
+        let index_parameter = *index_parameter;
         // The mirror: `(main.field, argument)` -- machine storage on the
         // collection side (`main.slice[index_arg]`).
-        let data_binding = program
-            .state_data_binding(machine, state)
-            .map(|name| name.as_str());
-        let index_label = program.expression_table.display_name(index);
         index_proofs.extend(
             facts
-                .proven_collections_for_index(&index_label)
+                .proven_collections_for_index(index_label)
                 .filter(|collection| {
                     data_binding.is_some_and(|root| is_rooted_at(root, collection))
                 })
@@ -286,65 +292,73 @@ pub(super) fn collect_state_argument_facts_for_call(
     // place arrives spelled under the destination parameter on either side
     // (`put(&mut buf)` delivers `buf.line`'s proven `buf.i` index as
     // `param.line`'s proven `param.i` index).
-    let storage_sides: Vec<(String, ParameterIndexProofSide)> = storage_rows
-        .iter()
-        .map(|(source_label, _, destination_place)| {
-            (
-                source_label.clone(),
-                ParameterIndexProofSide::Storage(facts::canonical_place_label_from_parts(
-                    program,
-                    destination_place.root,
-                    &destination_place.segments,
-                )),
-            )
-        })
-        .collect();
-    let parameter_sides: Vec<(String, ParameterIndexProofSide)> = parameter_arguments
-        .iter()
-        .map(|(position, argument)| {
-            (
-                program.expression_table.display_name(*argument),
-                ParameterIndexProofSide::Parameter(*position),
-            )
-        })
-        .collect();
-    // Every side pair asks the same unchanged proven roster. Resolve it once
-    // into a pair set, and skip a collection side no proven pair names, so
-    // an edge carrying many receiver storage rows tests each pair by lookup
-    // instead of scanning the roster for every one of its quadratic pairs.
-    // The pairs are still visited in the same order.
-    let proven_pairs = facts.proven_index_pairs();
-    let proven_collections = proven_pairs
-        .iter()
-        .map(|(collection, _)| *collection)
-        .collect::<std::collections::BTreeSet<_>>();
-    let proven_index_sides = proven_pairs
-        .iter()
-        .map(|(_, index)| *index)
-        .collect::<std::collections::BTreeSet<_>>();
-    for (collection_source, collection_side) in &storage_sides {
-        if !proven_collections.contains(collection_source.as_str()) {
-            continue;
-        }
-        for (index_source, index_side) in storage_sides.iter().chain(parameter_sides.iter()) {
-            if proven_pairs.contains(&(collection_source.as_str(), index_source.as_str())) {
-                index_proofs.push(ParameterIndexProof {
-                    collection: collection_side.clone(),
-                    index: index_side.clone(),
-                });
+    if !storage_rows.is_empty() {
+        // Every side pair asks the same unchanged proven roster. Resolve it once
+        // into a pair set, and skip a collection side no proven pair names, so
+        // an edge carrying many receiver storage rows tests each pair by lookup
+        // instead of scanning the roster for every one of its quadratic pairs.
+        // The pairs are still visited in the same order.
+        let proven_pairs = facts.proven_index_pairs();
+        if !proven_pairs.is_empty() {
+            let storage_sides: Vec<(String, ParameterIndexProofSide)> = storage_rows
+                .iter()
+                .map(|(source_label, _, destination_place)| {
+                    (
+                        source_label.clone(),
+                        ParameterIndexProofSide::Storage(facts::canonical_place_label_from_parts(
+                            program,
+                            destination_place.root,
+                            &destination_place.segments,
+                        )),
+                    )
+                })
+                .collect();
+            let parameter_sides: Vec<(&str, ParameterIndexProofSide)> = parameter_arguments
+                .iter()
+                .map(|(position, _, label)| {
+                    (
+                        label.as_str(),
+                        ParameterIndexProofSide::Parameter(*position),
+                    )
+                })
+                .collect();
+            let proven_collections = proven_pairs
+                .iter()
+                .map(|(collection, _)| *collection)
+                .collect::<std::collections::BTreeSet<_>>();
+            let proven_index_sides = proven_pairs
+                .iter()
+                .map(|(_, index)| *index)
+                .collect::<std::collections::BTreeSet<_>>();
+            for (collection_source, collection_side) in &storage_sides {
+                if !proven_collections.contains(collection_source.as_str()) {
+                    continue;
+                }
+                for (index_source, index_side) in storage_sides
+                    .iter()
+                    .map(|(s, side)| (s.as_str(), side))
+                    .chain(parameter_sides.iter().map(|(s, side)| (*s, side)))
+                {
+                    if proven_pairs.contains(&(collection_source.as_str(), index_source)) {
+                        index_proofs.push(ParameterIndexProof {
+                            collection: collection_side.clone(),
+                            index: index_side.clone(),
+                        });
+                    }
+                }
             }
-        }
-    }
-    for (index_source, index_side) in &storage_sides {
-        if !proven_index_sides.contains(index_source.as_str()) {
-            continue;
-        }
-        for (collection_source, collection_side) in &parameter_sides {
-            if proven_pairs.contains(&(collection_source.as_str(), index_source.as_str())) {
-                index_proofs.push(ParameterIndexProof {
-                    collection: collection_side.clone(),
-                    index: index_side.clone(),
-                });
+            for (index_source, index_side) in &storage_sides {
+                if !proven_index_sides.contains(index_source.as_str()) {
+                    continue;
+                }
+                for (collection_source, collection_side) in &parameter_sides {
+                    if proven_pairs.contains(&(*collection_source, index_source.as_str())) {
+                        index_proofs.push(ParameterIndexProof {
+                            collection: collection_side.clone(),
+                            index: index_side.clone(),
+                        });
+                    }
+                }
             }
         }
     }

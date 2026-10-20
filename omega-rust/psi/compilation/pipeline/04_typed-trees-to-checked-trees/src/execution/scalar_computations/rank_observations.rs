@@ -28,6 +28,9 @@ pub(super) fn record(
     // Fusion may expose the same authored state through several dispatch
     // machines. A state may share its root only when the complete selected
     // descriptor agrees; incompatible rosters leave no executable observation.
+    if admitted.observations.is_empty() {
+        return;
+    }
     let mut roster = Vec::<CheckedStateNaturalRank>::new();
     for machine in program.machines() {
         if let Some((ranks, _)) = crate::execution::terminal_unit::state_graph::natural_rank_plans(
@@ -138,6 +141,7 @@ pub(super) fn record(
         else {
             continue;
         };
+        let statement_nodes_start = plans.nodes.storage_slice().len();
         let mut builder = Builder {
             program,
             operators,
@@ -156,6 +160,7 @@ pub(super) fn record(
             locals: &[],
             plans,
             structural_values,
+            statement_nodes_start,
             scalar_occurrences: Vec::new(),
             integer_occurrences: Vec::new(),
         };

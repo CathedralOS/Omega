@@ -50,6 +50,7 @@ pub(super) struct Builder<'program, 'plans> {
     pub(super) locals: &'program [ScalarLocal],
     pub(super) plans: &'plans mut CheckedScalarComputationPlans,
     pub(super) structural_values: &'plans mut checked_trees::CheckedStructuralValuePlans,
+    pub(super) statement_nodes_start: usize,
     /// A normalized source operand is one evaluation. Retain that identity for
     /// every scalar carrier within this statement; distinct authored handles
     /// and distinct contextual carriers remain separate computations.
@@ -275,13 +276,28 @@ impl Builder<'_, '_> {
             ..
         } = &kind
             && source_call.is_valid()
-            && let Some((handle, _)) = self.plans.nodes.iter().find(|(_, node)| {
-                node.primitive_type == primitive_type
-                    && matches!(&node.kind, CheckedScalarComputationKind::Call {
-                        source_call: previous, callee: previous_callee, ..
-                    } if previous == source_call
-                        && previous_callee.called_signature() == callee.called_signature())
-            })
+            && let Some(handle) = self
+                .plans
+                .nodes
+                .storage_slice()
+                .get(self.statement_nodes_start..)
+                .and_then(|slice| {
+                    slice.iter().find_map(|node| {
+                        (node.primitive_type == primitive_type
+                            && matches!(
+                                &node.kind,
+                                CheckedScalarComputationKind::Call {
+                                    source_call: previous,
+                                    callee: previous_callee,
+                                    ..
+                                } if previous == source_call
+                                    && previous_callee.called_signature()
+                                        == callee.called_signature()
+                            ))
+                        .then(|| self.plans.nodes.handle_of(node))
+                        .flatten()
+                    })
+                })
         {
             return handle;
         }
@@ -898,10 +914,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         target: SymbolHandle,
     ) -> Option<(arena::Handle<checked_trees::FlowCallFact>, u32)> {
-        let state = self.flow.control.states.iter().find_map(|(_, state)| {
-            (state.machine_symbol == self.machine && state.state_symbol == self.state)
-                .then_some(state)
-        })?;
+        let state = self.flow.control.state(self.machine, self.state)?;
         let mut matching = self
             .flow
             .control
@@ -917,12 +930,7 @@ impl Builder<'_, '_> {
         if matching.next().is_some() {
             return None;
         }
-        let handle = self
-            .flow
-            .control
-            .calls
-            .iter()
-            .find_map(|(handle, candidate)| std::ptr::eq(candidate, call).then_some(handle))?;
+        let handle = self.flow.control.calls.handle_of(call)?;
         Some((handle, u32::try_from(call.call_ordinal).ok()?))
     }
 }

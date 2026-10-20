@@ -94,18 +94,30 @@ pub(super) fn derive_summaries(
     } else {
         projections::maximum_fact_projection_length(semantic)
     };
-    let mut summaries = program
-        .machines()
+    let machines = program.machines();
+    let mut in_any_component = vec![false; machines.len()];
+    let component_indices: Vec<Vec<usize>> = components
+        .iter()
+        .map(|component| {
+            let indices: Vec<usize> = machines
+                .iter()
+                .enumerate()
+                .filter_map(|(index, machine)| component.contains(&machine.symbol).then_some(index))
+                .collect();
+            for &index in &indices {
+                in_any_component[index] = true;
+            }
+            indices
+        })
+        .collect();
+    let mut summaries = machines
         .iter()
         .map(|machine| no_guarantee(machine.symbol))
         .collect::<Vec<_>>();
     loop {
         let previous = summaries.clone();
-        for (index, machine) in program.machines().iter().enumerate() {
-            if !components
-                .iter()
-                .any(|component| component.contains(&machine.symbol))
-            {
+        for (index, machine) in machines.iter().enumerate() {
+            if !in_any_component[index] {
                 summaries[index] = derive_machine_summary(
                     program,
                     flow,
@@ -119,23 +131,20 @@ pub(super) fn derive_summaries(
                 .unwrap_or_else(|| no_guarantee(machine.symbol));
             }
         }
-        for component in &components {
-            let derived = derive_component(
+        for (component, indices) in components.iter().zip(&component_indices) {
+            derive_component(
                 program,
                 flow,
                 semantic,
                 cleanup_dependencies,
                 component,
+                indices,
                 &previous,
+                &mut summaries,
                 maximum_fact_projection_length,
                 call_frames,
                 rank_arrivals,
             );
-            for (index, machine) in program.machines().iter().enumerate() {
-                if component.contains(&machine.symbol) {
-                    summaries[index] = derived[index].clone();
-                }
-            }
         }
         // Premises are sets. Their discovery order can rotate around a cycle
         // without changing the judgment.
@@ -151,11 +160,14 @@ fn derive_component(
     semantic: &facts::FactPlan,
     cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
     component: &[SymbolHandle],
+    component_indices: &[usize],
     external: &[CheckedProgressSummary],
+    destination: &mut [CheckedProgressSummary],
     maximum_fact_projection_length: usize,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
-) -> Vec<CheckedProgressSummary> {
+) {
+    let machines = program.machines();
     let mut summaries = external.to_vec();
     let mut unavailable = vec![false; summaries.len()];
     let projection_limit = projections::finite_projection_limit(
@@ -166,19 +178,19 @@ fn derive_component(
         external,
         call_frames,
     );
-    for (index, machine) in program.machines().iter().enumerate() {
-        if component.contains(&machine.symbol) {
-            summaries[index].guarantee =
-                super::super::retained_machine_local_summary(machine, rank_arrivals);
-            unavailable[index] = projection_limit.is_none();
-        }
+    for &index in component_indices {
+        let machine = &machines[index];
+        summaries[index].guarantee =
+            super::super::retained_machine_local_summary(machine, rank_arrivals);
+        unavailable[index] = projection_limit.is_none();
     }
+    let mut previous = summaries.clone();
     loop {
-        let previous = summaries.clone();
-        for (index, machine) in program.machines().iter().enumerate() {
-            if !component.contains(&machine.symbol) {
-                continue;
-            }
+        for &index in component_indices {
+            previous[index] = summaries[index].clone();
+        }
+        for &index in component_indices {
+            let machine = &machines[index];
             let mut summary = if unavailable[index] {
                 no_guarantee(machine.symbol)
             } else {
@@ -206,25 +218,36 @@ fn derive_component(
             }
             summaries[index] = summary;
         }
-        if equivalent(&summaries, &previous) {
-            return summaries;
+        if component_indices
+            .iter()
+            .all(|&index| summary_equivalent(&summaries[index], &previous[index]))
+        {
+            for &index in component_indices {
+                destination[index] = summaries[index].clone();
+            }
+            return;
         }
     }
 }
 
+fn summary_equivalent(left: &CheckedProgressSummary, right: &CheckedProgressSummary) -> bool {
+    left.machine == right.machine
+        && match (&left.guarantee, &right.guarantee) {
+            (TerminationGuarantee::NoGuarantee, TerminationGuarantee::NoGuarantee) => true,
+            (
+                TerminationGuarantee::Terminates { premises: left },
+                TerminationGuarantee::Terminates { premises: right },
+            ) => same_set(left, right),
+            _ => false,
+        }
+}
+
 fn equivalent(left: &[CheckedProgressSummary], right: &[CheckedProgressSummary]) -> bool {
     left.len() == right.len()
-        && left.iter().zip(right).all(|(left, right)| {
-            left.machine == right.machine
-                && match (&left.guarantee, &right.guarantee) {
-                    (TerminationGuarantee::NoGuarantee, TerminationGuarantee::NoGuarantee) => true,
-                    (
-                        TerminationGuarantee::Terminates { premises: left },
-                        TerminationGuarantee::Terminates { premises: right },
-                    ) => same_set(left, right),
-                    _ => false,
-                }
-        })
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| summary_equivalent(left, right))
 }
 
 fn same_set<T: PartialEq>(left: &[T], right: &[T]) -> bool {

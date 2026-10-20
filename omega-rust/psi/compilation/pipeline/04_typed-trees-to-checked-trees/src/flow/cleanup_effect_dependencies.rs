@@ -95,13 +95,23 @@ pub(crate) fn selected_cleanup_leaves(
     if disposition.zero_image {
         return Some(Vec::new());
     }
-    let state = facts.flow.control.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == disposition.machine && state.state_symbol == disposition.state)
-            .then_some(state)
-    });
-    let contexts = state.and_then(|state| {
-        crate::facts::contextual_cleanup::occurrence_contexts(program, facts, state, disposition)
-    });
+    let state = facts
+        .flow
+        .control
+        .state(disposition.machine, disposition.state);
+    let contexts = std::cell::OnceCell::new();
+    let get_contexts = || {
+        contexts.get_or_init(|| {
+            state.and_then(|state| {
+                crate::facts::contextual_cleanup::occurrence_contexts(
+                    program,
+                    facts,
+                    state,
+                    disposition,
+                )
+            })
+        })
+    };
     // Distinct selector spellings are not proof that moved storage lies
     // outside this death. A runtime-selected region needs disjointness from
     // every exclusion not represented by its exact prefix; otherwise its
@@ -120,7 +130,7 @@ pub(crate) fn selected_cleanup_leaves(
             )
             .0
             && !state
-                .zip(contexts.as_ref())
+                .zip(get_contexts().as_ref())
                 .is_some_and(|(state, contexts)| {
                     crate::checks::captured_storage_paths_are_disjoint(
                         program, facts, state, contexts, path, excluded,
@@ -148,7 +158,7 @@ pub(crate) fn selected_cleanup_leaves(
         inactive_cases
             .iter()
             .any(|inactive| segments.starts_with(inactive))
-            || contexts.as_ref().is_some_and(|contexts| {
+            || get_contexts().as_ref().is_some_and(|contexts| {
                 contexts.iter().all(|(statement, contexts)| {
                     crate::flow::place_case_path_is_inactive(
                         program,
@@ -580,18 +590,15 @@ fn visit_owner(
                 if case.iter().any(|path| path.is_empty()) {
                     continue;
                 }
+                let payload_fields = program.data_payload_fields(variant);
+                if case.is_empty() && payload_fields.is_empty() {
+                    continue;
+                }
                 path.push(PlaceSegment::Case {
                     variant: variant.symbol,
                 });
-                // A case the occurrence's facts rule out holds no payload to
-                // dispose. Any custody named inside it was counted above.
-                if inactive_case(path) {
-                    path.pop();
-                    continue;
-                }
-                let mut case_matched = 0;
-                *has_erased_obligations |=
-                    program.data_payload_fields(variant).iter().any(|field| {
+                if case.is_empty() {
+                    let variant_erased = payload_fields.iter().any(|field| {
                         field.relevance.is_erased()
                             && erased_subject_needs_disposition(
                                 program,
@@ -599,8 +606,52 @@ fn visit_owner(
                                 substitutions,
                             )
                     });
-                for field in program
-                    .data_payload_fields(variant)
+                    if !variant_erased {
+                        let active_len = active.len();
+                        let path_len = path.len();
+                        let mut variant_leaves = Vec::new();
+                        let mut child_erased = false;
+                        let conservative_ok = payload_fields
+                            .iter()
+                            .filter(|field| !field.relevance.is_erased())
+                            .all(|field| {
+                                visit_field_child(
+                                    program,
+                                    substitutions,
+                                    &[],
+                                    active,
+                                    path,
+                                    &mut variant_leaves,
+                                    &mut child_erased,
+                                    &|_| false,
+                                    field,
+                                )
+                                .is_some()
+                            });
+                        active.truncate(active_len);
+                        path.truncate(path_len);
+                        if conservative_ok && variant_leaves.is_empty() && !child_erased {
+                            path.pop();
+                            continue;
+                        }
+                    }
+                }
+                // A case the occurrence's facts rule out holds no payload to
+                // dispose. Any custody named inside it was counted above.
+                if inactive_case(path) {
+                    path.pop();
+                    continue;
+                }
+                let mut case_matched = 0;
+                *has_erased_obligations |= payload_fields.iter().any(|field| {
+                    field.relevance.is_erased()
+                        && erased_subject_needs_disposition(
+                            program,
+                            field.type_reference,
+                            substitutions,
+                        )
+                });
+                for field in payload_fields
                     .iter()
                     .filter(|field| !field.relevance.is_erased())
                 {

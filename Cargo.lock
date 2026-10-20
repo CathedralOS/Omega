@@ -1285,6 +1285,7 @@ dependencies = [
  "package-compilation",
  "package-manager",
  "package-source",
+ "phase-profile",
  "platform-custody",
  "resolver-execution",
  "semantic-vocabulary",
@@ -1465,6 +1466,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "phase-profile"
+version = "0.1.0"
+
+[[package]]
 name = "physical-instructions"
 version = "0.1.0"
 dependencies = [
@@ -1619,6 +1624,7 @@ dependencies = [
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "optimization",
+ "phase-profile",
  "representation-selections",
  "semantic-vocabulary",
  "source",
@@ -2391,6 +2397,7 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
+ "phase-profile",
  "semantic-vocabulary",
  "serde",
  "serde_json",
@@ -2412,6 +2419,7 @@ dependencies = [
  "layout-plans",
  "numerics",
  "optimization",
+ "phase-profile",
  "proof",
  "proof-admission",
  "representation-selections",
@@ -2433,6 +2441,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
+ "phase-profile",
  "proof",
  "representation-selections",
  "symbols",
@@ -2467,6 +2476,7 @@ dependencies = [
  "layout-plans",
  "numerics",
  "optimization",
+ "phase-profile",
  "proof-admission",
  "representation-selections",
  "semantic-vocabulary",

@@ -39,20 +39,27 @@ impl BoundaryResultPolicy {
         let Some(NominalMachineUseSite::Expression(expression)) = site else {
             return Ok(Self::None);
         };
-        let mut selections = checked
+        let mut first_selection = None;
+        let mut multiple_selections = false;
+        checked
             .facts
             .operators
-            .resolved_expression_selections()
-            .filter(|(candidate, origin, _, _)| {
-                *candidate == expression && origin_matches(checked, *origin, machine, coordinate)
+            .for_each_resolved_expression_selection(expression, |origin, selected, adapter, _| {
+                if origin_matches(checked, origin, machine, coordinate) {
+                    if first_selection.is_none() {
+                        first_selection = Some((selected, adapter));
+                    } else {
+                        multiple_selections = true;
+                    }
+                }
             });
-        let Some((_, _, selected, adapter)) = selections.next() else {
+        let Some((selected, adapter)) = first_selection else {
             if typed_trees::operator::declaration_by_symbol(&checked.typed, target).is_some() {
                 return unsupported("boundary result policy lost its checked selection");
             }
             return Ok(Self::None);
         };
-        if selections.next().is_some() || selected != target {
+        if multiple_selections || selected != target {
             return unsupported("boundary result policy has no unique exact checked selection");
         }
         let Some(format) = adapter.float_format() else {

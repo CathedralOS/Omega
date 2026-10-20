@@ -663,6 +663,11 @@ pub fn exact_case_reference_owner(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<&DataDefinition> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    let case = program.expression_table.name_path_node(expression)?;
+    program.variant_owner(case.symbol)?;
     // Structural leaf checking revisits the same resolved path. Only its exact
     // expression identity in an immutable input can reuse this declaration
     // verdict; membership, selected operator meaning and operand custody are
@@ -703,15 +708,10 @@ fn exact_case_reference_owner_position(
     // spent in resolution and the owning union remains as the case's parent.
     if members.len() == 1 && selected.len() == 1 && selected.first() == Some(&case.symbol) {
         let parent = program.symbols.get(case.symbol).parent;
-        return program.data_definitions().iter().position(|owner| {
-            owner.symbol == parent
-                && program.data_members(owner).iter().any(|member| {
-                    matches!(
-                        member,
-                        DataMember::Variant(variant) if variant.symbol == case.symbol
-                    )
-                })
-        });
+        return program
+            .data_variant_position_for_symbol(case.symbol)
+            .map(|(owner_index, _)| owner_index as usize)
+            .filter(|&owner_index| program.data_definitions()[owner_index].symbol == parent);
     }
     if members.len() < 2
         || selected.len() != members.len()
@@ -731,13 +731,11 @@ fn exact_case_reference_owner_position(
         return None;
     }
     let carrier = selected[selected.len() - 2];
-    program.data_definitions().iter().position(|owner| {
-        owner.symbol == carrier
-            && program.symbols.get(case.symbol).parent == carrier
-            && program.data_members(owner).iter().any(|member| {
-                matches!(member, DataMember::Variant(variant) if variant.symbol == case.symbol)
-            })
-    })
+    (program.symbols.get(case.symbol).parent == carrier)
+        .then(|| program.data_variant_position_for_symbol(case.symbol))
+        .flatten()
+        .map(|(owner_index, _)| owner_index as usize)
+        .filter(|&owner_index| program.data_definitions()[owner_index].symbol == carrier)
 }
 
 fn membership_subject_matches_owner(

@@ -90,12 +90,14 @@ fn formation(
     {
         return None;
     }
-    let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
-        facts.borrow.state_owns_loan(borrow_state, *handle)
-            && loan.owner_symbol == local.symbol
-            && loan.statement_index == statement_index
-            && facts.borrow.loan_owner_path(loan).is_empty()
-    });
+    let mut loans = facts
+        .borrow
+        .loan_group(borrow_state.loans)?
+        .filter(|(_, loan)| {
+            loan.owner_symbol == local.symbol
+                && loan.statement_index == statement_index
+                && facts.borrow.loan_owner_path(loan).is_empty()
+        });
     let (loan_handle, loan) = loans.next()?;
     if loans.next().is_some() || loan.kind != access {
         return None;
@@ -142,9 +144,15 @@ pub(super) fn aliases(
     state: &typed_trees::state::State,
 ) -> Option<Vec<ReceiverAlias>> {
     state_flow(facts, machine.symbol, state.symbol)?;
-    let (_, borrow_state) = facts.borrow.states.iter().find(|(_, state_fact)| {
-        state_fact.machine_symbol == machine.symbol && state_fact.state_symbol == state.symbol
+    let borrow_state = facts.borrow.with_state_index(|index| {
+        index
+            .bucket(machine.symbol, state.symbol)
+            .first()
+            .map(|handle| facts.borrow.states.get(*handle))
     })?;
+    if borrow_state.loans.is_empty() {
+        return Some(Vec::new());
+    }
     let mut aliases = Vec::new();
     for (statement_index, statement) in program
         .statement_table
@@ -224,6 +232,18 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
 ) -> Option<Vec<SymbolHandle>> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let parent_local = statements.first()?.as_local_data()?;
+    if parent_local.is_mutable || facts.borrow.reborrow_disposition_events.is_empty() {
+        return None;
+    }
+    let ExpressionNode::Borrow(parent_borrow) = program
+        .expression_table
+        .expression(parent_local.initial_value)
+    else {
+        return None;
+    };
+    if parent_borrow.access != language_semantics::ReferenceAccess::Mutable {
+        return None;
+    }
     let child_count = facts
         .borrow
         .reborrow_disposition_events
@@ -243,15 +263,6 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
             _ => None,
         })
         .collect::<Option<Vec<_>>>()?;
-    if parent_local.is_mutable {
-        return None;
-    }
-    let ExpressionNode::Borrow(parent_borrow) = program
-        .expression_table
-        .expression(parent_local.initial_value)
-    else {
-        return None;
-    };
     let child_borrows = child_locals
         .iter()
         .map(
@@ -261,9 +272,6 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
             },
         )
         .collect::<Option<Vec<_>>>()?;
-    if parent_borrow.access != language_semantics::ReferenceAccess::Mutable {
-        return None;
-    }
 
     let parent_source = validation::canonical_place_from_expression_in_state(
         program,

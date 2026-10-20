@@ -15,6 +15,7 @@ arena = { path = "../../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../foundation/diagnostics" }
+phase-profile = { path = "../../../foundation/phase-profile" }
 flow-effects = { path = "../../../foundation/flow-effects" }
 facts = { path = "../../representations/checked-trees/facts" }
 language-core = { path = "../../../foundation/language-core" }

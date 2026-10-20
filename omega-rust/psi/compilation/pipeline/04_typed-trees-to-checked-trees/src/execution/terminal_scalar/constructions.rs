@@ -39,11 +39,7 @@ pub(crate) fn retain_shapes(
     // retained formation/value edges, never transitive pointee types or
     // speculative arena nodes; recursive pointer catalogs stay finite.
     let mut retained_values = Vec::new();
-    for (_, root) in structural_values
-        .roots
-        .iter()
-        .filter(|(_, root)| root.state == state)
-    {
+    for root in structural_values.roots_for_state(state) {
         for value in structural_values.value_dependencies(root.root)? {
             if retained_values.contains(&value) {
                 continue;
@@ -104,11 +100,7 @@ pub(crate) fn retain_shapes(
             }
         }
     }
-    let mut pending = plans
-        .roots
-        .iter()
-        .filter_map(|(_, root)| (root.state == state).then_some(root.root))
-        .collect::<Vec<_>>();
+    let mut pending = plans.roots_for_state(state);
     let mut visited = Vec::new();
     while let Some(handle) = pending.pop() {
         if !plans.nodes.is_valid(handle) {

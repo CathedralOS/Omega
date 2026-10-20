@@ -91,33 +91,73 @@ fn normal_call_disposes_backing(
     let Some(dependencies) = values.value_dependencies(root.root) else {
         return false;
     };
-    operations.iter().rev().take_while(|operation| matches!(operation,
-        CheckedUnitEffectOperationPlan::ContinuationCleanup {
-            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(_), ..
-        })).any(|operation| {
-        let CheckedUnitEffectOperationPlan::ContinuationCleanup {
-            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), cleanup_actions, ..
-        } = operation else { return false; };
-        cleanup_actions.iter().any(|action| {
-            let expression = match *action.source() {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => expression,
-                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                    let Some((_, owner)) = results.iter().find(|(result, _)| result.binding_ordinal == binding_ordinal) else { return false; };
-                    let Some(expression) = owner.as_expression() else { return false; }; expression
+    operations
+        .iter()
+        .rev()
+        .take_while(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(_),
+                    ..
                 }
-                _ => return false,
-            };
-            let Some(owner) = values.root_for_expression(state, coordinate.statement_index, expression) else { return false; };
-            owner.root != root.root && dependencies.contains(&owner.root)
-                && facts.contextual_cleanup.dispositions.iter().any(|(_, disposition)| {
-                    disposition.machine == root.machine && disposition.state == state
-                        && disposition.root == facts::PlaceRoot::Expression(expression)
-                        && matches!(disposition.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
-                            if statement_index == coordinate.statement_index as usize
-                                && call_ordinal == coordinate.call_ordinal as usize)
-                })
+            )
         })
-    })
+        .any(|operation| {
+            let CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
+                cleanup_actions,
+                ..
+            } = operation
+            else {
+                return false;
+            };
+            cleanup_actions.iter().any(|action| {
+                let expression = match *action.source() {
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        expression,
+                    } => expression,
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } => {
+                        let Some((_, owner)) = results
+                            .iter()
+                            .find(|(result, _)| result.binding_ordinal == binding_ordinal)
+                        else {
+                            return false;
+                        };
+                        let Some(expression) = owner.as_expression() else {
+                            return false;
+                        };
+                        expression
+                    }
+                    _ => return false,
+                };
+                let Some(owner) =
+                    values.root_for_expression(state, coordinate.statement_index, expression)
+                else {
+                    return false;
+                };
+                owner.root != root.root
+                    && dependencies.contains(&owner.root)
+                    && facts.contextual_cleanup.any_state_disposition(
+                        root.machine,
+                        state,
+                        |_, disposition| {
+                            disposition.root == facts::PlaceRoot::Expression(expression)
+                                && matches!(
+                                    disposition.source,
+                                    PermissionEventSource::Call {
+                                        statement_index,
+                                        call_ordinal,
+                                        ..
+                                    } if statement_index == coordinate.statement_index as usize
+                                        && call_ordinal == coordinate.call_ordinal as usize
+                                )
+                        },
+                    )
+            })
+        })
 }
 
 /// Source groups identify named loan resources. A computed descriptor has no
@@ -310,6 +350,10 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
         });
     }
     let (result, _) = operation.discardable_structural_result()?;
+    let loans = super::reference_retirement::carrier_loans(facts, machine, state, result, results)?;
+    if loans.is_empty() {
+        return None;
+    }
     let authored_state = program.state_by_symbol(state)?;
     let mut owners = results.iter().filter(|(binding, _)| binding == result);
     let (_, facts::PlaceRoot::Symbol(owner)) = owners.next()? else {
@@ -334,10 +378,19 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
             operations,
         )?
         .is_empty()
-        || facts.borrow.loans.iter().any(|(_, loan)| {
-            loan.storage_owner == facts::PlaceRoot::Symbol(*owner)
-                && loan.statement_index != formation
-        })
+        || super::reference_retirement::unique_borrow_state(facts, machine, state)?.is_some_and(
+            |borrowing| {
+                facts
+                    .borrow
+                    .loan_group(borrowing.loans)
+                    .is_some_and(|mut loans| {
+                        loans.any(|(_, loan)| {
+                            loan.storage_owner == facts::PlaceRoot::Symbol(*owner)
+                                && loan.statement_index != formation
+                        })
+                    })
+            },
+        )
     {
         return None;
     }
@@ -351,15 +404,6 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
             program, facts, state, results, result, operations,
         )?
     {
-        return None;
-    }
-    // Borrow production owns one complete contiguous roster for this exact
-    // storage occurrence. Copyability does not choose physical retirement:
-    // cleanup-free affine records and unrestricted aggregates both retain
-    // their captured descriptors until this holder dies. Never concatenate
-    // leaf groups or charge a returned copy with its supplier's disposal.
-    let loans = super::reference_retirement::carrier_loans(facts, machine, state, result, results)?;
-    if loans.is_empty() {
         return None;
     }
     let (whole_storage_boundary, storage_loans) =
@@ -391,6 +435,20 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
 ) -> Option<()> {
     trace.phase("reference retirement: transport");
     let authored_state = program.state_by_symbol(state)?;
+    let borrowing = super::reference_retirement::unique_borrow_state(facts, machine, state)?;
+    if borrowing.is_none_or(|borrowing| borrowing.loans.is_empty())
+        && !operations
+            .iter()
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .any(|operation| {
+                operation
+                    .call()
+                    .and_then(|call| call.structural_custody())
+                    .is_some()
+            })
+    {
+        return Some(());
+    }
     let order = program
         .statement_table
         .admitted_execution_order(authored_state.statement_nodes);
@@ -597,6 +655,46 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         }) {
             continue;
         }
+        // A replacement creates a different captured occurrence. This roster
+        // describes the initializer, so leave a replaced home to its existing
+        // replacement/exit custody until that occurrence is represented here.
+        if borrowing.is_some_and(|borrowing| {
+            facts
+                .borrow
+                .loan_group(borrowing.loans)
+                .is_some_and(|mut loans| {
+                    loans.any(|(_, loan)| {
+                        loan.owner_symbol == local.symbol
+                            && loan.statement_index != result.statement_index as usize
+                            && order.precedes(loan.statement_index, statement_index as usize)
+                    })
+                })
+        }) {
+            continue;
+        }
+        if borrowing
+            .and_then(|borrowing| {
+                facts.borrow.storage_loans(
+                    borrowing,
+                    facts::PlaceRoot::Symbol(local.symbol),
+                    result.statement_index as usize,
+                )
+            })
+            .is_some_and(|loans| loans.is_empty())
+        {
+            continue;
+        }
+        // Early descriptor expiry may retire only cleanup-free contents.
+        // A nominal owner or descendant keeps its references for the checked
+        // normal-disposal transaction, including the hook's receiver borrow.
+        if !validation::has_contents(
+            program,
+            local.type_reference,
+            &[],
+            validation::ContentsRequirement::DescriptorCleanup,
+        ) {
+            continue;
+        }
         // Transfers remove only their selected subtree. Other stored leaves
         // may still end at their own checked boundary; a whole-value transfer
         // leaves no initializer custody here at all.
@@ -609,27 +707,6 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             operations,
         )?;
         if transferred_paths.iter().any(|path| path.is_empty()) {
-            continue;
-        }
-        // A replacement creates a different captured occurrence. This roster
-        // describes the initializer, so leave a replaced home to its existing
-        // replacement/exit custody until that occurrence is represented here.
-        if facts.borrow.loans.iter().any(|(_, loan)| {
-            loan.owner_symbol == local.symbol
-                && loan.statement_index != result.statement_index as usize
-                && order.precedes(loan.statement_index, statement_index as usize)
-        }) {
-            continue;
-        }
-        // Early descriptor expiry may retire only cleanup-free contents.
-        // A nominal owner or descendant keeps its references for the checked
-        // normal-disposal transaction, including the hook's receiver borrow.
-        if !validation::has_contents(
-            program,
-            local.type_reference,
-            &[],
-            validation::ContentsRequirement::DescriptorCleanup,
-        ) {
             continue;
         }
         let Some(boundary) = validation::reference_result_custody::whole_local_release_boundary(
@@ -848,6 +925,20 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     trace: &super::super::LocalConstructionTrace,
 ) -> Option<()> {
     let authored_state = program.state_by_symbol(state)?;
+    let borrowing = super::reference_retirement::unique_borrow_state(facts, machine, state)?;
+    if borrowing.is_none_or(|borrowing| borrowing.loans.is_empty())
+        && !operations
+            .iter()
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .any(|operation| {
+                operation
+                    .call()
+                    .and_then(|call| call.structural_custody())
+                    .is_some()
+            })
+    {
+        return Some(());
+    }
     let order = program
         .statement_table
         .admitted_execution_order(authored_state.statement_nodes);

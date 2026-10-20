@@ -447,9 +447,7 @@ impl Builder<'_, '_> {
         {
             let selected_state = self
                 .program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == query.operand.symbol)
+                .machine_by_symbol(query.operand.symbol)
                 .and_then(|machine| self.program.machine_states(machine).first())
                 .map(|state| state.symbol)
                 .unwrap_or(query.operand.symbol);

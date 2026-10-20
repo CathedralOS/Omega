@@ -274,13 +274,8 @@ fn record_constructor(
     {
         return None;
     }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.symbol == literal.type_symbol);
-    let definition = definitions.next()?;
-    if definitions.next().is_some()
-        || !program.data_type_parameters(definition).is_empty()
+    let definition = program.data_definition_by_symbol(literal.type_symbol)?;
+    if !program.data_type_parameters(definition).is_empty()
         || definition.quotient.is_some()
         || definition.properties.multiplicity == language_semantics::Multiplicity::Linear
         || program.machines().iter().any(|machine| {

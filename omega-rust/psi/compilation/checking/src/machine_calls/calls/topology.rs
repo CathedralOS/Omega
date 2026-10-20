@@ -210,11 +210,13 @@ pub fn find_machine(
     if !symbol.is_valid() {
         return None;
     }
-    let parent = program.symbols.get(symbol).parent;
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol || machine.symbol == parent)
+    program.machine_by_symbol(symbol).or_else(|| {
+        let parent = program.symbols.get(symbol).parent;
+        parent
+            .is_valid()
+            .then(|| program.machine_by_symbol(parent))
+            .flatten()
+    })
 }
 
 /// The parameter list of a call target: a machine entry or selected state's

@@ -80,9 +80,7 @@ pub(crate) fn validate(
         return None;
     }
     let producer_source = if let Some(_) = program.expression_table.call_node(expression) {
-        let (_, state_flow) = flow.control.states.iter().find(|(_, candidate)| {
-            candidate.machine_symbol == machine && candidate.state_symbol == state
-        })?;
+        let state_flow = flow.control.state(machine, state)?;
         let mut producers = flow
             .control
             .calls

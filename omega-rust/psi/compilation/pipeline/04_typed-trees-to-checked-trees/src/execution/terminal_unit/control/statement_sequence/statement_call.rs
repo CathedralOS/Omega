@@ -158,13 +158,8 @@ pub(super) fn plan(
         let flow_state = facts
             .flow
             .control
-            .states
-            .iter()
-            .find_map(|(_, candidate)| {
-                (candidate.machine_symbol == machine.symbol
-                    && candidate.state_symbol == state.symbol)
-                    .then_some(candidate)
-            })?;
+            .state_by_symbol(state.symbol)
+            .filter(|candidate| candidate.machine_symbol == machine.symbol)?;
         let ordering =
             crate::checks::atomic_fences::ordering(program, facts, flow_state, call, &contract)
                 .ok()?;

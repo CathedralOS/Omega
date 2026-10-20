@@ -418,10 +418,7 @@ fn call_parameter_qualification_join(
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| validation::call_target_parameters(program, call_target))?;
     let arguments = validation::call_site_argument_expressions(program, &site);
-    let state_flow = facts.flow.control.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
-            .then_some(state)
-    })?;
+    let state_flow = facts.flow.control.state(machine_symbol, state_symbol)?;
     let call_flow = facts
         .flow
         .control
@@ -926,10 +923,10 @@ fn input_claim(
 ) -> Option<PermissionClaimIdentity> {
     let parameter = parameters.get(position)?;
     let argument = input_argument(program, invocation, parameters, position)?;
-    let state_flow = facts.flow.control.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == invocation.machine && state.state_symbol == invocation.state)
-            .then_some(state)
-    })?;
+    let state_flow = facts
+        .flow
+        .control
+        .state(invocation.machine, invocation.state)?;
     let call_flow = facts
         .flow
         .control

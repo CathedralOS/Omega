@@ -22,7 +22,16 @@ pub fn normal_return_length_collection(
     if !program
         .primitive_type_reference(callee.return_type)
         .is_some_and(PrimitiveType::is_fixed_integer)
+        || !callee
+            .contracts
+            .iter()
+            .any(|contract| contract.kind == SignatureContractKind::Ensures)
     {
+        return None;
+    }
+    let call_arguments = program.expression_table.expression_handles(call.arguments);
+    let total_operands = usize::from(call.receiver.is_valid()) + call_arguments.len();
+    if total_operands != callee.leading_operands + callee.parameters.len() {
         return None;
     }
     let arguments: Vec<_> = call
@@ -30,18 +39,9 @@ pub fn normal_return_length_collection(
         .is_valid()
         .then_some(call.receiver)
         .into_iter()
-        .chain(
-            program
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .copied(),
-        )
+        .chain(call_arguments.iter().copied())
         .skip(callee.leading_operands)
         .collect();
-    if arguments.len() != callee.parameters.len() {
-        return None;
-    }
     let mut pending: Vec<_> = program
         .contract_expressions(callee.contracts.iter(), SignatureContractKind::Ensures)
         .collect();

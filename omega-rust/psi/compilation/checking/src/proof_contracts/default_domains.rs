@@ -126,20 +126,18 @@ impl OpenInvariantCrashSite {
 
 pub(crate) fn validate_default_domain_writes(
     program: &dyn crate::CheckingInput,
+    call_frames: Option<&crate::machine_calls::calls::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    analyze_default_domain_writes(program, diagnostics, &mut Vec::new());
+    analyze_default_domain_writes_with_frames(program, call_frames, diagnostics, &mut Vec::new());
 }
 
-fn analyze_default_domain_writes(
+fn analyze_default_domain_writes_with_frames(
     program: &dyn crate::CheckingInput,
+    call_frames: Option<&crate::machine_calls::calls::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
     crash_sites: &mut Vec<OpenInvariantCrashSite>,
 ) {
-    // Every state walk consults the same immutable call-resolution catalog.
-    // Building it per fixpoint visit repeated the whole-program symbol scan
-    // hundreds of times for larger programs without changing any result.
-    let call_frames = crate::machine_calls::calls::CallFrameResolver::new(program);
     // Every call site resolves its target machine through this index; the
     // program is frozen for the pass so one build covers all lookups.
     let state_to_machine = state_to_machine_index(program);
@@ -167,12 +165,20 @@ fn analyze_default_domain_writes(
         if states.is_empty() {
             continue;
         }
+        // A callee's per-invocation parameters do not outlive it; only the
+        // places rooted at its own data binding are what a caller may rely on.
+        let Some(callee_binding) = program
+            .machine_data_binding(machine)
+            .map(|name| name.as_str())
+        else {
+            continue;
+        };
         let (exits, terminal): (Vec<Vec<String>>, Vec<usize>) = if states.len() == 1 {
             (
                 vec![
                     walk_state(
                         program,
-                        call_frames.as_ref(),
+                        call_frames,
                         machine,
                         &states[0],
                         &[],
@@ -205,7 +211,7 @@ fn analyze_default_domain_writes(
                     }
                     exits[index] = walk_state(
                         program,
-                        call_frames.as_ref(),
+                        call_frames,
                         machine,
                         state,
                         &entry[index],
@@ -268,15 +274,10 @@ fn analyze_default_domain_writes(
                     .collect(),
             });
         }
-        // A callee's per-invocation parameters do not outlive it; only the
-        // places rooted at its own data binding are what a caller may rely on.
-        let callee_binding = program
-            .machine_data_binding(machine)
-            .map(|name| name.as_str().to_owned());
         let data_rooted: Vec<String> = definite
             .unwrap_or_default()
             .into_iter()
-            .filter(|spelling| is_data_rooted(callee_binding.as_deref(), spelling))
+            .filter(|spelling| is_data_rooted(Some(callee_binding), spelling))
             .collect();
         if !data_rooted.is_empty() {
             summaries.insert(machine.symbol, data_rooted);
@@ -335,7 +336,7 @@ fn analyze_default_domain_writes(
                 let mut state_crash_sites = Vec::new();
                 let (established, valuations, windows) = walk_state(
                     program,
-                    call_frames.as_ref(),
+                    call_frames,
                     machine,
                     state,
                     &entry_established[index],
@@ -556,17 +557,19 @@ fn walk_state(
     {
         // R2 rung 3 slice 2: reads of an unestablished GATED place refuse
         // BEFORE this statement's own write effect is applied.
-        scan_statement_reads(
-            program,
-            machine,
-            state,
-            statement,
-            &tracked,
-            entry_established,
-            &call_established,
-            &inherited_windows,
-            diagnostics,
-        );
+        if record_crash_sites {
+            scan_statement_reads(
+                program,
+                machine,
+                state,
+                statement,
+                &tracked,
+                entry_established,
+                &call_established,
+                &inherited_windows,
+                diagnostics,
+            );
+        }
         match statement {
             StatementNode::Assignment(assignment) => {
                 // Calls hidden in the written value or in the target's index

@@ -19,6 +19,18 @@ mod result_values;
 pub(crate) fn anonymous_integer_landing_warnings(
     program: &dyn crate::CheckingInput,
 ) -> Vec<Diagnostic> {
+    let has_potential_fractional_origin =
+        program
+            .expression_table
+            .iter_expressions()
+            .any(|(_, node)| match node {
+                ExpressionNode::Float(literal) => literal.landing().is_none(),
+                ExpressionNode::Binary(binary) => binary.operator == BinaryOperator::Divide,
+                _ => false,
+            });
+    if !has_potential_fractional_origin {
+        return Vec::new();
+    }
     let mut warnings = Vec::new();
     let mut warned = Vec::new();
     visit_destination_trees(program, |destination, expression| {
@@ -79,9 +91,17 @@ pub(crate) fn anonymous_integer_landing_warnings(
         let ExpressionNode::Binary(binary) = node else {
             continue;
         };
-        if crate::proof_contracts::contract_entailment::proof_integer_expression(
-            program, expression,
-        ) {
+        let has_candidate_operand = [binary.left, binary.right].into_iter().any(|operand| {
+            matches!(
+                program.expression_table.expression(operand),
+                ExpressionNode::Float(_) | ExpressionNode::Binary(_) | ExpressionNode::Match(_)
+            )
+        });
+        if has_candidate_operand
+            && crate::proof_contracts::contract_entailment::proof_integer_expression(
+                program, expression,
+            )
+        {
             for operand in [binary.left, binary.right] {
                 append_integer_landing_warning(program, None, operand, &mut warned, &mut warnings);
             }
@@ -108,7 +128,11 @@ fn append_integer_landing_warning(
     warned: &mut Vec<ExpressionHandle>,
     warnings: &mut Vec<Diagnostic>,
 ) {
-    if warned.contains(&expression) {
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Float(_) | ExpressionNode::Binary(_) | ExpressionNode::Match(_)
+    ) || warned.contains(&expression)
+    {
         return;
     }
     let mut builtin = |expression| has_anonymous_operator_meaning(program, expression);

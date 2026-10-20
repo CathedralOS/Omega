@@ -282,10 +282,6 @@ pub(crate) fn nested_structural_call_return_type(
     {
         return None;
     }
-    let mut targets = program.machines().iter().filter_map(|owner| {
-        let target = program.machine_states(owner).first()?;
-        (target.symbol == call.target_symbol).then_some((owner, target))
-    });
     let return_type = if let Some(slot) = program.dynamic_slot_by_symbol(call.target_symbol) {
         // The instantiated requirement owns this completed value's signature;
         // runtime selection never picks a representative implementation here.
@@ -303,9 +299,10 @@ pub(crate) fn nested_structural_call_return_type(
             return None;
         }
         slot.return_type
-    } else if let Some((owner, target)) = targets.next() {
+    } else if let Some((owner, target)) =
+        program.unique_machine_by_entry_state_symbol(call.target_symbol)
+    {
         if !call.carries_only_positional_arguments()
-            || targets.next().is_some()
             || !(owner.supplies_checked_body() || owner.has_bodyless_signature())
             || !program.call_has_no_runtime_receiver(call, owner, target)
         {

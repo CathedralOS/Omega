@@ -231,6 +231,7 @@ const MAX_PROPAGATION_PASSES: usize = 64;
 pub(super) fn collect_state_argument_facts<'program>(
     program: &'program dyn ::validation::CheckingInput,
     field_lengths: &[(SymbolHandle, String, usize)],
+    bound_lookup: &validation::ImmutableBoundLookup<'program>,
     machine: &'program Machine,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
     calls: &[super::facts::RangeCallContext<'_>],
@@ -238,6 +239,9 @@ pub(super) fn collect_state_argument_facts<'program>(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Vec<StateArgumentFacts> {
     let states = program.machine_states(machine);
+    if states.len() <= 1 {
+        return Vec::new();
+    }
     let Some(entry) = states.first() else {
         return Vec::new();
     };
@@ -247,9 +251,6 @@ pub(super) fn collect_state_argument_facts<'program>(
     let mut contributions = vec![Vec::new(); states.len()];
     let mut dirty = vec![false; states.len()];
     dirty[0] = true;
-    // Every propagation pass borrows the same worker-owned declaration lookup;
-    // flow facts remain independent snapshots for each state and branch.
-    let bound_lookup = validation::ImmutableBoundLookup::new(program);
     for _ in 0..MAX_PROPAGATION_PASSES {
         for (state_index, (state, calls)) in states.iter().zip(calls).enumerate() {
             if !dirty[state_index] {
@@ -266,7 +267,7 @@ pub(super) fn collect_state_argument_facts<'program>(
                 state,
                 call_frames,
             };
-            let mut facts = RangeFacts::new(field_lengths, &bound_lookup);
+            let mut facts = RangeFacts::new(field_lengths, bound_lookup);
             facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
             facts.checked_calls = Some(calls);
             facts.checked_operators = Some(operators);

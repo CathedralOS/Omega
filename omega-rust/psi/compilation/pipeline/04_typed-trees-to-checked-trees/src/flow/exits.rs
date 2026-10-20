@@ -58,17 +58,21 @@ pub(super) fn append_state_exit_facts(
 ) -> arena::HandleSpan<FlowExitFact> {
     let mut state_exits = arena::HandleSpan::empty();
 
-    for contract_exit in proof.contract_exits.iter().filter_map(|(_, exit)| {
-        (exit.machine_symbol == machine_symbol
-            && exit.state_symbol == state_symbol
-            && exit.transition_target == transition_target)
-            .then_some(exit)
-    }) {
+    let exit_handles = proof.with_exit_index(|index| {
+        index
+            .get(&(machine_symbol, state_symbol, transition_target))
+            .to_vec()
+    });
+    for exit_handle in exit_handles {
+        let contract_exit = proof.contract_exits.get(exit_handle);
         let outgoing = build
             .control
             .outgoing
+            .storage_slice()
+            .get(build.state_outgoing_start..)
+            .unwrap_or(&[])
             .iter()
-            .filter_map(|(_, outgoing)| {
+            .filter_map(|outgoing| {
                 (outgoing.machine_symbol == machine_symbol
                     && outgoing.state_symbol == state_symbol
                     && outgoing.statement_index == contract_exit.statement_index

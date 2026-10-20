@@ -128,7 +128,9 @@ pub fn reuse_retained_check(
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
     let checked = prior.checked.clone();
     let retained = retain.then(|| prior.clone());
-    admit_declaration_authority(&checked, request)?;
+    phase_profile::scope("05.e.declaration_authority", || {
+        admit_declaration_authority(&checked, request)
+    })?;
     Ok(CheckingOutcome {
         checked,
         retained,
@@ -160,22 +162,26 @@ pub fn lower_typed_trees_reusing(
         opaque_property_receipts,
         opaque_representation_selections,
     ) = preparation.into_checking_judgments();
-    let equal_prior = prior.filter(|prior| {
-        prior.admits_pending_inputs == admits_pending_inputs
-            && prior.opaque_property_receipts == opaque_property_receipts
-            && *prior.program == program
+    let equal_prior = phase_profile::scope("05.d.0.prior_equality", || {
+        prior.filter(|prior| {
+            prior.admits_pending_inputs == admits_pending_inputs
+                && prior.opaque_property_receipts == opaque_property_receipts
+                && *prior.program == program
+        })
     });
     let took_prior = equal_prior.is_some();
     let (checked, retained) = match equal_prior {
         Some(prior) => (prior.checked.clone(), retain.then(|| prior.clone())),
         None => {
-            let input = retained_input.map(|(preparation_input, preparation_admission)| {
-                (
-                    preparation_input,
-                    preparation_admission,
-                    std::sync::Arc::new(program.clone()),
-                    opaque_property_receipts.clone(),
-                )
+            let input = phase_profile::scope("05.d.0.retained_program_clone", || {
+                retained_input.map(|(preparation_input, preparation_admission)| {
+                    (
+                        preparation_input,
+                        preparation_admission,
+                        std::sync::Arc::new(program.clone()),
+                        opaque_property_receipts.clone(),
+                    )
+                })
             });
             let checked = std::sync::Arc::new(check_program(
                 program,
@@ -199,7 +205,9 @@ pub fn lower_typed_trees_reusing(
             (checked, retained)
         }
     };
-    admit_declaration_authority(&checked, request)?;
+    phase_profile::scope("05.e.declaration_authority", || {
+        admit_declaration_authority(&checked, request)
+    })?;
     Ok(CheckingOutcome {
         checked,
         retained,
@@ -241,8 +249,9 @@ fn check_program(
         .with_opaque_representation_selections(&opaque_representation_selections)
         .with_prepared_mathematics(mathematics.prepared_view());
     validation::validate_selected_attached_method_bounds(&program)?;
-    let mut validated =
-        prepare_typed_program(&program, &opaque_property_receipts, admits_pending_inputs)?;
+    let mut validated = phase_profile::scope("05.d.2.prepare_typed_program", || {
+        prepare_typed_program(&program, &opaque_property_receipts, admits_pending_inputs)
+    })?;
     // Caller-visible mutation summaries depend only on the immutable typed
     // program and the borrow facts assembled once here. Fact construction, the
     // direct-borrow resource closures, and the independent check replay all
@@ -264,20 +273,23 @@ fn check_program(
     let proof_recipe_obligations = std::mem::take(&mut validated.constant_recipe_obligations);
     let integer_range_obligations =
         std::mem::take(&mut validated.validation_facts.integer_range_obligations);
-    let (mut facts, prepared_effects) = build_check_facts(
-        &program,
-        &validated.proof_plan,
-        &validated.integer_assignments,
-        validated.operational,
-        validated.service_reaches,
-        validated.validation_facts,
-        &mutation_summaries,
-    )?;
+    let (mut facts, prepared_effects) = phase_profile::scope("05.d.3.build_check_facts", || {
+        build_check_facts(
+            &program,
+            &validated.proof_plan,
+            &validated.integer_assignments,
+            validated.operational,
+            validated.service_reaches,
+            validated.validation_facts,
+            &mutation_summaries,
+        )
+    })?;
     let program = program.with_prepared_effect_plans(&prepared_effects);
     facts.integer_range_obligations = integer_range_obligations;
     // Sealed quotient requests were deferred by validation until termination
     // was proved: judge them now against the checked termination facts. The
     // batch publishes exact admission facts consumed by runtime planning.
+    let mid_guard = phase_profile::guard("05.d.4_6.quotients_borrows_identities");
     let quotient_operations = validation::admit_checked_quotient_requests(&program, &|machine| {
         facts
             .termination
@@ -305,15 +317,19 @@ fn check_program(
             &facts.contract_plans,
             &prepared_effects,
         )?;
+    drop(mid_guard);
 
-    checks::check_checked_facts_recording(
-        &program,
-        &mut facts,
-        &mutation_summaries,
-        &incoming_guard_index,
-        &proven_machine_contracts,
-        &expression_intervals,
-    )?;
+    phase_profile::scope("05.d.7.check_checked_facts", || {
+        checks::check_checked_facts_recording(
+            &program,
+            &mut facts,
+            &mutation_summaries,
+            &incoming_guard_index,
+            &proven_machine_contracts,
+            &expression_intervals,
+        )
+    })?;
+    let late_guard = phase_profile::guard("05.d.8_10.finalize_execution_identities");
     crate::quotient_eligibility::check(&program, &facts)?;
     checks::validate_selected_cleanup_guarantees(&program, &facts)?;
     validation::validate_runtime_proof_citations(&program, &|machine| {
@@ -327,54 +343,66 @@ fn check_program(
         .extend(proof_recipe_obligations);
     crate::facts::refresh_realized_contract_envelopes(&mut facts);
 
-    let mut facts = crate::execution::finalize_execution::finalize_execution(&program, facts)?;
+    let mut facts = phase_profile::scope("05.d.8_10.a.finalize_execution", || {
+        crate::execution::finalize_execution::finalize_execution(&program, facts)
+    })?;
     facts.flow.semantic_dependencies =
-        crate::flow::derive_checked_semantic_dependencies(&program, &facts);
+        phase_profile::scope("05.d.8_10.b.semantic_dependencies", || {
+            crate::flow::derive_checked_semantic_dependencies(&program, &facts)
+        });
 
     facts.specialization_identities = specialization_identities;
     // One retained identity row per admission-claim template, specialized or
     // not: consumers read the classification checking computed instead of
     // rerunning operational and service-reach inference for canonical bytes.
-    facts.accepted_template_identities = checked_trees::CheckedAcceptedTemplateIdentities::with_rows(
-        program
-            .machines()
-            .iter()
-            .filter(|machine| {
-                machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
-            })
-            .map(|machine| checked_trees::CheckedAcceptedTemplateClassification {
-                machine: machine.symbol,
-                identity: validation::contract_identities::generic_machine_template_report_fingerprint(
-                    &program,
-                    machine.symbol,
-                )
-                .zip(validation::contract_identities::generic_machine_template_commitment(
-                    &program,
-                    machine.symbol,
-                ))
-                .map(|(report_fingerprint, commitment)| {
-                    checked_trees::CheckedAcceptedTemplateIdentity {
-                        report_fingerprint,
-                        commitment,
-                    }
-                }),
-            })
-            .collect(),
+    facts.accepted_template_identities = phase_profile::scope(
+        "05.d.8_10.c.accepted_template_identities",
+        || {
+            checked_trees::CheckedAcceptedTemplateIdentities::with_rows(
+                program
+                    .machines()
+                    .iter()
+                    .filter(|machine| {
+                        machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
+                    })
+                    .map(|machine| checked_trees::CheckedAcceptedTemplateClassification {
+                        machine: machine.symbol,
+                        identity: validation::contract_identities::generic_machine_template_report_fingerprint(
+                            &program,
+                            machine.symbol,
+                        )
+                        .zip(validation::contract_identities::generic_machine_template_commitment(
+                            &program,
+                            machine.symbol,
+                        ))
+                        .map(|(report_fingerprint, commitment)| {
+                            checked_trees::CheckedAcceptedTemplateIdentity {
+                                report_fingerprint,
+                                commitment,
+                            }
+                        }),
+                    })
+                    .collect(),
+            )
+        },
     );
-    drop(program);
-    let program = typed_program;
-    facts.finalized_selections =
+    drop(late_guard);
+    let final_guard = phase_profile::guard("05.d.11_13.selections_custody_types_boundaries");
+    facts.finalized_selections = phase_profile::scope("05.d.11_13.a.finalize_selections", || {
         crate::authored_selections::finalize_checked_authored_selections(&program, &mut facts)
-            .map_err(|diagnostic| vec![diagnostic])?;
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
     // Visibility and cleanup consume checked choices over the same immutable
     // source. No cloned typed program or consumer fallback supplies this ledger.
-    let finalized = validation::CheckingContext::new(&program)
-        .with_authored_declaration_selections(&facts.finalized_selections)
-        .with_prepared_mathematics(mathematics.prepared_view())
-        .with_prepared_effect_plans(&prepared_effects)
-        .with_opaque_representation_selections(&opaque_representation_selections);
-    validation::validate_reserved_cleanup_selections(&finalized)?;
-    validation::validate_declaration_visibility(&finalized)?;
+    let finalized = program.with_authored_declaration_selections(&facts.finalized_selections);
+    phase_profile::scope(
+        "05.d.11_13.b.visibility_and_cleanup_selections",
+        || -> Result<(), Vec<diagnostics::Diagnostic>> {
+            validation::validate_reserved_cleanup_selections(&finalized)?;
+            validation::validate_declaration_visibility(&finalized)?;
+            Ok(())
+        },
+    )?;
 
     // Classify borrow custody last: `program`'s type, machine and state
     // tables stopped growing in preparation, after monomorphization, so a
@@ -382,20 +410,31 @@ fn check_program(
     // the references and specialized states those added. Nothing below
     // takes `program` mutably — `CheckedTrees::with_roots` only pairs it
     // with the facts — so neither table can grow past this point.
-    facts.reference_custody =
-        validation::reference_result_custody::classify_program_reference_custody(&finalized);
+    facts.reference_custody = phase_profile::scope("05.d.11_13.c.reference_custody", || {
+        validation::reference_result_custody::classify_program_reference_custody(&finalized)
+    });
     // Content classification rides the same placement, and for the same
     // reason. Both memos it leans on -- the data-definition index and the
     // attached-`::drop` index -- are owned by `program` and keyed by table
     // revision, so they still answer from cache here.
-    facts.content_classes = validation::classify_program_content_classes(&finalized);
+    facts.content_classes = phase_profile::scope("05.d.11_13.d.content_classes", || {
+        validation::classify_program_content_classes(&finalized)
+    });
     // Retain place/result decisions under final occurrence handles. Recording
     // before specialization or authored-selection finalization would miss the
     // generated bodies; lowering must not repair an incomplete table itself.
-    facts.resolved_types = crate::facts::resolved_types::resolve_program_types(&finalized);
-    facts.state_locals = crate::facts::state_locals::record_state_locals(&finalized);
+    facts.resolved_types = phase_profile::scope("05.d.11_13.e.resolved_types", || {
+        crate::facts::resolved_types::resolve_program_types(&finalized)
+    });
+    facts.state_locals = phase_profile::scope("05.d.11_13.f.state_locals", || {
+        crate::facts::state_locals::record_state_locals(&finalized)
+    });
     facts.provider_closed_requirements =
-        crate::facts::provider_closed_requirements::record_provider_closed_requirements(&finalized);
+        phase_profile::scope("05.d.11_13.g.provider_closed_requirements", || {
+            crate::facts::provider_closed_requirements::record_provider_closed_requirements(
+                &finalized,
+            )
+        });
     drop(finalized);
 
     // Mathematical terms remained borrowed by every source judgment. Transfer
@@ -417,18 +456,19 @@ fn check_program(
                 "indexed theorem lost its exact authored contract association",
             )]
         };
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == theorem.machine)
-            .ok_or_else(lost)?;
-        let exact_clause = program
+        let machine = typed_program.machine(theorem.machine).ok_or_else(lost)?;
+        let exact_clause = typed_program
             .machine_contracts(machine)
             .iter()
             .filter(|contract| {
                 contract.kind == typed_trees::signature::SignatureContractKind::Ensures
             })
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
+            .flat_map(|contract| {
+                typed_program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+            })
             .filter_map(|fact| match fact {
                 typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
                 _ => None,
@@ -437,16 +477,19 @@ fn check_program(
         if exact_clause != Some(theorem.expression) {
             return Err(lost());
         }
-        let entry = program.machine_states(machine).first().ok_or_else(lost)?;
-        let (position, formal) = program
+        let entry = typed_program
+            .machine_states(machine)
+            .first()
+            .ok_or_else(lost)?;
+        let (position, formal) = typed_program
             .state_parameters(entry)
             .iter()
             .enumerate()
             .find(|(_, formal)| formal.symbol == theorem.evidence_formal)
             .ok_or_else(lost)?;
-        let type_identity = program.normalized_type_identity(theorem.source_type);
+        let type_identity = typed_program.normalized_type_identity(theorem.source_type);
         if !formal.relevance.is_erased()
-            || program.normalized_type_identity(formal.type_reference) != type_identity
+            || typed_program.normalized_type_identity(formal.type_reference) != type_identity
         {
             return Err(lost());
         }
@@ -467,10 +510,17 @@ fn check_program(
     }
     facts.proof.mathematical_safety_assumptions = mathematics.applications.safety_assumptions;
     facts.proof.mathematical_signature = mathematics.signature;
-    let mut checked = CheckedTrees::with_roots(program, facts);
-    validation::validate_boundary_calls(&checked)?;
-    target_families::validate_portable_references(&checked)?;
-    crate::operators::retain_boundary_body_candidates(&mut checked)
-        .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+    let mut checked = CheckedTrees::with_roots(typed_program, facts);
+    phase_profile::scope(
+        "05.d.11_13.h.boundary_and_portable_checks",
+        || -> Result<(), Vec<diagnostics::Diagnostic>> {
+            validation::validate_boundary_calls(&checked)?;
+            target_families::validate_portable_references(&checked)?;
+            crate::operators::retain_boundary_body_candidates(&mut checked)
+                .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+            Ok(())
+        },
+    )?;
+    drop(final_guard);
     Ok(checked)
 }

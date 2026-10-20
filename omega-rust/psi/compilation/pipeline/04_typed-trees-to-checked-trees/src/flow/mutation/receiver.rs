@@ -26,10 +26,11 @@ pub(crate) fn call_receiver_is_mutable(
         return false;
     }
     borrow_call.accesses.is_empty()
-        && borrow.states.iter().any(|(_, flow_state)| {
-            flow_state.machine_symbol == target_machine_symbol
-                && flow_state.state_symbol == target_state_symbol
-                && flow_state.mutable_parameter_count > 0
+        && borrow.with_state_index(|index| {
+            index
+                .bucket(target_machine_symbol, target_state_symbol)
+                .iter()
+                .any(|handle| borrow.states.get(*handle).mutable_parameter_count > 0)
         })
 }
 

@@ -441,10 +441,12 @@ pub(crate) fn check_value_narrowing(
         &mut throwaway,
     );
     if throwaway.is_empty() {
-        let (source, source_domain) =
-            stored_value_carrier(program, machine, state, value, source, source_domain);
-        check_narrowing_assignment(
-            Some(target),
+        check_validated_value_narrowing(
+            program,
+            machine,
+            state,
+            value,
+            target,
             target_domain,
             interval,
             source,
@@ -453,4 +455,36 @@ pub(crate) fn check_value_narrowing(
             diagnostics,
         );
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn check_validated_value_narrowing(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    value: ExpressionHandle,
+    target: PrimitiveType,
+    target_domain: ArithmeticDomain,
+    interval: Interval,
+    source: Option<PrimitiveType>,
+    source_domain: Option<ArithmeticDomain>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if validate_anonymous_integer_primitive_range(program, target, value, owner, diagnostics)
+        .is_some()
+    {
+        return;
+    }
+    let (source, source_domain) =
+        stored_value_carrier(program, machine, state, value, source, source_domain);
+    check_narrowing_assignment(
+        Some(target),
+        target_domain,
+        interval,
+        source,
+        source_domain,
+        owner,
+        diagnostics,
+    );
 }

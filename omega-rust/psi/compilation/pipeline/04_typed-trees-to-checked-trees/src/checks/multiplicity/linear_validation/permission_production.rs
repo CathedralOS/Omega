@@ -15,7 +15,7 @@ use crate::checks::multiplicity::linear_validation::claim_provenance::{
 };
 use crate::checks::multiplicity::selected_evaluation::{SelectedEvaluation, join_places};
 use crate::checks::multiplicity::{projected_affine, temporary_results};
-use crate::checks::ownership_occurrences::{StatementStep, statement_steps_at_evaluation};
+use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
 use crate::flow::FlowOwnershipEventSource;
 use checked_trees::{CheckFacts, FlowPermissionEventFact};
 use language_semantics::{
@@ -40,6 +40,11 @@ pub(crate) fn apply_statement_permission_production(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     moves: &[crate::flow::DiscoveredMoveEvent],
+    occurrences: &[StatementOccurrence],
+    observed_temporaries: &[(
+        typed_trees::expression::ExpressionHandle,
+        typed_trees::types::TypeReferenceHandle,
+    )],
     state_calls: &[checked_trees::FlowCallFact],
     completion_regions: &[(PermissionEventSource, Vec<validation::CanonicalPlace>)],
     call_writes: &[(
@@ -78,16 +83,6 @@ pub(crate) fn apply_statement_permission_production(
         .ok_or_else(|| {
             diagnostics::Diagnostic::error("permission evaluation has no owning machine/state")
         })?;
-    let occurrences = statement_steps_at_evaluation(
-        program,
-        machine,
-        state,
-        statement_index,
-        statement,
-        moves,
-        &facts.operators,
-        Some(evaluation),
-    );
     let mut written_targets = written_linear_targets(
         program,
         state_symbol,
@@ -99,14 +94,7 @@ pub(crate) fn apply_statement_permission_production(
     .into_iter()
     .map(|target| (target, statement_source))
     .collect::<Vec<_>>();
-    for (expression, _) in crate::checks::ownership_occurrences::observed_owned_temporaries(
-        program,
-        machine,
-        state,
-        statement_index,
-        statement,
-        &facts.operators,
-    ) {
+    for &(expression, _) in observed_temporaries {
         // An observed owner is established by its own completion, which
         // belongs to exactly one evaluation of this statement. Another
         // evaluation (a transition target reusing its guard's subject)
@@ -954,11 +942,18 @@ fn copy_source_completions(
                 &[],
                 validation::ContentsRequirement::DescriptorCleanup,
             )
-            || facts.borrow.states.iter().any(|(_, state_fact)| {
-                state_fact.machine_symbol == machine
-                    && state_fact.state_symbol == state
-                    && facts.borrow.loans.iter().any(|(handle, loan)| {
-                        facts.borrow.state_owns_loan(state_fact, handle) && loan.root == place.root
+            || facts.borrow.with_state_index(|index| {
+                index
+                    .bucket(machine, state)
+                    .iter()
+                    .map(|handle| facts.borrow.states.get(*handle))
+                    .any(|state_fact| {
+                        facts
+                            .borrow
+                            .loans
+                            .span_or_empty(state_fact.loans)
+                            .iter()
+                            .any(|loan| loan.root == place.root)
                     })
             })
         {

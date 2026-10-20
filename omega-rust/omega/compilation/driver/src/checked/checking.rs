@@ -255,9 +255,10 @@ pub(crate) fn prepare_product_source(
     root_path: &Path,
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
+    pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
 ) -> Result<PreparedProductSource, CompileFailure> {
     let package_inputs = child.package_inputs;
-    let prepared = prepare_build_source(root_path, source, child, None)?;
+    let prepared = prepare_build_source(root_path, source, child, pure_build_compilation)?;
     complete_prepared_build(prepared, package_inputs).map_err(CompileFailure::from)
 }
 

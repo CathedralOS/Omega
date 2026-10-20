@@ -127,9 +127,8 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
     let mut diagnostics = Vec::new();
     let content_conservation = validation::content_conservation_plans(program);
     let mut integer_types = None;
+    let operations_by_machine = operation_sites::collect_by_machine(facts);
     for machine in program.machines() {
-        let incoming = incoming_guards.for_machine(machine.symbol);
-        let parameter_names = crate::facts::machine_entry_parameter_names(program, machine);
         let Some(contract_index) = facts
             .contract_plans
             .machines
@@ -139,13 +138,18 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             continue;
         };
         let crash_plan = &facts.contract_plans.machines[contract_index].crash;
-        let operations = operation_sites::collect(facts, machine.symbol);
+        let operations = operations_by_machine
+            .get(&machine.symbol)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
         if crash_plan.checked_sites().is_empty()
             && crash_plan.checked_calls().is_empty()
             && operations.is_empty()
         {
             continue;
         }
+        let incoming = incoming_guards.for_machine(machine.symbol);
+        let parameter_names = crate::facts::machine_entry_parameter_names(program, machine);
         // The declaration classification is a program roster and the mutable
         // primitive parameters are machine facts; the guard-consequence
         // derivations below reread both per state hosting checked work.
@@ -321,7 +325,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
         // failures. They are not source crash exits or callable crash buckets:
         // each retains its exact selected expression and raw-result adapter.
         if crash_plan.interface() == checked_trees::CrashInterface::PublishedCeiling {
-            for operation in &operations {
+            for operation in operations {
                 let classification = &state_classifications[&operation.location.state()];
                 let fallthrough = source_fallthrough
                     .iter()

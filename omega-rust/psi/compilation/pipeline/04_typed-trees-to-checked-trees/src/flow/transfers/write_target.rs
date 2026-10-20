@@ -131,18 +131,26 @@ pub(in crate::flow) fn narrow_pinned_selectors(
     // requires-side read performs (`projected_formal_leaf_value` in
     // checks/contracts/direct.rs) -- so the recorded fact lands on the place
     // callers actually read instead of an unreachable runtime spelling.
-    let mut target_segments: Vec<facts::PlaceSegment> = semantic
+    let existing_segments = semantic
         .place_segments
-        .span_or_empty(semantic.places.get(target_place).segments)
-        .to_vec();
-    crate::flow::narrow_pinned_index_segments(
-        program,
-        semantic,
-        state_symbol,
-        statement_index,
-        context_handles,
-        &mut target_segments,
-    );
+        .span_or_empty(semantic.places.get(target_place).segments);
+    if existing_segments.is_empty() {
+        return (target_place, true);
+    }
+    let mut target_segments: Vec<facts::PlaceSegment> = existing_segments.to_vec();
+    if target_segments
+        .iter()
+        .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+    {
+        crate::flow::narrow_pinned_index_segments(
+            program,
+            semantic,
+            state_symbol,
+            statement_index,
+            context_handles,
+            &mut target_segments,
+        );
+    }
     let stable_value_target = crate::flow::compose_captured_view_segments(&mut target_segments)
         .is_some()
         && target_segments.iter().all(|segment| {

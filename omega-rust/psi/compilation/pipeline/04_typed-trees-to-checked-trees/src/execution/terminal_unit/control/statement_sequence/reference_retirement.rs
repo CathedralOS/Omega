@@ -27,7 +27,11 @@ pub(super) fn prepare_case_conditions(
 ) -> Option<()> {
     use crate::execution::terminal_unit::{cleanup::checked_path_segments, types::machine_binders};
     let authored = program.state_by_symbol(state)?;
-    let binders = machine_binders(program, program.machine_by_symbol(machine)?);
+    let machine_def = program.machine_by_symbol(machine)?;
+    if operations.is_empty() {
+        return Some(());
+    }
+    let binders = machine_binders(program, machine_def);
     for operation in operations {
         let CheckedUnitEffectOperationPlan::ReleaseReference {
             source,
@@ -159,7 +163,7 @@ pub(super) fn prepare_case_conditions(
 /// one retirement schedule. Keep these outcomes distinct while consulting
 /// the ledger's existing revision-checked index instead of scanning all states
 /// once for every statement and every descendant holder.
-fn unique_borrow_state(
+pub(super) fn unique_borrow_state(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -262,9 +266,8 @@ impl Retirement<'_> {
             return Some(Vec::new());
         }
         let mut owners = Vec::new();
-        for (handle, loan) in self.facts.borrow.loans.iter() {
-            if self.facts.borrow.state_owns_loan(state, handle)
-                && matches!(loan.storage_owner, facts::PlaceRoot::Expression(_))
+        for (_, loan) in self.facts.borrow.loan_group(state.loans)? {
+            if matches!(loan.storage_owner, facts::PlaceRoot::Expression(_))
                 && self
                     .order
                     .precedes(loan.statement_index, self.statement_index as usize)
@@ -275,14 +278,18 @@ impl Retirement<'_> {
         }
         let mut releases = Vec::new();
         for (owner, formation) in owners.into_iter().rev() {
-            if self.facts.borrow.loans.iter().any(|(handle, loan)| {
-                self.facts.borrow.state_owns_loan(state, handle)
-                    && loan.root == owner
-                    && self
-                        .order
-                        .precedes(loan.statement_index, self.statement_index as usize)
-                    && !self.holder_retired(handle)
-            }) {
+            if self
+                .facts
+                .borrow
+                .loan_group(state.loans)?
+                .any(|(handle, loan)| {
+                    loan.root == owner
+                        && self
+                            .order
+                            .precedes(loan.statement_index, self.statement_index as usize)
+                        && !self.holder_retired(handle)
+                })
+            {
                 continue;
             }
             let reference = validation::canonical_place_type_reference(
@@ -400,11 +407,13 @@ impl Retirement<'_> {
             // branch is not a cycle; only revisiting the active ancestry is.
             active.push(parent);
             pending.push((parent, true));
-            for (handle, loan) in self.facts.borrow.loans.iter() {
-                if self.facts.borrow.state_owns_loan(state, handle)
-                    && self
-                        .order
-                        .precedes(loan.statement_index, self.statement_index as usize)
+            let Some(state_loans) = self.facts.borrow.loan_group(state.loans) else {
+                return false;
+            };
+            for (handle, loan) in state_loans {
+                if self
+                    .order
+                    .precedes(loan.statement_index, self.statement_index as usize)
                     && self.retains_parent(handle, parent, &mut Vec::new())
                 {
                     if !self.holder_retired(handle) {
@@ -1231,12 +1240,8 @@ impl Retirement<'_> {
             && self
                 .facts
                 .contextual_cleanup
-                .dispositions
-                .iter()
-                .any(|(_, disposition)| {
-                    disposition.machine == self.machine
-                        && disposition.state == self.state.symbol
-                        && disposition.root == loan.storage_owner
+                .any_state_disposition(self.machine, self.state.symbol, |_, disposition| {
+                    disposition.root == loan.storage_owner
                         && disposition.path.is_empty()
                         && disposition.exclusions.is_empty()
                         && matches!(disposition.source,

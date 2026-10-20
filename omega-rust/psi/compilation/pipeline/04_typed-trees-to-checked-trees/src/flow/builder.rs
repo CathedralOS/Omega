@@ -86,6 +86,7 @@ pub(crate) fn build_flow_facts(
         .sum::<usize>();
     let mut pass = 0;
     while pass < pass_limit {
+        phase_profile::count("05.d.3.b.flow.inner_passes", 1);
         if pass != 0 {
             build.discard_output();
             semantic.clone_from(&baseline);
@@ -95,6 +96,7 @@ pub(crate) fn build_flow_facts(
                 if !complete_pass && !build.dirty_state_value_inputs.contains(&state.symbol) {
                     continue;
                 }
+                phase_profile::count("05.d.3.b.flow.states_visited", 1);
                 // Clear before transfer: a self/back edge may dirty this state
                 // again. A later destination can still run in this same sweep.
                 build

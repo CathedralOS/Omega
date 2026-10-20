@@ -1267,14 +1267,13 @@ pub fn storage_place_loans(
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<RecordLeafLoans>> {
     let selected_owner_path = loan_owner_path(program, reference, selection)?;
-    let mut states = facts.borrow.states.iter().filter_map(|(_, borrowing)| {
-        (borrowing.machine_symbol == machine && borrowing.state_symbol == state.symbol)
-            .then_some(borrowing)
-    });
-    let borrowing = states.next()?;
-    if states.next().is_some() {
-        return None;
-    }
+    let borrowing =
+        facts
+            .borrow
+            .with_state_index(|index| match index.bucket(machine, state.symbol) {
+                [handle] => Some(facts.borrow.states.get(*handle)),
+                _ => None,
+            })?;
     let loans = facts
         .borrow
         .storage_loans(borrowing, owner, statement_index as usize)?;
@@ -1333,14 +1332,13 @@ pub fn initial_parameter_reference_establishment(
     {
         return None;
     }
-    let mut states = facts.borrow.states.iter().filter_map(|(_, borrowing)| {
-        (borrowing.machine_symbol == machine && borrowing.state_symbol == state.symbol)
-            .then_some(borrowing)
-    });
-    let borrowing = states.next()?;
-    if states.next().is_some() {
-        return None;
-    }
+    let borrowing =
+        facts
+            .borrow
+            .with_state_index(|index| match index.bucket(machine, state.symbol) {
+                [handle] => Some(facts.borrow.states.get(*handle)),
+                _ => None,
+            })?;
     let owner_path = loan_owner_path(program, parameter.type_reference, &[])?;
     let order = program
         .statement_table
@@ -2410,18 +2408,13 @@ pub fn result_loans(
             checked_trees::BorrowAccessKind::WriteOnly
         }
     };
-    let mut states = facts
-        .borrow
-        .states
-        .iter()
-        .map(|(_, borrowing)| borrowing)
-        .filter(|borrowing| {
-            borrowing.machine_symbol == machine && borrowing.state_symbol == state.symbol
-        });
-    let borrowing = states.next()?;
-    if states.next().is_some() {
-        return None;
-    }
+    let borrowing =
+        facts
+            .borrow
+            .with_state_index(|index| match index.bucket(machine, state.symbol) {
+                [handle] => Some(facts.borrow.states.get(*handle)),
+                _ => None,
+            })?;
     let mut group = arena::HandleSpan::empty();
     for (handle, loan) in facts.borrow.loan_group(borrowing.loans)? {
         if loan.statement_index != call.statement_index
@@ -2506,23 +2499,18 @@ pub fn local_storage_loans(
     state: SymbolHandle,
     root: SymbolHandle,
 ) -> Option<Vec<arena::Handle<checked_trees::BorrowLoanFact>>> {
-    let mut states = facts.borrow.states.iter().filter_map(|(_, candidate)| {
-        (candidate.machine_symbol == machine && candidate.state_symbol == state)
-            .then_some(candidate)
-    });
-    let borrowing = states.next()?;
-    if states.next().is_some() {
-        return None;
-    }
+    let borrowing = facts
+        .borrow
+        .with_state_index(|index| match index.bucket(machine, state) {
+            [handle] => Some(facts.borrow.states.get(*handle)),
+            _ => None,
+        })?;
     Some(
         facts
             .borrow
-            .loans
-            .iter()
+            .loan_group(borrowing.loans)?
             .filter_map(|(handle, loan)| {
-                (facts.borrow.state_owns_loan(borrowing, handle)
-                    && loan.root == facts::PlaceRoot::Symbol(root))
-                .then_some(handle)
+                (loan.root == facts::PlaceRoot::Symbol(root)).then_some(handle)
             })
             .collect(),
     )
@@ -2608,13 +2596,5 @@ fn state_flow(
     machine: SymbolHandle,
     state: SymbolHandle,
 ) -> Option<&checked_trees::FlowStateFact> {
-    let mut states = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .map(|(_, candidate)| candidate)
-        .filter(|candidate| candidate.machine_symbol == machine && candidate.state_symbol == state);
-    let flow = states.next()?;
-    states.next().is_none().then_some(flow)
+    facts.flow.control.unique_state(machine, state)
 }

@@ -257,51 +257,57 @@ fn structural_requirement_at_prefix(
     // contains unsupported effects. Keep the full incoming-path analysis as
     // fallback for obligations that genuinely need an arrival substitution.
     if runtime_values && !state_prefix {
-        let local = super::structural_prefix::observe_runtime_state_prefix(
-            program,
-            machine,
-            caller_state,
-            &mut requirement,
-        );
+        let local = phase_profile::scope("05.d.7.3b.1.cap.2b_local_prefix", || {
+            super::structural_prefix::observe_runtime_state_prefix(
+                program,
+                machine,
+                caller_state,
+                &mut requirement,
+            )
+        });
         if local.is_some() && requirement.seen && requirement.proven {
             return true;
         }
         requirement.seen = false;
         requirement.proven = true;
     }
-    let mut judge = if state_prefix {
-        StructuralJudge::from_runtime_state_requires(program, machine, caller_state, &requires)
-    } else if runtime_values {
-        StructuralJudge::from_runtime_requires(program, machine, &requires)
-    } else if contains_case_premise(program, expression) {
-        StructuralJudge::from_case_requires(program, machine, &requires)
-    } else {
-        StructuralJudge::from_requires(program, machine, &requires, true)
-    };
+    let mut judge = phase_profile::scope("05.d.7.3b.1.cap.2c_judge_init", || {
+        if state_prefix {
+            StructuralJudge::from_runtime_state_requires(program, machine, caller_state, &requires)
+        } else if runtime_values {
+            StructuralJudge::from_runtime_requires(program, machine, &requires)
+        } else if contains_case_premise(program, expression) {
+            StructuralJudge::from_case_requires(program, machine, &requires)
+        } else {
+            StructuralJudge::from_requires(program, machine, &requires, true)
+        }
+    });
     if case_facts_only {
         judge.restrict_to_case_facts();
     }
     let mut diagnostics = Vec::new();
-    let recognized = if state_prefix {
-        recognize_structural_state_prefix(
-            program,
-            machine,
-            caller_state,
-            &judge,
-            &classification,
-            &mut diagnostics,
-            &mut requirement,
-        )
-    } else {
-        recognize_structural_case_arms(
-            program,
-            machine,
-            &judge,
-            &classification,
-            &mut diagnostics,
-            Some(&mut requirement),
-        )
-    };
+    let recognized = phase_profile::scope("05.d.7.3b.1.cap.2d_recognize", || {
+        if state_prefix {
+            recognize_structural_state_prefix(
+                program,
+                machine,
+                caller_state,
+                &judge,
+                &classification,
+                &mut diagnostics,
+                &mut requirement,
+            )
+        } else {
+            recognize_structural_case_arms(
+                program,
+                machine,
+                &judge,
+                &classification,
+                &mut diagnostics,
+                Some(&mut requirement),
+            )
+        }
+    });
     if super::struct_trace() {
         eprintln!(
             "STRUCT runtime-prefix completed caller={} recognized={} seen={} proven={} diagnostics={}",
@@ -349,6 +355,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
         equations: &[(StructuralTerm, StructuralTerm)],
         guarantees: &CitationFacts,
     ) {
+        let _s = phase_profile::guard("05.d.7.3b.1.cap.2e_visit");
         self.seen = true;
         let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
         if site_judge.hypotheses_contradictory {
@@ -587,7 +594,10 @@ fn runtime_fact_for_parameters(
     }
 }
 
-fn contains_case_premise(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
+pub(super) fn contains_case_premise(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
     if super::structural_terms::is_case_observation(program, expression) {
         return true;
     }
@@ -626,31 +636,54 @@ pub(super) fn establish_citation(
     target: &CitationTarget,
     arguments: &[StructuralTerm],
 ) {
-    let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
-    guarantees.intake(&mut site_judge);
-    // Runtime invocations transport only checked tag guarantees. Their saved
-    // results are individual values, not mathematical applications or an IH.
-    if !judge.has_runtime_body_values() {
-        intake_state_induction(
-            program,
-            machine,
-            state,
-            statement_index,
-            environment,
-            &mut site_judge,
-        );
-    }
-    let mut diagnostics = Vec::new();
-    let established = instantiate_citation(
+    if !super::citations::can_establish_citation(
         program,
         classification,
         machine,
         target,
-        arguments,
-        &mut diagnostics,
-        Some(&site_judge),
-        true,
-    );
+        arguments.len(),
+        judge.has_runtime_body_values(),
+    ) {
+        return;
+    }
+    let mut diagnostics = Vec::new();
+    let established = if super::citations::citation_needs_site_judge(program, target) {
+        let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
+        guarantees.intake(&mut site_judge);
+        // Runtime invocations transport only checked tag guarantees. Their saved
+        // results are individual values, not mathematical applications or an IH.
+        if !judge.has_runtime_body_values() {
+            intake_state_induction(
+                program,
+                machine,
+                state,
+                statement_index,
+                environment,
+                &mut site_judge,
+            );
+        }
+        instantiate_citation(
+            program,
+            classification,
+            machine,
+            target,
+            arguments,
+            &mut diagnostics,
+            Some(&site_judge),
+            true,
+        )
+    } else {
+        instantiate_citation(
+            program,
+            classification,
+            machine,
+            target,
+            arguments,
+            &mut diagnostics,
+            Some(judge),
+            true,
+        )
+    };
     if diagnostics.is_empty() {
         guarantees.extend(established);
     }

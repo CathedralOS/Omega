@@ -91,11 +91,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             pre_store_constraints: HandleSpan::empty(),
         });
         if matches!(statement, StatementNode::Transition(_))
-            && proof.outcome_specific_arms.iter().any(|(_, arm)| {
-                arm.caller_machine_symbol == machine.symbol
-                    && arm.caller_state_symbol == state.symbol
-                    && arm.statement_index == statement_index
-            })
+            && proof.has_outcome_specific_arm(machine.symbol, state.symbol, statement_index)
         {
             let point = ProgramPoint::Statement {
                 machine_symbol: machine.symbol,
@@ -180,23 +176,31 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // overwrites the target. Retire loans carried by the old value before
         // activating loans carried by the replacement below; otherwise the
         // replacement spuriously conflicts with the value it is replacing.
-        let reassigned_place = if let Some(assignment) = statement.as_assignment() {
-            build.canonical_place_at(program, state.symbol, statement_index, assignment.target)
-        } else {
-            None
-        };
-        *active_constraints = filter_reassigned_borrow_loans(
-            &mut build.borrow_lifetimes.weakenings,
-            &mut build.contexts.constraint_refs,
-            *active_constraints,
-            borrow,
-            program,
-            machine,
-            reassigned_place,
-            statement_index,
-            statement,
-            build.call_frames,
-        );
+        let has_active_borrow_loans = build
+            .contexts
+            .constraint_refs
+            .span_or_empty(*active_constraints)
+            .iter()
+            .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }));
+        if has_active_borrow_loans {
+            let reassigned_place = if let Some(assignment) = statement.as_assignment() {
+                build.canonical_place_at(program, state.symbol, statement_index, assignment.target)
+            } else {
+                None
+            };
+            *active_constraints = filter_reassigned_borrow_loans(
+                &mut build.borrow_lifetimes.weakenings,
+                &mut build.contexts.constraint_refs,
+                *active_constraints,
+                borrow,
+                program,
+                machine,
+                reassigned_place,
+                statement_index,
+                statement,
+                build.call_frames,
+            );
+        }
 
         for loan_index in loan_ranges[statement_index].clone() {
             let loan = &borrow_loans[loan_index];
@@ -254,29 +258,46 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             build.control.statements.get(statement_fact).store_target,
         );
         if let Some(write) = &mut write {
-            let captured_destination = build.control.statements.get(statement_fact).store_target;
-            let contexts = if build.control.operands.is_valid(captured_destination) {
-                build
-                    .contexts
-                    .constraint_refs
-                    .span_or_empty(build.control.operands.get(captured_destination).constraints)
-                    .iter()
-                    .filter_map(|constraint| match constraint.kind {
-                        FlowConstraintKind::SemanticContext { context } => Some(context),
-                        _ => None,
-                    })
-                    .collect()
+            let target_segments = semantic
+                .place_segments
+                .span_or_empty(semantic.places.get(write.target_place).segments);
+            let (target, stable) = if target_segments.is_empty() {
+                (write.target_place, true)
             } else {
-                crate::flow::active_context_handles(build, *active_contexts)
+                let captured_destination =
+                    build.control.statements.get(statement_fact).store_target;
+                let contexts = if target_segments
+                    .iter()
+                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+                {
+                    if build.control.operands.is_valid(captured_destination) {
+                        build
+                            .contexts
+                            .constraint_refs
+                            .span_or_empty(
+                                build.control.operands.get(captured_destination).constraints,
+                            )
+                            .iter()
+                            .filter_map(|constraint| match constraint.kind {
+                                FlowConstraintKind::SemanticContext { context } => Some(context),
+                                _ => None,
+                            })
+                            .collect()
+                    } else {
+                        crate::flow::active_context_handles(build, *active_contexts)
+                    }
+                } else {
+                    Vec::new()
+                };
+                super::transfers::narrow_pinned_selectors(
+                    program,
+                    semantic,
+                    state.symbol,
+                    statement_index,
+                    &contexts,
+                    write.target_place,
+                )
             };
-            let (target, stable) = super::transfers::narrow_pinned_selectors(
-                program,
-                semantic,
-                state.symbol,
-                statement_index,
-                &contexts,
-                write.target_place,
-            );
             write.target_place = target;
             write.stable_value_target = stable && write.target_is_exact;
             if statement.as_assignment().is_some() {
@@ -487,6 +508,13 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // before overlap matching so the write retires only the element it
         // actually reaches — the same narrowing the write-target transfer
         // applies when it records the established fact.
+        if statement.as_assignment().is_none()
+            && mutated_places.iter().any(|place| {
+                place
+                    .segments
+                    .iter()
+                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+            })
         {
             let context_handles: Vec<facts::FactContextHandle> = build
                 .contexts
@@ -495,10 +523,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 .iter()
                 .map(|context_ref| context_ref.context)
                 .collect();
-            for place in mutated_places
-                .iter_mut()
-                .filter(|_| statement.as_assignment().is_none())
-            {
+            for place in &mut mutated_places {
                 crate::flow::narrow_pinned_index_segments(
                     program,
                     semantic,
@@ -625,12 +650,8 @@ fn append_proof_output_ensures(
     active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
 ) {
-    let has_proof_only_binding = proof.proof_output_calls.iter().any(|(_, invocation)| {
-        invocation.caller_machine_symbol == machine_symbol
-            && invocation.caller_state_symbol == state_symbol
-            && invocation.statement_index == statement_index
-            && invocation.runtime_call.is_none()
-    });
+    let has_proof_only_binding =
+        proof.has_proof_only_output_call(machine_symbol, state_symbol, statement_index);
     if !has_proof_only_binding {
         return;
     }

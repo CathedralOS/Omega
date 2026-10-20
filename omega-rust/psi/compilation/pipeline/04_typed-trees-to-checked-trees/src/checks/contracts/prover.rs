@@ -95,18 +95,9 @@ pub(super) fn live_contexts_prove_boolean_expression(
         || facts
             .flow
             .control
-            .states
-            .iter()
-            .find_map(|(_, flow)| {
-                (flow.state_symbol == state.symbol)
-                    .then(|| {
-                        validation::machine_state_by_symbols(
-                            program,
-                            flow.machine_symbol,
-                            state.symbol,
-                        )
-                    })
-                    .flatten()
+            .state_by_symbol(state.symbol)
+            .and_then(|flow| {
+                validation::machine_state_by_symbols(program, flow.machine_symbol, state.symbol)
             })
             .and_then(|(machine, _)| {
                 let values = crate::checks::current_scalar_values::CurrentScalarValues::at(

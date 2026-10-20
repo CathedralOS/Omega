@@ -108,15 +108,19 @@ impl<'program> Evaluator<'program> {
                 .count()
                 == 1;
             let checked_selection = self.operator_facts.is_none_or(|facts| {
-                let mut selections = facts.resolved_expression_selections().filter(
-                    |(expression, origin, requirement, policy)| {
-                        *expression == handle
-                            && *origin == selected.origin
-                            && *requirement == selected.requirement
-                            && *policy == selected.policy
+                let mut count = 0usize;
+                facts.for_each_resolved_expression_selection(
+                    handle,
+                    |origin, requirement, policy, _| {
+                        if origin == selected.origin
+                            && requirement == selected.requirement
+                            && policy == selected.policy
+                        {
+                            count += 1;
+                        }
                     },
                 );
-                selections.next().is_some() && selections.next().is_none()
+                count == 1
             });
             if operands != selected.operands
                 || !unique

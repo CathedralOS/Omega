@@ -19,6 +19,27 @@ impl RangeFacts<'_> {
         let Some(assignment) = statement.as_assignment() else {
             return;
         };
+        if !self.has_relational_bounds() {
+            if !self.measured_results.is_empty() || !self.scalar_binding_dependencies.is_empty() {
+                let mut owned_frames = None;
+                let shared_frames = crate::flow::shared_call_frames_or(
+                    self.checked_calls.and_then(|context| context.call_frames()),
+                    program,
+                    &mut owned_frames,
+                );
+                let writes = crate::flow::statement_storage_writes(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    self.statement_index,
+                    statement,
+                    shared_frames,
+                );
+                self.retire_captured_observations(program, writes.as_deref());
+            }
+            self.boolean_locals.clear();
+            return;
+        }
         // A builtin byte-element write changes contents, not the descriptor.
         // Capture only extent metadata still available after RHS evaluation;
         // never resurrect facts invalidated by an effectful RHS.
@@ -141,6 +162,18 @@ impl RangeFacts<'_> {
         site: Option<&validation::CallSite<'_>>,
     ) {
         if paths.is_some_and(|paths| paths.is_empty()) {
+            return;
+        }
+        if !self.has_relational_bounds() && self.integer_locals.is_empty() && self.locals.is_empty()
+        {
+            if !self.measured_results.is_empty() || !self.scalar_binding_dependencies.is_empty() {
+                let call_writes = site
+                    .and_then(|site| self.structured_call_writes(program, machine, state, site))
+                    .and_then(|writes| writes.aliases);
+                self.retire_captured_observations(program, call_writes.as_deref());
+            }
+            self.integer_fields.clear();
+            self.boolean_locals.clear();
             return;
         }
         // A located call's structured write set keeps the element coordinates
@@ -283,6 +316,18 @@ impl RangeFacts<'_> {
             || !self.window_parents.is_empty()
             || !self.proven_indexes.is_empty()
             || !self.proven_range_bounds.is_empty()
+    }
+
+    fn has_relational_bounds(&self) -> bool {
+        !self.proven_indexes.is_empty()
+            || !self.proven_index_upper_bounds.is_empty()
+            || !self.below_const_binders.is_empty()
+            || !self.proven_non_negatives.is_empty()
+            || !self.proven_orderings.is_empty()
+            || !self.proven_range_bounds.is_empty()
+            || !self.minimum_lengths.is_empty()
+            || !self.exact_lengths.is_empty()
+            || !self.window_parents.is_empty()
     }
 
     /// `overlaps` decides value-level rows (indices, bounds, orderings);

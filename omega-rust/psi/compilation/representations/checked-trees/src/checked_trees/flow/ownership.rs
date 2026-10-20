@@ -213,12 +213,16 @@ impl super::FlowOwnershipFacts {
     ) -> Option<Vec<&FlowPermissionEventFact>> {
         let mut roots = Vec::<&FlowPermissionEventFact>::new();
         let mut occurrences = Vec::new();
-        for (_, event) in self.permissions.iter().filter(|(_, event)| {
-            event.machine_symbol == machine
+        let handles = self.with_state_permissions(state, |handles| handles.to_vec());
+        for handle in handles {
+            let event = self.permissions.get(handle);
+            if !(event.machine_symbol == machine
                 && event.state_symbol == state
                 && event.source == language_semantics::PermissionEventSource::StateExit
-                && event.kind == language_semantics::PermissionEventKind::AffineDrop
-        }) {
+                && event.kind == language_semantics::PermissionEventKind::AffineDrop)
+            {
+                continue;
+            }
             let occurrence = (event.root, event.segments, event.evaluation);
             if occurrences.contains(&occurrence) {
                 return None;

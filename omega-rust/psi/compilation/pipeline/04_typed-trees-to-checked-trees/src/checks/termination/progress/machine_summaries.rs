@@ -49,12 +49,7 @@ pub(crate) fn derive_machine_summary(
         })
         .unwrap_or_default();
     let mut premises = Vec::new();
-    for (_, state_flow) in flow
-        .control
-        .states
-        .iter()
-        .filter(|(_, state)| state.machine_symbol == machine.symbol)
-    {
+    for state_flow in flow.control.machine_states(machine.symbol) {
         for call in flow.control.calls.span_or_empty(state_flow.calls) {
             if is_local_state_transition(program, machine, state_flow, call) {
                 // Named transitions are edges within this activation, not
@@ -266,9 +261,15 @@ pub(crate) fn selected_call_summary<'a>(
         .machine_by_symbol(target_symbol)
         .or_else(|| validation::find_state(program, target_symbol).map(|(machine, _)| machine))?;
     if target_machine.target_family_interface {
-        let summary = summaries
-            .iter()
-            .find(|summary| summary.machine == target_machine.symbol)?;
+        let summary = program
+            .machine_position_by_symbol(target_machine.symbol)
+            .and_then(|index| summaries.get(index))
+            .filter(|summary| summary.machine == target_machine.symbol)
+            .or_else(|| {
+                summaries
+                    .iter()
+                    .find(|summary| summary.machine == target_machine.symbol)
+            })?;
         return Some(SelectedCallProgress {
             guarantee: &summary.guarantee,
         });
@@ -278,9 +279,15 @@ pub(crate) fn selected_call_summary<'a>(
             Some(SelectedCallProgress { guarantee })
         }
         language_semantics::TerminationInterface::InternalDerived => {
-            let summary = summaries
-                .iter()
-                .find(|summary| summary.machine == target_machine.symbol)?;
+            let summary = program
+                .machine_position_by_symbol(target_machine.symbol)
+                .and_then(|index| summaries.get(index))
+                .filter(|summary| summary.machine == target_machine.symbol)
+                .or_else(|| {
+                    summaries
+                        .iter()
+                        .find(|summary| summary.machine == target_machine.symbol)
+                })?;
             Some(SelectedCallProgress {
                 guarantee: &summary.guarantee,
             })

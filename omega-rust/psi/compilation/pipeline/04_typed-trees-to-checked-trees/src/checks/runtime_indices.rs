@@ -1317,6 +1317,15 @@ pub(super) fn check(
     frames: Option<&CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let program_has_runtime_indices = program.data_definitions().iter().any(|data| {
+        program
+            .data_type_parameters(data)
+            .iter()
+            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }))
+    });
+    if !program_has_runtime_indices {
+        return;
+    }
     for (_, flow) in facts.flow.control.states.iter() {
         let Some(machine) = program.machine_by_symbol(flow.machine_symbol) else {
             continue;

@@ -16,6 +16,11 @@ pub struct CheckedStructuralValuePlans {
     pub record_fields: Arena<CheckedStructuralRecordField>,
     call_schedules: Arena<StructuralCallSchedule>,
     calls: Arena<crate::CheckedStructuralValueCall>,
+    roots_by_state: arena::OwnedIndex<(
+        u64,
+        usize,
+        symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<CheckedStructuralValueRoot>>>,
+    )>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -391,6 +396,84 @@ impl CheckedStructuralValuePlans {
         Some(self.calls.get_mut(call))
     }
 
+    fn with_state_roots<R>(
+        &self,
+        state: SymbolHandle,
+        run: impl FnOnce(&[Handle<CheckedStructuralValueRoot>]) -> R,
+    ) -> R {
+        self.roots_by_state.with_mut(
+            0,
+            || (0, 0, symbols::SymbolKeyMap::default()),
+            |(seen_revision, indexed_len, by_state)| {
+                let current_revision = self.roots.revision();
+                if *seen_revision != current_revision {
+                    let slice = self.roots.storage_slice();
+                    let delta = slice.len().checked_sub(*indexed_len);
+                    let rev_delta = current_revision.checked_sub(*seen_revision);
+                    if self.roots.len() == slice.len()
+                        && let (Some(delta), Some(rev_delta)) = (delta, rev_delta)
+                        && rev_delta == delta as u64
+                    {
+                        let mut valid_tail = true;
+                        for (offset, root) in slice[*indexed_len..].iter().enumerate() {
+                            let Some(arena_index) = (*indexed_len + offset)
+                                .checked_add(1)
+                                .and_then(|idx| u32::try_from(idx).ok())
+                            else {
+                                valid_tail = false;
+                                break;
+                            };
+                            let handle = Handle::from_parts(arena_index, 1);
+                            if !self.roots.is_valid(handle) {
+                                valid_tail = false;
+                                break;
+                            }
+                            by_state.entry(root.state).or_default().push(handle);
+                        }
+                        if !valid_tail {
+                            by_state.clear();
+                            for (handle, root) in self.roots.iter() {
+                                by_state.entry(root.state).or_default().push(handle);
+                            }
+                        }
+                    } else {
+                        by_state.clear();
+                        for (handle, root) in self.roots.iter() {
+                            by_state.entry(root.state).or_default().push(handle);
+                        }
+                    }
+                    *seen_revision = current_revision;
+                    *indexed_len = slice.len();
+                }
+                run(by_state.get(&state).map_or(&[], Vec::as_slice))
+            },
+        )
+    }
+
+    pub fn roots_for_state(&self, state: SymbolHandle) -> Vec<&CheckedStructuralValueRoot> {
+        self.with_state_roots(state, |handles| {
+            handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| root.state == state)
+                .collect()
+        })
+    }
+
+    pub fn roots_for_statement(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+    ) -> Vec<&CheckedStructuralValueRoot> {
+        self.with_state_roots(state, |handles| {
+            handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| root.state == state && root.statement_ordinal == statement_ordinal)
+                .collect()
+        })
+    }
+
     /// Continuation and primary returns may share a statement, but never an
     /// authored value occurrence. Rejoin both coordinates without ambiguity.
     pub fn root_for_expression(
@@ -399,13 +482,18 @@ impl CheckedStructuralValuePlans {
         statement_ordinal: u32,
         expression: ExpressionHandle,
     ) -> Option<&CheckedStructuralValueRoot> {
-        let mut roots = self.roots.iter().map(|(_, root)| root).filter(|root| {
-            root.state == state
-                && root.statement_ordinal == statement_ordinal
-                && root.expression == expression
-        });
-        let root = roots.next()?;
-        roots.next().is_none().then_some(root)
+        self.with_state_roots(state, |handles| {
+            let mut roots = handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| {
+                    root.state == state
+                        && root.statement_ordinal == statement_ordinal
+                        && root.expression == expression
+                });
+            let root = roots.next()?;
+            roots.next().is_none().then_some(root)
+        })
     }
 
     pub fn root_at(
@@ -413,13 +501,14 @@ impl CheckedStructuralValuePlans {
         state: SymbolHandle,
         statement_ordinal: u32,
     ) -> Option<&CheckedStructuralValueRoot> {
-        let mut roots = self
-            .roots
-            .iter()
-            .map(|(_, root)| root)
-            .filter(|root| root.state == state && root.statement_ordinal == statement_ordinal);
-        let root = roots.next()?;
-        roots.next().is_none().then_some(root)
+        self.with_state_roots(state, |handles| {
+            let mut roots = handles
+                .iter()
+                .map(|handle| self.roots.get(*handle))
+                .filter(|root| root.state == state && root.statement_ordinal == statement_ordinal);
+            let root = roots.next()?;
+            roots.next().is_none().then_some(root)
+        })
     }
 }
 

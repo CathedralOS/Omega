@@ -35,9 +35,7 @@ pub(crate) fn entry_covers_progress_premises(
     else {
         return false;
     };
-    let Some(state) = checked.flow.control.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == machine && state.state_symbol == entry.symbol).then_some(state)
-    }) else {
+    let Some(state) = checked.flow.control.state(machine, entry.symbol) else {
         return false;
     };
     premises.iter().all(|premise| {

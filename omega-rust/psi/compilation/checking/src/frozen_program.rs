@@ -191,24 +191,47 @@ impl<'program> CheckingContext<'program> {
     /// Borrow checked selections for final visibility and cleanup judgments
     /// without replacing or cloning the immutable typed program. Selection
     /// authority is an input to meaning queries, so replacing it invalidates
-    /// any prior memo even though the source tables remain equal.
+    /// selection-sensitive memos while preserving pure typed-tree indexes.
     pub fn with_authored_declaration_selections(
         mut self,
         selections: &'program AuthoredDeclarationSelections,
     ) -> Self {
         self.finalized_selections = Some(selections);
-        self.memos = CheckingMemos::default();
-        self.call_frame_tables = OnceLock::new();
+        self.memos = self.memos.retain_typed_tree_memos();
         self
     }
 
     /// Switch to the ownership-complete execution graph. Effects participate
-    /// in later judgments, so no source-only memo survives this phase change.
+    /// in later judgments, so effect-dependent memos reset while pure
+    /// typed-tree indexes survive.
     pub fn with_prepared_effect_plans(mut self, plans: &'program PreparedEffectPlans) -> Self {
         self.prepared_effects = Some(plans);
-        self.memos = CheckingMemos::default();
-        self.call_frame_tables = OnceLock::new();
+        self.memos = self.memos.retain_typed_tree_memos();
         self
+    }
+
+    /// Borrow a local `PreparedEffectPlans` while preserving pure typed-tree
+    /// memos and shared call-frame tables from an existing borrowed context.
+    pub fn clone_with_prepared_effect_plans<'context>(
+        &self,
+        plans: &'context PreparedEffectPlans,
+    ) -> CheckingContext<'context>
+    where
+        'program: 'context,
+    {
+        let call_frame_tables = OnceLock::new();
+        if let Some(tables) = self.call_frame_tables.get() {
+            let _ = call_frame_tables.set(tables.clone());
+        }
+        CheckingContext {
+            program: self.program,
+            finalized_selections: self.finalized_selections,
+            prepared_effects: Some(plans),
+            prepared_mathematics: self.prepared_mathematics,
+            opaque_selections: self.opaque_selections,
+            memos: self.memos.clone_typed_tree_memos(),
+            call_frame_tables,
+        }
     }
 
     /// Mathematical applications were formed and reduced before this phase.
@@ -219,21 +242,18 @@ impl<'program> CheckingContext<'program> {
         mathematics: Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
     ) -> Self {
         self.prepared_mathematics = mathematics;
-        self.memos = CheckingMemos::default();
-        self.call_frame_tables = OnceLock::new();
+        self.memos = self.memos.retain_typed_tree_memos();
         self
     }
 
     /// Attach the build's validated opaque applications: admission evidence a
     /// boundary-opaque value's storage judgment reads, not typed-program data.
-    /// Meaning changes with the admitted roster, so no memo survives it.
     pub fn with_opaque_representation_selections(
         mut self,
         selections: &'program [OpaqueRepresentationSelection],
     ) -> Self {
         self.opaque_selections = Some(selections);
-        self.memos = CheckingMemos::default();
-        self.call_frame_tables = OnceLock::new();
+        self.memos = self.memos.retain_typed_tree_memos();
         self
     }
 
@@ -554,6 +574,59 @@ pub struct CheckingMemos {
             >,
         >,
     >,
+}
+
+impl CheckingMemos {
+    /// Retain memos that depend strictly on the immutable `TypedTrees` tables
+    /// (`self.program`), resetting memos that may observe prepared effects,
+    /// finalized selections, prepared mathematics, or opaque representations.
+    fn retain_typed_tree_memos(self) -> Self {
+        Self {
+            owned_field_domains: self.owned_field_domains,
+            claim_frontiers: self.claim_frontiers,
+            establishment: self.establishment,
+            call_destinations: self.call_destinations,
+            proof_only: self.proof_only,
+            license_candidates: self.license_candidates,
+            entry_machines: self.entry_machines,
+            caller_sites: self.caller_sites,
+            content_conservation: self.content_conservation,
+            case_reference_owners: self.case_reference_owners,
+            nominal_cleanup_owners: self.nominal_cleanup_owners,
+            nominal_cleanup_machine_index: self.nominal_cleanup_machine_index,
+            data_fields: self.data_fields,
+            contract_occurrences: self.contract_occurrences,
+            bound_maps: self.bound_maps,
+            ..Self::default()
+        }
+    }
+
+    fn clone_typed_tree_memos(&self) -> Self {
+        Self {
+            proof_only: self.proof_only.clone(),
+            license_candidates: self.license_candidates.clone(),
+            entry_machines: self.entry_machines.clone(),
+            caller_sites: self.caller_sites.clone(),
+            content_conservation: self.content_conservation.clone(),
+            case_reference_owners: Mutex::new(
+                self.case_reference_owners
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default(),
+            ),
+            nominal_cleanup_owners: Mutex::new(
+                self.nominal_cleanup_owners
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default(),
+            ),
+            nominal_cleanup_machine_index: self.nominal_cleanup_machine_index.clone(),
+            data_fields: self.data_fields.clone(),
+            contract_occurrences: self.contract_occurrences.clone(),
+            bound_maps: self.bound_maps.clone(),
+            ..Self::default()
+        }
+    }
 }
 
 /// A rebuildable selected-application carrier verdict: the owner and declared

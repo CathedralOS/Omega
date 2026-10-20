@@ -181,13 +181,16 @@ fn scan_expression_use(
     if consumes_value && let Some(spelling) = write_place_spelling(program, expression) {
         // Dynamic selectors overlap every possible element. A nominal value
         // also consumes a covering window; a raw scalar projection does not.
-        let consumes_record =
-            data_definition_for_expression(program, machine, Some(state), expression).is_some();
+        let mut cached_definition = None;
+        let mut lookup_definition = || {
+            *cached_definition.get_or_insert_with(|| {
+                data_definition_for_expression(program, machine, Some(state), expression)
+            })
+        };
         if matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Name(_)
-        ) && let Some(definition) =
-            data_definition_for_expression(program, machine, Some(state), expression)
+        ) && let Some(definition) = lookup_definition()
             && crate::value_custody::data::data_requires_establishment(program, definition)
         {
             // Passing or borrowing the whole nominal value cannot bypass the
@@ -206,28 +209,33 @@ fn scan_expression_use(
                 diagnostics,
             );
         }
-        let overlaps_consumed_value = |place: &str| {
-            place_spelling_covers(&spelling, place)
-                || (consumes_record && place_spelling_covers(place, &spelling))
-        };
-        if let Some(place) = tracked
-            .iter()
-            .find(|place| place.any_window_open() && overlaps_consumed_value(&place.spelling))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
-                 window: a prior write left data `{}`'s default domain FALSE -- \
-                 restore the facts before copying or exposing the value (ch11)",
-                place.definition.name.as_str()
-            )));
-        } else if let Some((_, data_name, _)) = inherited_windows
-            .iter()
-            .find(|(place, _, _)| overlaps_consumed_value(place))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
-                 window carried from a predecessor state for data `{data_name}`"
-            )));
+        let has_open_window =
+            !inherited_windows.is_empty() || tracked.iter().any(TrackedPlace::any_window_open);
+        if has_open_window {
+            let consumes_record = lookup_definition().is_some();
+            let overlaps_consumed_value = |place: &str| {
+                place_spelling_covers(&spelling, place)
+                    || (consumes_record && place_spelling_covers(place, &spelling))
+            };
+            if let Some(place) = tracked
+                .iter()
+                .find(|place| place.any_window_open() && overlaps_consumed_value(&place.spelling))
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
+                     window: a prior write left data `{}`'s default domain FALSE -- \
+                     restore the facts before copying or exposing the value (ch11)",
+                    place.definition.name.as_str()
+                )));
+            } else if let Some((_, data_name, _)) = inherited_windows
+                .iter()
+                .find(|(place, _, _)| overlaps_consumed_value(place))
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
+                     window carried from a predecessor state for data `{data_name}`"
+                )));
+            }
         }
     }
     match program.expression_table.expression(expression) {
@@ -617,6 +625,15 @@ fn validate_qualified_place_read(
     inherited_windows: &[InvariantWindow],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Name(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Indexed(_)
+            | ExpressionNode::Borrow(_)
+    ) {
+        return;
+    }
     let Some(reference) = crate::value_custody::places::declared_place_type_raw(
         program,
         machine,

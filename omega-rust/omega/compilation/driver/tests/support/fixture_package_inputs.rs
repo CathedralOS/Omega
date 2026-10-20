@@ -897,33 +897,35 @@ pub struct ReviewedFixtureCompilation {
     pub package_inputs: Option<PackageCompilationInputs>,
     pub assumed_permissions:
         Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+    pub session: compiler::CompilationSession,
 }
 
 /// Consume the fixture's explicit consent through the same package-product
 /// entrance as accepted-lock compilation. The caller may batch these requests
 /// for a target cohort; each target carries its own freshly projected rows.
 pub fn accepted_fixture_product_request(
-    prepared: ReviewedFixtureCompilation,
+    prepared: &mut ReviewedFixtureCompilation,
     target: Option<&str>,
     build_dir: PathBuf,
     product: compiler::CompilationProduct,
 ) -> Result<compiler::PackageCompilationRequest, Vec<Diagnostic>> {
     let snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let mut request = CheckedCompileRequest::new(&prepared.root_path, target);
-    request.package_inputs = prepared.package_inputs;
+    request.package_inputs = prepared.package_inputs.take();
     request.build_snapshot = snapshot;
     request.build_dir = Some(build_dir);
     Ok(compiler::PackageCompilationRequest {
         occurrences: vec![request],
         product,
-        terminal_permissions: prepared.assumed_permissions,
+        terminal_permissions: prepared.assumed_permissions.take(),
     })
 }
 
 pub fn produce_accepted_fixture(
+    session: &mut compiler::CompilationSession,
     request: compiler::PackageCompilationRequest,
 ) -> Result<compiler::CompileReport, Vec<Diagnostic>> {
-    compiler::CompilationSession::default()
+    session
         .compile_packages(vec![request])
         .pop()
         .expect("one fixture product")
@@ -1022,6 +1024,7 @@ pub fn reviewed_repository_fixture_package_inputs(
             root_path,
             package_inputs: None,
             assumed_permissions: None,
+            session: compiler::CompilationSession::default(),
         });
     };
     if let Some(graph) = &graph {
@@ -1087,7 +1090,8 @@ pub fn reviewed_repository_fixture_package_inputs(
     // Discovery runs the fixture's own build machine, so it needs the same
     // writable staging a real activation gets; the default beside the root
     // source is inside the sealed snapshot.
-    let preliminary = compiler::CompilationSession::default()
+    let mut session = compiler::CompilationSession::default();
+    let preliminary = session
         .check(CheckedCompileRequest {
             package_inputs: Some(package_inputs.clone().with_semantic_role_discovery(true)),
             permit_unsettled_fused_service_fields: true,
@@ -1183,6 +1187,7 @@ pub fn reviewed_repository_fixture_package_inputs(
         root_path,
         package_inputs: Some(package_inputs),
         assumed_permissions,
+        session,
     })
 }
 

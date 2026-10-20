@@ -824,10 +824,10 @@ impl CheckedOperatorFacts {
     /// origin, status and selection remain caller checks; no row is deduplicated.
     /// The callback consumes facts while the derived roster is borrowed and must
     /// not recursively query this expression index.
-    pub fn for_each_expression_use(
-        &self,
+    pub fn for_each_expression_use<'facts>(
+        &'facts self,
         expression: ExpressionHandle,
-        mut visit: impl FnMut(Handle<CheckedOperatorUseFact>, &CheckedOperatorUseFact),
+        mut visit: impl FnMut(Handle<CheckedOperatorUseFact>, &'facts CheckedOperatorUseFact),
     ) {
         self.expression_uses.with(
             self.uses.revision(),
@@ -896,6 +896,53 @@ impl CheckedOperatorFacts {
             }))
     }
 
+    /// Visit resolved expression selections for one exact `expression` across
+    /// spelled operators, named operators, and named requirements without
+    /// scanning the entire `uses` arena.
+    pub fn for_each_resolved_expression_selection<'facts>(
+        &'facts self,
+        expression: ExpressionHandle,
+        mut visit: impl FnMut(
+            CheckedValueOrigin,
+            SymbolHandle,
+            CheckedArithmeticPolicyAdapter,
+            Option<&'facts CheckedOperatorUseFact>,
+        ),
+    ) {
+        self.for_each_expression_use(expression, |_, fact| {
+            if fact.status == CheckedOperatorResolutionStatus::Resolved
+                && fact.occurrence == CheckedOperatorOccurrence::Expression
+            {
+                visit(
+                    fact.origin,
+                    fact.selected_operator_symbol,
+                    fact.policy_adapter,
+                    Some(fact),
+                );
+            }
+        });
+        for fact in self.named_uses() {
+            if fact.expression == expression {
+                visit(
+                    fact.origin,
+                    fact.selected_operator_symbol,
+                    fact.policy_adapter,
+                    None,
+                );
+            }
+        }
+        for fact in self.named_requirement_uses() {
+            if fact.expression == expression {
+                visit(
+                    fact.origin,
+                    fact.requirement_symbol,
+                    fact.policy_adapter,
+                    None,
+                );
+            }
+        }
+    }
+
     pub fn named_uses(&self) -> impl Iterator<Item = &CheckedNamedOperatorUseFact> {
         self.named_uses.iter().map(|(_, operator_use)| operator_use)
     }
@@ -954,15 +1001,20 @@ impl CheckedOperatorFacts {
         expression: ExpressionHandle,
         machine_symbol: SymbolHandle,
     ) -> Option<&CheckedOperatorCandidateFact> {
-        self.uses.iter().find_map(|(_, operator_use)| {
-            (operator_use.expression == expression
+        let mut found = None;
+        self.for_each_expression_use(expression, |_, operator_use| {
+            if found.is_none()
                 && operator_use.occurrence == CheckedOperatorOccurrence::Expression
                 && operator_use.origin.machine_symbol() == Some(machine_symbol)
-                && operator_use.status == CheckedOperatorResolutionStatus::Resolved)
-                .then(|| self.selected_candidate(operator_use))
-                .flatten()
-                .filter(|candidate| candidate.is_trait_backed())
-        })
+                && operator_use.status == CheckedOperatorResolutionStatus::Resolved
+                && let Some(candidate) = self
+                    .selected_candidate(operator_use)
+                    .filter(|candidate| candidate.is_trait_backed())
+            {
+                found = Some(candidate);
+            }
+        });
+        found
     }
 
     pub fn resolved_contract_uses(&self) -> impl Iterator<Item = CheckedOperatorContractUse<'_>> {

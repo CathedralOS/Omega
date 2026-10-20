@@ -53,11 +53,14 @@ pub struct SelectedCheckedSource {
 
 impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
+        let _profile = phase_profile::guard("05");
         let mut program = self.program;
-        validation::source_completion::prepare_source_completion(
-            &mut program,
-            self.admission.completion,
-        )?;
+        phase_profile::scope("05.a.source_completion", || {
+            validation::source_completion::prepare_source_completion(
+                &mut program,
+                self.admission.completion,
+            )
+        })?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_entry_contexts(self.admission.entry_contexts)
             .with_opaque_property_receipts(self.admission.opaque_properties)
@@ -69,25 +72,32 @@ impl CheckRequest<'_> {
         let checking = typed_trees_to_checked_trees::CheckingRequest::new()
             .with_declaration_authority(self.admission.declarations);
         let admission = preparation.admission();
-        let matching = self
-            .previous
-            .iter()
-            .copied()
-            .find(|prior| prior.judges_preparation_input(&program, &admission));
+        let matching = phase_profile::scope("05.b.retained_match", || {
+            self.previous
+                .iter()
+                .copied()
+                .find(|prior| prior.judges_preparation_input(&program, &admission))
+        });
         let outcome = if let Some(prior) = matching {
+            phase_profile::count("05.b.retained_match.hit", 1);
             typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, self.retain)?
         } else {
-            let retained_input = self.retain.then(|| (Arc::new(program.clone()), admission));
-            let (program, preparation) =
-                typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
-            typed_trees_to_checked_trees::lower_typed_trees_reusing(
-                program,
-                preparation,
-                retained_input,
-                &checking,
-                self.previous.first().copied(),
-                self.retain,
-            )?
+            let retained_input = phase_profile::scope("05.b.retained_input_clone", || {
+                self.retain.then(|| (Arc::new(program.clone()), admission))
+            });
+            let (program, preparation) = phase_profile::scope("05.c.prepare_typed_trees", || {
+                typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)
+            })?;
+            phase_profile::scope("05.d.lower_typed_trees", || {
+                typed_trees_to_checked_trees::lower_typed_trees_reusing(
+                    program,
+                    preparation,
+                    retained_input,
+                    &checking,
+                    self.previous.first().copied(),
+                    self.retain,
+                )
+            })?
         };
         Ok(CheckedSource {
             program: outcome.checked,

@@ -89,10 +89,11 @@ fn validate(
     if multiplicity == Multiplicity::Unrestricted {
         return Some(());
     }
-    let machine =
-        facts.flow.control.states.iter().find_map(|(_, row)| {
-            (row.state_symbol == state.symbol).then_some(row.machine_symbol)
-        })?;
+    let machine = facts
+        .flow
+        .control
+        .state_by_symbol(state.symbol)?
+        .machine_symbol;
     let exit = checked_trees::FlowClaimJoinExit {
         state_symbol: state.symbol,
         statement_index,

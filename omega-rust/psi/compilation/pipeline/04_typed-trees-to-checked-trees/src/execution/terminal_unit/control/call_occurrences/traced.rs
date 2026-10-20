@@ -126,14 +126,11 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
         } else {
             typed_trees::expression::ExpressionHandle::invalid()
         };
-        for (_, root) in facts
+        let statement_ordinal = u32::try_from(statement_index).ok()?;
+        for root in facts
             .values
             .structural_values
-            .roots
-            .iter()
-            .filter(|(_, root)| {
-                root.state == state.symbol && root.statement_ordinal as usize == statement_index
-            })
+            .roots_for_statement(state.symbol, statement_ordinal)
         {
             if root.machine != machine {
                 return None;
@@ -165,10 +162,10 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                         return None;
                     }
                     let authored = program.expression_table.call_node(node.expression)?;
-                    let mut occurrences = facts.flow.control.calls.iter().filter(|(_, call)| {
-                        call.authored_expression == node.expression
-                            && calls.iter().any(|candidate| std::ptr::eq(candidate, *call))
-                    });
+                    let mut occurrences = calls
+                        .iter()
+                        .filter(|call| call.authored_expression == node.expression)
+                        .filter_map(|call| Some((facts.flow.control.calls.handle_of(call)?, call)));
                     let (Some((handle, call)), None) = (occurrences.next(), occurrences.next())
                     else {
                         return None;
@@ -196,10 +193,11 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                         // The sealed request owns this exact captured source
                         // occurrence. Its selected ordinary call is emitted by
                         // the retained value graph, not scheduled a second time.
-                        let mut occurrences =
-                            facts.flow.control.calls.iter().filter(|(_, call)| {
-                                call.authored_expression == request
-                                    && calls.iter().any(|candidate| std::ptr::eq(candidate, *call))
+                        let mut occurrences = calls
+                            .iter()
+                            .filter(|call| call.authored_expression == request)
+                            .filter_map(|call| {
+                                Some((facts.flow.control.calls.handle_of(call)?, call))
                             });
                         let (handle, call) = occurrences.next()?;
                         if occurrences.next().is_some()
@@ -332,20 +330,18 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
             &mut consumed,
         )?;
         if control_prefix.is_some_and(|prefix| statement_index >= prefix) {
-            for (_, root) in facts
+            for root in facts
                 .values
                 .scalar_computations
-                .roots
-                .iter()
-                .filter(|(_, root)| {
-                    root.state == state.symbol
-                        && root.statement_ordinal as usize == statement_index
-                        && matches!(
-                            root.role,
-                            CheckedScalarExpressionRole::Guard
-                                | CheckedScalarExpressionRole::Return
-                                | CheckedScalarExpressionRole::ContinuationReturn
-                        )
+                .roots_for_statement(state.symbol, statement_ordinal)
+                .into_iter()
+                .filter(|root| {
+                    matches!(
+                        root.role,
+                        CheckedScalarExpressionRole::Guard
+                            | CheckedScalarExpressionRole::Return
+                            | CheckedScalarExpressionRole::ContinuationReturn
+                    )
                 })
             {
                 collect_owned_root_calls(

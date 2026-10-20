@@ -21,6 +21,15 @@ pub(crate) fn build_termination_facts(
         call_frames,
         &rank_arrivals,
     )?;
+    let mut summary_by_machine = symbols::SymbolKeyMap::<
+        symbols::SymbolHandle,
+        language_semantics::TerminationGuarantee,
+    >::default();
+    for summary in summaries {
+        summary_by_machine
+            .entry(summary.machine)
+            .or_insert(summary.guarantee);
+    }
     Ok(checked_trees::TerminationFacts {
         rank_arrivals,
         machines: program
@@ -31,10 +40,9 @@ pub(crate) fn build_termination_facts(
                 plan: crate::checks::termination::build_checked_termination_plan(
                     program,
                     machine,
-                    summaries
-                        .iter()
-                        .find(|summary| summary.machine == machine.symbol)
-                        .map(|summary| summary.guarantee.clone())
+                    summary_by_machine
+                        .get(&machine.symbol)
+                        .cloned()
                         .unwrap_or(language_semantics::TerminationGuarantee::NoGuarantee),
                 ),
             })

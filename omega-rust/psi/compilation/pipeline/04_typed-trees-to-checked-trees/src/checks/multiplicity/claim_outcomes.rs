@@ -125,27 +125,40 @@ pub(crate) fn derive_checked_claim_outcome_maps(
     ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
 ) -> Result<Vec<CheckedClaimOutcomeMap>, &'static str> {
-    let state_count = program
+    let candidate_states = program
         .machines()
         .iter()
-        .map(|machine| program.machine_states(machine).len())
-        .sum::<usize>();
-    let derive = |maps: &[CheckedClaimOutcomeMap]| {
-        program
-            .machines()
-            .iter()
-            .flat_map(|machine| {
-                program.machine_states(machine).iter().filter_map(|state| {
-                    derive_claim_outcome_hypothesis(
-                        program,
-                        borrow,
-                        machine.symbol,
-                        state,
-                        ownership,
-                        permission_events,
-                        maps,
-                    )
+        .flat_map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .filter_map(move |state| {
+                    let expected_paths = linear_claim_frontier(program, state.return_type)
+                        .into_iter()
+                        .map(|claim| claim.path)
+                        .collect::<Vec<_>>();
+                    (!expected_paths.is_empty()).then_some((machine.symbol, state, expected_paths))
                 })
+        })
+        .collect::<Vec<_>>();
+    if candidate_states.is_empty() {
+        return Ok(Vec::new());
+    }
+    let state_count = candidate_states.len();
+    let derive = |maps: &[CheckedClaimOutcomeMap]| {
+        candidate_states
+            .iter()
+            .filter_map(|(machine_symbol, state, expected_paths)| {
+                derive_claim_outcome_hypothesis(
+                    program,
+                    borrow,
+                    *machine_symbol,
+                    state,
+                    expected_paths.clone(),
+                    ownership,
+                    permission_events,
+                    maps,
+                )
             })
             .collect::<Vec<_>>()
     };
@@ -193,15 +206,12 @@ fn derive_claim_outcome_hypothesis(
     borrow: &checked_trees::BorrowFacts,
     machine_symbol: SymbolHandle,
     state: &typed_trees::state::State,
+    expected_paths: Vec<Vec<facts::PlaceSegment>>,
     ownership: &checked_trees::FlowOwnershipFacts,
     permission_events: &[FlowPermissionEventFact],
     known_maps: &[CheckedClaimOutcomeMap],
 ) -> Option<ClaimOutcomeHypothesis> {
     let segments = &ownership.segments;
-    let expected_paths = linear_claim_frontier(program, state.return_type)
-        .into_iter()
-        .map(|claim| claim.path)
-        .collect::<Vec<_>>();
     if expected_paths.is_empty() {
         return None;
     }
@@ -1343,6 +1353,9 @@ pub(crate) fn call_result_origin_rewrites(
     PermissionProvenance,
     PermissionClaimIdentity,
 )> {
+    if maps.is_empty() {
+        return Vec::new();
+    }
     permission_events
         .iter()
         .filter_map(|event| {

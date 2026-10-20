@@ -86,15 +86,12 @@ pub(crate) fn checked_generic_operator_target(
         return Ok(Some(target));
     }
     let mut selected = None;
-    let mut uses = facts
+    let mut uses = Vec::new();
+    facts
         .operators
-        .uses
-        .iter()
-        .filter_map(|(_, operator_use)| {
-            (operator_use.expression == expression)
-                .then_some((operator_use.spelling, operator_use.origin))
-        })
-        .collect::<Vec<_>>();
+        .for_each_expression_use(expression, |_, operator_use| {
+            uses.push((operator_use.spelling, operator_use.origin));
+        });
     // An open generic requirement has no selected concrete provider, so the
     // executable operator fact producer may not emit a row for this expression.
     if let Some(binary) = program.expression_table.binary_node(expression)
@@ -188,16 +185,14 @@ fn checked_operator_target(
         ));
     }
 
-    let uses = facts
+    let mut uses = Vec::new();
+    facts
         .operators
-        .uses
-        .iter()
-        .filter_map(|(_, operator_use)| {
-            (operator_use.expression == expression
-                && operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression)
-                .then_some(operator_use)
-        })
-        .collect::<Vec<_>>();
+        .for_each_expression_use(expression, |_, operator_use| {
+            if operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression {
+                uses.push(*operator_use);
+            }
+        });
 
     uses.iter()
         .find_map(|operator_use| {
@@ -293,12 +288,13 @@ pub(crate) fn checked_operator_target_for_occurrence(
     owner_index: Option<&validation::expression_owners::OwnerEnvironmentIndex>,
 ) -> Option<AuthoredSelectionResolutionTarget> {
     let is_rooted = |candidate| {
-        owner_index.is_none_or(|owners| owners.contains_expression(candidate))
-            || facts
-                .operators
-                .uses
-                .iter()
-                .any(|(_, use_fact)| use_fact.expression == candidate)
+        owner_index.is_none_or(|owners| owners.contains_expression(candidate)) || {
+            let mut has_use = false;
+            facts.operators.for_each_expression_use(candidate, |_, _| {
+                has_use = true;
+            });
+            has_use
+        }
     };
     let copied_target = || {
         program
@@ -333,11 +329,17 @@ fn checked_operator_expression_is_intrinsic_primitive(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    facts.operators.uses.iter().any(|(_, operator_use)| {
-        operator_use.expression == expression
-            && operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-            && operator_use.status == CheckedOperatorResolutionStatus::BuiltinFallback
-    })
+    let mut is_fallback = false;
+    facts
+        .operators
+        .for_each_expression_use(expression, |_, operator_use| {
+            if operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
+                && operator_use.status == CheckedOperatorResolutionStatus::BuiltinFallback
+            {
+                is_fallback = true;
+            }
+        });
+    is_fallback
 }
 
 /// Whether a `==`/`!=` occurrence typed lowering rewrote into a call selects

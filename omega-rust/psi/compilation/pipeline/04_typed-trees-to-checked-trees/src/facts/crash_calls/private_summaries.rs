@@ -157,29 +157,39 @@ fn prepare_summary_nodes(
         })
         .collect::<Vec<_>>();
 
+    let mut plan_indices = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    for (index, plan) in plans.iter().enumerate() {
+        plan_indices.entry(plan.machine).or_insert(index);
+    }
+    let plan_by_machine = |machine: SymbolHandle| {
+        plan_indices
+            .get(&machine)
+            .and_then(|&index| plans.get(index))
+    };
+
     // Compute the greatest viable local subgraph. A recursive SCC is viable
     // when all of its outgoing targets are known local plans or pinned
     // requirement capsules. Any unresolved dependency removes its caller and
     // then every private caller that depended on it.
     loop {
-        let viable_machines = nodes.iter().map(|node| node.machine).collect::<Vec<_>>();
+        let viable_machines: symbols::SymbolKeyMap<SymbolHandle, ()> =
+            nodes.iter().map(|node| (node.machine, ())).collect();
         let before = nodes.len();
         nodes.retain(|node| {
             node.family_members.iter().all(|member| {
-                checked_trees::contract_plan_by_machine(plans, *member).is_some_and(|plan| {
+                plan_by_machine(*member).is_some_and(|plan| {
                     program.machine_by_symbol(*member).is_some_and(|machine| {
-                        !needs_inferred_summary(machine, plan) || viable_machines.contains(member)
+                        !needs_inferred_summary(machine, plan)
+                            || viable_machines.contains_key(member)
                     })
                 })
             }) && node.invocations.iter().all(|invocation| {
-                if let Some(plan) =
-                    checked_trees::contract_plan_by_machine(plans, invocation.target_machine)
-                {
+                if let Some(plan) = plan_by_machine(invocation.target_machine) {
                     program
                         .machine_by_symbol(plan.machine)
                         .is_some_and(|machine| {
                             !needs_inferred_summary(machine, plan)
-                                || viable_machines.contains(&invocation.target_machine)
+                                || viable_machines.contains_key(&invocation.target_machine)
                         })
                 } else {
                     crash_capsules.iter().any(|capsule| {
@@ -214,13 +224,22 @@ pub(crate) fn infer_private_body_summaries(
         owned_nodes = prepare_summary_nodes(program, operators, flow, crash_capsules, plans);
         &owned_nodes
     };
+    let mut plan_indices = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
+    for (index, plan) in plans.iter().enumerate() {
+        plan_indices.entry(plan.machine).or_insert(index);
+    }
+    let plan_by_machine = |machine: SymbolHandle| {
+        plan_indices
+            .get(&machine)
+            .and_then(|&index| plans.get(index))
+    };
 
     let mut equations = Vec::new();
     for node in nodes {
         let mut private_dependencies = Vec::new();
         let mut published_dependencies = Vec::new();
         for member in &node.family_members {
-            let target_plan = checked_trees::contract_plan_by_machine(plans, *member)
+            let target_plan = plan_by_machine(*member)
                 .expect("a viable family member has its local contract plan");
             let target_machine = program
                 .machine_by_symbol(*member)
@@ -265,9 +284,7 @@ pub(crate) fn infer_private_body_summaries(
             .expect("a retained summary invocation has its typed call site");
             let arguments = validation::call_site_argument_expressions(program, &call_site);
 
-            if let Some(target_plan) =
-                checked_trees::contract_plan_by_machine(plans, invocation.target_machine)
-            {
+            if let Some(target_plan) = plan_by_machine(invocation.target_machine) {
                 let target_machine = program
                     .machine_by_symbol(invocation.target_machine)
                     .expect("a local crash plan has its typed machine");
@@ -294,6 +311,7 @@ pub(crate) fn infer_private_body_summaries(
                         recursive: private_dependency_reaches(
                             program,
                             nodes,
+                            &plan_indices,
                             plans,
                             invocation.target_machine,
                             node.machine,
@@ -365,7 +383,7 @@ pub(crate) fn infer_private_body_summaries(
             {
                 // Publication precedes call refinement. Its conservative
                 // potential causes cannot disappear through proof pruning.
-                checked_trees::contract_plan_by_machine(plans, node.machine)
+                plan_by_machine(node.machine)
                     .map(|plan| summary_published_crash_buckets(plan.crash.published()))
                     .unwrap_or_else(|| node.direct.clone())
             } else {
@@ -661,10 +679,16 @@ fn inferred_direct_body_crash_buckets(
 fn private_dependency_reaches(
     program: &dyn ::validation::CheckingInput,
     nodes: &[SummaryNode],
+    plan_indices: &symbols::SymbolKeyMap<SymbolHandle, usize>,
     plans: &[checked_trees::MachineContractPlan],
     start: SymbolHandle,
     goal: SymbolHandle,
 ) -> bool {
+    let plan_by_machine = |machine: SymbolHandle| {
+        plan_indices
+            .get(&machine)
+            .and_then(|&index| plans.get(index))
+    };
     let mut pending = vec![start];
     let mut visited = Vec::new();
     while let Some(machine) = pending.pop() {
@@ -682,7 +706,7 @@ fn private_dependency_reaches(
             node.family_members
                 .iter()
                 .filter(|member| {
-                    checked_trees::contract_plan_by_machine(plans, **member).is_some_and(|plan| {
+                    plan_by_machine(**member).is_some_and(|plan| {
                         program
                             .machine_by_symbol(**member)
                             .is_some_and(|machine| needs_inferred_summary(machine, plan))
@@ -691,7 +715,7 @@ fn private_dependency_reaches(
                 .copied(),
         );
         pending.extend(node.invocations.iter().filter_map(|invocation| {
-            checked_trees::contract_plan_by_machine(plans, invocation.target_machine)
+            plan_by_machine(invocation.target_machine)
                 .filter(|plan| {
                     program
                         .machine_by_symbol(plan.machine)

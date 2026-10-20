@@ -5,8 +5,8 @@
 
 use super::super::observations::ConstructionObservations;
 use crate::proof_contracts::arithmetic_domains::{
-    Interval, ValueEnvironment, check_value_narrowing, immutable_integer_expression_interval,
-    validate_value_range,
+    Interval, ValueEnvironment, check_validated_value_narrowing,
+    immutable_integer_expression_interval, validate_value_range,
 };
 use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;
@@ -64,9 +64,21 @@ pub(super) fn validate(
             .flatten();
     }
 
-    let environment = observations.environment(expression);
+    let environment = if matches!(
+        program.expression_table.expression(expression),
+        typed_trees::expression::ExpressionNode::Integer(_)
+            | typed_trees::expression::ExpressionNode::Float(_)
+            | typed_trees::expression::ExpressionNode::Boolean(_)
+            | typed_trees::expression::ExpressionNode::String(_)
+    ) && !crate::proof_contracts::arithmetic_domains::declares_bracketed_range(
+        program, field_type,
+    ) {
+        ValueEnvironment::default()
+    } else {
+        observations.environment(expression)
+    };
     let before = diagnostics.len();
-    let (interval, primitive, _) = validate_value_range(
+    let (interval, primitive, source_domain) = validate_value_range(
         program,
         machine,
         Some(state),
@@ -80,14 +92,16 @@ pub(super) fn validate(
     if diagnostics.len() != before {
         return None;
     }
-    check_value_narrowing(
+    check_validated_value_narrowing(
         program,
         machine,
         Some(state),
         expression,
         target,
         program.arithmetic_domain_for_type_reference(field_type),
-        &environment,
+        interval,
+        primitive,
+        source_domain,
         owner,
         diagnostics,
     );

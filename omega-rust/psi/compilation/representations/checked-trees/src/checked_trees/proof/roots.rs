@@ -73,6 +73,16 @@ pub struct ProofFacts {
     /// ledger; the index carries the `contract_calls` arena's revision, so
     /// a mutation rebuilds it on the next query.
     pub call_index: OwnedIndex<ProofCallIndex>,
+    /// Exit-coordinate -> `contract_exits` handle lookup owned by this
+    /// ledger, keyed by `(machine_symbol, state_symbol, transition_target)`.
+    pub exit_index: OwnedIndex<ProofExitIndex>,
+    /// Statement-coordinate -> `outcome_specific_arms` presence lookup owned
+    /// by this ledger, keyed by `(caller_machine_symbol, caller_state_symbol, statement_index)`.
+    pub outcome_arm_index: OwnedIndex<ProofOutcomeArmIndex>,
+    /// Statement-coordinate -> `proof_output_calls` (with `runtime_call.is_none()`)
+    /// presence lookup owned by this ledger, keyed by
+    /// `(caller_machine_symbol, caller_state_symbol, statement_index)`.
+    pub proof_output_index: OwnedIndex<ProofOutputCallIndex>,
 }
 
 /// `contract_calls` rows keyed by caller coordinate — `(machine symbol,
@@ -93,6 +103,57 @@ impl ProofCallIndex {
         key: &(SymbolHandle, SymbolHandle, usize, usize),
     ) -> Option<Handle<ContractCallFact>> {
         self.by_key.get(key).copied()
+    }
+}
+
+/// `contract_exits` rows grouped by `(machine_symbol, state_symbol, transition_target)`.
+#[derive(Clone, Default)]
+pub struct ProofExitIndex {
+    by_key: symbols::SymbolKeyMap<
+        (
+            SymbolHandle,
+            SymbolHandle,
+            typed_trees::statement::TransitionTargetHandle,
+        ),
+        Vec<Handle<ContractExitFact>>,
+    >,
+}
+
+impl ProofExitIndex {
+    pub fn get(
+        &self,
+        key: &(
+            SymbolHandle,
+            SymbolHandle,
+            typed_trees::statement::TransitionTargetHandle,
+        ),
+    ) -> &[Handle<ContractExitFact>] {
+        self.by_key.get(key).map_or(&[], Vec::as_slice)
+    }
+}
+
+/// Statement coordinates that have at least one `OutcomeSpecificArmFact`.
+#[derive(Clone, Default)]
+pub struct ProofOutcomeArmIndex {
+    by_key: symbols::SymbolKeyMap<(SymbolHandle, SymbolHandle, usize), ()>,
+}
+
+impl ProofOutcomeArmIndex {
+    pub fn contains(&self, key: &(SymbolHandle, SymbolHandle, usize)) -> bool {
+        self.by_key.contains_key(key)
+    }
+}
+
+/// Statement coordinates that have at least one proof-only `ProofOutputCallFact`
+/// (`runtime_call.is_none()`).
+#[derive(Clone, Default)]
+pub struct ProofOutputCallIndex {
+    by_key: symbols::SymbolKeyMap<(SymbolHandle, SymbolHandle, usize), ()>,
+}
+
+impl ProofOutputCallIndex {
+    pub fn contains(&self, key: &(SymbolHandle, SymbolHandle, usize)) -> bool {
+        self.by_key.contains_key(key)
     }
 }
 
@@ -118,6 +179,87 @@ impl ProofFacts {
                 index
             },
             run,
+        )
+    }
+
+    /// Run `run` against this ledger's owned exit-coordinate index,
+    /// rebuilding when the `contract_exits` arena's revision moved.
+    pub fn with_exit_index<R>(&self, run: impl FnOnce(&ProofExitIndex) -> R) -> R {
+        self.exit_index.with(
+            self.contract_exits.revision(),
+            || {
+                let mut index = ProofExitIndex::default();
+                for (handle, exit) in self.contract_exits.iter() {
+                    index
+                        .by_key
+                        .entry((
+                            exit.machine_symbol,
+                            exit.state_symbol,
+                            exit.transition_target,
+                        ))
+                        .or_default()
+                        .push(handle);
+                }
+                index
+            },
+            run,
+        )
+    }
+
+    /// Whether `outcome_specific_arms` contains any row at `(machine, state, statement_index)`.
+    pub fn has_outcome_specific_arm(
+        &self,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        statement_index: usize,
+    ) -> bool {
+        self.outcome_arm_index.with(
+            self.outcome_specific_arms.revision(),
+            || {
+                let mut index = ProofOutcomeArmIndex::default();
+                for (_, arm) in self.outcome_specific_arms.iter() {
+                    index.by_key.insert(
+                        (
+                            arm.caller_machine_symbol,
+                            arm.caller_state_symbol,
+                            arm.statement_index,
+                        ),
+                        (),
+                    );
+                }
+                index
+            },
+            |index| index.contains(&(machine_symbol, state_symbol, statement_index)),
+        )
+    }
+
+    /// Whether `proof_output_calls` contains any proof-only call (`runtime_call.is_none()`)
+    /// at `(machine, state, statement_index)`.
+    pub fn has_proof_only_output_call(
+        &self,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        statement_index: usize,
+    ) -> bool {
+        self.proof_output_index.with(
+            self.proof_output_calls.revision(),
+            || {
+                let mut index = ProofOutputCallIndex::default();
+                for (_, invocation) in self.proof_output_calls.iter() {
+                    if invocation.runtime_call.is_none() {
+                        index.by_key.insert(
+                            (
+                                invocation.caller_machine_symbol,
+                                invocation.caller_state_symbol,
+                                invocation.statement_index,
+                            ),
+                            (),
+                        );
+                    }
+                }
+                index
+            },
+            |index| index.contains(&(machine_symbol, state_symbol, statement_index)),
         )
     }
 }

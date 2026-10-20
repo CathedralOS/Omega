@@ -13,7 +13,6 @@ pub(super) fn transport(
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
     write: &super::write_target::StatementWrite,
-    source_label: &str,
     stable_value_target: bool,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -21,32 +20,13 @@ pub(super) fn transport(
     context_handles: Vec<facts::FactContextHandle>,
     refs: &mut HandleSpan<facts::FactRef>,
 ) {
+    if context_handles.is_empty() {
+        return;
+    }
     let target_place = write.target_place;
     let source_place = write.source_place;
-    // Storage aliasing does not preserve a scalar value across a recast.
-    // Compare the source and installed referent carriers before transporting
-    // completed value observations; reference access itself is not a value.
-    let value_carriers_agree = source_place.is_some_and(|source| {
-        let source = crate::flow::canonical_place_from_semantic_place(
-            program,
-            semantic,
-            semantic.places.get(source),
-        );
-        let target = crate::flow::canonical_place_from_semantic_place(
-            program,
-            semantic,
-            semantic.places.get(target_place),
-        );
-        source.zip(target).is_some_and(|(source, target)| {
-            super::completed_value_carriers_agree(
-                program,
-                state_symbol,
-                statement_index,
-                &source,
-                &target,
-            )
-        })
-    });
+    let mut source_label: Option<String> = None;
+    let mut value_carriers_agree: Option<bool> = None;
     for context_handle in context_handles {
         let context = semantic.contexts.get(context_handle);
         let facts_to_transfer: Vec<_> = semantic
@@ -62,7 +42,36 @@ pub(super) fn transport(
                     | FactPayload::AssignedValueCapture { .. }
                     | FactPayload::BytePredicate { .. }
                     | FactPayload::FloatPredicate { .. } => {
-                        if !stable_value_target || !value_carriers_agree {
+                        if !stable_value_target {
+                            return None;
+                        }
+                        let carriers_agree = *value_carriers_agree.get_or_insert_with(|| {
+                            // Storage aliasing does not preserve a scalar value across a recast.
+                            // Compare the source and installed referent carriers before transporting
+                            // completed value observations; reference access itself is not a value.
+                            source_place.is_some_and(|source| {
+                                let source = crate::flow::canonical_place_from_semantic_place(
+                                    program,
+                                    semantic,
+                                    semantic.places.get(source),
+                                );
+                                let target = crate::flow::canonical_place_from_semantic_place(
+                                    program,
+                                    semantic,
+                                    semantic.places.get(target_place),
+                                );
+                                source.zip(target).is_some_and(|(source, target)| {
+                                    super::completed_value_carriers_agree(
+                                        program,
+                                        state_symbol,
+                                        statement_index,
+                                        &source,
+                                        &target,
+                                    )
+                                })
+                            })
+                        });
+                        if !carriers_agree {
                             return None;
                         }
                         let fact_place = fact.place.as_place()?;
@@ -78,72 +87,99 @@ pub(super) fn transport(
                         semantic_domain
                     ) => {
                         let fact_place = fact.place.as_place()?;
-                        let fact_label = semantic.place_label(program, fact_place);
-                        (source_place.is_some_and(|source_place| {
+                        let matches_source = source_place.is_some_and(|source_place| {
                             semantic.places_match(program, fact_place, source_place)
-                        }) || (!validation::field_domains::domain_requires_provenance(
-                            program,
-                            domain_symbol,
-                        ) && fact_label == source_label))
-                            .then_some((
-                                FactPayload::DomainMembership {
-                                    value: ExpressionHandle::invalid(),
-                                    domain,
-                                    domain_symbol,
-                                    semantic_domain,
-                                },
-                                fact.evidence,
-                                Some((reference.fact, fact_place)),
-                            ))
+                        })
+                            || (!validation::field_domains::domain_requires_provenance(
+                                program,
+                                domain_symbol,
+                            ) && {
+                                let label = source_label.get_or_insert_with(|| {
+                                    program
+                                        .expression_table
+                                        .display_name(write.source_expression)
+                                });
+                                semantic.place_label(program, fact_place) == *label
+                            });
+                        matches_source.then_some((
+                            FactPayload::DomainMembership {
+                                value: ExpressionHandle::invalid(),
+                                domain,
+                                domain_symbol,
+                                semantic_domain,
+                            },
+                            fact.evidence,
+                            Some((reference.fact, fact_place)),
+                        ))
                     }
                     facts::carry_permission_pair_pattern!(permission, ..) => {
                         let fact_place = fact.place.as_place()?;
-                        let fact_label = semantic.place_label(program, fact_place);
-                        (source_place.is_some_and(|source_place| {
+                        let matches_source = source_place.is_some_and(|source_place| {
                             semantic.places_match(program, fact_place, source_place)
-                        }) || fact_label == source_label)
-                            .then_some((
-                                FactPayload::CarryPermission {
-                                    value: ExpressionHandle::invalid(),
-                                    permission,
-                                },
-                                fact.evidence,
-                                Some((reference.fact, fact_place)),
-                            ))
+                        }) || {
+                            let label = source_label.get_or_insert_with(|| {
+                                program
+                                    .expression_table
+                                    .display_name(write.source_expression)
+                            });
+                            semantic.place_label(program, fact_place) == *label
+                        };
+                        matches_source.then_some((
+                            FactPayload::CarryPermission {
+                                value: ExpressionHandle::invalid(),
+                                permission,
+                            },
+                            fact.evidence,
+                            Some((reference.fact, fact_place)),
+                        ))
                     }
                     FactPayload::CarryOrigin { .. } => {
                         let fact_place = fact.place.as_place()?;
-                        let fact_label = semantic.place_label(program, fact_place);
-                        (source_place.is_some_and(|source_place| {
+                        let matches_source = source_place.is_some_and(|source_place| {
                             semantic.places_match(program, fact_place, source_place)
-                        }) || fact_label == source_label)
-                            .then_some((
-                                FactPayload::CarryOrigin {
-                                    value: ExpressionHandle::invalid(),
-                                },
-                                fact.evidence,
-                                Some((reference.fact, fact_place)),
-                            ))
+                        }) || {
+                            let label = source_label.get_or_insert_with(|| {
+                                program
+                                    .expression_table
+                                    .display_name(write.source_expression)
+                            });
+                            semantic.place_label(program, fact_place) == *label
+                        };
+                        matches_source.then_some((
+                            FactPayload::CarryOrigin {
+                                value: ExpressionHandle::invalid(),
+                            },
+                            fact.evidence,
+                            Some((reference.fact, fact_place)),
+                        ))
                     }
                     FactPayload::BooleanExpression(expression) => {
-                        (program.expression_table.display_name(expression) == source_label)
-                            .then_some((
-                                FactPayload::BooleanExpression(expression),
-                                fact.evidence,
-                                None,
-                            ))
+                        let label = source_label.get_or_insert_with(|| {
+                            program
+                                .expression_table
+                                .display_name(write.source_expression)
+                        });
+                        (program.expression_table.display_name(expression) == *label).then_some((
+                            FactPayload::BooleanExpression(expression),
+                            fact.evidence,
+                            None,
+                        ))
                     }
                     FactPayload::ContractBooleanExpression {
                         expression,
                         instantiated,
                         ..
                     } if !instantiated.is_valid() => {
-                        (program.expression_table.display_name(expression) == source_label)
-                            .then_some((
-                                FactPayload::BooleanExpression(expression),
-                                fact.evidence,
-                                None,
-                            ))
+                        let label = source_label.get_or_insert_with(|| {
+                            program
+                                .expression_table
+                                .display_name(write.source_expression)
+                        });
+                        (program.expression_table.display_name(expression) == *label).then_some((
+                            FactPayload::BooleanExpression(expression),
+                            fact.evidence,
+                            None,
+                        ))
                     }
                     _ => None,
                 }

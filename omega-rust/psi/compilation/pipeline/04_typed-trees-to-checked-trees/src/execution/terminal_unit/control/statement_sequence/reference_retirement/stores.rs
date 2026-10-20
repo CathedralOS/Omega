@@ -263,6 +263,15 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
     retirement: &Retirement<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+    if super::unique_borrow_state(
+        retirement.facts,
+        retirement.machine,
+        retirement.state.symbol,
+    )?
+    .is_none_or(|borrowing| borrowing.loans.is_empty())
+    {
+        return Some(Vec::new());
+    }
     let Some((owner, formation, _)) = receiver(
         retirement.program,
         retirement.facts,

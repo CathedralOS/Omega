@@ -65,7 +65,6 @@ pub(super) fn propagate_statement_transfers(
         return;
     }
     let source_expression = write.source_expression;
-    let source_label = program.expression_table.display_name(source_expression);
     let source_place = write.source_place;
 
     let mut refs = HandleSpan::empty();
@@ -212,7 +211,6 @@ pub(super) fn propagate_statement_transfers(
         semantic,
         build,
         &write,
-        &source_label,
         stable_value_target,
         machine_symbol,
         state_symbol,

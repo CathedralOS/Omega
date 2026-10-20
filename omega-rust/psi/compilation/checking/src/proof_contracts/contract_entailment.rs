@@ -500,8 +500,15 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     // Result-to-parameter tag forwarding needs the actual returned subject,
     // before legacy unfolding can erase its origin. Reuse the same extraction
     // with the restricted subject resolver; a tag remains no field equation.
-    let case_structural = StructuralJudge::from_case_requires(program, machine, &requires);
-    let sole_arm_case_result = sole_arm_value(case_structural.clone());
+    let sole_arm_case_result = if ensures
+        .iter()
+        .any(|fact| structural_terms::is_case_observation(program, *fact))
+    {
+        let case_structural = StructuralJudge::from_case_requires(program, machine, &requires);
+        sole_arm_value(case_structural)
+    } else {
+        None
+    };
     if struct_trace() {
         eprintln!(
             "STRUCT machine={} sole_arm={:?}",

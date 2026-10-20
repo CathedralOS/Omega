@@ -289,10 +289,7 @@ pub(super) fn call_flow_at_point(
         ) => (machine_symbol, state_symbol, statement_index, call_ordinal),
         _ => return None,
     };
-    let state = flow.control.states.iter().find_map(|(_, state)| {
-        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
-            .then_some(state)
-    })?;
+    let state = flow.control.state(machine_symbol, state_symbol)?;
     flow.control
         .calls
         .span_or_empty(state.calls)

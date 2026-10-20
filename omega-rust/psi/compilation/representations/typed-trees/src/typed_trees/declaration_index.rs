@@ -420,6 +420,24 @@ impl super::TypedTrees {
         Some((machine, &self.machine_states(machine)[0]))
     }
 
+    /// Sole stored entry carrying this symbol; returns `None` when no entry
+    /// state or more than one entry state carries `symbol`.
+    pub fn unique_machine_by_entry_state_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<(&machine::Machine, &crate::state::State)> {
+        let machine_position = self.with_state_position_index(|index| {
+            let mut entries = relationships::symbol_rows(&index.rows, symbol)
+                .iter()
+                .filter(|(_, (_, state_position))| *state_position == 0)
+                .map(|(_, (machine_position, _))| *machine_position);
+            let first = entries.next()?;
+            entries.next().is_none().then_some(first)
+        })?;
+        let machine = &self.machines()[machine_position as usize];
+        Some((machine, &self.machine_states(machine)[0]))
+    }
+
     fn build_state_positions(&self) -> StatePositionIndex {
         let mut index = StatePositionIndex::default();
         for (machine_position, machine) in self.machines().iter().enumerate() {

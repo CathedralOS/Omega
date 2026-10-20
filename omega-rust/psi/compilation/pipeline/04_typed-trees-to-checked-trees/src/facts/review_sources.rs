@@ -19,46 +19,28 @@ pub(crate) fn bind_checked_body_call_source_spans(
     program: &dyn ::validation::CheckingInput,
     flow: &mut checked_trees::FlowFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    let machines_by_symbol = program
-        .machines()
-        .iter()
-        .map(|machine| (machine.symbol, machine))
-        .collect::<std::collections::HashMap<_, _>>();
-    let states_by_symbol = program
-        .machines()
-        .iter()
-        .flat_map(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .map(move |state| ((machine.symbol, state.symbol), state))
-        })
-        .collect::<std::collections::HashMap<_, _>>();
     let checked_states = flow
         .control
         .states
         .iter()
-        .map(|(_, state)| state.clone())
+        .map(|(_, state)| (state.machine_symbol, state.state_symbol, state.calls))
         .collect::<Vec<_>>();
-    for checked_state in checked_states {
-        let Some(machine) = machines_by_symbol
-            .get(&checked_state.machine_symbol)
-            .copied()
-        else {
+    for (machine_symbol, state_symbol, state_calls) in checked_states {
+        let Some(machine) = program.machine_by_symbol(machine_symbol) else {
             return Err(vec![Diagnostic::error(format!(
                 "checked machine {:?} is absent while binding call source custody",
-                checked_state.machine_symbol,
+                machine_symbol,
             ))]);
         };
-        let Some(state) = states_by_symbol
-            .get(&(checked_state.machine_symbol, checked_state.state_symbol))
-            .copied()
-        else {
+        let Some((_, state)) = program.machine_state(machine_symbol, state_symbol) else {
             return Err(vec![Diagnostic::error(format!(
                 "checked state {:?} is absent from machine {:?} while binding call source custody",
-                checked_state.state_symbol, checked_state.machine_symbol,
+                state_symbol, machine_symbol,
             ))]);
         };
+        if state_calls.is_empty() {
+            continue;
+        }
         let mut call_sites_by_statement = std::collections::HashMap::<
             usize,
             (
@@ -70,7 +52,7 @@ pub(crate) fn bind_checked_body_call_source_spans(
         let mut selected_by_statement =
             std::collections::HashMap::<usize, SelectedEvaluation>::new();
         let control = &mut flow.control;
-        for checked_call in control.calls.span_mut_or_empty(checked_state.calls) {
+        for checked_call in control.calls.span_mut_or_empty(state_calls) {
             let (call_sites, dispatch_calls) = call_sites_by_statement
                 .entry(checked_call.statement_index)
                 .or_insert_with(|| {
@@ -93,8 +75,8 @@ pub(crate) fn bind_checked_body_call_source_spans(
                     "checked body call {} in statement {} of machine {:?} state {:?} has no exact typed call site",
                     checked_call.call_ordinal,
                     checked_call.statement_index,
-                    checked_state.machine_symbol,
-                    checked_state.state_symbol,
+                    machine_symbol,
+                    state_symbol,
                 ))]);
             };
             checked_call.authored_expression = match &call_site {

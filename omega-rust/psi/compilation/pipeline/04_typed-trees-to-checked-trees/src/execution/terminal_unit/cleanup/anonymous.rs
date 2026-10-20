@@ -179,14 +179,29 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     let statement = coordinate.statement_index;
     let values = &facts.values.structural_values;
     let mut dying = Vec::new();
-    for (_, disposition) in facts.contextual_cleanup.dispositions.iter().filter(|(_, disposition)| {
-        disposition.machine == machine.symbol && disposition.state == state.symbol
-            && matches!(disposition.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
-                if statement_index == statement as usize && call_ordinal == coordinate.call_ordinal as usize)
-    }) {
-        let Some(expression) = disposition.root.as_expression() else { continue; };
-        if !dying.contains(&expression) { dying.push(expression); }
-    }
+    facts.contextual_cleanup.for_each_state_disposition(
+        machine.symbol,
+        state.symbol,
+        |_, disposition| {
+            if !matches!(
+                disposition.source,
+                PermissionEventSource::Call {
+                    statement_index,
+                    call_ordinal,
+                    ..
+                } if statement_index == statement as usize
+                    && call_ordinal == coordinate.call_ordinal as usize
+            ) {
+                return;
+            }
+            let Some(expression) = disposition.root.as_expression() else {
+                return;
+            };
+            if !dying.contains(&expression) {
+                dying.push(expression);
+            }
+        },
+    );
     if dying.is_empty() {
         return Some(completions);
     }

@@ -466,15 +466,16 @@ fn produce_terminal_semantic(
     target: Option<String>,
     rollback: Option<&OptimizationRollback>,
 ) -> Result<TerminalSemanticLeg, Vec<diagnostics::Diagnostic>> {
-    let prepared = reviewed_repository_fixture_package_inputs(root_path, target.as_deref())?;
+    let mut prepared = reviewed_repository_fixture_package_inputs(root_path, target.as_deref())?;
     if prepared.assumed_permissions.is_some() {
         let request = fixture_package_inputs::accepted_fixture_product_request(
-            prepared,
+            &mut prepared,
             target.as_deref(),
             build_dir.clone(),
             compiler::CompilationProduct::Terminal(rollback.cloned().unwrap_or_default()),
         )?;
-        let report = fixture_package_inputs::produce_accepted_fixture(request)?;
+        let report =
+            fixture_package_inputs::produce_accepted_fixture(&mut prepared.session, request)?;
         let receipt = report
             .optimization_rollback_receipt()
             .map(std::string::ToString::to_string);
@@ -513,8 +514,10 @@ fn produce_terminal_semantic(
     if let Some(snapshot) = build_snapshot {
         request = request.with_build_snapshot(snapshot);
     }
-    let report =
-        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
+    let report = prepared
+        .session
+        .compile(request)
+        .and_then(compiler::CompileOutcomes::into_single_report)?;
     let receipt = report
         .optimization_rollback_receipt()
         .map(std::string::ToString::to_string);
@@ -615,18 +618,21 @@ fn published_files(
 ) -> Result<Vec<String>, String> {
     let build_dir = unique_build_dir(sequence).join("publication");
     let compiled = (|| {
-        let prepared = reviewed_repository_fixture_package_inputs(
+        let mut prepared = reviewed_repository_fixture_package_inputs(
             root_path,
             declared_realization_target(root_path).as_deref(),
         )?;
         if prepared.assumed_permissions.is_some() {
             let request = fixture_package_inputs::accepted_fixture_product_request(
-                prepared,
+                &mut prepared,
                 declared_realization_target(root_path).as_deref(),
                 build_dir.clone(),
                 compiler::CompilationProduct::Terminal(rollback.cloned().unwrap_or_default()),
             )?;
-            return fixture_package_inputs::produce_accepted_fixture(request);
+            return fixture_package_inputs::produce_accepted_fixture(
+                &mut prepared.session,
+                request,
+            );
         }
         let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
         let options = CompileOptions {
@@ -645,7 +651,10 @@ fn published_files(
         if let Some(snapshot) = build_snapshot {
             request = request.with_build_snapshot(snapshot);
         }
-        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)
+        prepared
+            .session
+            .compile(request)
+            .and_then(compiler::CompileOutcomes::into_single_report)
     })();
     let listing = match compiled {
         Ok(report) => compilation_products::publication::publish_compilation(report, &build_dir)
@@ -695,7 +704,7 @@ fn check_pass_fixture(
     root_path: &Path,
     build_dir: PathBuf,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let prepared = reviewed_repository_fixture_package_inputs(root_path, None)?;
+    let mut prepared = reviewed_repository_fixture_package_inputs(root_path, None)?;
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let mut request =
         CompileRequest::for_targets(prepared.root_path, build_dir.clone(), vec![None])
@@ -706,7 +715,9 @@ fn check_pass_fixture(
     if let Some(snapshot) = build_snapshot {
         request = request.with_build_snapshot(snapshot);
     }
-    let result = compiler::compile(request)
+    let result = prepared
+        .session
+        .compile(request)
         .and_then(compiler::CompileOutcomes::into_single_report)
         .map(|_| ());
     let _ = fs::remove_dir_all(&build_dir);
@@ -814,7 +825,7 @@ fn interpret_checked_fixture(
     rollback: Option<&OptimizationRollback>,
 ) -> terminal_execution::Observation {
     let compile_checked = || {
-        let prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
+        let mut prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
         let snapshot = fixture_build_snapshot(&prepared.root_path)?;
         let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));
         request.package_inputs = prepared.package_inputs;
@@ -823,7 +834,8 @@ fn interpret_checked_fixture(
         if let Some(rollback) = rollback {
             request.optimization_rollback = rollback.clone();
         }
-        compiler::CompilationSession::default()
+        prepared
+            .session
             .check(request)
             .result
             .map_err(|failure| failure.into_diagnostics())
@@ -1060,15 +1072,15 @@ fn build_native_fixture(
             }
         }
     }
-    let prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
+    let mut prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
     let accepted_reports = if prepared.assumed_permissions.is_some() {
         let requests = targets
             .iter()
             .map(|profile| {
                 let name = profile.map(|profile| profile.target_name());
-                let prepared = reviewed_repository_fixture_package_inputs(root_path, name)?;
+                let mut prepared = reviewed_repository_fixture_package_inputs(root_path, name)?;
                 fixture_package_inputs::accepted_fixture_product_request(
-                    prepared,
+                    &mut prepared,
                     name,
                     build_dir.to_path_buf(),
                     compiler::CompilationProduct::Native(
@@ -1082,7 +1094,7 @@ fn build_native_fixture(
                 )
             })
             .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?;
-        let outcomes = compiler::CompilationSession::default().compile_packages(requests);
+        let outcomes = prepared.session.compile_packages(requests);
         Some(
             targets
                 .iter()
@@ -1119,7 +1131,7 @@ fn build_native_fixture(
     let mut reports = if let Some(reports) = accepted_reports {
         reports
     } else {
-        let outcomes = compiler::compile(request)?;
+        let outcomes = prepared.session.compile(request)?;
         let mut reports = Vec::new();
         let mut failures = Vec::new();
         for outcome in outcomes.into_outcomes().into_vec() {
@@ -1498,7 +1510,11 @@ fn check_fail_fixture(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(vec![diagnostics::Diagnostic::error(error.to_string())]),
     }
-    let mut session = compiler::CompilationSession::default();
+    let mut session = if absent_outputs.is_empty() && request.evaluation_sponsor.is_none() {
+        prepared.session
+    } else {
+        compiler::CompilationSession::default()
+    };
     let mut result = if let Some(native_product) = native_product {
         session
             .produce(
@@ -1551,7 +1567,8 @@ fn realize_fixture(
     let runtime_target = target::TargetProfile::from_omega_target_name(target_name.as_deref())
         .map_err(|diagnostic| vec![diagnostic])?
         .target_name();
-    let prepared = reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
+    let mut prepared =
+        reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     if prepared.assumed_permissions.is_some() {
         let product =
@@ -1562,21 +1579,24 @@ fn realize_fixture(
                 optimization_rollback: rollback.cloned().unwrap_or_default(),
             });
         let request = fixture_package_inputs::accepted_fixture_product_request(
-            prepared,
+            &mut prepared,
             target_name.as_deref(),
             build_dir.clone(),
             product,
         )?;
-        let result = fixture_package_inputs::produce_accepted_fixture(request).map(|report| {
-            if let Some((fixture_dir, observation)) = interpretation {
-                *observation = Some(interpret_native_report(
-                    &report,
-                    fixture_dir,
-                    runtime_target,
-                    &[],
-                ));
-            }
-        });
+        let result =
+            fixture_package_inputs::produce_accepted_fixture(&mut prepared.session, request).map(
+                |report| {
+                    if let Some((fixture_dir, observation)) = interpretation {
+                        *observation = Some(interpret_native_report(
+                            &report,
+                            fixture_dir,
+                            runtime_target,
+                            &[],
+                        ));
+                    }
+                },
+            );
         let _ = fs::remove_dir_all(&build_dir);
         return result;
     }
@@ -1596,7 +1616,9 @@ fn realize_fixture(
     if let Some(snapshot) = build_snapshot {
         request = request.with_build_snapshot(snapshot);
     }
-    let result = compiler::compile(request)
+    let result = prepared
+        .session
+        .compile(request)
         .and_then(compiler::CompileOutcomes::into_single_report)
         .map(|report| {
             if let Some((fixture_dir, observation)) = interpretation {

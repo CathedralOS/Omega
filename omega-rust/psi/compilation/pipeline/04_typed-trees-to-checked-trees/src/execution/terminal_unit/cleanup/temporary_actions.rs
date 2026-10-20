@@ -26,16 +26,44 @@ fn selected_actions(
 ) -> Option<Vec<CheckedNormalCleanupAction>> {
     let mut actions = Vec::new();
     let mut retirement = None;
-    for (disposition_handle, disposition) in facts.contextual_cleanup.dispositions.iter().filter(|(_, row)| {
-        row.machine == machine && row.state == state && row.root == root
-            && matches!(row.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
-                if statement_index == coordinate.statement_index as usize
-                    && call_ordinal == coordinate.call_ordinal as usize)
-    }) {
-        if retirement.is_none() {
-            retirement = Some(super::actions::home_retirement(program, shapes, disposition, source.clone())?);
+    for disposition_handle in facts
+        .contextual_cleanup
+        .state_disposition_handles(machine, state)
+    {
+        let disposition = facts
+            .contextual_cleanup
+            .dispositions
+            .get(disposition_handle);
+        if disposition.root != root
+            || !matches!(
+                disposition.source,
+                PermissionEventSource::Call {
+                    statement_index,
+                    call_ordinal,
+                    ..
+                } if statement_index == coordinate.statement_index as usize
+                    && call_ordinal == coordinate.call_ordinal as usize
+            )
+        {
+            continue;
         }
-        actions.extend(disposition_actions(program, facts, targets, shapes, disposition_handle, source.clone(), None)?);
+        if retirement.is_none() {
+            retirement = Some(super::actions::home_retirement(
+                program,
+                shapes,
+                disposition,
+                source.clone(),
+            )?);
+        }
+        actions.extend(disposition_actions(
+            program,
+            facts,
+            targets,
+            shapes,
+            disposition_handle,
+            source.clone(),
+            None,
+        )?);
     }
     if let Some(retirement) = retirement {
         super::actions::finish_home(&mut actions, retirement);
@@ -331,12 +359,20 @@ fn call_actions(
             _ => return None,
         };
         let contextual = root.is_some_and(|root| {
-            facts.contextual_cleanup.dispositions.iter().any(|(_, row)| {
-                row.machine == machine && row.state == state && row.root == root
-                    && matches!(row.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
-                        if statement_index == coordinate.statement_index as usize
-                            && call_ordinal == coordinate.call_ordinal as usize)
-            })
+            facts
+                .contextual_cleanup
+                .any_state_disposition(machine, state, |_, row| {
+                    row.root == root
+                        && matches!(
+                            row.source,
+                            PermissionEventSource::Call {
+                                statement_index,
+                                call_ordinal,
+                                ..
+                            } if statement_index == coordinate.statement_index as usize
+                                && call_ordinal == coordinate.call_ordinal as usize
+                        )
+                })
         });
         if !contextual {
             // An existing independent disposal is not a contextual death.
@@ -696,23 +732,47 @@ pub(crate) fn finalize_completion_actions(
             // exclusions at this exact consumer. Contained graph nodes grant no
             // additional death. Multiple regions of one owner stay one ordered
             // action group; two operands cannot retire that owner twice.
-            for (_, disposition) in facts.contextual_cleanup.dispositions.iter().filter(|(_, disposition)| {
-                disposition.machine == state_flow.machine_symbol
-                    && disposition.state == state_flow.state_symbol
-                    && matches!(disposition.source, PermissionEventSource::Call { statement_index, call_ordinal, .. }
-                        if statement_index == call.statement_index && call_ordinal == call.call_ordinal)
-            }) {
-                let facts::PlaceRoot::Expression(expression) = disposition.root else { continue; };
-                let root = values.root_for_expression(state_flow.state_symbol, coordinate.statement_index, expression);
+            for disposition_handle in facts
+                .contextual_cleanup
+                .state_disposition_handles(state_flow.machine_symbol, state_flow.state_symbol)
+            {
+                let disposition = facts
+                    .contextual_cleanup
+                    .dispositions
+                    .get(disposition_handle);
+                if !matches!(
+                    disposition.source,
+                    PermissionEventSource::Call {
+                        statement_index,
+                        call_ordinal,
+                        ..
+                    } if statement_index == call.statement_index
+                        && call_ordinal == call.call_ordinal
+                ) {
+                    continue;
+                }
+                let facts::PlaceRoot::Expression(expression) = disposition.root else {
+                    continue;
+                };
+                let root = values.root_for_expression(
+                    state_flow.state_symbol,
+                    coordinate.statement_index,
+                    expression,
+                );
                 let Some(root) = root else {
                     // A named/local owner belongs to another cleanup stream.
                     // An anonymous backing reached by this operand must publish
                     // its real owner, not borrow a child's diagnostic location.
                     if reserved.iter().any(|operand| {
                         operand.retained_owners.contains(&disposition.root)
-                            || operand.dependencies.iter().any(|value| values.nodes.get(*value).expression == expression)
+                            || operand
+                                .dependencies
+                                .iter()
+                                .any(|value| values.nodes.get(*value).expression == expression)
                     }) {
-                        refusal = format!("{site}: anonymous backing {expression:?} has no published completed root");
+                        refusal = format!(
+                            "{site}: anonymous backing {expression:?} has no published completed root"
+                        );
                         return None;
                     }
                     continue;
@@ -724,15 +784,22 @@ pub(crate) fn finalize_completion_actions(
                     operand.dependencies.contains(&root.root)
                         || operand.retained_owners.contains(&disposition.root)
                 });
-                let Some(first) = containing.next() else { continue; };
-                let exact = reserved.iter().filter(|operand| operand.root.root == root.root).collect::<Vec<_>>();
+                let Some(first) = containing.next() else {
+                    continue;
+                };
+                let exact = reserved
+                    .iter()
+                    .filter(|operand| operand.root.root == root.root)
+                    .collect::<Vec<_>>();
                 let operand = match exact.as_slice() {
                     [slot] => *slot,
                     // Several actuals may retain one backing. The call retires
                     // that exact owner once, independent of this association.
                     [] => first,
                     _ => {
-                        refusal = format!("{site}: completed owner {expression:?} has ambiguous reserved operand storage");
+                        refusal = format!(
+                            "{site}: completed owner {expression:?} has ambiguous reserved operand storage"
+                        );
                         return None;
                     }
                 };
@@ -740,15 +807,30 @@ pub(crate) fn finalize_completion_actions(
                     // Descriptor lifetime and a nominal contextual death may
                     // not both dispose the same carrier.
                     if validation::reference_shell(program, root.type_reference).is_some() {
-                        refusal = format!("{site}: descriptor retirement overlaps a contextual owner death for {expression:?}");
+                        refusal = format!(
+                            "{site}: descriptor retirement overlaps a contextual owner death for {expression:?}"
+                        );
                         return None;
                     }
                     continue;
                 }
-                let actions = selected_actions(program, facts, &targets, &mut shapes,
-                    state_flow.machine_symbol, state_flow.state_symbol, coordinate,
-                    disposition.root, CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression })?;
-                owners.push((operand.argument_ordinal, operand.operand, root.root, actions));
+                let actions = selected_actions(
+                    program,
+                    facts,
+                    &targets,
+                    &mut shapes,
+                    state_flow.machine_symbol,
+                    state_flow.state_symbol,
+                    coordinate,
+                    disposition.root,
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+                )?;
+                owners.push((
+                    operand.argument_ordinal,
+                    operand.operand,
+                    root.root,
+                    actions,
+                ));
             }
             for operand in &reserved {
                 if !owners

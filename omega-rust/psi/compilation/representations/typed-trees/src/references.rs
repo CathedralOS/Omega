@@ -18,8 +18,9 @@ use crate::{
     statement::{StatementNode, TransitionTargetNode},
     types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
 };
-use std::collections::HashSet;
 use symbols::SymbolHandle;
+
+type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 
 /// The caller supplies semantic operand roles; traversal never recognizes an
 /// intrinsic from its spelling or grants execution authority to a description.
@@ -531,6 +532,7 @@ pub fn collect_program_references_with_roles(
     selection: &DeclarationSelection,
     classify_static_arguments: Option<StaticArgumentClassifier>,
 ) -> ProgramReferences {
+    let _guard = phase_profile::guard("typed_trees::collect_program_references");
     let mut roots = ReferenceCollector {
         selection: selection.clone(),
         classify_static_arguments,
@@ -567,13 +569,60 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
     }
 }
 
+struct MachineSidecarIndex {
+    specializations: Vec<(SymbolHandle, u32)>,
+    service_reaches: Vec<(SymbolHandle, u32)>,
+}
+
+fn sidecar_symbol_key(symbol: SymbolHandle) -> u64 {
+    (u64::from(symbol.arena_index()) << 32) | u64::from(symbol.generation())
+}
+
+fn sidecar_symbol_rows(
+    rows: &[(SymbolHandle, u32)],
+    symbol: SymbolHandle,
+) -> &[(SymbolHandle, u32)] {
+    if rows.is_empty() {
+        return &[];
+    }
+    let key = sidecar_symbol_key(symbol);
+    let start = rows.partition_point(|(candidate, _)| sidecar_symbol_key(*candidate) < key);
+    let end = start
+        + rows[start..].partition_point(|(candidate, _)| sidecar_symbol_key(*candidate) <= key);
+    &rows[start..end]
+}
+
+impl MachineSidecarIndex {
+    fn build(program: &TypedTrees) -> Self {
+        let mut specializations: Vec<(SymbolHandle, u32)> = program
+            .machine_specializations
+            .iter()
+            .enumerate()
+            .map(|(index, row)| (row.instance, index as u32))
+            .collect();
+        specializations.sort_by_key(|(symbol, _)| sidecar_symbol_key(*symbol));
+        let mut service_reaches: Vec<(SymbolHandle, u32)> = program
+            .authored_service_reach_rows
+            .iter()
+            .enumerate()
+            .map(|(index, row)| (row.owner, index as u32))
+            .collect();
+        service_reaches.sort_by_key(|(symbol, _)| sidecar_symbol_key(*symbol));
+        Self {
+            specializations,
+            service_reaches,
+        }
+    }
+}
+
 /// Visit the current declaration roots and their owned references. Detached
 /// backing-arena nodes are not additional source or executable occurrences.
 pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
     visit_declarations(program, roots);
+    let sidecars = MachineSidecarIndex::build(program);
     for machine in program.machines() {
         if roots.declaration(machine.symbol) {
-            visit_machine(program, roots, machine);
+            visit_machine_with_sidecars(program, roots, machine, Some(&sidecars));
         }
     }
 }
@@ -582,6 +631,7 @@ pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
 pub fn program_proof_facts(
     program: &TypedTrees,
 ) -> impl Iterator<Item = (arena::Handle<ProofFact>, &ProofFact)> {
+    let _guard = phase_profile::guard("typed_trees::program_proof_facts");
     let mut roots = ProofFactCollector::default();
     visit_program(program, &mut roots);
     let mut facts = roots.facts.into_iter().collect::<Vec<_>>();
@@ -710,7 +760,7 @@ pub fn visit_static_machine_bindings(
     retained: &mut impl TypedReferences,
     application: crate::static_applications::StaticMachineApplicationHandle,
 ) {
-    visit_static_machine_bindings_inner(program, retained, application, &mut HashSet::new());
+    visit_static_machine_bindings_inner(program, retained, application, &mut HashSet::default());
 }
 
 fn visit_static_machine_bindings_inner(
@@ -775,7 +825,7 @@ pub fn visit_closed_conformance(
     retained: &mut impl TypedReferences,
     application: &crate::typed_trees::ClosedConformanceApplication,
 ) {
-    visit_closed_conformance_inner(program, retained, application, &mut HashSet::new());
+    visit_closed_conformance_inner(program, retained, application, &mut HashSet::default());
 }
 
 fn visit_closed_conformance_inner(
@@ -832,6 +882,9 @@ fn visit_owned_implementation_arguments(
     retained: &mut impl TypedReferences,
     owner: SymbolHandle,
 ) {
+    if program.trait_implementation_applications.is_empty() {
+        return;
+    }
     for (_, selected) in program
         .trait_implementation_applications
         .iter()
@@ -847,19 +900,22 @@ fn visit_owned_implementation_arguments(
         visit_type_reference(program, retained, selected.argument);
         visit_static_machine_bindings(program, retained, selected.supplying_application);
         visit_closed_conformance(program, retained, &selected.application);
-        for (_, capture) in program
-            .captured_machine_applications
-            .iter()
-            .filter(|(_, capture)| {
-                capture.conformance_application == selected.application
-                    && program
-                        .expression_table
-                        .static_machine_application(capture.supplying_application)
-                        .lexical_owner
-                        == owner
-            })
-        {
-            visit_symbol(retained, capture.instance);
+        if !program.captured_machine_applications.is_empty() {
+            for (_, capture) in
+                program
+                    .captured_machine_applications
+                    .iter()
+                    .filter(|(_, capture)| {
+                        capture.conformance_application == selected.application
+                            && program
+                                .expression_table
+                                .static_machine_application(capture.supplying_application)
+                                .lexical_owner
+                                == owner
+                    })
+            {
+                visit_symbol(retained, capture.instance);
+            }
         }
     }
 }
@@ -871,36 +927,40 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
         visit_owned_implementation_arguments(program, retained, data.symbol);
         visit_symbol(retained, data.symbol);
-        for plan in program
-            .plan_laid_layouts
-            .iter()
-            .filter(|plan| plan.data_symbol == data.symbol)
-        {
-            visit_symbol(retained, plan.schema_symbol);
-            visit_symbol(retained, plan.policy_symbol);
-            visit_symbol(retained, plan.policy_plan_machine_symbol);
-            for alternative in plan.target_layouts(program) {
-                retained.layout_realization_dependency(alternative.machine);
-            }
-            for geometry in plan.geometries(program) {
-                for demand in &geometry.private_callback_demands {
-                    visit_closed_conformance(program, retained, &demand.slot_application);
+        if !program.plan_laid_layouts.is_empty() {
+            for plan in program
+                .plan_laid_layouts
+                .iter()
+                .filter(|plan| plan.data_symbol == data.symbol)
+            {
+                visit_symbol(retained, plan.schema_symbol);
+                visit_symbol(retained, plan.policy_symbol);
+                visit_symbol(retained, plan.policy_plan_machine_symbol);
+                for alternative in plan.target_layouts(program) {
+                    retained.layout_realization_dependency(alternative.machine);
+                }
+                for geometry in plan.geometries(program) {
+                    for demand in &geometry.private_callback_demands {
+                        visit_closed_conformance(program, retained, &demand.slot_application);
+                    }
                 }
             }
         }
-        for plan in program
-            .placed_view_plans
-            .iter()
-            .filter(|plan| plan.data_symbol == data.symbol)
-        {
-            visit_symbol(retained, plan.schema_symbol);
-            visit_symbol(retained, plan.policy_symbol);
-            visit_symbol(retained, plan.policy_plan_machine_symbol);
-            for field in &plan.fields {
-                visit_type_reference(program, retained, field.accessor_type);
-                visit_type_reference(program, retained, field.value_type);
-                if let Some(resident) = &field.atomic_resident {
-                    visit_type_reference(program, retained, resident.resident_type);
+        if !program.placed_view_plans.is_empty() {
+            for plan in program
+                .placed_view_plans
+                .iter()
+                .filter(|plan| plan.data_symbol == data.symbol)
+            {
+                visit_symbol(retained, plan.schema_symbol);
+                visit_symbol(retained, plan.policy_symbol);
+                visit_symbol(retained, plan.policy_plan_machine_symbol);
+                for field in &plan.fields {
+                    visit_type_reference(program, retained, field.accessor_type);
+                    visit_type_reference(program, retained, field.value_type);
+                    if let Some(resident) = &field.atomic_resident {
+                        visit_type_reference(program, retained, resident.resident_type);
+                    }
                 }
             }
         }
@@ -1706,6 +1766,15 @@ pub fn visit_machine(
     retained: &mut impl TypedReferences,
     machine: &crate::machine::Machine,
 ) {
+    visit_machine_with_sidecars(program, retained, machine, None);
+}
+
+fn visit_machine_with_sidecars(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    machine: &crate::machine::Machine,
+    sidecars: Option<&MachineSidecarIndex>,
+) {
     retained.enter_lexical_scope(machine.symbol);
     visit_owned_implementation_arguments(program, retained, machine.symbol);
     for signature in program.requirement_invocation_signatures(machine.symbol) {
@@ -1718,26 +1787,24 @@ pub fn visit_machine(
     // Capture admission replays the authored map and the exact supplying
     // invocation. Selecting a captured executable therefore retains those
     // declarations; an unrelated checking projection retains none of them.
-    for (_, capture) in program
-        .captured_machine_applications
-        .iter()
-        .filter(|(_, capture)| capture.instance == machine.symbol)
-    {
-        visit_symbol(retained, capture.template);
-        let source = program
-            .expression_table
-            .static_machine_application(capture.supplying_application);
-        retained.declaration_description_dependency(source.lexical_owner);
-        visit_symbol(retained, capture.conformance_application.declaration);
-        visit_static_machine_bindings(program, retained, capture.binding_application);
-        visit_static_machine_bindings(program, retained, capture.supplying_application);
-        visit_closed_conformance(program, retained, &capture.conformance_application);
+    if !program.captured_machine_applications.is_empty() {
+        for (_, capture) in program
+            .captured_machine_applications
+            .iter()
+            .filter(|(_, capture)| capture.instance == machine.symbol)
+        {
+            visit_symbol(retained, capture.template);
+            let source = program
+                .expression_table
+                .static_machine_application(capture.supplying_application);
+            retained.declaration_description_dependency(source.lexical_owner);
+            visit_symbol(retained, capture.conformance_application.declaration);
+            visit_static_machine_bindings(program, retained, capture.binding_application);
+            visit_static_machine_bindings(program, retained, capture.supplying_application);
+            visit_closed_conformance(program, retained, &capture.conformance_application);
+        }
     }
-    for specialization in program
-        .machine_specializations
-        .iter()
-        .filter(|row| row.instance == machine.symbol)
-    {
+    let mut visit_specialization = |specialization: &crate::typed_trees::MachineSpecialization| {
         visit_type_parameters(program, retained, specialization.template_parameters);
         visit_static_machine_bindings(program, retained, specialization.binding_application);
         for realization in &specialization.operator_realizations {
@@ -1757,31 +1824,48 @@ pub fn visit_machine(
         for application in &specialization.conformance_applications {
             visit_closed_conformance(program, retained, application);
         }
+    };
+    if let Some(sidecars) = sidecars {
+        for &(_, index) in sidecar_symbol_rows(&sidecars.specializations, machine.symbol) {
+            visit_specialization(&program.machine_specializations[index as usize]);
+        }
+    } else if !program.machine_specializations.is_empty() {
+        for specialization in program
+            .machine_specializations
+            .iter()
+            .filter(|row| row.instance == machine.symbol)
+        {
+            visit_specialization(specialization);
+        }
     }
     // Exact typed ranking-witness expressions are compiler custody for
     // termination evidence; they are machine-keyed rows so retention here is
     // conservative (reachable machines also produce their own edges).
-    for custody in program
-        .ranking_expression_custody
-        .iter()
-        .filter(|row| row.machine == machine.symbol)
-    {
-        for subject in &custody.subjects {
-            visit_expression(program, retained, *subject);
-        }
-        for argument in &custody.view_arguments {
-            visit_expression(program, retained, *argument);
-        }
-        if let Some(rank_range) = custody.rank_range {
-            visit_expression(program, retained, rank_range);
+    if !program.ranking_expression_custody.is_empty() {
+        for custody in program
+            .ranking_expression_custody
+            .iter()
+            .filter(|row| row.machine == machine.symbol)
+        {
+            for subject in &custody.subjects {
+                visit_expression(program, retained, *subject);
+            }
+            for argument in &custody.view_arguments {
+                visit_expression(program, retained, *argument);
+            }
+            if let Some(rank_range) = custody.rank_range {
+                visit_expression(program, retained, rank_range);
+            }
         }
     }
-    for output in program
-        .proof_output_calls
-        .iter()
-        .filter(|row| row.machine_symbol == machine.symbol)
-    {
-        visit_expression(program, retained, output.call);
+    if !program.proof_output_calls.is_empty() {
+        for output in program
+            .proof_output_calls
+            .iter()
+            .filter(|row| row.machine_symbol == machine.symbol)
+        {
+            visit_expression(program, retained, output.call);
+        }
     }
     let from = machine.symbol;
     visit_type_parameters(program, retained, machine.type_parameters);
@@ -1800,13 +1884,17 @@ pub fn visit_machine(
         }
     }
 
-    for row in program
-        .authored_service_reach_rows
-        .iter()
-        .filter(|row| row.owner == from)
-    {
-        for target in &row.targets {
-            visit_symbol(retained, target.service);
+    if let Some(sidecars) = sidecars {
+        for &(_, index) in sidecar_symbol_rows(&sidecars.service_reaches, from) {
+            for target in &program.authored_service_reach_rows[index as usize].targets {
+                visit_symbol(retained, target.service);
+            }
+        }
+    } else if !program.authored_service_reach_rows.is_empty() {
+        for row in program.authored_service_reach_rows_for(from) {
+            for target in &row.targets {
+                visit_symbol(retained, target.service);
+            }
         }
     }
 

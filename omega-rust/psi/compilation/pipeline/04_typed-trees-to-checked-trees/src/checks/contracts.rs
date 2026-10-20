@@ -107,8 +107,9 @@ pub(super) fn check_flow_call_contracts(
     entailment: &mut ProvenExitExpressions<'_, '_>,
     expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<ContractDecisions, Vec<Diagnostic>> {
-    let mut diagnostics =
-        crate::facts::contextual_cleanup::check_cleanup_requirements(program, facts);
+    let mut diagnostics = phase_profile::scope("05.d.7.3b.0.cleanup_requirements", || {
+        crate::facts::contextual_cleanup::check_cleanup_requirements(program, facts)
+    });
     let mut decided = Vec::new();
     let mut scalar_returns = Vec::new();
     let mut constant_obligations = Vec::new();
@@ -120,7 +121,9 @@ pub(super) fn check_flow_call_contracts(
     let call_frames =
         crate::flow::shared_call_frames_or(call_frames, program, &mut owned_call_frames);
 
-    assembly::check_assembly_fact_contracts(program, facts, &mut diagnostics);
+    phase_profile::scope("05.d.7.3b.0b.assembly_and_refutations", || {
+        assembly::check_assembly_fact_contracts(program, facts, &mut diagnostics);
+    });
 
     // Mathematical applications owe the same substituted premises as runtime
     // calls, even when their result is erased or no guarantee is consumed.
@@ -133,16 +136,18 @@ pub(super) fn check_flow_call_contracts(
     // symbol itself.
     let is_proof_machine = |symbol: symbols::SymbolHandle| {
         program
-            .machines()
-            .iter()
-            .find(|machine| program.machine_or_state_symbol(machine, symbol))
+            .machine_by_own_or_state_symbol(symbol)
             .is_some_and(|machine| proof_only.is_proof_machine(program, machine))
     };
 
+    static STRUCT_TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let struct_trace =
+        *STRUCT_TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some());
+
     for (_, state_flow) in facts.flow.control.states.iter() {
-        let caller_is_proof = is_proof_machine(state_flow.machine_symbol);
+        let caller_is_proof = struct_trace && is_proof_machine(state_flow.machine_symbol);
         for call_flow in facts.flow.control.calls.span_or_empty(state_flow.calls) {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if struct_trace {
                 eprintln!(
                     "CALLREQ caller={} proof={} target={} proof={}",
                     crate::labels::machine_name(program, state_flow.machine_symbol),
@@ -151,6 +156,7 @@ pub(super) fn check_flow_call_contracts(
                     is_proof_machine(call_flow.target_symbol),
                 );
             }
+            let _s = phase_profile::guard("05.d.7.3b.1.calls");
             exits::check_state_transfer_result_domains(
                 program,
                 state_flow,
@@ -184,6 +190,7 @@ pub(super) fn check_flow_call_contracts(
             }
         }
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
+            let _s = phase_profile::guard("05.d.7.3b.2.exits");
             return_values::check_activation_return(program, facts, exit_flow, &mut diagnostics);
             boundary_refutations.check(program, facts, exit_flow, call_frames, &mut diagnostics);
             exits::check_scalar_result_domains(
@@ -237,6 +244,7 @@ pub(super) fn check_flow_call_contracts(
         // #66 write-enforcement: every assignment into a domain-refined field must
         // establish the value in that domain (the soundness floor for trusting the
         // field's declared domain on read).
+        let _s = phase_profile::guard("05.d.7.3b.3.writes");
         check_domain_field_writes(
             program,
             facts,

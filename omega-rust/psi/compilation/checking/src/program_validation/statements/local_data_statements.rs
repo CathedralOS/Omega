@@ -321,12 +321,13 @@ pub(super) fn validate(
             machine,
             current_state,
             value_environment,
-            program.primitive_type_reference(local_data.type_reference),
+            local_target_primitive,
             local_data.initial_value,
         );
+        let local_name_owned = local_data.name.as_str().to_owned();
         arithmetic_domains::record_assignment(
             value_environment,
-            Some(local_data.name.as_str().to_owned()),
+            Some(local_name_owned.clone()),
             interval,
             local_data
                 .type_reference
@@ -348,7 +349,7 @@ pub(super) fn validate(
         if diagnostics.len() == before {
             copied_value.record(
                 value_environment,
-                Some(local_data.name.as_str().to_owned()),
+                Some(local_name_owned.clone()),
                 Some(crate::value_custody::places::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(local_data.symbol),
                     segments: Vec::new(),
@@ -364,13 +365,13 @@ pub(super) fn validate(
             arithmetic_domains::record_unsigned_literal_assignment(
                 program,
                 value_environment,
-                Some(local_data.name.as_str().to_owned()),
-                program.primitive_type_reference(local_data.type_reference),
+                Some(local_name_owned.clone()),
+                local_target_primitive,
                 local_data.initial_value,
             );
             arithmetic_domains::record_float_assignment(
                 value_environment,
-                Some(local_data.name.as_str().to_owned()),
+                Some(local_name_owned),
                 copied_float,
             );
             arithmetic_domains::record_declared_float_fields(

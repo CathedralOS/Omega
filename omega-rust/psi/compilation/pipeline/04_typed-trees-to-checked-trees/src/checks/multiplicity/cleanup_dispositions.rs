@@ -302,6 +302,9 @@ impl RemainingCustody {
         output: &mut ContextualCleanupFacts,
         establishments: &[StorageEstablishment],
     ) -> Result<(), diagnostics::Diagnostic> {
+        if events.is_empty() {
+            return Ok(());
+        }
         let mut selected = super::selected_evaluation::SelectedEvaluation::new();
         let join = |current: &mut Self, sibling: &Self| {
             current.join(sibling);

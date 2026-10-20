@@ -30,7 +30,7 @@ pub use checking::{
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
     PreparedPackageBuild, RestrictedBuildGrants, SettledCheckReuse,
 };
-pub(crate) use checking::{check_product_source, prepare_checked_source, prepare_product_source};
+pub(crate) use checking::{check_product_source, prepare_product_source};
 pub use optimization_core::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,
 };

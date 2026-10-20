@@ -313,8 +313,11 @@ fn lends_collection(
         return false;
     };
 
-    let Some((_, borrow_state)) = borrow.states.iter().find(|(_, borrow_state)| {
-        borrow_state.machine_symbol == machine.symbol && borrow_state.state_symbol == state.symbol
+    let Some(borrow_state) = borrow.with_state_index(|index| {
+        index
+            .bucket(machine.symbol, state.symbol)
+            .first()
+            .map(|handle| borrow.states.get(*handle))
     }) else {
         return false;
     };

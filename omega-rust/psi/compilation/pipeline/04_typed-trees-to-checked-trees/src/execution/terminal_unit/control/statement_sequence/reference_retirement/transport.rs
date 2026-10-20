@@ -31,6 +31,9 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     let Some(borrowing) = super::unique_borrow_state(facts, machine, state.symbol)? else {
         return Some(Vec::new());
     };
+    if borrowing.loans.is_empty() {
+        return Some(Vec::new());
+    }
     let order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
@@ -39,12 +42,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     // particular a Unit call can preserve or replace a stored descriptor.
     // Consume its exact supplier edges from the checked state roster before
     // adding relationships recovered from retained constructor value graphs.
-    for (receiver, loan) in facts
-        .borrow
-        .loans
-        .iter()
-        .filter(|(handle, _)| facts.borrow.state_owns_loan(borrowing, *handle))
-    {
+    for (receiver, loan) in facts.borrow.loan_group(borrowing.loans)? {
         for supplier in facts.borrow.loan_suppliers.span(loan.supplying_loans)? {
             if !facts.borrow.state_owns_loan(borrowing, *supplier)
                 || !order.precedes(
@@ -80,11 +78,14 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
         let reference = validation::reference_result_custody::storage_owner_type_reference(
             program, state, owner, formation,
         )?;
-        for (receiver, loan) in facts.borrow.loans.iter().filter(|(handle, loan)| {
-            facts.borrow.state_owns_loan(borrowing, *handle)
-                && loan.storage_owner == facts::PlaceRoot::Symbol(owner)
-                && loan.statement_index == formation as usize
-        }) {
+        for (receiver, loan) in facts
+            .borrow
+            .loan_group(borrowing.loans)?
+            .filter(|(_, loan)| {
+                loan.storage_owner == facts::PlaceRoot::Symbol(owner)
+                    && loan.statement_index == formation as usize
+            })
+        {
             let CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
             ) = operation
@@ -136,13 +137,15 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 };
                 let mut supplying = Vec::new();
                 for (handle, candidate) in
-                    facts.borrow.loans.iter().filter(|(handle, candidate)| {
-                        facts.borrow.state_owns_loan(borrowing, *handle)
-                            && candidate.storage_owner == facts::PlaceRoot::Symbol(source_owner)
-                            && order.precedes(candidate.statement_index, loan.statement_index)
-                            && source_formation
-                                .is_none_or(|formation| candidate.statement_index == formation)
-                    })
+                    facts
+                        .borrow
+                        .loan_group(borrowing.loans)?
+                        .filter(|(_, candidate)| {
+                            candidate.storage_owner == facts::PlaceRoot::Symbol(source_owner)
+                                && order.precedes(candidate.statement_index, loan.statement_index)
+                                && source_formation
+                                    .is_none_or(|formation| candidate.statement_index == formation)
+                        })
                 {
                     if carrier_path(
                         program,

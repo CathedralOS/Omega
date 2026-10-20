@@ -177,6 +177,7 @@ fn validate(
     quotient_admission: QuotientRequestAdmission,
     effect_admission: EffectAdmission,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
+    let pre_machine_guard = phase_profile::guard("05.d.2.a.1.pre_machine_validators");
     let mut diagnostics = Vec::new();
     if let Err(mut errors) =
         crate::conformance_applications::validate_conformance_applications(program)
@@ -205,117 +206,208 @@ fn validate(
     );
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     standard_declarations::validate_calling_vocabulary_uniqueness(program, &mut diagnostics);
-    let fact_plan = build_definition_fact_plan(program);
+    let fact_plan = phase_profile::scope("05.d.2.a.1a.definition_fact_plan", || {
+        build_definition_fact_plan(program)
+    });
 
     declaration_visibility::collect_declaration_visibility_diagnostics(program, &mut diagnostics);
     cleanup::collect_reserved_cleanup_selection_diagnostics(program, &mut diagnostics);
     validate_proposition_definitions(program, &mut diagnostics);
-    proposition_entailment::validate_proposition_entailment(program, &mut diagnostics);
+    phase_profile::scope("05.d.2.a.1a2.proposition_entailment", || {
+        proposition_entailment::validate_proposition_entailment(program, &mut diagnostics);
+    });
 
-    literals::validate_suffix_landings(program, &mut diagnostics);
-    literals::validate_suffix_magnitudes(program, &mut diagnostics);
-    // Abstract calls consume the same scoped content formation that later
-    // fact construction uses. Keep its diagnostic-producing owner first.
-    content_projections::validate_content_projection_conformances(program, &mut diagnostics);
-    content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
-    validate_domain_definitions(program, &symbols, &fact_plan, &mut diagnostics);
-    validate_callable_state_signatures(program, &symbols, &mut diagnostics);
-    write_only_borrows::validate_checked_write_only_slice(program, &mut diagnostics);
-    arithmetic_domains::validate_abstract_total_specification_arithmetic(program, &mut diagnostics);
-    cleanup::validate_cleanup_machine_declarations(program, &mut diagnostics);
-    validate_trait_requirements(program, &symbols, &mut diagnostics);
-    for trait_definition in program.traits() {
-        validate_trait_conformance_bounds(program, trait_definition, &symbols, &mut diagnostics);
-    }
-    qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
-    let conformance_operational = infer_operational_may(program);
-    let conformance_service_reaches = infer_service_reaches(program, &conformance_operational);
-    if effect_admission == EffectAdmission::Complete {
-        validate_conformances(
+    phase_profile::scope("05.d.2.a.1a2b.domains_and_signatures", || {
+        literals::validate_suffix_landings(program, &mut diagnostics);
+        literals::validate_suffix_magnitudes(program, &mut diagnostics);
+        // Abstract calls consume the same scoped content formation that later
+        // fact construction uses. Keep its diagnostic-producing owner first.
+        content_projections::validate_content_projection_conformances(program, &mut diagnostics);
+        content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
+        validate_domain_definitions(program, &symbols, &fact_plan, &mut diagnostics);
+        validate_callable_state_signatures(program, &symbols, &mut diagnostics);
+        write_only_borrows::validate_checked_write_only_slice(program, &mut diagnostics);
+        arithmetic_domains::validate_abstract_total_specification_arithmetic(
             program,
-            &conformance_service_reaches,
-            &symbols,
             &mut diagnostics,
         );
-        if let Err(mut dynamic_diagnostics) = collect_dynamic_implementation_selections(program) {
-            diagnostics.append(&mut dynamic_diagnostics);
+        cleanup::validate_cleanup_machine_declarations(program, &mut diagnostics);
+        validate_trait_requirements(program, &symbols, &mut diagnostics);
+        for trait_definition in program.traits() {
+            validate_trait_conformance_bounds(
+                program,
+                trait_definition,
+                &symbols,
+                &mut diagnostics,
+            );
         }
+        qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
+    });
+    let (conformance_operational, conformance_service_reaches) =
+        phase_profile::scope("05.d.2.a.1a3.operational_and_service_reaches", || {
+            let conformance_operational = infer_operational_may(program);
+            let conformance_service_reaches =
+                infer_service_reaches(program, &conformance_operational);
+            (conformance_operational, conformance_service_reaches)
+        });
+    if effect_admission == EffectAdmission::Complete {
+        phase_profile::scope("05.d.2.a.1a4.validate_conformances", || {
+            validate_conformances(
+                program,
+                &conformance_service_reaches,
+                &symbols,
+                &mut diagnostics,
+            );
+            if let Err(mut dynamic_diagnostics) = collect_dynamic_implementation_selections(program)
+            {
+                diagnostics.append(&mut dynamic_diagnostics);
+            }
+        });
     }
-    validate_data_field_types(program, &symbols, &mut diagnostics);
-    plan_laid::validate_plans(program, &mut diagnostics);
-    placed_views::validate_plans(program, &mut diagnostics);
-    relevance::validate_relevance(program, &mut diagnostics);
-    // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never
-    // spelled); every runtime consumption face refuses with the
-    // classification named.
-    let proof_only = crate::proof_only_classification(program);
-    proof_embeddings::validate_proof_embeddings(program, &proof_only, &mut diagnostics);
-    let integer_embedding_calls = if effect_admission == EffectAdmission::Complete {
-        proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics)
-    } else {
-        Vec::new()
-    };
-    let quotient_formations =
-        quotients::validate_quotients(program, &proof_only, quotient_admission, &mut diagnostics);
-    let fact_call_projections = if effect_admission == EffectAdmission::Complete {
-        fact_call_projections::validate_fact_call_projections(program, &mut diagnostics)
-    } else {
-        Vec::new()
-    };
-    let specification_calls = if effect_admission == EffectAdmission::Complete {
-        crate::machine_calls::denotational_calls::validate_specification_calls(
+    let (
+        proof_only,
+        integer_embedding_calls,
+        quotient_formations,
+        fact_call_projections,
+        specification_calls,
+    ) = phase_profile::scope("05.d.2.a.1a4b.data_and_proof_faces", || {
+        validate_data_field_types(program, &symbols, &mut diagnostics);
+        plan_laid::validate_plans(program, &mut diagnostics);
+        placed_views::validate_plans(program, &mut diagnostics);
+        relevance::validate_relevance(program, &mut diagnostics);
+        // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never
+        // spelled); every runtime consumption face refuses with the
+        // classification named.
+        let proof_only = crate::proof_only_classification(program);
+        proof_embeddings::validate_proof_embeddings(program, &proof_only, &mut diagnostics);
+        let integer_embedding_calls = if effect_admission == EffectAdmission::Complete {
+            proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics)
+        } else {
+            Vec::new()
+        };
+        let quotient_formations = quotients::validate_quotients(
             program,
-            &conformance_operational,
-            &conformance_service_reaches,
+            &proof_only,
+            quotient_admission,
             &mut diagnostics,
+        );
+        let fact_call_projections = if effect_admission == EffectAdmission::Complete {
+            fact_call_projections::validate_fact_call_projections(
+                program,
+                &conformance_operational,
+                &conformance_service_reaches,
+                &mut diagnostics,
+            )
+        } else {
+            Vec::new()
+        };
+        let specification_calls = if effect_admission == EffectAdmission::Complete {
+            crate::machine_calls::denotational_calls::validate_specification_calls(
+                program,
+                &conformance_operational,
+                &conformance_service_reaches,
+                &mut diagnostics,
+            )
+        } else {
+            Vec::new()
+        };
+        proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
+        (
+            proof_only,
+            integer_embedding_calls,
+            quotient_formations,
+            fact_call_projections,
+            specification_calls,
         )
-    } else {
-        Vec::new()
-    };
-    proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
+    });
     // Chapter 3 / MR4: runtime call cycles require the constant-stack tail
     // admission; erased proof-only SCCs instead require strict structural descent.
     let mut self_call_descents = Vec::new();
     let proof_recursive_components =
-        call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
-    let (opaque_property_receipts, allow_pending_opaque_copy) = match opaque_properties {
-        OpaquePropertyValidation::Required(receipts) => (receipts, false),
-        OpaquePropertyValidation::PendingBuildSelection => (&[][..], true),
-    };
-    properties::validate_data_properties(
-        program,
-        opaque_property_receipts,
-        allow_pending_opaque_copy,
-        &mut diagnostics,
-    );
-    constants::validate_constants(program, &mut diagnostics);
-    // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
-    // before membership lowering synthesizes its internal tag compares; see
-    // 03_symbol-resolved-trees-to-typed-trees/src/equality.rs.
-    stored_integer_writes.extend(struct_literals::validate_struct_literal_fields(
-        program,
-        &mut diagnostics,
-    ));
-    // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
-    // law on the parse-minted `__destructure#*` marker.
-    destructure::validate_destructure_exhaustiveness(program, &mut diagnostics);
+        phase_profile::scope("05.d.2.a.1a5.call_cycles_and_properties", || {
+            let components =
+                call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
+            let (opaque_property_receipts, allow_pending_opaque_copy) = match opaque_properties {
+                OpaquePropertyValidation::Required(receipts) => (receipts, false),
+                OpaquePropertyValidation::PendingBuildSelection => (&[][..], true),
+            };
+            properties::validate_data_properties(
+                program,
+                opaque_property_receipts,
+                allow_pending_opaque_copy,
+                &mut diagnostics,
+            );
+            components
+        });
+    let call_frames = phase_profile::scope("05.d.2.a.1b.call_frame_resolver", || {
+        calls::CallFrameResolver::new(program)
+    });
+    phase_profile::scope("05.d.2.a.1a5b.constants_and_literals", || {
+        phase_profile::scope("05.d.2.a.1a5b.1.constants", || {
+            constants::validate_constants(program, &mut diagnostics);
+        });
+        // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
+        // before membership lowering synthesizes its internal tag compares; see
+        // 03_symbol-resolved-trees-to-typed-trees/src/equality.rs.
+        phase_profile::scope("05.d.2.a.1a5b.2.struct_literals", || {
+            stored_integer_writes.extend(struct_literals::validate_struct_literal_fields(
+                program,
+                &mut diagnostics,
+            ));
+        });
+        // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
+        // law on the parse-minted `__destructure#*` marker.
+        phase_profile::scope("05.d.2.a.1a5b.3.destructure", || {
+            destructure::validate_destructure_exhaustiveness(program, &mut diagnostics);
+        });
+    });
     // R2 rung 3 slice 1: the default-domain write obligation (strict
     // store-time semantics; obligations before hypotheses).
-    default_domains::validate_default_domain_writes(program, &mut diagnostics);
-    recasts::validate_recasts(program, &mut diagnostics);
-    wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
-    operators::validate_operator_declarations(program, &symbols, &mut diagnostics);
+    phase_profile::scope("05.d.2.a.1a5c.default_domain_writes", || {
+        default_domains::validate_default_domain_writes(
+            program,
+            call_frames.as_ref(),
+            &mut diagnostics,
+        );
+    });
+    phase_profile::scope("05.d.2.a.1a5d.recasts_wire_operators", || {
+        recasts::validate_recasts(program, &mut diagnostics);
+        wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
+        operators::validate_operator_declarations(program, &symbols, &mut diagnostics);
+    });
     let mut static_machine_selections =
         machine_parameters::ValidatedStaticMachineSelections::default();
+    let mut formed_static_machine_selections = Default::default();
     let formation_diagnostic_start = diagnostics.len();
-    if let Err(mut errors) = crate::static_arguments::validate_authored_static_arguments(program) {
-        diagnostics.append(&mut errors);
-    }
-    if let Err(mut errors) = crate::static_bindings::validate_static_machine_bindings(program) {
-        diagnostics.append(&mut errors);
-    }
-    let mut formed_static_machine_selections =
-        machine_parameters::form_static_machine_selections(program, &mut diagnostics);
+    phase_profile::scope("05.d.2.a.1a6.static_machine_selections", || {
+        if let Err(mut errors) =
+            crate::static_arguments::validate_authored_static_arguments(program)
+        {
+            diagnostics.append(&mut errors);
+        }
+        if let Err(mut errors) = crate::static_bindings::validate_static_machine_bindings(program) {
+            diagnostics.append(&mut errors);
+        }
+        formed_static_machine_selections =
+            machine_parameters::form_static_machine_selections(program, &mut diagnostics);
+        if diagnostics[formation_diagnostic_start..]
+            .iter()
+            .any(Diagnostic::is_error)
+        {
+            return;
+        }
+        if effect_admission == EffectAdmission::Complete {
+            match machine_parameters::admit_static_machine_effects(
+                program,
+                &conformance_operational,
+                std::mem::take(&mut formed_static_machine_selections),
+            ) {
+                Ok(selections) => static_machine_selections = selections,
+                Err(mut errors) => diagnostics.append(&mut errors),
+            }
+            invocations::validate_invocation_contracts(program, &mut diagnostics);
+        }
+    });
     // A rejected authored application has no well-formed concrete body to
     // check. Report its source contract instead of derivative clone errors.
     if diagnostics[formation_diagnostic_start..]
@@ -324,26 +416,40 @@ fn validate(
     {
         return Err(diagnostics);
     }
-    if effect_admission == EffectAdmission::Complete {
-        match machine_parameters::admit_static_machine_effects(
-            program,
-            &conformance_operational,
-            std::mem::take(&mut formed_static_machine_selections),
-        ) {
-            Ok(selections) => static_machine_selections = selections,
-            Err(mut errors) => diagnostics.append(&mut errors),
-        }
-        invocations::validate_invocation_contracts(program, &mut diagnostics);
-    }
 
-    let call_frames = calls::CallFrameResolver::new(program);
+    drop(pre_machine_guard);
+    let machine_loop_guard = phase_profile::guard("05.d.2.a.2.machine_loop");
     // The whole-program bound catalog rebuilds eagerly otherwise; one lazy
     // cell serves every qualifying statement in this pass. The program
     // handle travels with it: downstream scopes shorten their program
     // borrow below what a fresh catalog could be built from.
     let mut bound_lookup = (program, None);
     let mut proven_machine_contracts = Vec::new();
+    let has_plan_laid_integer_fields = program.plan_laid_layouts.iter().any(|plan| {
+        plan.geometries(program.typed_program())
+            .any(|geometry| !geometry.integer_fields.is_empty())
+    });
     for machine in program.machines() {
+        let _machine_pkg_guard = phase_profile::enabled().then(|| {
+            let is_toolchain_or_std = program
+                .symbols
+                .symbol_provenance_source_span(machine.symbol)
+                .and_then(|span| program.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.origin == source::SourceOrigin::Toolchain
+                        || file
+                            .path
+                            .components()
+                            .any(|component| component.as_os_str() == "std")
+                });
+            if is_toolchain_or_std {
+                phase_profile::count("05.d.2.a.2.machines.std_or_core", 1);
+                phase_profile::guard("05.d.2.a.2.machine.std_or_core")
+            } else {
+                phase_profile::count("05.d.2.a.2.machines.user_or_other", 1);
+                phase_profile::guard("05.d.2.a.2.machine.user_or_other")
+            }
+        });
         let machine_diagnostic_mark = diagnostics.len();
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
@@ -361,6 +467,7 @@ fn validate(
         // This is the one judgment over bodies: the stage-04 prover consumes
         // the retained postconditions below — no second site rejudges them.
         {
+            let _entail_guard = phase_profile::guard("05.d.2.a.2a.contract_entailment");
             let mut machine_diagnostics = Vec::new();
             let mut proven = ProvenContractExpressions::default();
             crate::proof_contracts::contract_entailment::validate_machine_contract_entailment(
@@ -445,6 +552,10 @@ fn validate(
         // Arrival analysis covers the entire immutable machine. State-local
         // statement validation borrows that batch and mutates only its clone.
         let mut incoming_environments = None;
+        let is_content_projection_machine =
+            content_projections::is_content_projection_machine(program, machine);
+        let is_proof_machine = proof_only.is_proof_machine(program, machine);
+        let _states_guard = phase_profile::guard("05.d.2.a.2b.state_statements");
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
             crate::value_custody::reference_local_establishment::validate(
                 program,
@@ -605,7 +716,7 @@ fn validate(
                 // its own writes. The flow-sensitive environment has already
                 // crossed every nested value-call frame above, so no argument can
                 // rely on a fact an earlier or opaque call may invalidate.
-                if !content_projections::is_content_projection_machine(program, machine) {
+                if !is_content_projection_machine {
                     validate_value_position_calls(
                         program,
                         machine,
@@ -626,7 +737,7 @@ fn validate(
                 // the induction the measure licenses. What still applies is
                 // the measure itself: every self-call must structurally
                 // descend (N2d gateway).
-                if proof_only.is_proof_machine(program, machine) {
+                if is_proof_machine {
                     self_call_descents.extend(validate_proof_machine_recursion(
                         program,
                         machine,
@@ -656,10 +767,8 @@ fn validate(
                     _ => None,
                 };
                 let local_write_origins = if matches!(statement, StatementNode::Assignment(_))
-                    && program.plan_laid_layouts.iter().any(|plan| {
-                        plan.geometries(program.typed_program())
-                            .any(|geometry| !geometry.integer_fields.is_empty())
-                    }) {
+                    && has_plan_laid_integer_fields
+                {
                     call_frames.as_ref().and_then(|frames| {
                         frames.local_write_origins_before_statement(machine, statement)
                     })
@@ -691,7 +800,9 @@ fn validate(
                 // Statement-adjacent checks above this point mint only
                 // message text; the statement under validation owns the
                 // authored position every consumer attributes them to.
-                if let Some(source_span) = statements::statement_source_span(program, statement) {
+                if diagnostics.len() > statement_diagnostic_mark
+                    && let Some(source_span) = statements::statement_source_span(program, statement)
+                {
                     for diagnostic in &mut diagnostics[statement_diagnostic_mark..] {
                         if diagnostic.source_span.is_none() {
                             diagnostic.source_span = Some(source_span);
@@ -702,16 +813,20 @@ fn validate(
         }
         // Machine-level checks mint only message text; the machine's own
         // declaration owns their authored position.
-        let machine_source_span = program
-            .symbols
-            .symbol_provenance_source_span(machine.symbol)
-            .filter(|source_span| *source_span != source::SourceSpan::default());
-        for diagnostic in &mut diagnostics[machine_diagnostic_mark..] {
-            if diagnostic.source_span.is_none() {
-                diagnostic.source_span = machine_source_span;
+        if diagnostics.len() > machine_diagnostic_mark {
+            let machine_source_span = program
+                .symbols
+                .symbol_provenance_source_span(machine.symbol)
+                .filter(|source_span| *source_span != source::SourceSpan::default());
+            for diagnostic in &mut diagnostics[machine_diagnostic_mark..] {
+                if diagnostic.source_span.is_none() {
+                    diagnostic.source_span = machine_source_span;
+                }
             }
         }
     }
+    drop(machine_loop_guard);
+    let _post_machine_guard = phase_profile::guard("05.d.2.a.3.post_machine_validators");
 
     let arithmetic_domains::ArithmeticDecisions {
         integer_range_obligations,
@@ -864,8 +979,12 @@ pub fn admit_prepared_program_effects(
     }
     facts.integer_embedding_calls =
         proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics);
-    facts.fact_call_projections =
-        fact_call_projections::validate_fact_call_projections(program, &mut diagnostics);
+    facts.fact_call_projections = fact_call_projections::validate_fact_call_projections(
+        program,
+        operational,
+        &service_reaches,
+        &mut diagnostics,
+    );
     facts.specification_calls =
         crate::machine_calls::denotational_calls::validate_specification_calls(
             program,

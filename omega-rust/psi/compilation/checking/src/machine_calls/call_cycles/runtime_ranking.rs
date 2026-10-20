@@ -826,7 +826,10 @@ pub fn activation_target_state_index(
     typed_trees::state::state_position(program.machine_states(machine), target_symbol)
 }
 
-fn target_machine(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<usize> {
+pub(super) fn target_machine(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<usize> {
     if !symbol.is_valid() {
         return None;
     }

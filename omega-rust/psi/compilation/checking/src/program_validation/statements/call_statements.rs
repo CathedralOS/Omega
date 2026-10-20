@@ -59,22 +59,26 @@ pub(super) fn validate(
     // walk an unbounded operand here surfaced only at terminal proof
     // reconstruction. The destination resets to (None, Exact): an argument's
     // type comes from the callee's parameter, never the statement context.
-    for argument in program.statement_table.expression_handles(call.arguments) {
-        arithmetic_domains::validate_value_range_retaining_decisions(
-            program,
-            machine,
-            current_state,
-            *argument,
-            value_environment,
-            None,
-            numerics::arithmetic::ArithmeticDomain::Exact,
-            &format!(
-                "machine `{}` state `{state_name}` call argument",
-                machine.name
-            ),
-            diagnostics,
-            arithmetic_decisions,
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    if !arguments.is_empty() {
+        let owner = format!(
+            "machine `{}` state `{state_name}` call argument",
+            machine.name
         );
+        for argument in arguments {
+            arithmetic_domains::validate_value_range_retaining_decisions(
+                program,
+                machine,
+                current_state,
+                *argument,
+                value_environment,
+                None,
+                numerics::arithmetic::ArithmeticDomain::Exact,
+                &owner,
+                diagnostics,
+                arithmetic_decisions,
+            );
+        }
     }
     // R5 frame seed: a resolved acyclic INTERNAL call preserves facts
     // outside its conservatively instantiated may-write set. Unknown,

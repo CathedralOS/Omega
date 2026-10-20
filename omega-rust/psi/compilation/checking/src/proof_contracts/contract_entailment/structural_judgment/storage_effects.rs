@@ -260,7 +260,9 @@ impl StructuralJudge<'_> {
         expression: ExpressionHandle,
     ) -> Option<super::StructuralTerm> {
         // Case-only judgments intentionally do not track storage writes.
-        self.requires_value_preservation().then_some(())?;
+        if self.stored_values.is_empty() || !self.requires_value_preservation() {
+            return None;
+        }
         let place = self.captured_storage_coordinate(scope, expression)?;
         self.current_storage_value(&place)
     }
@@ -624,7 +626,9 @@ impl StructuralJudge<'_> {
         expression: ExpressionHandle,
         environment: &[(String, super::StructuralTerm)],
     ) -> Option<super::StructuralTerm> {
-        self.requires_value_preservation().then_some(())?;
+        if self.invalidated_storage.is_empty() || !self.requires_value_preservation() {
+            return None;
+        }
         let (machine, state, _) = scope?;
         if !self.ordinary_storage_path(Some((machine, state)), expression) {
             return None;

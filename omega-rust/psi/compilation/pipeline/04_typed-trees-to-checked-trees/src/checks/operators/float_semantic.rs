@@ -631,20 +631,24 @@ fn selected_expression<'program>(
     Vec<ExpressionHandle>,
     CheckedArithmeticPolicyAdapter,
 )> {
-    let mut selections = facts
-        .operators
-        .resolved_expression_selections()
-        .filter(|(selected, _, _, _)| *selected == expression);
-    if let Some((_, _, selected, adapter)) = selections.next() {
-        if selections.next().is_some() {
+    let mut first_selection = None;
+    let mut multiple_selections = false;
+    facts.operators.for_each_resolved_expression_selection(
+        expression,
+        |_, selected, adapter, use_fact| {
+            if first_selection.is_none() {
+                first_selection = Some((selected, adapter, use_fact));
+            } else {
+                multiple_selections = true;
+            }
+        },
+    );
+    if let Some((selected, adapter, selected_use)) = first_selection {
+        if multiple_selections {
             return None;
         }
         let operator = typed_trees::operator::declaration_by_symbol(program, selected)?;
-        let operands = if let Some((_, selected_use)) =
-            facts.operators.uses.iter().find(|(_, selected_use)| {
-                selected_use.expression == expression
-                    && selected_use.selected_operator_symbol == selected
-            }) {
+        let operands = if let Some(selected_use) = selected_use {
             selected_use.operands(program)?
         } else {
             crate::facts::operator_crashes::named_call_operands(
