@@ -4188,40 +4188,6 @@ fail/facts/signed_32bit_saturating_multiplication_bound_through_target_body_reje
 	Exact integer cast in machine `multiply_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `multiply_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `multiply_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/signed_32bit_saturating_subtraction_bound_through_call_result_rejected rejected 19417ms expected @e24fc35e68bf+wt
-fail/facts/signed_32bit_saturating_subtraction_bound_through_const_name_rejected rejected 13747ms expected @e24fc35e68bf+wt
-fail/facts/signed_32bit_saturating_subtraction_bound_through_field_rejected rejected 19401ms expected @e24fc35e68bf+wt
-fail/facts/signed_32bit_saturating_subtraction_bound_through_local_rejected rejected 17745ms expected @e24fc35e68bf+wt
-fail/facts/signed_32bit_saturating_subtraction_bound_through_match_join_rejected rejected 16329ms expected @e24fc35e68bf+wt
-fail/facts/signed_32bit_saturating_subtraction_bound_through_other_machine_rejected rejected 31988ms expected @e24fc35e68bf+wt
-fail/facts/signed_32bit_saturating_subtraction_bound_through_other_state_rejected rejected 16005ms expected @e24fc35e68bf+wt
-fail/facts/signed_32bit_saturating_subtraction_bound_through_parameter_rejected rejected 17681ms expected @e24fc35e68bf+wt
-fail/facts/signed_32bit_saturating_subtraction_bound_through_target_body_rejected rejected 15973ms expected @e24fc35e68bf+wt
-	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/signed_32bit_saturating_multiplication_bound_through_call_result_rejected rejected 14682ms expected @972304d13c39+wt
-	Exact integer cast in machine `multiply_call_result` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/signed_32bit_saturating_multiplication_bound_through_const_name_rejected rejected 12109ms expected @972304d13c39+wt
-	Exact integer cast in machine `multiply_const` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/signed_32bit_saturating_multiplication_bound_through_field_rejected rejected 12101ms expected @972304d13c39+wt
-	Exact integer cast in machine `multiply_field` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/signed_32bit_saturating_multiplication_bound_through_local_rejected rejected 28879ms expected @972304d13c39+wt
-	Exact integer cast in machine `multiply_local` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/signed_32bit_saturating_multiplication_bound_through_match_join_rejected rejected 11917ms expected @972304d13c39+wt
-	Exact integer cast in machine `multiply_match_join` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/signed_32bit_saturating_multiplication_bound_through_other_machine_rejected rejected 13039ms expected @972304d13c39+wt
-	Exact integer cast in machine `forward_eval` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/signed_32bit_saturating_multiplication_bound_through_other_state_rejected rejected 12551ms expected @972304d13c39+wt
-	Exact integer cast in machine `multiply_other_state` state `check_state` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/signed_32bit_saturating_multiplication_bound_through_parameter_rejected rejected 10506ms expected @972304d13c39+wt
-	Exact integer cast in machine `multiply_param` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/facts/signed_32bit_saturating_multiplication_bound_through_target_body_rejected rejected 13681ms expected @972304d13c39+wt
-	Exact integer cast in machine `multiply_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-	Exact integer cast in machine `multiply_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-	Exact integer cast in machine `multiply_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-	Exact integer cast in machine `multiply_target` state `entry` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/signed_32bit_saturating_subtraction_bound_through_call_result_rejected rejected 16354ms expected @8787afd52cca+wt
 	cannot prove requires contract for call verify_diff from probe: diff >= 40 && diff <= 100 (needs fact `diff >= 40 && diff <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_32bit_saturating_subtraction_bound_through_const_name_rejected rejected 17328ms expected @8787afd52cca+wt
@@ -4264,7 +4230,6 @@ fail/facts/signed_32bit_wrapping_subtraction_bound_through_target_body_rejected 
 	cannot prove requires contract for call verify_diff from exercise: d >= 40 && d <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 	cannot prove requires contract for call verify_diff from exercise: d >= 40 && d <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 	cannot prove requires contract for call verify_diff from exercise: d >= 40 && d <= 100 (needs fact `value >= 40 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
-
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_rejected rejected 19310ms expected @9a273b151c31+wt
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_rejected rejected 18871ms expected @9a273b151c31+wt
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_field_rejected rejected 15266ms expected @9a273b151c31+wt
@@ -4538,6 +4503,27 @@ fail/facts/unsigned_16bit_division_remainder_bound_through_target_body_rejected 
 	exact arithmetic in machine `rem_target` state `entry` terminal expression may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `rem_target` state `entry` terminal expression may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `rem_target` state `entry` terminal expression may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/unsigned_16bit_saturating_subtraction_bound_through_call_result_rejected rejected 10343ms expected @3a31fabd110b+wt
+	cannot prove ensures contract for exit from produce_diff at statement 1: result >= 200 && result <= 450
+fail/facts/unsigned_16bit_saturating_subtraction_bound_through_const_name_rejected rejected 13358ms expected @3a31fabd110b+wt
+	cannot prove requires contract for call verify_diff from main: diff >= 200 && diff <= 450 (needs fact `diff >= 200 && diff <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_subtraction_bound_through_field_rejected rejected 13569ms expected @3a31fabd110b+wt
+	cannot prove requires contract for call verify_diff from main: carrier.diff >= 200 && carrier.diff <= 450 (needs fact `diff >= 200 && diff <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_subtraction_bound_through_local_rejected rejected 12912ms expected @3a31fabd110b+wt
+	cannot prove requires contract for call verify_diff from main: local_diff >= 200 && local_diff <= 450 (needs fact `diff >= 200 && diff <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_subtraction_bound_through_match_join_rejected rejected 12537ms expected @3a31fabd110b+wt
+	cannot prove requires contract for call verify_diff from main: joined >= 200 && joined <= 450 (needs fact `diff >= 200 && diff <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_subtraction_bound_through_other_machine_rejected rejected 12734ms expected @3a31fabd110b+wt
+	cannot prove requires contract for call runner from main: diff >= 200 && diff <= 450 (needs fact `val >= 200 && val <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_subtraction_bound_through_other_state_rejected rejected 13547ms expected @3a31fabd110b+wt
+	cannot prove requires contract for call verify_diff from main: forwarded >= 200 && forwarded <= 450 (needs fact `diff >= 200 && diff <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_16bit_saturating_subtraction_bound_through_parameter_rejected rejected 13334ms expected @3a31fabd110b+wt
+	cannot prove requires contract for call check_param from main: diff >= 200 && diff <= 450 (needs fact `val >= 200 && val <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_saturating_subtraction_bound_through_target_body_rejected rejected 13317ms expected @3a31fabd110b+wt
+	cannot prove requires contract for call exercise from main: diff >= 200 && diff <= 450 (needs fact `val >= 200 && val <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: diff >= 200 && diff <= 450 (needs fact `val >= 200 && val <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: diff >= 200 && diff <= 450 (needs fact `val >= 200 && val <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: diff >= 200 && diff <= 450 (needs fact `val >= 200 && val <= 450` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_32bit_bitwise_and_mask_bound_through_call_result_rejected rejected 11388ms expected @411a6fa70643+wt
 	exact arithmetic in machine `mask_call_result` state `entry` local `check` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_32bit_bitwise_and_mask_bound_through_const_name_rejected rejected 11546ms expected @411a6fa70643+wt
@@ -4597,70 +4583,6 @@ fail/facts/unsigned_32bit_bitwise_xor_bound_through_other_state_rejected rejecte
 fail/facts/unsigned_32bit_bitwise_xor_bound_through_parameter_rejected rejected 9538ms expected @d6d8b5ac9c9d+wt
 	cannot prove requires contract for call pass_parameter from probe: res >= 40 && res <= 63 (needs fact `param_res >= 40 && param_res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
 fail/facts/unsigned_32bit_bitwise_xor_bound_through_target_body_rejected rejected 9499ms expected @d6d8b5ac9c9d+wt
-fail/facts/unsigned_32bit_saturating_multiplication_bound_through_call_result_rejected rejected 17211ms expected @f5ba8b2d7223+wt
-	cannot prove requires contract for call verify_prod from exercise: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/unsigned_32bit_saturating_multiplication_bound_through_const_name_rejected rejected 17128ms expected @f5ba8b2d7223+wt
-	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
-fail/facts/unsigned_32bit_saturating_multiplication_bound_through_field_rejected rejected 14632ms expected @f5ba8b2d7223+wt
-	cannot prove requires contract for call verify_prod from exercise: carrier.prod >= 50 && carrier.prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
-fail/facts/unsigned_32bit_saturating_multiplication_bound_through_local_rejected rejected 14921ms expected @f5ba8b2d7223+wt
-	cannot prove requires contract for call verify_prod from exercise: local_val >= 50 && local_val <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
-fail/facts/unsigned_32bit_saturating_multiplication_bound_through_match_join_rejected rejected 19084ms expected @f5ba8b2d7223+wt
-	cannot prove requires contract for call verify_prod from exercise: joined >= 50 && joined <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
-fail/facts/unsigned_32bit_saturating_multiplication_bound_through_other_machine_rejected rejected 18856ms expected @f5ba8b2d7223+wt
-	cannot prove requires contract for call verify_prod from exercise: relayed >= 50 && relayed <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
-fail/facts/unsigned_32bit_saturating_multiplication_bound_through_other_state_rejected rejected 15569ms expected @f5ba8b2d7223+wt
-	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `next_step`
-fail/facts/unsigned_32bit_saturating_multiplication_bound_through_parameter_rejected rejected 17417ms expected @f5ba8b2d7223+wt
-	cannot prove requires contract for call verify_prod from helper: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/unsigned_32bit_saturating_multiplication_bound_through_target_body_rejected rejected 18585ms expected @f5ba8b2d7223+wt
-	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
-	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
-	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
-	cannot prove requires contract for call verify_prod from exercise: p >= 50 && p <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
-fail/facts/unsigned_32bit_saturating_subtraction_bound_through_call_result_rejected rejected 14731ms expected @445bef43f738+wt
-fail/facts/unsigned_32bit_saturating_subtraction_bound_through_const_name_rejected rejected 13978ms expected @445bef43f738+wt
-fail/facts/unsigned_32bit_saturating_subtraction_bound_through_field_rejected rejected 13908ms expected @445bef43f738+wt
-fail/facts/unsigned_32bit_saturating_subtraction_bound_through_local_rejected rejected 13953ms expected @445bef43f738+wt
-fail/facts/unsigned_32bit_saturating_subtraction_bound_through_match_join_rejected rejected 13336ms expected @445bef43f738+wt
-fail/facts/unsigned_32bit_saturating_subtraction_bound_through_other_machine_rejected rejected 27016ms expected @445bef43f738+wt
-fail/facts/unsigned_32bit_saturating_subtraction_bound_through_other_state_rejected rejected 16780ms expected @445bef43f738+wt
-fail/facts/unsigned_32bit_saturating_subtraction_bound_through_parameter_rejected rejected 13851ms expected @445bef43f738+wt
-fail/facts/unsigned_32bit_saturating_subtraction_bound_through_target_body_rejected rejected 16369ms expected @445bef43f738+wt
-fail/facts/unsigned_32bit_wrapping_multiplication_bound_through_call_result_rejected rejected 13978ms expected @732da27979ed+wt
-	exact arithmetic in machine `multiply_call_result` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_32bit_wrapping_multiplication_bound_through_const_name_rejected rejected 13550ms expected @732da27979ed+wt
-	exact arithmetic in machine `multiply_const` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_32bit_wrapping_multiplication_bound_through_field_rejected rejected 15655ms expected @732da27979ed+wt
-	exact arithmetic in machine `multiply_field` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_32bit_wrapping_multiplication_bound_through_local_rejected rejected 12237ms expected @732da27979ed+wt
-	exact arithmetic in machine `multiply_local` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_32bit_wrapping_multiplication_bound_through_match_join_rejected rejected 11751ms expected @732da27979ed+wt
-	exact arithmetic in machine `multiply_match_join` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_32bit_wrapping_multiplication_bound_through_other_machine_rejected rejected 20295ms expected @732da27979ed+wt
-	exact arithmetic in machine `forward_eval` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_32bit_wrapping_multiplication_bound_through_other_state_rejected rejected 10562ms expected @732da27979ed+wt
-	exact arithmetic in machine `multiply_other_state` state `check_state` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_32bit_wrapping_multiplication_bound_through_parameter_rejected rejected 11796ms expected @732da27979ed+wt
-	exact arithmetic in machine `multiply_param` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_32bit_wrapping_multiplication_bound_through_target_body_rejected rejected 11303ms expected @732da27979ed+wt
-	exact arithmetic in machine `multiply_target` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `multiply_target` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `multiply_target` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `multiply_target` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_call_result_rejected rejected 17343ms expected @0fd8ec5f201d+wt
-fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_const_name_rejected rejected 17282ms expected @0fd8ec5f201d+wt
-fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_field_rejected rejected 16957ms unexpected @0fd8ec5f201d+wt
-fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_local_rejected rejected 16523ms expected @0fd8ec5f201d+wt
-fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_match_join_rejected rejected 19156ms expected @0fd8ec5f201d+wt
-fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_other_machine_rejected rejected 18568ms expected @0fd8ec5f201d+wt
-fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_other_state_rejected rejected 19287ms expected @0fd8ec5f201d+wt
-fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_parameter_rejected rejected 49688ms expected @0fd8ec5f201d+wt
-fail/facts/unsigned_32bit_wrapping_subtraction_bound_through_target_body_rejected rejected 18118ms expected @0fd8ec5f201d+wt
-	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
-	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
 fail/facts/unsigned_32bit_saturating_multiplication_bound_through_call_result_rejected rejected 17211ms expected @f5ba8b2d7223+wt
 	cannot prove requires contract for call verify_prod from exercise: prod >= 50 && prod <= 200 (needs fact `value >= 50 && value <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_32bit_saturating_multiplication_bound_through_const_name_rejected rejected 17128ms expected @f5ba8b2d7223+wt
@@ -9728,6 +9650,15 @@ pass/facts/unsigned_16bit_division_remainder_bound_through_other_machine_exit ch
 pass/facts/unsigned_16bit_division_remainder_bound_through_other_state_exit checked 24774ms check-target:macos_arm64 @8787afd52cca+wt
 pass/facts/unsigned_16bit_division_remainder_bound_through_parameter_exit checked 24521ms check-target:macos_arm64 @8787afd52cca+wt
 pass/facts/unsigned_16bit_division_remainder_bound_through_target_body_exit checked 24917ms check-target:macos_arm64 @8787afd52cca+wt
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_call_result_exit checked 34416ms check-target:macos_arm64 @3a31fabd110b+wt
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_const_name_exit checked 34284ms check-target:macos_arm64 @3a31fabd110b+wt
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_field_exit checked 34470ms check-target:macos_arm64 @3a31fabd110b+wt
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_local_exit checked 34219ms check-target:macos_arm64 @3a31fabd110b+wt
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_match_join_exit checked 34708ms check-target:macos_arm64 @3a31fabd110b+wt
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_other_machine_exit checked 33964ms check-target:macos_arm64 @3a31fabd110b+wt
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_other_state_exit checked 34319ms check-target:macos_arm64 @3a31fabd110b+wt
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_parameter_exit checked 34519ms check-target:macos_arm64 @3a31fabd110b+wt
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_target_body_exit checked 34678ms check-target:macos_arm64 @3a31fabd110b+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_call_result_exit checked 38170ms check-target:macos_arm64 @411a6fa70643+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_const_name_exit checked 37178ms check-target:macos_arm64 @411a6fa70643+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_field_exit checked 38972ms check-target:macos_arm64 @411a6fa70643+wt
