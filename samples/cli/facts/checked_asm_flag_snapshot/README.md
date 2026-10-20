@@ -14,14 +14,24 @@ owns exact field observations and write invalidation;
 [storage](../../../../wiki/spec/resources/storage.md) owns the native temporary
 stack footprint.
 
-## Mechanism witnesses
+## Transport places and mechanism witnesses
 
-These variations exercise distinct parts of the same snapshot mechanism. They
-are not another nine-place row for ordinary u64 transport.
+The nine standard places (`local`, `field`, `parameter`, `call_result`,
+`match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) and
+their `<place>/invalid/` reject twins accompany the mechanism variations below.
 
 | Witness | Obligation or runtime distinction |
 | --- | --- |
 | [Root](main.omg) | Subtraction establishes the snapshot bit used by a label requirement. |
+| [Local](local/main.omg) / [invalid](local/invalid/main.omg) | A local copy of the snapshot retains bit 64 into a subsequent label requirement; flipping bit 64 rejects. |
+| [Field](field/main.omg) / [invalid](field/invalid/main.omg) | A completed store establishes the bit on the exact mutable record field consumed by the label. |
+| [Parameter](parameter/main.omg) / [invalid](parameter/invalid/main.omg) | A completed snapshot supplies a callee precondition and its label requirement. |
+| [Call result](call_result/main.omg) / [invalid](call_result/invalid/main.omg) | A helper call returning the snapshot with `ensures (result & 64u64) == 64u64` carries that guarantee into the caller's label requirement. |
+| [Match join](match_join/main.omg) / [invalid](match_join/invalid/main.omg) | Exhaustive match arms producing distinct `pushfq` snapshots that both establish bit 64 discharge the post-join label requirement; breaking one arm rejects. |
+| [Const name](const_name/main.omg) / [invalid](const_name/invalid/main.omg) | Named `const` mask `ZF_MASK = 64u64` preserves the snapshot bit obligation; wrong mask rejects. |
+| [Other state](other_state/main.omg) / [invalid](other_state/invalid/main.omg) | State transition carries the snapshot obligation into another state's label requirement. |
+| [Other machine](other_machine/main.omg) / [invalid](other_machine/invalid/main.omg) | Cross-machine forwarding preserves the snapshot precondition and label requirement. |
+| [Target body](target_body/main.omg) / [invalid](target_body/invalid/main.omg) | Target-qualified `target (windows_x86_64)` / `target (linux_x86_64)` helper bodies preserve the snapshot guarantee across host x86-64 targets. |
 | [Retained snapshots](retained/main.omg) | An earlier snapshot retains ZF after a later subtraction establishes a different flag version. |
 | [Aliased operands](alias/main.omg) | `sub eax, eax` captures both operands before writing; the six-flag image is 68 under mask 2261. |
 | [Dynamic operand](dynamic_input/main.omg) | An opaque observed carry supplies a runtime operand; subtraction checks the complete flag mask against the independent 0-minus-1 or 1-minus-1 hardware result. |
@@ -29,8 +39,6 @@ are not another nine-place row for ordinary u64 transport.
 | [Observation before production](pre_sub/main.omg) | The initial snapshot retains architectural fixed bits; later subtraction replaces the arithmetic flags. |
 | [Unreachable observation](unreachable/main.omg) | A skipped `pushfq` leaves its destination unchanged. |
 | [First-label backedge](backedge/main.omg) | A two-iteration loop re-enters the authored first label and observes the prior iteration's flag version. |
-| [Parameter](parameter/main.omg) | A completed snapshot supplies a callee precondition and its label requirement. |
-| [Field](field/main.omg) | A completed store establishes the bit on the exact mutable record field consumed by the label. |
 
 The x86 instruction fixtures bind Linux x86-64 explicitly so the checked corpus
 selects an applicable target. The sample Build files retain their four entry

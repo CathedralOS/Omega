@@ -194,9 +194,11 @@ helper that passes does not close an item.
   custody; `samples/cli/facts/checked_asm_countdown` covers nine places and false
   fallthrough twins with Linux native/Terminal agreement. Catalog-admitted u32
   SUB and structured PUSHFQ now carry all six arithmetic flags through ordinary
-  label obligations, retained values, field stores and parameter contracts;
-  `samples/cli/facts/checked_asm_flag_snapshot` covers native/Terminal x86
-  observations and false-invariant/clobber/write-invalidation controls. Other
+  label obligations, retained values, field stores, parameter contracts, call
+  `ensures` guarantees and exhaustive match joins;
+  `samples/cli/facts/checked_asm_flag_snapshot` covers all nine standard places
+  plus mechanism probes and false-invariant/clobber/write-invalidation controls
+  with native/Terminal x86 agreement. Other
   ISA/register views, unmodeled flag production, indexed memory/address
   composition, hardware flag restoration,
   ranking-witness transport for promised termination, and checked hardware-effect

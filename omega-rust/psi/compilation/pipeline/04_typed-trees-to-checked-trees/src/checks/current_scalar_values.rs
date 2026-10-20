@@ -56,6 +56,7 @@ struct Binding {
     symbol: SymbolHandle,
     name: String,
     value: Option<ScopedArithmeticValue>,
+    alternatives: Vec<ScopedArithmeticValue>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -124,6 +125,7 @@ impl<'program> CurrentScalarValues<'program> {
                         ),
                         unsigned: unsigned(primitive),
                     }),
+                    alternatives: Vec::new(),
                 })
             })
             .collect::<Vec<_>>();
@@ -153,6 +155,7 @@ impl<'program> CurrentScalarValues<'program> {
                             ),
                             unsigned: unsigned(primitive),
                         }),
+                        alternatives: Vec::new(),
                     })
                 }),
         );
@@ -283,13 +286,23 @@ impl<'program> CurrentScalarValues<'program> {
                         // The executed initializer has one value even when its
                         // computation is unavailable to arithmetic reasoning.
                         // Keep that observation, not a replay of the initializer.
+                        let alternatives = values.capture_alternatives(
+                            program,
+                            machine,
+                            state,
+                            local.initial_value,
+                        );
                         let value = value.or_else(|| {
                             Some(observed_scalar(state, local.symbol, ordinal, primitive))
                         });
+                        if let Some(result_value) = &value {
+                            values.assume_call_ensures(local.initial_value, result_value);
+                        }
                         values.current.push(Binding {
                             symbol: local.symbol,
                             name: local.name.to_string(),
                             value,
+                            alternatives,
                         });
                     }
                 }
@@ -324,12 +337,14 @@ impl<'program> CurrentScalarValues<'program> {
                         program.expression_table.expression(assignment.target)
                         && name.symbol.is_valid()
                         && name.symbol == name.head_symbol
-                        && let Some(binding) = values
+                        && values
                             .current
-                            .iter_mut()
-                            .find(|binding| binding.symbol == name.symbol)
+                            .iter()
+                            .any(|binding| binding.symbol == name.symbol)
                     {
-                        binding.value = value.or_else(|| {
+                        let alternatives =
+                            values.capture_alternatives(program, machine, state, assignment.value);
+                        let next_value = value.or_else(|| {
                             let reference = validation::expression_result_type_reference(
                                 program,
                                 machine,
@@ -339,6 +354,17 @@ impl<'program> CurrentScalarValues<'program> {
                             let primitive = integer_carrier(program, reference)?;
                             Some(observed_scalar(state, name.symbol, ordinal, primitive))
                         });
+                        if let Some(result_value) = &next_value {
+                            values.assume_call_ensures(assignment.value, result_value);
+                        }
+                        if let Some(binding) = values
+                            .current
+                            .iter_mut()
+                            .find(|binding| binding.symbol == name.symbol)
+                        {
+                            binding.value = next_value;
+                            binding.alternatives = alternatives;
+                        }
                     } else if let ExpressionNode::Name(name) =
                         program.expression_table.expression(assignment.target)
                         && name.symbol == name.head_symbol
@@ -442,6 +468,7 @@ impl<'program> CurrentScalarValues<'program> {
                     .any(|path| validation::frame_paths_overlap(path, &binding.name))
             }) {
                 binding.value = None;
+                binding.alternatives.clear();
             }
         }
         self.conditions.retain(|condition| {
@@ -710,6 +737,36 @@ impl<'program> CurrentScalarValues<'program> {
                 )?),
             });
         }
+        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
+            let arms = program.expression_table.match_arms(dispatch.arms);
+            if !arms.is_empty() {
+                let mut captured = Vec::with_capacity(arms.len());
+                for arm in arms {
+                    if let Some(value) =
+                        self.capture_at_depth(program, machine, state, arm.value, depth + 1)
+                    {
+                        captured.push(value);
+                    } else {
+                        captured.clear();
+                        break;
+                    }
+                }
+                if !captured.is_empty()
+                    && captured.iter().skip(1).all(|value| {
+                        value == &captured[0]
+                            || self.proves_values_relation(
+                                program,
+                                machine,
+                                BinaryOperator::Equal,
+                                value,
+                                &captured[0],
+                            )
+                    })
+                {
+                    return Some(captured.swap_remove(0));
+                }
+            }
+        }
         admitted(
             program,
             machine,
@@ -889,6 +946,7 @@ impl<'program> CurrentScalarValues<'program> {
                     identity: format!("callee:{:?}", parameter.symbol),
                     unsigned: unsigned(primitive),
                 }),
+                alternatives: Vec::new(),
             });
         }
         if !admitted(
@@ -962,6 +1020,155 @@ impl<'program> CurrentScalarValues<'program> {
         Some(goal)
     }
 
+    fn capture_alternatives(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> Vec<ScopedArithmeticValue> {
+        let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
+        else {
+            return Vec::new();
+        };
+        let arms = program.expression_table.match_arms(dispatch.arms);
+        if arms.is_empty() || arms.len() > 8 {
+            return Vec::new();
+        }
+        let mut values = Vec::with_capacity(arms.len());
+        for arm in arms {
+            let Some(value) = self.capture(program, machine, state, arm.value) else {
+                return Vec::new();
+            };
+            values.push(value);
+        }
+        values
+    }
+
+    fn assume_call_ensures(
+        &mut self,
+        expression: ExpressionHandle,
+        result_value: &ScopedArithmeticValue,
+    ) {
+        let Some(call) = self.program.expression_table.call_node(expression) else {
+            return;
+        };
+        if validation::integer_embedding_argument(self.program, expression).is_some() {
+            return;
+        }
+        let Some(parameters) = validation::call_target_parameters(self.program, call.target_symbol)
+        else {
+            return;
+        };
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
+        if parameters.len() != arguments.len() {
+            return;
+        }
+        let Some((callee, callee_state)) = validation::find_state(self.program, call.target_symbol)
+            .or_else(|| validation::find_machine_head(self.program, call.target_symbol))
+        else {
+            return;
+        };
+        if callee_state.symbol == self.state.symbol {
+            return;
+        }
+        let is_entry = self
+            .program
+            .machine_states(callee)
+            .first()
+            .is_some_and(|entry| entry.symbol == callee_state.symbol);
+        let contracts = self.program.state_contracts(callee_state).iter().chain(
+            self.program
+                .machine_contracts(callee)
+                .iter()
+                .filter(|_| is_entry && callee.symbol != self.machine.symbol),
+        );
+        let mut guarantees = Vec::new();
+        for contract in contracts {
+            if contract.kind != typed_trees::signature::SignatureContractKind::Ensures
+                || contract.binding.is_some()
+            {
+                continue;
+            }
+            for fact in self.program.proof_facts.span_or_empty(contract.facts) {
+                if let Some(guarantee) = fact.as_expression() {
+                    Self::collect_ensures_conjuncts(
+                        self.program,
+                        callee,
+                        callee_state,
+                        *guarantee,
+                        &mut guarantees,
+                        0,
+                    );
+                }
+            }
+        }
+        for guarantee in guarantees {
+            if let Some(mut proposition) =
+                self.bind_parameters(callee, callee_state, guarantee, parameters, arguments)
+            {
+                proposition.bindings.push(ScopedArithmeticBinding {
+                    binder: ScopedArithmeticBinder::Result,
+                    value: result_value.clone(),
+                });
+                if !self
+                    .hypotheses
+                    .iter()
+                    .any(|existing| existing.holds && existing.proposition == proposition)
+                {
+                    self.hypotheses.push(ScopedArithmeticHypothesis {
+                        proposition,
+                        holds: true,
+                    });
+                }
+            }
+        }
+    }
+
+    fn collect_ensures_conjuncts(
+        program: &dyn ::validation::CheckingInput,
+        callee: &Machine,
+        callee_state: &State,
+        expression: ExpressionHandle,
+        out: &mut Vec<ExpressionHandle>,
+        depth: usize,
+    ) {
+        if depth >= 64 || !program.expression_table.expression_is_valid(expression) {
+            return;
+        }
+        if let Some(binary) = program.expression_table.binary_node(expression)
+            && binary.operator == BinaryOperator::And
+            && validation::has_builtin_decomposed_guard_meaning(
+                program,
+                callee,
+                Some(callee_state),
+                expression,
+            )
+        {
+            Self::collect_ensures_conjuncts(
+                program,
+                callee,
+                callee_state,
+                binary.left,
+                out,
+                depth + 1,
+            );
+            Self::collect_ensures_conjuncts(
+                program,
+                callee,
+                callee_state,
+                binary.right,
+                out,
+                depth + 1,
+            );
+            return;
+        }
+        out.push(expression);
+    }
+
     pub(crate) fn proves_values_relation(
         &self,
         program: &dyn ::validation::CheckingInput,
@@ -986,8 +1193,107 @@ impl<'program> CurrentScalarValues<'program> {
         machine: &Machine,
         goal: &ScopedArithmeticExpression,
     ) -> bool {
-        validation::scoped_arithmetic_implication(program, machine, &self.hypotheses, goal)
+        if validation::scoped_arithmetic_implication(program, machine, &self.hypotheses, goal)
             == StrictArithmeticImplicationJudgment::Proven
+        {
+            return true;
+        }
+        for current in &self.current {
+            let Some(expected) = &current.value else {
+                continue;
+            };
+            if current.alternatives.is_empty() {
+                continue;
+            }
+            if substitute_symbol_in_expression(
+                goal,
+                current.symbol,
+                expected,
+                &current.alternatives[0],
+            )
+            .is_none()
+            {
+                continue;
+            }
+            if current.alternatives.iter().all(|alternative| {
+                substitute_symbol_in_expression(goal, current.symbol, expected, alternative)
+                    .is_some_and(|specialized| {
+                        validation::scoped_arithmetic_implication(
+                            program,
+                            machine,
+                            &self.hypotheses,
+                            &specialized,
+                        ) == StrictArithmeticImplicationJudgment::Proven
+                    })
+            }) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+fn substitute_symbol_in_expression(
+    expression: &ScopedArithmeticExpression,
+    symbol: SymbolHandle,
+    expected: &ScopedArithmeticValue,
+    replacement: &ScopedArithmeticValue,
+) -> Option<ScopedArithmeticExpression> {
+    let mut updated = expression.clone();
+    let mut changed = false;
+    for binding in &mut updated.bindings {
+        if binding.binder == ScopedArithmeticBinder::Symbol(symbol) && &binding.value == expected {
+            binding.value = replacement.clone();
+            changed = true;
+        } else if let Some(next) =
+            substitute_symbol_in_value(&binding.value, symbol, expected, replacement)
+        {
+            binding.value = next;
+            changed = true;
+        }
+    }
+    changed.then_some(updated)
+}
+
+fn substitute_symbol_in_value(
+    value: &ScopedArithmeticValue,
+    symbol: SymbolHandle,
+    expected: &ScopedArithmeticValue,
+    replacement: &ScopedArithmeticValue,
+) -> Option<ScopedArithmeticValue> {
+    match value {
+        ScopedArithmeticValue::Term(term) => {
+            substitute_symbol_in_expression(term, symbol, expected, replacement)
+                .map(ScopedArithmeticValue::Term)
+        }
+        ScopedArithmeticValue::BoundedInteger {
+            value: inner,
+            minimum,
+            maximum,
+        } => substitute_symbol_in_value(inner, symbol, expected, replacement).map(|next| {
+            ScopedArithmeticValue::BoundedInteger {
+                value: Box::new(next),
+                minimum: minimum.clone(),
+                maximum: maximum.clone(),
+            }
+        }),
+        ScopedArithmeticValue::IntegerOperation {
+            operator,
+            left,
+            right,
+        } => {
+            let next_left = substitute_symbol_in_value(left, symbol, expected, replacement);
+            let next_right = substitute_symbol_in_value(right, symbol, expected, replacement);
+            if next_left.is_none() && next_right.is_none() {
+                return None;
+            }
+            Some(ScopedArithmeticValue::IntegerOperation {
+                operator: *operator,
+                left: Box::new(next_left.unwrap_or_else(|| (**left).clone())),
+                right: Box::new(next_right.unwrap_or_else(|| (**right).clone())),
+            })
+        }
+        _ => None,
     }
 }
 
