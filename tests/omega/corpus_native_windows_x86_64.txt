@@ -1234,6 +1234,15 @@ pass/expressions/runtime_widened_comparison_exit built 5414ms exit:70 @6c49683ce
 pass/expressions/scalar_match_boundary_composition_exit built 26000ms exit:70 @91bbf3e29aa9
 pass/expressions/seq_consuming_combinators checked 12793ms @91bbf3e29aa9
 pass/expressions/unit_case_return_call_product built 12621ms exit:70 @91bbf3e29aa9
+pass/facts/applied_requirement_indices_through_call_result_exit built 11595ms exit:0 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_const_name_exit built 11242ms exit:0 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_field_exit built 11098ms exit:0 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_local_exit built 11509ms exit:0 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_match_join_exit built 11554ms exit:0 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_other_machine_exit built 11417ms exit:0 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_other_state_exit built 11455ms exit:0 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_parameter_exit built 11141ms exit:0 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_target_body_exit built 11056ms exit:0 @7df3e6a600f1+wt
 pass/facts/atomic_compare_exchange_once_composition_exit built 41950ms exit:0 @7df3e6a600f1+wt
 pass/facts/atomic_compare_exchange_once_high_bit_exit built 37748ms exit:0 @7df3e6a600f1+wt
 pass/facts/atomic_compare_exchange_once_local_exit built 40931ms exit:0 @7df3e6a600f1+wt
@@ -2589,6 +2598,9 @@ pass/proofs/runtime_sequential_relational_accumulator_exit built 12532ms exit:70
 pass/proofs/runtime_static_result_projection_citation_exit built 24127ms exit:70 @78f48cd3217e+wt
 pass/proofs/runtime_two_state_accumulator_exit built 13420ms exit:70 @91bbf3e29aa9
 pass/proofs/stride_pair_telescope checked 12741ms @91bbf3e29aa9
+pass/providers/applied_requirement_computed_const_exit built 10116ms exit:0 @7df3e6a600f1+wt
+pass/providers/applied_routed_index_forwarding_exit built 19426ms exit:0 terminal-inspections:match @7df3e6a600f1+wt
+pass/providers/applied_type_index_forwarding_exit built 11190ms exit:0 @7df3e6a600f1+wt
 pass/providers/binding_param_capability checked 13452ms @91bbf3e29aa9
 pass/providers/binding_where_record checked 13281ms @91bbf3e29aa9
 pass/providers/borrowed_service_field_forward_exit built 5578ms exit:70 stdout:match @6c49683ce714

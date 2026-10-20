@@ -465,6 +465,11 @@ pub(super) fn expression_type_position(
     if !expression.is_valid() {
         return None;
     }
+    if let Some(declaration) = program.expression_const_declaration(expression)
+        && declaration.declared_type.is_valid()
+    {
+        return Some(MemberPosition::Reference(declaration.declared_type));
+    }
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => expression_type_position(program, inner.target),

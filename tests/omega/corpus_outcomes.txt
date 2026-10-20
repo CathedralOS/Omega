@@ -1892,6 +1892,49 @@ fail/facts/alias_fact_transfer_through_target_body_rejected rejected 11247ms exp
 	cannot prove requires contract for call inspect from inspect_target: player in Player::Alive in state `entry`
 	cannot prove requires contract for call inspect from inspect_target: player in Player::Alive in state `entry`
 	cannot prove requires contract for call inspect from inspect_target: player in Player::Alive in state `entry`
+fail/facts/applied_requirement_indices_through_call_result_rejected rejected 2113ms expected @7df3e6a600f1+wt
+	index compatibility condition `index-equality:Pair:forward_pair::entry:call-0-1:Pair<Outer, Inner>==Pair<Outer, Alt>` is not established: actual `Pair<Outer, Inner>` and expected `Pair<Outer, Alt>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Pair:forward_pair::entry:call-0-0:Pair<Outer, Alt>==Pair<Outer, Inner>` is not established: actual `Pair<Outer, Alt>` and expected `Pair<Outer, Inner>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Pair:forward_pair$specialized$6d8838200aeb7645$1::entry:call-0-1:Pair<Word, Word>==Pair<Word, Other>` is not established: actual `Pair<Word, Word>` and expected `Pair<Word, Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Pair:forward_pair$specialized$6d8838200aeb7645$1::entry:call-0-0:Pair<Word, Other>==Pair<Word, Word>` is not established: actual `Pair<Word, Other>` and expected `Pair<Word, Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/facts/applied_requirement_indices_through_const_name_rejected rejected 1631ms expected @7df3e6a600f1+wt
+	index compatibility condition `index-equality:Tagged:main::entry:statement-0:Tagged<Other>==Tagged<Word>` is not established: actual `Tagged<Other>` and expected `Tagged<Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/facts/applied_requirement_indices_through_field_rejected rejected 1551ms expected @7df3e6a600f1+wt
+	index compatibility condition `index-equality:Tagged:field::entry:call-0-0:Tagged<Alt>==Tagged<Value>` is not established: actual `Tagged<Alt>` and expected `Tagged<Value>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:main::entry:statement-1:Tagged<Word>==Tagged<Other>` is not established: actual `Tagged<Word>` and expected `Tagged<Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:field$specialized$6441577f7616c8a4$0::entry:call-0-0:Tagged<Other>==Tagged<Word>` is not established: actual `Tagged<Other>` and expected `Tagged<Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/facts/applied_requirement_indices_through_local_rejected rejected 1440ms expected @7df3e6a600f1+wt
+	index compatibility condition `index-equality:Tagged:forward::entry:call-1-0:Tagged<Alt>==Tagged<Value>` is not established: actual `Tagged<Alt>` and expected `Tagged<Value>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward::entry:statement-0:Tagged<Value>==Tagged<Alt>` is not established: actual `Tagged<Value>` and expected `Tagged<Alt>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward$specialized$7f9cb6972e7178fd$0::entry:call-1-0:Tagged<Other>==Tagged<Word>` is not established: actual `Tagged<Other>` and expected `Tagged<Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward$specialized$7f9cb6972e7178fd$0::entry:statement-0:Tagged<Word>==Tagged<Other>` is not established: actual `Tagged<Word>` and expected `Tagged<Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/facts/applied_requirement_indices_through_match_join_rejected rejected 1445ms expected @7df3e6a600f1+wt
+	index compatibility condition `index-equality:Tagged:forward::entry:call-3-0:Tagged<Alt>==Tagged<Value>` is not established: actual `Tagged<Alt>` and expected `Tagged<Value>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward::entry:statement-2:Tagged<Value>==Tagged<Alt>` is not established: actual `Tagged<Value>` and expected `Tagged<Alt>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward::entry:statement-2:Tagged<Value>==Tagged<Alt>` is not established: actual `Tagged<Value>` and expected `Tagged<Alt>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward$specialized$7f9cb6972e7178fd$0::entry:call-3-0:Tagged<Other>==Tagged<Word>` is not established: actual `Tagged<Other>` and expected `Tagged<Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward$specialized$7f9cb6972e7178fd$0::entry:statement-2:Tagged<Word>==Tagged<Other>` is not established: actual `Tagged<Word>` and expected `Tagged<Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward$specialized$7f9cb6972e7178fd$0::entry:statement-2:Tagged<Word>==Tagged<Other>` is not established: actual `Tagged<Word>` and expected `Tagged<Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/facts/applied_requirement_indices_through_other_machine_rejected rejected 1520ms expected @7df3e6a600f1+wt
+	index compatibility condition `index-equality:Tagged:relay::entry:exit-0:Tagged<Value>==Tagged<Alt>` is not established: actual `Tagged<Value>` and expected `Tagged<Alt>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward::entry:statement-0:Tagged<Alt>==Tagged<Value>` is not established: actual `Tagged<Alt>` and expected `Tagged<Value>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward$specialized$5051354f3e7a81c4$0::entry:statement-0:Tagged<Other>==Tagged<Word>` is not established: actual `Tagged<Other>` and expected `Tagged<Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:relay$specialized$4f5043d3a6697a25$0::entry:exit-0:Tagged<Word>==Tagged<Other>` is not established: actual `Tagged<Word>` and expected `Tagged<Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/facts/applied_requirement_indices_through_other_state_rejected rejected 1448ms expected @7df3e6a600f1+wt
+	index compatibility condition `index-equality:Tagged:later::entry:call-0-0:Tagged<Value>==Tagged<Alt>` is not established: actual `Tagged<Value>` and expected `Tagged<Alt>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:later::selected:call-0-0:Tagged<Alt>==Tagged<Value>` is not established: actual `Tagged<Alt>` and expected `Tagged<Value>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:later$specialized$6c714fbafa2ce7a6$0::entry:call-0-0:Tagged<Word>==Tagged<Other>` is not established: actual `Tagged<Word>` and expected `Tagged<Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:later$specialized$6c714fbafa2ce7a6$0::selected:call-0-0:Tagged<Other>==Tagged<Word>` is not established: actual `Tagged<Other>` and expected `Tagged<Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/facts/applied_requirement_indices_through_parameter_rejected rejected 1391ms expected @7df3e6a600f1+wt
+	index compatibility condition `index-equality:Tagged:forward::entry:call-0-0:Tagged<Alt>==Tagged<Value>` is not established: actual `Tagged<Alt>` and expected `Tagged<Value>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:field::entry:call-0-0:Tagged<Value>==Tagged<Alt>` is not established: actual `Tagged<Value>` and expected `Tagged<Alt>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:field$specialized$f03a28bc031972bf$0::entry:call-0-0:Tagged<Word>==Tagged<Other>` is not established: actual `Tagged<Word>` and expected `Tagged<Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward$specialized$7f9cb6972e7178fd$0::entry:call-0-0:Tagged<Other>==Tagged<Word>` is not established: actual `Tagged<Other>` and expected `Tagged<Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/facts/applied_requirement_indices_through_target_body_rejected rejected 1403ms expected @7df3e6a600f1+wt
+	index compatibility condition `index-equality:Tagged:forward::windows_x86_64::entry:call-1-0:Tagged<Alt>==Tagged<Value>` is not established: actual `Tagged<Alt>` and expected `Tagged<Value>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward::windows_x86_64::entry:statement-0:Tagged<Value>==Tagged<Alt>` is not established: actual `Tagged<Value>` and expected `Tagged<Alt>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward$specialized$7f9cb6972e7178fd$0::entry:call-1-0:Tagged<Other>==Tagged<Word>` is not established: actual `Tagged<Other>` and expected `Tagged<Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Tagged:forward$specialized$7f9cb6972e7178fd$0::entry:statement-0:Tagged<Word>==Tagged<Other>` is not established: actual `Tagged<Word>` and expected `Tagged<Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/facts/as_slice_views_through_call_result_short_extent rejected 7357ms expected @d68dc74a14e0
 	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_const_name_short_extent rejected 5932ms expected @d68dc74a14e0
@@ -6754,23 +6797,23 @@ fail/providers/applied_requirement_call_property_bound rejected 294ms expected @
 fail/providers/applied_requirement_call_shared_argument_for_mutable rejected 373ms expected @308fbdc54ba0
 fail/providers/applied_requirement_mutable_result_shared_source rejected 919ms expected @a9ae30e1c334+wt
 fail/providers/applied_requirement_unselected_ancestor_application rejected 6555ms expected @308fbdc54ba0
-fail/providers/applied_routed_index_forged rejected 2062ms expected @19c1ee2ad76b+wt
+fail/providers/applied_routed_index_forged rejected 1962ms expected @7df3e6a600f1+wt
 	cannot prove default-domain field requirement for return from forged, state entry, at statement 0: Token requires Issued
 	construction value is not proven in domain `Issued` in forged state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
-fail/providers/applied_routed_index_wrong_actual rejected 1176ms expected @19c1ee2ad76b+wt
+fail/providers/applied_routed_index_wrong_actual rejected 1159ms expected @7df3e6a600f1+wt
 	index compatibility condition `index-equality:Issued:wrong::entry:call-1-0:Issued<Word>==Issued<Other>` is not established: actual `Issued<Word>` and expected `Issued<Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/providers/applied_routed_member_wrong_actual rejected 1143ms expected @19c1ee2ad76b+wt
+fail/providers/applied_routed_member_wrong_actual rejected 1280ms expected @7df3e6a600f1+wt
 	index compatibility condition `index-equality:Issued:wrong::entry:call-2-0:Issued<Word, Other>==Issued<Word, Word>` is not established: actual `Issued<Word, Other>` and expected `Issued<Word, Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/providers/applied_routed_parameter_mint rejected 2145ms expected @19c1ee2ad76b+wt
+fail/providers/applied_routed_parameter_mint rejected 1916ms expected @7df3e6a600f1+wt
 	cannot establish call-result qualification `Issued` in `refresh`, state `entry` (statement 0, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
 	cannot establish call-result qualification `Issued` in `refresh$specialized$4996a36ff7fd00b6$0`, state `entry` (statement 0, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-fail/providers/applied_type_index_nested_wrong_actual rejected 1131ms expected @19c1ee2ad76b+wt
+fail/providers/applied_type_index_nested_wrong_actual rejected 1275ms expected @7df3e6a600f1+wt
 	index compatibility condition `index-equality:Pair:wrong::entry:call-0-0:Pair<Outer, Right>==Pair<Outer, Left>` is not established: actual `Pair<Outer, Right>` and expected `Pair<Outer, Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/providers/applied_type_index_wrong_actual rejected 1102ms expected @19c1ee2ad76b+wt
+fail/providers/applied_type_index_wrong_actual rejected 1182ms expected @7df3e6a600f1+wt
 	index compatibility condition `index-equality:Tagged:wrong::entry:call-0-0:Tagged<Left>==Tagged<Right>` is not established: actual `Tagged<Left>` and expected `Tagged<Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/providers/applied_type_index_wrong_field rejected 1111ms expected @19c1ee2ad76b+wt
+fail/providers/applied_type_index_wrong_field rejected 1195ms expected @7df3e6a600f1+wt
 	index compatibility condition `index-equality:Tagged:wrong::entry:call-0-0:Tagged<Left>==Tagged<Right>` is not established: actual `Tagged<Left>` and expected `Tagged<Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/providers/applied_type_index_wrong_result rejected 2062ms expected @19c1ee2ad76b+wt
+fail/providers/applied_type_index_wrong_result rejected 1763ms expected @7df3e6a600f1+wt
 	cannot prove ensures contract for exit from wrong at statement 0: result in unmanaged:product::Tagged<type:named(name(Right))>
 fail/providers/assumed_result_bound_bad_supplier_body_rejected rejected 3117ms expected @6f94b4f3cae8+wt
 	machine `Actual::get` realizes `Supplied::get` but does not guarantee its `ensures result == 0`; callers of the requirement assume it
@@ -9383,6 +9426,15 @@ pass/facts/alias_fact_transfer_through_other_machine_compile checked 82495ms che
 pass/facts/alias_fact_transfer_through_other_state_compile checked 66851ms check-target:macos_arm64 @39840d33bf1c
 pass/facts/alias_fact_transfer_through_parameter_compile checked 66607ms check-target:macos_arm64 @39840d33bf1c
 pass/facts/alias_fact_transfer_through_target_body_compile checked 67597ms check-target:macos_arm64 @39840d33bf1c
+pass/facts/applied_requirement_indices_through_call_result_exit checked 11298ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_const_name_exit checked 11738ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_field_exit checked 11987ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_local_exit checked 11436ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_match_join_exit checked 11654ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_other_machine_exit checked 11597ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_other_state_exit checked 11716ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_parameter_exit checked 11723ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/applied_requirement_indices_through_target_body_exit checked 11629ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/as_slice_views_through_call_result_exit checked 12276ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_const_name_exit checked 10830ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_field_exit checked 18298ms check-target:macos_arm64 @d68dc74a14e0
@@ -11811,7 +11863,9 @@ pass/providers/applied_binding_field_telescopes_exit checked 6307ms check-target
 pass/providers/applied_entry_nested_binding_context_exit checked 2785ms check-target:macos_arm64 @c61d64ccecc5+wt
 pass/providers/applied_header_dependent_const_carrier_exit checked 12536ms check-target:macos_arm64 @37afc401493b+wt
 pass/providers/applied_requirement_calls_exit checked 6806ms check-target:macos_arm64 @308fbdc54ba0
-pass/providers/applied_routed_index_forwarding_exit checked 25014ms check-target:macos_arm64 terminal-inspections:match @19c1ee2ad76b+wt
+pass/providers/applied_requirement_computed_const_exit checked 10753ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/providers/applied_routed_index_forwarding_exit checked 19972ms check-target:macos_arm64 terminal-inspections:match @7df3e6a600f1+wt
+pass/providers/applied_type_index_forwarding_exit checked 11985ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/providers/assumed_result_bound_call_result_exit checked 8553ms check-target:linux_x86_64 @6f94b4f3cae8+wt
 pass/providers/assumed_result_bound_const_name_exit checked 8656ms check-target:linux_x86_64 @6f94b4f3cae8+wt
 pass/providers/assumed_result_bound_field_exit checked 9094ms check-target:linux_x86_64 @6f94b4f3cae8+wt

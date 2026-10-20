@@ -452,6 +452,28 @@ fn append_expression_compatibilities(
                 }
             }
         }
+        ExpressionNode::Match(dispatch) => {
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                append_expression_compatibilities(
+                    program,
+                    operators,
+                    semantic,
+                    flow,
+                    proof,
+                    machine,
+                    state,
+                    statement_index,
+                    arm.value,
+                    target_type,
+                    point,
+                    contexts,
+                    state_calls,
+                    conditions,
+                    diagnostics,
+                    unresolved,
+                );
+            }
+        }
         _ => {}
     }
 }
