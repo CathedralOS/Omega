@@ -8,7 +8,6 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 32, "jobs": "8", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
-	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("mutable element-view establishment requires its exact borrowed result place")))
 pass/arithmetic/addr_algebra checked 8379ms @91bbf3e29aa9
 pass/arithmetic/anonymous_integer_arith checked 8328ms @91bbf3e29aa9
 pass/arithmetic/anonymous_rational_arguments checked 1130ms @6c49683ce714
@@ -1594,15 +1593,15 @@ pass/facts/signed_32bit_bitwise_or_bound_through_other_machine_exit built 41804m
 pass/facts/signed_32bit_bitwise_or_bound_through_other_state_exit built 39305ms exit:0 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_or_bound_through_parameter_exit built 42280ms exit:0 @1258d561e0cf+wt
 pass/facts/signed_32bit_bitwise_or_bound_through_target_body_exit built 40796ms exit:0 @1258d561e0cf+wt
-pass/facts/signed_32bit_bitwise_xor_bound_through_call_result_exit built 27634ms exit:0 @1258d561e0cf+wt
-pass/facts/signed_32bit_bitwise_xor_bound_through_const_name_exit built 27241ms exit:0 @1258d561e0cf+wt
-pass/facts/signed_32bit_bitwise_xor_bound_through_field_exit built 26873ms exit:0 @1258d561e0cf+wt
-pass/facts/signed_32bit_bitwise_xor_bound_through_local_exit built 27355ms exit:0 @1258d561e0cf+wt
-pass/facts/signed_32bit_bitwise_xor_bound_through_match_join_exit built 27506ms exit:0 @1258d561e0cf+wt
-pass/facts/signed_32bit_bitwise_xor_bound_through_other_machine_exit built 27389ms exit:0 @1258d561e0cf+wt
-pass/facts/signed_32bit_bitwise_xor_bound_through_other_state_exit built 26792ms exit:0 @1258d561e0cf+wt
-pass/facts/signed_32bit_bitwise_xor_bound_through_parameter_exit built 27280ms exit:0 @1258d561e0cf+wt
-pass/facts/signed_32bit_bitwise_xor_bound_through_target_body_exit built 27100ms exit:0 @1258d561e0cf+wt
+pass/facts/signed_32bit_bitwise_xor_bound_through_call_result_exit built 44012ms exit:0 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_const_name_exit built 46102ms exit:0 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_field_exit built 41474ms exit:0 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_local_exit built 41829ms exit:0 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_match_join_exit built 42454ms exit:0 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_other_machine_exit built 39251ms exit:0 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_other_state_exit built 42337ms exit:0 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_parameter_exit built 44088ms exit:0 @dcfab1e4eda9
+pass/facts/signed_32bit_bitwise_xor_bound_through_target_body_exit built 45173ms exit:0 @dcfab1e4eda9
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_exit built 40002ms exit:0 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_exit built 38053ms exit:0 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_field_exit built 38231ms exit:0 @9a273b151c31+wt
@@ -2920,3 +2919,4 @@ run/ownership/temporary_projected_value_residual built 12142ms exit:0 @91bbf3e29
 run/stores/runtime_float_indexed_call_result_exit built 24997ms exit:0 stdout:match stderr:match @91bbf3e29aa9
 run/stores/runtime_float_store_selector_snapshot_exit built 24953ms exit:0 stdout:match stderr:match @91bbf3e29aa9
 run/traits/named_map_record_result_contract built 69904ms exit:0 @46f9e865d179+wt
+	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("mutable element-view establishment requires its exact borrowed result place")))
