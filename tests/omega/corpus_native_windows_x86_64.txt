@@ -1,13 +1,14 @@
+	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("mutable element-view establishment requires its exact borrowed result place")))
+# (`+wt` = dirty tree; rows measured before stamping have no token).
+# A `# context: {...}` line records the conditions of the --record run.
 # Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
 # One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
-# `expected` or `unexpected` when its expected.txt fragments were weighed,
-# then any execution facts such as exit:70 or stdout:match, then
-# `regressed-from:<status>[+fact]*` when the row has lost a success it used
-# to record, then `@<revision>` recording which commit measured the row
-# (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
-# A `# context: {...}` line records the conditions of the --record run.
+# `expected` or `unexpected` when its expected.txt fragments were weighed,
+# `regressed-from:<status>[+fact]*` when the row has lost a success it used
 # context: {"cpus": 32, "jobs": "8", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# then any execution facts such as exit:70 or stdout:match, then
+# to record, then `@<revision>` recording which commit measured the row
 pass/arithmetic/addr_algebra checked 8379ms @91bbf3e29aa9
 pass/arithmetic/anonymous_integer_arith checked 8328ms @91bbf3e29aa9
 pass/arithmetic/anonymous_rational_arguments checked 1130ms @6c49683ce714
@@ -1413,6 +1414,15 @@ pass/facts/narrow_to_wide_signed_8to64_extension_through_other_machine_exit buil
 pass/facts/narrow_to_wide_signed_8to64_extension_through_other_state_exit built 28083ms exit:0 @da99a3ccd03e+wt
 pass/facts/narrow_to_wide_signed_8to64_extension_through_parameter_exit built 28248ms exit:0 @da99a3ccd03e+wt
 pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit built 27875ms exit:0 @da99a3ccd03e+wt
+pass/facts/narrow_to_wide_unsigned_16to64_extension_through_call_result_exit built 41490ms exit:0 @9a273b151c31+wt
+pass/facts/narrow_to_wide_unsigned_16to64_extension_through_const_name_exit built 38911ms exit:0 @9a273b151c31+wt
+pass/facts/narrow_to_wide_unsigned_16to64_extension_through_field_exit built 38178ms exit:0 @9a273b151c31+wt
+pass/facts/narrow_to_wide_unsigned_16to64_extension_through_local_exit built 41280ms exit:0 @9a273b151c31+wt
+pass/facts/narrow_to_wide_unsigned_16to64_extension_through_match_join_exit built 40646ms exit:0 @9a273b151c31+wt
+pass/facts/narrow_to_wide_unsigned_16to64_extension_through_other_machine_exit built 41132ms exit:0 @9a273b151c31+wt
+pass/facts/narrow_to_wide_unsigned_16to64_extension_through_other_state_exit built 44012ms exit:0 @9a273b151c31+wt
+pass/facts/narrow_to_wide_unsigned_16to64_extension_through_parameter_exit built 41984ms exit:0 @9a273b151c31+wt
+pass/facts/narrow_to_wide_unsigned_16to64_extension_through_target_body_exit built 43974ms exit:0 @9a273b151c31+wt
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_call_result_exit built 27615ms exit:0 @7dc9c049a48b
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_const_name_exit built 27486ms exit:0 @7dc9c049a48b
 pass/facts/narrow_to_wide_unsigned_32to64_extension_through_field_exit built 27519ms exit:0 @7dc9c049a48b
@@ -2721,4 +2731,3 @@ run/ownership/temporary_projected_value_residual built 12142ms exit:0 @91bbf3e29
 run/stores/runtime_float_indexed_call_result_exit built 24997ms exit:0 stdout:match stderr:match @91bbf3e29aa9
 run/stores/runtime_float_store_selector_snapshot_exit built 24953ms exit:0 stdout:match stderr:match @91bbf3e29aa9
 run/traits/named_map_record_result_contract built 69904ms exit:0 @46f9e865d179+wt
-	terminal-artifact production failed: Optimization(InvalidSemantic(MalformedStructuralFoundation("mutable element-view establishment requires its exact borrowed result place")))

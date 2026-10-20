@@ -9,6 +9,32 @@ This fact row demonstrates that zero-extending a bounded 16-bit unsigned `u16` v
 
 Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
 
+## Pinned fixtures
+
+The nine positive places and nine reject twins are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_local_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_field_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_parameter_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_call_result_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_match_join_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_const_name_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_other_state_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_other_machine_exit/`
+  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_target_body_exit/`
+- **Fail fixtures (`expected.txt` = ``may overflow `u64` ``):**
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_local_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_field_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_parameter_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_call_result_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_match_join_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_const_name_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_other_state_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_target_body_rejected/`
+
+`tests/omega/corpus_native_windows_x86_64.txt` records nine real `built ... exit:0` rows, one per place, and `tests/omega/corpus_outcomes.txt` records all 18 pass and fail outcomes.
+
 ## Places
 
 | Place | Project | Transport | Positive Witness | Reject Twin |
@@ -43,7 +69,13 @@ omega run --both samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/targ
 
 All 10 samples report `native exit 0` and `interp exit: 0`.
 
-Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the narrow bound is widened to `501u16` (`501u64`), causing exact subtraction `500u64 - wide` to fail closed. Check each twin with:
+### The oracle discriminates
+
+The recorded 0 exit is discriminating:
+- In every positive place, evaluating `narrow as u64` with input `400u16` produces `400u64` within static interval `[300u64, 500u64]`. Downstream exact subtractions `diff1 = 500u64 - wide == 100u64` and `diff2 = wide - 300u64 == 100u64` evaluate to `100u64`, yielding `exit_code == 0i32`. In `main`, `transition exit_code == 0i32` routes to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition exit_code == 0i32` to `transition exit_code == 1i32`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- Each invalid twin widens the `narrow` upper bound to `501u16` (`501u64`), causing exact subtraction `500u64 - wide` to fail closed at compile time under the **Exact arithmetic overflow/underflow** obligation class with ``may overflow `u64` ``. None reaches native execution.
+
+Check each twin with:
 
 ```sh
 omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/local/invalid/main.omg
@@ -56,6 +88,18 @@ omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/other_s
 omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/other_machine/invalid/main.omg
 omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/target_body/invalid/main.omg
 ```
+
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
 
 Every reject twin fails closed with:
 `error: exact arithmetic in machine ... may overflow `u64``
