@@ -4143,6 +4143,27 @@ fail/facts/signed_32bit_bitwise_xor_bound_through_target_body_rejected rejected 
 	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
 	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
 	cannot prove requires contract for call verify_xored from target_probe: res >= 40 && res <= 63 (needs fact `v >= 40 && v <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check`
+fail/facts/signed_32bit_division_remainder_bound_through_call_result_rejected rejected 14730ms expected @3045ef49d634+wt
+	cannot prove ensures contract for exit from remainder at statement 0: result >= 0 && result <= 15
+fail/facts/signed_32bit_division_remainder_bound_through_const_name_rejected rejected 14306ms expected @3045ef49d634+wt
+	cannot prove requires contract for call verify_rem from probe: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_remainder_bound_through_field_rejected rejected 13964ms expected @3045ef49d634+wt
+	cannot prove requires contract for call verify_rem from compute_field: holder.rem >= 0 && holder.rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_remainder_bound_through_local_rejected rejected 15986ms expected @3045ef49d634+wt
+	cannot prove requires contract for call verify_rem from compute_local: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_remainder_bound_through_match_join_rejected rejected 16508ms expected @3045ef49d634+wt
+	cannot prove ensures contract for exit from choose_rem at statement 0: result >= 0 && result <= 15
+fail/facts/signed_32bit_division_remainder_bound_through_other_machine_rejected rejected 23082ms expected @3045ef49d634+wt
+	cannot prove requires contract for call forward from compute_forward: dividend % divisor >= 0 && dividend % divisor <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_remainder_bound_through_other_state_rejected rejected 21241ms expected @3045ef49d634+wt
+	cannot prove requires contract for call step from verify_state: dividend % divisor >= 0 && dividend % divisor <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_remainder_bound_through_parameter_rejected rejected 15534ms expected @3045ef49d634+wt
+	cannot prove requires contract for call verify_parameter from compute_param: dividend % divisor >= 0 && dividend % divisor <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_division_remainder_bound_through_target_body_rejected rejected 16205ms expected @3045ef49d634+wt
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_rejected rejected 19310ms expected @9a273b151c31+wt
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_rejected rejected 18871ms expected @9a273b151c31+wt
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_field_rejected rejected 15266ms expected @9a273b151c31+wt
@@ -9137,6 +9158,15 @@ pass/facts/signed_32bit_bitwise_xor_bound_through_other_machine_exit checked 459
 pass/facts/signed_32bit_bitwise_xor_bound_through_other_state_exit checked 44866ms check-target:macos_arm64 @dcfab1e4eda9
 pass/facts/signed_32bit_bitwise_xor_bound_through_parameter_exit checked 44687ms check-target:macos_arm64 @dcfab1e4eda9
 pass/facts/signed_32bit_bitwise_xor_bound_through_target_body_exit checked 43056ms check-target:macos_arm64 @dcfab1e4eda9
+pass/facts/signed_32bit_division_remainder_bound_through_call_result_exit checked 39056ms check-target:macos_arm64 @3045ef49d634+wt
+pass/facts/signed_32bit_division_remainder_bound_through_const_name_exit checked 45869ms check-target:macos_arm64 @3045ef49d634+wt
+pass/facts/signed_32bit_division_remainder_bound_through_field_exit checked 45560ms check-target:macos_arm64 @3045ef49d634+wt
+pass/facts/signed_32bit_division_remainder_bound_through_local_exit checked 40014ms check-target:macos_arm64 @3045ef49d634+wt
+pass/facts/signed_32bit_division_remainder_bound_through_match_join_exit checked 45252ms check-target:macos_arm64 @3045ef49d634+wt
+pass/facts/signed_32bit_division_remainder_bound_through_other_machine_exit checked 43920ms check-target:macos_arm64 @3045ef49d634+wt
+pass/facts/signed_32bit_division_remainder_bound_through_other_state_exit checked 45738ms check-target:macos_arm64 @3045ef49d634+wt
+pass/facts/signed_32bit_division_remainder_bound_through_parameter_exit checked 43771ms check-target:macos_arm64 @3045ef49d634+wt
+pass/facts/signed_32bit_division_remainder_bound_through_target_body_exit checked 47414ms check-target:macos_arm64 @3045ef49d634+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_exit checked 39212ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_exit checked 43877ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_field_exit checked 44917ms check-target:macos_arm64 @9a273b151c31+wt
