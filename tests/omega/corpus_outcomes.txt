@@ -6317,6 +6317,10 @@ fail/layouts/private_callback_slot_standalone_source_rejected rejected 96ms expe
 fail/layouts/private_callback_slot_wrong_layout rejected 91ms expected @a9ae30e1c334+wt
 fail/layouts/public_layout_keeps_private_schema rejected 364ms expected @63dcd4df414+wt
 fail/layouts/public_schema_keeps_private_layout rejected 370ms expected @63dcd4df414+wt
+fail/layouts/qualified_record_layout_requires_alignment rejected 3100ms expected @94cfa03cda24+wt
+	plan-laid value type `Packed<Payload>`: error: policy `Packed::plan` produced an invalid plan: field `words` at offset 7 violates its alignment 8
+fail/layouts/qualified_record_reference_is_not_inline rejected 731ms expected @94cfa03cda24+wt
+	plan-laid value type `Packed<Payload>`: error: schema data `Payload` field `word` is neither a supported primitive, a fixed array composed of supported primitives, nor a fixed record composed from those shapes
 fail/layouts/recast_integer_at_store_requires_fit rejected 3748ms expected @a9ae30e1c334+wt
 fail/layouts/recursive_integer_at_requires_all_arrivals_fit rejected 1600ms expected @a9ae30e1c334+wt
 fail/layouts/resource_profile_exceeds_region_capacity rejected 401ms expected @ec089e4c2b1b
@@ -11502,6 +11506,7 @@ pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit checked 131
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit checked 12767ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit checked 13970ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_plan_laid_value_field_exit checked 22448ms check-target:macos_arm64 @3d664be0c918+wt
+pass/layouts/runtime_qualified_record_schema_geometry_exit checked 5336ms check-target:macos_arm64 @94cfa03cda24+wt
 pass/layouts/runtime_reborrow_preserves_store_origin_exit checked 12251ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_recast_reference_captures_index_exit checked 10988ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_recursive_encoded_reference_exit checked 11023ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -273,7 +273,13 @@ pub(super) fn reflected_field_layout(
             None,
         ));
     }
-    match typed.type_reference_table.type_reference(type_reference) {
+    // Qualification remains in semantic schema identity and custody. It does
+    // not wrap aggregate bytes. Strip only constraint shells here: peeling a
+    // reference as well would mistake a borrowed descriptor for its referent.
+    let carrier = typed
+        .type_reference_table
+        .unconstrained_type_reference(type_reference);
+    match typed.type_reference_table.type_reference(carrier) {
         typed_trees::types::TypeReferenceNode::FixedArray {
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(length),
@@ -378,7 +384,10 @@ pub(super) fn reflected_nested_member_layout(
         let size = primitive_byte_size(primitive)?;
         return Some((size, size));
     }
-    match typed.type_reference_table.type_reference(type_reference) {
+    let carrier = typed
+        .type_reference_table
+        .unconstrained_type_reference(type_reference);
+    match typed.type_reference_table.type_reference(carrier) {
         typed_trees::types::TypeReferenceNode::FixedArray {
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(length),

@@ -934,6 +934,7 @@ pass/layouts/runtime_offset_encoded_reference_exit built 2020ms exit:0 interpret
 pass/layouts/runtime_plan_laid_compact_bits_exit built 1688ms exit:70 interpreter-exit:70 interpreter:agrees @acdf102c21ea+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 1748ms exit:72 interpreter-exit:72 interpreter:agrees @bf12cd0f89bb+wt
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit built 1565ms exit:70 interpreter-exit:70 interpreter:agrees @acdf102c21ea+wt
+pass/layouts/runtime_qualified_record_schema_geometry_exit built 5308ms exit:0 interpreter-exit:0 interpreter:agrees @94cfa03cda24+wt
 pass/layouts/runtime_reborrow_preserves_store_origin_exit built 1834ms exit:70 interpreter-exit:70 interpreter:agrees @aab0810e5e06
 pass/layouts/runtime_recast_reference_captures_index_exit built 4024ms exit:0 interpreter-exit:0 interpreter:agrees @edb462c792f9
 pass/layouts/runtime_recursive_encoded_reference_exit built 1811ms exit:0 interpreter-exit:0 interpreter:agrees @cd0f1f2b1338

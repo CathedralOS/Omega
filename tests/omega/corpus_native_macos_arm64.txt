@@ -2269,6 +2269,7 @@ pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit built 1642m
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit built 3323ms exit:70 @6bd4d1a87ff4+wt
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit built 8278ms exit:70 @4ffed225fc45+wt
 pass/layouts/runtime_plan_laid_value_field_exit built 21420ms exit:70 @3d664be0c918+wt
+pass/layouts/runtime_qualified_record_schema_geometry_exit built 5175ms exit:0 @94cfa03cda24+wt
 pass/layouts/runtime_reborrow_preserves_store_origin_exit built 1686ms exit:70 @aab0810e5e06
 pass/layouts/runtime_recast_reference_captures_index_exit built 1689ms exit:0 @acdf102c21ea+wt
 pass/layouts/runtime_returned_encoded_reference_exit built 1712ms exit:0 @83cbaac892d6
