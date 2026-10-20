@@ -20,8 +20,34 @@ Every place performs the same operation: combine a bounded 32-bit signed base op
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies performs 32-bit bitwise OR and discharges interval |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
-`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
-`Expected exit: 0`.
+`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
+authored `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
+
+## Pinned fixtures
+
+The nine positive places and nine reject twins are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/signed_32bit_bitwise_or_bound_through_local_exit/`
+  - `tests/omega/pass/facts/signed_32bit_bitwise_or_bound_through_field_exit/`
+  - `tests/omega/pass/facts/signed_32bit_bitwise_or_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/signed_32bit_bitwise_or_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/signed_32bit_bitwise_or_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/signed_32bit_bitwise_or_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/signed_32bit_bitwise_or_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/signed_32bit_bitwise_or_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/signed_32bit_bitwise_or_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt` = `cannot prove requires contract for call`):**
+  - `tests/omega/fail/facts/signed_32bit_bitwise_or_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_bitwise_or_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_bitwise_or_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_bitwise_or_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_bitwise_or_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_bitwise_or_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_bitwise_or_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_bitwise_or_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/signed_32bit_bitwise_or_bound_through_target_body_rejected/`
+
+`tests/omega/corpus_native_windows_x86_64.txt` records nine real `built ... exit:0` rows, one per place, and `tests/omega/corpus_outcomes.txt` records all 18 pass and fail outcomes.
 
 ## Execution
 
@@ -45,14 +71,26 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, with `base == 20i32` and mask `32i32`, `combined == 52i32`, `headroom == 63i32 - 52i32 == 11i32`, `margin == 52i32 - 40i32 == 12i32`, and `headroom + margin == 23i32`. The transition `probe() == 23 { true -> done() _ -> bad() }` exits 0. If 32-bit bitwise OR or exact interval calculations evaluate incorrectly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
-- In each invalid twin, `base` upper bound is widened from `31i32` to `64i32` (or constant `BASE` set to `64i32`). Bitwise OR analysis synthesizes `combined in [32, 127]`, which fails the required interval `combined >= 40 && combined <= 63` on `verify_combined`. Proof obligation checking statically detects the violated contract, failing closed with `cannot prove requires contract for call`. None reaches native execution.
+- At runtime, with `base == 20i32` and mask `32i32`, `combined == 52i32`, `headroom == 63i32 - 52i32 == 11i32`, `margin == 52i32 - 40i32 == 12i32`, and `headroom + margin == 23i32`. The transition `probe() == 23 { true -> done() _ -> bad() }` exits 0. A 1-token perturbation of the demanded result (`transition probe() == 23` to `transition probe() == 24`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- In each invalid twin, `base` upper bound is widened from `31i32` to `64i32` (or constant `BASE` set to `64i32`). Bitwise OR analysis synthesizes `combined in [32, 127]`, which fails the required interval `combined >= 40 && combined <= 63` on `verify_combined`. Proof obligation checking statically detects the violated contract under the **Contract precondition** obligation class, failing closed with `cannot prove requires contract for call`. None reaches native execution.
 
 Check all nine invalid twins with:
 
 ```sh
 omega --check samples/cli/facts/signed_32bit_bitwise_or_bound/<place>/invalid/main.omg
 ```
+
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 
 ### Acceptance Gate
 

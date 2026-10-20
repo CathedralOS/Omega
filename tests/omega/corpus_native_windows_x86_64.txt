@@ -1584,6 +1584,15 @@ pass/facts/signed_32bit_bitwise_and_mask_bound_through_other_machine_exit built 
 pass/facts/signed_32bit_bitwise_and_mask_bound_through_other_state_exit built 39439ms exit:0 @a54647670a7e+wt
 pass/facts/signed_32bit_bitwise_and_mask_bound_through_parameter_exit built 38133ms exit:0 @a54647670a7e+wt
 pass/facts/signed_32bit_bitwise_and_mask_bound_through_target_body_exit built 38177ms exit:0 @a54647670a7e+wt
+pass/facts/signed_32bit_bitwise_or_bound_through_call_result_exit built 40677ms exit:0 @1258d561e0cf+wt
+pass/facts/signed_32bit_bitwise_or_bound_through_const_name_exit built 38450ms exit:0 @1258d561e0cf+wt
+pass/facts/signed_32bit_bitwise_or_bound_through_field_exit built 38284ms exit:0 @1258d561e0cf+wt
+pass/facts/signed_32bit_bitwise_or_bound_through_local_exit built 38987ms exit:0 @1258d561e0cf+wt
+pass/facts/signed_32bit_bitwise_or_bound_through_match_join_exit built 39040ms exit:0 @1258d561e0cf+wt
+pass/facts/signed_32bit_bitwise_or_bound_through_other_machine_exit built 41804ms exit:0 @1258d561e0cf+wt
+pass/facts/signed_32bit_bitwise_or_bound_through_other_state_exit built 39305ms exit:0 @1258d561e0cf+wt
+pass/facts/signed_32bit_bitwise_or_bound_through_parameter_exit built 42280ms exit:0 @1258d561e0cf+wt
+pass/facts/signed_32bit_bitwise_or_bound_through_target_body_exit built 40796ms exit:0 @1258d561e0cf+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_exit built 40002ms exit:0 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_exit built 38053ms exit:0 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_field_exit built 38231ms exit:0 @9a273b151c31+wt
