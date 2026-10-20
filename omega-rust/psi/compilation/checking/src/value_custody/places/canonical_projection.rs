@@ -561,6 +561,37 @@ pub fn canonical_place_from_expression(
     }
 }
 
+/// Whether either place resolver could root `expression` at `symbol`. Both
+/// descend borrows, recasts, members and indexes to one leaf; only a storage
+/// `Name` leaf yields a symbol root, and a resolved path names exactly its
+/// own first symbol. An unresolved path falls back to state-scoped spelling,
+/// so it remains possible. A `false` answer is exact: callers asking many
+/// expressions for one root skip the full resolution of every other place.
+pub fn place_root_may_be_symbol(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    let mut leaf = expression;
+    loop {
+        if !leaf.is_valid() {
+            return false;
+        }
+        leaf = match program.expression_table.expression(leaf) {
+            ExpressionNode::Borrow(inner) => inner.target,
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => cast.value,
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Indexed(indexed) => indexed.collection,
+            ExpressionNode::Name(path) => {
+                return !name_materializes_value(program, leaf)
+                    && first_valid_name_path_symbol(path, &program.expression_table)
+                        .is_none_or(|root| root == symbol);
+            }
+            _ => return false,
+        };
+    }
+}
+
 pub(super) fn name_materializes_value(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,

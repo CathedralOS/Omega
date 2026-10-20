@@ -59,6 +59,12 @@ impl RangeFacts<'_> {
         let prefix = self.statement_index.saturating_add(1);
         let bound_lookup = self.bound_lookup();
         for (expression, _) in program.expression_table.iter_expressions() {
+            // Stray hoisting nodes outside any statement still publish
+            // label-keyed facts, so the walk stays whole-table; only places
+            // that cannot root at `symbol` skip contextual resolution.
+            if !validation::place_root_may_be_symbol(program, expression, symbol) {
+                continue;
+            }
             let Some(candidate) = validation::canonical_place_from_expression_in_state(
                 program,
                 state.symbol,

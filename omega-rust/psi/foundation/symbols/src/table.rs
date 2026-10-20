@@ -1106,10 +1106,7 @@ impl SymbolTable {
         if !symbol.is_valid() || self.get(symbol).kind != SymbolKind::BuiltinFunction {
             return None;
         }
-        self.child_handles(self.root)?
-            .skip(BUILTIN_TYPE_COUNT)
-            .take(BuiltinFunction::COUNT)
-            .position(|candidate| candidate == symbol)
+        self.root_slot_ordinal(symbol, BUILTIN_TYPE_COUNT, BuiltinFunction::COUNT)
             .and_then(BuiltinFunction::from_ordinal)
     }
 
@@ -1157,10 +1154,19 @@ impl SymbolTable {
         if !symbol.is_valid() || self.get(symbol).kind != SymbolKind::BuiltinType {
             return None;
         }
-        self.child_handles(self.root)?
-            .take(BUILTIN_TYPE_COUNT)
-            .position(|candidate| candidate == symbol)
+        self.root_slot_ordinal(symbol, 0, BUILTIN_TYPE_COUNT)
             .and_then(BuiltinTypeAtom::from_ordinal)
+    }
+
+    /// Ordinal of `symbol` among the `count` compiler-installed root slots
+    /// starting at root child `first`. The builder installs those slots as
+    /// the root's first contiguous children, so an ordinal is an arena
+    /// distance from the first child, confirmed by `nth` rather than a scan.
+    fn root_slot_ordinal(&self, symbol: SymbolHandle, first: usize, count: usize) -> Option<usize> {
+        let start = self.child_handles(self.root)?.next()?;
+        let ordinal = symbol.arena_index().checked_sub(start.arena_index())? as usize;
+        let slot = ordinal.checked_sub(first).filter(|slot| *slot < count)?;
+        (self.child_handles(self.root)?.nth(ordinal) == Some(symbol)).then_some(slot)
     }
 
     /// `display_path` for a roster member through the per-table snapshot:

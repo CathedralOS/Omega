@@ -813,7 +813,7 @@ mod canonical_projection;
 pub use canonical_projection::{
     CanonicalPlace, canonical_collection_element_place, canonical_place_from_expression,
     canonical_place_from_expression_in_state, element_place_segment, index_place_segment,
-    push_field_place_segments,
+    place_root_may_be_symbol, push_field_place_segments,
 };
 mod contextual_projection;
 pub use contextual_projection::contextual_canonical_place_from_expression;

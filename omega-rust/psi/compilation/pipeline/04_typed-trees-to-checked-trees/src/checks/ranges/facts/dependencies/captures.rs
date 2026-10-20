@@ -113,6 +113,11 @@ impl<'field> RangeFacts<'field> {
             }
             let source_label = program.expression_table.display_name(source);
             for (expression, _) in program.expression_table.iter_expressions() {
+                if let facts::PlaceRoot::Symbol(root) = source_place.root
+                    && !validation::place_root_may_be_symbol(program, expression, root)
+                {
+                    continue;
+                }
                 let Some(mut candidate) = validation::canonical_place_from_expression_in_state(
                     program,
                     state.symbol,

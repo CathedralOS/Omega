@@ -337,3 +337,18 @@ Measured with `OMEGA_PHASE_PROFILE=1 target/release/omega.exe --timings samples/
 - **Corpus Gate Verification (`python tools/corpus_gate.py --compare e44ed43aefa9 --filter "length_through_"`):**
   - `19` fixtures compared against `e44ed43aefa9`: `0 lost, 0 gained`.
 - **Decision:** Retained.
+
+### Iteration 13: Root-Leaf Prefilter for Range Alias Places and O(1) Builtin Slot Ordinals (`checking`, `04_typed-trees-to-checked-trees`, `symbols`)
+- **Re-baseline at `c97afd64556`** (Windows `x86_64`, quiet host, `OMEGA_PHASE_PROFILE=1 omega.exe --timings samples/cli/facts/length/local/main.omg`, 5 runs): `1,042 ms` median total, `Stage 05 = 774 ms`. The product check covers `137` machines / `360` states (`133` std, `4` user); `std` is already narrowed to the reachable Build/provider/lemma closure, so the earlier `904`-machine premise no longer holds. Stages 01-04 total `~50 ms`.
+- **Sampling profile (`samply`, 4 kHz, line-table symbols resolved with `llvm-symbolizer`):** `canonical_place_from_expression_in_state` was `10.6%` of all samples, `514` of its `708` samples under `RangeFacts::alias_place_facts`.
+- **Hypothesis:** `alias_place_facts` (`checks/ranges/facts/dependencies/place_aliases.rs`) and the captured-index rebinding in `captures.rs` resolve the contextual canonical place of every expression in the program per alias: `22` aliases x `5,335` expressions = `117,370` resolutions for `1,808` matches. Both place resolvers derive a symbol root from one leaf (borrow / recast / member / index descent to a non-constant `Name`, whose first resolved path symbol is the root; an unresolved path falls back to state-scoped spelling). `validation::place_root_may_be_symbol` applies that rule before the full resolution.
+  - *Rejected variant:* walking only the binding state's statement expressions. Hoisting leaves operand nodes (`__hoist_N`, `result`) outside every statement, and they still publish label-keyed range facts. An equivalence panic fired in `151` corpus fixtures.
+  - The retained prefilter keeps the whole-table walk and arena order; the same equivalence panic fired in `0` of `10,471` corpus runs.
+- `SymbolTable::builtin_type_atom` / `builtin_function_for_symbol` scanned the root's children by position on every query (`88` samples under `storage_contents::resolve`). The builder installs those slots as the root's first contiguous children, so the ordinal is now an arena distance confirmed by one `nth`.
+- **Measured A/B (5 interleaved runs, medians, base binary `c97afd64556`):**
+  - `05.d.7.9.check_indexed_accesses`: **`57.4 ms -> 17.6 ms`** (**`-69%`**); `state_argument_facts`: `38.1 -> 10.1 ms`; `check_statements`: `18.9 -> 6.7 ms`.
+  - `05.d.7.check_checked_facts`: **`131.6 ms -> 91.2 ms`** (**`-31%`**).
+  - `05.d.lower_typed_trees`: `659.1 -> 608.5 ms` (`-7.7%`); total `1,083 -> 994 ms` (run-to-run spread about `+-100 ms`).
+- **Not changed, by decision:** package cache custody re-verification (`verify_cache_ancestry`, `~4%` of samples) is the before/after race check at the package trust boundary.
+- **Corpus Gate Verification:** `python tools/corpus_gate.py --compare c97afd64556 --filter "arithmetic/,ranges/,range/,arrays/,slices/,borrow/,collections/,length_through_"`: `944` fixtures, `0 lost, 0 gained`; full-corpus equivalence guard: `0` trips in `10,471` runs.
+- **Decision:** Retained.
