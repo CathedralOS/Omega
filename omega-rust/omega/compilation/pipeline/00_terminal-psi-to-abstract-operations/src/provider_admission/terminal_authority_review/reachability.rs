@@ -85,19 +85,38 @@ impl<'a> AuthorityGraph<'a> {
             // Current rewrites preserve reachable calls and their machine IDs.
             // Any future inlining/call-erasing transform must preserve catalog
             // applicability before this selected executable closure is walked.
-            let requirement = self
-                .input
-                .context()
-                .module()
-                .machine(machine)
-                .ok_or_else(|| {
-                    format!("reachable machine {machine:?} has no retained Terminal declaration")
-                })?
-                .assembly_target_requirement;
+            let terminal_machine =
+                self.input
+                    .context()
+                    .module()
+                    .machine(machine)
+                    .ok_or_else(|| {
+                        format!(
+                            "reachable machine {machine:?} has no retained Terminal declaration"
+                        )
+                    })?;
+            let requirement = terminal_machine.assembly_target_requirement;
             if !requirement.accepts_target_name(self.target_profile.target_name()) {
+                // `MachineId` is a table coordinate. The retained source
+                // declaration is what a reader can act on, so name it and say
+                // which catalog architecture the realized target would have to
+                // provide; a bare coordinate sent the next reader back to the
+                // compiler to find out which body demanded what.
+                let declared = terminal_machine
+                    .declaration
+                    .as_ref()
+                    .and_then(|declaration| {
+                        self.input
+                            .context()
+                            .module()
+                            .identities
+                            .text(declaration.machine.identity())
+                    })
+                    .map_or_else(|| format!("{machine:?}"), |name| format!("`{name}`"));
+                let architecture = assembly_catalog_architecture(requirement);
                 return Err(format!(
-                    "reachable machine {machine:?} has incompatible assembly catalog target requirement for `{}`",
-                    self.target_profile.target_name()
+                    "reachable machine {declared} carries checked assembly whose catalog requires {architecture}, which the realized target `{}` does not provide; scope that assembly to a target the catalog admits for {architecture}, or build a target that provides it",
+                    self.target_profile.target_name(),
                 ));
             }
             for operation in &function.operations {
@@ -208,11 +227,9 @@ impl<'a> AuthorityGraph<'a> {
                                 target::Architecture::X86_64
                             )
                         ) {
-                            let architecture = match register_operation.target_applicability() {
-                                terminal_psi::RegisterTargetApplicability::Aarch64 => "aarch64",
-                                terminal_psi::RegisterTargetApplicability::X86_64 => "x86_64",
-                                terminal_psi::RegisterTargetApplicability::Any => "any",
-                            };
+                            let architecture = assembly_catalog_architecture(
+                                register_operation.target_applicability(),
+                            );
                             return Err(format!(
                                 "reachable machine {machine:?} uses {architecture} register access outside its target profile `{}`",
                                 self.target_profile.target_name(),
@@ -251,6 +268,17 @@ impl<'a> AuthorityGraph<'a> {
             boundaries,
             checked_operations: checked_operations.into_values().collect(),
         })
+    }
+}
+
+/// The catalog architecture a retained assembly demand names.
+fn assembly_catalog_architecture(
+    requirement: terminal_psi::RegisterTargetApplicability,
+) -> &'static str {
+    match requirement {
+        terminal_psi::RegisterTargetApplicability::X86_64 => "x86_64",
+        terminal_psi::RegisterTargetApplicability::Aarch64 => "aarch64",
+        terminal_psi::RegisterTargetApplicability::Any => "any",
     }
 }
 
