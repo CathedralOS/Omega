@@ -1694,6 +1694,15 @@ pass/facts/nested_array_element_projection_through_other_machine_exit built 4432
 pass/facts/nested_array_element_projection_through_other_state_exit built 4427ms exit:0 @ff96e24570b8
 pass/facts/nested_array_element_projection_through_parameter_exit built 4427ms exit:0 @ff96e24570b8
 pass/facts/nested_array_element_projection_through_target_body_exit built 4421ms exit:0 @ff96e24570b8
+pass/facts/nested_record_field_borrow_bound_through_call_result_exit built 4456ms exit:0 @6339c958fa86
+pass/facts/nested_record_field_borrow_bound_through_const_name_exit built 4459ms exit:0 @6339c958fa86
+pass/facts/nested_record_field_borrow_bound_through_field_exit built 4454ms exit:0 @6339c958fa86
+pass/facts/nested_record_field_borrow_bound_through_local_exit built 4392ms exit:0 @6339c958fa86
+pass/facts/nested_record_field_borrow_bound_through_match_join_exit built 4383ms exit:0 @6339c958fa86
+pass/facts/nested_record_field_borrow_bound_through_other_machine_exit built 4372ms exit:0 @6339c958fa86
+pass/facts/nested_record_field_borrow_bound_through_other_state_exit built 4416ms exit:0 @6339c958fa86
+pass/facts/nested_record_field_borrow_bound_through_parameter_exit built 4412ms exit:0 @6339c958fa86
+pass/facts/nested_record_field_borrow_bound_through_target_body_exit built 4358ms exit:0 @6339c958fa86
 pass/facts/nested_record_value_through_call_result_exit built 68755ms exit:0 @c14e052cf9d9
 pass/facts/nested_record_value_through_const_name_exit built 68469ms exit:0 @c14e052cf9d9
 pass/facts/nested_record_value_through_field_exit built 68819ms exit:0 @c14e052cf9d9
