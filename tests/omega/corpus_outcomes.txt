@@ -1495,6 +1495,8 @@ fail/domains/generic_exact_issuer_unrelated_template rejected 1730ms expected @3
 fail/domains/generic_exact_issuer_wrong_index rejected 850ms expected @3893811dcbf0+wt
 	index compatibility condition `index-equality:Issued:main::entry:call-0-0:Issued<First>==Issued<Second>` is not established: actual `Issued<First>` and expected `Issued<Second>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/domains/guard_call_requires_established_membership rejected 867ms expected @2ef2ab353498+wt
+fail/domains/guard_predicate_wrong_bound_rejected rejected 1347ms expected @993f06e2d598+wt
+	cannot prove requires contract for call checked from producer: source in u64::Small in state `entry`
 fail/domains/implicit_semantic_domain_local_weakening rejected 828ms expected @a9ae30e1c334+wt
 fail/domains/imported_provider_unissued_result rejected 5578ms expected @e5140c7a7be2+wt
 fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 332ms expected @dca1c7cd7e6f+wt
@@ -9156,6 +9158,7 @@ pass/domains/established_by_domain checked 9412ms @5041ef1af684+wt
 pass/domains/executable_domain_membership_expression_exit checked 12153ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/executable_domain_membership_union_guard_exit checked 11700ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/explicit_domain_erasure checked 1802ms @a9ae30e1c334+wt
+pass/domains/guard_predicate_establishes_domain checked 1522ms @993f06e2d598+wt
 pass/domains/indexed_domain_fact checked 9754ms @5041ef1af684+wt
 pass/domains/indexed_membership_follows_completed_values checked 11058ms check-target:macos_arm64 @a80b1ee9811e+wt
 pass/domains/intersected_qualifiers checked 9557ms @5041ef1af684+wt

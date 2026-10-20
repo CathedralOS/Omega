@@ -4,7 +4,8 @@
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::FactPayload;
-use typed_trees::expression::ExpressionNode;
+use symbols::SymbolHandle;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
 use crate::labels::semantic_fact_requirement_label;
@@ -118,6 +119,57 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
         )
 }
 
+/// The predicate a COMPUTED transition subject was captured from, when the
+/// guard this arm reads is that captured subject's truth test.
+///
+/// `parse_transition` evaluates a computed subject once, before arm dispatch,
+/// and captures it into a generated local (`__transition_subject#N`); the arms
+/// then read `__transition_subject#N == true`. A requirement proof that matches
+/// a guard against the requirement's own predicate needs the PREDICATE, not the
+/// lowered truth test: a predicate-only domain reduces to exactly the predicate
+/// the capture was built from, and matching the truth test against it finds
+/// nothing. Recovery is refused unless the capture is the statement immediately
+/// before the transition, so no statement can run between the subject's
+/// evaluation and the jump.
+fn captured_subject_predicate(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    transition_index: usize,
+    guard: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let subject = subject_truth_test_symbol(program, guard)?;
+    let capture = program
+        .statement_table
+        .statement_at(state, transition_index.checked_sub(1)?)?;
+    let local = capture.as_local_data()?;
+    if local.symbol != subject || !local.initial_value.is_valid() {
+        return None;
+    }
+    Some(local.initial_value)
+}
+
+/// The symbol a `<subject> == true` guard tests, or `None` for any other guard.
+/// Only the captured-subject truth test has this shape; an authored
+/// `flag == true` comparison is a different expression and is left alone.
+fn subject_truth_test_symbol(
+    program: &dyn ::validation::CheckingInput,
+    guard: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let binary = program.expression_table.binary_node(guard)?;
+    if binary.operator != typed_trees::expression::BinaryOperator::Equal
+        || !matches!(
+            program.expression_table.expression(binary.right),
+            ExpressionNode::Boolean(true)
+        )
+    {
+        return None;
+    }
+    match program.expression_table.expression(binary.left) {
+        ExpressionNode::Name(path) => Some(path.symbol),
+        _ => None,
+    }
+}
+
 /// A named transition is itself an incoming edge. Its taken-arm guard may
 /// establish the target state's arrival requirement after positional
 /// substitution (`value > 0` becomes `self.value > 0`). Ordinary call entry
@@ -133,7 +185,7 @@ pub(super) fn transition_guard_proves_requires(
     fact: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((call_site, machine, _, guard)) =
+    let Some((call_site, machine, caller_state, guard)) =
         selected_transition_call(program, state_flow, call_flow)
     else {
         return false;
@@ -141,6 +193,18 @@ pub(super) fn transition_guard_proves_requires(
     if !guard_preserves_values(machine, guard, call_frames) {
         return false;
     }
+    // A computed subject reaches the arms as its captured truth test, whose text
+    // carries none of the predicate the requirement must match. Match against
+    // the captured predicate instead, and below require that predicate's
+    // operands to survive the arm's own operand calls: the truth test says
+    // nothing about them.
+    let captured_premise = captured_subject_predicate(
+        program,
+        caller_state,
+        call_flow.statement_index,
+        guard,
+    );
+    let matching_guard = captured_premise.unwrap_or(guard);
     let Some(target_parameters) =
         validation::call_target_parameters(program, call_flow.target_symbol)
     else {
@@ -170,11 +234,11 @@ pub(super) fn transition_guard_proves_requires(
         }
         _ => false,
     };
-    let guard_establishes = guard_conjunct_matches(program, guard, &required_label) || copied_guard_establishes
+    let guard_establishes = guard_conjunct_matches(program, matching_guard, &required_label) || copied_guard_establishes
         || super::predicate_domains::predicate_only_domain_labels(program, facts, fact).is_some_and(|labels| {
             labels
                 .iter()
-                .all(|label| guard_conjunct_matches(program, guard, label))
+                .all(|label| guard_conjunct_matches(program, matching_guard, label))
         })
         // The spellings need not agree when both state a closed interval:
         // `index < 16` establishes `requires self <= 15`. Comparing the
@@ -185,11 +249,31 @@ pub(super) fn transition_guard_proves_requires(
                 let contains = |(low, high): (numerics::bignum::BigInt, numerics::bignum::BigInt)| {
                     low >= required_low && high <= required_high
                 };
-                super::super::intervals::guard_interval_for_label(program, guard, &subject_label)
-                    .is_some_and(contains)
+                super::super::intervals::guard_interval_for_label(
+                    program,
+                    matching_guard,
+                    &subject_label,
+                )
+                .is_some_and(contains)
             },
         );
     if !guard_establishes {
+        return false;
+    }
+    // A recovered predicate was read at the subject's evaluation, before every
+    // arm operand. An operand call that writes one of its operands would leave
+    // the requirement discharged from a value the jump no longer carries, and
+    // the truth test cannot see that.
+    if let Some(premise) = captured_premise
+        && !super::super::guard_operands::premise_reads_survive_arm_operand_writes(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            premise,
+            call_frames,
+        )
+    {
         return false;
     }
     // The guard was read before the arm's operands ran. An operand evaluated

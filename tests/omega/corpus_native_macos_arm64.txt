@@ -1076,6 +1076,7 @@ pass/domains/established_by_domain checked 9617ms @5041ef1af684+wt
 pass/domains/executable_domain_membership_expression_exit built 689ms exit:81
 pass/domains/executable_domain_membership_union_guard_exit built 669ms exit:241
 pass/domains/explicit_domain_erasure checked 136ms
+pass/domains/guard_predicate_establishes_domain checked 562ms @993f06e2d598+wt
 pass/domains/indexed_domain_fact checked 9962ms @5041ef1af684+wt
 pass/domains/indexed_membership_follows_completed_values built 12736ms exit:0 @a80b1ee9811e+wt
 pass/domains/intersected_qualifiers checked 9305ms @5041ef1af684+wt

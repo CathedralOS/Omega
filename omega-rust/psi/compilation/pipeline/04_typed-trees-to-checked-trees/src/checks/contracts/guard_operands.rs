@@ -25,6 +25,113 @@ enum RequirementRead {
     Argument(ExpressionHandle),
 }
 
+/// One call inside this arm's operands, with the places it may write.
+struct ArmOperandWrites {
+    authored_expression: ExpressionHandle,
+    writes: Vec<validation::CanonicalPlace>,
+}
+
+/// The named jump this call belongs to and every call inside its operands with
+/// the places each may write, or `None` when a write frame cannot be bounded
+/// (callers treat that as "may write anything"). `jump_arm` is `None` when this
+/// call is not a named jump at all: only a named jump has operands that run
+/// between the guard and the requirement's read, so the routes' existing
+/// prerequisites are unchanged.
+struct ArmOperandFrame {
+    jump_arm: Option<TransitionTargetHandle>,
+    state_symbol: SymbolHandle,
+    writes: Vec<ArmOperandWrites>,
+}
+
+fn arm_operand_frame(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<ArmOperandFrame> {
+    let (machine, state) =
+        program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)?;
+    let arm_of = |call_ordinal: usize| -> Option<TransitionTargetHandle> {
+        validation::transition_call_target(
+            program,
+            machine,
+            state,
+            call_flow.statement_index,
+            call_ordinal,
+        )
+    };
+    let jump_arm = arm_of(call_flow.call_ordinal).filter(|arm| arm.is_valid());
+    let Some(jump_arm) = jump_arm else {
+        return Some(ArmOperandFrame {
+            jump_arm: None,
+            state_symbol: state.symbol,
+            writes: Vec::new(),
+        });
+    };
+    let state_flow_calls = facts
+        .flow
+        .control
+        .state(machine.symbol, state.symbol)
+        .map(|owner| facts.flow.control.calls.span_or_empty(owner.calls))?;
+    let borrow_calls = facts
+        .borrow
+        .with_state_index(|index| {
+            index
+                .bucket(machine.symbol, state.symbol)
+                .first()
+                .map(|handle| facts.borrow.states.get(*handle))
+        })
+        .map(|owner| facts.borrow.calls.span_or_empty(owner.calls))
+        .unwrap_or(&[]);
+    let summaries = crate::flow::StateMutationSummaryCache::default();
+    // Call ordinals number the named jump before the calls inside its operands,
+    // so ordinal order cannot say which ran first; operand position can. Guard
+    // calls run before the guard decides and the other arm's calls never run on
+    // this edge, so only calls located inside this arm's operands remain.
+    let mut writes = Vec::new();
+    for operand_call in state_flow_calls.iter().filter(|call| {
+        call.statement_index == call_flow.statement_index
+            && call.call_ordinal != call_flow.call_ordinal
+            && call.authored_expression.is_valid()
+    }) {
+        if arm_of(operand_call.call_ordinal) != Some(jump_arm) {
+            continue;
+        }
+        let borrow_call = borrow_calls.iter().find(|candidate| {
+            candidate.statement_index == operand_call.statement_index
+                && candidate.call_ordinal == operand_call.call_ordinal
+        })?;
+        let mut mutated = crate::flow::call_mutated_places(
+            program,
+            machine.symbol,
+            state.symbol,
+            &facts.borrow,
+            borrow_call,
+            &summaries,
+            call_frames,
+        )?;
+        // Callee-side index selectors do not evaluate in this state's value
+        // namespace; an unknown coordinate may overlap any element.
+        for write in &mut mutated {
+            for segment in &mut write.segments {
+                if let facts::PlaceSegment::Index { expression } = segment {
+                    *expression = ExpressionHandle::invalid();
+                }
+            }
+        }
+        writes.push(ArmOperandWrites {
+            authored_expression: operand_call.authored_expression,
+            writes: mutated,
+        });
+    }
+    Some(ArmOperandFrame {
+        jump_arm: Some(jump_arm),
+        state_symbol: state.symbol,
+        writes,
+    })
+}
+
 /// `true` when no operand call evaluated before one of the requirement's
 /// reads may write the storage that read names. `mentioned` lists the
 /// symbols the requirement spells; only those naming a target parameter are
@@ -45,60 +152,15 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
     if reads.is_empty() {
         return true;
     }
-    let Some((machine, state)) =
-        program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
-    else {
+    let Some(frame) = arm_operand_frame(program, facts, state_flow, call_flow, call_frames) else {
         return false;
     };
-    let arm_of = |call_ordinal: usize| -> Option<TransitionTargetHandle> {
-        validation::transition_call_target(
-            program,
-            machine,
-            state,
-            call_flow.statement_index,
-            call_ordinal,
-        )
-    };
-    // Only a named jump has operands that run between the guard and the
-    // requirement's read. A statement or expression call, or a call inside
-    // the guard itself, keeps the routes' existing prerequisites unchanged.
-    let Some(jump_arm) = arm_of(call_flow.call_ordinal).filter(|arm| arm.is_valid()) else {
+    if frame.jump_arm.is_none() {
         return true;
-    };
-    let Some(state_flow_calls) = facts
-        .flow
-        .control
-        .state(machine.symbol, state.symbol)
-        .map(|owner| facts.flow.control.calls.span_or_empty(owner.calls))
-    else {
-        return false;
-    };
-    let borrow_calls = facts
-        .borrow
-        .with_state_index(|index| {
-            index
-                .bucket(machine.symbol, state.symbol)
-                .first()
-                .map(|handle| facts.borrow.states.get(*handle))
-        })
-        .map(|owner| facts.borrow.calls.span_or_empty(owner.calls))
-        .unwrap_or(&[]);
-    let summaries = crate::flow::StateMutationSummaryCache::default();
-    // Call ordinals number the named jump before the calls inside its
-    // operands, so ordinal order cannot say which ran first; operand position
-    // can. Guard calls run before the guard decides and the other arm's calls
-    // never run on this edge, so only calls located inside this arm's
-    // operands remain.
-    for operand_call in state_flow_calls.iter().filter(|call| {
-        call.statement_index == call_flow.statement_index
-            && call.call_ordinal != call_flow.call_ordinal
-            && call.authored_expression.is_valid()
-    }) {
-        if arm_of(operand_call.call_ordinal) != Some(jump_arm) {
-            continue;
-        }
+    }
+    for operand in &frame.writes {
         let Some(operand_position) = arguments.iter().position(|argument| {
-            expression_contains(program, *argument, operand_call.authored_expression)
+            expression_contains(program, *argument, operand.authored_expression)
         }) else {
             continue;
         };
@@ -110,37 +172,11 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
         if later_reads.is_empty() {
             continue;
         }
-        let Some(borrow_call) = borrow_calls.iter().find(|candidate| {
-            candidate.statement_index == operand_call.statement_index
-                && candidate.call_ordinal == operand_call.call_ordinal
-        }) else {
-            return false;
-        };
-        let Some(mut writes) = crate::flow::call_mutated_places(
-            program,
-            machine.symbol,
-            state.symbol,
-            &facts.borrow,
-            borrow_call,
-            &summaries,
-            call_frames,
-        ) else {
-            return false;
-        };
-        // Callee-side index selectors do not evaluate in this state's value
-        // namespace; an unknown coordinate may overlap any element.
-        for write in &mut writes {
-            for segment in &mut write.segments {
-                if let facts::PlaceSegment::Index { expression } = segment {
-                    *expression = ExpressionHandle::invalid();
-                }
-            }
-        }
-        let written = writes.iter().any(|write| {
+        let written = operand.writes.iter().any(|write| {
             later_reads.iter().any(|read| match read {
                 RequirementRead::Argument(argument) => expression_reads_overlapping_place(
                     program,
-                    state.symbol,
+                    frame.state_symbol,
                     call_flow.statement_index,
                     *argument,
                     write,
@@ -152,6 +188,43 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
         }
     }
     true
+}
+
+/// `true` when no call inside this arm's operands may write storage that a
+/// captured transition subject's predicate reads.
+///
+/// A COMPUTED transition subject is evaluated once, before arm dispatch, and
+/// captured into a generated local; the arms read the capture's truth. The
+/// predicate's operands are read at that evaluation, before every arm operand,
+/// so any operand call writing one of them leaves a guard-derived requirement
+/// discharged from a value the jump no longer carries. The captured truth test
+/// mentions none of those operands, which is why the recovered predicate is
+/// what this check reads.
+pub(super) fn premise_reads_survive_arm_operand_writes(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    premise: ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let Some(frame) = arm_operand_frame(program, facts, state_flow, call_flow, call_frames) else {
+        return false;
+    };
+    if frame.jump_arm.is_none() {
+        return true;
+    }
+    frame.writes.iter().all(|operand| {
+        operand.writes.iter().all(|write| {
+            !expression_reads_overlapping_place(
+                program,
+                frame.state_symbol,
+                call_flow.statement_index,
+                premise,
+                write,
+            )
+        })
+    })
 }
 
 /// The symbols a boolean contract expression names at its roots.
