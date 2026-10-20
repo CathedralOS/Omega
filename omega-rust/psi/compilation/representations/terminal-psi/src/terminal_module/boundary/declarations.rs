@@ -43,7 +43,9 @@ pub struct BoundaryStructuralResultDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BoundaryMachineResult {
     Unit,
-    Scalar(ScalarType),
+    /// The caller receives this exact checked membership, not merely equal
+    /// primitive bits. Provider matching must not erase it at an opaque call.
+    Scalar(semantic_vocabulary::QualifiedScalarType),
     Structural(BoundaryStructuralResultDeclaration),
 }
 
@@ -93,7 +95,7 @@ impl BoundaryMachineResult {
         match (self, result) {
             (Self::Unit, crate::TerminalMachineResult::Unit) => true,
             (Self::Scalar(expected), crate::TerminalMachineResult::Scalar(result)) => {
-                *expected == result.scalar_type
+                *expected == result.value_type()
             }
             (Self::Structural(expected), crate::TerminalMachineResult::Structural(result)) => {
                 expected.structural_type == result.structural_type
@@ -110,7 +112,7 @@ impl BoundaryMachineResult {
         match (self, result) {
             (Self::Unit, crate::OperationResult::Unit) => true,
             (Self::Scalar(expected), crate::OperationResult::Scalar(result)) => {
-                *expected == result.scalar_type
+                *expected == result.value_type()
             }
             (Self::Structural(expected), crate::OperationResult::Structural(result)) => {
                 expected.structural_type == result.structural_type
@@ -124,7 +126,7 @@ impl BoundaryMachineResult {
 
     pub const fn scalar(&self) -> Option<ScalarType> {
         match self {
-            Self::Scalar(scalar) => Some(*scalar),
+            Self::Scalar(scalar) => Some(scalar.scalar_type),
             Self::Unit | Self::Structural(_) => None,
         }
     }

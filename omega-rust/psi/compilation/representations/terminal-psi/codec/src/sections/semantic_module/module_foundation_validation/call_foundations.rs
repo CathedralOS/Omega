@@ -655,7 +655,7 @@ pub(super) fn validate_boundary_call(
     }
     let actual_result = match &operation.result {
         OperationResult::Unit => Some(BoundaryMachineResult::Unit),
-        OperationResult::Scalar(result) => Some(BoundaryMachineResult::Scalar(result.scalar_type)),
+        OperationResult::Scalar(result) => Some(BoundaryMachineResult::Scalar(result.value_type())),
         OperationResult::Structural(result) => {
             validate_result_claim_shape(module, result)?;
             Some(BoundaryMachineResult::Structural(

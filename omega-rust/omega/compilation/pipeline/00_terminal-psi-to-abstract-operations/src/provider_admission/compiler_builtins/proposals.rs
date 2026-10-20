@@ -33,7 +33,10 @@ fn boundary_float_formats(
         .filter_map(|boundary| {
             let format = match boundary.result {
                 terminal_psi::BoundaryMachineResult::Scalar(
-                    semantic_vocabulary::ScalarType::IeeeFloat(format),
+                    semantic_vocabulary::QualifiedScalarType {
+                        scalar_type: semantic_vocabulary::ScalarType::IeeeFloat(format),
+                        ..
+                    },
                 ) => Some(format),
                 _ => boundary
                     .scalar_parameters

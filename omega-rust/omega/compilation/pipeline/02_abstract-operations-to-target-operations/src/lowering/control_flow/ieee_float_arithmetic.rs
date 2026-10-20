@@ -144,7 +144,7 @@ pub(super) fn lower(
         || !realization.supports_target(target)
         || !realization.signature_matches(&declaration.scalar_parameters, scalar)
         || !declaration.structural_parameters.is_empty()
-        || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)
+        || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar.into())
         || result.scalar_type != scalar
         || arguments.len() != realization.operation.operand_count()
         || !structural_arguments.is_empty()

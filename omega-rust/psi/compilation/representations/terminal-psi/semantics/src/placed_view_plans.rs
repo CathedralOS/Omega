@@ -221,7 +221,7 @@ pub fn validate_placed_view_catalog(
                         TerminalPlacedAccessorKind::Read | TerminalPlacedAccessorKind::Take => {
                             boundary.structural_parameters.len() == 1
                                 && boundary.scalar_parameters.is_empty()
-                                && boundary.result == BoundaryMachineResult::Scalar(scalar)
+                                && boundary.result == BoundaryMachineResult::Scalar(scalar.into())
                         }
                         TerminalPlacedAccessorKind::Write => {
                             boundary.structural_parameters.len() == 1

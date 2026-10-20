@@ -26,6 +26,33 @@ fn domains(
 }
 
 pub(super) fn validate_declarations(module: &TerminalModule) -> Result<(), CodecError> {
+    // Results are promises of the public declaration, not just ABI carriers.
+    // Check the same namespace for boundary calls and dynamic interface slots.
+    for result in module
+        .boundary_machines
+        .iter()
+        .map(|boundary| &boundary.result)
+        .chain(
+            module
+                .dynamic_dispatch
+                .interfaces
+                .iter()
+                .flat_map(|interface| interface.slots.iter().map(|slot| &slot.result)),
+        )
+    {
+        if let terminal_psi::BoundaryMachineResult::Scalar(result) = result {
+            for membership in domains(module, result.qualifications)? {
+                if !module
+                    .scalar_qualifications
+                    .domains
+                    .iter()
+                    .any(|domain| domain.id == *membership && domain.carrier == result.scalar_type)
+                {
+                    return malformed("boundary scalar result qualification changes its carrier");
+                }
+            }
+        }
+    }
     for boundary in &module.boundary_machines {
         for requirement in &boundary.scalar_domain_requirements {
             let carrier = boundary

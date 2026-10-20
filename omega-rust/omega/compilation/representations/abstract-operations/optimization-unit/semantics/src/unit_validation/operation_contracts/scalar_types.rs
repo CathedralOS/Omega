@@ -450,7 +450,7 @@ pub(crate) fn operation_scalar_types_match(
                 (
                     terminal_psi::BoundaryMachineResult::Scalar(expected),
                     abstract_operations::AbstractBoundaryResult::Scalar(actual),
-                ) => actual.scalar_type == *expected,
+                ) => actual.scalar_type == expected.scalar_type,
                 (
                     terminal_psi::BoundaryMachineResult::Structural(expected),
                     abstract_operations::AbstractBoundaryResult::Structural(actual),

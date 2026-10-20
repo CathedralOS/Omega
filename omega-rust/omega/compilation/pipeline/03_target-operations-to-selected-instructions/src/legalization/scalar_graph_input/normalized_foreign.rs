@@ -38,7 +38,7 @@ pub(in crate::legalization) fn result_at(
             abstract_operations::AbstractBoundaryResult::Scalar(result),
             terminal_psi::BoundaryMachineResult::Scalar(declared),
         ) => {
-            if result.scalar_type != *declared
+            if result.scalar_type != declared.scalar_type
                 || super::value_type(optimized, result.value) != Some(result.scalar_type)
             {
                 return Err(LegalizationError::custody());

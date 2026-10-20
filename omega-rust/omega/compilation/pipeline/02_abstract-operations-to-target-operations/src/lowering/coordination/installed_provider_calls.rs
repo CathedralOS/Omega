@@ -168,7 +168,7 @@ pub(super) fn validate_installed_provider_calls(
                     (
                         abstract_operations::AbstractBoundaryResult::Scalar(actual),
                         terminal_psi::BoundaryMachineResult::Scalar(expected),
-                    ) => actual.scalar_type == *expected,
+                    ) => actual.scalar_type == expected.scalar_type,
                     (
                         abstract_operations::AbstractBoundaryResult::Structural(actual),
                         terminal_psi::BoundaryMachineResult::Structural(expected),

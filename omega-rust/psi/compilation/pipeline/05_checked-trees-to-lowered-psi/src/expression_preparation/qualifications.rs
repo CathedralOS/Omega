@@ -112,6 +112,13 @@ impl PreparedScalarQualifications {
                 _ => {}
             }
         }
+        for boundary in boundaries {
+            let signature =
+                crate::declarations::target_signature(checked, boundary.machine, boundary.machine)?;
+            if carries_scalar_qualifications(checked, signature.return_type) {
+                references.push(signature.return_type);
+            }
+        }
         let mut catalog = ScalarQualificationCatalog::default();
         let mut atom_sets = Vec::new();
         for reference in references {
@@ -121,7 +128,7 @@ impl PreparedScalarQualifications {
             for (symbol, semantic_id) in atoms {
                 let predicate =
                     domain_predicate(identities, checked, reference, symbol, semantic_id)?;
-                let identity = retain_domain(
+                atom_identities.push(retain_domain(
                     &mut catalog,
                     identities,
                     checked,
@@ -129,8 +136,7 @@ impl PreparedScalarQualifications {
                     semantic_id,
                     scalar_type,
                     predicate,
-                )?;
-                atom_identities.push(identity);
+                )?);
             }
             atom_identities.sort();
             atom_identities.dedup();
@@ -260,19 +266,7 @@ impl PreparedScalarQualifications {
         checked: &CheckedTrees,
         reference: TypeReferenceHandle,
     ) -> Result<QualifiedScalarType, LoweringError> {
-        if carries_scalar_qualifications(checked, reference) {
-            return self.value_type(checked, reference);
-        }
-        let primitive =
-            checked
-                .primitive_type_reference(reference)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit scalar signature slot is not a primitive scalar",
-                ))?;
-        Ok(QualifiedScalarType {
-            scalar_type: terminal_scalar_type(primitive)?,
-            qualifications: ScalarQualificationSetId::ZERO,
-        })
+        signature_value_type(checked, &self.catalog, reference)
     }
 
     pub(crate) fn value_type(
@@ -280,41 +274,7 @@ impl PreparedScalarQualifications {
         checked: &CheckedTrees,
         reference: TypeReferenceHandle,
     ) -> Result<QualifiedScalarType, LoweringError> {
-        let (primitive, atoms) = type_atoms(checked, reference)?;
-        let scalar_type = terminal_scalar_type(primitive)?;
-        let mut domains = Vec::new();
-        for (_, identity) in atoms {
-            let domain = self
-                .catalog
-                .domains
-                .iter()
-                .find(|domain| {
-                    domain.semantic_domain.get() == u64::from(identity.0)
-                        && domain.carrier == scalar_type
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "scalar qualification is absent from the prepared closure",
-                ))?;
-            domains.push(domain.id);
-        }
-        domains.sort();
-        domains.dedup();
-        let qualifications = if domains.is_empty() {
-            ScalarQualificationSetId::ZERO
-        } else {
-            self.catalog
-                .sets
-                .iter()
-                .find(|set| set.domains == domains)
-                .map(|set| set.id)
-                .ok_or(LoweringError::Unsupported(
-                    "scalar qualification set is absent from the prepared closure",
-                ))?
-        };
-        Ok(QualifiedScalarType {
-            scalar_type,
-            qualifications,
-        })
+        scalar_value_type(checked, &self.catalog, reference)
     }
 
     pub(crate) fn boundary_domain_id(
@@ -502,6 +462,67 @@ fn scalar_domain_establishment_routes(
     routes.sort();
     routes.dedup();
     Ok(routes)
+}
+
+/// Ordinary and opaque call signatures share one scalar result namespace.
+/// Numeric predicates remain independent contract propositions; nominal routed
+/// memberships survive the call without changing its runtime representation.
+pub(crate) fn signature_value_type(
+    checked: &CheckedTrees,
+    catalog: &ScalarQualificationCatalog,
+    reference: TypeReferenceHandle,
+) -> Result<QualifiedScalarType, LoweringError> {
+    if carries_scalar_qualifications(checked, reference) {
+        return scalar_value_type(checked, catalog, reference);
+    }
+    let primitive =
+        checked
+            .primitive_type_reference(reference)
+            .ok_or(LoweringError::Unsupported(
+                "scalar signature slot is not a primitive scalar",
+            ))?;
+    Ok(terminal_scalar_type(primitive)?.into())
+}
+
+fn scalar_value_type(
+    checked: &CheckedTrees,
+    catalog: &ScalarQualificationCatalog,
+    reference: TypeReferenceHandle,
+) -> Result<QualifiedScalarType, LoweringError> {
+    let (primitive, atoms) = type_atoms(checked, reference)?;
+    let scalar_type = terminal_scalar_type(primitive)?;
+    let mut domains = Vec::new();
+    for (_, identity) in atoms {
+        let domain = catalog
+            .domains
+            .iter()
+            .find(|domain| {
+                domain.semantic_domain.get() == u64::from(identity.0)
+                    && domain.carrier == scalar_type
+            })
+            .ok_or(LoweringError::Unsupported(
+                "scalar qualification is absent from the prepared closure",
+            ))?;
+        domains.push(domain.id);
+    }
+    domains.sort();
+    domains.dedup();
+    let qualifications = if domains.is_empty() {
+        ScalarQualificationSetId::ZERO
+    } else {
+        catalog
+            .sets
+            .iter()
+            .find(|set| set.domains == domains)
+            .map(|set| set.id)
+            .ok_or(LoweringError::Unsupported(
+                "scalar qualification set is absent from the prepared closure",
+            ))?
+    };
+    Ok(QualifiedScalarType {
+        scalar_type,
+        qualifications,
+    })
 }
 
 fn establishment_route(

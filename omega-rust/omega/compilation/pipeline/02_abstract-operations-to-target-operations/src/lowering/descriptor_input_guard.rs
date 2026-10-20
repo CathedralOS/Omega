@@ -47,7 +47,7 @@ pub fn descriptor_input_guard(
     }
     let result = match declaration.result {
         BoundaryMachineResult::Unit => None,
-        BoundaryMachineResult::Scalar(scalar) => Some(scalar),
+        BoundaryMachineResult::Scalar(scalar) => Some(scalar.scalar_type),
         _ => return Ok(None),
     };
     derive(

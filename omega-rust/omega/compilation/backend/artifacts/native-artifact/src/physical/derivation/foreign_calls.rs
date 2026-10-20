@@ -231,11 +231,11 @@ pub(crate) fn derive_normalized_foreign_child(
             Some(terminal_psi::OperationResult::Scalar(value)),
             terminal_psi::BoundaryMachineResult::Scalar(declared),
             Some(physical),
-        ) if value.scalar_type == *declared
+        ) if value.value_type() == *declared
             && physical.home.source_value == value.id
-            && physical.home.scalar_type == *declared =>
+            && physical.home.scalar_type == declared.scalar_type =>
         {
-            let Some(shape) = foreign_scalar_shape(*declared) else {
+            let Some(shape) = foreign_scalar_shape(declared.scalar_type) else {
                 return Ok(None);
             };
             Some(shape)
@@ -253,14 +253,14 @@ pub(crate) fn derive_normalized_foreign_child(
             else {
                 return Err("normalized foreign D41 child changed its scalar result custody");
             };
-            if value.scalar_type != *declared
+            if value.value_type() != *declared
                 || Some(home.defining_operation) != source_operation
                 || home.source_value != value.id
-                || home.scalar_type != *declared
+                || home.scalar_type != declared.scalar_type
             {
                 return Err("normalized foreign D41 child changed its scalar result custody");
             }
-            let Some(shape) = foreign_scalar_shape(*declared) else {
+            let Some(shape) = foreign_scalar_shape(declared.scalar_type) else {
                 return Ok(None);
             };
             if home.shape != shape {

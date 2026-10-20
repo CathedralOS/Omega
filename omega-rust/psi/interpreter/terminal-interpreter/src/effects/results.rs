@@ -214,7 +214,9 @@ impl TerminalExecution<'_> {
                 OperationResult::Scalar(declaration),
                 BoundaryMachineResult::Scalar(expected),
                 TerminalEffectResult::Scalar(value),
-            ) if declaration.scalar_type == *expected && value.scalar_type() == *expected => {
+            ) if declaration.value_type() == *expected
+                && value.scalar_type() == expected.scalar_type =>
+            {
                 self.values.insert(declaration.id, value);
             }
             (

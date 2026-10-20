@@ -107,8 +107,8 @@ pub(super) fn emit_boundary_call_binding(
     if call.structural_arguments.len() != target.structural.len() {
         return unsupported("computed boundary arguments disagree with their call shape");
     }
-    if !call.result_type.qualifications.is_empty() {
-        return unsupported("nested boundary application result carries qualifications");
+    if target.result != terminal_psi::BoundaryMachineResult::Scalar(call.result_type) {
+        return unsupported("nested boundary application result disagrees with its signature");
     }
     if call.arguments.len() != target.scalar.len() {
         return unsupported("nested boundary application operand count disagrees");
@@ -150,7 +150,7 @@ pub(super) fn emit_boundary_call_binding(
     let raw = ValueDeclaration {
         id: result,
         scalar_type: call.result_type.scalar_type,
-        qualifications: Default::default(),
+        qualifications: call.result_type.qualifications,
     };
     let policy = call.result_policy.bind(
         raw,

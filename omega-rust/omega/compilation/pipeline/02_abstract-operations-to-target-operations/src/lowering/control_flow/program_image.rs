@@ -55,7 +55,7 @@ pub(super) fn lower(
             )
         || !declaration.scalar_parameters.is_empty()
         || !declaration.structural_parameters.is_empty()
-        || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)
+        || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar.into())
         || result.scalar_type != scalar
         || !arguments.is_empty()
         || !structural_arguments.is_empty()

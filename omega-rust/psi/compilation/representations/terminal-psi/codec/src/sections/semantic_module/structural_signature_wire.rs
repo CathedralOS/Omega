@@ -686,7 +686,8 @@ pub(super) fn encode_call_result(
         BoundaryMachineResult::Unit => writer.u8(0),
         BoundaryMachineResult::Scalar(result) => {
             writer.u8(1);
-            encode_scalar_type(writer, *result);
+            encode_scalar_type(writer, result.scalar_type);
+            writer.u64(result.qualifications.get());
         }
         BoundaryMachineResult::Structural(result) => {
             writer.u8(2);
@@ -714,7 +715,10 @@ pub(super) fn decode_call_result(
 ) -> Result<BoundaryMachineResult, CodecError> {
     Ok(match reader.u8()? {
         0 => BoundaryMachineResult::Unit,
-        1 => BoundaryMachineResult::Scalar(decode_scalar_type(reader)?),
+        1 => BoundaryMachineResult::Scalar(semantic_vocabulary::QualifiedScalarType {
+            scalar_type: decode_scalar_type(reader)?,
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::new(reader.u64()?),
+        }),
         2 => BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
             structural_type: reader.id("StructuralTypeId")?,
             multiplicity: match reader.u8()? {

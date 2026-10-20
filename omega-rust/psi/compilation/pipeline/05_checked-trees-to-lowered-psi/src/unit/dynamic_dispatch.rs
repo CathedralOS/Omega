@@ -310,6 +310,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                 &type_ids,
                 &module.structural_types,
                 &domain_ids,
+                &module.scalar_qualifications,
             )?);
         }
         catalog.interfaces.push(TerminalDynamicInterface {
@@ -405,6 +406,7 @@ fn lower_slot(
     )],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
+    scalar_qualifications: &terminal_psi::ScalarQualificationCatalog,
 ) -> Result<TerminalDynamicSlot, LoweringError> {
     let Some((selector, scalars)) = plan.scalar_parameters.split_first() else {
         return unsupported("dynamic slot lost its selector operand");
@@ -457,6 +459,9 @@ fn lower_slot(
     entry_claim_paths.sort();
     let result = super::attached_unit::lower_boundary_result(
         identities,
+        checked,
+        plan.slot,
+        scalar_qualifications,
         &plan.result,
         type_ids,
         structural_types,

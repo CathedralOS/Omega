@@ -140,7 +140,7 @@ fn callable_result(
             .result
         {
             BoundaryMachineResult::Unit => Ok(ResultClass::Unit),
-            BoundaryMachineResult::Scalar(result) => Ok(ResultClass::Scalar(*result)),
+            BoundaryMachineResult::Scalar(result) => Ok(ResultClass::Scalar(result.scalar_type)),
             BoundaryMachineResult::Structural(result) => {
                 Ok(ResultClass::Structural(result.structural_type))
             }

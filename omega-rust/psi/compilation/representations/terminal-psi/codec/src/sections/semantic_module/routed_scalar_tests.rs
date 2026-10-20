@@ -112,6 +112,88 @@ fn routed_scalar_result_round_trips_and_commits_predicate_and_origin() {
 }
 
 #[test]
+fn scalar_boundary_result_retains_membership_and_rejects_detached_types() {
+    use terminal_psi::{
+        BoundaryMachineDeclaration, BoundaryMachineResult, Operation, OperationKind,
+        OperationResult,
+    };
+    let mut module = module();
+    let result = module.machines[0].result.scalar().unwrap().value_type();
+    let boundary = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_domain_requirements: Vec::new(),
+        declaration: None,
+        role: terminal_psi::BoundaryDeclarationRole::Callable,
+        id: boundary,
+        kind: terminal_psi::BoundaryRequirementKind::Machine,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
+        unconditional_termination: false,
+        identity: TerminalIdentityIndex(1),
+        attachment: None,
+        owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+        parameter_order: Vec::new(),
+        scalar_parameters: Vec::new(),
+        crash_routes: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: BoundaryMachineResult::Scalar(result),
+        requires: Vec::new(),
+        scalar_requires: Vec::new(),
+        scalar_ensures: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        reference_outputs: Vec::new(),
+        fixed_service_reach: Vec::new(),
+        owning_service: None,
+        published_service_ceiling: Vec::new(),
+    });
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: semantic_vocabulary::OperationId::new(1).unwrap(),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: ValueId::new(3).unwrap(),
+            scalar_type: result.scalar_type,
+            qualifications: result.qualifications,
+        }),
+        kind: OperationKind::BoundaryCall {
+            boundary,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+            requirement_obligations: Vec::new(),
+        },
+    });
+    assert_eq!(
+        decode_module(&encode_module(&module).unwrap()).unwrap(),
+        module
+    );
+    for mutation in 0..4 {
+        let mut malformed = module.clone();
+        let BoundaryMachineResult::Scalar(declared) = &mut malformed.boundary_machines[0].result
+        else {
+            panic!("scalar declaration");
+        };
+        match mutation {
+            0 => declared.qualifications = ScalarQualificationSetId::new(99),
+            1 => declared.scalar_type = ScalarType::Boolean,
+            2 => declared.qualifications = ScalarQualificationSetId::ZERO,
+            _ => {
+                let OperationResult::Scalar(actual) =
+                    &mut malformed.machines[0].blocks[0].operations[0].result
+                else {
+                    panic!("scalar operation");
+                };
+                actual.qualifications = ScalarQualificationSetId::ZERO;
+            }
+        }
+        assert!(
+            decode_module(&encode_raw(&malformed).unwrap()).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn routed_scalar_completion_retains_the_exact_formation_edge() {
     use terminal_psi::ScalarReturnSite;
     let mut module = module();

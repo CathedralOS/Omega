@@ -176,7 +176,7 @@ pub(in crate::legalization) fn validate(
         || !realization.supports_target(native)
         || !realization.signature_matches(&declaration.scalar_parameters, scalar)
         || !declaration.structural_parameters.is_empty()
-        || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)
+        || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar.into())
         || !declaration.requires.is_empty()
         || !declaration.program_local_root_introductions.is_empty()
         || !declaration.content_guarantees.is_empty()

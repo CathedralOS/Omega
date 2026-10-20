@@ -46,6 +46,7 @@ pub(crate) fn state_declaration(
 /// machine parameter, a boundary requirement, or a selector call's slot.
 pub(crate) struct TargetSignature<'source> {
     pub parameters: &'source [StateParameter],
+    pub return_type: typed_trees::types::TypeReferenceHandle,
     pub boundary: bool,
     parameter_coordinates: ParameterCoordinates,
 }
@@ -88,6 +89,7 @@ pub(crate) fn target_signature(
     if let Some(slot) = program.dynamic_slot_by_symbol(source_target) {
         return Ok(TargetSignature {
             parameters: &slot.parameters,
+            return_type: slot.return_type,
             boundary: false,
             parameter_coordinates: ParameterCoordinates::Authored,
         });
@@ -117,6 +119,7 @@ pub(crate) fn target_signature(
         }
         return Ok(TargetSignature {
             parameters: program.state_parameters(state),
+            return_type: state.return_type,
             // Opaque Requirements and boundary declarations share signature
             // transport, not provider authority. Authored bodies stay ordinary.
             boundary: machine.has_bodyless_signature(),
@@ -130,6 +133,7 @@ pub(crate) fn target_signature(
     {
         return Ok(TargetSignature {
             parameters: program.operator_parameters(operator),
+            return_type: operator.return_type,
             boundary: true,
             parameter_coordinates: ParameterCoordinates::Authored,
         });
@@ -158,6 +162,7 @@ pub(crate) fn target_signature(
     }
     Ok(TargetSignature {
         parameters: program.state_signature_parameters(signature),
+        return_type: signature.return_type,
         boundary: true,
         parameter_coordinates: ParameterCoordinates::ServiceOperands,
     })

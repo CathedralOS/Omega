@@ -700,10 +700,10 @@ pub(super) fn lower_normalized_foreign_scalar_result(
             return Ok(None);
         }
         (terminal_psi::BoundaryMachineResult::Scalar(declaration_result), Some(result)) => {
-            if result.scalar_type != *declaration_result {
+            if result.scalar_type != declaration_result.scalar_type {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
-            (*declaration_result, result.value)
+            (declaration_result.scalar_type, result.value)
         }
         _ => return Err(LoweringError::BoundaryRealizationMismatch(boundary)),
     };

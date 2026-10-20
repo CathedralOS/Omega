@@ -137,6 +137,16 @@ pub(crate) fn lower_declarations(
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         scalar_domain_requirements.sort();
+        let result = lower_boundary_result(
+            identities,
+            checked,
+            plan.machine,
+            scalar_qualifications.catalog(),
+            &plan.result,
+            type_ids,
+            structural_types,
+            domain_ids,
+        )?;
         declarations.push(BoundaryMachineDeclaration {
             scalar_domain_requirements,
             declaration: checked
@@ -192,13 +202,7 @@ pub(crate) fn lower_declarations(
             scalar_parameters: scalar_parameters.clone(),
             crash_routes,
             structural_parameters: parameters.clone(),
-            result: lower_boundary_result(
-                identities,
-                &plan.result,
-                type_ids,
-                structural_types,
-                domain_ids,
-            )?,
+            result: result.clone(),
             requires,
             program_local_root_introductions: lower_program_local_root_introductions(
                 checked,
@@ -239,6 +243,7 @@ pub(crate) fn lower_declarations(
             id,
             structural: parameters,
             scalar: scalar_qualifications.boundary_signature_types(plan)?,
+            result,
             requirement_count,
         });
     }
@@ -448,6 +453,9 @@ fn lower_requirements(
 
 pub(crate) fn lower_boundary_result(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    source: symbols::SymbolHandle,
+    scalar_qualifications: &terminal_psi::ScalarQualificationCatalog,
     result: &CheckedBoundaryMachineResultPlan,
     type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -455,8 +463,15 @@ pub(crate) fn lower_boundary_result(
 ) -> Result<BoundaryMachineResult, LoweringError> {
     Ok(match result {
         CheckedBoundaryMachineResultPlan::Unit => BoundaryMachineResult::Unit,
-        CheckedBoundaryMachineResultPlan::Scalar(scalar) => {
-            BoundaryMachineResult::Scalar(terminal_scalar_type(*scalar)?)
+        CheckedBoundaryMachineResultPlan::Scalar(_) => {
+            let signature = crate::declarations::target_signature(checked, source, source)?;
+            BoundaryMachineResult::Scalar(
+                crate::expression_preparation::qualifications::signature_value_type(
+                    checked,
+                    scalar_qualifications,
+                    signature.return_type,
+                )?,
+            )
         }
         CheckedBoundaryMachineResultPlan::Structural {
             type_identity,

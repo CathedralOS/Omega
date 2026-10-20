@@ -157,7 +157,7 @@ pub(super) fn validate_operation(
                 || unit.boundary_machine(*boundary) != Some(declaration)
                 || !declaration.scalar_parameters.is_empty()
                 || !declaration.structural_parameters.is_empty()
-                || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)
+                || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar.into())
                 || !declaration.requires.is_empty()
                 || !declaration.program_local_root_introductions.is_empty()
                 || !declaration.content_guarantees.is_empty()

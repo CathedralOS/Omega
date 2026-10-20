@@ -62,7 +62,7 @@ pub fn placed_scalar_boundary_demand(
     let signature_matches = match operation {
         TerminalPlacedAccessorKind::Read | TerminalPlacedAccessorKind::Take => {
             declaration.scalar_parameters.is_empty()
-                && declaration.result == BoundaryMachineResult::Scalar(scalar)
+                && declaration.result == BoundaryMachineResult::Scalar(scalar.into())
         }
         TerminalPlacedAccessorKind::Write => {
             declaration.scalar_parameters == [scalar]

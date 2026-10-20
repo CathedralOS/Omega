@@ -83,10 +83,25 @@ impl OperationFrame<'_, '_> {
             .map(|parameter| terminal_scalar_type(parameter.primitive_type))
             .collect::<Result<Vec<_>, _>>()?;
         let operands = self.boundary_operands(identities, call, inputs)?;
+        let declared_result = self
+            .callees
+            .boundaries
+            .iter()
+            .find(|boundary| boundary.source == *target_machine)
+            .and_then(|boundary| match boundary.result {
+                terminal_psi::BoundaryMachineResult::Scalar(result) => Some(result),
+                _ => None,
+            })
+            .ok_or(LoweringError::Unsupported(
+                "scalar boundary call lost its result signature",
+            ))?;
+        if declared_result.scalar_type != terminal_scalar_type(result.primitive_type)? {
+            return unsupported("scalar boundary result disagrees with its checked carrier");
+        }
         let value = ValueDeclaration {
-            qualifications: Default::default(),
+            qualifications: declared_result.qualifications,
             id: value_id(allocate_dense(self.next_value)?),
-            scalar_type: terminal_scalar_type(result.primitive_type)?,
+            scalar_type: declared_result.scalar_type,
         };
         let policy = BoundaryResultPolicy::prepare(
             self.checked,

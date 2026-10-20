@@ -370,8 +370,8 @@ pub(in crate::legalization) fn selected_boundary_operation(
             && actual.scalar_type == result.scalar_type
             && actual.defining_operation == *psi_operation
             && Some(actual.shape) == super::scalar_shape(result.scalar_type)
-            && result.scalar_type == *boundary_scalar
-            && candidate_result.scalar_type == *boundary_scalar =>
+            && result.scalar_type == boundary_scalar.scalar_type
+            && candidate_result.scalar_type == boundary_scalar.scalar_type =>
         {
             AbstractOperation::CallStructural {
                 psi_operation: *psi_operation,

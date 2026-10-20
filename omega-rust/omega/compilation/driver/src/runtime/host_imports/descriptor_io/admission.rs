@@ -145,7 +145,8 @@ pub(super) fn admit(
         || signature.completion != BoundaryCompletion::NormalReturn
         || signature.scalar_parameters != scalar_parameters
         || (!signature.result.is_unit()
-            && signature.result != BoundaryMachineResult::Scalar(ScalarType::Integer(result_type)))
+            && signature.result
+                != BoundaryMachineResult::Scalar(ScalarType::Integer(result_type).into()))
         || declaration.parameter_order != parameter_order
         || !access_supported
         || formal.multiplicity != StructuralMultiplicity::Unrestricted

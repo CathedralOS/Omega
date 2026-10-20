@@ -6,6 +6,13 @@ exact `issue` route and `Consume::subtract` operation. Positives use
 `START = 100`; each reject twin changes only that input to 99, violating the
 same bound before it can be issued. No caller guard reconstructs the fact.
 
+`issue` now has a checked body for every hosted target. The route still names
+one family declaration: each body owes the predicate independently, and the
+opaque family call must retain its qualified scalar result before the boundary
+parameter consumes it. The previous compiler refused the target issuer at
+source checking; merely repairing authorization then exposed a bare-result
+erasure in boundary call lowering. The row exercises both joins end to end.
+
 This is the next prerequisite of **FILESYSTEM-PLATFORM-SERVICES**: the Windows
 transfer leaf requires an already issued synchronous-handle classification.
 This row tests compiler transport, not Windows mode bits, native lifetime or

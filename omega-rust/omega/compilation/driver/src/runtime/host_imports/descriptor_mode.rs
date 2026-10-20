@@ -81,7 +81,7 @@ impl DescriptorModeImport {
             || signature.scalar_parameters != [ScalarType::Integer(word), ScalarType::Integer(word)]
             || !signature.structural_parameters.is_empty()
             || signature.result
-                != terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(word))
+                != terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(word).into())
             || declaration.parameter_order
                 != [BoundaryParameterKind::Scalar, BoundaryParameterKind::Scalar]
             || !declaration.requires.is_empty()

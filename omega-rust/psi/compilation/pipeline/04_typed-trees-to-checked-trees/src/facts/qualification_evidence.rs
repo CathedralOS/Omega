@@ -1,7 +1,8 @@
 //! Qualification originates at an authorized result boundary, not from a type
 //! annotation. Exact-machine routes name authored declarations; executable
-//! specialization changes the body symbol but not the invoked declaration.
-//! Follow retained application ownership for that join. Domain indices and
+//! specialization and target membership change the body symbol but not the
+//! invoked declaration. Follow retained application ownership and the resolved
+//! family roster for that join. Domain indices and
 //! result subjects remain in the ordinary contract facts and are not erased.
 
 use checked_trees::ContractProofFact;
@@ -169,6 +170,18 @@ fn machine_invokes_declaration(
     // diagnostic names, source spans, or a wrapper's calls to an issuer.
     for _ in 0..=program.machines().len() {
         if current == authorized {
+            return true;
+        }
+        // A target body implements its independently resolved family head.
+        // Join only that retained association: equal names, another machine
+        // calling the issuer, and the selected realization grant nothing.
+        if program.target_machine_families.iter().any(|family| {
+            family.canonical == authorized
+                && family
+                    .members
+                    .iter()
+                    .any(|member| member.machine == current)
+        }) {
             return true;
         }
         let template = match program.executable_application_template(current) {

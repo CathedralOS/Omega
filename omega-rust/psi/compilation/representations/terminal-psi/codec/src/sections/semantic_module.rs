@@ -104,7 +104,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Caller-activation establishment and release carry exact site/custody operands.
 // Indexed source proof carriers and cited theorem roots retain exact semantic identities.
 // Boundary scalar parameters and stored fields retain independent membership rows.
-pub(crate) const FORMAT_MARKER: u16 = 175;
+// Boundary and dynamic scalar results retain their complete qualification set.
+pub(crate) const FORMAT_MARKER: u16 = 176;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

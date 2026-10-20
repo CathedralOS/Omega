@@ -882,7 +882,8 @@ pub(super) fn encode_boundary_result(bytes: &mut CanonicalBytes, result: &Bounda
         BoundaryMachineResult::Unit => bytes.u8(0),
         BoundaryMachineResult::Scalar(result) => {
             bytes.u8(1);
-            encode_scalar_type(bytes, *result);
+            encode_scalar_type(bytes, result.scalar_type);
+            bytes.u64(result.qualifications.get());
         }
         BoundaryMachineResult::Structural(result) => {
             bytes.u8(2);

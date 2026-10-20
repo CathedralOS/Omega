@@ -293,7 +293,7 @@ pub(crate) fn direct_port_read_custody(
             if value.id == result.value && value.scalar_type == u8_type
     ) && matches!(
         declaration.result,
-        terminal_psi::BoundaryMachineResult::Scalar(scalar) if scalar == u8_type
+        terminal_psi::BoundaryMachineResult::Scalar(scalar) if scalar == u8_type.into()
     );
     if !result_matches {
         return Err("direct port-read D41 settlement changed its semantic scalar result");

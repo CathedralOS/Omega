@@ -91,7 +91,7 @@ pub fn boundary_completion_preserves_descriptor_storage<'types>(
         || !match (&declaration.result, result) {
             (BoundaryMachineResult::Unit, BoundaryCompletionResult::Unit) => true,
             (BoundaryMachineResult::Scalar(expected), BoundaryCompletionResult::Scalar(actual)) => {
-                *expected == actual
+                expected.scalar_type == actual
             }
             (
                 BoundaryMachineResult::Structural(expected),

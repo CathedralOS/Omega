@@ -253,9 +253,9 @@ pub(in crate::lowering) fn lower_boundary_call(
                         IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is a valid type");
                     if result.scalar_type != ScalarType::Integer(u8_type)
                         || declaration.result
-                            != terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(
-                                u8_type,
-                            ))
+                            != terminal_psi::BoundaryMachineResult::Scalar(
+                                ScalarType::Integer(u8_type).into(),
+                            )
                     {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     }

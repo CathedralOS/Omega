@@ -150,7 +150,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                 if request.target() != target::NativeTarget::uefi_x64()
                     || !boundary.scalar_parameters.is_empty()
                     || !boundary.structural_parameters.is_empty()
-                    || boundary.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)
+                    || boundary.result != terminal_psi::BoundaryMachineResult::Scalar(scalar.into())
                 {
                     return Err(vec![Diagnostic::error(
                         "program image observation requires the exact UEFI address-result boundary",
@@ -351,7 +351,8 @@ fn float_arithmetic_realization(
     let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result else {
         return Err("does not match its Terminal boundary signature".to_owned());
     };
-    if !realization.signature_matches(&boundary.scalar_parameters, result)
+    if !result.qualifications.is_empty()
+        || !realization.signature_matches(&boundary.scalar_parameters, result.scalar_type)
         || !boundary.structural_parameters.is_empty()
     {
         return Err("does not match its Terminal boundary signature".to_owned());

@@ -72,7 +72,7 @@ pub(crate) fn lower_closed_conformance_applications(
         let result = match &declaration.result {
             terminal_psi::BoundaryMachineResult::Unit => ClosedConformanceCallableResult::Unit,
             terminal_psi::BoundaryMachineResult::Scalar(result) => {
-                ClosedConformanceCallableResult::Scalar(*result)
+                ClosedConformanceCallableResult::Scalar(result.scalar_type)
             }
             terminal_psi::BoundaryMachineResult::Structural(result) => {
                 ClosedConformanceCallableResult::Structural(result.structural_type)

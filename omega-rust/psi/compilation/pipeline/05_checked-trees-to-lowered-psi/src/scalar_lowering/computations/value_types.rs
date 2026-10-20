@@ -52,10 +52,13 @@ fn value_type(
         | CheckedScalarComputationKind::AuthoredCast { result_type, .. } => {
             qualifications.value_type(checked, *result_type)?
         }
-        CheckedScalarComputationKind::Call {
-            callee: checked_trees::CheckedScalarCallee::Body { state, .. },
-            ..
-        } => qualifications.scalar_state_types(checked, *state)?.1,
+        CheckedScalarComputationKind::Call { callee, .. } => {
+            let target = callee
+                .static_target()
+                .map_or(callee.called_signature(), |(_, state)| state);
+            let signature = crate::declarations::target_signature(checked, target, target)?;
+            qualifications.signature_value_type(checked, signature.return_type)?
+        }
         CheckedScalarComputationKind::StorageAddress { .. }
         | CheckedScalarComputationKind::RetainedConstant { .. } => {
             terminal_scalar_type(node.primitive_type)?.into()
@@ -81,10 +84,8 @@ fn value_type(
             }
             terminal_scalar_type(node.primitive_type)?.into()
         }
-        // A boundary or dynamic callee publishes the node's bare carrier.
         CheckedScalarComputationKind::Apply { .. }
         | CheckedScalarComputationKind::StorageObservation { .. }
-        | CheckedScalarComputationKind::Call { .. }
         | CheckedScalarComputationKind::SelectedComparison { .. } => {
             terminal_scalar_type(node.primitive_type)?.into()
         }

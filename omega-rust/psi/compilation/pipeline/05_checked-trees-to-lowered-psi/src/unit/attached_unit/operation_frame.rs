@@ -111,6 +111,7 @@ pub(crate) struct BoundaryParameters {
     pub(crate) structural: Vec<StructuralParameterDeclaration>,
     /// Dense scalar parameter types, in the declaration's scalar lane.
     pub(crate) scalar: Vec<semantic_vocabulary::QualifiedScalarType>,
+    pub(crate) result: terminal_psi::BoundaryMachineResult,
     /// The declaration's `scalar_requires` rows; each call owes one
     /// obligation per row.
     pub(crate) requirement_count: usize,

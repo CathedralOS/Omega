@@ -344,9 +344,9 @@ fn replays_result(
             AbstractFunctionResult::Scalar(candidate),
             terminal_psi::TerminalMachineResult::Scalar(terminal_candidate),
         ) => {
-            occurrence.scalar_type == *boundary
-                && candidate.scalar_type == *boundary
-                && terminal_candidate.scalar_type == *boundary
+            occurrence.value_type() == *boundary
+                && candidate.scalar_type == boundary.scalar_type
+                && terminal_candidate.value_type() == *boundary
                 && candidate.value == terminal_candidate.id
         }
         (
