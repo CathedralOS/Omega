@@ -4064,14 +4064,26 @@ fail/facts/returned_write_destination_through_parameter_read rejected 1888ms exp
 fail/facts/returned_write_destination_through_target_body_read rejected 2268ms expected @2ef2ab353498+wt
 	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/runtime_count_index_through_call_result_out_of_bounds rejected 7953ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: count < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_count_index_through_const_name_out_of_bounds rejected 7057ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$6b6bd8faeb92b6a0$0 from indexed: 4 < items.len (needs fact `4 < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_count_index_through_field_out_of_bounds rejected 5786ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: held.count < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_count_index_through_local_out_of_bounds rejected 5621ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: count < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_count_index_through_match_join_out_of_bounds rejected 5390ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: index < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_count_index_through_other_machine_out_of_bounds rejected 5168ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call consume from indexed: measure(items) < items.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_count_index_through_other_state_out_of_bounds rejected 5258ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call pick from indexed: count < items.len (needs fact `count < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_count_index_through_parameter_out_of_bounds rejected 5516ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: index < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_count_index_through_target_body_out_of_bounds rejected 5290ms expected @ce5f8c9f2f5f
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_index_application_through_call_result_payload_outside_limit rejected 5918ms expected @336cafc17e1a+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_through_const_name_payload_outside_limit rejected 5850ms expected @336cafc17e1a+wt
