@@ -3942,6 +3942,7 @@ fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejecte
 fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite rejected 1684ms expected @4030174fbc4e
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 3: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_cleanup_receiver_prerequisite rejected 1541ms expected @4030174fbc4e
+	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_prerequisite rejected 7527ms expected @4e77584323e4
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_through_call_result_held_source rejected 3345ms expected @3424ad143d6e
