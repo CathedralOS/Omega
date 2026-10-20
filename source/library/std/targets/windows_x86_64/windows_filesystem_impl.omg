@@ -10,6 +10,8 @@ use targets::windows_x86_64::windows_filesystem_native;
 use targets::windows_x86_64::windows_filesystem_transfer_native;
 use targets::windows_x86_64::windows_filesystem_control;
 use targets::windows_x86_64::windows_filesystem_transfer;
+use targets::windows_x86_64::windows_filesystem_metadata;
+use targets::windows_x86_64::windows_filesystem_metadata_native;
 
 data WindowsFilesystemNativeProvider { }
 
@@ -17,12 +19,19 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::provider_defaults(defaul
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemHost, NativeWindowsFilesystem>(defaults);
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo, NativeWindowsFilesystemImports>(defaults);
     WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemTransferIo, NativeWindowsFilesystemTransfers>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemMetadataIo, NativeWindowsFilesystemMetadataImports>(defaults);
 }
 
 // Inline members bind the complete implementation to its existing target-owned
 // bodies and foreign bindings. Forwarding preserves operation capability rows;
 // the raw family's selection identity contributes no additional service reach.
 NativeWindowsFilesystem satisfies WindowsFilesystemHost {
+    machine metadata(handle: u64) -> WindowsMetadataResult reaches FilesystemMetadataQuery {
+        block WindowsFilesystemNativeProvider::metadata(handle)
+    }
+    machine read_metadata(path: &[u8] in Path, no_follow: bool) -> WindowsMetadataResult reaches FilesystemMetadataQuery {
+        block WindowsFilesystemNativeProvider::read_metadata(path, no_follow)
+    }
     machine create_file(path: &[u8] in Path, desired_access: u32, share_mode: u32, creation_disposition: u32, flags_and_attributes: u32) -> u64
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
         block WindowsFilesystemNativeProvider::create_file(path, desired_access, share_mode, creation_disposition, flags_and_attributes)

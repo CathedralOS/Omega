@@ -26,11 +26,31 @@ use omega::language::core::filesystem_authority;
 use targets::windows_x86_64::windows_filesystem_impl;
 use targets::windows_x86_64::windows_filesystem_native;
 use targets::windows_x86_64::windows_filesystem_transfer_native;
+use targets::windows_x86_64::windows_filesystem_metadata_native;
 
 // An untouched result is an error. Timestamp zero remains a valid FILETIME.
 public data WindowsFileTimeResult {
     case Error(code: u32);
     case Value(access_time: u64, write_time: u64);
+}
+
+// Native Windows facts, not fabricated POSIX identities. Timestamps retain
+// their FILETIME bit pattern; the portable adapter owns epoch conversion.
+// This is one pinned object observed by several queries, not an atomic snapshot
+// against another writer changing that object's size or attributes.
+public data WindowsFileMetadata [copy] {
+    length: i64;
+    links: u32;
+    attributes: u32;
+    reparse_tag: u32;
+    creation_ticks: u64;
+    access_ticks: u64;
+    write_ticks: u64;
+    change_ticks: u64;
+}
+public data WindowsMetadataResult {
+    case Error(code: u32);
+    case Value(metadata: WindowsFileMetadata);
 }
 
 // Operation capabilities are independent of the raw family's selection identity.
@@ -39,6 +59,18 @@ public data WindowsFileTimeResult {
 // In particular, empty source reach on CloseHandle proves no ordinary-release
 // classification for an arbitrary HANDLE or its close-triggered behavior.
 public boundary trait WindowsFilesystemHost {
+    machine metadata(handle: u64) -> WindowsMetadataResult
+    reaches FilesystemMetadataQuery
+    blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemMetadataIo;
+    // OPEN_EXISTING with FILE_READ_ATTRIBUTES only. Unlike a general creating
+    // open, this operation has no content or namespace mutation reach.
+    machine read_metadata(path: &[u8] in Path, no_follow: bool) -> WindowsMetadataResult
+    reaches FilesystemMetadataQuery
+    blocks;
+    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemMetadataIo;
     machine create_file(
         path: &[u8] in Path,
         desired_access: u32,

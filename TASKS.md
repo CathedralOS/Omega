@@ -5538,7 +5538,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     its portable provider; the moved shared algorithms, direct raw byte-view
     adapters and Linux-only `write_all_full_device_exit` need Linux x86-64
     execution. Foreign publication alone does not establish those outcomes.
-  - Execute the Windows raw breadth and set-file-time fixtures on Windows
+  - Execute the Windows raw breadth, set-file-time and metadata fixtures on Windows
     x86-64 (exit 70). Foreign artifact production does not establish those
     outcomes. Preserve oversized-read, asynchronous-handle, invalid UTF-8 and
     failed-time-query controls.
