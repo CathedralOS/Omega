@@ -4080,6 +4080,27 @@ fail/facts/shared_qualification_erasure_target_body rejected 4666ms expected @81
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
+fail/facts/signed_32bit_bitwise_and_mask_bound_through_call_result_rejected rejected 23140ms expected @a54647670a7e+wt
+	cannot prove ensures contract for exit from mask_op at statement 0: result >= 40 && result <= 63
+fail/facts/signed_32bit_bitwise_and_mask_bound_through_const_name_rejected rejected 22115ms expected @a54647670a7e+wt
+	cannot prove requires contract for call verify_masked from compute_const: res >= 40 && res <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_bitwise_and_mask_bound_through_field_rejected rejected 19171ms expected @a54647670a7e+wt
+	cannot prove requires contract for call verify_masked from compute_field: res >= 40 && res <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_bitwise_and_mask_bound_through_local_rejected rejected 14356ms expected @a54647670a7e+wt
+	cannot prove requires contract for call verify_masked from compute_local: res >= 40 && res <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_bitwise_and_mask_bound_through_match_join_rejected rejected 16282ms expected @a54647670a7e+wt
+	cannot prove ensures contract for exit from choose_mask at statement 1: result >= 40 && result <= 63
+fail/facts/signed_32bit_bitwise_and_mask_bound_through_other_machine_rejected rejected 17554ms expected @a54647670a7e+wt
+	cannot prove requires contract for call forward from compute_forward: res >= 40 && res <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_bitwise_and_mask_bound_through_other_state_rejected rejected 16347ms expected @a54647670a7e+wt
+	cannot prove requires contract for call step from verify_state: res >= 40 && res <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_bitwise_and_mask_bound_through_parameter_rejected rejected 16150ms expected @a54647670a7e+wt
+	cannot prove requires contract for call verify_parameter from compute_param: masked >= 40 && masked <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_32bit_bitwise_and_mask_bound_through_target_body_rejected rejected 18246ms expected @a54647670a7e+wt
+	cannot prove requires contract for call verify_masked from verify_target: res >= 40 && res <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_masked from verify_target: res >= 40 && res <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_masked from verify_target: res >= 40 && res <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_masked from verify_target: res >= 40 && res <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_rejected rejected 19310ms expected @9a273b151c31+wt
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_rejected rejected 18871ms expected @9a273b151c31+wt
 fail/facts/signed_64bit_bitwise_and_mask_bound_through_field_rejected rejected 15266ms expected @9a273b151c31+wt
@@ -9026,6 +9047,15 @@ pass/facts/shared_qualification_erasure_other_machine checked 14377ms check-targ
 pass/facts/shared_qualification_erasure_other_state checked 14359ms check-target:macos_arm64 @8137d4f697de+wt
 pass/facts/shared_qualification_erasure_parameter checked 14427ms check-target:macos_arm64 @8137d4f697de+wt
 pass/facts/shared_qualification_erasure_target_body checked 14468ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/signed_32bit_bitwise_and_mask_bound_through_call_result_exit checked 44450ms check-target:macos_arm64 @a54647670a7e+wt
+pass/facts/signed_32bit_bitwise_and_mask_bound_through_const_name_exit checked 46721ms check-target:macos_arm64 @a54647670a7e+wt
+pass/facts/signed_32bit_bitwise_and_mask_bound_through_field_exit checked 52938ms check-target:macos_arm64 @a54647670a7e+wt
+pass/facts/signed_32bit_bitwise_and_mask_bound_through_local_exit checked 45162ms check-target:macos_arm64 @a54647670a7e+wt
+pass/facts/signed_32bit_bitwise_and_mask_bound_through_match_join_exit checked 50392ms check-target:macos_arm64 @a54647670a7e+wt
+pass/facts/signed_32bit_bitwise_and_mask_bound_through_other_machine_exit checked 52333ms check-target:macos_arm64 @a54647670a7e+wt
+pass/facts/signed_32bit_bitwise_and_mask_bound_through_other_state_exit checked 47086ms check-target:macos_arm64 @a54647670a7e+wt
+pass/facts/signed_32bit_bitwise_and_mask_bound_through_parameter_exit checked 39054ms check-target:macos_arm64 @a54647670a7e+wt
+pass/facts/signed_32bit_bitwise_and_mask_bound_through_target_body_exit checked 46618ms check-target:macos_arm64 @a54647670a7e+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_exit checked 39212ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_const_name_exit checked 43877ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/signed_64bit_bitwise_and_mask_bound_through_field_exit checked 44917ms check-target:macos_arm64 @9a273b151c31+wt
