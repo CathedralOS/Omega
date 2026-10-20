@@ -582,6 +582,37 @@ class StalePackageStateTests(unittest.TestCase):
         self.assertEqual(measure.call_count, 1)
         self.assertNotIn("retried", result)
 
+    def test_accepted_inputs_preserve_stale_state_and_refuse_without_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock = Path(directory, "omega.lock")
+            lock.write_text("stale")
+            stale = {"sample": directory, "state": "no-native-build",
+                     "detail": "needs an accepted program-entry binding"}
+            with patch.object(gate, "measure", return_value=stale) as measure, \
+                    patch.object(gate, "clear_package_state", side_effect=AssertionError("must not clear")):
+                result = gate.timed_measure("omega", directory, "macos_arm64", 10,
+                                            accepted_inputs_only=True)
+            measure.assert_called_once_with("omega", directory, "macos_arm64", 10,
+                                            False, accepted_inputs_only=True)
+            self.assertEqual(result["state"], "no-native-build")
+            self.assertEqual(lock.read_text(), "stale")
+            self.assertNotIn("retried", result)
+
+    def test_accepted_inputs_execute_normal_cli_without_package_update(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "main.omg").write_text("// Expected exit: 0\nmachine main() {}\n")
+            project = sample_projects.Project(directory=root, entry=root / "main.omg", role="program")
+            completed = subprocess.CompletedProcess([], 0, "", "native exit 0\n")
+            with patch.object(gate, "project_at", return_value=project), \
+                    patch.object(gate, "accept_review", side_effect=AssertionError("must not update")), \
+                    patch.object(gate, "run", return_value=completed) as run:
+                result = gate.measure("omega", directory, "macos_arm64", 10,
+                                      accepted_inputs_only=True)
+            self.assertEqual(result["state"], "pass")
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(run.call_args.args[0], ["omega", "run", str(project.entry)])
+
 
 class GateCliTests(unittest.TestCase):
     """By default the gate measures a fresh opt-level 1 build; an explicit

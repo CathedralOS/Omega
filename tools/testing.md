@@ -132,6 +132,15 @@ or an unrelated refusal do not establish that the fact is enforced. Keep source
 rejection, unsupported publication and runtime failure distinct, and name
 unavailable hosts. Consult CLI help before combining unfamiliar modes or flags.
 
+Prepare ordinary package acceptance before a frozen execution capture. Publishing
+an ignored `omega.lock` can change its source directory's timestamps even when
+tracked sources are unchanged, correctly invalidating that capture's stability
+check. For the sample gate, run `--accepted-inputs-only` after normal per-project
+review. It disables package updates and stale-state cleanup/retries; the normal
+CLI still enforces exact accepted inputs and every authored execution oracle.
+Retain the consumed locks as replay inputs. Do not relax source-mutation checks
+or copy an accepted lock into another checkout as authority.
+
 Fresh replay projects contain authored sources, declared resources and oracle
 files. Exclude generated build directories, caches, binaries and package-review
 state. Carry a lock only when that exact approved lock is an explicit check

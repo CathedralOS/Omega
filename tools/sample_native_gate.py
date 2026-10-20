@@ -11,6 +11,11 @@ no committed lock, so on a fresh checkout compilation stops at `package
 acceptance is missing` before lowering. This gate completes the per-checkout
 review, then builds, runs, and compares.
 
+For a frozen qualification capture, prepare ordinary per-project acceptance
+first, then use `--accepted-inputs-only`. That mode performs no package update
+or stale-state cleanup/retry. The normal CLI still refuses missing or stale
+acceptance; runtime oracles and intended-invalid checking are unchanged.
+
 The oracle is the sample's own header, which the corpus already documents:
 
     // Expected exit: 0.
@@ -264,7 +269,7 @@ def clear_package_state(sample):
             os.remove(path)
 
 
-def timed_measure(cli, sample, target, timeout, build_unscored=False):
+def timed_measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_only=False):
     """`measure` plus the wall time it took and where that time went.
 
     A failure caused by stale local package state is measured once more from
@@ -274,9 +279,11 @@ def timed_measure(cli, sample, target, timeout, build_unscored=False):
     _phases.times = {}
     start = time.monotonic()
     try:
-        result = measure(cli, sample, target, timeout, build_unscored)
+        options = {"accepted_inputs_only": True} if accepted_inputs_only else {}
+        result = measure(cli, sample, target, timeout, build_unscored, **options)
         first = result.get("diagnostic") or result.get("detail", "")
-        if result["state"] in ("no-native-build", "error") and STALE_PACKAGE_STATE.search(first):
+        if (not accepted_inputs_only and result["state"] in ("no-native-build", "error")
+                and STALE_PACKAGE_STATE.search(first)):
             clear_package_state(sample)
             result = measure(cli, sample, target, timeout, build_unscored)
             result["retried"] = first
@@ -465,7 +472,7 @@ def check_refusal(cli, sample, timeout):
     return completed.stdout + completed.stderr
 
 
-def measure(cli, sample, target, timeout, build_unscored=False):
+def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_only=False):
     project = project_at(Path(sample), ROOT)
     if project.entry is None:
         return {"sample": sample, "state": "discovery-error", "detail": "missing unambiguous entry; declare sample.json entry"}
@@ -502,7 +509,10 @@ def measure(cli, sample, target, timeout, build_unscored=False):
         # outside probes/ is still built so a native-build failure shows.
         return {"sample": sample, "state": "no-oracle",
                 "detail": "probe states no oracle; not built (--build-unscored builds it)"}
-    reason, review_output = accept_review(cli, sample, target, timeout)
+    # Frozen qualification prepares ordinary package acceptance beforehand.
+    # The normal CLI still verifies the exact lock; this mode only prevents
+    # the gate from publishing or repairing package inputs during execution.
+    reason, review_output = (None, "") if accepted_inputs_only else accept_review(cli, sample, target, timeout)
     if reason == "review-failed":
         # A candidate that fails checking cannot build natively; report why.
         # A check-only probe that fails checking stays a check failure.
@@ -631,8 +641,9 @@ def find_work(arguments, samples):
     candidates = sample_queue.discovery_candidates(samples, record, ownership)
     results = []
     for sample in candidates:
+        options = {"accepted_inputs_only": True} if getattr(arguments, "accepted_inputs_only", False) else {}
         result = timed_measure(arguments.cli, sample, arguments.target,
-                               arguments.timeout, arguments.build_unscored)
+                               arguments.timeout, arguments.build_unscored, **options)
         results.append(result)
         if sample_queue.queue({"results": [result]}, live_claims=ownership):
             break
@@ -677,6 +688,9 @@ def main():
     parser.add_argument("--build-unscored", action="store_true",
                         help="review and natively build samples that state no oracle "
                              "(default: report them as no-oracle without compiling)")
+    parser.add_argument("--accepted-inputs-only", action="store_true",
+                        help="execute already reviewed package inputs without updating or "
+                             "repairing them; normal CLI acceptance checks still apply")
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument("--timeout", type=int, default=300, help="seconds per CLI call")
     parser.add_argument("--write-results", metavar="PATH")
@@ -727,10 +741,11 @@ def main():
         print(f"sample_native_gate: discovery measured {len(results)}/{len(samples)} "
               "applications; partial coverage cannot establish release health")
     else:
+        options = {"accepted_inputs_only": True} if arguments.accepted_inputs_only else {}
         with ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
             grouped = pool.map(
                 lambda group: [timed_measure(arguments.cli, s, arguments.target, arguments.timeout,
-                                             arguments.build_unscored)
+                                             arguments.build_unscored, **options)
                                for s in group],
                 nested_groups(samples),
             )
@@ -1008,6 +1023,7 @@ def record_run(arguments, started, results, buckets, passed, scored, timing=None
         "jobs": getattr(arguments, "jobs", None),
         "timeout": getattr(arguments, "timeout", None),
         "filter": arguments.filter or ("cli/facts" if getattr(arguments, "facts", False) else ""),
+        "accepted_inputs_only": bool(getattr(arguments, "accepted_inputs_only", False)),
         "scope": ("discovery" if getattr(arguments, "find_work", False) else
                   "programs" if getattr(arguments, "programs_only", False) else "all"),
         "summary": {
