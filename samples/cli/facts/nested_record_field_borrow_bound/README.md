@@ -1,6 +1,9 @@
 # Nested Record Field Borrow Bound
 
-Projecting a nested inner record field (`outer.inner.quota <= 72u64`) through a shared borrow (`&Outer`) preserves its exact static upper bound without moving either record, discharging exact subtraction `72u64 - quota` across all nine places.
+Fact: projecting a nested inner record field through a shared borrow preserves its exact static upper bound without moving either record, discharging exact subtraction 72u64 - quota across all nine places.
+
+Owning Task: `CONSERVATION-CONTRACT` (`TASKS.md`)
+Claim Ticket: `1ccddcaba99441caa2bc01e14b61479c`
 
 Every place performs the same operation: define two-level nested records `Inner { quota: u64, tag: u64 }` with `where quota <= 72` and `Outer { inner: Inner, header: u64 }`, construct `outer: Outer` initialized with `quota: 30, tag: 7, header: 10`, take a shared borrow `&outer`, transport the shared reference or its projected field through the place, project `view.inner.quota` to observe `quota <= 72`, perform exact subtraction `72u64 - quota` (yielding `42u64`), and verify in `main` that `diff == 42` exiting 0. Only the transport mechanism of the shared reference or its projected field changes across places.
 
@@ -20,8 +23,8 @@ Every place performs the same operation: define two-level nested records `Inner 
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the nested shared borrow field projection and exact subtraction |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
-`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
-`Expected exit: 0`.
+`windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
+authored `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
 
 ## Execution
 
@@ -45,14 +48,26 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, `Inner` is bounded with `where quota <= 72` and initialized with `quota: 30, tag: 7`. `Outer` contains `inner: Inner` and `header: 10`. Shared borrow field projection yields `view.inner.quota == 30u64`. Exact subtraction `72u64 - quota` produces `42u64`. In `main`, `transition diff == 42` transitions to `state done() {}`, terminating with native exit 0. If field projection returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
-- Each invalid twin widens the inner field bound to `where quota <= 73`. Exact subtraction `72u64 - quota` could underflow if `quota == 73`, so compile-time proof obligation checking fails closed with `exact arithmetic in machine ... may overflow \`u64\``. None reaches native execution.
+- In every positive place, `Inner` is bounded with `where quota <= 72` and initialized with `quota: 30, tag: 7`. `Outer` contains `inner: Inner` and `header: 10`. Shared borrow field projection yields `view.inner.quota == 30u64`. Exact subtraction `72u64 - quota` produces `42u64`. In `main`, `transition diff == 42` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition diff == 42` to `transition diff == 43`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- Each invalid twin widens the inner field bound to `where quota <= 73`. Exact subtraction `72u64 - quota` could underflow if `quota == 73`, so compile-time proof obligation checking fails closed under the **Exact arithmetic overflow/underflow (decision 17)** obligation class with `may overflow \`u64\``. None reaches native execution.
 
 Check all nine invalid twins with:
 
 ```sh
 omega --check samples/cli/facts/nested_record_field_borrow_bound/<place>/invalid/main.omg
 ```
+
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
 
 The same nine twins are also mirrored under `invalid/<place>/` with an authored
 `expected.txt`, so the invalid controls are discoverable by both the per-place
@@ -61,7 +76,7 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/nested_record_field_borrow_bound --jobs 4
+python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\swarm\w26\worktrees\w26-6\target\debug\omega.exe --filter cli/facts/nested_record_field_borrow_bound --jobs 4
 ```
 
 `sample_native_gate.py` reports:
@@ -70,14 +85,34 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/nested_record_field_borrow_bound_through_*` and
-`tests/omega/fail/facts/nested_record_field_borrow_bound_unproved_*` fixtures.
+All 18 positive and reject places are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/nested_record_field_borrow_bound_through_local_exit/`
+  - `tests/omega/pass/facts/nested_record_field_borrow_bound_through_field_exit/`
+  - `tests/omega/pass/facts/nested_record_field_borrow_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/nested_record_field_borrow_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/nested_record_field_borrow_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/nested_record_field_borrow_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/nested_record_field_borrow_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/nested_record_field_borrow_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/nested_record_field_borrow_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt`):**
+  - `tests/omega/fail/facts/nested_record_field_borrow_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/nested_record_field_borrow_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/nested_record_field_borrow_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/nested_record_field_borrow_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/nested_record_field_borrow_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/nested_record_field_borrow_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/nested_record_field_borrow_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/nested_record_field_borrow_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/nested_record_field_borrow_bound_through_target_body_rejected/`
 The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
 
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
-- **Requirement established:** End-to-end nine-place fact preservation and native realization for two-level nested record shared borrow `&Outer` field projection and bound delivery. Specifically, projecting a nested inner record field (`outer.inner.quota <= 72u64`) through a shared borrow (`&Outer`) preserves its exact static upper bound without moving or consuming either record, discharging exact subtraction `72u64 - quota` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
+- **Ticket:** `1ccddcaba99441caa2bc01e14b61479c`.
+- **Requirement established:** End-to-end nine-place fact preservation and native realization for two-level nested record shared borrow `&Outer` field projection and bound delivery ([structural access](../../../../wiki/spec/terminal-psi/structural_access.md), [loans](../../../../wiki/spec/terminal-psi/loans.md)). Specifically, projecting a nested inner record field (`outer.inner.quota <= 72u64`) through a shared borrow (`&Outer`) preserves its exact static upper bound without moving or consuming either record, discharging exact subtraction `72u64 - quota` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
   - **Establishment:** Bounded inner record definition (`data Inner where quota <= 72, { quota: u64; tag: u64; }`) establishes the domain invariant upon construction. When nested inside `data Outer { inner: Inner; header: u64; }`, creating a shared borrow `&outer` introduces a shared reference whose nested projection `view.inner.quota` directly carries the inner field invariant bound (`quota <= 72`) without requiring any post-hoc caller equality guard (`transition x == 42`) to justify forming the exact subtraction `72u64 - quota`.
