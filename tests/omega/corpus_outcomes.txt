@@ -2134,6 +2134,8 @@ fail/facts/checked_asm_flag_snapshot_parameter_false rejected 8676ms expected @7
 	cannot prove requires contract for call consume from main: snapshot ^ 64 & 64 == 64 (needs fact `snapshot & 64 == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/checked_asm_flag_snapshot_record_reborrow rejected 8482ms expected @737f6be3b09b
 	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 30): object.value & 64 == 64
+fail/facts/checked_asm_flag_snapshot_stack_functions rejected 2ms expected @a151d1a59ef2
+	tests/omega/fail/facts/checked_asm_flag_snapshot_stack_functions/main.omg:14:5: asm where `clobbers` must exactly match the realized instruction contract: missing `r15`
 fail/facts/checked_asm_register_contract_bound_through_call_result_rejected rejected 5258ms expected @8f970335dca4+wt
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `forward(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/facts/checked_asm_register_contract_bound_through_const_name_rejected rejected 5293ms expected @8f970335dca4+wt
@@ -7495,6 +7497,7 @@ pass/facts/checked_asm_flag_snapshot_hardware_calls_exit checked 32982ms check-t
 pass/facts/checked_asm_flag_snapshot_parameter_exit checked 19630ms check-target:linux_x86_64 @737f6be3b09b
 pass/facts/checked_asm_flag_snapshot_pre_sub_exit checked 20605ms check-target:linux_x86_64 @737f6be3b09b
 pass/facts/checked_asm_flag_snapshot_retained_exit checked 20882ms check-target:linux_x86_64 @737f6be3b09b
+pass/facts/checked_asm_flag_snapshot_stack_functions checked 22872ms check-target:linux_x86_64 @a151d1a59ef2
 pass/facts/checked_asm_flag_snapshot_unreachable_exit checked 19324ms check-target:linux_x86_64 @737f6be3b09b
 pass/facts/checked_asm_register_contract_bound_through_call_result_exit rejected 21859ms check-target:macos_arm64 @8f970335dca4+wt
 	native artifact provider supply failed: reachable machine MachineId(3) has incompatible assembly catalog target requirement for `macos_arm64`

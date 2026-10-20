@@ -234,3 +234,5 @@ fn concatenation_publication_retains_ordered_sources_result_and_bound() {
     }
     assert!(!super::byte_concatenation_retained(&abstracted, [&changed]));
 }
+
+mod temporary_stack;

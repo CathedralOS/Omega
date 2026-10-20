@@ -1022,28 +1022,66 @@ pub(super) fn temporary_stack_bytes(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     machine: MachineId,
 ) -> Result<u32, Error> {
-    let fragment = fragments(source).function(machine).ok_or(Error::Mismatch(
+    fragments(source).function(machine).ok_or(Error::Mismatch(
         "missing current fragment for temporary stack replay",
     ))?;
     let current = source.source().source().source().source();
-    let encoding = current.encoding();
-    let instructions = fragment
-        .instructions()
-        .map(|instruction| instruction.instruction)
-        .collect::<std::collections::BTreeSet<_>>();
-    // These exact current footprints have already passed selected-form and
-    // whole-function admission. Consume their typed temporary peak rather
-    // than guessing a byte count from an instruction family. Sequential and
-    // mutually exclusive temporary envelopes compose by maximum; none is live
-    // across another instruction or a call.
-    Ok(temporary_stack_peak(
-        encoding
-            .rows()
-            .iter()
-            .filter(|row| instructions.contains(&row.instruction))
-            .filter_map(|row| encoding.encoded().footprint(row.footprint))
-            .map(|footprint| &footprint.encoded),
-    ))
+    temporary_stack_bytes_for_function(
+        machine,
+        &current.selected_plan().functions,
+        current.encoding().rows(),
+        current.encoding().encoded(),
+    )
+}
+
+fn temporary_stack_bytes_for_function(
+    machine: MachineId,
+    selected: &selected_instructions::SelectedFunctions,
+    rows: &[machine_code::SelectedFormEncodingRow],
+    encoded: &machine_code::SelectedFormEncodedRowStore,
+) -> Result<u32, Error> {
+    selected.function(machine).ok_or(Error::Mismatch(
+        "missing selected function for temporary stack replay",
+    ))?;
+    // Encoding rows are global and ordered like the selected function/block
+    // roster, including each block's terminator. Instruction IDs restart in
+    // every function: a bare-ID lookup imports other functions' PUSHFQ or
+    // directed-FP storage. Retain the machine alongside each ID before taking
+    // this function's peak, exactly as selected-form admission does.
+    let mut encoded_rows = rows.iter();
+    let mut identities = std::collections::BTreeSet::new();
+    let mut effects = Vec::new();
+    for function in selected {
+        for block in &function.blocks {
+            for instruction in block.instructions.iter().chain(std::iter::once(
+                selected_instructions::terminator_instruction(&block.terminator),
+            )) {
+                let row = encoded_rows.next().ok_or(Error::Mismatch(
+                    "missing encoding row for temporary stack replay",
+                ))?;
+                let identity = (function.machine, row.instruction);
+                if row.instruction != instruction.id || !identities.insert(identity) {
+                    return Err(Error::Mismatch(
+                        "encoding instruction roster changed for temporary stack replay",
+                    ));
+                }
+                if identity.0 == machine
+                    && let Some(footprint) = encoded.footprint(row.footprint)
+                {
+                    effects.push(&footprint.encoded);
+                }
+            }
+        }
+    }
+    if encoded_rows.next().is_some() {
+        return Err(Error::Mismatch(
+            "extra encoding row for temporary stack replay",
+        ));
+    }
+    // Sequential and mutually exclusive balanced envelopes compose by maximum;
+    // none stays live across another instruction or call. Whole-function and
+    // selected-form admission already establish these exact typed footprints.
+    Ok(temporary_stack_peak(effects.into_iter()))
 }
 
 fn temporary_stack_peak<'effects>(

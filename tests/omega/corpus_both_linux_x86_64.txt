@@ -269,6 +269,7 @@ pass/facts/as_slice_views_through_other_machine_exit built 14503ms exit:0 interp
 pass/facts/as_slice_views_through_other_state_exit built 17640ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
 pass/facts/as_slice_views_through_parameter_exit built 18887ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
 pass/facts/as_slice_views_through_target_body_exit built 14271ms exit:0 interpreter-exit:0 interpreter:agrees @d68dc74a14e0
+pass/facts/checked_asm_flag_snapshot_stack_functions built 22360ms exit:0 interpreter-exit:0 interpreter:agrees @a151d1a59ef2
 pass/facts/computed_constant_array_extent_exit built 20162ms exit:0 interpreter-exit:0 interpreter:agrees @7ee7ea840945+wt
 pass/facts/computed_record_window_mixed_lifecycle_exit built 23994ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef
 pass/facts/computed_record_window_through_call_result_exit built 22116ms exit:0 interpreter-exit:0 interpreter:agrees @dd658fb23eef

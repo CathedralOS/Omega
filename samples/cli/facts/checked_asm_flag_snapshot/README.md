@@ -113,3 +113,19 @@ Windows x86-64 execution and other hosts remain unmeasured. Flag restoration,
 other ISA/register views, indexed-memory composition, ranked termination and
 hardware-effect retirement of exact linear obligations remain broader parent
 scope. This mechanism does not close the entire checked-assembly requirement.
+
+## Per-function temporary storage
+
+[Mixed functions](stack_functions/main.omg) places an ordinary return, a
+structured PUSHFQ snapshot and directed floating-point division in one object.
+Its [invalid twin](stack_functions/invalid/main.omg) omits only the snapshot's
+required r15 clobber. Both are pinned under `tests/omega/{pass,fail}/facts`.
+
+Selected instruction IDs restart in each function. Temporary storage joins the
+complete selected function/block/instruction roster, including terminators, to
+the ordered encoding rows with `(MachineId, SelectedInstructionId)` identity.
+An unrelated function's PUSHFQ or directed-FP envelope contributes no local
+demand. The accounting regressions pin ordinary/PUSHFQ/directed-FP peaks at
+0/8/16 bytes in both function orders; exact stack replay rejects understated or
+inflated peaks and adds the full live frame. This is physical storage scoping
+for the existing snapshot mechanism, not another transport-place row.
