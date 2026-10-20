@@ -22,6 +22,56 @@ selected call's prerequisites, followed by exact completed-result equations.
 These are numeric models, not backing grants. Empty model domains establish no
 physical-storage authority.
 
+## Recorded native evidence (macos_arm64)
+
+Measured on `macos_arm64` at revision `19265b33ea18` with the producer built
+from that revision (`opt_level 1`):
+
+```sh
+python3 tools/corpus_gate.py --native --filter pass/facts/qualified_field_capacity_through
+```
+
+Before the record the gate reported all nine positives as `new fixture
+(built)`, and the run reported `9 fixtures ({'built': 9})`,
+`executed 9 (exit codes {'0': 9})`, 0 rejected without their expected fragment
+and 0 fail fixtures that did not reject, so the missing piece was the durable
+native row rather than a compiler refusal. The nine rows now read
+`built ... exit:0 @19265b33ea18` in `tests/omega/corpus_native_macos_arm64.txt`,
+spliced in as a pure addition: +9 lines, 0 deletions, no timeout rows, LOST 0,
+and the golden's diagnostic-line count is unchanged at 79 — the native golden is
+insertion-only and is not sorted, so a re-render would be a content loss a
+key-based check cannot see.
+
+The `--both` golden already carried this fact's nine agreement rows
+(`interpreter:agrees`), so native-versus-interpreter agreement was recorded
+before this row; what this record adds is the native leg its own acceptance
+names. Only `target_body` is target-scoped and its `macos_arm64` body performs
+the split and the strategy reconstruction, so the mechanism is exercised on
+this host rather than merely compiled for it; the other eight places are
+target-neutral.
+
+The record discriminates in both directions. Corrupting an authored
+observation in the local positive
+(`transition first.strategy.remaining == 32` to `== 31`) says nothing
+statically; the program builds and traps, and the gate reports `expected native
+0, observed built {'exit': 'signal', 'signal': '5'}` with the structural move
+`exit:0` to `exit:signal signal:5` (exit 3). Restoring the fixture
+byte-for-byte returned the same filter to clean. Corrupting the capacity
+relation instead — the twins' own single-line change, `remaining:
+strategy.remaining - length` to `remaining: strategy.remaining` — is refused
+before execution with the clause the nine twins pin:
+`data `Strategy` literal cannot prove the default domain: a `where` fact is not
+established by the values observed at this construction -- establish the
+required bounds before constructing the value`.
+
+The nine reject twins were re-verified on the check leg: `clean — 9 fixtures
+({'rejected': 9})`, 0 rejected without their expected fragment, 0 fail
+fixtures that did not reject.
+
+Remaining open on other hosts: `tests/omega/corpus_native_linux_x86_64.txt` and
+`tests/omega/corpus_native_windows_x86_64.txt` carry no row for this fact and
+need those hosts; `linux_arm64` has no native golden in this checkout.
+
 ## Requirements and evidence
 
 - Establishment: `Strategy` requires `remaining == tail.length`; construction
