@@ -4,6 +4,34 @@ Fact: 64-bit signed wrapping subtraction lhs -% rhs with bounded interval 40i64 
 
 The original root reproduction is preserved in [main.omg](main.omg) and [build.omg](build.omg).
 
+Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
+
+## Pinned fixtures
+
+The nine positive places and nine reject twins are pinned in the compiler corpus:
+- **Pass fixtures (`expected_native_exit.txt` = `0`):**
+  - `tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_local_exit/`
+  - `tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_field_exit/`
+  - `tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_parameter_exit/`
+  - `tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_call_result_exit/`
+  - `tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_match_join_exit/`
+  - `tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_const_name_exit/`
+  - `tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_other_state_exit/`
+  - `tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_other_machine_exit/`
+  - `tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_target_body_exit/`
+- **Fail fixtures (`expected.txt` = `cannot prove requires contract`):**
+  - `tests/omega/fail/facts/signed_64bit_wrapping_subtraction_bound_through_local_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_wrapping_subtraction_bound_through_field_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_wrapping_subtraction_bound_through_parameter_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_wrapping_subtraction_bound_through_call_result_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_wrapping_subtraction_bound_through_match_join_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_wrapping_subtraction_bound_through_const_name_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_wrapping_subtraction_bound_through_other_state_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_wrapping_subtraction_bound_through_other_machine_rejected/`
+  - `tests/omega/fail/facts/signed_64bit_wrapping_subtraction_bound_through_target_body_rejected/`
+
+`tests/omega/corpus_native_windows_x86_64.txt` records nine real `built ... exit:0` rows, one per place, and `tests/omega/corpus_outcomes.txt` records all 18 pass and fail outcomes.
+
 ## Places
 
 The nine places carry the 64-bit signed wrapping subtraction bound through each language construct,
@@ -22,7 +50,25 @@ accompanied by `<place>/invalid/` reject twins:
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | wrapping subtraction result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | wrapping subtraction result verified across target-scoped machine bodies |
 
-Run each place with `omega run <place>/main.omg`.
+Run each place with `omega run --both <place>/main.omg`.
+
+### The oracle discriminates
+
+The recorded 0 exit is discriminating:
+- In every positive place, evaluating 64-bit signed wrapping subtraction `lhs - rhs` with `lhs = 100` and `rhs = 30` produces `diff = 70i64` within static interval `[40i64, 100i64]`. Passing `diff` to `verify_diff(diff)` satisfies its precondition `requires diff >= 40 && diff <= 100`, evaluates exact signed subtractions `headroom = 100 - 70 == 30i64` and `margin = 70 - 40 == 30i64`, and returns `(headroom + margin - 60) as i32 == 0i32`. In `main`, `transition check == 0` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition check == 0` to `transition check == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- Each invalid twin widens the `lhs` and `rhs` inputs to `lhs = 125` and `rhs = 20`, so the wrapping difference `diff` reaches `105i64 > 100i64`. Calling `verify_diff(diff)` (or satisfying the parameter/call/state contract) fails closed at compile time under the **Contract precondition** obligation class with `cannot prove requires contract`. None reaches native execution.
+
+| Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
+| --- | --- | --- | --- |
+| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract postcondition | `cannot prove ensures contract` |
+| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 
 ## Requirements and Evidence
 
