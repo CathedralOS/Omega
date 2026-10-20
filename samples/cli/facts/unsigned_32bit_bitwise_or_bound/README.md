@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `base | 32` with input `20u32` establishes combined value `52u32` within static interval `40u32..63u32`. Passing `combined` to `verify_combined(res)` satisfies its contract `res >= 40 && res <= 63`. `verify_combined` evaluates exact subtractions `63 - 52 == 11` and `52 - 40 == 12`, returning `23u32`. In `main`, `transition res == 23` transitions to `state done() {}`, terminating with native exit 0. If bitwise OR or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating `base | 32` with input `20u32` establishes combined value `52u32` within static interval `40u32..63u32`. Passing `combined` to `verify_combined(res)` satisfies its contract `res >= 40 && res <= 63`. `verify_combined` evaluates exact subtractions `63 - 52 == 11` and `52 - 40 == 12`, returning `23u32`. In `main`, `transition res == 23` transitions to `state done() {}`, terminating with native exit 0. Perturbing the transition guard by a single token (`transition res == 23` -> `transition res == 22` in `main.omg`) causes both engines to trap at runtime (`native exit -1073741795`, `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin sets `base >= 64 && base <= 64` (or `const BASE: u32 = 64`), so `base | 32` yields `96u32`. Calling `verify_combined(combined)` fails closed at compile time with `cannot prove requires contract for call verify_combined`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -61,7 +61,7 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/unsigned_32bit_bitwise_or_bound --jobs 4
+python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\swarm\w26\worktrees\w26-6\target\debug\omega.exe --filter cli/facts/unsigned_32bit_bitwise_or_bound --jobs 4
 ```
 
 `sample_native_gate.py` reports:
@@ -70,13 +70,14 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/unsigned_32bit_bitwise_or_bound_through_*` and
-`tests/omega/fail/facts/unsigned_32bit_bitwise_or_bound_unproved_*` fixtures.
+The row is pinned under `tests/omega/pass/facts/unsigned_32bit_bitwise_or_bound_through_<place>_exit` and
+`tests/omega/fail/facts/unsigned_32bit_bitwise_or_bound_through_<place>_rejected` fixtures across all nine places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`).
 The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
 
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
+- **Obligation class:** 32-bit unsigned bitwise OR interval bound (`wiki/spec/language/numeric_values.md`, `wiki/spec/terminal-psi/integer_certificates.md`).
 - **Requirement established:** End-to-end nine-place fact preservation and native realization for 32-bit unsigned (`u32`) bitwise OR bounds (`[numeric values](wiki/spec/language/numeric_values.md)`). Specifically, exact 32-bit unsigned bitwise OR of bounded inputs (`base >= 20u32 && base <= 20u32`) with `32u32` statically establishes `combined >= 40u32 && combined <= 63u32`, discharging downstream contract requirement `res >= 40 && res <= 63` and exact subtractions `63u32 - res` and `res - 40u32` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
