@@ -517,6 +517,52 @@ fn discover_normal_return_interval(
         Option<checked_trees::IntegerRangeRecipe>,
     )],
 ) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
+    if machine.target_family_interface
+        && program.machine_states(machine).first()?.symbol == entry.symbol
+    {
+        let parameters = program.state_parameters(entry);
+        let members = crate::machine_calls::calls::target_family_members(program, machine)?;
+        let mut combined: Option<Interval> = None;
+        let mut combined_recipe: Option<checked_trees::IntegerRangeRecipe> = None;
+        for member in members {
+            let member_machine = program.machine(member.machine)?;
+            let member_entry = program.machine_states(member_machine).first()?;
+            let member_parameters = program.state_parameters(member_entry);
+            if member_parameters.len() != parameters.len() {
+                return None;
+            }
+            let member_actuals = parameters
+                .iter()
+                .zip(member_parameters)
+                .filter_map(|(interface_param, member_param)| {
+                    actuals
+                        .iter()
+                        .find(|(symbol, _, _)| *symbol == interface_param.symbol)
+                        .map(|(_, interval, recipe)| {
+                            (member_param.symbol, *interval, recipe.clone())
+                        })
+                })
+                .collect::<Vec<_>>();
+            let (interval, recipe) = inferred_normal_return_interval(
+                program,
+                member_machine,
+                member_entry,
+                target_primitive,
+                &member_actuals,
+            )?;
+            combined_recipe = if combined.is_none() {
+                recipe
+            } else {
+                combined_recipe
+                    .zip(recipe)
+                    .map(|(left, right)| left.union(&right))
+            };
+            combined = Some(combined.map_or(interval, |previous| previous.union(interval)));
+        }
+        let combined = combined?;
+        return (combined_recipe.is_some() || (combined.low.is_some() && combined.high.is_some()))
+            .then_some((combined, combined_recipe));
+    }
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
             program, machine,

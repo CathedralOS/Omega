@@ -8,13 +8,13 @@ linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetPro
     // No selected realization for this target.
 }
 windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
-    TargetProviders::select_provider<Answer, Large>(defaults);
+    // No selected realization for this target.
 }
 linux_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
-    TargetProviders::select_provider<Answer, Small>(defaults);
+    // No selected realization for this target.
 }
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
-    TargetProviders::select_provider<Answer, Large>(defaults);
+    // No selected realization for this target.
 }
 machine limit() -> u64 { Answer::get() }
 data Main { values: [u8; limit()]; }

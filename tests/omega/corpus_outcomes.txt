@@ -5055,12 +5055,30 @@ fail/facts/subslice_state_extent_wrong_view_rejected rejected 1857ms expected @8
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
-fail/facts/target_scoped_constant_false_contract rejected 17279ms expected @f84839bf641a
+fail/facts/target_scoped_constant_false_contract rejected 5015ms expected @7df3e6a600f1+wt
 	cannot prove ensures contract for exit from Small::get at statement 0: result == 5
-fail/facts/target_scoped_constant_missing_method rejected 156ms expected @f84839bf641a
+fail/facts/target_scoped_constant_missing_method rejected 75ms expected @7df3e6a600f1+wt
 	closed conformance `Small satisfies Answer` is incomplete: missing `Answer::other`
-fail/facts/target_scoped_constant_realization_absent rejected 23356ms expected @f84839bf641a
+fail/facts/target_scoped_constant_realization_absent rejected 5617ms expected @7df3e6a600f1+wt
 	slot `Answer` has 3 covering provider plans for the selected target: `<selected target>::Small::satisfies::Answer` [<fingerprint>], `<selected target>::Large::satisfies::Answer` [<fingerprint>], `<selected target>::Same::satisfies::Answer` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<Answer, ProviderType>(b);`
+fail/facts/target_scoped_constant_realization_through_call_result_rejected rejected 5602ms expected @7df3e6a600f1+wt
+	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-2, -2] lie outside [0, 18446744073709551615]
+fail/facts/target_scoped_constant_realization_through_const_name_rejected rejected 5998ms expected @7df3e6a600f1+wt
+	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-2, -2] lie outside [0, 18446744073709551615]
+fail/facts/target_scoped_constant_realization_through_field_rejected rejected 5720ms expected @7df3e6a600f1+wt
+	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-2, -2] lie outside [0, 18446744073709551615]
+fail/facts/target_scoped_constant_realization_through_local_rejected rejected 5647ms expected @7df3e6a600f1+wt
+	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-2, -2] lie outside [0, 18446744073709551615]
+fail/facts/target_scoped_constant_realization_through_match_join_rejected rejected 5681ms expected @7df3e6a600f1+wt
+	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-2, -2] lie outside [0, 18446744073709551615]
+fail/facts/target_scoped_constant_realization_through_other_machine_rejected rejected 5706ms expected @7df3e6a600f1+wt
+	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-2, -2] lie outside [0, 18446744073709551615]
+fail/facts/target_scoped_constant_realization_through_other_state_rejected rejected 5192ms expected @7df3e6a600f1+wt
+	machine `main` state `verify` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-2, -2] lie outside [0, 18446744073709551615]
+fail/facts/target_scoped_constant_realization_through_parameter_rejected rejected 5793ms expected @7df3e6a600f1+wt
+	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-2, -2] lie outside [0, 18446744073709551615]
+fail/facts/target_scoped_constant_realization_through_target_body_rejected rejected 5671ms expected @7df3e6a600f1+wt
+	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-2, -2] lie outside [0, 18446744073709551615]
 fail/facts/temporary_case_cleanup_through_call_result_rejected rejected 1103ms expected @46f72294c589
 	machine `main` state `entry` value call to `consume` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
 fail/facts/temporary_case_cleanup_through_const_name_rejected rejected 1102ms expected @46f72294c589
@@ -10709,9 +10727,18 @@ pass/facts/stack_frame_slot_isolation_through_other_state_exit checked 7666ms ch
 pass/facts/stack_frame_slot_isolation_through_parameter_exit checked 7730ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/stack_frame_slot_isolation_through_target_body_exit checked 7822ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/subslice_state_extent_after_write_exit checked 3987ms check-target:macos_arm64 @cbdcc23565fb
-pass/facts/target_scoped_constant_multi_method_exit checked 32994ms check-target:macos_arm64 @f84839bf641a
-pass/facts/target_scoped_constant_realization_exit checked 36883ms check-target:macos_arm64 @f84839bf641a
-pass/facts/target_scoped_constant_zero_extent_exit checked 34056ms check-target:macos_arm64 @f84839bf641a
+pass/facts/target_scoped_constant_multi_method_exit checked 11109ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/target_scoped_constant_realization_exit checked 11802ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/target_scoped_constant_realization_through_call_result_exit checked 11555ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/target_scoped_constant_realization_through_const_name_exit checked 12247ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/target_scoped_constant_realization_through_field_exit checked 11108ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/target_scoped_constant_realization_through_local_exit checked 11362ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/target_scoped_constant_realization_through_match_join_exit checked 12107ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/target_scoped_constant_realization_through_other_machine_exit checked 11333ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/target_scoped_constant_realization_through_other_state_exit checked 11552ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/target_scoped_constant_realization_through_parameter_exit checked 12121ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/target_scoped_constant_realization_through_target_body_exit checked 11876ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/target_scoped_constant_zero_extent_exit checked 11735ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/temporary_case_cleanup_original_exit checked 3691ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_call_result_exit checked 3690ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_const_name_exit checked 3690ms check-target:macos_arm64 @46f72294c589

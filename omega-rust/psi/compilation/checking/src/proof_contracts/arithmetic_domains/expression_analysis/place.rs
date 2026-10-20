@@ -103,8 +103,29 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
     // The shared place projection already retains inherited numeric element
     // policy at every collection hop. Field projections keep their own type;
     // arithmetic does not reconstruct a policy from the source arrangement.
+    let recipe = walk
+        .environment
+        .range_recipe(program, expression)
+        .cloned()
+        .or_else(|| {
+            let typed_trees::expression::ExpressionNode::Name(path) =
+                program.expression_table.expression(expression)
+            else {
+                return None;
+            };
+            let declaration = program.const_declaration_by_symbol(path.symbol)?;
+            if declaration.evaluated_value.is_some()
+                || !declaration.materialized_initializer.is_valid()
+            {
+                return None;
+            }
+            Some(checked_trees::IntegerRangeRecipe::observation(
+                expression,
+                walk.machine.symbol,
+            ))
+        });
     Analysis {
-        recipe: walk.environment.range_recipe(program, expression).cloned(),
+        recipe,
         domain: Some(domain),
         interval,
         primitive,

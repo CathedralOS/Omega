@@ -5869,7 +5869,14 @@ wait for Cathedral's instruction coverage. The interpreter is
     install authority. Keep empty operator applications distinct from absent
     boundary-trait telescopes.
   Acceptance: a fixture folding a target query under a non-host `--target`
-  yields the selected target's value; package review over a generic provider
+  yields the selected target's value (`samples/cli/facts/target_scoped_constant_realization`
+  carries target-scoped boundary-trait constant realization `const N: u64 = limit()`
+  and `size_of<Main>()` across all nine places (`local`, `field`, `parameter`,
+  `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`,
+  `target_body`) with `target_family_interface` return interval/recipe union in
+  `arrivals.rs` and target-dependent `const` observation recipes in `place.rs`,
+  pinned under `tests/omega/{pass,fail}/facts/target_scoped_constant_realization_*`);
+  package review over a generic provider
   package reports the full reachable application set, and missing, extra or
   unresolved mappings reject. Keep provider-free evaluation, alternate-provider,
   false-result and unselected-provider controls; build dependency cycles

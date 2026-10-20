@@ -70,11 +70,37 @@ historical folding compatibility from runtime choice; and
 [boundary calls](../../../../wiki/spec/terminal-psi/boundary_calls.md) keeps absent
 trait telescopes distinct from canonical empty operator applications.
 
-The witness consumes the constant through a helper call, array extent, record
-field layout, and target-selected runtime body. Target/application compatibility
-is the mechanism under test; repetition through unrelated numeric transport
-places is not additional evidence. The broader task's target projection surface,
-package generic application closure, supplemental intrinsic-plan reconstruction,
-provider-free target-observation dependencies and other constant consumers stay
-open. This row establishes the checked-provider mechanism, not all of
-TARGET-SEMANTIC-APPLICATIONS.
+The witness consumes the target-scoped boundary-trait constant (`const N: u64 =
+limit()`) across the array extent (`[u8; N]`), record layout (`size_of<Main>()`),
+and target-selected runtime body (`expected() -> u64`) through all nine transport
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`,
+`other_state`, `other_machine`, and `target_body`), paired with nine
+fact-sensitive reject twins (`<place>/invalid/main.omg`) and pinned under
+`tests/omega/{pass,fail}/facts/target_scoped_constant_realization_through_*`:
+
+- **Establishment & Composition:** Each place proves `observed == expected()` and
+  performs exact subtraction `observed - expected()` without a post-hoc caller
+  equality guard. In `discover_normal_return_interval` (`arrivals.rs`), calls to a
+  `target_family_interface` machine union `(interval, recipe)` across all retained
+  `target_family_members`, preserving both target-scoped literal return bounds
+  (`[4, 8]` across Linux/Windows/macOS candidates) and target-dependent
+  `IntegerRangeRecipe` observations (`target_size() -> u64 { size_of<Main>() }`).
+  In `place::analyze` (`place.rs`), `const` names whose initializer depends on
+  target layout (`const OBSERVED_SIZE: u64 = size_of<Main>()`) retain an
+  `IntegerRangeRecipe::observation` so `const_name` equality and interval narrowing
+  preserve the layout observation.
+- **Fact-sensitive reject twins:** Each `<place>/invalid/main.omg` Perturbs the
+  boundary-trait provider realization (`Big::read` returning `9` instead of `8`, or
+  omitting `TargetProviders::select_provider` across all four target defaults in
+  `invalid/main.omg`) and rejects during checking with unproved exact subtraction
+  (`exact subtraction may underflow`) or unresolved target provider selection.
+- **Terminal Psi & Native Realization (`omega run --both`):** All 12 positive
+  witnesses (`main.omg`, `multi_method/main.omg`, `zero_extent/main.omg`, and all 9
+  places) bind `ProgramEntry` for all four hosted targets (`windows_x86_64`,
+  `linux_x86_64`, `macos_arm64`, `linux_arm64`) and execute with exit `0` in both
+  Terminal Psi and native execution.
+
+The broader task's package generic application closure, supplemental
+intrinsic-plan reconstruction, and provider-free target-observation dependencies
+stay open. This row completes the 9-place fact row for target-scoped constant
+realization under TARGET-SEMANTIC-APPLICATIONS.
