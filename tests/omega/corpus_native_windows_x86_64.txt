@@ -1467,6 +1467,15 @@ pass/facts/write_only_borrow_initialization_through_other_machine_exit built 653
 pass/facts/write_only_borrow_initialization_through_other_state_exit built 6061ms exit:0 @40e66af00afa
 pass/facts/write_only_borrow_initialization_through_parameter_exit built 6489ms exit:0 @40e66af00afa
 pass/facts/write_only_borrow_initialization_through_target_body_exit built 6448ms exit:0 @40e66af00afa
+pass/facts/write_only_borrow_struct_destination_through_call_result_exit built 38098ms exit:0 @8f970335dca4+wt
+pass/facts/write_only_borrow_struct_destination_through_const_name_exit built 36264ms exit:0 @8f970335dca4+wt
+pass/facts/write_only_borrow_struct_destination_through_field_exit built 35936ms exit:0 @8f970335dca4+wt
+pass/facts/write_only_borrow_struct_destination_through_local_exit built 35964ms exit:0 @8f970335dca4+wt
+pass/facts/write_only_borrow_struct_destination_through_match_join_exit built 38077ms exit:0 @8f970335dca4+wt
+pass/facts/write_only_borrow_struct_destination_through_other_machine_exit built 36181ms exit:0 @8f970335dca4+wt
+pass/facts/write_only_borrow_struct_destination_through_other_state_exit built 36039ms exit:0 @8f970335dca4+wt
+pass/facts/write_only_borrow_struct_destination_through_parameter_exit built 36405ms exit:0 @8f970335dca4+wt
+pass/facts/write_only_borrow_struct_destination_through_target_body_exit built 39418ms exit:0 @8f970335dca4+wt
 pass/filesystem/cross_linux_value_syscalls checked 25559ms @6c49683ce714
 pass/filesystem/dir_walk_wrappers_exit rejected 48831ms @e3eb5bdd566b
 pass/filesystem/native_canonicalize rejected 8665ms @e3eb5bdd566b

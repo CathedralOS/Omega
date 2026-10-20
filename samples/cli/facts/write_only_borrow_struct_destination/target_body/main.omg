@@ -1,4 +1,4 @@
-// Initializing a destination storage slot through a write-only borrow (&write) establishes definite initialization and the post-write upper bound (written <= 95u64), discharging exact subtraction 95u64 - written across all nine places.
+// Fact: Initializing a destination storage slot through a write-only borrow (&write) establishes definite initialization and the post-write upper bound (written <= 95u64), discharging exact subtraction 95u64 - written across all nine places.
 // Expected exit: 0
 
 domain u64::WrittenBound(v)
@@ -16,7 +16,7 @@ machine initialize_destination(destination: &write DestinationSlot) {
 linux_x86_64 machine target_probe() -> u64
 ensures
     result <= 95u64 {
-    let mut slot: DestinationSlot = DestinationSlot { written: 35u64 };
+    let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
     initialize_destination(&write slot);
     95u64 - slot.written
 }
@@ -24,7 +24,7 @@ ensures
 linux_arm64 machine target_probe() -> u64
 ensures
     result <= 95u64 {
-    let mut slot: DestinationSlot = DestinationSlot { written: 35u64 };
+    let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
     initialize_destination(&write slot);
     95u64 - slot.written
 }
@@ -32,7 +32,7 @@ ensures
 macos_arm64 machine target_probe() -> u64
 ensures
     result <= 95u64 {
-    let mut slot: DestinationSlot = DestinationSlot { written: 35u64 };
+    let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
     initialize_destination(&write slot);
     95u64 - slot.written
 }
@@ -40,7 +40,7 @@ ensures
 windows_x86_64 machine target_probe() -> u64
 ensures
     result <= 95u64 {
-    let mut slot: DestinationSlot = DestinationSlot { written: 35u64 };
+    let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
     initialize_destination(&write slot);
     95u64 - slot.written
 }

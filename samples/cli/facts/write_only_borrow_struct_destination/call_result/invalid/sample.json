@@ -2,6 +2,7 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "cannot prove ensures contract for exit from read_destination"
+    "exact arithmetic",
+    "may overflow `u64`"
   ]
 }

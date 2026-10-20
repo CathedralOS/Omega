@@ -3,7 +3,7 @@
 Fact: Initializing a destination storage slot through a write-only borrow (&write) establishes definite initialization and the post-write upper bound (written <= 95u64), discharging exact subtraction 95u64 - written across all nine places.
 
 Owning Task: `CONSERVATION-CONTRACT` / `LAYOUT-PLANS` (`TASKS.md`)
-Claim Ticket: `e1f82049b7d2426391d4fc689f2a4b12`
+Claim Ticket: `0f97c9ed8ebe4f85a776303e1d14b298`
 
 ## Places
 
@@ -19,6 +19,15 @@ Claim Ticket: `e1f82049b7d2426391d4fc689f2a4b12`
 | another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | The initialized slot value is transported across an explicit state transition before exact subtraction. |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Another machine forwards the initialized destination slot before exact subtraction. |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped machine bodies initialize and consume the write-only borrow destination across all hosted targets. |
+
+## Pinned Fixtures
+
+The nine positive places and their nine reject twins are pinned as corpus fixtures and golden rows:
+
+- `tests/omega/pass/facts/write_only_borrow_struct_destination_through_<place>_exit` (`build.omg`, `main.omg`, `expected_native_exit.txt`)
+- `tests/omega/fail/facts/write_only_borrow_struct_destination_through_<place>_rejected` (`build.omg`, `main.omg`, `expected.txt`)
+- Check-side golden rows in `tests/omega/corpus_outcomes.txt` (`checked` for all 9 positive places and `rejected` with the decision-17 diagnostic for all 9 reject twins)
+- Native execution golden rows in `tests/omega/corpus_native_windows_x86_64.txt` (`built ... exit:0` across all 9 positive places)
 
 ## Execution
 
@@ -42,13 +51,22 @@ omega run --both samples/cli/facts/write_only_borrow_struct_destination/target_b
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.
 
-### The oracle discriminates
+### Measured Discrimination and Obligation Class
 
-In each positive place, `initialize_destination(destination: &write DestinationSlot)` stores `35u64` into `destination.written` under domain `WrittenBound(v) requires v <= 95u64`.
+In each positive place, caller storage starts at `DestinationSlot { written: 0u64 }` and is lent via `&write slot` to `initialize_destination(destination: &write DestinationSlot)`, which stores `35u64` into `destination.written` under domain `WrittenBound(v) requires v <= 95u64`.
 Upon loan completion, owner read authority is restored with static guarantee `written <= 95u64`.
-Exact subtraction `95u64 - slot.written` discharges cleanly at compile time and evaluates to `60u64` at runtime.
+Exact subtraction `95u64 - slot.written` discharges cleanly at compile time and evaluates to `60u64` at runtime (whereas an unexecuted `&write` store would leave `written == 0u64`, evaluating to `95u64` and trapping).
 The caller verifies `diff == 60u64`, transitioning to `done()` with exit 0.
-Corrupting the stored value to `36u64` causes `diff == 60u64` to evaluate to false, transitioning to `bad() { crash Trap; }`, terminating with exit 255 across both native and Terminal Psi engines.
+
+Measured on `windows_x86_64` with `omega-latest.exe run --both`:
+
+| Probe | Perturbation | Native (`windows_x86_64`) | Terminal Psi (`interp`) |
+| --- | --- | --- | --- |
+| Baseline (`main.omg`) | none (`written = 35u64`, `diff == 60u64`) | `native exit 0` | `interp exit: 0` |
+| 1-token demanded-value perturbation | `diff == 60u64` -> `diff == 61u64` | `native exit -1073741795` (`0xC000001D` trap) | `interp crash: Trap (host presentation agrees)` |
+| 1-token stored-value perturbation | `destination.written = 35u64` -> `destination.written = 36u64` | `native exit -1073741795` (`0xC000001D` trap) | `interp crash: Trap (host presentation agrees)` |
+
+**Obligation class**: This fact combines a **compile-time loan/definite-initialization gate** (`&write` write-only borrow authority and post-loan readability restoration in `wiki/spec/terminal-psi/loans.md` and `wiki/spec/build/calling_plans.md`) with a **value-bound exact arithmetic proof obligation** (`WrittenBound(v) requires v <= 95u64` discharging `95u64 - written` under decision 17). Reading through `&write` or failing to initialize the borrowed destination is rejected statically by loan/initialization checking, and widening the post-write domain bound from `v <= 95u64` to `v <= 96u64` is rejected statically by exact-arithmetic proof checking across all nine places.
 
 ### Invalid controls and reject twins
 
@@ -65,7 +83,7 @@ exact arithmetic in machine ... may overflow `u64`: the operands are not provabl
 | `local` | native 0 / interp 0 | `exact arithmetic in machine \`probe\` state \`entry\` terminal expression may overflow \`u64\`` |
 | `field` | native 0 / interp 0 | `exact arithmetic in machine \`probe\` state \`entry\` terminal expression may overflow \`u64\`` |
 | `parameter` | native 0 / interp 0 | `exact arithmetic in machine \`subtract_parameter\` state \`entry\` terminal expression may overflow \`u64\`` |
-| `call_result` | native 0 / interp 0 | `cannot prove ensures contract for exit from read_destination at statement 0: result <= 95` |
+| `call_result` | native 0 / interp 0 | `exact arithmetic in machine \`probe\` state \`entry\` terminal expression may overflow \`u64\`` |
 | `match_join` | native 0 / interp 0 | `exact arithmetic in machine \`probe\` state \`entry\` terminal expression may overflow \`u64\`` |
 | `const_name` | native 0 / interp 0 | `exact arithmetic in machine \`probe\` state \`entry\` terminal expression may overflow \`u64\`` |
 | `other_state` | native 0 / interp 0 | `exact arithmetic in machine \`probe\` state \`consume\` terminal expression may overflow \`u64\`` |
@@ -82,4 +100,4 @@ exact arithmetic in machine ... may overflow `u64`: the operands are not provabl
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Backend provider planning maps destination record homes into target layout plans, lowering `&write DestinationSlot` into direct pointer passing across ABI register conventions (RCX on `windows_x86_64`, RDI on `linux_x86_64`, X0 on `macos_arm64` and `linux_arm64`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend code generation realizes the indirect 64-bit store and subsequent frame reload, maintaining disjoint stack activation storage and bounded stack frames without live-across-call spill corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Native image emission links entry symbols and branch displacements into complete PE/ELF/Mach-O binaries that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 9 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None for this fact row; all 9 places and 9 reject twins are pinned under `tests/omega/{pass,fail}/facts/` and pass both native and interpreter gates with documented exit 0 and verified negative control rejection.

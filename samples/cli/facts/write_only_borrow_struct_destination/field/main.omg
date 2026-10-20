@@ -1,4 +1,4 @@
-// Initializing a destination storage slot through a write-only borrow (&write) establishes definite initialization and the post-write upper bound (written <= 95u64), discharging exact subtraction 95u64 - written across all nine places.
+// Fact: Initializing a destination storage slot through a write-only borrow (&write) establishes definite initialization and the post-write upper bound (written <= 95u64), discharging exact subtraction 95u64 - written across all nine places.
 // Expected exit: 0
 
 domain u64::WrittenBound(v)
@@ -20,7 +20,7 @@ data Carrier {
 machine probe() -> u64
 ensures
     result <= 95u64 {
-    let mut slot: DestinationSlot = DestinationSlot { written: 35u64 };
+    let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
     initialize_destination(&write slot);
     let carrier: Carrier = Carrier { item: slot.written };
     95u64 - carrier.item

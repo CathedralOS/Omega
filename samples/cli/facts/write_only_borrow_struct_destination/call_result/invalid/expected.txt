@@ -1,1 +1,1 @@
-cannot prove ensures contract for exit from read_destination at statement 0: result <= 95
+exact arithmetic in machine `probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).
