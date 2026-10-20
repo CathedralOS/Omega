@@ -146,18 +146,20 @@ trap on_exit EXIT INT TERM HUP
 echo "== filter: $filter | legs:${legs} | load ${load} | free ${free_mb}MB =="
 # A record that measured nothing must not read as a record that measured
 # everything: the gate's own status and the goldens' bytes are the only two
-# facts that separate them. The status is read through PIPESTATUS because the
-# pipeline's `$?` is `tail`'s, and the byte comparison catches a --record the
-# gate REFUSED (a contradicted oracle exits 3 and writes nothing), which no
-# status-only check would see.
+# facts that separate them: the gate's own status, its output naming a filter
+# that matched no fixtures (which the status alone reports only as usage), and a
+# byte comparison that catches a --record the gate REFUSED (a contradicted
+# oracle exits 3 and writes nothing), which no status-only check would see. The
+# output is captured rather than piped so both the status and that line survive.
 goldens='tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt'
 # Raise the per-fixture ceiling: fixtures can need ~110s under load and the default 120s
 # produces timeouts that look like recorded evidence.
 before=$(git hash-object $goldens 2>/dev/null | tr '\n' ' ')
 recording=1
-OMEGA_CORPUS_JOBS=${OMEGA_CORPUS_JOBS:-3} OMEGA_CORPUS_FIXTURE_SECS=${OMEGA_CORPUS_FIXTURE_SECS:-900} \
-  python3 tools/corpus_gate.py --filter "$filter" $legs --record 2>&1 | tail -5
-gate_status=${PIPESTATUS[0]}
+record_output=$(OMEGA_CORPUS_JOBS=${OMEGA_CORPUS_JOBS:-3} OMEGA_CORPUS_FIXTURE_SECS=${OMEGA_CORPUS_FIXTURE_SECS:-900} \
+  python3 tools/corpus_gate.py --filter "$filter" $legs --record 2>&1)
+gate_status=$?
+printf '%s\n' "$record_output" | tail -5
 
 recording=""
 rm -f "$acquired"; trap - EXIT INT TERM HUP
@@ -165,6 +167,11 @@ rm -f "$acquired"; trap - EXIT INT TERM HUP
 bad=0
 if [ "${gate_status:-0}" = 2 ] || [ "${gate_status:-0}" = 4 ]; then
   echo "   REJECT: corpus_gate exited ${gate_status} (usage or infrastructure); nothing was measured." >&2
+  bad=1
+fi
+if printf '%s\n' "$record_output" | grep -q "matched no fixtures"; then
+  echo "   REJECT: the filter matched no fixtures: ${filter}" >&2
+  echo "   Name at least one fixture path fragment; a filter that selects nothing proves nothing." >&2
   bad=1
 fi
 after=$(git hash-object $goldens 2>/dev/null | tr '\n' ' ')
