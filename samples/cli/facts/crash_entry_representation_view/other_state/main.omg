@@ -1,3 +1,4 @@
+// Fact: a checked equal-width integer view of an entry u64 equal to 7 discharges maybe_zero's value == 0 Trap crash guard without a caller crash ceiling.
 // Expected exit: 0
 machine maybe_zero(value: i64) -> i64
 crashes Trap value == 0

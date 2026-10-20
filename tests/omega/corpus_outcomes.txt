@@ -2511,6 +2511,24 @@ fail/facts/crash_entry_integer_view_incompatible_view rejected 6427ms expected @
 	machine `read_bits` state `entry`: a shared recast may weaken established facts but cannot strengthen them; source facts do not establish the target representation
 fail/facts/crash_entry_integer_view_stale_storage rejected 9125ms expected @457174b6ca03
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_representation_view_through_call_result_rejected rejected 5215ms expected @7df3e6a600f1+wt
+	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_representation_view_through_const_name_rejected rejected 4988ms expected @7df3e6a600f1+wt
+	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_representation_view_through_field_rejected rejected 4940ms expected @7df3e6a600f1+wt
+	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_representation_view_through_local_rejected rejected 5170ms expected @7df3e6a600f1+wt
+	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_representation_view_through_match_join_rejected rejected 5010ms expected @7df3e6a600f1+wt
+	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_representation_view_through_other_machine_rejected rejected 5242ms expected @7df3e6a600f1+wt
+	call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_representation_view_through_other_state_rejected rejected 4588ms expected @7df3e6a600f1+wt
+	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_representation_view_through_parameter_rejected rejected 4503ms expected @7df3e6a600f1+wt
+	call from `read_bits` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/crash_entry_representation_view_through_target_body_rejected rejected 4484ms expected @7df3e6a600f1+wt
+	call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/data_where_standing_through_call_result_rejected rejected 2381ms expected @07f1c64be9c1
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_through_const_name_rejected rejected 2160ms expected @07f1c64be9c1
@@ -9605,6 +9623,15 @@ pass/facts/crash_entry_integer_view_reverse_signed_exit checked 21594ms check-ta
 pass/facts/crash_entry_integer_view_snapshot_after_write_exit checked 21890ms check-target:macos_arm64 @457174b6ca03
 pass/facts/crash_entry_integer_view_surviving_guard_exit checked 21959ms check-target:macos_arm64 @457174b6ca03
 pass/facts/crash_entry_integer_view_view_then_widen_exit checked 21373ms check-target:macos_arm64 @457174b6ca03
+pass/facts/crash_entry_representation_view_through_call_result_exit checked 11599ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/crash_entry_representation_view_through_const_name_exit checked 11408ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/crash_entry_representation_view_through_field_exit checked 11170ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/crash_entry_representation_view_through_local_exit checked 11708ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/crash_entry_representation_view_through_match_join_exit checked 11692ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/crash_entry_representation_view_through_other_machine_exit checked 11317ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/crash_entry_representation_view_through_other_state_exit checked 11677ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/crash_entry_representation_view_through_parameter_exit checked 11421ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/crash_entry_representation_view_through_target_body_exit checked 11200ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/data_where_standing_through_call_result_exit checked 8632ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_const_name_exit checked 8260ms check-target:macos_arm64 @07f1c64be9c1
 pass/facts/data_where_standing_through_field_exit checked 8405ms check-target:macos_arm64 @07f1c64be9c1
