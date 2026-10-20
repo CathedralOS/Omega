@@ -281,8 +281,8 @@ pub(super) fn boundary_contract_matches_selected_schema(
     });
     matching.next().is_some_and(|method| {
         method.completion == boundary.completion
-            && boundary.unconditional_termination == method.terminates_guarantee
-            && method.termination_premises.is_empty()
+            && boundary.unconditional_termination
+                == (method.terminates_guarantee && method.termination_premises.is_empty())
     }) && matching.next().is_none()
 }
 

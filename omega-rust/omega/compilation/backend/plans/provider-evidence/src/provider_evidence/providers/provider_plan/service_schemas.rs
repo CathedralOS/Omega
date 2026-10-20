@@ -447,9 +447,6 @@ impl ServiceProgressEstablishmentRouteKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ServiceProgressSubject {
-    /// The service/provider capability itself; composition supplies the exact
-    /// installed provider occurrence.
-    ProviderReceiver,
     /// One ordinary caller-visible parameter, excluding the receiver.
     Parameter(usize),
 }

@@ -137,8 +137,8 @@ pub(super) fn derive_summaries(
                 }
             }
         }
-        // Premises and build-bound demands are sets. Their discovery order can
-        // rotate around a cycle without changing the judgment.
+        // Premises are sets. Their discovery order can rotate around a cycle
+        // without changing the judgment.
         if equivalent(&summaries, &previous) {
             return summaries;
         }
@@ -170,7 +170,6 @@ fn derive_component(
         if component.contains(&machine.symbol) {
             summaries[index].guarantee =
                 super::super::retained_machine_local_summary(machine, rank_arrivals);
-            summaries[index].build_bound_demands.clear();
             unavailable[index] = projection_limit.is_none();
         }
     }
@@ -225,7 +224,6 @@ fn equivalent(left: &[CheckedProgressSummary], right: &[CheckedProgressSummary])
                     ) => same_set(left, right),
                     _ => false,
                 }
-                && same_set(&left.build_bound_demands, &right.build_bound_demands)
         })
 }
 

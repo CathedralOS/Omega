@@ -1386,19 +1386,6 @@ defines the complete product bar.
   such a parameter on every conformance path
   (`fail/providers/satisfier_extra_parameter_rejected`). Finish removing the
   implicit provider state that installation still models.
-  - Progress premises still name an installed provider receiver:
-    `ServiceProgressSubject::ProviderReceiver` and `BuildBoundProgressDemand`
-    (checked-trees `facts/termination.rs`, stage 04
-    `checks/termination/progress/`), their consumer
-    `provider-evidence/.../component_eras/component_progress_manifest.rs`, the
-    provider-occurrence receipts in
-    `external-roots/src/root_entry/progress_profile_installation.rs`, and the
-    review/package record codecs that still decode tag 0 `provider_receiver`.
-    No producer creates a receiver subject or a build-bound demand, so the
-    route is unreachable. Replace it with premises over the requirement's
-    declared parameters or delete it, together with the
-    `pass/progress/provider_receiver_progress_installation` customer that
-    **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION** migrates.
   - A foreign-bound provider whose fields hold vtable addresses
     (`ForeignBinding::VtableField`) takes those from its foreign binding plan,
     not from provider data. **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION** owns

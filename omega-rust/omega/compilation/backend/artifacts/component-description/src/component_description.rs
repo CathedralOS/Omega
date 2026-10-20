@@ -383,8 +383,6 @@ pub enum ObligationKind {
     ProviderOccurrence,
     /// Bind one import slot to an exact provider at installation.
     ImportBinding,
-    /// Satisfy one build-bound progress demand retained by the manifest.
-    ProgressDemand,
     /// Admit per-occurrence resource capacity named by a boundary schema.
     ResourceAdmission,
     /// Bind one exact resource or code mapping the composition demands at
@@ -401,7 +399,6 @@ impl ObligationKind {
             Self::StackProvision => 1,
             Self::ProviderOccurrence => 2,
             Self::ImportBinding => 3,
-            Self::ProgressDemand => 4,
             Self::ResourceAdmission => 5,
             Self::Mapping => 6,
             Self::Lease => 7,
@@ -413,7 +410,6 @@ impl ObligationKind {
             1 => Some(Self::StackProvision),
             2 => Some(Self::ProviderOccurrence),
             3 => Some(Self::ImportBinding),
-            4 => Some(Self::ProgressDemand),
             5 => Some(Self::ResourceAdmission),
             6 => Some(Self::Mapping),
             7 => Some(Self::Lease),
@@ -1033,8 +1029,6 @@ pub struct ComponentDescriptionFacts<'a> {
     pub artifact: &'a terminal_codec::CanonicalTerminalArtifact,
     /// The complete selected provider-plan facts for this component.
     pub selected_provider_plans: &'a effects::SelectedProviderPlanFacts,
-    /// Any retained build-bound progress manifest.
-    pub component_progress: Option<&'a effects::ComponentProgressManifest>,
     /// Emitter-derived internal stack demand for the selected entry, when a
     /// native realization exists.
     pub stack_demand: Option<StackDemandFacts>,
@@ -1170,26 +1164,6 @@ pub(crate) fn describe_decoded_component_facts(
                 kind: ObligationKind::ResourceAdmission,
                 identity: row.identity.clone(),
                 detail: "admit the per-occurrence resource capacity of this schema".to_string(),
-            });
-        }
-    }
-    if let Some(manifest) = facts.component_progress {
-        for demand in manifest.pending() {
-            obligations.push(InstallationObligation {
-                kind: ObligationKind::ProgressDemand,
-                identity: format!(
-                    "progress-demand:{}:{}:{}",
-                    manifest
-                        .identities()
-                        .text(demand.requirement_identity)
-                        .unwrap_or_default(),
-                    manifest
-                        .identities()
-                        .text(demand.profile_identity)
-                        .unwrap_or_default(),
-                    hex(demand.provider_plan_digest.as_bytes()),
-                ),
-                detail: "satisfy the retained build-bound progress demand".to_string(),
             });
         }
     }

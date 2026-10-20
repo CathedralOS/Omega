@@ -39,16 +39,6 @@ pub(crate) fn build_termination_facts(
                 ),
             })
             .collect(),
-        build_bound_progress: summaries
-            .into_iter()
-            .filter(|summary| !summary.build_bound_demands.is_empty())
-            .map(
-                |summary| checked_trees::MachineBuildBoundProgressDemands {
-                    machine: summary.machine,
-                    demands: summary.build_bound_demands,
-                },
-            )
-            .collect(),
         proof_recursive_components: validation
             .proof_recursive_components
             .iter()

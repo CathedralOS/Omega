@@ -35,7 +35,6 @@ pub struct SelectedExecution {
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,
-    pub component_progress: Option<effects::ComponentProgressManifest>,
     pub task_activations: task_plans::TaskActivationPlanSet,
 }
 
@@ -208,27 +207,6 @@ pub fn settle_selected_execution(
             "selected deployment target differs from retained provider planning target",
         )]);
     }
-    // The same selected entry supplies component progress and receives fused
-    // field establishments below. Callers cannot nominate an unrelated root
-    // beside it or pair a native ABI with a different deployment profile.
-    let exact_component_progress_root = settlement.selected_program_entry.as_ref().map(|entry| {
-        let source = entry.source_signature();
-        provider_planning::component_progress::ExactComponentProgressRoot::new(
-            entry.machine_symbol(),
-            source
-                .identities()
-                .text(source.normalized_callable_identity())
-                .unwrap_or_default(),
-        )
-    });
-    let component_progress =
-        provider_planning::component_progress::build_selected_component_progress_manifest(
-            &checked.program,
-            &checked.program.facts,
-            &checked.selected_provider_plan_facts,
-            exact_component_progress_root,
-            None,
-        )?;
     let dispatch = crate::settle_selected_execution_dispatch(
         &checked.program,
         settlement.calling_plans,
@@ -345,7 +323,6 @@ pub fn settle_selected_execution(
             .chain(resolved_time_host_binding)
             .chain(resolved_entry_binding)
             .collect(),
-        component_progress,
         task_activations,
     })
 }

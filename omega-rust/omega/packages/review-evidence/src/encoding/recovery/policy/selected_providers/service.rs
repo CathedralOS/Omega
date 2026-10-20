@@ -62,7 +62,6 @@ pub(in crate::encoding::recovery) fn method(
             Ok(ServiceProgressPremise {
                 profile: reader.string()?,
                 subject: super::super::tag!(reader => {
-                    0 => ServiceProgressSubject::ProviderReceiver,
                     1 => ServiceProgressSubject::Parameter(reader.usize()?),
                 }),
                 subject_projections: reader.sequence(8, Reader::string)?,

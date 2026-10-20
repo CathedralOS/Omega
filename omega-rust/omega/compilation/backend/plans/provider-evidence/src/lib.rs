@@ -41,9 +41,6 @@ pub use provider_evidence::authority::terminal_authority::{
 pub use provider_evidence::component_eras::component_era_entry_ledger::{
     EraEntryError, EraQuiescenceError, EraRetirementError,
 };
-pub use provider_evidence::component_eras::component_progress_manifest::{
-    CheckedComponentProgressDemand, ComponentProgressManifest,
-};
 pub(crate) use provider_evidence::executable_scopes::behavior_exclusions::BehaviorExclusion;
 pub(crate) use provider_evidence::executable_scopes::executable_tcb_manifest::{
     ContainmentGuarantee, ExecutionScope, OpaqueExecutableAdmissionCandidate,

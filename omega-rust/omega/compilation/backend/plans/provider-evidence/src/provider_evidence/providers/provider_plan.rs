@@ -396,7 +396,6 @@ impl ProviderPlan {
                     "\nmt:{}/{}/{}",
                     premise.profile,
                     match premise.subject {
-                        ServiceProgressSubject::ProviderReceiver => "self".to_owned(),
                         ServiceProgressSubject::Parameter(index) => format!("parameter:{index}"),
                     },
                     premise.subject_projections.join("::")

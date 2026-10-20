@@ -183,8 +183,7 @@ pub(crate) fn validate_selected_cleanup_guarantees(
                 super::termination::entry_covers_progress_premises(program, facts, target, premises)
             }
         };
-        let needs_provider_progress = !facts.termination.build_bound_for_machine(target).is_empty();
-        if !guaranteed || needs_provider_progress {
+        if !guaranteed {
             diagnostics.push(Diagnostic::error(format!(
                 "selected cleanup machine `{}` has no termination guarantee established by its own entry requirements",
                 machine.name,

@@ -4,9 +4,7 @@
 //! one plan, independent from the aggregate machine-contract carrier.
 
 use language_semantics::MachineTerminationPlan;
-use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
-use typed_trees::type_identity::CallableIdentityId;
 use typed_trees::type_identity::TypeIdentityId;
 
 mod arrival_correspondence;
@@ -27,11 +25,6 @@ pub struct TerminationFacts {
     pub rank_arrivals: CheckedRankArrivalPlan,
     /// One exact-keyed entry per checked machine, in machine order.
     pub machines: Vec<MachineTerminationFact>,
-    /// TPR6: call-specific provider-receiver progress demands retained by the
-    /// checked fixed point. These are composition obligations, not public
-    /// caller premises and not evidence that the selected provider satisfies
-    /// the profile.
-    pub build_bound_progress: Vec<MachineBuildBoundProgressDemands>,
     /// Accepted proof-only recursive components. The common relation/type are
     /// component-owned and every exact internal call site retains an
     /// independent strict-subterm witness.
@@ -98,50 +91,6 @@ impl TerminationFacts {
             .find(|fact| fact.machine == machine)
             .map(|fact| &fact.plan)
     }
-
-    pub fn build_bound_for_machine(&self, machine: SymbolHandle) -> &[BuildBoundProgressDemand] {
-        self.build_bound_progress
-            .iter()
-            .find(|fact| fact.machine == machine)
-            .map_or(&[], |fact| fact.demands.as_slice())
-    }
-}
-
-/// Exact build-bound progress obligations reachable from one checked machine.
-/// Private-helper propagation copies the original call coordinate unchanged,
-/// so the selected entry retains the real requirement invocation rather than
-/// a reconstructed service-level approximation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineBuildBoundProgressDemands {
-    pub machine: SymbolHandle,
-    pub demands: Vec<BuildBoundProgressDemand>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildBoundProgressDemand {
-    /// Exact boundary service whose selected provider occurrence is the
-    /// premise subject at composition.
-    pub provider_service_identity: CallableIdentityId,
-    /// Compiler-derived package owner of that exact boundary service.
-    pub provider_service_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    /// Normalized exact trait-requirement overload identity.
-    pub requirement_identity: CallableIdentityId,
-    /// Compiler-derived package owner of the requirement overload.
-    pub requirement_owner_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    /// Canonical progress-profile identity.
-    pub profile_identity: SemanticDomainId,
-    /// Exact field path below the provider receiver.
-    pub subject_projections: Vec<String>,
-    /// Original checked invocation that instantiated this demand.
-    pub origin: ProgressDemandCallSite,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ProgressDemandCallSite {
-    pub machine: SymbolHandle,
-    pub state: SymbolHandle,
-    pub statement_ordinal: usize,
-    pub call_ordinal: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

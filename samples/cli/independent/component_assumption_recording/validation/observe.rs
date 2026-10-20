@@ -163,7 +163,6 @@ fn component(root: &Path, output: &Path) {
         component_description::ComponentDescriptionFacts {
             artifact: &artifact,
             selected_provider_plans: &effects::SelectedProviderPlanFacts::default(),
-            component_progress: None,
             stack_demand: None,
             realization_identity: None,
         },

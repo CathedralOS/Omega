@@ -23,7 +23,6 @@ pub(super) fn authority(
             })?;
             encoder.field("subject", |encoder| {
                 match premise.subject {
-                    ServiceProgressSubject::ProviderReceiver => encoder.tag("provider_receiver", 0),
                     ServiceProgressSubject::Parameter(position) => {
                         encoder.tag("parameter", 1);
                         encoder.field("position", |encoder| encoder.usize(position))?;

@@ -44,7 +44,6 @@ pub(super) fn describe_component(
     let (expected_subject, description) = publish_component_description(ComponentDescriptionFacts {
         artifact,
         selected_provider_plans: &checked.execution().selected_provider_plan_facts,
-        component_progress: checked.execution().component_progress.as_ref(),
         stack_demand: None,
         realization_identity: None,
     })

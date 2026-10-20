@@ -10,7 +10,7 @@ mod lineage;
 mod machine_summaries;
 mod origins;
 
-use checked_trees::{BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact};
+use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use language_semantics::{ProgressPremise, ProgressSubject, TerminationGuarantee};
 use symbols::SymbolHandle;
@@ -103,7 +103,6 @@ pub(crate) fn entry_covers_progress_premises(
 pub(crate) struct CheckedProgressSummary {
     pub(crate) machine: SymbolHandle,
     pub(crate) guarantee: TerminationGuarantee,
-    pub(crate) build_bound_demands: Vec<BuildBoundProgressDemand>,
 }
 
 pub(crate) fn analyze_checked_progress(

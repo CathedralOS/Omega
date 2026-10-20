@@ -221,7 +221,6 @@ impl ProviderPlanDigestEncoder {
         for premise in premises {
             self.string(&premise.profile);
             match premise.subject {
-                ServiceProgressSubject::ProviderReceiver => self.byte(0),
                 ServiceProgressSubject::Parameter(index) => {
                     self.byte(1);
                     self.len(index);

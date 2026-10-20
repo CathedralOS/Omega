@@ -256,7 +256,7 @@ pub(crate) fn check_indexed_logical_totality(
         let unconditional = termination.for_machine(machine.symbol).is_some_and(|plan| {
             matches!(&plan.checked_summary,
                 language_semantics::TerminationGuarantee::Terminates { premises } if premises.is_empty())
-        }) && termination.build_bound_for_machine(machine.symbol).is_empty();
+        });
         (!unconditional).then(|| Diagnostic::error(format!(
             "indexed logical machine `{}` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body",
             machine_name(program, machine.symbol),

@@ -53,10 +53,6 @@ fn apply_fact_pruning(
         .termination
         .machines
         .retain(|row| retained.contains(&row.machine));
-    facts
-        .termination
-        .build_bound_progress
-        .retain(|row| retained.contains(&row.machine));
     // A proof recursive component is one SCC: it survives pruning only when
     // every member survives, which the closed edge relation guarantees for
     // any component containing a retained member.

@@ -16,7 +16,6 @@ pub(in crate::encoding::recovery) fn authority(
             Ok(PackagePolicyServiceProgressPremise {
                 profile: nominal(reader)?,
                 subject: super::super::tag!(reader => {
-                    0 => ServiceProgressSubject::ProviderReceiver,
                     1 => ServiceProgressSubject::Parameter(reader.usize()?),
                 }),
                 subject_projections: reader.sequence(41, nominal)?,

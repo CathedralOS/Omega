@@ -20,7 +20,6 @@
 //! re-exported selection records below are inputs, not a second source decoder.
 
 pub mod calling_policy_plans;
-pub mod component_progress;
 pub mod data_layout_queries;
 pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;

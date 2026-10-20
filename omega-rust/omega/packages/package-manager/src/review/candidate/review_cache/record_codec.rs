@@ -309,7 +309,6 @@ fn encode_service_method(
     for premise in &method.termination_premises {
         encode_string(&premise.profile, out);
         match premise.subject {
-            ServiceProgressSubject::ProviderReceiver => out.push(0),
             ServiceProgressSubject::Parameter(index) => {
                 out.push(1);
                 crate::codec_bytes::push_encoded(out, (index as u64).to_le_bytes());
@@ -404,7 +403,6 @@ fn recover_service_method(
     let termination_premises = cursor_vec(cursor, |cursor| {
         let profile = cursor_string(cursor)?.to_owned();
         let subject = match cursor.u8()? {
-            0 => ServiceProgressSubject::ProviderReceiver,
             1 => ServiceProgressSubject::Parameter(usize::try_from(cursor.u64()?).ok()?),
             _ => return None,
         };
@@ -920,7 +918,7 @@ mod tests {
                 terminates_guarantee: true,
                 termination_premises: vec![ServiceProgressPremise {
                     profile: "terminates".to_owned(),
-                    subject: ServiceProgressSubject::ProviderReceiver,
+                    subject: ServiceProgressSubject::Parameter(0),
                     subject_projections: Vec::new(),
                     establishment_routes: vec![
                         ServiceProgressEstablishmentRoute {

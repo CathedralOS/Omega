@@ -10,7 +10,7 @@ use crate::checks::termination::progress::fact_subjects::{
 };
 use crate::checks::termination::progress::{lineage, origins};
 
-use checked_trees::{BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact};
+use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use language_semantics::{ProgressPremise, ProgressSubject, TerminationGuarantee};
 use symbols::SymbolHandle;
 
@@ -49,7 +49,6 @@ pub(crate) fn derive_machine_summary(
         })
         .unwrap_or_default();
     let mut premises = Vec::new();
-    let mut build_bound_demands: Vec<BuildBoundProgressDemand> = Vec::new();
     for (_, state_flow) in flow
         .control
         .states
@@ -64,11 +63,6 @@ pub(crate) fn derive_machine_summary(
                 continue;
             }
             let selected = selected_call_summary(program, call.target_symbol, summaries)?;
-            for demand in selected.build_bound_demands {
-                if !build_bound_demands.contains(demand) {
-                    build_bound_demands.push(demand.clone());
-                }
-            }
             let TerminationGuarantee::Terminates {
                 premises: callee_premises,
             } = selected.guarantee
@@ -142,7 +136,6 @@ pub(crate) fn derive_machine_summary(
         let selected = selected_call_summary(program, dependency.target_machine, summaries)?;
         if !matches!(selected.guarantee,
             TerminationGuarantee::Terminates { premises } if premises.is_empty())
-            || !selected.build_bound_demands.is_empty()
         {
             return Some(no_guarantee(machine.symbol));
         }
@@ -151,7 +144,6 @@ pub(crate) fn derive_machine_summary(
     Some(CheckedProgressSummary {
         machine: machine.symbol,
         guarantee: TerminationGuarantee::Terminates { premises },
-        build_bound_demands,
     })
 }
 
@@ -178,7 +170,6 @@ fn family_summary(
     let head_entry = program.machine_states(head).first()?;
     let parameters = program.state_parameters(head_entry);
     let mut premises = Vec::new();
-    let mut build_bound_demands = Vec::new();
     for member in &family.members {
         let machine = program.machine_by_symbol(member.machine)?;
         let language_semantics::TerminationInterface::Published(TerminationGuarantee::Terminates {
@@ -208,16 +199,10 @@ fn family_summary(
                 premises.push(premise);
             }
         }
-        for demand in &checked.build_bound_demands {
-            if !build_bound_demands.contains(demand) {
-                build_bound_demands.push(demand.clone());
-            }
-        }
     }
     Some(CheckedProgressSummary {
         machine: head.symbol,
         guarantee: TerminationGuarantee::Terminates { premises },
-        build_bound_demands,
     })
 }
 
@@ -225,13 +210,11 @@ pub(crate) fn no_guarantee(machine: SymbolHandle) -> CheckedProgressSummary {
     CheckedProgressSummary {
         machine,
         guarantee: TerminationGuarantee::NoGuarantee,
-        build_bound_demands: Vec::new(),
     }
 }
 
 pub(crate) struct SelectedCallProgress<'a> {
     pub(crate) guarantee: &'a TerminationGuarantee,
-    build_bound_demands: &'a [BuildBoundProgressDemand],
 }
 
 static CLOSED_VALUE_TERMINATION: TerminationGuarantee = TerminationGuarantee::Terminates {
@@ -253,13 +236,11 @@ pub(crate) fn selected_call_summary<'a>(
     {
         return Some(SelectedCallProgress {
             guarantee: &CLOSED_VALUE_TERMINATION,
-            build_bound_demands: &[],
         });
     }
     if let Some((_, signature)) = program.machine_parameter_signature(target_symbol) {
         return Some(SelectedCallProgress {
             guarantee: &signature.termination_guarantee,
-            build_bound_demands: &[],
         });
     }
     if let Some(signature) = program
@@ -268,7 +249,6 @@ pub(crate) fn selected_call_summary<'a>(
     {
         return Some(SelectedCallProgress {
             guarantee: &signature.termination_guarantee,
-            build_bound_demands: &[],
         });
     }
     // Exact compiler-owned value semantics independently establish totality.
@@ -280,7 +260,6 @@ pub(crate) fn selected_call_summary<'a>(
     ) {
         return Some(SelectedCallProgress {
             guarantee: &CLOSED_VALUE_TERMINATION,
-            build_bound_demands: &[],
         });
     }
     let target_machine = program
@@ -292,21 +271,11 @@ pub(crate) fn selected_call_summary<'a>(
             .find(|summary| summary.machine == target_machine.symbol)?;
         return Some(SelectedCallProgress {
             guarantee: &summary.guarantee,
-            build_bound_demands: &summary.build_bound_demands,
         });
     }
     match &target_machine.termination_plan.interface {
         language_semantics::TerminationInterface::Published(guarantee) => {
-            let build_bound_demands = summaries
-                .iter()
-                .find(|summary| summary.machine == target_machine.symbol)
-                .map_or(&[] as &[BuildBoundProgressDemand], |summary| {
-                    summary.build_bound_demands.as_slice()
-                });
-            Some(SelectedCallProgress {
-                guarantee,
-                build_bound_demands,
-            })
+            Some(SelectedCallProgress { guarantee })
         }
         language_semantics::TerminationInterface::InternalDerived => {
             let summary = summaries
@@ -314,7 +283,6 @@ pub(crate) fn selected_call_summary<'a>(
                 .find(|summary| summary.machine == target_machine.symbol)?;
             Some(SelectedCallProgress {
                 guarantee: &summary.guarantee,
-                build_bound_demands: &summary.build_bound_demands,
             })
         }
     }

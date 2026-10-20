@@ -146,15 +146,14 @@ pub use state_locals::{CheckedStateLocal, StateLocalFacts};
 pub use suspensions::{MachineSuspensionFact, SuspensionFacts};
 pub use synchronous_invocations::{MachineSynchronousInvocationFact, SynchronousInvocationFacts};
 pub use termination::{
-    BuildBoundProgressDemand, CheckedMachineRankCorrespondence, CheckedProofRankingRelation,
-    CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent, CheckedProofRecursiveEdge,
-    CheckedProofRecursiveMember, CheckedProofRecursiveTransitionLane, CheckedRankArrivalEdge,
-    CheckedRankArrivalPlan, CheckedRankBodyJudgment, CheckedRankCoordinate,
-    CheckedRankCoordinateBinding, CheckedRankCoordinateHandle, CheckedRankCoordinateTransport,
-    CheckedRankLocalCapture, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
-    CheckedRankValueDerivation, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
-    CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
-    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
-    MachineBuildBoundProgressDemands, MachineTerminationFact, ProgressDemandCallSite,
+    CheckedMachineRankCorrespondence, CheckedProofRankingRelation, CheckedProofRecursiveCallSite,
+    CheckedProofRecursiveComponent, CheckedProofRecursiveEdge, CheckedProofRecursiveMember,
+    CheckedProofRecursiveTransitionLane, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
+    CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
+    CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
+    CheckedRankPremiseRegime, CheckedRankReceivingCoordinate, CheckedRankValueDerivation,
+    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
+    CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
+    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence, MachineTerminationFact,
     TerminationFacts,
 };
