@@ -6399,6 +6399,8 @@ fail/proofs/kernel_integer_subtract_order_false_twin rejected 309ms expected @1a
 fail/proofs/kernel_theorem_equality_false_twin rejected 841ms expected @a9ae30e1c334+wt
 fail/proofs/linear_range_sum_false_twin rejected 827ms expected @a9ae30e1c334+wt
 fail/proofs/machine_parameterized_runtime_data_rejected rejected 905ms expected @a9ae30e1c334+wt
+fail/proofs/mathematical_constrained_scalar_formal rejected 4141ms expected @aec80e197778
+	mathematical type `i64[1 constraint]` cannot be a borrow, constraint or dynamic trait
 fail/proofs/mathematical_distinct_qualified_argument rejected 105ms expected @69cfefcd2bf1+wt
 	invalid mathematical application `meter_identity(value)`: mathematical argument does not preserve its declared carrier and policy
 fail/proofs/mathematical_function_argument_carrier rejected 179ms expected @a9ae30e1c334+wt
@@ -11506,6 +11508,7 @@ pass/proofs/loop_postcondition_after_element_store checked 739ms @b3d0b7396229+w
 pass/proofs/machine_parameterized_data_compile checked 1671ms @a9ae30e1c334+wt
 pass/proofs/mathematical_machine_result_carrier checked 4228ms check-target:macos_arm64 @3b72a3521c0e+wt
 pass/proofs/mathematical_predicate_contract_import_exit checked 10907ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/proofs/mathematical_prepared_scalar_interval checked 11674ms @aec80e197778
 pass/proofs/named_witness_static_trait_plural_compile checked 3010ms @5acf32321f42+wt
 pass/proofs/nat_exact_subtraction_compile checked 1656ms @a9ae30e1c334+wt
 pass/proofs/nat_metric_triangle_compile checked 2309ms @a9ae30e1c334+wt
