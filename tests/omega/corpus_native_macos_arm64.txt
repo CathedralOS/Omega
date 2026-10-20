@@ -1411,6 +1411,15 @@ pass/facts/callee_saved_across_nested_calls_through_other_machine_exit built 270
 pass/facts/callee_saved_across_nested_calls_through_other_state_exit built 27145ms exit:0 @1a662c565c38
 pass/facts/callee_saved_across_nested_calls_through_parameter_exit built 27025ms exit:0 @1a662c565c38
 pass/facts/callee_saved_across_nested_calls_through_target_body_exit built 27236ms exit:0 @1a662c565c38
+pass/facts/case_payload_layout_geometry_through_call_result_exit built 37464ms exit:0 @5e4fd339a468
+pass/facts/case_payload_layout_geometry_through_const_name_exit built 37996ms exit:0 @5e4fd339a468
+pass/facts/case_payload_layout_geometry_through_field_exit built 37380ms exit:0 @5e4fd339a468
+pass/facts/case_payload_layout_geometry_through_local_exit built 69574ms exit:0 @5e4fd339a468
+pass/facts/case_payload_layout_geometry_through_match_join_exit built 69142ms exit:0 @5e4fd339a468
+pass/facts/case_payload_layout_geometry_through_other_machine_exit built 70130ms exit:0 @5e4fd339a468
+pass/facts/case_payload_layout_geometry_through_other_state_exit built 64614ms exit:0 @5e4fd339a468
+pass/facts/case_payload_layout_geometry_through_parameter_exit built 65391ms exit:0 @5e4fd339a468
+pass/facts/case_payload_layout_geometry_through_target_body_exit built 65922ms exit:0 @5e4fd339a468
 pass/facts/case_payload_transport_through_call_result_exit built 13978ms exit:0 @dc793bc94474
 pass/facts/case_payload_transport_through_const_name_exit built 14111ms exit:0 @dc793bc94474
 pass/facts/case_payload_transport_through_field_exit built 14196ms exit:0 @dc793bc94474
