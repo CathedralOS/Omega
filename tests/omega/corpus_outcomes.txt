@@ -857,9 +857,12 @@ fail/calls/requirement_expression_extra_static_type rejected 262ms expected @c48
 fail/calls/requirement_statement_extra_static_constant rejected 368ms expected @c48489ea6ad6
 fail/calls/result_overload_terminal_arm_unmatched_result rejected 1396ms expected @098b7c4bf0f0+wt
 fail/calls/resultless_return_contract rejected 1349ms expected @a9ae30e1c334+wt
-fail/calls/retired_core_binding_field rejected 1071ms expected @c48489ea6ad6
-fail/calls/retired_core_binding_local rejected 1214ms expected @c48489ea6ad6
-fail/calls/retired_core_binding_parameter rejected 615ms expected @c48489ea6ad6
+fail/calls/retired_core_binding_field rejected 272ms expected @f74c72195fbf
+	data `Legacy` field `slot` references unknown generic type `Binding`
+fail/calls/retired_core_binding_local rejected 274ms expected @f74c72195fbf
+	machine `invalid` state `entry` local data `slot` references unknown generic type `Binding`
+fail/calls/retired_core_binding_parameter rejected 254ms expected @f74c72195fbf
+	machine `invalid` state `entry` parameter `slot` references unknown generic type `Binding`
 fail/calls/selected_local_owner_reuse rejected 1632ms expected @a9ae30e1c334+wt
 fail/calls/selector_field_predicate_upper_bound rejected 178ms expected @12d4cf2df172+wt
 fail/calls/stale_returned_loan_drops_count rejected 974ms expected @d9b14477f4cf+wt
