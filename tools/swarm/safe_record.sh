@@ -144,16 +144,35 @@ on_exit() {
 trap on_exit EXIT INT TERM HUP
 
 echo "== filter: $filter | legs:${legs} | load ${load} | free ${free_mb}MB =="
+# A record that measured nothing must not read as a record that measured
+# everything: the gate's own status and the goldens' bytes are the only two
+# facts that separate them. The status is read through PIPESTATUS because the
+# pipeline's `$?` is `tail`'s, and the byte comparison catches a --record the
+# gate REFUSED (a contradicted oracle exits 3 and writes nothing), which no
+# status-only check would see.
+goldens='tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt'
 # Raise the per-fixture ceiling: fixtures can need ~110s under load and the default 120s
 # produces timeouts that look like recorded evidence.
+before=$(git hash-object $goldens 2>/dev/null | tr '\n' ' ')
 recording=1
 OMEGA_CORPUS_JOBS=${OMEGA_CORPUS_JOBS:-3} OMEGA_CORPUS_FIXTURE_SECS=${OMEGA_CORPUS_FIXTURE_SECS:-900} \
   python3 tools/corpus_gate.py --filter "$filter" $legs --record 2>&1 | tail -5
+gate_status=${PIPESTATUS[0]}
 
 recording=""
 rm -f "$acquired"; trap - EXIT INT TERM HUP
 
 bad=0
+if [ "${gate_status:-0}" = 2 ] || [ "${gate_status:-0}" = 4 ]; then
+  echo "   REJECT: corpus_gate exited ${gate_status} (usage or infrastructure); nothing was measured." >&2
+  bad=1
+fi
+after=$(git hash-object $goldens 2>/dev/null | tr '\n' ' ')
+if [ "$before" = "$after" ]; then
+  echo "   REJECT: neither golden changed, so this run recorded nothing (a refused or" >&2
+  echo "   empty --record reads exactly like a clean one). Inspect the gate output above." >&2
+  bad=1
+fi
 for f in tests/omega/corpus_outcomes.txt tests/omega/corpus_native_macos_arm64.txt; do
   [ -f "$f" ] || continue
   t=$(awk '/timeout/{n++} END{print n+0}' "$f")
