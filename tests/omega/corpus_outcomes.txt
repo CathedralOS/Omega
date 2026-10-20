@@ -3622,6 +3622,27 @@ fail/facts/temporary_case_cleanup_through_other_machine_rejected rejected 1095ms
 fail/facts/temporary_case_cleanup_through_other_state_rejected rejected 1702ms expected @46f72294c589
 fail/facts/temporary_case_cleanup_through_parameter_rejected rejected 1096ms expected @46f72294c589
 fail/facts/temporary_case_cleanup_through_target_body_rejected rejected 1676ms expected @46f72294c589
+fail/facts/unsigned_64bit_bitwise_or_bound_through_call_result_rejected rejected 14490ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_combined from bitwise_or_call: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_bitwise_or_bound_through_const_name_rejected rejected 15077ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_combined from bitwise_or_const: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_bitwise_or_bound_through_field_rejected rejected 17177ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_combined from bitwise_or_field: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_bitwise_or_bound_through_local_rejected rejected 24816ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_combined from bitwise_or_local: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_bitwise_or_bound_through_match_join_rejected rejected 16462ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_combined from bitwise_or_join: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_bitwise_or_bound_through_other_machine_rejected rejected 15416ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_combined from bitwise_or_worker: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_bitwise_or_bound_through_other_state_rejected rejected 15495ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_combined from bitwise_or_state: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_64bit_bitwise_or_bound_through_parameter_rejected rejected 16047ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_combined from bitwise_or_param: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_bitwise_or_bound_through_target_body_rejected rejected 15844ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/view_extent_after_write_through_call_result_unproved rejected 1061ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_const_name_unproved rejected 1057ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_field_unproved rejected 1058ms expected @86af356b96fb+wt
@@ -8074,6 +8095,15 @@ pass/facts/temporary_case_cleanup_through_other_machine_exit checked 3644ms chec
 pass/facts/temporary_case_cleanup_through_other_state_exit checked 3644ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_parameter_exit checked 3645ms check-target:macos_arm64 @46f72294c589
 pass/facts/temporary_case_cleanup_through_target_body_exit checked 3646ms check-target:macos_arm64 @46f72294c589
+pass/facts/unsigned_64bit_bitwise_or_bound_through_call_result_exit checked 41795ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_or_bound_through_const_name_exit checked 45955ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_or_bound_through_field_exit checked 41263ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_or_bound_through_local_exit checked 45619ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_or_bound_through_match_join_exit checked 39305ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_or_bound_through_other_machine_exit checked 40749ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_or_bound_through_other_state_exit checked 46165ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_or_bound_through_parameter_exit checked 42176ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_bitwise_or_bound_through_target_body_exit checked 39303ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/view_extent_after_write_through_call_result_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_const_name_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_field_exit checked 3519ms check-target:macos_arm64 @86af356b96fb+wt
