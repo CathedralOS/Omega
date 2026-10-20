@@ -1755,9 +1755,11 @@ fail/effects/synchronous_callback_block_required rejected 337ms expected @c5a7c1
 fail/effects/synchronous_callback_reach_required rejected 473ms expected @fef885d565a2+wt
 fail/effects/top_level_callback_block_required rejected 342ms expected @c5a7c1ce1957+wt
 fail/effects/top_level_callback_reach_required rejected 337ms expected @c5a7c1ce1957+wt
-fail/effects/windows_copy_move_requires_content rejected 3197ms expected @18ee7b79c832
+fail/effects/windows_copy_move_requires_content rejected 1746ms expected @034b5e35c420
 	machine `move_without_content` publishes service reach `FilesystemNamespaceMutation` but its checked body reaches undeclared services `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation`
-fail/effects/windows_filesystem_read_requires_content_read rejected 3213ms expected @18ee7b79c832
+fail/effects/windows_filesystem_read_requires_block rejected 1769ms expected @034b5e35c420
+	call to `read_file` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/effects/windows_filesystem_read_requires_content_read rejected 1746ms expected @034b5e35c420
 	machine `read_without_content_permission` publishes service reach `WindowsFilesystemHost` but its checked body reaches undeclared service `FilesystemContentRead`
 fail/expressions/anonymous_structural_match_undefined_pattern rejected 80ms expected @5c4c9bc0ebab
 fail/expressions/anonymous_structural_match_undefined_subject rejected 79ms expected @5c4c9bc0ebab
@@ -9359,7 +9361,7 @@ pass/effects/runtime_empty_boundary_reach_exit checked 8163ms check-target:macos
 pass/effects/static_boundary_callback_reach checked 4794ms @3b18b32f7117+wt
 pass/effects/structural_callback_reach checked 1685ms @a9ae30e1c334+wt
 pass/effects/top_level_callback_provider_ceiling checked 1241ms @c5a7c1ce1957+wt
-pass/effects/windows_filesystem_capability_rows checked 9299ms @18ee7b79c832
+pass/effects/windows_filesystem_capability_rows checked 2993ms @034b5e35c420
 pass/entry/nested_where_record_binding_field_exit checked 11332ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/entry/service_borrowed_slice_call checked 10859ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/errors/crash_route_boundary checked 9651ms @5041ef1af684+wt
@@ -11020,7 +11022,7 @@ pass/filesystem/native_metadata_ino checked 10812ms check-target:macos_arm64 @ae
 pass/filesystem/native_metadata_nlink checked 10256ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/native_read_dir_iter checked 10620ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/native_wrapper_write_all_result checked 19739ms check-target:macos_arm64 @c9eefa9130a0+wt
-pass/filesystem/portable_raw_family_capabilities_exit checked 25026ms check-target:macos_arm64 @18ee7b79c832+wt
+pass/filesystem/portable_raw_family_capabilities_exit checked 15114ms check-target:macos_arm64 @034b5e35c420
 pass/filesystem/runtime_local_host_result_dispatch_exit checked 9920ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/runtime_portable_copy_errors_exit checked 13694ms check-target:macos_arm64 @cc43b6679d2a+wt
 pass/filesystem/runtime_portable_directory_failure_exit checked 15138ms check-target:macos_arm64 @7e6a01265b4b+wt
@@ -11035,10 +11037,12 @@ pass/filesystem/runtime_posix_borrowed_view_io_exit checked 9462ms check-target:
 pass/filesystem/runtime_posix_native_storage_bounds_exit checked 9150ms check-target:macos_arm64 @2f33bd96e5f4
 pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 9450ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/windows_canonicalize_exit checked 24908ms check-target:linux_x86_64 @c9eefa9130a0+wt
-pass/filesystem/windows_native_create_write_close_exit checked 10616ms check-target:windows_x86_64 @aebe0714a499+wt
-pass/filesystem/windows_raw_argument_failures_exit checked 9329ms check-target:windows_x86_64 @aebe0714a499+wt
-pass/filesystem/windows_raw_breadth_exit checked 16073ms check-target:windows_x86_64 @e02ff5008d25+wt
-pass/filesystem/windows_set_file_time_exit checked 11146ms check-target:windows_x86_64 @7c847bad15b6+wt
+pass/filesystem/windows_external_async_handle_exit checked 5855ms check-target:windows_x86_64 @034b5e35c420
+pass/filesystem/windows_native_create_write_close_exit checked 4007ms check-target:windows_x86_64 @034b5e35c420
+pass/filesystem/windows_raw_argument_failures_exit checked 4134ms check-target:windows_x86_64 @034b5e35c420
+pass/filesystem/windows_raw_bounded_view_exit checked 4305ms check-target:windows_x86_64 @034b5e35c420
+pass/filesystem/windows_raw_breadth_exit checked 4543ms check-target:windows_x86_64 @034b5e35c420
+pass/filesystem/windows_set_file_time_exit checked 4261ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_wrapper_results_exit checked 20212ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/filesystem/wrapper_lock_metadata_exit checked 20511ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/filesystem/wrapper_open_with_exit checked 19741ms check-target:macos_arm64 @7c847bad15b6+wt
