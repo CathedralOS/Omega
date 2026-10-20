@@ -3939,15 +3939,27 @@ fail/facts/remainder_width_through_target_body_rejected rejected 33644ms expecte
 	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
 	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
 	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
-fail/facts/repro_through_call_result_rejected rejected 1297ms expected @73ea0eccebbc
-fail/facts/repro_through_const_name_rejected rejected 1309ms expected @73ea0eccebbc
-fail/facts/repro_through_field_rejected rejected 1317ms expected @73ea0eccebbc
-fail/facts/repro_through_local_rejected rejected 1326ms expected @73ea0eccebbc
-fail/facts/repro_through_match_join_rejected rejected 1247ms expected @73ea0eccebbc
-fail/facts/repro_through_other_machine_rejected rejected 1288ms expected @73ea0eccebbc
-fail/facts/repro_through_other_state_rejected rejected 1248ms expected @73ea0eccebbc
-fail/facts/repro_through_parameter_rejected rejected 1357ms expected @73ea0eccebbc
-fail/facts/repro_through_target_body_rejected rejected 1270ms expected @73ea0eccebbc
+fail/facts/repro_through_call_result_rejected rejected 643ms expected @3742c5c325c6
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `supply(value)` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/repro_through_const_name_rejected rejected 656ms expected @3742c5c325c6
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/repro_through_field_rejected rejected 638ms expected @3742c5c325c6
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/repro_through_local_rejected rejected 637ms expected @3742c5c325c6
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `copied` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/repro_through_match_join_rejected rejected 633ms expected @3742c5c325c6
+	machine `bounded_choice` state `entry` cannot prove unqualified `I32::from_f64` operand `chosen` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/repro_through_other_machine_rejected rejected 652ms expected @3742c5c325c6
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/repro_through_other_state_rejected rejected 744ms expected @3742c5c325c6
+	machine `bounded` state `land` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/repro_through_parameter_rejected rejected 741ms expected @3742c5c325c6
+	machine `bounded` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/facts/repro_through_target_body_rejected rejected 711ms expected @3742c5c325c6
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/facts/result_cleanup_guarantee_through_call_result_rejected rejected 644ms expected @76ea4b8c7c50
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 fail/facts/result_cleanup_guarantee_through_const_name_rejected rejected 644ms expected @76ea4b8c7c50
