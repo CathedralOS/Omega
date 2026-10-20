@@ -1,1 +1,1 @@
-open operands do not close a requirement instance
+only an exact nongeneric realization can settle a boundary row

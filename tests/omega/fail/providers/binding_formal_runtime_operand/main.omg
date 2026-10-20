@@ -1,6 +1,6 @@
 // A runtime Value binder shares a symbol category with static binders, but it
 // is not a static operand even in an unused declaration.
-use omega::language::core::binding;
 
 public boundary trait Indexed<const Count: u64> { machine read() -> i32; }
-machine bad<Count: u64>(binding: &Binding<Indexed<Count>>) reaches Indexed {}
+data BadProvider {}
+machine BadProvider::read<Count: u64>() -> i32 satisfies Indexed<Count>::read { 0 }

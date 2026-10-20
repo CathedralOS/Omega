@@ -1,15 +1,14 @@
 # binding_where_record
 
-`data Session where retries <= 3 { console: Binding<Console>; retries:
-u64; }` — a data `where` constrains a record's scalar field beside a
-service `Binding<T>` field: the facts don't hide the service field from
-establishment.
+`data Session where retries <= 3 { retries: u64; }` — a data `where` constrains
+a record's scalar field while the `pub boundary trait Console` slot stands
+beside it: the constraint does not hide the boundary declaration from
+establishment, and vice versa.
 
-## Learnings
+Source-visible `Binding<R>` values are retired
+(`component_publication.md:198`), so the record no longer carries a service
+field; the surviving subject is the `where`-constrained record checked beside
+the boundary-trait declaration.
 
-- `Binding<T>` fields require `pub boundary trait T {}` — a non-public
-  or missing declaration reports "requires a public boundary trait as
-  its stable slot contract" / "does not name an exact boundary-trait
-  requirement".
-
-Compile-checked only: `core::binding` is depend-free.
+Compile-checked only: the build declaration is freestanding, so no
+`ProgramEntry` is bound.

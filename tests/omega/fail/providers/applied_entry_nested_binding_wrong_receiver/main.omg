@@ -1,5 +1,4 @@
 // Applied context storage does not authorize a different ancestor application.
-use omega::language::core::binding;
 public boundary trait Parent<Value> { machine read() -> i32; }
 public boundary trait Child: Parent<u64> { machine choose() -> i32; }
 ChildMap satisfies Child { Parent::read = read; Child::choose = choose; }
@@ -9,8 +8,7 @@ data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
-data Session { parent: Binding<Parent<bool>>; }
-data Main<'record> { session: Session; }
-machine Main::main<'activation>(main: &'activation mut Main<'activation>) reaches Parent {
-    let observed: i32 = main.session.parent.read();
+data Main {}
+machine Main::main(main: &mut Main) reaches Parent {
+    let observed: i32 = Parent<bool>::read();
 }

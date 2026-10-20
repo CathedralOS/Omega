@@ -1,8 +1,6 @@
-use omega::language::core::binding;
-// A caller-provided capability: `Binding<Folder>` as an ordinary VALUE
-// parameter — `folder.write_line` uses the passed authority without
-// minting its own, and `Main::main(folder: Binding<Folder>)` takes the
-// capability at entry.
+// A caller-provided capability is the exact requirement application:
+// `Folder::write_line` names the passed authority without minting its own,
+// and `Main::main` reaches it at entry.
 public domain [u8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
@@ -12,12 +10,12 @@ public boundary trait Folder {
         Folder;
 }
 data Librarian {}
-machine archive(folder: Binding<Folder>) reaches Folder {
-    folder.write_line("archive entry");
+machine archive() reaches Folder {
+    Folder::write_line("archive entry");
 }
 data Main {
     librarian: Librarian;
 }
-machine Main::main(folder: Binding<Folder>) {
-    archive(folder);
+machine Main::main() {
+    archive();
 }

@@ -1,10 +1,7 @@
-use omega::language::core::binding;
 public boundary trait Console {}
 // A `data where` constrains a record's scalar field beside a service
-// `Binding<Console>` field: the facts don't hide the service field from
-// establishment.
+// requirement: the facts don't hide the required slot from establishment.
 data Session where retries <= 3 {
-    console: Binding<Console>;
     retries: u64;
 }
 data Main {

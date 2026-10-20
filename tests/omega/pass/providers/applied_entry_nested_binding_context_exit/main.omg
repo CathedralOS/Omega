@@ -1,7 +1,7 @@
-// Expected exit: 0. One descendant supplies direct and nested ancestor fields
-// beneath the entry's applied data telescope. The record and activation use
-// different region names; a borrowed helper must preserve the same selection.
-use omega::language::core::binding;
+// Expected exit: 0. One descendant supplies direct and nested ancestor
+// applications beneath the entry's applied data telescope. The record and
+// activation use different region names; a helper must preserve the same
+// selection.
 
 public boundary trait Parent<Value> { machine read() -> i32; }
 public boundary trait Child: Parent<u64> { machine choose() -> i32; }
@@ -22,21 +22,19 @@ linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetPro
     TargetProviders::select_provider<Child, ChildMap>(defaults);
 }
 
-data Session { parent: Binding<Parent<u64>>; }
-data Main<'record> {
-    parent: Binding<Parent<u64>>;
+data Session {}
+data Main {
     session: Session;
-    child: Binding<Child>;
 }
 
-machine observed<'borrow>(parent: &'borrow Binding<Parent<u64>>) -> i32 reaches Parent {
-    parent.read()
+machine observed() -> i32 reaches Parent {
+    Parent<u64>::read()
 }
-machine Main::main<'activation>(main: &'activation mut Main<'activation>)
+machine Main::main(main: &mut Main)
 reaches Child + Parent crashes Trap {
-    let direct: i32 = observed(&main.parent);
-    let nested: i32 = observed(&main.session.parent);
-    let chosen: i32 = Child::choose(&main.child);
+    let direct: i32 = observed();
+    let nested: i32 = observed();
+    let chosen: i32 = Child::choose();
     transition direct == 37 && nested == 37 && chosen == 19 {
         true -> done() _ -> bad()
     }

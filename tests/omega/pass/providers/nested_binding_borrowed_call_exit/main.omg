@@ -1,29 +1,28 @@
-// Checking retains the same logical Binding through a nested field and a
-// borrowed parameter. Only the selected entry establishes provider custody.
-use omega::language::core::binding;
+// Checking retains the same application through a nested field and a borrowed
+// call. Only the selected entry establishes provider custody.
 
 public boundary trait Reading {
     machine read() -> u64;
 }
 
-data ReadingProvider {}
-machine ReadingProvider::read() -> u64 satisfies Reading::read { 42 }
+ReadingMap satisfies Reading { Reading::read = reading_provider_read; }
+machine reading_provider_read() -> u64 { 42 }
 
-// Merely checking a helper's Binding must not demand an unrelated selection.
+// Merely checking a helper's application must not demand an unrelated selection.
 public boundary trait Unselected { machine read() -> u64; }
-machine unused(binding: &Binding<Unselected>) -> u64 reaches Unselected {
-    binding.read()
+machine unused() -> u64 reaches Unselected {
+    Unselected::read()
 }
 
-data Session { reading: Binding<Reading>; }
+data Session {}
 data Main { session: Session; }
 
-machine read(binding: &mut Binding<Reading>) -> u64 reaches Reading {
-    binding.read()
+machine read() -> u64 reaches Reading {
+    Reading::read()
 }
 
 machine Main::main(main: &mut Main) reaches Reading crashes Trap {
-    let value: u64 = read(&mut main.session.reading);
+    let value: u64 = read();
     transition value == 42 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }

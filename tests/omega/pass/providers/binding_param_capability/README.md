@@ -1,9 +1,13 @@
 # binding_param_capability
 
-`machine archive(folder: Binding<Folder>) reaches Folder` — a
-caller-provided capability passed as an ordinary VALUE parameter;
-`folder.write_line("...")` uses that authority without minting its own,
-and `machine Main::main(folder: Binding<Folder>)` takes the capability
-at entry.
+`machine archive() reaches Folder` names the caller-provided capability as the
+exact boundary-trait requirement `Folder::write_line("archive entry")`; the call
+uses that authority without minting its own, and `machine Main::main()` reaches
+the same requirement at entry.
 
-Compile-checked only: `core::binding` is depend-free.
+Source-visible `Binding<R>` values are retired
+(`component_publication.md:198`): a caller-provided capability is the exact
+closed application, not a data carrier passed through a parameter.
+
+Compile-checked only: the build declaration is freestanding, so no
+`ProgramEntry` is bound.
