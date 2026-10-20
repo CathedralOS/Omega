@@ -2902,6 +2902,24 @@ fail/facts/narrow_to_wide_unsigned_8to64_extension_through_other_machine_rejecte
 fail/facts/narrow_to_wide_unsigned_8to64_extension_through_other_state_rejected rejected 18278ms expected @9a273b151c31+wt
 fail/facts/narrow_to_wide_unsigned_8to64_extension_through_parameter_rejected rejected 17477ms expected @9a273b151c31+wt
 fail/facts/narrow_to_wide_unsigned_8to64_extension_through_target_body_rejected rejected 18785ms expected @9a273b151c31+wt
+fail/facts/nested_record_layout_geometry_through_call_result_rejected rejected 15161ms expected @18fb2e01bf2a
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/nested_record_layout_geometry_through_const_name_rejected rejected 14691ms expected @18fb2e01bf2a
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/nested_record_layout_geometry_through_field_rejected rejected 15122ms expected @18fb2e01bf2a
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/nested_record_layout_geometry_through_local_rejected rejected 17537ms expected @18fb2e01bf2a
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/nested_record_layout_geometry_through_match_join_rejected rejected 16801ms expected @18fb2e01bf2a
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/nested_record_layout_geometry_through_other_machine_rejected rejected 16794ms expected @18fb2e01bf2a
+	machine `query_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/nested_record_layout_geometry_through_other_state_rejected rejected 10765ms expected @18fb2e01bf2a
+	machine `main` state `compute` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/nested_record_layout_geometry_through_parameter_rejected rejected 10837ms expected @18fb2e01bf2a
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/nested_record_layout_geometry_through_target_body_rejected rejected 11206ms expected @18fb2e01bf2a
+	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/nested_record_value_through_call_result_rejected rejected 2327ms expected @45cbafd80d9c
 fail/facts/nested_record_value_through_const_name_rejected rejected 3511ms expected @45cbafd80d9c
 fail/facts/nested_record_value_through_field_rejected rejected 2334ms expected @45cbafd80d9c
@@ -7412,6 +7430,15 @@ pass/facts/narrow_to_wide_unsigned_8to64_extension_through_other_machine_exit ch
 pass/facts/narrow_to_wide_unsigned_8to64_extension_through_other_state_exit checked 49738ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/narrow_to_wide_unsigned_8to64_extension_through_parameter_exit checked 51345ms check-target:macos_arm64 @9a273b151c31+wt
 pass/facts/narrow_to_wide_unsigned_8to64_extension_through_target_body_exit checked 51761ms check-target:macos_arm64 @9a273b151c31+wt
+pass/facts/nested_record_layout_geometry_through_call_result_exit checked 31678ms check-target:macos_arm64 @18fb2e01bf2a
+pass/facts/nested_record_layout_geometry_through_const_name_exit checked 31984ms check-target:macos_arm64 @18fb2e01bf2a
+pass/facts/nested_record_layout_geometry_through_field_exit checked 32005ms check-target:macos_arm64 @18fb2e01bf2a
+pass/facts/nested_record_layout_geometry_through_local_exit checked 32612ms check-target:macos_arm64 @18fb2e01bf2a
+pass/facts/nested_record_layout_geometry_through_match_join_exit checked 31380ms check-target:macos_arm64 @18fb2e01bf2a
+pass/facts/nested_record_layout_geometry_through_other_machine_exit checked 31994ms check-target:macos_arm64 @18fb2e01bf2a
+pass/facts/nested_record_layout_geometry_through_other_state_exit checked 32587ms check-target:macos_arm64 @18fb2e01bf2a
+pass/facts/nested_record_layout_geometry_through_parameter_exit checked 31803ms check-target:macos_arm64 @18fb2e01bf2a
+pass/facts/nested_record_layout_geometry_through_target_body_exit checked 33528ms check-target:macos_arm64 @18fb2e01bf2a
 pass/facts/nested_record_value_through_call_result_exit checked 7774ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/nested_record_value_through_const_name_exit checked 7806ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/nested_record_value_through_field_exit checked 8027ms check-target:macos_arm64 @45cbafd80d9c
