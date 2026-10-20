@@ -264,7 +264,11 @@ pub(crate) fn lower_unit_closure(
     // generated immutable carrier before cloning it into any callee emitter.
     for machine_symbol in &closure {
         for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
-            crate::activation_storage::prepare_operation(identities, &mut structural_types, operation)?;
+            crate::activation_storage::prepare_operation(
+                identities,
+                &mut structural_types,
+                operation,
+            )?;
             if operation.call().is_some_and(|call| {
                 call.structural_arguments.iter().any(|argument| {
                     argument.byte_sequence_literal().is_some()
@@ -616,9 +620,19 @@ pub(crate) fn lower_unit_closure(
             .ok_or(LoweringError::Unsupported("quotient declaration is absent"))?;
         declaration.quotient_carrier = Some(representation.carrier);
     }
+    let mathematical_carriers =
+        crate::scalar_lowering::contracts::mathematical_carriers(&checked, identities)?;
+    let indexed_theorems = crate::scalar_lowering::contracts::indexed_theorems(
+        checked,
+        identities,
+        exact_toolchain_sources,
+        &machine_ids,
+    )?;
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             folded_constants,
+            indexed_theorems,
+            mathematical_carriers,
             callback_applications: Vec::new(),
             boundary_application_candidates: Vec::new(),
             boundary_application_demands: Vec::new(),

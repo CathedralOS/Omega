@@ -130,3 +130,35 @@ pub struct CheckedMathematicalSignature {
     /// rather than interned carrier assumptions.
     pub authored: Vec<u32>,
 }
+
+/// Exact source carrier formation in the checked mathematical signature.
+/// Domains are ordered outermost-first; only an empty telescope is a closed
+/// executable specialization's erased carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedSourceEvidenceCarrier {
+    pub type_identity: TypeIdentityId,
+    pub ty: proof_admission::TermHandle,
+    pub domains: Vec<proof_admission::TermHandle>,
+}
+
+/// A checked derived induction theorem tied to one authored contract clause.
+/// Its raw judgment and complete dependency closure remain roots after logical
+/// call retirement; source coordinates are eliminated at Terminal publication.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedIndexedTheorem {
+    pub machine: SymbolHandle,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub ensure_ordinal: u32,
+    pub evidence_source_position: u32,
+    pub evidence_formal: SymbolHandle,
+    pub type_identity: TypeIdentityId,
+    pub term: proof_admission::TermHandle,
+    pub ty: proof_admission::TermHandle,
+    pub assumption_closure: Vec<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedIndexedCitation {
+    pub caller: SymbolHandle,
+    pub theorem: SymbolHandle,
+}

@@ -10,6 +10,13 @@ pub(crate) use optimization::codec_bytes;
 
 mod canonical_artifact;
 mod codec_error;
+mod indexed_theorem_roots;
+mod mathematical_proof_actual;
+pub use indexed_theorem_roots::verify_indexed_theorem_roots;
+pub use mathematical_proof_actual::{
+    MathematicalProofActualError, mathematical_carrier_key, verify_mathematical_proof_actual,
+    verify_module_mathematical_actuals,
+};
 mod cursor;
 pub(crate) use optimization::digest_encoder;
 pub use sections::semantic_module::provider_candidate_wire::{

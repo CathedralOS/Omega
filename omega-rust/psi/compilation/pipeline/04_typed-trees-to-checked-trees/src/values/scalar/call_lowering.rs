@@ -191,7 +191,12 @@ pub(crate) fn lower_call_arguments(
                         ));
                     }
                     scalar_erased_index = scalar_erased_index.checked_add(1)?;
-                } else if proof_only.contract_term_carrier(program, target.type_reference) {
+                } else if (proof_only.contract_term_carrier(program, target.type_reference)
+                    || validation::mathematical_applications::is_source_evidence_carrier(
+                        program,
+                        target.type_reference,
+                    ))
+                {
                     if let Some(term) = lower_proof_term(
                         program,
                         operators,
@@ -519,6 +524,21 @@ pub(crate) fn lower_proof_term(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
 ) -> Option<CheckedProofTerm> {
+    // Mathematical source evidence is retained at its exact expression and
+    // independently checked carrier, never reconstructed from a destination.
+    if let Some(view) = program.prepared_mathematics() {
+        if let Some(evidence) = view.source_evidence(expression) {
+            let expected_identity = program.normalized_type_identity(expected_type);
+            if evidence.type_identity != expected_identity {
+                return None;
+            }
+            return Some(CheckedProofTerm::Mathematical {
+                type_identity: evidence.type_identity,
+                term: evidence.term,
+                ty: evidence.ty,
+            });
+        }
+    }
     // The checked destination provides an array's element type and exact extent.
     // Recursive payload lowering uses the same operation for record fields and
     // array elements; neither creates a runtime value or a second call.
@@ -627,7 +647,11 @@ pub(crate) fn lower_proof_term(
             )?;
             let parameter = authored_parameters.get(position)?;
             (parameter.relevance.is_erased()
-                && proof_only.contract_term_carrier(program, parameter.type_reference))
+                && (proof_only.contract_term_carrier(program, parameter.type_reference)
+                    || validation::mathematical_applications::is_source_evidence_carrier(
+                        program,
+                        parameter.type_reference,
+                    )))
             .then_some(CheckedProofTerm::Formal {
                 parameter_symbol: parameter.symbol,
             })
@@ -690,7 +714,11 @@ pub(crate) fn lower_direct_call_binding_arguments(
             // dense ordinal; every other non-scalar callee shape stays
             // outside this direct-binding plan.
             if !target_parameter.relevance.is_erased()
-                || !proof_only.contract_term_carrier(program, target_parameter.type_reference)
+                || !(proof_only.contract_term_carrier(program, target_parameter.type_reference)
+                    || validation::mathematical_applications::is_source_evidence_carrier(
+                        program,
+                        target_parameter.type_reference,
+                    ))
             {
                 return None;
             }

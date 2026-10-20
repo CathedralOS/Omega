@@ -10,7 +10,7 @@
 use super::super::super::specification_calls::{
     SelectedCallContract, owner_leading_operands, owner_parameter_scope, selected_call_contract,
 };
-use typed_trees::expression::ExpressionNode;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -20,6 +20,7 @@ use typed_trees::types::TypeReferenceHandle;
 pub(super) fn receiving_types(
     program: &dyn crate::CheckingInput,
     caller: &Machine,
+    expression: ExpressionHandle,
     node: &ExpressionNode,
     receiving: TypeReferenceHandle,
 ) -> Option<Vec<TypeReferenceHandle>> {
@@ -85,6 +86,7 @@ pub(super) fn receiving_types(
                 .map(|field| {
                     crate::value_custody::struct_literals::selected_construction_field_type(
                         program,
+                        expression,
                         literal,
                         field.field_symbol,
                     )

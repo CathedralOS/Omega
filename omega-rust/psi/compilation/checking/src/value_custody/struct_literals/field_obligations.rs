@@ -52,8 +52,7 @@ pub(super) fn enforce_construction_field_obligations(
     statement_index: usize,
 ) {
     let type_name = literal.type_name.as_str();
-    let Some(data_definition) =
-        crate::declarations::data_queries::data_definition_by_symbol(program, literal.type_symbol)
+    let Some(data_definition) = selected_construction_definition(program, expression, literal)
     else {
         return;
     };
@@ -63,7 +62,7 @@ pub(super) fn enforce_construction_field_obligations(
 
     for field in program.expression_table.struct_fields(literal.fields) {
         let Some(field_type) =
-            selected_construction_field_type(program, literal, field.field_symbol)
+            selected_construction_field_type(program, expression, literal, field.field_symbol)
         else {
             continue;
         };
@@ -597,17 +596,72 @@ pub(crate) fn construction_field_type(
 /// exact constructor and case before choosing a destination; a same-spelled
 /// declaration in the consumer's source cannot change numeric landing or
 /// nominal field obligations. Projection-name lookup remains a separate caller.
+/// Construction checks consume the exact occurrence's instantiated member
+/// telescope. A generic template can have open member types even when its
+/// source constructor has a closed destination; skipping the template's
+/// obligations would silently discard its case predicates and field bounds.
+/// Retained application custody joins the authored owner to that occurrence.
+fn construction_application(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> TypeReferenceHandle {
+    let required = program
+        .expression_table
+        .construction_required_type_reference(expression);
+    if required.is_valid() {
+        required
+    } else {
+        program
+            .expression_table
+            .constructed_value_type_reference(expression)
+    }
+}
+
+pub(super) fn selected_construction_definition<'a>(
+    program: &'a dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    literal: &TableStructLiteral,
+) -> Option<&'a DataDefinition> {
+    let reference = construction_application(program, expression);
+    if reference.is_valid() {
+        return program.data_constructor_definition(reference, literal.type_symbol);
+    }
+    let definition = program.unique_data_definition_by_symbol(literal.type_symbol)?;
+    construction_members_are_concrete(program, definition).then_some(definition)
+}
+
+pub(super) fn selected_construction_case<'a>(
+    program: &'a dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    literal: &TableStructLiteral,
+    definition: &'a DataDefinition,
+) -> Option<&'a typed_trees::data::DataVariant> {
+    let selected = literal.case_symbol?;
+    let receiving = construction_application(program, expression);
+    if receiving.is_valid() {
+        return program.data_constructor_case(receiving, literal.type_symbol, selected);
+    }
+    program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Variant(case) if case.symbol == selected => Some(case),
+            _ => None,
+        })
+}
+
 /// Calls `each` with `(value, declared field type)` for every authored field
 /// of `literal` whose construction field type resolves — the peel the literal
 /// walk-downs share.
 pub(crate) fn each_selected_literal_field(
     program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
     literal: &TableStructLiteral,
     mut each: impl FnMut(ExpressionHandle, TypeReferenceHandle),
 ) {
     for field in program.expression_table.struct_fields(literal.fields) {
         let Some(field_type) =
-            selected_construction_field_type(program, literal, field.field_symbol)
+            selected_construction_field_type(program, expression, literal, field.field_symbol)
         else {
             continue;
         };
@@ -617,20 +671,40 @@ pub(crate) fn each_selected_literal_field(
 
 pub fn selected_construction_field_type(
     program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
     literal: &TableStructLiteral,
     field: symbols::SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
+    selected_construction_field(program, expression, literal, field)
+        .map(|field| field.type_reference)
+}
+
+pub(crate) fn selected_construction_field<'a>(
+    program: &'a dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    literal: &TableStructLiteral,
+    field: symbols::SymbolHandle,
+) -> Option<&'a typed_trees::data::DataField> {
     if !literal.type_symbol.is_valid() || !field.is_valid() {
         return None;
     }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.symbol == literal.type_symbol);
-    let definition = definitions.next()?;
-    if definitions.next().is_some() || !construction_members_are_concrete(program, definition) {
-        return None;
+    let receiving = construction_application(program, expression);
+    if receiving.is_valid() {
+        let selected = program.data_constructor_field(receiving, literal.type_symbol, field)?;
+        let parent = program.symbols.get(selected.symbol).parent;
+        if program.symbols.get(parent).kind == symbols::SymbolKind::Variant {
+            let active = program.data_constructor_case(
+                receiving,
+                literal.type_symbol,
+                literal.case_symbol?,
+            )?;
+            if active.symbol != parent {
+                return None;
+            }
+        }
+        return Some(selected);
     }
+    let definition = selected_construction_definition(program, expression, literal)?;
     let case = if let Some(case_symbol) = literal.case_symbol.filter(|symbol| symbol.is_valid()) {
         let mut cases = program
             .data_members(definition)
@@ -662,14 +736,15 @@ pub fn selected_construction_field_type(
                 .flat_map(|case| program.data_payload_fields(case)),
         )
         .filter(|candidate| candidate.symbol == field);
-    let reference = fields.next()?.type_reference;
+    let selected = fields.next()?;
+    let reference = selected.type_reference;
     if fields.next().is_some() {
         return None;
     }
     program
         .type_reference_table
         .contains_type_reference(reference)
-        .then_some(reference)
+        .then_some(selected)
 }
 
 /// Read an integer-literal construction value (the parser folds a negative

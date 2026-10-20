@@ -800,27 +800,28 @@ impl Operation<'_, '_> {
         let walk = self.walk;
         let (program, environment) = (walk.program, walk.environment);
         let (left, right) = (self.binary.left, self.binary.right);
+        // Every Exact arithmetic result consumes the same live integer
+        // relations. A theorem's composed ceiling is not limited to addition;
+        // the children still owe their own independent formation checks.
+        if matches!(
+            self.operator(),
+            BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+        ) && let Some((minimum, maximum)) = primitive.and_then(PrimitiveType::integer_bounds)
+            && walk.state.is_some_and(|state| {
+                super::super::live_integer_constraints::proves_range(
+                    program,
+                    walk.machine,
+                    state,
+                    environment,
+                    self.expression,
+                    Some(&numerics::bignum::BigInt::from_i128(minimum)),
+                    Some(&numerics::bignum::BigInt::from_i128(maximum)),
+                )
+            })
+        {
+            return true;
+        }
         match self.operator() {
-            BinaryOperator::Add => {
-                let Some((minimum, maximum)) = primitive.and_then(PrimitiveType::integer_bounds)
-                else {
-                    return false;
-                };
-                // The children have already discharged their own formation.
-                // Query the same live relations for a composite result instead
-                // of requiring both operands to be named storage places.
-                walk.state.is_some_and(|state| {
-                    super::super::live_integer_constraints::proves_range(
-                        program,
-                        walk.machine,
-                        state,
-                        environment,
-                        self.expression,
-                        Some(&numerics::bignum::BigInt::from_i128(minimum)),
-                        Some(&numerics::bignum::BigInt::from_i128(maximum)),
-                    )
-                })
-            }
             BinaryOperator::Subtract => {
                 environment.proves_joint_subtract_bound(program, left, right)
                     || environment.proves_signed_joint_subtract_lower_bound(program, left, right)

@@ -41,7 +41,7 @@ impl<'a> Elaborator<'a> {
                     )));
                 };
                 let position = self.carrier_position(carrier);
-                Ok(self.numeric_literal(position, value))
+                self.numeric_literal(position, value)
             }
             ExpressionNode::Boolean(value) => {
                 if carrier != ScalarCarrier::Boolean {
@@ -121,7 +121,7 @@ impl<'a> Elaborator<'a> {
             }
             _ => self.integer_carrier(),
         };
-        Ok(self.numeric_literal(carrier, value))
+        self.numeric_literal(carrier, value)
     }
 
     /// A float literal in term position denotes at its landing carrier,
@@ -208,7 +208,7 @@ impl<'a> Elaborator<'a> {
             )),
             _ => {
                 let position = self.carrier_position(carrier);
-                Ok(self.numeric_literal(position, BigInt::from_u64(0)))
+                self.numeric_literal(position, BigInt::from_u64(0))
             }
         }
     }
@@ -244,7 +244,7 @@ impl<'a> Elaborator<'a> {
             && let Some(value) = self.program.closed_integer_expression_value(handle)
         {
             let carrier = self.integer_carrier();
-            return Ok(self.numeric_literal(carrier, value));
+            return self.numeric_literal(carrier, value);
         }
         if validation::mathematical_applications::operand_type_reference(self.program, handle)
             .is_some_and(|reference| {
@@ -263,6 +263,9 @@ impl<'a> Elaborator<'a> {
         let spelling = match binary.operator {
             BinaryOperator::Add => language_core::OperatorSpelling::Add,
             BinaryOperator::Subtract => language_core::OperatorSpelling::Subtract,
+            BinaryOperator::Multiply if self.integer_multiply.is_some() => {
+                language_core::OperatorSpelling::Multiply
+            }
             _ => return self.open_term(handle),
         };
         if !typed_trees::operator::has_builtin_spelled_expression_meaning(
@@ -277,6 +280,9 @@ impl<'a> Elaborator<'a> {
         let position = match binary.operator {
             BinaryOperator::Add => self.integer_add(),
             BinaryOperator::Subtract => self.integer_subtract(),
+            BinaryOperator::Multiply if self.integer_multiply.is_some() => {
+                self.integer_multiply.unwrap()
+            }
             _ => return self.open_term(handle),
         };
         let left = self.integer_operand(binary.left)?;
@@ -465,6 +471,18 @@ impl<'a> Elaborator<'a> {
             .operand_carrier(argument)
             .ok_or_else(|| self.unsupported_expression(argument))?;
         let argument = self.scalar_operand_term(argument, source)?;
+        if self.integer_theory.is_some() && source == ScalarCarrier::Integer {
+            // The independently selected fixed-integer builtin is inclusion
+            // into the shared Int carrier. Its denotation is its operand:
+            // introducing an identity function/application here makes the
+            // dependent W checker repeatedly convert an administrative redex.
+            // Source width/bounds remain with the checked operand and builtin
+            // meaning; no authored function or assumption is unfolded. The
+            // removed identity has only Int dependencies, already present in
+            // that operand's type. Address inclusions keep their separate
+            // carrier and assumption below.
+            return Ok(argument);
+        }
         let domain = self.carrier_term(source);
         let codomain = self.integer_constant();
         let ty = self.arena.insert(Term::Pi { domain, codomain });

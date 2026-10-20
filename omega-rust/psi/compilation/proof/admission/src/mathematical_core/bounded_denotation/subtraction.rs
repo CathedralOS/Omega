@@ -782,3 +782,16 @@ impl Denotation {
         )
     }
 }
+
+impl Subtraction {
+    /// Exact internally audited semantic roster, excluding arbitrary source,
+    /// decision and value-parameter assumptions sharing the signature.
+    pub(super) fn source_safety_roster(&self) -> Vec<u32> {
+        self.operation
+            .into_iter()
+            .chain(self.laws.values().copied())
+            .chain(self.irreflexivity)
+            .chain(self.numeral_differences.values().copied())
+            .collect()
+    }
+}

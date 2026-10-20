@@ -279,12 +279,13 @@ pub(crate) fn validate_suffix_landings(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for (_, node) in program.expression_table.expression_entries() {
+    for (expression, node) in program.expression_table.expression_entries() {
         let ExpressionNode::StructLiteral(literal) = node else {
             continue;
         };
         crate::value_custody::struct_literals::each_selected_literal_field(
             program,
+            expression,
             literal,
             |value, field_type| validate_suffix_landing(program, value, field_type, diagnostics),
         );

@@ -65,6 +65,17 @@ pub(super) struct Addition {
 }
 
 impl Denotation {
+    pub(super) fn add_order_both(
+        &mut self,
+        a: TermHandle,
+        b: TermHandle,
+        c: TermHandle,
+        d: TermHandle,
+        first: TermHandle,
+        second: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        self.add_law_application(Law::MonotoneBoth, &[a, b, c, d, first, second])
+    }
     /// Transport an existing inclusive order through the same exact addend.
     pub(super) fn add_order_translation(
         &mut self,
@@ -657,5 +668,17 @@ impl Denotation {
                 Ok(Some(self.arena.insert(Term::EmptyElim { ty, scrutinee })))
             }
         }
+    }
+}
+
+impl Addition {
+    /// Exact internally audited semantic roster, excluding arbitrary source,
+    /// decision and value-parameter assumptions sharing the signature.
+    pub(super) fn source_safety_roster(&self) -> Vec<u32> {
+        self.operation
+            .into_iter()
+            .chain(self.laws.values().copied())
+            .chain(self.numeral_sums.values().copied())
+            .collect()
     }
 }

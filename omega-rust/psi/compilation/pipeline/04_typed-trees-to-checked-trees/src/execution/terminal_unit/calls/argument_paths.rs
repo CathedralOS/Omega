@@ -121,7 +121,11 @@ fn proof_term_type_matches(
     type_identity: typed_trees::type_identity::TypeIdentityId,
 ) -> bool {
     match term {
-        checked_trees::CheckedProofTerm::Construction {
+        checked_trees::CheckedProofTerm::Mathematical {
+            type_identity: actual,
+            ..
+        }
+        | checked_trees::CheckedProofTerm::Construction {
             type_identity: actual,
             ..
         }

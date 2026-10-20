@@ -102,7 +102,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Quotient source judgments are erased; only nominal copy/call joins remain.
 // Folded constants retain exact target-scoped selected-realization dependencies.
 // Caller-activation establishment and release carry exact site/custody operands.
-pub(crate) const FORMAT_MARKER: u16 = 173;
+// Indexed source proof carriers and cited theorem roots retain exact semantic identities.
+pub(crate) const FORMAT_MARKER: u16 = 174;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

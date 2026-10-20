@@ -201,14 +201,15 @@ mod typing;
 pub(crate) use bounded_denotation::test_utilities::verify_and_assert_forged;
 pub(crate) use bounded_denotation::verify_bounded_certificate_on_current_thread;
 pub use bounded_denotation::{
-    BoundedDenotation, BoundedDenotationError, denote_bounded_certificate,
-    verify_bounded_certificate,
+    BoundedDenotation, BoundedDenotationError, SourceIntegerTheory, SourceIntegerVocabulary,
+    denote_bounded_certificate, verify_bounded_certificate,
 };
 pub(crate) use certificate::run_on_verification_stack;
 #[cfg(test)]
 pub(crate) use certificate::verification_workers_started;
 pub use certificate::{
-    MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
+    MathematicalCertificate, MathematicalCertificateBatchError, certificate_assumption_closure,
+    verify_mathematical_certificate, verify_mathematical_certificates,
 };
 pub use conversion::Budget;
 pub use conversion::{

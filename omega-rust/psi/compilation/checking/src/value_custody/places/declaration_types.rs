@@ -57,6 +57,25 @@ pub fn declaration_type_reference(
         parent
     };
     if let Some(machine) = program.machine_by_symbol(machine_owner) {
+        if let Some(type_reference) =
+            program
+                .machine_type_parameters(machine)
+                .iter()
+                .find_map(|parameter| {
+                    if parameter.symbol != symbol {
+                        return None;
+                    }
+                    match parameter.kind {
+                        typed_trees::data::TypeParameterKind::Value { type_reference }
+                        | typed_trees::data::TypeParameterKind::Const { type_reference } => {
+                            Some(type_reference)
+                        }
+                        _ => None,
+                    }
+                })
+        {
+            return Some(type_reference);
+        }
         if let Some(type_reference) = program
             .machine_owned_data(machine)
             .iter()

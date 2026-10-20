@@ -206,6 +206,18 @@ fn validate_expression_call_bounds(
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // A checked mathematical application in an erased initializer has no
+    // machine entry or executable call obligations. Its complete dependent
+    // application was checked by the mathematical producer; relevance still
+    // visits every operand and rejects runtime effects or escaped evidence.
+    if crate::mathematical_applications::selected_definition(program, call).is_some()
+        && program
+            .prepared_mathematics()
+            .is_some_and(|view| view.application(expression).is_some())
+        && crate::mathematical_applications::erased_initializer_nodes(program).contains(&expression)
+    {
+        return;
+    }
     if call.quotient_operation.is_some() {
         // A sealed `Quotient` request is not an ordinary value call: the
         // quotient formation and correspondence checks own its judgment.

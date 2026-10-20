@@ -16,7 +16,8 @@ pub use arrival_correspondence::{
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
     CheckedRankPremiseRegime, CheckedRankReceivingCoordinate, CheckedRankValueDerivation,
     CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
-    CheckedRuntimeRankMember, CheckedStateRankCorrespondence,
+    CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
+    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

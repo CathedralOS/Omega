@@ -46,6 +46,8 @@ mod operand_terms;
 mod propositions;
 mod scope;
 mod source_domains;
+mod source_evidence;
+mod source_families;
 mod term_order;
 
 use std::collections::{BTreeMap, HashMap};
@@ -206,8 +208,13 @@ struct Elaborator<'a> {
     span: Option<SourceSpan>,
     source_owner: SymbolHandle,
     captured_expressions: Vec<(ExpressionHandle, usize)>,
+    source_family_values: HashMap<ExpressionHandle, TermHandle>,
     source_aliases: Vec<source_domains::SourceAlias>,
     source_invocations: Vec<source_domains::SourceInvocation>,
+    indexed_families: HashMap<SymbolHandle, source_families::SourceFamily>,
+    indexed_family_stack: Vec<SymbolHandle>,
+    integer_theory: Option<proof_admission::SourceIntegerTheory>,
+    integer_multiply: Option<u32>,
     prepared: PreparedMathematicalApplications,
 }
 
@@ -217,10 +224,16 @@ struct Elaborator<'a> {
 pub(crate) fn check_mathematical_signature(
     program: &dyn ::validation::CheckingInput,
 ) -> Result<CheckedMathematicalSignature, Vec<diagnostics::Diagnostic>> {
+    let mut arena = TermArena::new();
+    let declarations = if source_families::needs_scheme(program) {
+        proof_admission::indexed_scheme(&mut arena)
+    } else {
+        Vec::new()
+    };
     let mut elaborator = Elaborator {
         program,
-        arena: TermArena::new(),
-        declarations: Vec::new(),
+        arena,
+        declarations,
         carriers: HashMap::new(),
         integer: None,
         boolean: None,
@@ -254,10 +267,34 @@ pub(crate) fn check_mathematical_signature(
         span: None,
         source_owner: SymbolHandle::default(),
         captured_expressions: Vec::new(),
+        source_family_values: HashMap::new(),
         source_aliases: Vec::new(),
         source_invocations: Vec::new(),
+        indexed_families: HashMap::new(),
+        indexed_family_stack: Vec::new(),
+        integer_theory: None,
+        integer_multiply: None,
         prepared: PreparedMathematicalApplications::default(),
     };
+    if source_families::needs_scheme(program) {
+        let theory = proof_admission::SourceIntegerTheory::new(
+            &mut elaborator.arena,
+            &mut elaborator.declarations,
+        )
+        .map_err(|error| {
+            elaborator.refuse(format!(
+                "source integer vocabulary could not be formed: {error}"
+            ))
+        })?;
+        let vocabulary = theory.vocabulary();
+        elaborator.integer = Some(vocabulary.carrier);
+        elaborator.integer_less_than = Some(vocabulary.less_than);
+        elaborator.integer_less_or_equal = Some(vocabulary.less_or_equal);
+        elaborator.integer_add = Some(vocabulary.add);
+        elaborator.integer_subtract = Some(vocabulary.subtract);
+        elaborator.integer_multiply = Some(vocabulary.multiply);
+        elaborator.integer_theory = Some(theory);
+    }
     for definition in program.mathematical_definitions() {
         elaborator.elaborate_declaration(definition)?;
     }
@@ -466,6 +503,9 @@ impl<'a> Elaborator<'a> {
         &mut self,
         handle: ExpressionHandle,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        if let Some(term) = self.source_family_values.get(&handle) {
+            return Ok(*term);
+        }
         if let Some((_, position)) = self
             .captured_expressions
             .iter()
@@ -630,7 +670,10 @@ impl<'a> Elaborator<'a> {
     /// against its preceding prefix and reports its position; application
     /// judgments then borrow that same checked signature.
     fn check(mut self) -> Result<CheckedMathematicalSignature, Vec<diagnostics::Diagnostic>> {
+        self.demand_source_family_declarations()?;
         let applications = self.source_applications()?;
+        self.retain_source_evidence_carriers()?;
+        self.retain_indexed_contract_theorems()?;
         let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
         let signature =
             check_signature_with_attribution(&mut self.arena, &self.declarations, &mut budget)
@@ -655,6 +698,23 @@ impl<'a> Elaborator<'a> {
                     }
                 })?;
         self.check_source_domains(&signature)?;
+        for (_, carrier) in self.prepared.source_carriers.iter() {
+            let context = carrier.domains.iter().copied().fold(
+                Context::empty().with_signature(signature.clone()),
+                |context, domain| context.extend(domain),
+            );
+            infer_sort(
+                &mut self.arena,
+                &context,
+                carrier.ty,
+                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+            )
+            .map_err(|error| {
+                self.refuse(format!(
+                    "source evidence carrier fails formation: {error:?}"
+                ))
+            })?;
+        }
         for (expression, term, domains, captures) in applications {
             let context = domains.into_iter().fold(
                 Context::empty().with_signature(signature.clone()),
@@ -672,12 +732,37 @@ impl<'a> Elaborator<'a> {
                     ))
                 },
             )?;
-            let term = normalization::normalize(&mut self.arena, &signature, term, &mut budget)
-                .map_err(|error| {
-                    self.refuse(format!(
-                        "mathematical application reduction failed: {error:?}"
-                    ))
-                })?;
+            if captures.is_empty() {
+                self.retain_checked_source_application(expression, term, &context, &signature)?;
+            }
+            let literals = &self.numeric_literals;
+            let embeddings = self
+                .prepared
+                .constants
+                .iter()
+                .filter_map(|(_, constant)| {
+                    matches!(
+                        constant.meaning,
+                        PreparedConstantMeaning::IntegerEmbedding { .. }
+                    )
+                    .then_some(constant.declaration)
+                })
+                .collect::<Vec<_>>();
+            let term = normalization::normalize(
+                &mut self.arena,
+                &signature,
+                term,
+                &mut budget,
+                &|declaration| {
+                    literals.values().any(|position| *position == declaration)
+                        || embeddings.contains(&declaration)
+                },
+            )
+            .map_err(|error| {
+                self.refuse(format!(
+                    "mathematical application reduction failed: {error:?}"
+                ))
+            })?;
             let captures = self.prepared.captures.insert_many(captures);
             self.prepared.applications.append(PreparedApplication {
                 expression,
@@ -685,6 +770,8 @@ impl<'a> Elaborator<'a> {
                 captures,
             });
         }
+        self.retain_source_evidence_aliases()?;
+        self.bind_source_evidence_types(&signature)?;
         self.retain_constant_meanings();
         Ok(CheckedMathematicalSignature {
             arena: self.arena,
@@ -737,6 +824,12 @@ impl<'a> Elaborator<'a> {
             retain(
                 position,
                 PreparedConstantMeaning::IntegerOperation(BinaryOperator::Subtract),
+            );
+        }
+        if let Some(position) = self.integer_multiply {
+            retain(
+                position,
+                PreparedConstantMeaning::IntegerOperation(BinaryOperator::Multiply),
             );
         }
         if let Some(position) = self.integer_less_than {
@@ -814,4 +907,8 @@ enum ScalarCarrier {
     Float64,
     Unit,
     Carrier(u32),
+}
+
+pub(super) fn has_source_evidence_demand(program: &dyn validation::CheckingInput) -> bool {
+    source_families::needs_scheme(program)
 }

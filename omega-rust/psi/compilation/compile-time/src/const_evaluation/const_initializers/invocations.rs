@@ -939,6 +939,7 @@ impl Invocation<'_> {
                 for field in typed.expression_table.struct_fields(literal.fields) {
                     let field_type = validation::selected_construction_field_type(
                         typed,
+                        expression,
                         literal,
                         field.field_symbol,
                     )

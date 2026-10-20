@@ -8,9 +8,10 @@ use super::ranking::{self, RankArrivalAdmission};
 
 pub(super) struct SelectedComponent {
     pub positions: Vec<usize>,
+    pub source_natural: Option<super::source_natural::Component>,
     pub bodies: Vec<(usize, RankArrivalAdmission)>,
     pub decision: Result<Option<validation::ValidatedRuntimeNaturalComponent>, &'static str>,
-    pub source_failures: Vec<(usize, ranking::DecreaseOutcome)>,
+    pub source_outcomes: Vec<(usize, ranking::DecreaseOutcome)>,
 }
 
 pub(super) fn select(
@@ -19,10 +20,39 @@ pub(super) fn select(
     component: &[usize],
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> SelectedComponent {
+    if let Some(result) = super::source_natural::admit(program, component, frames) {
+        return match result {
+            Ok(source) => SelectedComponent {
+                positions: component.to_vec(),
+                source_natural: Some(source),
+                bodies: Vec::new(),
+                decision: Ok(None),
+                source_outcomes: component
+                    .iter()
+                    .map(|position| (*position, ranking::DecreaseOutcome::Proven(None)))
+                    .collect(),
+            },
+            Err(message) => SelectedComponent {
+                positions: component.to_vec(),
+                source_natural: None,
+                bodies: Vec::new(),
+                decision: Err("a source natural call edge lacks independent strict descent"),
+                source_outcomes: component
+                    .iter()
+                    .map(|position| {
+                        (
+                            *position,
+                            ranking::DecreaseOutcome::Rejected(message.clone()),
+                        )
+                    })
+                    .collect(),
+            },
+        };
+    }
     let mut bodies = Vec::new();
     let mut chosen = None;
     let mut failure = "a member lacks a source-complete ranking witness";
-    let mut source_failures = Vec::new();
+    let mut source_outcomes = Vec::new();
     search(
         program,
         topology,
@@ -31,7 +61,7 @@ pub(super) fn select(
         &mut bodies,
         &mut chosen,
         &mut failure,
-        &mut source_failures,
+        &mut source_outcomes,
     );
     let (bodies, decision) = chosen.map_or_else(
         || (Vec::new(), Err(failure)),
@@ -39,9 +69,10 @@ pub(super) fn select(
     );
     SelectedComponent {
         positions: component.to_vec(),
+        source_natural: None,
         bodies,
         decision,
-        source_failures,
+        source_outcomes,
     }
 }
 
@@ -58,7 +89,7 @@ fn search(
     bodies: &mut Vec<(usize, RankArrivalAdmission)>,
     chosen: &mut Option<CompleteSelection>,
     failure: &mut &'static str,
-    source_failures: &mut Vec<(usize, ranking::DecreaseOutcome)>,
+    source_outcomes: &mut Vec<(usize, ranking::DecreaseOutcome)>,
 ) -> bool {
     let Some(position) = component.get(bodies.len()).copied() else {
         return false;
@@ -103,7 +134,7 @@ fn search(
                 bodies,
                 chosen,
                 failure,
-                source_failures,
+                source_outcomes,
             ),
         };
         bodies.pop();
@@ -121,13 +152,13 @@ fn search(
         // A source failure before any complete candidate keeps its original
         // owning diagnostic. Rejection by the continuation instead belongs
         // to the call-component decision, not a manufactured range failure.
-        if let Some(previous) = source_failures
+        if let Some(previous) = source_outcomes
             .iter_mut()
             .find(|(member, _)| *member == position)
         {
             previous.1 = outcome;
         } else {
-            source_failures.push((position, outcome));
+            source_outcomes.push((position, outcome));
         }
     }
     chosen.is_some()

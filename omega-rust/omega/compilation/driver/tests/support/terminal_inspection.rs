@@ -13,12 +13,16 @@ use crate::fixture_package_inputs::{
     fixture_build_snapshot, reviewed_repository_fixture_package_inputs,
 };
 
+#[path = "indexed_family_controls.rs"]
+mod indexed_family_controls;
+
 pub(super) const ORACLE: &str = "expected_terminal_inspections.txt";
 
 #[derive(Clone, Copy)]
-enum ConformanceControls {
+enum InspectionControls {
     MethodApplications,
     BoundaryCallables,
+    IndexedFamily,
 }
 
 pub(super) fn inspect(root: &Path, fixture: &Path) -> Result<(), Vec<Diagnostic>> {
@@ -41,16 +45,17 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
             [machine, "closed-conformance-controls"] => (
                 *machine,
                 false,
-                Some(ConformanceControls::MethodApplications),
+                Some(InspectionControls::MethodApplications),
             ),
-            [machine, "boundary-conformance-controls"] => (
-                *machine,
-                false,
-                Some(ConformanceControls::BoundaryCallables),
-            ),
+            [machine, "boundary-conformance-controls"] => {
+                (*machine, false, Some(InspectionControls::BoundaryCallables))
+            }
+            [machine, "indexed-family-controls"] => {
+                (*machine, false, Some(InspectionControls::IndexedFamily))
+            }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls` or `boundary-conformance-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `boundary-conformance-controls` or `indexed-family-controls`"
                 ));
             }
         };
@@ -62,6 +67,13 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
         let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
         request.package_inputs = prepared.package_inputs;
         request.build_snapshot = snapshot;
+        if matches!(
+            conformance_controls,
+            Some(InspectionControls::IndexedFamily)
+        ) {
+            let _artifact = indexed_family_controls::produce(request, machine)?;
+            continue;
+        }
         let artifact = compiler::CompilationSession::default()
             .produce(
                 request,
@@ -98,8 +110,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<(), String> {
                 .map_err(|error| format!("cannot preserve canonical artifact: {error}"))?;
             }
             match controls {
-                ConformanceControls::MethodApplications => closed_conformance_controls(&decoded)?,
-                ConformanceControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
+                InspectionControls::MethodApplications => closed_conformance_controls(&decoded)?,
+                InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
+                InspectionControls::IndexedFamily => {
+                    unreachable!("handled before ordinary inspection")
+                }
             }
         }
         let Some(debug) = artifact.debug_bytes() else {

@@ -16,6 +16,9 @@
 //! `verify_obligation`: a certificate only ever establishes "this judgment
 //! holds", never "this is the obligation you wanted discharged".
 
+mod batch;
+pub use batch::{MathematicalCertificateBatchError, verify_mathematical_certificates};
+
 use std::collections::BTreeSet;
 
 use super::conversion::Budget;

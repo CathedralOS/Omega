@@ -47,6 +47,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
             ExpressionNode::StructLiteral(literal) => {
                 crate::value_custody::struct_literals::each_selected_literal_field(
                     program,
+                    handle,
                     literal,
                     |value, field_type| pairs.push((value, field_type)),
                 );

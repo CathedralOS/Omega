@@ -99,6 +99,9 @@ pub struct ExpressionTable {
     /// means unresolved; a projected element cannot supply an aggregate type.
     constructed_value_types: Arena<crate::types::TypeReferenceHandle>,
     constructed_value_type_handles: Vec<Handle<crate::types::TypeReferenceHandle>>,
+    /// Required constructor applications are checking contexts, never actual-value provenance.
+    construction_required_types: Arena<crate::types::TypeReferenceHandle>,
+    construction_required_type_handles: Vec<Handle<crate::types::TypeReferenceHandle>>,
     index_expression_authorities: Arena<IndexExpressionAuthority>,
     index_expression_authority_handles: Vec<Handle<IndexExpressionAuthority>>,
     authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
@@ -141,6 +144,8 @@ impl ExpressionTable {
             source_spans,
             constructed_value_types,
             constructed_value_type_handles,
+            construction_required_types,
+            construction_required_type_handles,
             index_expression_authorities,
             index_expression_authority_handles,
             authored_selection_occurrences,
@@ -209,6 +214,13 @@ impl ExpressionTable {
             && self
                 .constructed_value_type_handles
                 .starts_with(constructed_value_type_handles)
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                construction_required_types,
+                &self.construction_required_types,
+            )
+            && self
+                .construction_required_type_handles
+                .starts_with(construction_required_type_handles)
             && self
                 .authored_selection_occurrences
                 .starts_with(authored_selection_occurrences)
@@ -302,6 +314,7 @@ impl ExpressionTable {
             .wrapping_add(self.static_machine_applications.revision())
             .wrapping_add(self.static_machine_arguments.revision())
             .wrapping_add(self.constructed_value_types.revision())
+            .wrapping_add(self.construction_required_types.revision())
             .wrapping_add(self.static_machine_bindings.revision())
             .wrapping_add(self.static_machine_lifetime_bindings.revision())
             .wrapping_add(self.source_spans.len() as u64)
@@ -330,6 +343,8 @@ impl ExpressionTable {
             source_spans: Vec::with_capacity(capacity.expressions),
             constructed_value_types: Arena::default(),
             constructed_value_type_handles: Vec::new(),
+            construction_required_types: Arena::default(),
+            construction_required_type_handles: Vec::new(),
             index_expression_authorities: Arena::default(),
             index_expression_authority_handles: Vec::new(),
             authored_selection_occurrences: Vec::with_capacity(capacity.expressions),
@@ -354,6 +369,8 @@ impl ExpressionTable {
         self.source_spans.clear();
         self.constructed_value_types.reset_retain_capacity();
         self.constructed_value_type_handles.clear();
+        self.construction_required_types.reset_retain_capacity();
+        self.construction_required_type_handles.clear();
         self.index_expression_authorities.reset_retain_capacity();
         self.index_expression_authority_handles.clear();
         self.authored_selection_occurrences.clear();
@@ -614,6 +631,46 @@ impl ExpressionTable {
             *self.constructed_value_types.get_mut(*reference) = type_reference;
         } else {
             *reference = self.constructed_value_types.insert(type_reference);
+        }
+    }
+
+    // Copies recompute receiving contexts after substitution; these rows never
+    // establish the source value's actual type or index provenance.
+    pub fn construction_required_type_reference(
+        &self,
+        handle: ExpressionHandle,
+    ) -> crate::types::TypeReferenceHandle {
+        if !self.expression_is_valid(handle) {
+            return crate::types::TypeReferenceHandle::invalid();
+        }
+        let Some(reference) = self
+            .construction_required_type_handles
+            .get(source_span_index(handle))
+        else {
+            return crate::types::TypeReferenceHandle::invalid();
+        };
+        if reference.is_valid() {
+            *self.construction_required_types.get(*reference)
+        } else {
+            crate::types::TypeReferenceHandle::invalid()
+        }
+    }
+
+    pub fn set_construction_required_type_reference(
+        &mut self,
+        handle: ExpressionHandle,
+        type_reference: crate::types::TypeReferenceHandle,
+    ) {
+        let position = source_span_index(handle);
+        if self.construction_required_type_handles.len() <= position {
+            self.construction_required_type_handles
+                .resize(position + 1, Handle::invalid());
+        }
+        let reference = &mut self.construction_required_type_handles[position];
+        if reference.is_valid() {
+            *self.construction_required_types.get_mut(*reference) = type_reference;
+        } else {
+            *reference = self.construction_required_types.insert(type_reference);
         }
     }
 

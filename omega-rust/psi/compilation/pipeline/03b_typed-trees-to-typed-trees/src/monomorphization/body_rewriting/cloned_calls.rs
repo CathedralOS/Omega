@@ -31,6 +31,13 @@ pub(crate) fn rewrite_cloned_calls(
     expression_start: usize,
     states: HandleSpan<typed_trees::state::State>,
 ) {
+    restore_recursive_invocation_targets(
+        program,
+        candidate,
+        state_symbols,
+        expression_start,
+        states,
+    );
     let machine_rewrites: Vec<_> = candidate
         .template
         .machine_parameters
@@ -344,6 +351,99 @@ pub(crate) fn rewrite_cloned_calls(
                 unreachable!();
             };
             call.authored_machine_application = application;
+        }
+    }
+}
+
+/// Copying a body's lexical namespace remaps its machine and entry symbols.
+/// An invocation has its own retained application tuple, however: copying
+/// `f<Next>` inside `f<Current>` must not select `f<Current>` before the normal
+/// application solver examines `Next`. Preserve that declaration target and
+/// let ordinary selection (including an exact cache hit) choose its instance.
+/// Calls to subordinate states still belong to the copied invocation.
+fn restore_recursive_invocation_targets(
+    program: &mut TypedTrees,
+    candidate: &Candidate,
+    state_symbols: &[(SymbolHandle, SymbolHandle)],
+    expression_start: usize,
+    states: HandleSpan<typed_trees::state::State>,
+) {
+    let Some(&(source_entry, copied_entry)) = state_symbols.first() else {
+        return;
+    };
+    let copied_machine = program.symbols.get(copied_entry).parent;
+    let original_target =
+        |program: &TypedTrees,
+         target: SymbolHandle,
+         application: typed_trees::static_applications::StaticMachineApplicationHandle| {
+            if !application.is_valid() {
+                return None;
+            }
+            let operation = program
+                .expression_table
+                .static_machine_application(application)
+                .registration_operation;
+            if operation != candidate.template.template_symbol && operation != source_entry {
+                return None;
+            }
+            if target == copied_entry {
+                Some(source_entry)
+            } else if target == copied_machine {
+                Some(candidate.template.template_symbol)
+            } else {
+                None
+            }
+        };
+    let statements = program
+        .machine_states
+        .span_or_empty(states)
+        .iter()
+        .flat_map(|state| statement_span_handles(state.statement_nodes))
+        .collect::<Vec<_>>();
+    for handle in statements {
+        let Some(call) = program.statement_table.statement(handle).as_call() else {
+            continue;
+        };
+        let Some(target) = original_target(
+            program,
+            call.target_symbol,
+            call.authored_machine_application,
+        ) else {
+            continue;
+        };
+        let arguments = program
+            .expression_table
+            .static_machine_application_arguments(call.authored_machine_application)
+            .to_vec();
+        if let StatementNode::Call(call) = program.statement_table.statement_mut(handle) {
+            call.target_symbol = target;
+            call.machine_arguments = arguments.into();
+        }
+    }
+    let expressions = program
+        .expression_table
+        .iter_expressions()
+        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    for handle in expressions {
+        let Some(call) = program.expression_table.call_node(handle) else {
+            continue;
+        };
+        let Some(target) = original_target(
+            program,
+            call.target_symbol,
+            call.authored_machine_application,
+        ) else {
+            continue;
+        };
+        let arguments = program
+            .expression_table
+            .static_machine_application_arguments(call.authored_machine_application)
+            .to_vec();
+        if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) {
+            call.target_symbol = target;
+            call.machine_arguments = arguments.into();
         }
     }
 }

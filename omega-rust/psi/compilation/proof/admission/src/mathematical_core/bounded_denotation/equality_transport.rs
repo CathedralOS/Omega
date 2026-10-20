@@ -35,6 +35,67 @@ struct Replacement {
 }
 
 impl Denotation {
+    /// Rewrite a source goal through explicit, lambda-bound identities and
+    /// transport a derived normal goal back with the same J contexts. Closed
+    /// integer value parameters are rewrite variables; no proposition is
+    /// installed as a signature assumption by this producer.
+    pub(super) fn source_rewrite_proof(
+        &mut self,
+        goal: TermHandle,
+        identities: &[(TermHandle, TermHandle)],
+        solve: impl FnOnce(&mut Self, TermHandle) -> Result<Option<TermHandle>, BoundedDenotationError>,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let integer = self.integer_constant()?;
+        let mut equations = Vec::new();
+        for &(statement, evidence) in identities {
+            let Some((carrier, left, right)) = self.identity_parts(statement) else {
+                continue;
+            };
+            if !self.arena.structurally_equal(carrier, integer) {
+                continue;
+            }
+            let parameter = |term| match self.arena.get(term) {
+                Term::Constant { declaration, .. } => self
+                    .declarations
+                    .get(declaration as usize)
+                    .is_some_and(|declaration| declaration.body.is_none()),
+                _ => false,
+            };
+            let (from, to, evidence) = if parameter(left) {
+                (left, right, evidence)
+            } else if parameter(right) {
+                (right, left, self.symmetry(carrier, left, right, evidence))
+            } else {
+                continue;
+            };
+            if from != to
+                && !equations
+                    .iter()
+                    .any(|equation: &Equation| equation.from == from)
+            {
+                equations.push(Equation {
+                    carrier,
+                    from,
+                    to,
+                    evidence,
+                });
+            }
+        }
+        let mut remaining = MAX_ELABORATION_NODES;
+        let Some((normal, replacements)) =
+            self.expand_equations(goal, &equations, &mut remaining)?
+        else {
+            return Ok(None);
+        };
+        let Some(mut evidence) = solve(self, normal)? else {
+            return Ok(None);
+        };
+        for replacement in replacements.into_iter().rev() {
+            evidence = self.replace_evidence(replacement, evidence, true);
+        }
+        Ok(Some(evidence))
+    }
+
     pub(super) fn compositional_transport(
         &mut self,
         premise: &Proposition,
@@ -1103,7 +1164,7 @@ impl Denotation {
     /// index by one. Used to decline codomains that depend on their
     /// binder, which this producer's propositional connectives never
     /// generate.
-    fn occurs_free(&self, term: TermHandle, index: u32) -> bool {
+    pub(super) fn occurs_free(&self, term: TermHandle, index: u32) -> bool {
         match self.arena.get(term) {
             Term::Variable(position) => position == index,
             Term::Pi { domain, codomain } | Term::Sigma { domain, codomain } => {

@@ -283,6 +283,7 @@ impl Engine<'_> {
                 match operator {
                     BinaryOperator::Add => Some(left.add(&right)),
                     BinaryOperator::Subtract => Some(left.sub(&right)),
+                    BinaryOperator::Multiply => left.checked_mul(&right),
                     _ => None,
                 }
             }

@@ -50,6 +50,27 @@ pub(super) fn index_argument(
             }
             index_name(program, symbol, program.symbols.name(symbol), context)
         }
+        IndexIdentityArgument::FieldProjection { receiver, field } => {
+            if !program.expression_table.expression_is_valid(receiver) || !field.is_valid() {
+                return rejected(context);
+            }
+            let declaration = program.symbols.get(field);
+            let case = declaration.parent;
+            if declaration.kind != symbols::SymbolKind::Field
+                || !case.is_valid()
+                || program.symbols.get(case).kind != symbols::SymbolKind::Variant
+            {
+                return rejected(context);
+            }
+            compound(
+                "member",
+                [
+                    normalize_index_expression(program, receiver, context),
+                    atom("member", program.symbols.name(field)),
+                    atom("case", program.symbols.name(case)),
+                ],
+            )
+        }
         IndexIdentityArgument::StaticArgument(argument) => {
             if argument.type_reference.is_valid() {
                 return normalize_type_reference(program, argument.type_reference, context);

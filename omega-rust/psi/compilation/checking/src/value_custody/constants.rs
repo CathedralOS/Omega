@@ -101,6 +101,7 @@ pub fn validate_constant_literal_integer_ranges(
                     let field_type =
                         crate::value_custody::struct_literals::selected_construction_field_type(
                             program,
+                            expression,
                             literal,
                             field.field_symbol,
                         )

@@ -280,8 +280,12 @@ impl Elaborator<'_> {
         budget: &mut Budget,
     ) -> Result<TermHandle, Vec<Diagnostic>> {
         let aliases = &self.source_aliases;
+        let families = &self.indexed_families;
         weak_head_normalize_retaining(&mut self.arena, signature, term, budget, &|declaration| {
             aliases.iter().any(|alias| alias.declaration == declaration)
+                || families
+                    .values()
+                    .any(|family| family.declaration == declaration)
         })
         .map_err(|error| {
             self.refuse(format!(
@@ -290,7 +294,7 @@ impl Elaborator<'_> {
         })
     }
 
-    fn source_domains_correspond(
+    pub(super) fn source_domains_correspond(
         &mut self,
         signature: &Signature,
         context: &Context,
@@ -317,6 +321,7 @@ impl Elaborator<'_> {
                 self.refuse(format!("mathematical source domain has no type: {error:?}"))
             })?;
         let aliases = &self.source_aliases;
+        let families = &self.indexed_families;
         convertible_retaining(
             &mut self.arena,
             context,
@@ -324,7 +329,12 @@ impl Elaborator<'_> {
             actual,
             shared_type,
             budget,
-            &|declaration| aliases.iter().any(|alias| alias.declaration == declaration),
+            &|declaration| {
+                aliases.iter().any(|alias| alias.declaration == declaration)
+                    || families
+                        .values()
+                        .any(|family| family.declaration == declaration)
+            },
         )
         .map_err(|error| {
             self.refuse(format!(

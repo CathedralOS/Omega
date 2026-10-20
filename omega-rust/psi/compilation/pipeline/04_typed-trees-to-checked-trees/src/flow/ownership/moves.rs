@@ -294,6 +294,7 @@ pub(super) fn append_move_events_for_expression(
                     field.value,
                     validation::selected_construction_field_type(
                         program,
+                        expression,
                         struct_literal,
                         field.field_symbol,
                     )

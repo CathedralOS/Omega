@@ -197,7 +197,9 @@ mod multiplication;
 #[cfg(test)]
 mod order_antisymmetry_tests;
 mod order_translation;
+mod source_integer;
 mod subtraction;
+pub use source_integer::{SourceIntegerTheory, SourceIntegerVocabulary};
 
 /// One bounded certificate elaborated into the common mathematical core.
 ///

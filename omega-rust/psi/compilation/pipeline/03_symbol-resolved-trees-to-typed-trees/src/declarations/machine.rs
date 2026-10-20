@@ -590,6 +590,11 @@ fn lower_machine_implementation(
     }
     typed_machine.termination_plan.implementation_witness =
         machine.termination_plan.implementation_witness.clone();
+    crate::lowerer::progress::settle_machine_ranking_default(
+        &lowerer.typed_trees,
+        &lowerer.source_trees.symbols,
+        typed_machine,
+    );
     typed_machine.body_status = typed::machine::MachineBodyStatus::Complete;
     Ok(())
 }

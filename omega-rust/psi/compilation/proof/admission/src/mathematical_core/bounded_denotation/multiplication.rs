@@ -33,7 +33,7 @@ use semantic_vocabulary::{
     IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition, ScalarTerm,
 };
 
-use super::super::scheme_dsl::{self, apps, pi, scheme_at, v};
+use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
 use super::denotation::math_less_or_equal_sides;
 use super::integer_operations::IntegerOperation;
 use super::{
@@ -49,6 +49,9 @@ mod tests;
 /// over the shared `Int` vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Law {
+    /// Standard mathematical integer distributivity. This fixed universal
+    /// statement is retained explicitly, never a source goal instance.
+    DistributeAdd,
     /// `a ≤ b → 1 ≤ r → mul a r ≤ mul b r` — right multiplication by a
     /// positive operand preserves order.
     MonotonePositive,
@@ -89,6 +92,14 @@ pub(super) struct Multiplication {
 }
 
 impl Denotation {
+    pub(super) fn distribute_add(
+        &mut self,
+        scale: TermHandle,
+        left: TermHandle,
+        right: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        self.multiply_law_application(Law::DistributeAdd, &[scale, left, right])
+    }
     /// `mul : Π(_ : Int). Π(_ : Int). Int` — the shared multiplication
     /// every open `IntegerMathTerm::Multiply` denotes, so the fixed
     /// order laws quantify over its applications.
@@ -134,6 +145,18 @@ impl Denotation {
                 let le = |left, right| apps(constant(less_or_equal), [left, right]);
                 let mul = |left, right| apps(constant(operation), [left, right]);
                 let statement = match law {
+                    Law::DistributeAdd => {
+                        let addition = this.add_operation()?;
+                        let add = |left, right| apps(constant(addition), [left, right]);
+                        binders(
+                            &["scale", "left", "right"],
+                            id(
+                                carrier(),
+                                mul(v("scale"), add(v("left"), v("right"))),
+                                add(mul(v("scale"), v("left")), mul(v("scale"), v("right"))),
+                            ),
+                        )
+                    }
                     Law::MonotonePositive => binders(
                         &["a", "b", "r"],
                         pi(
@@ -630,5 +653,18 @@ impl Denotation {
         } else {
             Ok(Some(combined))
         }
+    }
+}
+
+impl Multiplication {
+    /// Exact internally audited semantic roster, excluding arbitrary source,
+    /// decision and value-parameter assumptions sharing the signature.
+    pub(super) fn source_safety_roster(&self) -> Vec<u32> {
+        self.operation
+            .into_iter()
+            .chain(self.laws.values().copied())
+            .chain(self.numeral_products.values().copied())
+            .chain(self.numeral_quotients.values().copied())
+            .collect()
     }
 }

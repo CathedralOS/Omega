@@ -512,8 +512,34 @@ impl<'a> Elaborator<'a> {
     /// One closed scalar literal's constant, interned by exact value at
     /// its carrier — `2 + 0` and `2` name one constant, so evaluated
     /// equalities stay `refl`-provable without a decision assumption.
-    pub(super) fn numeric_literal(&mut self, carrier: u32, value: BigInt) -> TermHandle {
-        interned_literal!(self.numeric_literals, (carrier, value), carrier)
+    pub(super) fn numeric_literal(
+        &mut self,
+        carrier: u32,
+        value: BigInt,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        if self.integer == Some(carrier)
+            && let Some(theory) = &mut self.integer_theory
+        {
+            let term = theory
+                .literal(&mut self.arena, &mut self.declarations, value.clone())
+                .map_err(|error| {
+                    self.refuse(format!(
+                        "source integer literal could not be denoted: {error}"
+                    ))
+                })?;
+            let Term::Constant { declaration, .. } = self.arena.get(term) else {
+                return Err(
+                    self.refuse("shared integer literal lost its canonical declaration".into())
+                );
+            };
+            self.numeric_literals.insert((carrier, value), declaration);
+            return Ok(term);
+        }
+        Ok(interned_literal!(
+            self.numeric_literals,
+            (carrier, value),
+            carrier
+        ))
     }
 
     /// `true`/`false` interned at the `bool` carrier.

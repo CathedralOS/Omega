@@ -49,6 +49,9 @@ pub fn fact_only_theorem(
                 .first()
                 .is_some_and(|entry| entry.symbol == target)
     })?;
+    if crate::mathematical_applications::is_indexed_logical_machine(program, machine) {
+        return Some(machine);
+    }
     let [entry] = program.machine_states(machine) else {
         return None;
     };
@@ -152,8 +155,22 @@ pub fn is_fact_only_citation_call(program: &dyn crate::CheckingInput, call: &Tab
         && !call.receiver_symbol.is_valid()
         && !call.static_machine_parameter.is_valid()
         && call.static_requirement_dispatch.is_none()
-        && call.machine_arguments.is_empty()
+        && (call.machine_arguments.is_empty()
+            || fact_only_theorem(program, call.target_symbol).is_some_and(|theorem| {
+                crate::mathematical_applications::is_indexed_logical_machine(program, theorem)
+                    && program
+                        .machine_type_parameters(theorem)
+                        .iter()
+                        .all(|parameter| {
+                            matches!(
+                                parameter.kind,
+                                typed_trees::data::TypeParameterKind::Value { .. }
+                            )
+                        })
+            }))
         && call.evidence_arguments.is_empty()
+        && !call.operational_acknowledgement.acknowledges_suspend
+        && !call.operational_acknowledgement.acknowledges_block
         && !call.discards_result
         && fact_only_theorem(program, call.target_symbol).is_some_and(|theorem| {
             program
@@ -186,7 +203,14 @@ fn work_free_argument(program: &dyn crate::CheckingInput, argument: ExpressionHa
                 && place_spelling(program, borrow.target)
         }
         ExpressionNode::StructLiteral(literal) => {
-            crate::proof_only_classification(program).is_proof_only(literal.type_symbol)
+            (crate::proof_only_classification(program).is_proof_only(literal.type_symbol)
+                || program.prepared_mathematics().is_some_and(|view| {
+                    view.source_evidence(argument).is_some_and(|evidence| {
+                        evidence.type_identity.is_valid()
+                            && evidence.type_identity
+                                == program.normalized_type_identity(evidence.source_type)
+                    })
+                }))
                 && program
                     .expression_table
                     .struct_fields(literal.fields)

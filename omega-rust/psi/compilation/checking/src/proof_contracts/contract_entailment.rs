@@ -304,6 +304,18 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             }
         }
     }
+    ensures.retain(|expression| {
+        if crate::mathematical_applications::indexed_contract_is_proved(
+            program,
+            machine,
+            *expression,
+        ) {
+            proven.normal_returns.push(*expression);
+            false
+        } else {
+            true
+        }
+    });
     if ensures.is_empty() {
         return;
     }

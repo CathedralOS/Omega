@@ -124,6 +124,95 @@ fn normalize_machine_progress_premises_from(
     Ok(())
 }
 
+/// Complete this body's private view after restoring its authored witness.
+/// Selected retained declarations can precede the continuation's machine
+/// frontier; a suffix-wide public-progress pass cannot complete their view.
+/// Syntax lowering leaves Named symbols unresolved, so classification uses
+/// the resolved source roster accompanying these exact typed declarations.
+pub(crate) fn settle_machine_ranking_default(
+    program: &typed::TypedTrees,
+    symbols: &symbols::SymbolTable,
+    machine: &mut typed::machine::Machine,
+) {
+    if let Some(view) = pending_ranking_default(program, symbols, machine)
+        && let Some(witness) = &mut machine.termination_plan.implementation_witness
+    {
+        witness.ranking_view = view;
+        witness.view_path = view.canonical_path().unwrap_or_default().to_string();
+    }
+}
+
+fn pending_ranking_default(
+    program: &typed::TypedTrees,
+    symbols: &symbols::SymbolTable,
+    machine: &typed::machine::Machine,
+) -> Option<language_semantics::RankingViewId> {
+    use language_semantics::RankingViewId;
+    use typed::types::TypeReferenceNode;
+
+    let witness = machine.termination_plan.implementation_witness.as_ref()?;
+    if witness.ranking_view != RankingViewId::NULL
+        || !witness.view_path.is_empty()
+        || witness.subjects.len() != 1
+        || !witness.view_arguments.is_empty()
+    {
+        return None;
+    }
+    let custody = program.ranking_expression_custody_for(machine.symbol)?;
+    let [subject] = custody.subjects.as_slice() else {
+        return None;
+    };
+    let typed::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(*subject)
+    else {
+        return None;
+    };
+    if !path.symbol.is_valid() || path.head_symbol != path.symbol {
+        return None;
+    }
+    let entry = program.machine_states(machine).first()?;
+    let mut reference = program
+        .state_parameters(entry)
+        .iter()
+        .find(|parameter| parameter.symbol == path.symbol)
+        .map(|parameter| parameter.type_reference)
+        .or_else(|| {
+            let parameter = program
+                .machine_type_parameters(machine)
+                .iter()
+                .find(|parameter| parameter.symbol == path.symbol)?;
+            match parameter.kind {
+                typed::data::TypeParameterKind::Value { type_reference }
+                | typed::data::TypeParameterKind::Const { type_reference } => Some(type_reference),
+                _ => None,
+            }
+        })?;
+    for _ in 0..128 {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. } => {
+                return Some(RankingViewId::SLICE_LENGTH);
+            }
+            TypeReferenceNode::Named { symbol, .. }
+                if matches!(
+                    symbols.builtin_type_atom(*symbol),
+                    Some(
+                        symbols::BuiltinTypeAtom::U8
+                            | symbols::BuiltinTypeAtom::U16
+                            | symbols::BuiltinTypeAtom::U32
+                            | symbols::BuiltinTypeAtom::U64
+                    )
+                ) =>
+            {
+                return Some(RankingViewId::NAT_DESCENDING);
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
 fn inherited_guarantee(
     program: &typed::TypedTrees,
     machine: &typed::machine::Machine,

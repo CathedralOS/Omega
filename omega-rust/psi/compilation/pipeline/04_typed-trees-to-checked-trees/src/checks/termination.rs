@@ -18,6 +18,7 @@ mod graph;
 mod order;
 mod progress;
 mod ranking;
+mod source_natural;
 
 pub(crate) use progress::entry_covers_progress_premises;
 
@@ -88,10 +89,10 @@ pub(crate) fn admit_machine_rankings(
                     )))
                 } else {
                     component
-                        .source_failures
+                        .source_outcomes
                         .iter()
                         .position(|(member, _)| *member == position)
-                        .map(|failure| component.source_failures.remove(failure).1)
+                        .map(|failure| component.source_outcomes.remove(failure).1)
                 }
             } else {
                 Some(ranking::machine_decrease_outcome(
@@ -195,6 +196,18 @@ pub(crate) fn admit_machine_rankings(
             });
     }
     for component in components {
+        if let Some(source) = component.source_natural {
+            let members = admitted.source_natural_members.insert_many(source.members);
+            let edges = admitted.source_natural_edges.insert_many(source.edges);
+            admitted.source_natural_components.insert(
+                checked_trees::CheckedSourceNaturalRankComponent {
+                    members,
+                    edges,
+                    view: language_semantics::RankingViewId::NAT_DESCENDING,
+                },
+            );
+            continue;
+        }
         validation::retain_runtime_rank_component(
             program,
             &component.positions,
@@ -219,6 +232,36 @@ pub(crate) fn check_machine_termination(
             (!row.diagnostic.is_empty()).then(|| Diagnostic::error(row.diagnostic.clone()))
         }))
         .collect::<Vec<_>>();
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// The early indexed logical profile establishes proof placement and absence
+/// of operational effects. It does not establish that the source body reaches
+/// a terminal outcome: `ensures` is partial correctness. Every machine admitted
+/// through that proof-side profile therefore needs the independently retained
+/// whole-machine progress judgment before execution can erase its citations or
+/// omit its erased control. A written ranking or an empty diagnostic is not
+/// the positive checked totality result.
+pub(crate) fn check_indexed_logical_totality(
+    program: &dyn ::validation::CheckingInput,
+    termination: &checked_trees::TerminationFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let diagnostics = program.machines().iter().filter(|machine| {
+        validation::mathematical_applications::is_indexed_logical_machine(program, machine)
+    }).filter_map(|machine| {
+        let unconditional = termination.for_machine(machine.symbol).is_some_and(|plan| {
+            matches!(&plan.checked_summary,
+                language_semantics::TerminationGuarantee::Terminates { premises } if premises.is_empty())
+        }) && termination.build_bound_for_machine(machine.symbol).is_empty();
+        (!unconditional).then(|| Diagnostic::error(format!(
+            "indexed logical machine `{}` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body",
+            machine_name(program, machine.symbol),
+        )))
+    }).collect::<Vec<_>>();
     if diagnostics.is_empty() {
         Ok(())
     } else {

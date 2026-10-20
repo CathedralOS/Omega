@@ -86,3 +86,172 @@ pub fn definition_roots(
     }
     roots
 }
+
+/// Binding placement is separate from mathematical admission. Every erased
+/// field, local, formal actual and transition actual supplies a proof term;
+/// a handle that also occurs in executable storage retains its runtime demand.
+pub fn erased_initializer_nodes(
+    program: &dyn crate::CheckingInput,
+) -> std::sync::Arc<Vec<ExpressionHandle>> {
+    crate::frozen_program::frozen_memo(
+        program,
+        |memos| &memos.erased_initializers,
+        || {
+            let mut placements = InitializerPlacements::default();
+            for machine in program.machines() {
+                for data in program.machine_owned_data(machine) {
+                    placements.visit(program, data.initial_value, false);
+                }
+                for state in program.machine_states(machine) {
+                    for statement in program.statement_table.statements(state.statement_nodes) {
+                        use typed_trees::statement::{
+                            StatementNode, TransitionGuardNode, TransitionTargetNode,
+                        };
+                        match statement {
+                            StatementNode::LocalData(local) => placements.visit(
+                                program,
+                                local.initial_value,
+                                local.relevance.is_erased(),
+                            ),
+                            StatementNode::Call(call) => {
+                                for (position, argument) in program
+                                    .statement_table
+                                    .expression_handles(call.arguments)
+                                    .iter()
+                                    .enumerate()
+                                {
+                                    placements.visit(
+                                        program,
+                                        *argument,
+                                        erased_parameter(program, call.target_symbol, position),
+                                    );
+                                }
+                            }
+                            StatementNode::Transition(transition) => {
+                                if let TransitionGuardNode::When(guard) = transition.guard {
+                                    placements.visit(program, guard, false);
+                                }
+                                for target in transition.targets() {
+                                    match program.statement_table.transition_target(target) {
+                                        TransitionTargetNode::Named {
+                                            path, arguments, ..
+                                        } => {
+                                            for (position, argument) in program
+                                                .statement_table
+                                                .expression_handles(*arguments)
+                                                .iter()
+                                                .enumerate()
+                                            {
+                                                placements.visit(
+                                                    program,
+                                                    *argument,
+                                                    erased_parameter(
+                                                        program,
+                                                        path.symbol,
+                                                        position,
+                                                    ),
+                                                );
+                                            }
+                                        }
+                                        TransitionTargetNode::Value(value) => {
+                                            placements.visit(program, *value, false)
+                                        }
+                                        TransitionTargetNode::Terminal => {}
+                                    }
+                                }
+                            }
+                            StatementNode::AssemblyFact(_) => {}
+                            _ => {
+                                for root in
+                                    crate::machine_calls::calls::statement_value_expression_roots(
+                                        program, statement,
+                                    )
+                                {
+                                    placements.visit(program, root, false);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            placements
+                .erased
+                .retain(|expression| !placements.runtime_seen.contains(expression));
+            placements.erased
+        },
+    )
+}
+
+fn erased_parameter(
+    program: &dyn crate::CheckingInput,
+    target: symbols::SymbolHandle,
+    position: usize,
+) -> bool {
+    program
+        .state_by_symbol(target)
+        .or_else(|| {
+            program
+                .machine_by_symbol(target)
+                .and_then(|machine| program.machine_states(machine).first())
+        })
+        .and_then(|state| program.state_parameters(state).get(position))
+        .is_some_and(|parameter| parameter.relevance.is_erased())
+}
+
+#[derive(Default)]
+struct InitializerPlacements {
+    erased: Vec<ExpressionHandle>,
+    erased_seen: HashSet<ExpressionHandle>,
+    runtime_seen: HashSet<ExpressionHandle>,
+}
+
+impl InitializerPlacements {
+    fn visit(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+        erased: bool,
+    ) {
+        if !program.expression_table.expression_is_valid(expression) {
+            return;
+        }
+        if erased {
+            if !self.erased_seen.insert(expression) {
+                return;
+            }
+            self.erased.push(expression);
+        } else if !self.runtime_seen.insert(expression) {
+            return;
+        }
+        use typed_trees::expression::ExpressionNode;
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Call(call) => {
+                self.visit(program, call.receiver, erased);
+                for (position, argument) in program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .enumerate()
+                {
+                    self.visit(
+                        program,
+                        *argument,
+                        erased || erased_parameter(program, call.target_symbol, position),
+                    );
+                }
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    let field_erased = field.field_symbol.is_valid()
+                        && program
+                            .any_field_owner(field.field_symbol)
+                            .is_some_and(|(_, declared)| declared.relevance.is_erased());
+                    self.visit(program, field.value, erased || field_erased);
+                }
+            }
+            node => crate::expression_traversal::children(program, node, |child| {
+                self.visit(program, child, erased)
+            }),
+        }
+    }
+}

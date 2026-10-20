@@ -22,11 +22,29 @@ impl StructuralJudge<'_> {
         definition: &typed_trees::data::DataDefinition,
         variant: &typed_trees::data::DataVariant,
         value: &StructuralTerm,
+        subject_type: TypeReferenceHandle,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        environment: &[(String, StructuralTerm)],
     ) {
         let StructuralTerm::Constructor { fields, .. } = value else {
             return;
         };
         let program = self.program;
+        // Active-case predicates belong to this exact application, including
+        // its enclosing Value indices. The constructor's fresh descriptor
+        // fields must denote those indices, not unrelated fresh integers.
+        if program
+            .data_constructor_case(subject_type, definition.symbol, variant.symbol)
+            .is_none()
+        {
+            return;
+        }
+        let Some(indices) =
+            self.selected_case_indices(definition, subject_type, machine, state, environment)
+        else {
+            return;
+        };
         let declared = program
             .data_members(definition)
             .iter()
@@ -34,6 +52,21 @@ impl StructuralJudge<'_> {
             .chain(program.data_payload_fields(variant));
         let mut parameters = Vec::new();
         let mut bindings = Vec::new();
+        for (binder, field, actual) in &indices {
+            parameters.push(StateParameter {
+                symbol: binder.symbol,
+                name: format!(
+                    "\0case_index_{}_{}",
+                    binder.symbol.arena_index(),
+                    binder.symbol.generation()
+                )
+                .as_str()
+                .into(),
+                type_reference: field.type_reference,
+                ..Default::default()
+            });
+            bindings.push((parameters.last().unwrap().name.to_string(), actual.clone()));
+        }
         for field in declared {
             let mut values = fields
                 .iter()
@@ -44,13 +77,25 @@ impl StructuralJudge<'_> {
             if values.next().is_some() {
                 return;
             }
+            if let Some((_, _, actual)) = indices
+                .iter()
+                .find(|(_, descriptor, _)| descriptor.symbol == field.symbol)
+            {
+                self.intake_equation(value.clone(), actual.clone(), 0);
+            }
             parameters.push(StateParameter {
                 symbol: field.symbol,
-                name: field.name.clone(),
+                name: format!(
+                    "\0case_field_{}_{}",
+                    field.symbol.arena_index(),
+                    field.symbol.generation()
+                )
+                .as_str()
+                .into(),
                 type_reference: field.type_reference,
                 ..Default::default()
             });
-            bindings.push((field.name.to_string(), value.clone()));
+            bindings.push((parameters.last().unwrap().name.to_string(), value.clone()));
         }
         for fact in program.proof_facts.span_or_empty(variant.where_facts) {
             if let ProofFact::Expression(expression) = fact {
@@ -62,6 +107,118 @@ impl StructuralJudge<'_> {
                 );
             }
         }
+    }
+
+    /// Rejoin only retained scalar Value operands. Unsupported type/const
+    /// applications contribute no predicate; lexical spelling selects nothing.
+    fn selected_case_indices(
+        &self,
+        definition: &typed_trees::data::DataDefinition,
+        reference: TypeReferenceHandle,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        environment: &[(String, StructuralTerm)],
+    ) -> Option<
+        Vec<(
+            typed_trees::data::TypeParameter,
+            typed_trees::data::DataField,
+            StructuralTerm,
+        )>,
+    > {
+        use typed_trees::types::TypeReferenceNode;
+        let program = self.program;
+        let binders = program.data_type_parameters(definition);
+        if binders.is_empty() {
+            return Some(Vec::new());
+        }
+        let application = match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Generic { .. } => reference,
+            TypeReferenceNode::Named { .. } => {
+                program
+                    .data_constructor_definition(reference, definition.symbol)?
+                    .generic_instance?
+            }
+            _ => return None,
+        };
+        let TypeReferenceNode::Generic { arguments, .. } =
+            program.type_reference_table.type_reference(application)
+        else {
+            return None;
+        };
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        if arguments.len() != binders.len() {
+            return None;
+        }
+        let mut result = Vec::new();
+        for (binder, descriptor) in program
+            .typed_program()
+            .data_value_parameter_fields(definition)
+        {
+            let position = binders
+                .iter()
+                .position(|candidate| candidate.symbol == binder.symbol)?;
+            let argument = arguments[position];
+            let actual = if let Some(literal) = program
+                .typed_program()
+                .static_const_literal_from_type_reference(argument)
+            {
+                StructuralTerm::Integer(literal.value_bignum()?)
+            } else {
+                let symbol = match program.type_reference_table.type_reference(argument) {
+                    TypeReferenceNode::ConstExpression(expression) => {
+                        let typed_trees::expression::ExpressionNode::Name(path) =
+                            program.expression_table.expression(*expression)
+                        else {
+                            return None;
+                        };
+                        path.symbol
+                    }
+                    TypeReferenceNode::Named { symbol, .. } => *symbol,
+                    _ => return None,
+                };
+                if !symbol.is_valid() {
+                    return None;
+                }
+                if let Some(parameter) = program
+                    .state_parameter_by_symbol(state, symbol)
+                    .filter(|parameter| !parameter.is_mutable)
+                {
+                    // The legacy environment is name-keyed. Decline a shadowed
+                    // state formal rather than retarget its retained index to
+                    // a later local with that spelling.
+                    if program.statement_table.statements(state.statement_nodes).iter().any(|statement| matches!(statement, typed_trees::statement::StatementNode::LocalData(local) if local.name == parameter.name)) { return None; }
+                    if !program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some_and(|primitive| primitive.is_fixed_integer() && program.primitive_type_reference(descriptor.type_reference) == Some(primitive))
+                    {
+                        return None;
+                    }
+                    environment
+                        .iter()
+                        .find(|(name, _)| name == parameter.name.as_str())?
+                        .1
+                        .clone()
+                } else if program
+                    .machine_type_parameters(machine)
+                    .iter()
+                    .any(|parameter| {
+                        parameter.symbol == symbol && match parameter.kind {
+                            typed_trees::data::TypeParameterKind::Value { type_reference }
+                            | typed_trees::data::TypeParameterKind::Const { type_reference } => program.primitive_type_reference(type_reference).is_some_and(|primitive| primitive.is_fixed_integer() && program.primitive_type_reference(descriptor.type_reference) == Some(primitive)),
+                            _ => false,
+                        }
+                    })
+                {
+                    StructuralTerm::BoundValue(symbol)
+                } else {
+                    return None;
+                }
+            };
+            result.push((binder.clone(), descriptor.clone(), actual));
+        }
+        Some(result)
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn intake_entry_domain_predicates(

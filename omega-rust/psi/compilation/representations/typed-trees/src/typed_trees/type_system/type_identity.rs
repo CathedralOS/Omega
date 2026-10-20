@@ -79,6 +79,13 @@ pub enum IndexIdentityArgument<'argument> {
     TypeReference(TypeReferenceHandle),
     Expression(crate::expression::ExpressionHandle),
     Subject(SymbolHandle),
+    /// An existing checked payload field observed through its exact receiver.
+    /// This borrowed projection substitutes dependent field binders without
+    /// manufacturing an expression or borrowing a receiving annotation.
+    FieldProjection {
+        receiver: crate::expression::ExpressionHandle,
+        field: SymbolHandle,
+    },
     StaticArgument(&'argument crate::expression::StaticMachineArgument),
 }
 
@@ -543,7 +550,19 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
     ) -> Option<&crate::data::DataDefinition> {
-        let instance = self.closed_data_definition(reference)?;
+        self.closed_data_definition(reference)?;
+        self.data_constructor_definition(reference, authored)
+    }
+
+    /// Exact source application custody is independent of representation closure.
+    pub fn data_constructor_definition(
+        &self,
+        reference: TypeReferenceHandle,
+        authored: SymbolHandle,
+    ) -> Option<&crate::data::DataDefinition> {
+        let instance = self
+            .data_application_definition(reference)
+            .or_else(|| self.closed_data_definition(reference))?;
         if authored == instance.symbol {
             return Some(instance);
         }
@@ -617,8 +636,50 @@ impl TypedTrees {
         authored: SymbolHandle,
         retained: SymbolHandle,
     ) -> Option<&crate::data::DataField> {
+        self.closed_data_definition(reference)?;
+        self.data_constructor_field(reference, authored, retained)
+    }
+
+    /// Translate an authored active-case selection through the exact application.
+    /// A case in another owner or sibling specialization supplies no authority.
+    pub fn data_constructor_case(
+        &self,
+        reference: TypeReferenceHandle,
+        authored: SymbolHandle,
+        retained: SymbolHandle,
+    ) -> Option<&crate::data::DataVariant> {
         use crate::data::DataMember;
-        let instance = self.closed_data_constructor_definition(reference, authored)?;
+        let instance = self.data_constructor_definition(reference, authored)?;
+        if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Variant {
+            return None;
+        }
+        let source_owner = self.symbols.get(retained).parent;
+        self.data_constructor_definition(reference, source_owner)?;
+        let source = self.unique_data_definition_by_symbol(source_owner)?;
+        let (ordinal, original) = self.data_members(source).iter().enumerate().find_map(
+            |(ordinal, member)| match member {
+                DataMember::Variant(case) if case.symbol == retained => Some((ordinal, case)),
+                _ => None,
+            },
+        )?;
+        let DataMember::Variant(selected) = self.data_members(instance).get(ordinal)? else {
+            return None;
+        };
+        (original.name == selected.name
+            && original.identity == selected.identity
+            && selected.symbol.is_valid())
+        .then_some(selected)
+    }
+
+    /// Source obligations select the same member coordinates in open applications.
+    pub fn data_constructor_field(
+        &self,
+        reference: TypeReferenceHandle,
+        authored: SymbolHandle,
+        retained: SymbolHandle,
+    ) -> Option<&crate::data::DataField> {
+        use crate::data::DataMember;
+        let instance = self.data_constructor_definition(reference, authored)?;
         if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Field {
             return None;
         }
@@ -628,7 +689,7 @@ impl TypedTrees {
         } else {
             parent
         };
-        self.closed_data_constructor_definition(reference, source_owner)?;
+        self.data_constructor_definition(reference, source_owner)?;
         let source = self.unique_data_definition_by_symbol(source_owner)?;
         let corresponding_field =
             |original: &crate::data::DataField, selected: &crate::data::DataField| {

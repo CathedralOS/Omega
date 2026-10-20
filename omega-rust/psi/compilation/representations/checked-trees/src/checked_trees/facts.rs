@@ -153,7 +153,8 @@ pub use termination::{
     CheckedRankCoordinateBinding, CheckedRankCoordinateHandle, CheckedRankCoordinateTransport,
     CheckedRankLocalCapture, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
     CheckedRankValueDerivation, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
-    CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedStateRankCorrespondence,
+    CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
+    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
     MachineBuildBoundProgressDemands, MachineTerminationFact, ProgressDemandCallSite,
     TerminationFacts,
 };

@@ -286,7 +286,7 @@ fn is_zero(operand: &Operand) -> bool {
 fn binary_operand(operator: BinaryOperator, left: Operand, right: Operand) -> Operand {
     Operand::Binary {
         operator,
-        primitive: PrimitiveType::U64,
+        primitive: Some(PrimitiveType::U64),
         domain: ArithmeticDomain::Exact,
         operands: vec![left, right],
     }

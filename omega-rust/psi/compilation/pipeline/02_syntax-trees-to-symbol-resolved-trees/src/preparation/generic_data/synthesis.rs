@@ -142,13 +142,18 @@ pub(crate) fn desugar_generic_data_instances_in(
             .tables
             .items
             .type_parameters(definition.type_parameters);
-        // Machine-symbol parameters require method/template identity work this
-        // record-only pass does not perform. Type and const parameters are both
-        // supported; const arguments are substituted into fixed-array lengths.
-        if definition_parameters
-            .iter()
-            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
-        {
+        // Value indices retain descriptor fields installed from their binder
+        // telescope during lowering. This type/const synthesis erases that
+        // telescope and cannot represent those descriptors; preserve their
+        // ordinary indexed application instead. Treating a value slot as a
+        // type slot could also accept a type where an index was required.
+        // Machine-symbol parameters likewise retain their template identity.
+        if definition_parameters.iter().any(|parameter| {
+            matches!(
+                parameter.kind,
+                TypeParameterKind::Value { .. } | TypeParameterKind::Machine { .. }
+            )
+        }) {
             continue;
         }
         if attached_machines.contains_key(&declaration) {

@@ -54,6 +54,15 @@ pub enum CheckedProofTermRole {
 /// owns a runtime operand.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedProofTerm {
+    /// A source evidence term independently checked against its exact source
+    /// carrier in the program's mathematical signature. These coordinates
+    /// retain the term, its dependent type and source nominal identity; they
+    /// never denote an executable value or callback entry.
+    Mathematical {
+        type_identity: TypeIdentityId,
+        term: proof_admission::TermHandle,
+        ty: proof_admission::TermHandle,
+    },
     /// A checked fixed array, retaining its exact element/extent identity and
     /// authored element order without an executable storage place.
     Array {

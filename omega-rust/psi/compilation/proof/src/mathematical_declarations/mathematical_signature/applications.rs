@@ -66,6 +66,7 @@ impl Elaborator<'_> {
             self.level_names.clear();
             self.generalized_levels = 0;
             self.captured_expressions.clear();
+            self.source_family_values.clear();
             let mut captures = Vec::new();
             let mut pending = self
                 .program
@@ -97,6 +98,14 @@ impl Elaborator<'_> {
                     // Wrapping computation into source leaves would silently
                     // replace its denotation with unbounded arithmetic.
                     let domain = self.elaborate_type_reference(reference)?;
+                    if let TypeReferenceNode::Generic { base_symbol, .. } =
+                        self.program.type_reference_table.type_reference(reference)
+                        && self.indexed_families.contains_key(base_symbol)
+                    {
+                        let value = self.source_family_constructor(operand, reference, 0)?;
+                        self.source_family_values.insert(operand, value);
+                        continue;
+                    }
                     let position = self.scope.len();
                     self.push_scope(None, Identifier::default(), domain);
                     self.captured_expressions.push((operand, position));
@@ -120,6 +129,7 @@ impl Elaborator<'_> {
         }
         self.scope.clear();
         self.captured_expressions.clear();
+        self.source_family_values.clear();
         Ok(applications)
     }
 
@@ -182,6 +192,7 @@ impl Elaborator<'_> {
         }
         let mut authored_levels = vec![None; level_binders.len()];
         let mut terms = Vec::new();
+        let mut term_domains = Vec::new();
         let mut generalized = Vec::new();
         let mut constraints = Vec::new();
         let mut arguments = arguments.iter();
@@ -196,7 +207,11 @@ impl Elaborator<'_> {
                 continue;
             }
             let argument = arguments.next().expect("checked generic arity");
-            let term = self.static_term(argument)?;
+            let (term, domain) = if let Some(literal) = &argument.const_literal {
+                self.static_integer_literal(binder, argument, literal)?
+            } else {
+                (self.static_term(argument)?, None)
+            };
             if self.binder_claims_generalized_level(binder) {
                 generalized.push((term, binder.name.clone()));
             } else if omit_levels
@@ -208,6 +223,7 @@ impl Elaborator<'_> {
                 constraints.push((position, term, &binder.name));
             }
             terms.push(term);
+            term_domains.push(domain);
         }
         // Elaborate every supplied term before snapshotting the caller context:
         // a later type argument can intern a carrier in the signature prefix.
@@ -254,12 +270,13 @@ impl Elaborator<'_> {
         });
         let inputs = terms
             .into_iter()
-            .map(|term| super::source_domains::SourceInput {
+            .zip(term_domains)
+            .map(|(term, domain)| super::source_domains::SourceInput {
                 // Generic terms are already typed in the exact caller scope.
                 // No anonymous ordinary-expression landing is available here.
                 expression: ExpressionHandle::default(),
                 term,
-                domain: None,
+                domain,
             })
             .collect();
         Ok(self.apply_source_inputs(expression, callee, inputs))
@@ -358,6 +375,82 @@ impl Elaborator<'_> {
             return Ok(term);
         }
         Err(self.refuse("unresolved mathematical generic term argument".to_owned()))
+    }
+
+    fn static_integer_literal(
+        &mut self,
+        binder: &TypeParameter,
+        argument: &StaticMachineArgument,
+        literal: &numerics::literals::IntegerLiteral,
+    ) -> Result<(TermHandle, Option<TermHandle>), Vec<Diagnostic>> {
+        if argument.application.is_some() || argument.evidence_projection.is_some() {
+            return Err(self.refuse(
+                "a generic integer literal cannot discard application or evidence payloads".into(),
+            ));
+        }
+        let (TypeParameterKind::Value { type_reference }
+        | TypeParameterKind::Const { type_reference }) = binder.kind
+        else {
+            return Err(self.refuse("an integer literal requires a declared value carrier".into()));
+        };
+        let primitive = self
+            .program
+            .primitive_type_reference(type_reference)
+            .filter(|primitive| primitive.is_fixed_integer())
+            .ok_or_else(|| {
+                self.refuse(
+                    "this mathematical generic literal carrier has no supported integer landing"
+                        .into(),
+                )
+            })?;
+        let expected = numerics::literals::LandedIntegerType::from_name(primitive.name())
+            .ok_or_else(|| {
+                self.refuse("mathematical generic literal has no fixed integer carrier".into())
+            })?;
+        if let Some(landing) = literal.landing()
+            && (landing.landed_type != expected
+                || landing.domain
+                    != self
+                        .program
+                        .arithmetic_domain_for_type_reference(type_reference))
+        {
+            return Err(self.refuse(
+                "mathematical generic literal has a different landed carrier or arithmetic policy"
+                    .into(),
+            ));
+        }
+        if argument.type_reference.is_valid()
+            && !self
+                .program
+                .static_const_literal_from_type_reference(argument.type_reference)
+                .is_some_and(|retained| {
+                    retained.value_bignum() == literal.value_bignum()
+                        && retained.landing() == literal.landing()
+                })
+        {
+            return Err(self.refuse(
+                "mathematical generic literal changed its retained source operand".into(),
+            ));
+        }
+        let value = literal.value_bignum().ok_or_else(|| {
+            self.refuse("mathematical generic literal has no exact integer value".into())
+        })?;
+        let (minimum, maximum) = expected.bounds();
+        if value < numerics::bignum::BigInt::from_i128(minimum)
+            || value > numerics::bignum::BigInt::from_i128(maximum)
+        {
+            return Err(self.refuse(format!(
+                "mathematical generic literal `{}` does not fit `{}`",
+                literal.text(),
+                primitive.name()
+            )));
+        }
+        let domain = self.elaborate_type_reference(type_reference)?;
+        // The anonymous literal acquires this carrier only after its exact
+        // source landing succeeds. Named/previously typed values still travel
+        // through their own domain; they cannot borrow the receiver's carrier.
+        let term = self.literal_term(literal)?;
+        Ok((term, Some(domain)))
     }
 
     /// Whether this binder claimed a generalized universe parameter during

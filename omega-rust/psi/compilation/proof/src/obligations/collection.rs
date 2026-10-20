@@ -938,7 +938,7 @@ fn collect_nested_receiving_obligations(
             program,
             root,
             &mut visited,
-            |_, node| {
+            |expression, node| {
                 if let ExpressionNode::Call(call) = node {
                     calls.push(CallOccurrence {
                         target_symbol: call.target_symbol,
@@ -955,6 +955,7 @@ fn collect_nested_receiving_obligations(
                     for field in program.expression_table.struct_fields(literal.fields) {
                         let Some(reference) = validation::selected_construction_field_type(
                             program,
+                            expression,
                             literal,
                             field.field_symbol,
                         ) else {

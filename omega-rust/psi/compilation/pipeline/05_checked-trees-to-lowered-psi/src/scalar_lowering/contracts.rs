@@ -19,7 +19,9 @@ use checked_trees::{
 use semantic_vocabulary::{ProofTerm, ProofTermField, ScalarType};
 use terminal_psi::{ErasedProofFormal, StructuralResultDeclaration};
 
+mod indexed_theorems;
 mod namespace;
+pub(crate) use indexed_theorems::indexed_theorems;
 pub(crate) use namespace::validate_indexed_operands;
 mod result_range;
 pub(crate) use result_range::with_result_range;
@@ -206,6 +208,10 @@ pub(crate) fn erased_proof_formal_declarations(
 /// roster; only `Scalar` leaves still need `values`/`erased`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredProofTerm {
+    Mathematical {
+        type_identity: typed_trees::type_identity::TypeIdentityId,
+        certificate: Vec<u8>,
+    },
     Array {
         type_identity: typed_trees::type_identity::TypeIdentityId,
         elements: Vec<LoweredProofTerm>,
@@ -242,6 +248,47 @@ pub(crate) fn checked_proof_term(
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
 ) -> Result<LoweredProofTerm, LoweringError> {
     match term {
+        CheckedProofTerm::Mathematical {
+            type_identity,
+            term,
+            ty,
+        } => {
+            let signature = checked.facts.proof.mathematical_signature.as_ref().ok_or(
+                LoweringError::Unsupported("mathematical proof actual has no checked signature"),
+            )?;
+            let carrier = checked
+                .facts
+                .proof
+                .source_evidence_carriers
+                .iter()
+                .find(|carrier| {
+                    carrier.type_identity == *type_identity && carrier.domains.is_empty()
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "mathematical proof actual has no independent closed carrier",
+                ))?;
+            if !signature.arena.structurally_equal(*ty, carrier.ty) {
+                return unsupported("mathematical proof actual changed its checked carrier");
+            }
+            let certificate = proof_admission::MathematicalCertificate {
+                signature: signature.declarations.clone(),
+                level_arity: 0,
+                context: Vec::new(),
+                term: *term,
+                expected: carrier.ty,
+            };
+            let certificate =
+                terminal_codec::encode_mathematical_certificate(&signature.arena, &certificate)
+                    .map_err(|_| {
+                        LoweringError::Unsupported(
+                            "mathematical proof actual is not canonically encodable",
+                        )
+                    })?;
+            Ok(LoweredProofTerm::Mathematical {
+                type_identity: *type_identity,
+                certificate,
+            })
+        }
         CheckedProofTerm::Construction {
             data_symbol: _,
             type_identity,
@@ -314,6 +361,17 @@ pub(crate) fn lowered_proof_term(
     erased: &[ValueDeclaration],
 ) -> Result<ProofTerm, LoweringError> {
     match term {
+        LoweredProofTerm::Mathematical {
+            type_identity,
+            certificate,
+        } => Ok(ProofTerm::Mathematical {
+            type_identity: checked.type_identity_text(*type_identity).ok_or(
+                LoweringError::Unsupported(
+                    "mathematical proof actual has no retained source identity",
+                ),
+            )?,
+            certificate: certificate.clone(),
+        }),
         LoweredProofTerm::Construction {
             type_identity,
             case_identity,
@@ -651,4 +709,51 @@ pub(crate) fn caller_erased_proof_roster(
         machine,
     )?
     .state_erased_proof_parameters(state)
+}
+
+/// Transfer independently checked closed source carriers into the portable
+/// contract roster. Open template telescopes never enter Terminal execution.
+pub(crate) fn mathematical_carriers(
+    checked: &CheckedTrees,
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+) -> Result<Vec<terminal_psi::TerminalMathematicalCarrier>, LoweringError> {
+    let Some(signature) = checked.facts.proof.mathematical_signature.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let mut carriers = Vec::<terminal_psi::TerminalMathematicalCarrier>::new();
+    for carrier in &checked.facts.proof.source_evidence_carriers {
+        if !carrier.domains.is_empty() {
+            continue;
+        }
+        let source_identity =
+            checked
+                .type_identity_text(carrier.type_identity)
+                .ok_or(LoweringError::Unsupported(
+                    "mathematical carrier has no source identity",
+                ))?;
+        let type_identity = identities.intern(&source_identity);
+        let certificate = proof_admission::MathematicalCertificate {
+            signature: signature.declarations.clone(),
+            level_arity: 0,
+            context: Vec::new(),
+            term: carrier.ty,
+            expected: carrier.ty,
+        };
+        let carrier_key = terminal_codec::mathematical_carrier_key(&signature.arena, &certificate)
+            .map_err(|_| LoweringError::Unsupported("mathematical carrier cannot be encoded"))?;
+        if let Some(previous) = carriers
+            .iter()
+            .find(|row| row.type_identity == type_identity)
+        {
+            if previous.carrier_key != carrier_key {
+                return unsupported("one source carrier identity names inconsistent kernel types");
+            }
+            continue;
+        }
+        carriers.push(terminal_psi::TerminalMathematicalCarrier {
+            type_identity,
+            carrier_key,
+        });
+    }
+    Ok(carriers)
 }

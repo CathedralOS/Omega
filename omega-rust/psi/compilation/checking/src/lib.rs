@@ -33,8 +33,8 @@ pub use value_custody::partial_affine_residuals::{
 };
 pub use value_custody::places::binding_observations::stable_slice_descriptor_place;
 pub use value_custody::places::collection_operations;
-pub use value_custody::places::declaration_type_reference;
 pub use value_custody::places::declared_reference_access;
+pub use value_custody::places::{declaration_type_reference, declared_case_projection_field};
 
 pub use declarations::selection_resolution;
 pub use declarations::source_completion;

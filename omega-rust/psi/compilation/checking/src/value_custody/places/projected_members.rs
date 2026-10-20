@@ -88,7 +88,7 @@ pub(super) fn declared_case_projection_type(
 /// The exact payload/common field a case-tagged member projection resolves to.
 /// Same receiver/declaration walk as the type query; returning the field keeps
 /// the declaration symbol (an operand identity) alongside its declared type.
-pub(crate) fn declared_case_projection_field<'program>(
+pub fn declared_case_projection_field<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,

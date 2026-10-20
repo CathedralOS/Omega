@@ -124,7 +124,20 @@ pub(crate) fn seed_cited_element_bounds(
     if !call.receiver.is_empty() || call.static_requirement_dispatch.is_some() {
         return;
     }
-    let Some(callee) = checked_callee(program, call.target_symbol) else {
+    let (target, static_arguments) = if call.authored_machine_application.is_valid() {
+        let application = program
+            .expression_table
+            .static_machine_application(call.authored_machine_application);
+        (
+            application.registration_operation,
+            program
+                .expression_table
+                .static_machine_application_arguments(call.authored_machine_application),
+        )
+    } else {
+        (call.target_symbol, call.machine_arguments.as_ref())
+    };
+    let Some(callee) = checked_callee(program, target) else {
         return;
     };
     let Some(entry) = program.machine_states(callee).first() else {
@@ -132,6 +145,7 @@ pub(crate) fn seed_cited_element_bounds(
     };
     let parameters = program.state_parameters(entry);
     let arguments = program.statement_table.expression_handles(call.arguments);
+
     if parameters.len() != arguments.len() {
         return;
     }
@@ -142,6 +156,7 @@ pub(crate) fn seed_cited_element_bounds(
         parameters,
         arguments,
         written,
+        static_arguments,
     };
     for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
         program,
@@ -185,6 +200,7 @@ struct Substitution<'program> {
     parameters: &'program [typed_trees::signature::StateParameter],
     arguments: &'program [ExpressionHandle],
     written: Option<&'program [String]>,
+    static_arguments: &'program [typed_trees::expression::StaticMachineArgument],
 }
 
 impl Substitution<'_> {
@@ -217,6 +233,178 @@ impl Substitution<'_> {
             return None;
         }
         self.arguments.get(position).copied()
+    }
+
+    /// Project ordinary and static integer subjects through one simultaneous
+    /// snapshot roster. No unbound callee subject escapes into caller facts.
+    fn scalar(
+        &self,
+        callee: &Machine,
+        entry: &State,
+        expression: ExpressionHandle,
+    ) -> Option<ProjectedOperand> {
+        let state = self.state?;
+        let mut bindings = Vec::new();
+        for (parameter, actual) in self.parameters.iter().zip(self.arguments) {
+            if parameter.is_mutable
+                || !self
+                    .program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some_and(|primitive| primitive.is_fixed_integer())
+            {
+                continue;
+            }
+            let value = ordered_values::operand(self.program, self.machine, state, *actual, None)?;
+            if !value.is_immutable_snapshot(self.program, state)
+                && !self.written.is_some_and(|written| value.survives(written))
+            {
+                continue;
+            }
+            bindings.push((Operand::parameter(parameter), value));
+        }
+        let parameters = self.program.machine_type_parameters(callee);
+        if parameters.len() != self.static_arguments.len() {
+            return None;
+        }
+        for (parameter, argument) in parameters.iter().zip(self.static_arguments) {
+            if !matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Value { .. }
+                    | typed_trees::data::TypeParameterKind::Const { .. }
+            ) {
+                continue;
+            }
+            let value = self.static_operand(argument)?;
+            if !value.is_immutable_snapshot(self.program, state)
+                && !self.written.is_some_and(|written| value.survives(written))
+            {
+                continue;
+            }
+            bindings.push((
+                Operand::Place {
+                    root: parameter.symbol,
+                    path: parameter.name.as_str().to_owned(),
+                },
+                value,
+            ));
+        }
+        let source = ordered_values::operand(self.program, callee, entry, expression, None)?;
+        fn fully_bound(value: &Operand, bindings: &[(Operand, Operand)]) -> bool {
+            match value {
+                Operand::Integer(..) => true,
+                Operand::Place { .. } => bindings.iter().any(|(formal, _)| formal == value),
+                Operand::Binary { operands, .. } => {
+                    operands.iter().all(|value| fully_bound(value, bindings))
+                }
+                _ => false,
+            }
+        }
+        if !fully_bound(&source, &bindings) {
+            return None;
+        }
+        let values = source.rebound(&bindings);
+        let [operand] = values.as_slice() else {
+            return None;
+        };
+        // Any remaining callee root is unbound, even if it shares a display
+        // path with a caller declaration. Demand complete subject custody.
+        if !operand.is_immutable_snapshot(self.program, state)
+            && !self
+                .written
+                .is_some_and(|written| operand.survives(written))
+        {
+            return None;
+        }
+        Some(ProjectedOperand {
+            operand: Some(operand.clone()),
+            spelled: None,
+            declared_type: None,
+        })
+    }
+
+    fn static_operand(
+        &self,
+        argument: &typed_trees::expression::StaticMachineArgument,
+    ) -> Option<Operand> {
+        if let Some(literal) = &argument.const_literal {
+            return Some(Operand::Integer(literal.clone(), literal.landing()));
+        }
+        if argument.type_reference.is_valid() {
+            if let typed_trees::types::TypeReferenceNode::ConstExpression(expression) = self
+                .program
+                .type_reference_table
+                .type_reference(argument.type_reference)
+            {
+                return ordered_values::operand(
+                    self.program,
+                    self.machine,
+                    self.state?,
+                    *expression,
+                    None,
+                );
+            }
+        }
+        if argument.symbol.is_valid() {
+            let state = self.state?;
+            let parameter = self
+                .program
+                .state_parameter_by_symbol(state, argument.symbol);
+            let local = self.program.state_local_declaration(state, argument.symbol);
+            let static_parameter = self
+                .program
+                .machine_type_parameters(self.machine)
+                .iter()
+                .any(|parameter| {
+                    parameter.symbol == argument.symbol
+                        && matches!(
+                            parameter.kind,
+                            typed_trees::data::TypeParameterKind::Value { .. }
+                                | typed_trees::data::TypeParameterKind::Const { .. }
+                        )
+                });
+            if parameter.is_none() && local.is_none() && !static_parameter {
+                return None;
+            }
+            let reference = crate::value_custody::places::declaration_type_reference(
+                self.program,
+                argument.symbol,
+            )?;
+            if !self
+                .program
+                .primitive_type_reference(reference)
+                .is_some_and(|primitive| primitive.is_fixed_integer())
+            {
+                return None;
+            }
+            return Some(Operand::Place {
+                root: argument.symbol,
+                path: self.program.symbols.name(argument.symbol).to_owned(),
+            });
+        }
+        let spelling = typed_trees::typed_trees::static_const_argument_spelling(
+            self.program.typed_program(),
+            argument,
+        )?;
+        let value = if let Some(canonical) =
+            language_semantics::const_value::CanonicalConstValue::from_atom(&spelling)
+        {
+            match canonical.decode_encoding()? {
+                language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                    value,
+                    ..
+                } => value,
+                _ => return None,
+            }
+        } else {
+            spelling.parse::<i128>().ok()?
+        };
+        let literal = numerics::literals::IntegerLiteral::from_parts(
+            value < 0,
+            numerics::literals::IntegerRadix::Decimal,
+            &value.unsigned_abs().to_string(),
+        )
+        .ok()?;
+        Some(Operand::Integer(literal, None))
     }
 
     /// Project the complete selector under simultaneous scalar snapshots.
@@ -347,10 +535,13 @@ fn seed_conjunct(
         {
             Some(ProjectedOperand::literal(literal))
         } else {
-            substitution.element(callee, entry, expression)
+            substitution
+                .element(callee, entry, expression)
+                .or_else(|| substitution.scalar(callee, entry, expression))
         }
     };
-    let (Some(left), Some(right)) = (side(comparison.left), side(comparison.right)) else {
+    let sides = (side(comparison.left), side(comparison.right));
+    let (Some(left), Some(right)) = sides else {
         return;
     };
     contribute_projected_comparison(

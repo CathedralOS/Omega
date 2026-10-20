@@ -228,7 +228,7 @@ fn visit_destination_trees(
                 match node {
                         ExpressionNode::StructLiteral(literal) => {
                             for field in program.expression_table.struct_fields(literal.fields) {
-                                if let Some(destination) = crate::value_custody::struct_literals::selected_construction_field_type(program, literal, field.field_symbol) {
+                                if let Some(destination) = crate::value_custody::struct_literals::selected_construction_field_type(program, expression, literal, field.field_symbol) {
                                     visit_result(destination, field.value);
                                 }
                             }

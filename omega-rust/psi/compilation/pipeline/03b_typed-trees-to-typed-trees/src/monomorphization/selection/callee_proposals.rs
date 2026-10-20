@@ -149,11 +149,6 @@ pub(crate) fn collect_machine_proposals_for_callee(
                     selected,
                 )
             {
-                const_proposals.push((
-                    callee.candidate_index,
-                    const_index,
-                    candidate.template.const_parameters[const_index].2,
-                ));
                 let mut subject_argument = selected.clone();
                 subject_argument.symbol = subject;
                 runtime_value_proposals.push((
@@ -165,11 +160,6 @@ pub(crate) fn collect_machine_proposals_for_callee(
                 continue;
             }
             if runtime_expression.is_some() || runtime_field.is_some() {
-                const_proposals.push((
-                    callee.candidate_index,
-                    const_index,
-                    candidate.template.const_parameters[const_index].2,
-                ));
                 runtime_value_proposals.push((
                     callee.candidate_index,
                     const_index,

@@ -458,11 +458,18 @@ pub(crate) fn validate_const_data_argument(
         && let TypeReferenceNode::Named { symbol, name } =
             program.type_reference_table.type_reference(argument)
         && symbol.is_valid()
-        && matches!(
+        && (matches!(
             program.symbols.get(*symbol).kind,
             symbols::SymbolKind::Local | symbols::SymbolKind::Parameter
-        )
+        ) || (program.symbols.get(*symbol).kind == symbols::SymbolKind::Field
+            && program
+                .any_field_owner(*symbol)
+                .is_some_and(|(owner, _)| owner.symbol == type_parameter_scope.lexical_owner)))
     {
+        // A declaration's own common and case-payload subjects can index a
+        // dependent field just as parameters index a later parameter. Name
+        // resolution retains the exact active-case field; accepting a field
+        // from another owner here would invent an unbound value observation.
         let actual = crate::value_custody::places::declaration_type_reference(program, *symbol);
         if !actual.is_some_and(|actual| carrier.matches(program, actual)) {
             diagnostics.push(Diagnostic::error(format!(

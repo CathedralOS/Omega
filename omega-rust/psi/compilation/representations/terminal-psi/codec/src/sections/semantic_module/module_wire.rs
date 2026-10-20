@@ -73,6 +73,28 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     for identity in module.identities.entries() {
         writer.string("identity", identity)?;
     }
+    writer.len("indexed theorem roots", module.indexed_theorems.len())?;
+    for theorem in &module.indexed_theorems {
+        super::machine_declaration_wire::encode(&mut writer, &theorem.source_contract)?;
+        writer.u32(theorem.ensure_ordinal);
+        writer.u32(theorem.evidence_source_position);
+        writer.u32(theorem.type_identity.0);
+        writer.len("indexed theorem certificate", theorem.certificate.len())?;
+        writer.bytes(&theorem.certificate);
+        writer.len(
+            "indexed theorem assumptions",
+            theorem.assumption_closure.len(),
+        )?;
+        for position in &theorem.assumption_closure {
+            writer.u32(*position);
+        }
+    }
+    writer.len("mathematical carriers", module.mathematical_carriers.len())?;
+    for carrier in &module.mathematical_carriers {
+        writer.u32(carrier.type_identity.0);
+        writer.len("mathematical carrier key", carrier.carrier_key.len())?;
+        writer.bytes(&carrier.carrier_key);
+    }
     super::scalar_qualification_wire::encode(&mut writer, &module.scalar_qualifications)?;
     quotient_wire::encode(&mut writer, &module.quotients)?;
     folded_constant_wire::encode(&mut writer, &module.folded_constants)?;
@@ -275,6 +297,52 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         }
     }
     let identities = TerminalIdentityTable::from(identity_entries);
+    let indexed_theorems = decode_counted(reader, |reader| {
+        let source_contract = super::machine_declaration_wire::decode(reader)?;
+        let ensure_ordinal = reader.u32()?;
+        let evidence_source_position = reader.u32()?;
+        let type_identity = TerminalIdentityIndex(reader.u32()?);
+        let count = usize::try_from(reader.count()?).expect("u32 fits usize");
+        let certificate = reader.take(count)?.to_vec();
+        super::mathematical_certificate_wire::decode_mathematical_certificate(&certificate)?;
+        let assumption_closure = decode_counted(reader, |reader| reader.u32())?;
+        if assumption_closure.windows(2).any(|pair| pair[0] >= pair[1]) || type_identity.is_absent()
+        {
+            return Err(CodecError::MalformedMathematicalCertificate(
+                "invalid indexed theorem root",
+            ));
+        }
+        Ok(terminal_psi::TerminalIndexedTheorem {
+            source_contract,
+            ensure_ordinal,
+            evidence_source_position,
+            type_identity,
+            certificate,
+            assumption_closure,
+        })
+    })?;
+    let mathematical_carriers = decode_counted(reader, |reader| {
+        let type_identity = TerminalIdentityIndex(reader.u32()?);
+        let count = usize::try_from(reader.count()?).expect("u32 fits usize");
+        let carrier_key = reader.take(count)?.to_vec();
+        let decoded =
+            super::mathematical_certificate_wire::decode_mathematical_certificate(&carrier_key)?;
+        if !decoded
+            .arena
+            .structurally_equal(decoded.certificate.term, decoded.certificate.expected)
+            || !decoded.certificate.context.is_empty()
+            || decoded.certificate.level_arity != 0
+            || type_identity.is_absent()
+        {
+            return Err(CodecError::MalformedMathematicalCertificate(
+                "invalid mathematical carrier key",
+            ));
+        }
+        Ok(terminal_psi::TerminalMathematicalCarrier {
+            type_identity,
+            carrier_key,
+        })
+    })?;
     let scalar_qualifications = super::scalar_qualification_wire::decode(reader)?;
     let quotients = quotient_wire::decode(reader)?;
     let folded_constants = folded_constant_wire::decode(reader)?;
@@ -349,6 +417,8 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let task_activation_demands = decode_demands(reader)?;
     Ok(TerminalModule {
         folded_constants,
+        indexed_theorems,
+        mathematical_carriers,
         quotients,
         scalar_qualifications,
         scalar_block_invariants,

@@ -483,6 +483,7 @@ fn completed_coordinates(
                 }
                 crate::value_custody::struct_literals::selected_construction_field_type(
                     program,
+                    expression,
                     literal,
                     field.field_symbol,
                 )?;

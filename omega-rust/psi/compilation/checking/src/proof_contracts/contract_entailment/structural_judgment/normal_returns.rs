@@ -827,7 +827,8 @@ impl<'program> StructuralJudge<'program> {
             )
             .is_some();
         let mut children_to_evaluate = Vec::new();
-        let child_references = operand_types::receiving_types(program, scope.0, node, scope.2);
+        let child_references =
+            operand_types::receiving_types(program, scope.0, expression, node, scope.2);
         let namespace_receiver = program
             .expression_table
             .call_node(expression)

@@ -93,7 +93,12 @@ fn validate_erased_runtime_scalar_formals(
                 // record/enum the term form serializes field-by-field —
                 // admits no scalar lane, so it reaches the contract term
                 // lane by identity instead.
-                if proof_only.contract_term_carrier(program, parameter.type_reference) {
+                if proof_only.contract_term_carrier(program, parameter.type_reference)
+                    || crate::mathematical_applications::is_source_evidence_carrier(
+                        program,
+                        parameter.type_reference,
+                    )
+                {
                     continue;
                 }
                 diagnostics.push(Diagnostic::error(format!(
@@ -238,6 +243,14 @@ fn validate_unresolved_erased_generic_uses(
         for member in program.data_members(definition) {
             let fields = program.data_member_fields(std::slice::from_ref(member));
             for field in fields {
+                if field.relevance.is_erased()
+                    && crate::mathematical_applications::is_source_evidence_carrier(
+                        program,
+                        field.type_reference,
+                    )
+                {
+                    continue;
+                }
                 if let Some(base) = unresolved_erased_generic_base(program, field.type_reference) {
                     diagnostics.push(Diagnostic::error(format!(
                         "data `{}` field `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized instance",
@@ -255,6 +268,14 @@ fn validate_unresolved_erased_generic_uses(
     {
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
+                if parameter.relevance.is_erased()
+                    && crate::mathematical_applications::is_source_evidence_carrier(
+                        program,
+                        parameter.type_reference,
+                    )
+                {
+                    continue;
+                }
                 if let Some(base) =
                     unresolved_erased_generic_base(program, parameter.type_reference)
                 {
@@ -274,6 +295,14 @@ fn validate_unresolved_erased_generic_uses(
                 let Some(local) = statement.as_local_data() else {
                     continue;
                 };
+                if local.relevance.is_erased()
+                    && crate::mathematical_applications::is_source_evidence_carrier(
+                        program,
+                        local.type_reference,
+                    )
+                {
+                    continue;
+                }
                 if let Some(base) = unresolved_erased_generic_base(program, local.type_reference) {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}::{}` local `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized instance",

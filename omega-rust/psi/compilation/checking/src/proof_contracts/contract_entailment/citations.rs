@@ -105,7 +105,9 @@ pub(crate) fn is_citation_statement(
         return false;
     }
     selected_citation_machine(program, call.target_symbol).is_some_and(|callee| {
-        !std::ptr::eq(callee, machine) && classification.is_proof_machine(program, callee)
+        !std::ptr::eq(callee, machine)
+            && (classification.is_proof_machine(program, callee)
+                || crate::mathematical_applications::is_indexed_logical_machine(program, callee))
     })
 }
 

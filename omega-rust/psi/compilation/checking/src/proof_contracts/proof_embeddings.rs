@@ -105,7 +105,17 @@ pub(crate) fn validate_proof_embeddings(
         }
     }
     for machine in program.machines() {
-        if classification.is_proof_machine(program, machine) {
+        for data in program.machine_owned_data(machine) {
+            collect_expression_nodes(
+                program,
+                data.initial_value,
+                &mut runtime_nodes,
+                &mut runtime_seen,
+            );
+        }
+        if classification.is_proof_machine(program, machine)
+            || crate::mathematical_applications::is_indexed_logical_machine(program, machine)
+        {
             for state in program.machine_states(machine) {
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     collect_statement_nodes(program, statement, &mut proof_nodes, &mut proof_seen);
@@ -140,6 +150,14 @@ pub(crate) fn validate_proof_embeddings(
                 }
             }
         }
+    }
+
+    // Binding placement applies equally to locals, erased field payloads and
+    // erased actual positions. A shared executable occurrence is excluded by
+    // the placement producer and therefore keeps its runtime demand here.
+    for expression in crate::mathematical_applications::erased_initializer_nodes(program).iter() {
+        proof_seen.insert(*expression);
+        runtime_seen.remove(expression);
     }
 
     for (handle, node) in program.expression_table.iter_expressions() {

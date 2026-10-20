@@ -510,10 +510,12 @@ fn lower_data_member(
             // expression position. A `type` binder survives only inside a
             // decidable `T == name` / `T != name` conjunct, which synthesis
             // decides against the closed argument identity; any other binder
-            // with no fact-position substitution (value, machine,
+            // with no fact-position substitution (machine,
             // proposition) or a `const` binder inside a membership
             // value/domain path still refuses rather than drop the fact or
-            // dangle a name on the instance.
+            // dangle a name on the instance. Value binders are ordinary
+            // descriptor fields installed above, so case facts resolve them
+            // through the same common-field scope as type-wide facts.
             if generic_case_facts_unsupported(syntax_trees, variant.where_facts, case_fact_gate) {
                 return Err(Diagnostic::error(
                     "case constraints on generic data may not mention generic parameters yet",
@@ -540,7 +542,7 @@ fn lower_data_member(
 /// Which template parameter names a case `where` fact may still not mention.
 /// Generic-instance synthesis deep-copies each case fact onto the instance
 /// (`generic_data/substitution.rs`); a `const` binder mention survives as its
-/// literal argument only in expression position, while a type, value, machine,
+/// literal argument only in expression position, while a type, machine,
 /// or proposition binder has no fact-position substitution at all.
 #[derive(Default)]
 struct GenericCaseFactGate {
@@ -557,6 +559,10 @@ struct GenericCaseFactGate {
     /// arguments, so a mention in a membership value or domain path, or in a
     /// nested type reference's name position, still refuses.
     consts: HashSet<String>,
+    /// Runtime-capable indices are common descriptor fields, not names to
+    /// substitute away. They may occur as values but cannot stand for a
+    /// declaration path or the closed type opposite a type equation.
+    values: HashSet<String>,
 }
 
 impl GenericCaseFactGate {
@@ -575,6 +581,9 @@ impl GenericCaseFactGate {
                     gate.types.insert(name.clone());
                     gate.unsubstituted.insert(name);
                 }
+                syntax::item::TypeParameterKind::Value { .. } => {
+                    gate.values.insert(name);
+                }
                 _ => {
                     gate.unsubstituted.insert(name);
                 }
@@ -585,7 +594,9 @@ impl GenericCaseFactGate {
 
     /// A name position the literal rewrite cannot reach: every binder refuses.
     fn mentions(&self, name: &str) -> bool {
-        self.unsubstituted.contains(name) || self.consts.contains(name)
+        self.unsubstituted.contains(name)
+            || self.consts.contains(name)
+            || self.values.contains(name)
     }
 
     /// An expression `Name` leaf: only binders without a substitution refuse;
@@ -603,7 +614,7 @@ fn generic_case_facts_unsupported(
     facts: HandleSpan<syntax::item::ProofFact>,
     gate: &GenericCaseFactGate,
 ) -> bool {
-    if gate.unsubstituted.is_empty() && gate.consts.is_empty() {
+    if gate.unsubstituted.is_empty() && gate.consts.is_empty() && gate.values.is_empty() {
         return false;
     }
     syntax_trees
@@ -646,9 +657,9 @@ fn generic_case_facts_unsupported(
 
 /// An indexed application's argument substitutes like a type position on the
 /// instance copy: a named `type` binder lands as the closed type argument and
-/// a named `const` binder as its literal, while value/machine/proposition
-/// binders still refuse. A const-expression argument admits `const` binders
-/// only; the copy's fresh `Name` leaves rewrite to their literals.
+/// a named `const` binder as its literal. Value indices remain common
+/// descriptor fields; machine/proposition binders still refuse. An expression
+/// argument carries descriptor reads and rewrites fresh const-name leaves.
 fn membership_argument_mentions(
     syntax_trees: &SyntaxTrees,
     argument: syntax::types::TypeReferenceHandle,
@@ -816,19 +827,79 @@ fn case_fact_expression_mentions(
         | ExpressionNode::TypeExpression(type_reference) => {
             case_fact_type_mentions(syntax_trees, *type_reference, gate)
         }
+        ExpressionNode::Call(call) => {
+            // The syntax copier retains the complete call and fresh argument
+            // expressions. Examine their substitution positions rather than
+            // rejecting all calls, including total mathematical embeddings.
+            // Declaration/static paths are not expression-name rewrite sites.
+            call.target
+                .as_str()
+                .split("::")
+                .any(|name| gate.mentions(name))
+                || (call.receiver.is_valid()
+                    && case_fact_expression_mentions(
+                        syntax_trees,
+                        call.receiver,
+                        gate,
+                        const_mentions_allowed,
+                    ))
+                || syntax_trees
+                    .expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|argument| {
+                        case_fact_expression_mentions(
+                            syntax_trees,
+                            *argument,
+                            gate,
+                            const_mentions_allowed,
+                        )
+                    })
+                || call.machine_arguments.iter().any(|argument| {
+                    case_fact_static_argument_mentions(syntax_trees, argument, gate)
+                })
+                || call
+                    .evidence_arguments
+                    .iter()
+                    .any(|name| gate.mentions(name.as_str()))
+        }
         ExpressionNode::Integer(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::String(_) => false,
-        // Proposition applications, matches, struct literals, and atomics have
+        // Matches, struct literals, and atomics have
         // no generic-instance case-fact carriage yet: refuse rather than copy
         // a shape the seeded replay does not compare.
-        ExpressionNode::Call(_)
-        | ExpressionNode::Match(_)
-        | ExpressionNode::StructLiteral(_)
-        | ExpressionNode::Atomic(_) => true,
+        ExpressionNode::Match(_) | ExpressionNode::StructLiteral(_) | ExpressionNode::Atomic(_) => {
+            true
+        }
     }
+}
+
+fn case_fact_static_argument_mentions(
+    syntax_trees: &SyntaxTrees,
+    argument: &syntax::expression::StaticMachineArgument,
+    gate: &GenericCaseFactGate,
+) -> bool {
+    (argument.type_reference.is_valid()
+        && case_fact_type_mentions(syntax_trees, argument.type_reference, gate))
+        || argument
+            .path
+            .iter()
+            .any(|name| gate.mentions(name.as_str()))
+        || argument
+            .evidence_projection
+            .as_ref()
+            .is_some_and(|projection| {
+                gate.mentions(projection.term.as_str()) || gate.mentions(projection.member.as_str())
+            })
+        || argument.application.as_ref().is_some_and(|application| {
+            application
+                .arguments
+                .iter()
+                .any(|child| case_fact_static_argument_mentions(syntax_trees, child, gate))
+        })
 }
 
 /// A type reference nested inside a case fact (`x as T`, `zero<T>()`). Name

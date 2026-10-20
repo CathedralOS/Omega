@@ -86,6 +86,7 @@ pub(super) fn validate_expression(
             proof_only,
             machine,
             state,
+            expression,
             literal,
             context,
             diagnostics,
@@ -101,6 +102,10 @@ pub(super) fn validate_expression(
             }
             if context == Context::ErasedInitializer
                 && !call_targets_proof_machine(program, proof_only, call.target_symbol)
+                && !(crate::mathematical_applications::selected_definition(program, call).is_some()
+                    && program
+                        .prepared_mathematics()
+                        .is_some_and(|view| view.application(expression).is_some()))
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "erased binding initializer calls runtime machine `{}`; erased initialization cannot perform runtime effects or computation",
@@ -180,6 +185,7 @@ fn validate_struct_literal(
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
     state: &State,
+    expression: ExpressionHandle,
     literal: &TableStructLiteral,
     context: Context,
     diagnostics: &mut Vec<Diagnostic>,
@@ -202,8 +208,17 @@ fn validate_struct_literal(
         }
         return;
     };
-    let unsupported_bare_generic =
-        !definition.type_parameters.is_empty() && !erased_fields(program, definition).is_empty();
+    let checked_source_evidence = context != Context::Runtime
+        && program.prepared_mathematics().is_some_and(|view| {
+            view.source_evidence(expression).is_some_and(|evidence| {
+                evidence.type_identity.is_valid()
+                    && evidence.type_identity
+                        == program.normalized_type_identity(evidence.source_type)
+            })
+        });
+    let unsupported_bare_generic = !definition.type_parameters.is_empty()
+        && !erased_fields(program, definition).is_empty()
+        && !checked_source_evidence;
     if unsupported_bare_generic {
         diagnostics.push(Diagnostic::error(format!(
             "construction of erased generic data `{}` is unsupported in this context; use a closed generic record in an explicitly typed local initializer",

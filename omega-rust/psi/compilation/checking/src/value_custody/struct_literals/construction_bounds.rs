@@ -604,6 +604,7 @@ fn validate_literal_facts(
                 name: field.name.clone(),
                 type_reference: super::selected_construction_field_type(
                     program,
+                    expression,
                     literal,
                     field.symbol,
                 )

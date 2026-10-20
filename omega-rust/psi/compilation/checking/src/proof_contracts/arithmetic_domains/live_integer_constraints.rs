@@ -347,7 +347,7 @@ fn contradicts(
             }
             Operand::CollectionLength(_) => Some(typed_trees::types::PrimitiveType::U64),
             Operand::Indexed { primitive, .. } | Operand::Field { primitive, .. } => *primitive,
-            Operand::Binary { primitive, .. } => Some(*primitive),
+            Operand::Binary { primitive, .. } => *primitive,
             _ => None,
         };
         if let Some((minimum, maximum)) = primitive

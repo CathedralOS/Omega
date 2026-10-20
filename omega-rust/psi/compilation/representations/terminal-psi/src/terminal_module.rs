@@ -144,11 +144,32 @@ pub use values::{
 
 use semantic_vocabulary::{MachineId, ServiceId};
 
+/// A closed source evidence carrier's independent mathematical obligation.
+/// The key commits to the complete checked signature and exact kernel type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalMathematicalCarrier {
+    pub type_identity: TerminalIdentityIndex,
+    pub carrier_key: Vec<u8>,
+}
+
+/// A cited source induction theorem retained after its logical call erases.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalIndexedTheorem {
+    pub source_contract: CheckedMachineDeclaration,
+    pub ensure_ordinal: u32,
+    pub evidence_source_position: u32,
+    pub type_identity: TerminalIdentityIndex,
+    pub certificate: Vec<u8>,
+    pub assumption_closure: Vec<u32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalModule {
     /// Historical semantic compatibility consumed by folding. This supplies
     /// no executable boundary demand, provider installation or host authority.
     pub folded_constants: FoldedConstantClosure,
+    pub indexed_theorems: Vec<TerminalIndexedTheorem>,
+    pub mathematical_carriers: Vec<TerminalMathematicalCarrier>,
     /// Exact whole-value quotient adaptations; ordinary shape carries no observation authority.
     pub quotients: quotients::TerminalQuotientCatalog,
     pub vocabulary_marker: VocabularyMarker,
@@ -319,6 +340,8 @@ impl TerminalModule {
     pub fn for_entry(entry: MachineId) -> Self {
         Self {
             folded_constants: Default::default(),
+            indexed_theorems: Vec::new(),
+            mathematical_carriers: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: TargetMachineCallable::Machine(entry),
             identities: Default::default(),

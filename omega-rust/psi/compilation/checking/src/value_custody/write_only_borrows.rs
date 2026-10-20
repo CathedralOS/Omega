@@ -1358,6 +1358,7 @@ fn validate_received_value(
                     .or_else(|| {
                         crate::selected_construction_field_type(
                             program,
+                            expression,
                             literal,
                             field.field_symbol,
                         )

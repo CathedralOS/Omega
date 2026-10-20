@@ -13,6 +13,14 @@ use crate::proposition::{PropositionError, ScalarTerm};
 /// like any erased scalar actual.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProofTerm {
+    /// A checked mathematical judgment in the canonical certificate wire form.
+    /// The complete signature retains assumptions even after runtime erasure.
+    /// A receiver must independently bind its claimed type to the formal's
+    /// retained carrier; the textual source identity alone grants no authority.
+    Mathematical {
+        type_identity: String,
+        certificate: Vec<u8>,
+    },
     /// A fixed array in the erased lane. Its normalized type retains element
     /// and extent identity; elements remain ordered semantic evidence.
     Array {
@@ -76,6 +84,14 @@ impl ProofTerm {
                         return Err(PropositionError::EmptyProofTermTypeIdentity);
                     }
                     pending.extend(elements.iter().rev().map(Step::Term));
+                }
+                Step::Term(ProofTerm::Mathematical {
+                    type_identity,
+                    certificate,
+                }) => {
+                    if type_identity.is_empty() || certificate.is_empty() {
+                        return Err(PropositionError::EmptyProofTermTypeIdentity);
+                    }
                 }
                 Step::Term(ProofTerm::Formal { .. }) => {}
                 Step::Term(ProofTerm::Scalar(term)) => term.validate()?,

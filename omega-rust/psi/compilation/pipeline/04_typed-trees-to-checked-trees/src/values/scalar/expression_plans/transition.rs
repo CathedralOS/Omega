@@ -133,7 +133,11 @@ pub(crate) fn plan(
                 // proof term under the same authored
                 // argument ordinal the scalar lane uses.
                 if target_parameter.relevance.is_erased()
-                    && proof_only.contract_term_carrier(program, target_parameter.type_reference)
+                    && (proof_only.contract_term_carrier(program, target_parameter.type_reference)
+                        || validation::mathematical_applications::is_source_evidence_carrier(
+                            program,
+                            target_parameter.type_reference,
+                        ))
                 {
                     if let Some(term) = crate::values::scalar::call_lowering::lower_proof_term(
                         program,

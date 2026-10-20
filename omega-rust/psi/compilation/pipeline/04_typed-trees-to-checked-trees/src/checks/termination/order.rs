@@ -355,24 +355,10 @@ fn infer_default_order(
     state: &typed_trees::state::State,
     decreases: ExpressionHandle,
 ) -> OrderResolution {
-    match program.expression_table.expression(decreases) {
-        // `terminates by value` where `value` is a nat-like scalar counts down; where
-        // it is a slice it decreases by length. A `value.len` member is already
-        // nat-like.
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-            match decreasing_value_kind(program, state, decreases) {
-                Some(DecreasingValueKind::Nat) => {
-                    OrderResolution::Resolved(RankingOrder::NatDescending)
-                }
-                Some(DecreasingValueKind::Slice) => {
-                    OrderResolution::Resolved(RankingOrder::SliceLength)
-                }
-                None => {
-                    OrderResolution::AmbiguousDefault(describe_ambiguity(program, state, decreases))
-                }
-            }
-        }
-        _ => OrderResolution::AmbiguousDefault(describe_ambiguity(program, state, decreases)),
+    match decreasing_value_kind(program, state, decreases) {
+        Some(DecreasingValueKind::Nat) => OrderResolution::Resolved(RankingOrder::NatDescending),
+        Some(DecreasingValueKind::Slice) => OrderResolution::Resolved(RankingOrder::SliceLength),
+        None => OrderResolution::AmbiguousDefault(describe_ambiguity(program, state, decreases)),
     }
 }
 
@@ -467,48 +453,62 @@ fn decreasing_value_kind(
         return Some(DecreasingValueKind::Nat);
     }
 
-    let parameter = state_parameter_of_expression(program, state, decreases)?;
-    // The checker identifies types by display name -- of the UNWRAPPED base
-    // type: a Constrained shell (`u64 [0..=100]`, `u64 in Trapping`) renders
-    // its constraints in brackets, which the bracket probe below would
-    // misread as a slice element type (`[Entry]`). Slices render with a
-    // bracketed element type; nat-like scalars render as their bare name.
-    let type_name = program.type_reference_table.display_name(
-        program
-            .type_reference_table
-            .unconstrained_type_reference(parameter.type_reference),
-    );
-    if type_name.contains('[') {
-        return Some(DecreasingValueKind::Slice);
-    }
-    if is_nat_like_type(type_name.as_str()) {
+    let reference = ranking_subject_type_reference(program, state, decreases)?;
+    if program
+        .primitive_type_reference(reference)
+        .is_some_and(|primitive| {
+            matches!(
+                primitive,
+                typed_trees::unsigned_integer_primitive_pattern!()
+            )
+        })
+    {
         return Some(DecreasingValueKind::Nat);
+    }
+    let base = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    if matches!(
+        program.type_reference_table.type_reference(base),
+        typed_trees::types::TypeReferenceNode::Slice { .. }
+            | typed_trees::types::TypeReferenceNode::FixedArray { .. }
+    ) {
+        return Some(DecreasingValueKind::Slice);
     }
     None
 }
 
-/// A type whose values descend through the naturals: unsigned / bounded
-/// integers. Signed integers are excluded because `value - 1` is not
-/// well-founded without a positivity interpretation, so they are treated as
-/// ambiguous and require the explicit `-> Order`.
-fn is_nat_like_type(name: &str) -> bool {
-    matches!(name, "u8" | "u16" | "u32" | "u64" | "nat")
-}
-
-fn state_parameter_of_expression<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    state: &'program typed_trees::state::State,
+/// Ranking interpretation follows the exact declared subject carrier, including
+/// machine Value/Const binders. Specialization keeps the view selected before
+/// replacing such a binder by a value; a new anonymous literal supplies no
+/// carrier merely because it prints the same number.
+fn ranking_subject_type_reference(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
     expression: ExpressionHandle,
-) -> Option<&'program typed_trees::signature::StateParameter> {
-    let path = program.expression_table.name_path_node(expression)?;
-    let last = program
-        .expression_table
-        .name_path_members(path.members)
-        .last()
-        .map(|member| member.as_str());
-    program.state_parameters(state).iter().find(|parameter| {
-        parameter.symbol == path.symbol || last.is_some_and(|name| parameter.name.as_str() == name)
-    })
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+        && path.symbol.is_valid()
+        && path.head_symbol == path.symbol
+    {
+        if let Some(parameter) = program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.symbol == path.symbol)
+        {
+            return Some(parameter.type_reference);
+        }
+        if let Some(parameter) = program.data_type_parameter_by_symbol(path.symbol) {
+            match parameter.kind {
+                typed_trees::data::TypeParameterKind::Value { type_reference }
+                | typed_trees::data::TypeParameterKind::Const { type_reference } => {
+                    return Some(type_reference);
+                }
+                _ => return None,
+            }
+        }
+    }
+    validation::mathematical_applications::operand_type_reference(program, expression)
 }
 
 fn lexicographic_component_fields(
@@ -542,6 +542,15 @@ fn expression_type_name(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<String> {
+    if let Some(reference) = ranking_subject_type_reference(program, state, expression) {
+        return Some(
+            program.type_reference_table.display_name(
+                program
+                    .type_reference_table
+                    .unconstrained_type_reference(reference),
+            ),
+        );
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => state_parameter_type_name(
             program,

@@ -3,7 +3,7 @@
 //! nor allocate a private copy of the signature to perform substitution.
 
 use proof_admission::{
-    Budget, CoreError, Signature, Term, TermArena, TermHandle, weak_head_normalize,
+    Budget, CoreError, Signature, Term, TermArena, TermHandle, weak_head_normalize_retaining,
 };
 
 pub(super) fn normalize(
@@ -11,12 +11,13 @@ pub(super) fn normalize(
     signature: &Signature,
     term: TermHandle,
     budget: &mut Budget,
+    retain: &impl Fn(u32) -> bool,
 ) -> Result<TermHandle, CoreError> {
-    let head = weak_head_normalize(arena, signature, term, budget)?;
+    let head = weak_head_normalize_retaining(arena, signature, term, budget, retain)?;
     let original = arena.get(head);
     macro_rules! children {
         ($variant:ident { $($field:ident),+ }) => {
-            Term::$variant { $($field: normalize(arena, signature, $field, budget)?),+ }
+            Term::$variant { $($field: normalize(arena, signature, $field, budget, retain)?),+ }
         };
     }
     let reduced = match original.clone() {

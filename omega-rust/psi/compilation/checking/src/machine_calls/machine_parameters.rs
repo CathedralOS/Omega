@@ -176,6 +176,7 @@ pub(crate) fn form_static_machine_selections(
     let mut selections = FormedStaticMachineSelections::default();
     validate_conformance_machine_selections(program, diagnostics);
     let mathematical_expressions = crate::mathematical_applications::expression_nodes(program);
+    let erased_initializers = crate::mathematical_applications::erased_initializer_nodes(program);
     // Every call site resolves its machine/state target through this index;
     // the program is frozen for the duration of the pass so one build covers
     // all lookups.
@@ -185,7 +186,14 @@ pub(crate) fn form_static_machine_selections(
             // These occurrences belong to mathematical declaration elaboration,
             // whose kernel checks their level and term applications. A runtime
             // occurrence naming the same declaration is still checked here.
-            if mathematical_expressions.contains(&handle) {
+            if mathematical_expressions.contains(&handle)
+                || (erased_initializers.contains(&handle)
+                    && crate::mathematical_applications::selected_definition(program, call)
+                        .is_some()
+                    && program
+                        .prepared_mathematics()
+                        .is_some_and(|view| view.application(handle).is_some()))
+            {
                 continue;
             }
             // Named operators own their complete static telescope in the

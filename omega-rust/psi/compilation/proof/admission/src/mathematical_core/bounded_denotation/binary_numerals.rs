@@ -429,3 +429,15 @@ impl Denotation {
         }
     }
 }
+
+impl BinaryNumerals {
+    /// Exact internally audited semantic roster, excluding arbitrary source,
+    /// decision and value-parameter assumptions sharing the signature.
+    pub(super) fn source_safety_roster(&self) -> Vec<u32> {
+        self.zero
+            .into_iter()
+            .chain(self.constructors.values().copied())
+            .chain(self.laws.values().copied())
+            .collect()
+    }
+}

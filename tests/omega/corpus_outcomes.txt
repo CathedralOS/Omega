@@ -978,8 +978,12 @@ fail/constraints/scalar_requires_unproven_literal rejected 1539ms expected @a9ae
 fail/contracts/address_field_false_result_guarantee rejected 1121ms expected @2a08673f9136
 fail/contracts/aggregate_result_false_guarantee rejected 1584ms expected @a9ae30e1c334+wt
 fail/contracts/call_write_retires_overlapping_guard rejected 612ms expected @a036414cf2c9
-fail/contracts/captured_predicate_arithmetic_policies rejected 1621ms expected @a9ae30e1c334+wt
-fail/contracts/case_payload_write_retires_content_guarantee rejected 384ms expected @6c0183cab07b
+fail/contracts/captured_predicate_arithmetic_policies rejected 2884ms expected @c0ec033db8e0+wt
+	cannot prove requires contract for call wrapping_greater from wrapping_step: value + 1 > value (needs fact `actual > prior` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call saturating_greater from saturating_step: value + 1 > value (needs fact `actual > prior` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call at_least_one from positive_float: value >= 1.0 (needs fact `value >= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/case_payload_write_retires_content_guarantee rejected 2992ms expected @c0ec033db8e0+wt
+	cannot prove requires contract for call require_three from main: choice.value == 3 (needs fact `choice.value == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/case_requirement_replaced_through_parameter rejected 382ms expected @6c0183cab07b
 fail/contracts/case_requirement_selector_changed rejected 384ms expected @6c0183cab07b
 fail/contracts/case_requires_other_case_payload_read rejected 1647ms expected @e03f48653b6a
@@ -1058,9 +1062,11 @@ fail/contracts/replacement_call_child_false_snapshot rejected 1648ms expected @a
 fail/contracts/returned_integer_operation_wrong_operand rejected 1617ms expected @a9ae30e1c334+wt
 fail/contracts/returned_length_cannot_use_later_operand_guarantee rejected 652ms expected @6756ba1b9853
 fail/contracts/returned_windows_keep_distinct_measures rejected 657ms expected @6756ba1b9853
-fail/contracts/runtime_requirement_after_argument_write rejected 1559ms expected @a9ae30e1c334+wt
+fail/contracts/runtime_requirement_after_argument_write rejected 3268ms expected @c0ec033db8e0+wt
+	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `middle`
 fail/contracts/runtime_requirement_after_guard_write rejected 5847ms expected @7912abbc354e
-fail/contracts/runtime_requirement_after_sibling_write rejected 1575ms expected @a9ae30e1c334+wt
+fail/contracts/runtime_requirement_after_sibling_write rejected 3138ms expected @c0ec033db8e0+wt
+	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/runtime_requirement_after_statement_write rejected 1649ms expected @a9ae30e1c334+wt
 fail/contracts/runtime_requirement_after_transition_argument_write rejected 1579ms expected @a9ae30e1c334+wt
 fail/contracts/saved_call_case_guarantee_replaced_by_call rejected 1625ms expected @a9ae30e1c334+wt
@@ -4405,6 +4411,56 @@ fail/facts/slice_view_layout_geometry_through_parameter_rejected rejected 14241m
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_target_body_rejected rejected 14529ms expected @e44ed43aefa9
 	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/source_indexed_family_authored_terminating_state_cycle rejected 8328ms expected @2c386725b87c+wt
+	cannot prove the `terminates by` ranking for machine vector_bound
+	terminating machine vector_bound$specialized$28f2ad5c8a0d7f24$0: cannot prove strict rank decrease on a recurrent arrival: the transition from `spinning` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	indexed logical machine `vector_bound` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
+	indexed logical machine `vector_bound$specialized$28f2ad5c8a0d7f24$0` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
+fail/facts/source_indexed_family_changed_capture rejected 5621ms expected @2c386725b87c+wt
+	invalid mathematical application `retain(other)`: mathematical argument does not preserve its declared carrier and policy
+fail/facts/source_indexed_family_cited_requires_unmet rejected 8574ms expected @2c386725b87c+wt
+	cannot prove requires contract for call vector_bound from bounded: Length <= 7 (needs fact `Length <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/source_indexed_family_constructor_head_false rejected 5555ms expected @2c386725b87c+wt
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_constructor_index_false rejected 5255ms expected @2c386725b87c+wt
+	source recursive child `tail` does not inhabit its declared indexed application `Vector<previous, previous_total>`; actual application is `Vector<0, 0>`
+fail/facts/source_indexed_family_constructor_parent_index_false rejected 5467ms expected @2c386725b87c+wt
+	source constructor predicate has no checked derivation yet
+fail/facts/source_indexed_family_illegal_runtime_elimination rejected 6357ms expected @2c386725b87c+wt
+	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+fail/facts/source_indexed_family_insufficient_consumer_bound rejected 6462ms expected @2c386725b87c+wt
+	exact arithmetic in machine `bounded` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/source_indexed_family_missing_head_bound rejected 5116ms expected @2c386725b87c+wt
+	source induction case has no checked derivation from its exact constraints and child hypotheses
+fail/facts/source_indexed_family_same_rank_recursion rejected 8474ms expected @2c386725b87c+wt
+	terminating machine vector_bound: cannot prove independent strict source-rank descent for `vector_bound` at state `entry` statement 0 call 0
+	terminating machine vector_bound$specialized$28f2ad5c8a0d7f24$0: cannot prove independent strict source-rank descent for `vector_bound$specialized$28f2ad5c8a0d7f24$0` at state `entry` statement 0 call 0
+	machine call cycle: `vector_bound$specialized$28f2ad5c8a0d7f24$0` -- a source natural call edge lacks independent strict descent; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+	machine call cycle: `vector_bound` -- a source natural call edge lacks independent strict descent; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+	indexed logical machine `vector_bound` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
+	indexed logical machine `vector_bound$specialized$28f2ad5c8a0d7f24$0` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
+fail/facts/source_indexed_family_ungranted_family_assumption rejected 5733ms expected @2c386725b87c+wt
+	source indexed initializer depends on an assumption outside the audited integer safety roster
+fail/facts/source_indexed_family_wrong_invariant rejected 5158ms expected @2c386725b87c+wt
+	source induction case has no checked derivation from its exact constraints and child hypotheses
+fail/facts/source_indexed_family_wrong_payload_carrier rejected 6191ms expected @2c386725b87c+wt
+	literal `7` is suffixed `i8` but lands in a `u64` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+	store in construction of `Vector` field `head` implicitly converts `i8` to `u64`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u64`)
+fail/facts/source_indexed_family_wrong_recursion_rank rejected 8419ms expected @2c386725b87c+wt
+	terminating machine vector_bound: cannot prove independent strict source-rank descent for `vector_bound` at state `step` statement 0 call 0
+	terminating machine vector_bound$specialized$a212890a0bf267ce$1: cannot prove independent strict source-rank descent for `vector_bound$specialized$a212890a0bf267ce$1` at state `step` statement 0 call 0
+	machine call cycle: `vector_bound$specialized$a212890a0bf267ce$1` -- a source natural call edge lacks independent strict descent; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+	machine call cycle: `vector_bound` -- a source natural call edge lacks independent strict descent; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+	indexed logical machine `vector_bound` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
+	indexed logical machine `vector_bound$specialized$28f2ad5c8a0d7f24$0` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
+	indexed logical machine `vector_bound$specialized$a212890a0bf267ce$1` has no independently checked unconditional termination; a proved invariant cannot erase a potentially nonterminating source body
 fail/facts/stack_frame_slot_isolation_unproved_call_result rejected 2409ms expected @45cbafd80d9c
 	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/stack_frame_slot_isolation_unproved_const_name rejected 2328ms expected @45cbafd80d9c
@@ -5401,11 +5457,19 @@ fail/generics/machine_equation_selected_const_carrier_conflict rejected 778ms ex
 fail/generics/machine_equation_selected_const_conflict rejected 48ms expected @a9ae30e1c334+wt
 fail/generics/machine_equation_selected_const_kind_conflict rejected 61ms expected @a9ae30e1c334+wt
 fail/generics/machine_equation_selected_const_policy_conflict rejected 53ms expected @a9ae30e1c334+wt
+fail/generics/mixed_value_case_constructor_false rejected 6009ms expected @c0ec033db8e0+wt
+	data `Tagged` case `At` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/generics/mixed_value_case_payload_wrong_carrier rejected 6486ms expected @c0ec033db8e0+wt
+	construction of `Tagged` field `value` stores a boolean into a `u64` field, which holds a numeric value
+fail/generics/mixed_value_nullary_case_false rejected 5772ms expected @c0ec033db8e0+wt
+	data `Tagged` case `Empty` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/named_value_parameter_mismatch rejected 237ms expected @6ef08ceefee0+wt
 fail/generics/nominal_binder_structural_coincidence_rejected rejected 752ms expected @a9ae30e1c334+wt
 fail/generics/omitted_data_binder_explicit_conflict rejected 36ms expected @a9ae30e1c334+wt
 fail/generics/omitted_data_binder_underdetermined rejected 41ms expected @a9ae30e1c334+wt
 fail/generics/open_index_unlicensed_algebra rejected 179ms expected @a9ae30e1c334+wt
+fail/generics/open_value_case_constructor_false rejected 5667ms expected @c0ec033db8e0+wt
+	data `Tagged` case `At` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/parameter_value_concrete_local_mismatch rejected 249ms expected @6ef08ceefee0+wt
 fail/generics/property_bound_violated_at_instantiation rejected 828ms expected @a9ae30e1c334+wt
 fail/generics/qualified_closed_equation_const_width rejected 19ms expected @a9ae30e1c334+wt
@@ -5422,7 +5486,8 @@ fail/generics/runtime_index_carrier_array_extent_mismatch rejected 1790ms expect
 fail/generics/runtime_index_carrier_array_mismatch rejected 1734ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_borrow_mismatch rejected 2186ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_call_selected_mutated rejected 1859ms expected @afe3f46cebb2+wt
-fail/generics/runtime_index_carrier_call_selected_stale rejected 2380ms expected @afe3f46cebb2+wt
+fail/generics/runtime_index_carrier_call_selected_stale rejected 3103ms expected @c0ec033db8e0+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_cast_stale rejected 2436ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_const rejected 23ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_descriptor_borrow_alias rejected 2078ms expected @afe3f46cebb2+wt
@@ -5433,7 +5498,8 @@ fail/generics/runtime_index_carrier_descriptor_whole_write rejected 1946ms expec
 fail/generics/runtime_index_carrier_explicit_argument_effect rejected 200ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_explicit_payload_effect rejected 199ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_match_mismatch rejected 881ms expected @afe3f46cebb2+wt
-fail/generics/runtime_index_carrier_metadata_mismatch rejected 1952ms expected @afe3f46cebb2+wt
+fail/generics/runtime_index_carrier_metadata_mismatch rejected 2925ms expected @c0ec033db8e0+wt
+	cannot prove runtime index descriptor equals its captured index
 fail/generics/runtime_index_carrier_metadata_write rejected 1763ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_mismatch rejected 1648ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_mixed_const rejected 1788ms expected @afe3f46cebb2+wt
@@ -5446,7 +5512,8 @@ fail/generics/runtime_index_carrier_nested_type_extent_mismatch rejected 1922ms 
 fail/generics/runtime_index_carrier_result_argument_effect rejected 1964ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_shadow rejected 1919ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_stale rejected 1672ms expected @afe3f46cebb2+wt
-fail/generics/runtime_index_carrier_state_mismatch rejected 1741ms expected @afe3f46cebb2+wt
+fail/generics/runtime_index_carrier_state_mismatch rejected 2822ms expected @c0ec033db8e0+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_tail_descriptor rejected 1776ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_tail_mismatch rejected 1756ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_carrier_tail_stale rejected 1759ms expected @afe3f46cebb2+wt
@@ -5474,7 +5541,10 @@ fail/generics/type_index_wrong_telescope rejected 906ms expected @7b786cd56594+w
 	index compatibility condition `index-equality:Pair:wrong::entry:statement-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/value_binder_unknown_field rejected 312ms expected @16802f0d1e96
 fail/generics/value_binder_used_as_nested_type rejected 3433ms expected @a9ae30e1c334+wt
-fail/generics/value_generic_runtime_static_length rejected 191ms expected @a9ae30e1c334+wt
+fail/generics/value_generic_erased_runtime_static_length rejected 1343ms expected @2c386725b87c+wt
+	machine `ident$specialized$832029f6e14224f7$0` state `entry` local data `a` uses unresolved fixed-array length `Count`; a symbolic array length must name an in-scope `const` parameter
+fail/generics/value_generic_runtime_static_length rejected 494ms expected @c0ec033db8e0+wt
+	value parameter `Count` of machine `ident` is bound to a runtime argument and cannot determine a static type or layout
 fail/host/conditional_process_exit_keeps_return_obligations rejected 1770ms expected @b19a2aaae492+wt
 	linear value `token` reaches scope exit without being consumed or transferred
 fail/host/console_byte_payload_above_byte rejected 735ms expected @afccbf17d92b+wt
@@ -5884,7 +5954,8 @@ fail/proofs/declaration_call_future_requires rejected 170ms expected @4ef5069e9f
 fail/proofs/declaration_call_requires rejected 185ms expected @4ef5069e9f3b+wt
 fail/proofs/declaration_identity_call_value_context rejected 20ms expected @4ef5069e9f3b+wt
 fail/proofs/declaration_predicate_all_paths rejected 653ms expected @4ef5069e9f3b+wt
-fail/proofs/declaration_predicate_ambiguous_embedding rejected 162ms expected @4ef5069e9f3b+wt
+fail/proofs/declaration_predicate_ambiguous_embedding rejected 1098ms expected @c0ec033db8e0+wt
+	`embed` is a compiler-owned proof term; an authored, package-qualified, or same-spelled call cannot replace it
 fail/proofs/declaration_predicate_byte_contents rejected 651ms expected @4ef5069e9f3b+wt
 fail/proofs/declaration_predicate_captured_field rejected 655ms expected @4ef5069e9f3b+wt
 fail/proofs/declaration_predicate_cast_after_write rejected 171ms expected @4ef5069e9f3b+wt
@@ -5896,7 +5967,9 @@ fail/proofs/declaration_predicate_false_membership rejected 655ms expected @4ef5
 fail/proofs/declaration_predicate_field_shadow rejected 161ms expected @4ef5069e9f3b+wt
 fail/proofs/declaration_predicate_lexical_shadow rejected 162ms expected @4ef5069e9f3b+wt
 fail/proofs/declaration_predicate_saturating rejected 169ms expected @4ef5069e9f3b+wt
-fail/proofs/declaration_predicate_shadowed_embedding rejected 170ms expected @4ef5069e9f3b+wt
+fail/proofs/declaration_predicate_shadowed_embedding rejected 1155ms expected @c0ec033db8e0+wt
+	`embed` is a compiler-owned proof term and cannot be declared or implemented as a machine
+	`embed` is a compiler-owned proof term; an authored, package-qualified, or same-spelled call cannot replace it
 fail/proofs/declaration_predicate_wrapping rejected 172ms expected @4ef5069e9f3b+wt
 fail/proofs/declaration_predicate_wrapping_interval rejected 171ms expected @4ef5069e9f3b+wt
 fail/proofs/declaration_synthesized_equality_missing_selection rejected 18ms expected @4ef5069e9f3b+wt
@@ -5964,7 +6037,8 @@ fail/proofs/numeric_state_initial_arrival rejected 1690ms expected @b3396fd69abd
 fail/proofs/numeric_state_mixed_payload rejected 1541ms expected @b3396fd69abd+wt
 fail/proofs/numeric_state_rounding_boundary rejected 1526ms expected @b3396fd69abd+wt
 fail/proofs/numeric_state_saturating_payload rejected 1570ms expected @b3396fd69abd+wt
-fail/proofs/numeric_state_selected_operator rejected 1522ms expected @b3396fd69abd+wt
+fail/proofs/numeric_state_selected_operator rejected 3284ms expected @c0ec033db8e0+wt
+	cannot prove requires contract for call positive from wrong: changed > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/numeric_state_unknown_arrival rejected 1570ms expected @b3396fd69abd+wt
 fail/proofs/numeric_state_wrapping_payload rejected 1522ms expected @b3396fd69abd+wt
 fail/proofs/opposite_guard_same_target rejected 9976ms expected @5b35eda9b8d6
@@ -6608,7 +6682,8 @@ fail/termination/rank_range_call_component_prefix_write rejected 1599ms expected
 fail/termination/rank_range_declared_step_unbounded rejected 474ms expected @c1125926bef7
 fail/termination/rank_range_endpoint_intervening_write rejected 1678ms expected @a9ae30e1c334+wt
 fail/termination/rank_range_excludes_floor rejected 1571ms expected @a9ae30e1c334+wt
-fail/termination/rank_range_mutable_endpoint_overflow_after_write rejected 152ms expected @2430f497a77c+wt
+fail/termination/rank_range_mutable_endpoint_overflow_after_write rejected 1223ms expected @c0ec033db8e0+wt
+	exact arithmetic in machine `walk` state `entry` local `endpoint` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/termination/rank_range_record_stepped_copy_stale rejected 1690ms expected @a9ae30e1c334+wt
 fail/termination/rank_range_subject_intervening_write rejected 1593ms expected @a9ae30e1c334+wt
 fail/termination/rank_state_dependent_bound_prefix_write rejected 1694ms expected @a9ae30e1c334+wt
@@ -6638,13 +6713,18 @@ fail/termination/shift_result_rank_mask_preserves rejected 445ms expected @f70ce
 fail/termination/shift_result_rank_replaced_count rejected 441ms expected @f70cef10b430
 fail/termination/shift_result_rank_zero_count rejected 448ms expected @f70cef10b430
 fail/termination/shift_result_signed_field_floor rejected 448ms expected @f70cef10b430
+fail/termination/signed_rank_without_nonnegative_premise rejected 3073ms expected @c7d6c4482f2f
+	cannot prove the `terminates by` ranking for machine walk
+	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/stale_state_rank_premise_rejected rejected 1631ms expected @a9ae30e1c334+wt
 fail/termination/stored_reference_endpoint_referent_write rejected 1516ms expected @a9ae30e1c334+wt
 fail/termination/stored_reference_endpoint_reseat rejected 1746ms expected @a9ae30e1c334+wt
 fail/termination/target_family_missing_progress rejected 323ms expected @c62dcd324e77+wt
 fail/termination/unproved_state_rank_arrival_rejected rejected 1590ms expected @a9ae30e1c334+wt
 fail/termination/wrapping_subject_unguarded_decrement rejected 548ms expected @3e63a17a5fea+wt
-fail/termination/zero_local_does_not_decrease_rank rejected 1234ms expected @3d664be0c918+wt
+fail/termination/zero_local_does_not_decrease_rank rejected 2960ms expected @c7d6c4482f2f
+	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/text/borrowed_bounded_byte_invariant_write rejected 2152ms expected @ef7962801508
 fail/text/borrowed_byte_snapshot_missing_predicate rejected 1403ms expected @308fbdc54ba0
 fail/text/borrowed_byte_snapshot_reseated_descriptor rejected 1334ms expected @308fbdc54ba0
@@ -8646,7 +8726,7 @@ pass/expressions/runtime_owned_match_call_result_exit checked 11438ms check-targ
 pass/expressions/runtime_temporary_record_field_call_exit checked 10564ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/runtime_widened_comparison_exit checked 11140ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/scalar_match_boundary_composition_exit checked 12777ms check-target:macos_arm64 @9c4d1c444502
-pass/expressions/seq_consuming_combinators checked 10030ms @fcc053dc7014+wt
+pass/expressions/seq_consuming_combinators checked 21895ms @c0ec033db8e0+wt
 pass/expressions/sequential_fresh_linear_selection checked 9303ms check-target:macos_arm64 @61fab13095e7+wt
 pass/expressions/unit_case_return_call_product checked 5467ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/facts/abi_multi_arg_spill_through_call_result_exit checked 8142ms check-target:macos_arm64 @45cbafd80d9c
@@ -9814,6 +9894,10 @@ pass/facts/slice_view_layout_geometry_through_other_machine_exit checked 40363ms
 pass/facts/slice_view_layout_geometry_through_other_state_exit checked 41360ms check-target:macos_arm64 @e44ed43aefa9
 pass/facts/slice_view_layout_geometry_through_parameter_exit checked 40383ms check-target:macos_arm64 @e44ed43aefa9
 pass/facts/slice_view_layout_geometry_through_target_body_exit checked 42711ms check-target:macos_arm64 @e44ed43aefa9
+pass/facts/source_indexed_family checked 41407ms check-target:macos_arm64 terminal-inspections:match @2c386725b87c+wt
+pass/facts/source_indexed_family_alpha_positive checked 22770ms check-target:macos_arm64 @2c386725b87c+wt
+pass/facts/source_indexed_family_capture_roster_positive checked 19695ms check-target:macos_arm64 @2c386725b87c+wt
+pass/facts/source_indexed_family_recursive_index_positive checked 20120ms check-target:macos_arm64 @2c386725b87c+wt
 pass/facts/stack_frame_slot_isolation_through_call_result_exit checked 7758ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/stack_frame_slot_isolation_through_const_name_exit checked 7782ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/stack_frame_slot_isolation_through_field_exit checked 7886ms check-target:macos_arm64 @45cbafd80d9c
@@ -10339,10 +10423,13 @@ pass/generics/inferred_machine_array_equation_values_exit checked 15106ms check-
 pass/generics/machine_bound_satisfied_at_call checked 3528ms @a9ae30e1c334+wt
 pass/generics/machine_indexed_stream_dispatch checked 8234ms @0acd49d4fea4+wt
 pass/generics/machine_type_equations checked 1760ms @a9ae30e1c334+wt
+pass/generics/mixed_value_case_constructor_checked checked 20047ms check-target:macos_arm64 @c0ec033db8e0+wt
+pass/generics/mixed_value_nullary_case_checked checked 20790ms check-target:macos_arm64 @c0ec033db8e0+wt
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 1943ms @a9ae30e1c334+wt
 pass/generics/omitted_data_binder_range_equation checked 11488ms check-target:macos_arm64 @0ee813e8e9c7+wt
 pass/generics/omitted_fixed_domain_array_equation checked 3667ms @a9ae30e1c334+wt
 pass/generics/open_computed_quantity_result checked 24313ms check-target:macos_arm64 @f6326ba5a76f
+pass/generics/open_value_case_constructor_checked checked 19660ms check-target:macos_arm64 @c0ec033db8e0+wt
 pass/generics/ranged_const_parameter_attached_shape checked 15081ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_borrowed_value_inference_exit checked 16121ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_captured_map_borrowed_type checked 17222ms check-target:macos_arm64 @4730b1ac8a84
@@ -10949,6 +11036,7 @@ pass/proofs/domain_mathematical_selection_exit checked 3978ms check-target:macos
 pass/proofs/embed_collection_length checked 1042ms @73e11f08dcbb+wt
 pass/proofs/embed_returned_length checked 1047ms @b276a0918018+wt
 pass/proofs/embedded_address_bounds_exit checked 11453ms check-target:macos_arm64 @232ee85de964+wt
+pass/proofs/erased_mathematical_initializers checked 4624ms @c0ec033db8e0+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 14367ms check-target:linux_x86_64 @4ce1ff349782+wt
 pass/proofs/family_carrier_relation_laws checked 1811ms @47fae30824a7+wt
 pass/proofs/field_view_index_contract checked 5381ms @d3431e5a76cb+wt
@@ -11642,7 +11730,7 @@ pass/termination/default_order_slice_length_compile checked 1620ms @a9ae30e1c334
 pass/termination/distance_conjunction_guard_exit checked 15651ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/distance_constant_bound_exit checked 12986ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/termination/external_result_ranked_arrival_compile checked 2460ms @a9ae30e1c334+wt
-pass/termination/generic_owned_element_store_rank checked 3665ms @03a2c2a6ba31+wt
+pass/termination/generic_owned_element_store_rank checked 20482ms @c0ec033db8e0+wt
 pass/termination/identity_measure_rank_range checked 1770ms @a9ae30e1c334+wt
 pass/termination/identity_measure_widths checked 10061ms @5041ef1af684+wt
 pass/termination/implicit_cleanup_with_progress checked 573ms @48173da96776+wt

@@ -179,6 +179,22 @@ pub(super) fn admitted_build_declaration_call(
     ) == Some(intrinsic)
 }
 
+/// The complete callable result of an ordinary machine. An omitted result is
+/// represented by the type table's Unit sentinel; it is not a missing scalar
+/// carrier. Explicit non-Unit state results and inferred value-return edges
+/// still prevent treating the machine as a resultless citation.
+pub(crate) fn machine_has_unit_result(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+) -> bool {
+    let states = program.machine_states(machine);
+    !states.is_empty()
+        && states
+            .iter()
+            .all(|state| unit_type(program, state.return_type))
+        && !has_inferred_value_return(program, machine)
+}
+
 fn has_inferred_value_return(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
     use typed_trees::statement::TransitionTargetNode;
     program.machine_states(machine).iter().any(|state| {

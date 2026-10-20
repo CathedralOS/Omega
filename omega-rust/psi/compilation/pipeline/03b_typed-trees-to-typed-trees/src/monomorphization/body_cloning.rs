@@ -441,13 +441,22 @@ pub(super) fn clone_single_specialized_machine(
         };
         program.push_machine_invoke(&mut cloned, invocation);
     }
+    // Ranking operands are entry-scope value expressions, just like contract
+    // operands. Their private copies must name the exact realized parameters
+    // rather than the template's no-longer-live runtime Value binders.
     let ranking_subjects = typed_trees::ranking::resolve_machine_witness_subjects(
         source.unwrap_or(program),
         &source_machine,
     )
     .unwrap_or_default()
     .into_iter()
-    .map(|expression| copy_expression(source, program, expression, &symbol_map))
+    .map(|expression| {
+        let copied = copy_expression(source, program, expression, &symbol_map);
+        if let Some(realized) = state_realized_parameters.first() {
+            program.expression_table.remap_symbols_in(copied, realized);
+        }
+        copied
+    })
     .collect::<Vec<_>>();
     let ranking_view_arguments = typed_trees::ranking::resolve_machine_witness_view_arguments(
         source.unwrap_or(program),
@@ -455,13 +464,25 @@ pub(super) fn clone_single_specialized_machine(
     )
     .unwrap_or_default()
     .into_iter()
-    .map(|expression| copy_expression(source, program, expression, &symbol_map))
+    .map(|expression| {
+        let copied = copy_expression(source, program, expression, &symbol_map);
+        if let Some(realized) = state_realized_parameters.first() {
+            program.expression_table.remap_symbols_in(copied, realized);
+        }
+        copied
+    })
     .collect::<Vec<_>>();
     let ranking_range = source
         .unwrap_or(program)
         .ranking_expression_custody_for(source_machine.symbol)
         .and_then(|custody| custody.rank_range)
-        .map(|expression| copy_expression(source, program, expression, &symbol_map));
+        .map(|expression| {
+            let copied = copy_expression(source, program, expression, &symbol_map);
+            if let Some(realized) = state_realized_parameters.first() {
+                program.expression_table.remap_symbols_in(copied, realized);
+            }
+            copied
+        });
     if !ranking_subjects.is_empty() || !ranking_view_arguments.is_empty() || ranking_range.is_some()
     {
         program
@@ -580,7 +601,33 @@ pub(super) fn clone_single_specialized_machine(
                 source_parameter.type_reference,
                 &symbol_map,
             );
+            // An erased carrier's indices describe its exact source value;
+            // they do not determine executable layout. Preserve that carrier
+            // under this state's realized Value subjects, in private copied
+            // type storage. Ordinary static/layout positions keep their
+            // original fence below.
+            if parameter.relevance.is_erased() && !realized.is_empty() {
+                parameter.type_reference =
+                    copy_type_reference(None, program, parameter.type_reference, realized);
+            }
             program.push_state_parameter(&mut state, parameter);
+        }
+        if !realized.is_empty() {
+            for handle in statement_span_handles(state.statement_nodes) {
+                let Some(local) = program.statement_table.statement(handle).as_local_data() else {
+                    continue;
+                };
+                if !local.relevance.is_erased() {
+                    continue;
+                }
+                let reference = local.type_reference;
+                let type_reference = copy_type_reference(None, program, reference, realized);
+                if let StatementNode::LocalData(local) =
+                    program.statement_table.statement_mut(handle)
+                {
+                    local.type_reference = type_reference;
+                }
+            }
         }
         for ((_, name, declared_type), (_, realized_symbol)) in realized_parameters
             .iter()

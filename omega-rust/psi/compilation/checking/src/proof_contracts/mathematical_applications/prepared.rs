@@ -6,7 +6,7 @@
 
 use arena::{Arena, HandleSpan};
 use numerics::bignum::BigInt;
-use proof_admission::{TermArena, TermHandle};
+use proof_admission::{Declaration, TermArena, TermHandle};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -16,6 +16,43 @@ pub struct PreparedMathematicalApplications {
     pub applications: Arena<PreparedApplication>,
     pub captures: Arena<PreparedCapture>,
     pub constants: Arena<PreparedConstant>,
+    pub source_evidence: Arena<PreparedSourceEvidence>,
+    pub source_carriers: Arena<PreparedSourceCarrier>,
+    pub indexed_theorems: Arena<PreparedIndexedTheorem>,
+    pub safety_assumptions: Vec<u32>,
+}
+
+/// Kernel induction associated with an exact source contract occurrence.
+/// Body validation and safety receiver admission are separate judgments.
+#[derive(Debug, Default)]
+pub struct PreparedIndexedTheorem {
+    pub machine: SymbolHandle,
+    pub expression: ExpressionHandle,
+    pub ensure_ordinal: u32,
+    pub evidence_formal: SymbolHandle,
+    pub source_type: TypeReferenceHandle,
+    pub theorem: TermHandle,
+    pub ty: TermHandle,
+    pub assumption_closure: Vec<u32>,
+}
+
+/// An independently typed source evidence occurrence in this view's signature.
+#[derive(Debug, Default)]
+pub struct PreparedSourceEvidence {
+    pub expression: ExpressionHandle,
+    pub source_type: TypeReferenceHandle,
+    pub type_identity: typed_trees::type_identity::TypeIdentityId,
+    pub term: TermHandle,
+    pub ty: TermHandle,
+}
+
+/// Source carrier formation retained under its exact value telescope.
+#[derive(Debug, Default)]
+pub struct PreparedSourceCarrier {
+    pub source_type: TypeReferenceHandle,
+    pub type_identity: typed_trees::type_identity::TypeIdentityId,
+    pub ty: TermHandle,
+    pub domains: Vec<TermHandle>,
 }
 
 #[derive(Debug, Default)]
@@ -68,10 +105,31 @@ pub enum PreparedConstantMeaning {
 #[derive(Clone, Copy, Debug)]
 pub struct PreparedMathematicalView<'program> {
     pub arena: &'program TermArena,
+    pub declarations: &'program [Declaration],
     pub applications: &'program PreparedMathematicalApplications,
 }
 
 impl<'program> PreparedMathematicalView<'program> {
+    pub fn source_evidence(
+        self,
+        expression: ExpressionHandle,
+    ) -> Option<&'program PreparedSourceEvidence> {
+        self.applications
+            .source_evidence
+            .iter()
+            .find_map(|(_, evidence)| (evidence.expression == expression).then_some(evidence))
+    }
+
+    pub fn source_carrier(
+        self,
+        reference: TypeReferenceHandle,
+    ) -> Option<&'program PreparedSourceCarrier> {
+        self.applications
+            .source_carriers
+            .iter()
+            .find_map(|(_, carrier)| (carrier.source_type == reference).then_some(carrier))
+    }
+
     pub fn application(
         self,
         expression: ExpressionHandle,

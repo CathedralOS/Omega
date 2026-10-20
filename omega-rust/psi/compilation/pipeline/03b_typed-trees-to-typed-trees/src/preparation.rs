@@ -192,11 +192,6 @@ pub fn prepare_typed_trees(
     let opaque_property_receipts =
         opaque_property_receipts::for_source_instances(&program, request.opaque_property_receipts);
     let opaque_representation_selections = request.opaque_representation_selections.to_vec();
-    // Mathematical `let`/`boundary let` declarations elaborate into checked
-    // records and a kernel signature the kernel re-decides. Check them first,
-    // so a declaration that fails either elaboration fails with its own
-    // diagnostic, and carry the result to the proof facts.
-    let mathematics = proof::mathematical_declarations::check_mathematical_declarations(&program)?;
     // Stage-1 machine monomorphization MUST precede validation: a generic
     // machine whose value calls agree on one instantiation is substituted to a
     // concrete machine here. Validation permits unused template bodies but the
@@ -302,6 +297,12 @@ pub fn prepare_typed_trees(
     data_applications::elaborate_new_types(&mut program, signature_type_start)?;
     crate::assignment_destinations::prepare(&mut program);
     crate::assembly_control::admit(&program)?;
+    // Mathematical source applications consume the same exact application
+    // views, implicit index descriptors and final operand occurrences as
+    // immutable checking. Form their signature after those producers finish;
+    // checking before preparation would capture an incomplete source value.
+    // This remains one kernel-checked signature, carried into the proof facts.
+    let mathematics = proof::mathematical_declarations::check_mathematical_declarations(&program)?;
     Ok((
         program.into(),
         TypedPreparation {

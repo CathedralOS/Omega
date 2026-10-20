@@ -179,7 +179,13 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
             let mut bindings = Vec::new();
             for parameter in self.parameters {
                 let mut matches = supplied.iter().enumerate().filter(|(_, field)| {
-                    field.field_symbol.is_valid() && field.field_symbol == parameter.symbol
+                    crate::value_custody::struct_literals::selected_construction_field(
+                        program,
+                        self.expression,
+                        self.literal,
+                        field.field_symbol,
+                    )
+                    .is_some_and(|selected| selected.symbol == parameter.symbol)
                 });
                 let value = if let Some((position, _)) = matches.next() {
                     if matches.next().is_some() {

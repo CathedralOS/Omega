@@ -54,7 +54,7 @@ impl super::IdentityMap {
                 }
                 ProofTerm::Array { elements, .. } => pending.extend(elements.iter_mut().rev()),
                 ProofTerm::Scalar(term) => self.scalar_term(term),
-                ProofTerm::Formal { .. } => {}
+                ProofTerm::Formal { .. } | ProofTerm::Mathematical { .. } => {}
             }
         }
     }

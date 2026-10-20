@@ -661,7 +661,10 @@ impl Denotation {
     }
 
     pub(super) fn new() -> Self {
-        let mut arena = TermArena::new();
+        Self::new_in(TermArena::new(), Vec::new())
+    }
+
+    pub(super) fn new_in(mut arena: TermArena, declarations: Vec<Declaration>) -> Self {
         let type_zero = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
         let two = arena.insert(Term::Two);
         let two_zero = arena.insert(Term::TwoZero);
@@ -673,7 +676,7 @@ impl Denotation {
             two_zero,
             two_one,
             boolean_equality: TermHandle::invalid(),
-            declarations: Vec::new(),
+            declarations,
             atoms: BTreeMap::new(),
             carriers: BTreeMap::new(),
             terms: BTreeMap::new(),
@@ -1056,6 +1059,17 @@ impl Denotation {
                 ));
             }
         };
+        self.intern_math_term(key)
+    }
+
+    pub(super) fn math_literal(
+        &mut self,
+        value: BigInt,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        self.intern_math_term(MathTermKey::Closed(value))
+    }
+
+    fn intern_math_term(&mut self, key: MathTermKey) -> Result<TermHandle, BoundedDenotationError> {
         if let Some(&position) = self.math_terms.get(&key) {
             return Ok(self.constant(position));
         }

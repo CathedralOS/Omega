@@ -413,6 +413,8 @@ impl CheckingInput for CheckingProjection<'_> {
 #[doc(hidden)]
 #[derive(Default)]
 pub struct CheckingMemos {
+    pub(crate) indexed_logical_machines: OnceLock<Arc<Vec<symbols::SymbolHandle>>>,
+    pub(crate) erased_initializers: OnceLock<Arc<Vec<typed_trees::expression::ExpressionHandle>>>,
     pub(crate) owned_field_domains:
         OnceLock<crate::value_custody::field_domains::OwnedFieldDomainQueries>,
     pub(crate) claim_frontiers:

@@ -187,6 +187,41 @@ pub struct CheckedRuntimeRankComponent {
     pub diagnostic: String,
 }
 
+/// Natural ranking of logical source invocations. These coordinates are
+/// immutable machine Value/Const operands, never executable state slots.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedSourceNaturalRankMember {
+    pub machine: SymbolHandle,
+    pub body: HandleSpan<State>,
+    pub subject: ExpressionHandle,
+    pub carrier: TypeReferenceHandle,
+    /// Exact original Value binder, when realized as ordinary state formals.
+    /// These remain source rank coordinates, never executable slot claims.
+    pub realized_from: Option<SymbolHandle>,
+    pub realized_parameters: Vec<(SymbolHandle, SymbolHandle)>,
+}
+
+/// Every exact recurrent source invocation owes strict descent independently
+/// of the theorem it cites. Call ordinals use the ordinary occurrence owner.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedSourceNaturalRankEdge {
+    pub caller: SymbolHandle,
+    pub callee: SymbolHandle,
+    pub source_callee: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement_ordinal: u32,
+    pub call_ordinal: u32,
+    pub authored_application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    pub argument_position: Option<u32>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedSourceNaturalRankComponent {
+    pub members: HandleSpan<CheckedSourceNaturalRankMember>,
+    pub edges: HandleSpan<CheckedSourceNaturalRankEdge>,
+    pub view: language_semantics::RankingViewId,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedRankArrivalPlan {
     pub judgments: Arena<CheckedRankBodyJudgment>,
@@ -204,6 +239,9 @@ pub struct CheckedRankArrivalPlan {
     pub runtime_members: Arena<CheckedRuntimeRankMember>,
     pub runtime_states: Arena<CheckedRuntimeNaturalState>,
     pub runtime_edges: Arena<CheckedRuntimeRankEdge>,
+    pub source_natural_components: Arena<CheckedSourceNaturalRankComponent>,
+    pub source_natural_members: Arena<CheckedSourceNaturalRankMember>,
+    pub source_natural_edges: Arena<CheckedSourceNaturalRankEdge>,
 }
 
 impl CheckedRankArrivalPlan {

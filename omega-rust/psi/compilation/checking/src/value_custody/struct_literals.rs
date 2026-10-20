@@ -42,6 +42,7 @@ pub use window_elements::{ArrayWindowShape, array_window_shape};
 pub use construction_bounds::case_predicates_admit_zero;
 use construction_bounds::{validate_literal_case_constraints, validate_literal_default_domain};
 use field_obligations::enforce_construction_field_obligations;
+pub(crate) use field_obligations::selected_construction_field;
 pub use field_obligations::selected_construction_field_type;
 pub(crate) use field_obligations::{
     construction_field_type, each_selected_literal_field, validate_array_literal_elements,
@@ -631,16 +632,19 @@ fn validate_literal_field_names(
         )));
         return;
     }
-    // A `Value` binder keeps its index as an implicit leading field, so an
-    // all-value-parametered data type still constructs against concrete
-    // member types and owes its `where` facts at this gate. Type, `const`,
-    // and machine parameters defer the literal's member types to
-    // instantiation and stay exempt here.
-    if !field_obligations::construction_members_are_concrete(program, data_definition) {
+    // Member and predicate checking share this exact construction's retained
+    // application. The authored template above owns constructor authority;
+    // its open telescope is not an exemption for a closed occurrence.
+    let Some(data_definition) =
+        field_obligations::selected_construction_definition(program, expression, literal)
+    else {
+        diagnostics.push(Diagnostic::error("constructor obligations have no exact prepared application; unresolved generic members cannot waive field or case checking"));
         return;
-    }
+    };
     for field in program.expression_table.struct_fields(literal.fields) {
-        if selected_construction_field_type(program, literal, field.field_symbol).is_none() {
+        if selected_construction_field_type(program, expression, literal, field.field_symbol)
+            .is_none()
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "construction of `{type_name}` field `{}` lost its exact declared owner",
                 field.name,
@@ -661,7 +665,7 @@ fn validate_literal_field_names(
         data_definition,
         diagnostics,
     );
-    validate_omitted_gated_fields(program, literal, data_definition, diagnostics);
+    validate_omitted_gated_fields(program, expression, literal, data_definition, diagnostics);
 
     match &literal.case_name {
         None => {
@@ -688,16 +692,15 @@ fn validate_literal_field_names(
             }
         }
         Some(case_name) => {
-            let Some(variant) = program
-                .data_members(data_definition)
-                .iter()
-                .find_map(|member| match member {
-                    DataMember::Variant(variant) if Some(variant.symbol) == literal.case_symbol => {
-                        Some(variant)
-                    }
-                    _ => None,
-                })
-            else {
+            let Some(variant) = field_obligations::selected_construction_case(
+                program,
+                expression,
+                literal,
+                data_definition,
+            ) else {
+                diagnostics.push(Diagnostic::error(
+                    "case construction lost its exact active-case correspondence",
+                ));
                 return;
             };
             // CASE-CONSTRAINTS: the selected case's `where` facts prove at
@@ -743,6 +746,7 @@ fn validate_literal_field_names(
 /// zero case honestly absorbs gates carried by later cases.
 fn validate_omitted_gated_fields(
     program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
     literal: &TableStructLiteral,
     data_definition: &DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
@@ -758,15 +762,12 @@ fn validate_omitted_gated_fields(
         })
         .collect();
     if literal.case_name.is_some()
-        && let Some(variant) = program
-            .data_members(data_definition)
-            .iter()
-            .find_map(|member| match member {
-                DataMember::Variant(variant) if Some(variant.symbol) == literal.case_symbol => {
-                    Some(variant)
-                }
-                _ => None,
-            })
+        && let Some(variant) = field_obligations::selected_construction_case(
+            program,
+            expression,
+            literal,
+            data_definition,
+        )
     {
         candidates.extend(program.data_payload_fields(variant));
     }

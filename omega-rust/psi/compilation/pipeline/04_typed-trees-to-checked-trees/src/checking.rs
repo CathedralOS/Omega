@@ -395,6 +395,71 @@ fn check_program(
     // Mathematical terms remained borrowed by every source judgment. Transfer
     // their checked metadata only after the final context has been dropped.
     facts.proof.mathematical_declarations = mathematics.declarations;
+    facts.proof.source_evidence_carriers = mathematics
+        .applications
+        .source_carriers
+        .iter()
+        .map(|(_, carrier)| checked_trees::CheckedSourceEvidenceCarrier {
+            type_identity: carrier.type_identity,
+            ty: carrier.ty,
+            domains: carrier.domains.clone(),
+        })
+        .collect();
+    for (_, theorem) in mathematics.applications.indexed_theorems.iter() {
+        let lost = || {
+            vec![diagnostics::Diagnostic::error(
+                "indexed theorem lost its exact authored contract association",
+            )]
+        };
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == theorem.machine)
+            .ok_or_else(lost)?;
+        let exact_clause = program
+            .machine_contracts(machine)
+            .iter()
+            .filter(|contract| {
+                contract.kind == typed_trees::signature::SignatureContractKind::Ensures
+            })
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
+            .filter_map(|fact| match fact {
+                typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
+                _ => None,
+            })
+            .nth(theorem.ensure_ordinal as usize);
+        if exact_clause != Some(theorem.expression) {
+            return Err(lost());
+        }
+        let entry = program.machine_states(machine).first().ok_or_else(lost)?;
+        let (position, formal) = program
+            .state_parameters(entry)
+            .iter()
+            .enumerate()
+            .find(|(_, formal)| formal.symbol == theorem.evidence_formal)
+            .ok_or_else(lost)?;
+        let type_identity = program.normalized_type_identity(theorem.source_type);
+        if !formal.relevance.is_erased()
+            || program.normalized_type_identity(formal.type_reference) != type_identity
+        {
+            return Err(lost());
+        }
+        facts
+            .proof
+            .indexed_theorems
+            .push(checked_trees::CheckedIndexedTheorem {
+                machine: theorem.machine,
+                expression: theorem.expression,
+                ensure_ordinal: theorem.ensure_ordinal,
+                evidence_source_position: u32::try_from(position).map_err(|_| lost())?,
+                evidence_formal: theorem.evidence_formal,
+                type_identity,
+                term: theorem.theorem,
+                ty: theorem.ty,
+                assumption_closure: theorem.assumption_closure.clone(),
+            });
+    }
+    facts.proof.mathematical_safety_assumptions = mathematics.applications.safety_assumptions;
     facts.proof.mathematical_signature = mathematics.signature;
     let mut checked = CheckedTrees::with_roots(program, facts);
     validation::validate_boundary_calls(&checked)?;

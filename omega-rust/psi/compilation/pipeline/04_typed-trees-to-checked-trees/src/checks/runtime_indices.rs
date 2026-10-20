@@ -591,6 +591,557 @@ impl Scope<'_> {
         }
     }
 
+    /// Whole erased evidence has no runtime storage subject. The source
+    /// producer checked this exact closed term against its complete W application,
+    /// including every constructor payload and recursive child's next index.
+    /// Consume that result only at an erased binding boundary. Recursive
+    /// runtime field checking never turns an isolated child into evidence of
+    /// the enclosing descriptor relationship.
+    fn check_binding(
+        &self,
+        expression: ExpressionHandle,
+        required: Application,
+        erased: bool,
+        expected_proof_identity: Option<typed_trees::type_identity::NormalizedTypeIdentity>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let formal_evidence = erased
+            && validation::mathematical_applications::is_source_evidence_carrier(
+                self.program,
+                required.reference,
+            )
+            && expected_proof_identity.is_some_and(|expected| {
+                self.erased_evidence_reference(expression, 0)
+                    .is_some_and(|actual| {
+                        let payload_owner =
+                            match self.program.expression_table.expression(expression) {
+                                ExpressionNode::Member(_) => {
+                                    validation::declared_case_projection_field(
+                                        self.program,
+                                        self.machine,
+                                        Some(self.state),
+                                        expression,
+                                    )
+                                    .map(|field| self.program.symbols.get(field.symbol).parent)
+                                    .unwrap_or_default()
+                                }
+                                _ => SymbolHandle::invalid(),
+                            };
+                        if !self.stable_proof_indices(actual, payload_owner, 0) {
+                            return false;
+                        }
+                        self.actual_erased_identity(expression, actual)
+                            .is_some_and(|actual| actual.is_valid() && actual == expected)
+                    })
+            });
+        if formal_evidence {
+            return;
+        }
+        let checked_evidence = erased
+            && self.independent_of_substitutions(required.reference, &required.substitutions, 0)
+            && self.program.prepared_mathematics().is_some_and(|view| {
+                view.source_evidence(expression).is_some_and(|evidence| {
+                    evidence.term.is_valid()
+                        && evidence.ty.is_valid()
+                        && view
+                            .applications
+                            .source_carriers
+                            .iter()
+                            .any(|(_, carrier)| {
+                                carrier.domains.is_empty()
+                                    && carrier.type_identity == evidence.type_identity
+                                    && carrier.ty == evidence.ty
+                            })
+                        && evidence.type_identity.is_valid()
+                        && evidence.type_identity
+                            == self.program.normalized_type_identity(evidence.source_type)
+                        && evidence.type_identity
+                            == self.program.normalized_type_identity(required.reference)
+                })
+            });
+        if checked_evidence {
+            return;
+        }
+        self.check(expression, required, diagnostics);
+    }
+
+    /// An open mathematical value is supplied by an exact erased formal,
+    /// including an exact erased payload projection. Its checked source
+    /// carrier, rather than a fabricated closed term, owns the type.
+    fn erased_evidence_reference(
+        &self,
+        expression: ExpressionHandle,
+        depth: usize,
+    ) -> Option<TypeReferenceHandle> {
+        if depth > 128 || !expression.is_valid() {
+            return None;
+        }
+        let reference = validation::expression_result_type_reference(
+            self.program,
+            self.machine,
+            self.state,
+            expression,
+        )?;
+        if !validation::mathematical_applications::is_source_evidence_carrier(
+            self.program,
+            reference,
+        ) {
+            return None;
+        }
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                if path.symbol != path.head_symbol
+                    || self
+                        .program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        != 1
+                {
+                    return None;
+                }
+                let formal = self
+                    .program
+                    .state_parameter_by_symbol(self.state, path.symbol)?;
+                (formal.relevance.is_erased()
+                    && !formal.is_mutable
+                    && formal.type_reference == reference)
+                    .then_some(reference)
+            }
+            ExpressionNode::Member(member) => {
+                self.erased_evidence_reference(member.receiver, depth + 1)?;
+                let field = validation::declared_case_projection_field(
+                    self.program,
+                    self.machine,
+                    Some(self.state),
+                    expression,
+                )?;
+                (field.relevance.is_erased()).then_some(reference)
+            }
+            _ => None,
+        }
+    }
+
+    fn stable_index_symbol(&self, symbol: SymbolHandle, payload_owner: SymbolHandle) -> bool {
+        if !symbol.is_valid() {
+            return true;
+        }
+        if self.program.const_declaration_by_symbol(symbol).is_some() {
+            return true;
+        }
+        if self
+            .program
+            .machine_type_parameters(self.machine)
+            .iter()
+            .any(|parameter| {
+                parameter.symbol == symbol
+                    && match parameter.kind {
+                        TypeParameterKind::Value { type_reference }
+                        | TypeParameterKind::Const { type_reference } => self
+                            .program
+                            .primitive_type_reference(type_reference)
+                            .is_some_and(|primitive| primitive.is_fixed_integer()),
+                        _ => false,
+                    }
+            })
+        {
+            return true;
+        }
+        if let Some(parameter) = self.program.state_parameter_by_symbol(self.state, symbol) {
+            return !parameter.is_mutable
+                && self
+                    .program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some_and(|primitive| primitive.is_fixed_integer());
+        }
+        payload_owner.is_valid()
+            && self.program.symbols.get(symbol).parent == payload_owner
+            && self.program.symbols.get(symbol).kind == symbols::SymbolKind::Field
+    }
+
+    fn stable_proof_indices(
+        &self,
+        reference: TypeReferenceHandle,
+        payload_owner: SymbolHandle,
+        depth: usize,
+    ) -> bool {
+        if depth > 128 || !reference.is_valid() {
+            return false;
+        }
+        let table = &self.program.type_reference_table;
+        match table.type_reference(reference) {
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } => {
+                let Some(data) = self.program.data_definition_by_symbol(*base_symbol) else {
+                    return false;
+                };
+                let parameters = self.program.data_type_parameters(data);
+                let arguments = table.type_reference_handles(*arguments);
+                parameters.len() == arguments.len()
+                    && parameters
+                        .iter()
+                        .zip(arguments)
+                        .all(|(parameter, argument)| {
+                            if matches!(
+                                parameter.kind,
+                                TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
+                            ) {
+                                match table.type_reference(*argument) {
+                                    TypeReferenceNode::Named { symbol, .. } => {
+                                        self.stable_index_symbol(*symbol, payload_owner)
+                                    }
+                                    TypeReferenceNode::ConstExpression(expression) => {
+                                        self.stable_proof_argument(*expression, depth + 1)
+                                    }
+                                    _ => false,
+                                }
+                            } else {
+                                !self.has_indices(*argument, 0)
+                                    || self.stable_proof_indices(
+                                        *argument,
+                                        payload_owner,
+                                        depth + 1,
+                                    )
+                            }
+                        })
+            }
+            TypeReferenceNode::Named { symbol, .. } => self
+                .program
+                .data_definition_by_symbol(*symbol)
+                .and_then(|data| data.generic_instance)
+                .is_some_and(|origin| self.stable_proof_indices(origin, payload_owner, depth + 1)),
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                self.stable_proof_indices(*base_type, payload_owner, depth + 1)
+            }
+            _ => false,
+        }
+    }
+
+    fn stable_proof_argument(&self, expression: ExpressionHandle, depth: usize) -> bool {
+        if depth > 128 || !expression.is_valid() {
+            return false;
+        }
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid() && path.symbol == path.head_symbol =>
+            {
+                self.stable_index_symbol(path.symbol, SymbolHandle::invalid())
+                    || self
+                        .erased_evidence_reference(expression, depth + 1)
+                        .is_some()
+            }
+            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
+            ExpressionNode::Member(member) => {
+                self.erased_evidence_reference(member.receiver, depth + 1)
+                    .is_some()
+                    && validation::declared_case_projection_field(
+                        self.program,
+                        self.machine,
+                        Some(self.state),
+                        expression,
+                    )
+                    .is_some()
+            }
+            _ => false,
+        }
+    }
+
+    fn stable_static_proof_argument(
+        &self,
+        argument: &typed_trees::expression::StaticMachineArgument,
+    ) -> bool {
+        if argument.symbol.is_valid() {
+            return self.stable_index_symbol(argument.symbol, SymbolHandle::invalid());
+        }
+        if argument.const_literal.is_some() {
+            return true;
+        }
+        if argument.type_reference.is_valid() {
+            if let TypeReferenceNode::ConstExpression(expression) = self
+                .program
+                .type_reference_table
+                .type_reference(argument.type_reference)
+            {
+                return self.stable_proof_argument(*expression, 0);
+            }
+        }
+        typed_trees::typed_trees::static_const_argument_spelling(
+            self.program.typed_program(),
+            argument,
+        )
+        .is_some_and(|spelling| {
+            spelling.parse::<i128>().is_ok() || CanonicalConstValue::from_atom(&spelling).is_some()
+        })
+    }
+
+    fn actual_erased_identity(
+        &self,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+    ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
+        use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
+        let ExpressionNode::Member(member) = self.program.expression_table.expression(expression)
+        else {
+            return typed_trees::type_identity::applied_type_identity(
+                self.program,
+                reference,
+                self.machine.symbol,
+                &[],
+            );
+        };
+        let field = validation::declared_case_projection_field(
+            self.program,
+            self.machine,
+            Some(self.state),
+            expression,
+        )?;
+        let case_symbol = self.program.symbols.get(field.symbol).parent;
+        let data_symbol = self.program.symbols.get(case_symbol).parent;
+        let data = self.program.data_definition_by_symbol(data_symbol)?;
+        let case = self
+            .program
+            .data_members(data)
+            .iter()
+            .filter_map(|member| member.as_variant())
+            .find(|case| case.symbol == case_symbol)?;
+        let fields = self
+            .program
+            .data_payload_fields(case)
+            .iter()
+            .map(|field| {
+                (
+                    field.symbol,
+                    IndexIdentityArgument::FieldProjection {
+                        receiver: member.receiver,
+                        field: field.symbol,
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        let receiver_type = self.erased_evidence_reference(member.receiver, 0)?;
+        let table = &self.program.type_reference_table;
+        let receiver_type = table.peeled_type_reference(receiver_type);
+        let receiver_type = match table.type_reference(receiver_type) {
+            TypeReferenceNode::Named { symbol, .. } => self
+                .program
+                .data_definition_by_symbol(*symbol)
+                .and_then(|data| data.generic_instance)
+                .unwrap_or(receiver_type),
+            _ => receiver_type,
+        };
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = table.type_reference(receiver_type)
+        else {
+            return None;
+        };
+        if *base_symbol != data.symbol {
+            return None;
+        }
+        let arguments = table.type_reference_handles(*arguments);
+        let parameters = self.program.data_type_parameters(data);
+        if parameters.len() != arguments.len() {
+            return None;
+        }
+        let indices = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| {
+                (
+                    parameter.symbol,
+                    if matches!(parameter.kind, TypeParameterKind::Type) {
+                        IndexIdentityArgument::TypeArgument(*argument)
+                    } else {
+                        IndexIdentityArgument::TypeReference(*argument)
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        typed_trees::type_identity::applied_type_identity_in_scope(
+            self.program,
+            reference,
+            data.symbol,
+            self.machine.symbol,
+            &[
+                AppliedTypeIdentityScope {
+                    declaration: data.symbol,
+                    arguments: &indices,
+                    lifetimes: &[],
+                },
+                AppliedTypeIdentityScope {
+                    declaration: case.symbol,
+                    arguments: &fields,
+                    lifetimes: &[],
+                },
+            ],
+        )
+        .filter(|identity| identity.is_valid())
+    }
+
+    fn expected_erased_identity(
+        &self,
+        mut reference: TypeReferenceHandle,
+        target: SymbolHandle,
+        site: &validation::CallSite<'_>,
+        parameters: &[typed_trees::signature::StateParameter],
+        arguments: &[ExpressionHandle],
+        position: usize,
+    ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
+        use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
+        if parameters.len() != arguments.len()
+            || !arguments
+                .iter()
+                .all(|argument| self.stable_proof_argument(*argument, 0))
+        {
+            return None;
+        }
+        let callee = self
+            .program
+            .machine_by_symbol(target)
+            .or_else(|| self.program.machine_holding_state(target))?;
+        let (application, explicit) = match site {
+            validation::CallSite::Statement(call) => (
+                call.authored_machine_application,
+                call.machine_arguments.as_ref(),
+            ),
+            validation::CallSite::Expression { call, .. } => (
+                call.authored_machine_application,
+                call.machine_arguments.as_ref(),
+            ),
+            validation::CallSite::TransitionNamed { .. } => (Default::default(), &[][..]),
+        };
+        let mut owner = callee.symbol;
+        let mut source_parameters_override = None;
+        let mut static_parameters = self.program.machine_type_parameters(callee);
+        let mut static_arguments = explicit;
+        if application.is_valid() {
+            let row = self
+                .program
+                .expression_table
+                .static_machine_application(application);
+            let source = self
+                .program
+                .machine_by_symbol(row.registration_operation)
+                .or_else(|| {
+                    self.program
+                        .machine_holding_state(row.registration_operation)
+                })?;
+            let entry = self.program.machine_states(source).first()?;
+            let source_parameters = self.program.state_parameters(entry);
+            if source_parameters.len() != parameters.len()
+                || !source_parameters.get(position)?.relevance.is_erased()
+            {
+                return None;
+            }
+            // The authored proof signature keeps the original telescope even
+            // when executable specialization closes another entry's indices.
+            reference = source_parameters[position].type_reference;
+            source_parameters_override = Some(source_parameters);
+            owner = source.symbol;
+            static_parameters = self.program.machine_type_parameters(source);
+            static_arguments = self
+                .program
+                .expression_table
+                .static_machine_application_arguments(application);
+        }
+        let parameters = source_parameters_override.unwrap_or(parameters);
+        if !validation::mathematical_applications::is_source_evidence_carrier(
+            self.program,
+            reference,
+        ) {
+            return None;
+        }
+        if static_parameters.len() != static_arguments.len() && !static_arguments.is_empty() {
+            return None;
+        }
+        let mut substitutions = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(formal, actual)| (formal.symbol, IndexIdentityArgument::Expression(*actual)))
+            .collect::<Vec<_>>();
+        for (formal, actual) in static_parameters.iter().zip(static_arguments) {
+            let value_role = matches!(
+                formal.kind,
+                TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
+            );
+            if value_role && !self.stable_static_proof_argument(actual) {
+                return None;
+            }
+            let argument = if value_role && actual.type_reference.is_valid() {
+                IndexIdentityArgument::TypeReference(actual.type_reference)
+            } else if value_role && actual.symbol.is_valid() {
+                IndexIdentityArgument::Subject(actual.symbol)
+            } else if matches!(formal.kind, TypeParameterKind::Type)
+                && actual.type_reference.is_valid()
+            {
+                IndexIdentityArgument::TypeArgument(actual.type_reference)
+            } else {
+                IndexIdentityArgument::StaticArgument(actual)
+            };
+            substitutions.push((formal.symbol, argument));
+        }
+        typed_trees::type_identity::applied_type_identity_in_scope(
+            self.program,
+            reference,
+            owner,
+            self.machine.symbol,
+            &[AppliedTypeIdentityScope {
+                declaration: owner,
+                arguments: &substitutions,
+                lifetimes: &[],
+            }],
+        )
+        .filter(|identity| identity.is_valid())
+    }
+
+    /// An equal unspecialized spelling does not prove a dependent call's
+    /// actual index. If a receiving index mentions a substituted state formal,
+    /// retain the ordinary subject comparison. Closed and generic-static
+    /// indices do not depend on those runtime substitutions.
+    fn independent_of_substitutions(
+        &self,
+        reference: TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, Option<ScopedArithmeticValue>)],
+        depth: usize,
+    ) -> bool {
+        if substitutions.is_empty() {
+            return true;
+        }
+        if !reference.is_valid() || depth > 128 {
+            return false;
+        }
+        match self.program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Generic { arguments, .. } => self
+                .program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .all(|argument| {
+                    self.independent_of_substitutions(*argument, substitutions, depth + 1)
+                }),
+            TypeReferenceNode::Named { symbol, .. } => {
+                !substitutions
+                    .iter()
+                    .any(|(parameter, _)| parameter == symbol)
+                    && self
+                        .program
+                        .data_definition_by_symbol(*symbol)
+                        .and_then(|data| data.generic_instance)
+                        .is_none_or(|origin| {
+                            self.independent_of_substitutions(origin, substitutions, depth + 1)
+                        })
+            }
+            // Complex dependent receiving domains keep the existing checked
+            // subject comparison rather than borrowing the root's annotation.
+            _ => false,
+        }
+    }
+
     fn check(
         &self,
         expression: ExpressionHandle,
@@ -812,13 +1363,15 @@ pub(super) fn check(
                 );
             }
             match node {
-                StatementNode::LocalData(local) => scope.check(
+                StatementNode::LocalData(local) => scope.check_binding(
                     local.initial_value,
                     Application {
                         reference: local.type_reference,
                         formation: statement,
                         substitutions: Vec::new(),
                     },
+                    local.relevance.is_erased(),
+                    None,
                     diagnostics,
                 ),
                 StatementNode::Expression(expression) if state.return_type.is_valid() => scope
@@ -885,14 +1438,33 @@ pub(super) fn check(
                 frames,
             };
             let substitutions = scope.argument_substitutions(parameters, &arguments);
-            for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
-                scope.check(
+            for (position, (parameter, argument)) in
+                parameters.iter().zip(arguments.iter()).enumerate()
+            {
+                scope.check_binding(
                     *argument,
                     Application {
                         reference: parameter.type_reference,
                         formation: call.statement_index,
                         substitutions: substitutions.clone(),
                     },
+                    parameter.relevance.is_erased(),
+                    (parameter.relevance.is_erased()
+                        && validation::mathematical_applications::is_source_evidence_carrier(
+                            program,
+                            parameter.type_reference,
+                        ))
+                    .then(|| {
+                        scope.expected_erased_identity(
+                            parameter.type_reference,
+                            call.target_symbol,
+                            &site,
+                            parameters,
+                            &arguments,
+                            position,
+                        )
+                    })
+                    .flatten(),
                     diagnostics,
                 );
             }

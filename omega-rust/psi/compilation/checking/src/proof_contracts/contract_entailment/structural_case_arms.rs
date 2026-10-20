@@ -846,6 +846,10 @@ fn recognize_structural_state_leaves_from<'a>(
                             definition,
                             variant,
                             &constructor,
+                            subject_type,
+                            machine,
+                            state,
+                            &environment,
                         );
                     }
                     match subject {

@@ -479,16 +479,39 @@ kernel's guarantee ends at the checked declaration graph.
 | Level scope, parametric checking, declaration discipline, closure | `levels_and_declarations.rs` (17 tests) |
 | Indexed + quotient schemes checked as signatures, applications, boundaries | `schemes_and_quotients/` |
 | Acceptance families: vector length, mutual, nested, derivation context/conclusion, level polymorphism | `tests/indexed_{vector,mutual,nested,derivation,levels}.rs` — each pins constructor computation on neutral children, rejection controls, exact closures and measured receipts |
+| Source-produced scalar-indexed vector fragment | `samples/cli/facts/source_indexed_family` and `tests/omega/{pass,fail}/facts/source_indexed_family*`: exact closed constructor fibers and payloads, generic erased call/result transport, source W induction and a bounded executing consumer. With integrated producer 11 and receiver runner 14 (format 174, vocabulary 130) on Linux x86_64, the focused production/receiver-control run completed in 47.237s with native/Terminal exit 0; exact source-signature matching, all eight actual-argument/root/missing-law controls passed their assertions. Four Vector positives ran native/interpreter exit 0, and the affected runtime Value fixture agreed at exit 17. |
 | Bounded rule families | `tests/{equality_symmetry,predicate_conversion,predicate_denotation,value_equality_transport,integer_order_weakening}.rs` |
 | Canonical wire: byte-identical re-encode, independent re-verification, closure through the wire | `terminal-codec` tests `mathematical_certificate`, `theorem_certificate`, `bounded_certificate` |
+| Source vector storage and receiving cost | Producer arena: 6,839,578 slots including scratch, not a compact term count. Canonical artifact: 740,824 bytes (740,695 semantic); 81 declarations, two roots, two carriers and one actual argument. Root certificates: 12,522/12,575 bytes; decoded arenas: 1,206/1,211 slots; closures: 17/14. Root verification: 45,042 steps, 321.987ms; actual-argument verification: 45,109 steps, 231.921ms; decode: 5.495ms. The default 65,536-step budget is unchanged. |
 | Measured cost examples | derivation `next` family checking: 28_946 budgeted steps; a derivation certificate: 4_794 steps with 278_515 retained arena slots (`indexed_derivation.rs`) |
+
+The affected ordinary constant-recursion canary ran native/interpreter exit 70
+in 31.908s after repairing a body-completion reset of pending ordinary-ranking
+evidence using exact resolved source builtin identities. Its strict gate reports
+a slowdown against the historical 9.085s row; this remains a performance
+observation, separate from semantic acceptance. The six-program capture took 162.875s wall time and retained twelve files
+totaling 4,519,223 bytes.
+
+The source vector evidence above covers all-Value scalar indices, closed
+construction and zero or one direct erased recursive child. Exact source
+carrier, binder and capture identities remain elaboration obligations, and
+source-only recursive citations require independently checked positive
+termination before erasure. This does not establish source derivation,
+mutual/nested or multiple-child families, type/level indices, open constructor
+production, or physical recursive-frame evidence. The stronger Rust-built
+scheme tests remain separate from source delivery.
 
 ## Trust boundary and explicit non-claims
 
 Trusted code is the kernel proper: `term.rs`, `substitution.rs`,
-`typing.rs`, `conversion.rs`, `signature.rs`, `certificate.rs`. The schemes,
-theorems and bounded denotation are *data* the kernel re-decides; a defect
-in them surfaces as an ordinary rejection, not a false judgment.
+`typing.rs`, `conversion.rs`, `signature.rs`, `certificate.rs` and
+`certificate/batch.rs`. The batch importer, exact syntax interner and reuse of
+successfully checked complete ordered signatures are trusted checking code.
+Batch checking imports into one owned arena and rechecks every context and
+judgment under one total budget; numeric handles never establish cross-arena
+identity. The schemes, theorems and bounded denotation are *data* the kernel
+re-decides; a defect in them surfaces as an ordinary rejection, not a false
+judgment.
 
 The reference core's strict layer is implemented: `sEmpty` with ex
 falso into either sort, `Squash`/`sq`/`unsq` (existence without witness

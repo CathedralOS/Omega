@@ -208,6 +208,14 @@ impl<'a> Elaborator<'a> {
                                 "applying mathematical declaration `{base_name}` as a carrier is a later leg"
                             )));
                         }
+                        if base_symbol.is_valid()
+                            && self
+                                .program
+                                .unique_data_definition_by_symbol(base_symbol)
+                                .is_some()
+                        {
+                            return self.indexed_application(base_symbol, &arguments);
+                        }
                         Err(self.refuse(format!(
                             "applied carrier `{base_name}` has no kernel denotation yet"
                         )))

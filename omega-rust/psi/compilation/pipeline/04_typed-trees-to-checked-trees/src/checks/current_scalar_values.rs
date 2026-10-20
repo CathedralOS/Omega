@@ -103,7 +103,7 @@ impl<'program> CurrentScalarValues<'program> {
         target: TransitionTargetHandle,
         frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Option<Self> {
-        let initial = program
+        let mut initial = program
             .state_parameters(state)
             .iter()
             .filter_map(|parameter| {
@@ -121,6 +121,35 @@ impl<'program> CurrentScalarValues<'program> {
                 })
             })
             .collect::<Vec<_>>();
+        // Machine Value/Const binders are immutable invocation coordinates.
+        // Their exact symbols survive every subordinate state's scope; a
+        // same-spelled state formal is a different captured value.
+        initial.extend(
+            program
+                .machine_type_parameters(machine)
+                .iter()
+                .filter_map(|parameter| {
+                    let reference = match parameter.kind {
+                        typed_trees::data::TypeParameterKind::Value { type_reference }
+                        | typed_trees::data::TypeParameterKind::Const { type_reference } => {
+                            type_reference
+                        }
+                        _ => return None,
+                    };
+                    let primitive = integer_carrier(program, reference)?;
+                    Some(Binding {
+                        symbol: parameter.symbol,
+                        name: parameter.name.to_string(),
+                        value: Some(ScopedArithmeticValue::Atom {
+                            identity: format!(
+                                "machine:{:?}:value:{:?}",
+                                machine.symbol, parameter.symbol
+                            ),
+                            unsigned: unsigned(primitive),
+                        }),
+                    })
+                }),
+        );
         let lengths = program
             .state_parameters(state)
             .iter()

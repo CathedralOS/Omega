@@ -117,7 +117,11 @@ pub(crate) fn erased_scalar_parameter_plans(
         .enumerate()
         .filter(|(_, parameter)| parameter.relevance.is_erased())
         .filter(|(_, parameter)| {
-            !proof_only.contract_term_carrier(program, parameter.type_reference)
+            !(proof_only.contract_term_carrier(program, parameter.type_reference)
+                || validation::mathematical_applications::is_source_evidence_carrier(
+                    program,
+                    parameter.type_reference,
+                ))
         })
         .map(|(position, parameter)| {
             Some(checked_trees::CheckedStructuralScalarParameterPlan {
@@ -152,13 +156,27 @@ pub(crate) fn erased_proof_parameter_plans(
         .enumerate()
         .filter(|(_, parameter)| parameter.relevance.is_erased())
         .filter(|(_, parameter)| {
-            proof_only.contract_term_carrier(program, parameter.type_reference)
+            (proof_only.contract_term_carrier(program, parameter.type_reference)
+                || validation::mathematical_applications::is_source_evidence_carrier(
+                    program,
+                    parameter.type_reference,
+                ))
         })
         .map(|(position, parameter)| {
             Some(checked_trees::CheckedErasedProofParameterPlan {
                 source_position: u32::try_from(position).ok()?,
                 parameter_symbol: parameter.symbol,
-                type_identity: base_type_identity(program, parameter.type_reference, &[], &[])?,
+                // Storage identity may erase layout-independent Value indices
+                // to Unit. Evidence names its full semantic carrier, derived
+                // from this checked formal rather than a caller's proof bytes.
+                type_identity: if validation::mathematical_applications::is_source_evidence_carrier(
+                    program,
+                    parameter.type_reference,
+                ) {
+                    program.normalized_type_identity(parameter.type_reference)
+                } else {
+                    base_type_identity(program, parameter.type_reference, &[], &[])?
+                },
             })
         })
         .collect()

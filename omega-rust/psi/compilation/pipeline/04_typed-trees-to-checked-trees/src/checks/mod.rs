@@ -113,6 +113,21 @@ pub(crate) fn check_checked_facts_recording(
         proven_machine_contracts,
     );
 
+    if let Some(mathematics) = program.prepared_mathematics() {
+        for (_, theorem) in mathematics.applications.indexed_theorems.iter() {
+            if program
+                .machine_by_symbol(theorem.machine)
+                .is_some_and(|machine| {
+                    validation::mathematical_applications::is_indexed_logical_machine(
+                        program, machine,
+                    )
+                })
+            {
+                entailment.record_proved_normal_return(facts, theorem.machine, theorem.expression);
+            }
+        }
+    }
+
     if let Err(mut evidence_diagnostics) = contracts::bind_call_evidence_arguments(program, facts) {
         diagnostics.append(&mut evidence_diagnostics);
     }
@@ -222,6 +237,12 @@ pub(crate) fn check_checked_facts_recording(
         termination::check_machine_termination(&facts.termination.rank_arrivals)
     {
         diagnostics.append(&mut termination_diagnostics);
+    }
+
+    if let Err(mut totality_diagnostics) =
+        termination::check_indexed_logical_totality(program, &facts.termination)
+    {
+        diagnostics.append(&mut totality_diagnostics);
     }
 
     if diagnostics.is_empty() {

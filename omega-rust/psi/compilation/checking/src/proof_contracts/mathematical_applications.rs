@@ -4,12 +4,15 @@
 //! never an executable machine, a runtime result occurrence or a purity claim.
 
 mod expressions;
-pub use expressions::{definition_roots, expression_nodes};
+pub use expressions::{definition_roots, erased_initializer_nodes, expression_nodes};
+mod logical_bodies;
+pub use logical_bodies::{indexed_contract_is_proved, is_indexed_logical_machine};
 mod prepared;
 pub(crate) use prepared::application_spine;
 pub use prepared::{
     PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
-    PreparedMathematicalApplications, PreparedMathematicalView, integer_embedding_meaning,
+    PreparedIndexedTheorem, PreparedMathematicalApplications, PreparedMathematicalView,
+    PreparedSourceCarrier, PreparedSourceEvidence, integer_embedding_meaning,
 };
 
 use symbols::SymbolHandle;
@@ -152,4 +155,20 @@ pub fn source_operations_have_same_meaning(
         left,
         right,
     )
+}
+
+/// The mathematical producer retains formation of source indexed carriers
+/// under their exact value telescope. Erasure may carry those checked terms
+/// even when no closed runtime layout exists. This does not classify the data
+/// or its containing machine as proof-only.
+pub fn is_source_evidence_carrier(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    program.prepared_mathematics().is_some_and(|view| {
+        view.source_carrier(reference).is_some_and(|carrier| {
+            carrier.type_identity.is_valid()
+                && carrier.type_identity == program.normalized_type_identity(reference)
+        })
+    })
 }

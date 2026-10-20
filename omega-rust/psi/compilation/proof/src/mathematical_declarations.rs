@@ -14,8 +14,8 @@ use fixed_core_vocabulary::{FixedCore, FixedCoreVocabulary};
 use mathematical_signature::check_mathematical_signature;
 
 /// Checked declaration records and their associated kernel signature.
-/// The signature is absent exactly when the program has no mathematical
-/// declarations; consumers never publish one half without the other.
+/// The signature is absent when neither mathematical declarations nor source
+/// evidence demand it. Consumers retain source evidence with its signature.
 #[derive(Default)]
 pub struct CheckedMathematics {
     pub declarations: Vec<checked_trees::CheckedMathematicalDeclaration>,
@@ -29,7 +29,9 @@ pub struct CheckedMathematics {
 pub fn check_mathematical_declarations(
     program: &dyn validation::CheckingInput,
 ) -> Result<CheckedMathematics, Vec<diagnostics::Diagnostic>> {
-    if program.mathematical_definitions().is_empty() {
+    if program.mathematical_definitions().is_empty()
+        && !mathematical_signature::has_source_evidence_demand(program)
+    {
         return Ok(CheckedMathematics::default());
     }
     let declarations = build_checked_mathematical_declarations(program)?;
@@ -48,6 +50,7 @@ impl CheckedMathematics {
         Some(
             validation::mathematical_applications::PreparedMathematicalView {
                 arena: &self.signature.as_ref()?.arena,
+                declarations: &self.signature.as_ref()?.declarations,
                 applications: &self.applications,
             },
         )

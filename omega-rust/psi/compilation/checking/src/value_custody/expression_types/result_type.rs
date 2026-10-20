@@ -832,6 +832,23 @@ fn binary_result(
     operands: [Option<TypeReferenceHandle>; 2],
 ) -> Option<TypeReferenceHandle> {
     use BinaryOperator::*;
+    // Lowered source membership can retain Equal plus its exact case-selection
+    // roster. Rejoin the tag operation before ordinary equality selection, as
+    // the meaning checker does, preserving the actual subject's state scope.
+    if let ExpressionOwner::State { machine, state } = owner
+        && crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+            program,
+            machine,
+            Some(state),
+            expression,
+            binary,
+        )
+    {
+        return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+            program,
+            BuiltinTypeAtom::Bool,
+        );
+    }
     let spelling = match binary.operator {
         Add => Some(OperatorSpelling::Add),
         Subtract => Some(OperatorSpelling::Subtract),
@@ -912,22 +929,9 @@ fn binary_result(
         }
     }
     match binary.operator {
-        CaseMembership => {
-            let builtin = match owner {
-                ExpressionOwner::State { machine, .. } =>
-                    crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
-                        program, machine, None, expression, binary),
-                ExpressionOwner::Declaration { .. } | ExpressionOwner::Domain(_) => false,
-            };
-            builtin
-                .then(|| {
-                    crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                        program,
-                        BuiltinTypeAtom::Bool,
-                    )
-                })
-                .flatten()
-        }
+        // Exact membership was handled above; an unjoined tag reference
+        // cannot acquire a Bool carrier from its operator spelling alone.
+        CaseMembership => None,
         And | Or => operands
             .into_iter()
             .all(|reference| {

@@ -17,6 +17,7 @@ const PROOF_TERM_CONSTRUCTION: u8 = 1;
 const PROOF_TERM_FORMAL: u8 = 2;
 const PROOF_TERM_SCALAR: u8 = 3;
 const PROOF_TERM_ARRAY: u8 = 4;
+const PROOF_TERM_MATHEMATICAL: u8 = 5;
 
 pub(crate) fn encode_proof_terms(
     writer: &mut Writer,
@@ -38,6 +39,15 @@ fn encode_proof_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     match term {
+        ProofTerm::Mathematical {
+            type_identity,
+            certificate,
+        } => {
+            writer.u8(PROOF_TERM_MATHEMATICAL);
+            writer.string("proof term type identity", type_identity)?;
+            writer.len("mathematical proof certificate", certificate.len())?;
+            writer.bytes(certificate);
+        }
         ProofTerm::Construction {
             type_identity,
             case_identity,
@@ -100,6 +110,18 @@ fn decode_proof_term(reader: &mut Reader<'_>, depth: usize) -> Result<ProofTerm,
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     match reader.u8()? {
+        PROOF_TERM_MATHEMATICAL => {
+            let type_identity = reader.string("proof term type identity")?;
+            let length = usize::try_from(reader.count()?).expect("u32 fits usize");
+            let certificate = reader.take(length)?.to_vec();
+            super::mathematical_certificate_wire::decode_mathematical_certificate(&certificate)?;
+            let term = ProofTerm::Mathematical {
+                type_identity,
+                certificate,
+            };
+            term.validate().map_err(CodecError::MalformedProposition)?;
+            Ok(term)
+        }
         PROOF_TERM_CONSTRUCTION => {
             let type_identity = reader.string("proof term type identity")?;
             let case_identity = if reader.boolean()? {
@@ -183,4 +205,63 @@ pub(crate) fn decode_proof_formals(
         });
     }
     Ok(formals)
+}
+
+#[cfg(test)]
+mod mathematical_tests {
+    use super::*;
+    use proof_admission::{Declaration, MathematicalCertificate, Term, TermArena};
+
+    #[test]
+    fn mathematical_actual_round_trips_complete_signature_and_rejects_wire_changes() {
+        let mut arena = TermArena::new();
+        let two = arena.insert(Term::Two);
+        let zero = arena.insert(Term::TwoZero);
+        let declaration = Declaration::assumption(0, two);
+        let subject = arena.insert(Term::Constant {
+            declaration: 0,
+            levels: vec![],
+        });
+        let certificate = MathematicalCertificate {
+            signature: vec![declaration],
+            level_arity: 0,
+            context: vec![],
+            term: subject,
+            expected: two,
+        };
+        let bytes = super::super::mathematical_certificate_wire::encode_mathematical_certificate(
+            &arena,
+            &certificate,
+        )
+        .unwrap();
+        let term = ProofTerm::Mathematical {
+            type_identity: "Example<0>".into(),
+            certificate: bytes,
+        };
+        let mut writer = Writer::default();
+        encode_proof_terms(&mut writer, std::slice::from_ref(&term)).unwrap();
+        let encoded = writer.finish();
+        let mut reader = Reader::new(&encoded);
+        assert_eq!(decode_proof_terms(&mut reader).unwrap(), vec![term]);
+        assert_eq!(reader.remaining(), 0);
+
+        let mut changed = encoded.clone();
+        changed.pop();
+        assert!(decode_proof_terms(&mut Reader::new(&changed)).is_err());
+        let empty = ProofTerm::Mathematical {
+            type_identity: String::new(),
+            certificate:
+                super::super::mathematical_certificate_wire::encode_mathematical_certificate(
+                    &arena,
+                    &MathematicalCertificate {
+                        term: zero,
+                        ..certificate
+                    },
+                )
+                .unwrap(),
+        };
+        let mut writer = Writer::default();
+        encode_proof_terms(&mut writer, &[empty]).unwrap();
+        assert!(decode_proof_terms(&mut Reader::new(&writer.finish())).is_err());
+    }
 }

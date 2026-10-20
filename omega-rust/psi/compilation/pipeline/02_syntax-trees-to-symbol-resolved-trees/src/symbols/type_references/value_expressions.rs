@@ -166,72 +166,8 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                 child(value);
             }
             if let FixedArrayLength::ConstParameter { symbol, name } = &mut array.length {
-                // Type syntax retains the complete occurrence span, not
-                // individual token spans. Preserve that source authority for
-                // each segment rather than inventing offsets across whitespace.
-                let members = name
-                    .as_str()
-                    .split("::")
-                    .map(|member| {
-                        symbol_resolved_trees::name::DiagnosticName::from_str(
-                            member,
-                            name.source_span(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let Some((head_name, suffix)) = members.split_first() else {
-                    return;
-                };
-                let lexical = crate::symbols::expressions::lexical_value_head(
-                    machine,
-                    parameters,
-                    head_name.as_str(),
-                    !suffix.is_empty(),
-                );
-                let lexical = if lexical.is_valid() {
-                    lexical
-                } else {
-                    machine
-                        .type_parameters
-                        .iter()
-                        .find(|parameter| parameter.name.as_str() == head_name.as_str())
-                        .map(|parameter| parameter.symbol)
-                        .unwrap_or_else(SymbolHandle::invalid)
-                };
-                if lexical.is_valid() {
-                    *symbol = crate::symbols::scoped_paths::resolve_path_members_from_head(
-                        symbols, lexical, suffix,
-                    )
-                    .last()
-                    .copied()
-                    .unwrap_or_else(SymbolHandle::invalid);
-                } else {
-                    let (head, selected) =
-                        crate::symbols::scoped_paths::resolve_state_scoped_members(
-                            symbols,
-                            machine.symbol,
-                            SymbolHandle::invalid(),
-                            std::slice::from_ref(head_name),
-                        );
-                    if suffix.is_empty() {
-                        *symbol = selected;
-                    } else if head.is_valid()
-                        && !matches!(
-                            symbols.get(head).kind,
-                            SymbolKind::Module
-                                | SymbolKind::Data
-                                | SymbolKind::Machine
-                                | SymbolKind::Trait
-                                | SymbolKind::BuiltinType
-                        )
-                    {
-                        *symbol = crate::symbols::scoped_paths::resolve_path_members_from_head(
-                            symbols, head, suffix,
-                        )
-                        .last()
-                        .copied()
-                        .unwrap_or_else(SymbolHandle::invalid);
-                    }
+                if let Some(selected) = resolve_index_subject(symbols, machine, parameters, name) {
+                    *symbol = selected;
                 }
             }
         }
@@ -263,14 +199,10 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                     }
                     if let TypeReference::Named { symbol, name, .. } = child_types.get_mut(argument)
                     {
-                        let lexical = crate::symbols::expressions::lexical_value_head(
-                            machine,
-                            parameters,
-                            name.as_str(),
-                            false,
-                        );
-                        if lexical.is_valid() {
-                            *symbol = lexical;
+                        if let Some(selected) =
+                            resolve_index_subject(symbols, machine, parameters, name)
+                        {
+                            *symbol = selected;
                         }
                     }
                 }
@@ -391,4 +323,89 @@ pub(in crate::symbols) fn reassign_type_reference_symbols(
         &mut type_reference,
     );
     *child_types.get_mut(handle) = type_reference;
+}
+
+/// Type-bound indices use the declaration's value scope. Active payload
+/// binders precede enclosing generic names. A common descriptor synthesized
+/// from a value binder keeps that binder identity for application substitution;
+/// ordinary common fields still resolve through declaration lookup. Machine
+/// parameters and preceding locals retain their normal frontier. Namespace-headed paths
+/// keep the declaration identity already selected by ordinary type resolution.
+fn resolve_index_subject(
+    symbols: &SymbolTable,
+    machine: &MachineScope<'_>,
+    parameters: &[StateParameter],
+    name: &symbol_resolved_trees::name::DiagnosticName,
+) -> Option<SymbolHandle> {
+    // The type occurrence owns one span, so every path segment retains that
+    // span rather than manufacturing source offsets across whitespace.
+    let members = name
+        .as_str()
+        .split("::")
+        .map(|member| {
+            symbol_resolved_trees::name::DiagnosticName::from_str(member, name.source_span())
+        })
+        .collect::<Vec<_>>();
+    let Some((head_name, suffix)) = members.split_first() else {
+        return None;
+    };
+    let (_, declared) = crate::symbols::scoped_paths::resolve_state_scoped_members(
+        symbols,
+        machine.symbol,
+        SymbolHandle::invalid(),
+        std::slice::from_ref(head_name),
+    );
+    let payload_subject = symbols.get(machine.symbol).kind == SymbolKind::Variant
+        && declared.is_valid()
+        && symbols.get(declared).kind == SymbolKind::Field
+        && symbols.get(declared).parent == machine.symbol;
+    let lexical = if payload_subject {
+        declared
+    } else {
+        let frontier = crate::symbols::expressions::lexical_value_head(
+            machine,
+            parameters,
+            head_name.as_str(),
+            !suffix.is_empty(),
+        );
+        if frontier.is_valid() {
+            frontier
+        } else {
+            machine
+                .type_parameters
+                .iter()
+                .find(|parameter| parameter.name.as_str() == head_name.as_str())
+                .map(|parameter| parameter.symbol)
+                .unwrap_or_else(SymbolHandle::invalid)
+        }
+    };
+    if lexical.is_valid() {
+        return Some(
+            crate::symbols::scoped_paths::resolve_path_members_from_head(symbols, lexical, suffix)
+                .last()
+                .copied()
+                .unwrap_or_else(SymbolHandle::invalid),
+        );
+    }
+    if suffix.is_empty() {
+        return Some(declared);
+    }
+    if declared.is_valid()
+        && !matches!(
+            symbols.get(declared).kind,
+            SymbolKind::Module
+                | SymbolKind::Data
+                | SymbolKind::Machine
+                | SymbolKind::Trait
+                | SymbolKind::BuiltinType
+        )
+    {
+        return Some(
+            crate::symbols::scoped_paths::resolve_path_members_from_head(symbols, declared, suffix)
+                .last()
+                .copied()
+                .unwrap_or_else(SymbolHandle::invalid),
+        );
+    }
+    None
 }

@@ -4403,13 +4403,18 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     transport derivations under `bounded_denotation/`. Fixed arithmetic laws
     and construction-budget fallbacks stay explicit assumptions; a judgment
     assuming its conclusion is not a proof.
-  - Check source-produced indexed applications against exact parameters,
-    indices, payloads, case constraints and recursive uses. The `indexed_scheme`
-    declarations in `mathematical_core/indexed.rs` are exercised only by
-    Rust-built terms. Cover the profile's vector, derivation, mutual and nested
-    families; distinguish negative recursion, unsupported valid encoding and
-    malformed source. Add only kernel support source integration requires,
-    without a parallel indexed checker or untyped eta.
+  - Extend source-produced indexed applications beyond the direct all-Value
+    scalar-indexed vector fragment. `samples/cli/facts/source_indexed_family`
+    now constructs closed exact-index evidence, forwards it through an erased
+    generic call/result, checks source induction and bounds an executing
+    consumer. Construction supports zero or one direct erased recursive child.
+    Derivation, mutual/nested and multiple-child families, type/level indices
+    and open constructor production remain. Preserve exact parameters,
+    indices, payloads, case constraints and recursive uses; distinguish negative
+    recursion, unsupported valid encoding and malformed source. Existing
+    Rust-built coverage of the stronger schemes is separate evidence. Add only
+    kernel support source integration requires, without a parallel indexed
+    checker or untyped eta.
 
   Acceptance: the [migration examples](wiki/spec/proofs/foundation.md#migration-acceptance)
   check from Omega source: universe-polymorphic arbitrary predicates,
@@ -4431,6 +4436,13 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `source/library/core/`; use **PROOF-KERNEL-CORE**'s terms. Start from stage
   04's `proof/mathematical_signature/` (prefix applications, explicit generic
   arguments, bounded universe inference).
+  The direct scalar-indexed vector source integration is implemented through
+  exact constructor/induction evidence and erased theorem citations, including
+  positive checked termination before erasure; see the
+  [source witness](samples/cli/facts/source_indexed_family/README.md). This
+  subtracts that fragment only; the general mathematics and delivery controls
+  below remain open.
+
   - Complete body denotation and applied carriers, including mathematical
     member-call resolution and non-integer ordering, keeping interpreted
     operations distinct from opaque carrier assumptions. Resolve non-type

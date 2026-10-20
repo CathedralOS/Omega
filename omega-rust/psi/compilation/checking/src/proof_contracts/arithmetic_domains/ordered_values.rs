@@ -72,7 +72,9 @@ pub(super) enum Operand {
     },
     Binary {
         operator: BinaryOperator,
-        primitive: PrimitiveType,
+        /// None denotes selected unbounded proof Int arithmetic. It supplies
+        /// no finite carrier bound; executable arithmetic retains its carrier.
+        primitive: Option<PrimitiveType>,
         domain: ArithmeticDomain,
         operands: Vec<Operand>,
     },
@@ -162,6 +164,33 @@ impl Operand {
                         let local = statement.as_local_data()?;
                         (local.symbol == *root).then_some((!local.is_mutable, local.type_reference))
                     });
+                let static_value =
+                    program
+                        .machine_holding_state(state.symbol)
+                        .is_some_and(|machine| {
+                            program
+                                .machine_type_parameters(machine)
+                                .iter()
+                                .any(|parameter| {
+                                    parameter.symbol == *root
+                                        && match parameter.kind {
+                                            typed_trees::data::TypeParameterKind::Value {
+                                                type_reference,
+                                            }
+                                            | typed_trees::data::TypeParameterKind::Const {
+                                                type_reference,
+                                            } => program
+                                                .primitive_type_reference(type_reference)
+                                                .is_some_and(|primitive| {
+                                                    primitive.is_fixed_integer()
+                                                }),
+                                            _ => false,
+                                        }
+                                })
+                        });
+                if static_value {
+                    return true;
+                }
                 let mut declarations = parameters.chain(locals);
                 declarations.next().is_some_and(|(immutable, reference)| {
                     immutable && program.primitive_type_reference(reference).is_some()
@@ -463,6 +492,9 @@ fn build_operand(
             frames,
         )?)));
     }
+    if let Some((_, source)) = crate::integer_embedding_argument(program, expression) {
+        return build_operand(program, machine, state, source, depth + 1, frames);
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) => {
             build_operand(program, machine, state, borrow.target, depth + 1, frames)
@@ -613,7 +645,21 @@ fn build_operand(
                 expression,
             ) =>
         {
-            let (primitive, domain) = integer_meaning(program, machine, state, expression)?;
+            let (primitive, domain) = if let Some((primitive, domain)) =
+                integer_meaning(program, machine, state, expression)
+            {
+                (Some(primitive), domain)
+            } else {
+                let result =
+                    crate::expression_result_type_reference(program, machine, state, expression)?;
+                let proof_int =
+                    crate::proof_contracts::proof_embeddings::proof_int_type_reference(program)?;
+                let identity = program.normalized_type_identity(proof_int);
+                if !identity.is_valid() || program.normalized_type_identity(result) != identity {
+                    return None;
+                }
+                (None, ArithmeticDomain::Exact)
+            };
             Some(Operand::Binary {
                 operator: binary.operator,
                 primitive,
@@ -731,7 +777,7 @@ pub(super) fn indexed_operand(
             Operand::Integer(literal, _) if literal.value_u64() == Some(0) => index,
             _ => Operand::Binary {
                 operator: BinaryOperator::Add,
-                primitive: PrimitiveType::U64,
+                primitive: Some(PrimitiveType::U64),
                 domain: ArithmeticDomain::Exact,
                 operands: vec![start, index],
             },
@@ -1216,7 +1262,7 @@ fn operand_carrier_bound(
             Some(primitive_range(primitive).and_then(|range| range.high))
         }
         Operand::Binary { primitive, .. } => {
-            Some(primitive_range(*primitive).and_then(|range| range.high))
+            primitive.map(|primitive| primitive_range(primitive).and_then(|range| range.high))
         }
         Operand::CollectionLength(_) => Some(None),
         Operand::Indexed { primitive, .. } | Operand::Field { primitive, .. } => {

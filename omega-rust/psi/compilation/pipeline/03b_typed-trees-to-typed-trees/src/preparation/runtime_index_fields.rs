@@ -295,6 +295,30 @@ fn fill(
             }
         }
         ExpressionNode::StructLiteral(mut literal) => {
+            // This is a required constructor application, not the enclosing
+            // statement's result (which can be Unit when a value is discarded).
+            if program
+                .data_constructor_definition(reference, literal.type_symbol)
+                .is_some()
+            {
+                let prior = program
+                    .expression_table
+                    .construction_required_type_reference(expression);
+                if prior.is_valid() {
+                    if program.normalized_type_identity(prior)
+                        != program.normalized_type_identity(reference)
+                    {
+                        diagnostics.push(Diagnostic::error("constructor occurrence has conflicting receiving applications; preserve separate evaluation contexts"));
+                        return;
+                    }
+                    // Equivalent repeated preparation must not replace the
+                    // issuing occurrence's exact retained application row.
+                } else {
+                    program
+                        .expression_table
+                        .set_construction_required_type_reference(expression, reference);
+                }
+            }
             let mut fields = program
                 .expression_table
                 .struct_fields(literal.fields)

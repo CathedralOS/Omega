@@ -439,6 +439,10 @@ pass/facts/selected_scalar_initializer_through_other_machine_exit built 9570ms e
 pass/facts/selected_scalar_initializer_through_other_state_exit built 9420ms exit:0 interpreter-exit:0 interpreter:agrees @a0ebcac9edda
 pass/facts/selected_scalar_initializer_through_parameter_exit built 9670ms exit:0 interpreter-exit:0 interpreter:agrees @a0ebcac9edda
 pass/facts/selected_scalar_initializer_through_target_body_exit built 11945ms exit:0 interpreter-exit:0 interpreter:agrees @a0ebcac9edda
+pass/facts/source_indexed_family built 44423ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @2c386725b87c
+pass/facts/source_indexed_family_alpha_positive built 21697ms exit:0 interpreter-exit:0 interpreter:agrees @c0ec033db8e0
+pass/facts/source_indexed_family_capture_roster_positive built 23230ms exit:0 interpreter-exit:0 interpreter:agrees @c0ec033db8e0
+pass/facts/source_indexed_family_recursive_index_positive built 24782ms exit:0 interpreter-exit:0 interpreter:agrees @c0ec033db8e0
 pass/facts/target_scoped_constant_multi_method_exit built 57001ms exit:0 interpreter-exit:0 interpreter:agrees @00807f8b93ec
 pass/facts/target_scoped_constant_realization_exit built 50490ms exit:0 interpreter-exit:0 interpreter:agrees @00807f8b93ec
 pass/facts/target_scoped_constant_zero_extent_exit built 55113ms exit:0 interpreter-exit:0 interpreter:agrees @00807f8b93ec
@@ -516,6 +520,7 @@ pass/generics/runtime_nested_array_extent_binder_exit built 4932ms exit:0 interp
 pass/generics/runtime_qualified_closed_equation_exit built 4980ms exit:0 interpreter-exit:0 interpreter:agrees @8d6cc0f5fef7+wt
 pass/generics/runtime_selected_operator_body_exit built 5941ms exit:3 interpreter-exit:3 interpreter:agrees @a5e687e6c77f+wt
 pass/generics/runtime_static_requirement_complex_composition_exit built 17284ms exit:0 interpreter-exit:0 interpreter:agrees @b338d531fce8
+pass/generics/runtime_value_generic_subject_exit built 31638ms exit:17 interpreter-exit:17 interpreter:agrees @c0ec033db8e0
 pass/host/runtime_fixed_arithmetic_across_console_exit built 7704ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @d0ac3bbe218a+wt
 pass/layouts/placed_view_call_custody checked 36577ms terminal-inspections:match @815ea0247677
 pass/layouts/runtime_indexed_restricted_field_read built 18864ms exit:0 interpreter-exit:0 interpreter:agrees @1b12798e27f4

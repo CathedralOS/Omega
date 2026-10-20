@@ -63,6 +63,12 @@ pub struct ProofFacts {
     /// program whose facts were built without it reads as a producer
     /// defect, and lowering admission rejects either half missing.
     pub mathematical_signature: Option<crate::CheckedMathematicalSignature>,
+    /// Independently retained source carrier formation, sharing that signature.
+    pub source_evidence_carriers: Vec<crate::CheckedSourceEvidenceCarrier>,
+    /// Independently audited integer-theory grants in that exact signature.
+    pub mathematical_safety_assumptions: Vec<u32>,
+    pub indexed_theorems: Vec<crate::CheckedIndexedTheorem>,
+    pub indexed_citations: Vec<crate::CheckedIndexedCitation>,
     /// Caller-coordinate -> `contract_calls` row lookup owned by this
     /// ledger; the index carries the `contract_calls` arena's revision, so
     /// a mutation rebuilds it on the next query.

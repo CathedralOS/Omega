@@ -27,6 +27,39 @@ pub(super) fn derive_summaries(
     rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
 ) -> Vec<CheckedProgressSummary> {
     let mut components = validation::retained_runtime_recursive_components(rank_arrivals);
+    components.extend(rank_arrivals.source_natural_components.iter().filter_map(
+        |(_, component)| {
+            if component.view != language_semantics::RankingViewId::NAT_DESCENDING
+                || rank_arrivals
+                    .source_natural_edges
+                    .span_or_empty(component.edges)
+                    .is_empty()
+            {
+                return None;
+            }
+            let members = rank_arrivals
+                .source_natural_members
+                .span_or_empty(component.members);
+            if members.is_empty()
+                || !members.iter().all(|member| {
+                    program
+                        .machine_by_symbol(member.machine)
+                        .is_some_and(|machine| machine.states == member.body)
+                        && rank_arrivals
+                            .judgment_for_body(member.machine, member.body)
+                            .is_some_and(|judgment| judgment.local_terminates)
+                })
+            {
+                return None;
+            }
+            Some(
+                members
+                    .iter()
+                    .map(|member| member.machine)
+                    .collect::<Vec<_>>(),
+            )
+        },
+    ));
     components.extend(proof_components.iter().map(|component| {
         component
             .members

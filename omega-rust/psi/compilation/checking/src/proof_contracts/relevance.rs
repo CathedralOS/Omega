@@ -46,6 +46,7 @@ pub(crate) fn validate_relevance(
 
     for machine in program.machines() {
         let machine_context = if proof_only.is_proof_machine(program, machine)
+            || crate::mathematical_applications::is_indexed_logical_machine(program, machine)
             || crate::value_custody::content_projections::is_content_projection_machine(
                 program, machine,
             ) {
@@ -263,6 +264,11 @@ pub(super) fn callee_parameters(
 ) -> Option<&[typed_trees::signature::StateParameter]> {
     program
         .state_by_symbol(target)
+        .or_else(|| {
+            program
+                .machine_by_symbol(target)
+                .and_then(|machine| program.machine_states(machine).first())
+        })
         .map(|state| program.state_parameters(state))
 }
 
@@ -296,5 +302,9 @@ pub(super) fn call_targets_proof_machine(
 ) -> bool {
     program
         .machine_holding_state(target)
-        .is_some_and(|machine| proof_only.is_proof_machine(program, machine))
+        .or_else(|| program.machine_by_symbol(target))
+        .is_some_and(|machine| {
+            proof_only.is_proof_machine(program, machine)
+                || crate::mathematical_applications::is_indexed_logical_machine(program, machine)
+        })
 }

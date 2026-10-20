@@ -167,7 +167,8 @@ pub(crate) fn lower_machine_into(
         .attached_data
         .as_ref()
         .map(crate::lowering::name::lower_name);
-    let termination_plan = build_termination_plan(lowerer, syntax_trees, machine, states);
+    let termination_plan =
+        build_termination_plan(lowerer, syntax_trees, machine, states, type_parameters);
 
     // STR3: the supply mode's ONE population site. Requirement gains its
     // source when trait requirements reach this record; TopLevelRequirement is
@@ -510,6 +511,7 @@ fn build_termination_plan(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
     states: HandleSpan<Handle<State>>,
+    type_parameters: HandleSpan<symbol_resolved_trees::data::TypeParameter>,
 ) -> language_semantics::MachineTerminationPlan {
     use language_semantics::{
         MachineTerminationPlan, RankingWitness, TerminationGuarantee, TerminationInterface,
@@ -529,8 +531,14 @@ fn build_termination_plan(
         .expressions
         .expression_handles(machine.ranking_subjects);
     let implementation_witness = (!subjects.is_empty()).then(|| {
-        let (ranking_view, view_path) =
-            elaborate_ranking_view(lowerer, syntax_trees, machine, states, subjects);
+        let (ranking_view, view_path) = elaborate_ranking_view(
+            lowerer,
+            syntax_trees,
+            machine,
+            states,
+            type_parameters,
+            subjects,
+        );
         RankingWitness {
             subjects: subjects
                 .iter()
@@ -618,6 +626,7 @@ fn elaborate_ranking_view(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
     states: HandleSpan<Handle<State>>,
+    type_parameters: HandleSpan<symbol_resolved_trees::data::TypeParameter>,
     subjects: &[syntax::expression::ExpressionHandle],
 ) -> (language_semantics::RankingViewId, String) {
     use language_semantics::RankingViewId;
@@ -635,7 +644,13 @@ fn elaborate_ranking_view(
         // The only builtin two-subject view, and therefore the two-subject
         // short-form default (the checker's exact rule).
         [_, _] => canonical_view(RankingViewId::NAT_BOUNDED_DISTANCE),
-        [single] => elaborate_single_subject_default(lowerer, syntax_trees, states, *single),
+        [single] => elaborate_single_subject_default(
+            lowerer,
+            syntax_trees,
+            states,
+            type_parameters,
+            *single,
+        ),
         _ => (RankingViewId::NULL, String::new()),
     }
 }
@@ -658,6 +673,7 @@ fn elaborate_single_subject_default(
     lowerer: &Lowerer,
     syntax_trees: &SyntaxTrees,
     states: HandleSpan<Handle<State>>,
+    type_parameters: HandleSpan<symbol_resolved_trees::data::TypeParameter>,
     subject: syntax::expression::ExpressionHandle,
 ) -> (language_semantics::RankingViewId, String) {
     use language_semantics::RankingViewId;
@@ -689,15 +705,27 @@ fn elaborate_single_subject_default(
         return pending;
     };
     let root_state = trees.machine_state(*root_state);
-    let Some(parameter) = trees
+    let declared = trees
         .state_parameters(root_state.parameters)
         .iter()
         .find(|parameter| parameter.name.as_str() == subject_name.as_str())
-    else {
+        .map(|parameter| &parameter.type_reference)
+        .or_else(|| {
+            let parameter = trees
+                .data_type_parameters(type_parameters)
+                .iter()
+                .find(|parameter| parameter.name.as_str() == subject_name.as_str())?;
+            match &parameter.kind {
+                symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
+                | symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } => {
+                    Some(type_reference)
+                }
+                _ => None,
+            }
+        });
+    let Some(mut base) = declared else {
         return pending;
     };
-
-    let mut base = &parameter.type_reference;
     loop {
         match base {
             TypeReference::Constrained(constrained) => {
@@ -713,8 +741,16 @@ fn elaborate_single_subject_default(
         TypeReference::Slice(_) | TypeReference::FixedArray(_) => {
             canonical_view(RankingViewId::SLICE_LENGTH)
         }
-        TypeReference::Named { name, .. }
-            if matches!(name.as_str(), "u8" | "u16" | "u32" | "u64" | "nat") =>
+        TypeReference::Named { symbol, .. }
+            if matches!(
+                trees.symbols.builtin_type_atom(*symbol),
+                Some(
+                    symbols::BuiltinTypeAtom::U8
+                        | symbols::BuiltinTypeAtom::U16
+                        | symbols::BuiltinTypeAtom::U32
+                        | symbols::BuiltinTypeAtom::U64
+                )
+            ) =>
         {
             canonical_view(RankingViewId::NAT_DESCENDING)
         }
