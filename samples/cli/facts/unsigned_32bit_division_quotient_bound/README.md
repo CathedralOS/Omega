@@ -48,6 +48,7 @@ The recorded 0 exit is discriminating:
 - Integer division `dividend / divisor` statically proves that `quotient` resides within interval `[50u32, 50u32]`.
 - Consuming exact subtraction `let check: u32 = quotient - 50u32` evaluates to `0u32` and is statically verified underflow-free without requiring a post-hoc runtime guard.
 - At runtime, `quotient == 50u32 && check == 0u32` is confirmed, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy.
+- Perturbing a single token in the root oracle (`transition quotient == 50u32 && check == 0u32` -> `transition quotient == 51u32 && check == 0u32`) causes both engines to fail closed with `crash Trap` (`interp exit: 255, native exit: 255`).
 - Each invalid twin relaxes the divisor bound to `divisor <= 5u32`, allowing `quotient` to take value `200 / 5 = 40u32 < 50u32`. The subtraction `quotient - 50u32` is no longer provably underflow-free, causing the compiler to fail closed at compile time with `may overflow \`u32\``. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -55,6 +56,29 @@ Check all nine invalid twins with:
 ```sh
 omega --check samples/cli/facts/unsigned_32bit_division_quotient_bound/<place>/invalid/main.omg
 ```
+
+## Pinned fixtures
+
+- Positive (9):
+  - `tests/omega/pass/facts/unsigned_32bit_division_quotient_bound_through_local_exit`
+  - `tests/omega/pass/facts/unsigned_32bit_division_quotient_bound_through_field_exit`
+  - `tests/omega/pass/facts/unsigned_32bit_division_quotient_bound_through_parameter_exit`
+  - `tests/omega/pass/facts/unsigned_32bit_division_quotient_bound_through_call_result_exit`
+  - `tests/omega/pass/facts/unsigned_32bit_division_quotient_bound_through_match_join_exit`
+  - `tests/omega/pass/facts/unsigned_32bit_division_quotient_bound_through_const_name_exit`
+  - `tests/omega/pass/facts/unsigned_32bit_division_quotient_bound_through_other_state_exit`
+  - `tests/omega/pass/facts/unsigned_32bit_division_quotient_bound_through_other_machine_exit`
+  - `tests/omega/pass/facts/unsigned_32bit_division_quotient_bound_through_target_body_exit`
+- Reject (9):
+  - `tests/omega/fail/facts/unsigned_32bit_division_quotient_bound_through_local_rejected`
+  - `tests/omega/fail/facts/unsigned_32bit_division_quotient_bound_through_field_rejected`
+  - `tests/omega/fail/facts/unsigned_32bit_division_quotient_bound_through_parameter_rejected`
+  - `tests/omega/fail/facts/unsigned_32bit_division_quotient_bound_through_call_result_rejected`
+  - `tests/omega/fail/facts/unsigned_32bit_division_quotient_bound_through_match_join_rejected`
+  - `tests/omega/fail/facts/unsigned_32bit_division_quotient_bound_through_const_name_rejected`
+  - `tests/omega/fail/facts/unsigned_32bit_division_quotient_bound_through_other_state_rejected`
+  - `tests/omega/fail/facts/unsigned_32bit_division_quotient_bound_through_other_machine_rejected`
+  - `tests/omega/fail/facts/unsigned_32bit_division_quotient_bound_through_target_body_rejected`
 
 ### Acceptance Gate
 
@@ -70,6 +94,17 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 - **Parent outcome:** `TERMINAL-INTEGER-ARITHMETIC-INTERVALS` ([`TASKS.md`](../../../../TASKS.md)).
 - **Requirement established:** End-to-end nine-place 32-bit unsigned (`u32`) bounded division, quotient interval synthesis (`[50, 50]`), consuming exact subtraction underflow discharge, and native realization agreement.
+
+| Obligation Class | How This Fact Row Establishes It |
+|---|---|
+| **Establishment** | Entry contracts `requires dividend >= 200u32 && dividend <= 200u32; requires divisor >= 4u32 && divisor <= 4u32;`, nominal struct construction (`Operands`), and constant definitions (`DIVIDEND_VAL`, `DIVISOR_VAL`) establish the non-zero divisor and exact input ranges so `dividend / divisor` directly synthesizes `quotient >= 50u32 && quotient <= 50u32` without a post-hoc caller equality guard. |
+| **Identity and lifetime** | The `u32` quotient value fact attaches to immutable local bindings, nominal struct fields (`Operands`), state/machine parameters, call return contracts, match join bindings, and target-scoped bodies without aliasing invalidation. |
+| **Composition** | Calls (`compute_quotient`), match joins (`match_join`), state transitions (`check_state`), and cross-machine calls (`Verifier`) preserve `quotient >= 50u32 && quotient <= 50u32` so `let check: u32 = quotient - 50u32` is proved underflow-free directly from the carried fact. |
+| **Soundness boundaries** | Each `<place>/invalid/main.omg` widens only `divisor <= 5u32`, dropping the lower bound of `dividend / divisor` to `40u32 < 50u32` so exact subtraction `quotient - 50u32` is rejected with `may overflow \`u32\``. |
+| **Checked-to-Terminal Psi lowering (`Psi 05–07`)** | 32-bit unsigned division (`u32 / u32`) and exact subtraction (`u32 - u32`) lower into canonical `PSITERM\0` integer operations and execute in the Terminal Psi interpreter (`omega run --both`). |
+| **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)** | `ProgramEntry` settles for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`; `u32` scalar and `Operands` record layouts and ABI register calling plans validate without reopening source. |
+| **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)** | Backend lowering selects 32-bit unsigned division (`xor edx, edx` + `div r32` on `x86_64`, `udiv w-reg` on `arm64`) and 32-bit subtraction with bounded activation frames. |
+| **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)** | Native PE/ELF/Mach-O images emit and execute on `windows_x86_64` with exit code `0`, matching Terminal Psi (`omega run --both`). |
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
   - **Establishment:** Bounded entry contracts `requires dividend >= 200u32 && dividend <= 200u32` and `requires divisor >= 4u32 && divisor <= 4u32` establish non-zero denominator safety and bounded dividend range. Unsigned division `dividend / divisor` synthesizes the exact quotient interval `[200 / 4, 200 / 4] = [50, 50]`, directly discharging exact subtraction `quotient - 50u32` without runtime checks or post-hoc equality guards.

@@ -1837,6 +1837,15 @@ pass/facts/unsigned_32bit_bitwise_xor_bound_through_other_machine_exit built 242
 pass/facts/unsigned_32bit_bitwise_xor_bound_through_other_state_exit built 24322ms exit:0 @d6d8b5ac9c9d+wt
 pass/facts/unsigned_32bit_bitwise_xor_bound_through_parameter_exit built 23858ms exit:0 @d6d8b5ac9c9d+wt
 pass/facts/unsigned_32bit_bitwise_xor_bound_through_target_body_exit built 24184ms exit:0 @d6d8b5ac9c9d+wt
+pass/facts/unsigned_32bit_division_quotient_bound_through_call_result_exit built 28473ms exit:0 @3045ef49d634+wt
+pass/facts/unsigned_32bit_division_quotient_bound_through_const_name_exit built 28695ms exit:0 @3045ef49d634+wt
+pass/facts/unsigned_32bit_division_quotient_bound_through_field_exit built 28434ms exit:0 @3045ef49d634+wt
+pass/facts/unsigned_32bit_division_quotient_bound_through_local_exit built 28732ms exit:0 @3045ef49d634+wt
+pass/facts/unsigned_32bit_division_quotient_bound_through_match_join_exit built 28673ms exit:0 @3045ef49d634+wt
+pass/facts/unsigned_32bit_division_quotient_bound_through_other_machine_exit built 28591ms exit:0 @3045ef49d634+wt
+pass/facts/unsigned_32bit_division_quotient_bound_through_other_state_exit built 28555ms exit:0 @3045ef49d634+wt
+pass/facts/unsigned_32bit_division_quotient_bound_through_parameter_exit built 28515ms exit:0 @3045ef49d634+wt
+pass/facts/unsigned_32bit_division_quotient_bound_through_target_body_exit built 28703ms exit:0 @3045ef49d634+wt
 pass/facts/unsigned_32bit_saturating_multiplication_bound_through_call_result_exit built 46218ms exit:0 @f5ba8b2d7223+wt
 pass/facts/unsigned_32bit_saturating_multiplication_bound_through_const_name_exit built 49445ms exit:0 @f5ba8b2d7223+wt
 pass/facts/unsigned_32bit_saturating_multiplication_bound_through_field_exit built 77494ms exit:0 @f5ba8b2d7223+wt
