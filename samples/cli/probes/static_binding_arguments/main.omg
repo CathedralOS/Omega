@@ -1,5 +1,15 @@
 // Expected exit: 0.
-use omega::language::core::binding;
+// Explicit static authority: the program sends 65 through a selected,
+// checked local provider, stores it through an ordinary argument, and checks the
+// returned value. The computed authority sets a separate phase counter to 1;
+// its ordinary argument must observe 1 before advancing it to 2. A wrong result
+// reaches `crash Trap`.
+//
+// The former `Binding<Character>` carrier lane is gone: the boundary trait is a
+// static slot selected by build.omg, and each call is the requirement
+// application `Character::echo(...)` / `Character::store(...)` with ordinary
+// arguments. Statement, projected, forwarded-reference and computed authorities
+// remain; the carrier receiver threads are what the migration removed.
 
 public boundary trait Character {
     machine echo(value: i32) -> i32;
@@ -12,15 +22,15 @@ CharacterImplementation satisfies Character {
 machine echo(value: i32) -> i32 { value }
 machine store(output: &mut i32, value: i32) { output = value; }
 
-data Main { character: Binding<Character>; value: i32; phase: i32; }
+data Main { value: i32; phase: i32; }
 
 machine letter() -> i32 { 65 }
-machine write(character: &Binding<Character>, output: &mut i32) reaches Character {
-    Character::store(character, output, letter());
+machine write(output: &mut i32) reaches Character {
+    Character::store(output, letter());
 }
-machine authority<'loan>(character: &'loan Binding<Character>, phase: &mut i32) -> &'loan Binding<Character> {
+machine authority<'loan>(phase: &'loan mut i32) -> &'loan mut i32 {
     phase = 1;
-    character
+    phase
 }
 machine ordinary_argument(phase: &mut i32) -> i32 {
     let previous: i32 = phase;
@@ -28,10 +38,11 @@ machine ordinary_argument(phase: &mut i32) -> i32 {
     transition previous == 1 { true -> 65 _ -> 0 }
 }
 machine Main::main(context: &mut Main) reaches Character crashes Trap {
-    write(&context.character, &mut context.value);
-    let value: i32 = Character::echo(authority(&context.character, &mut context.phase), ordinary_argument(&mut context.phase));
-    let nested: i32 = Character::echo(&context.character, Character::echo(&context.character, context.value));
-    _ = Character::echo(&context.character, value);
+    write(&mut context.value);
+    let established: &mut i32 = authority(&mut context.phase);
+    let value: i32 = Character::echo(ordinary_argument(&mut context.phase));
+    let nested: i32 = Character::echo(Character::echo(context.value));
+    _ = Character::echo(value);
     transition value == 65 && nested == 65 && context.phase == 2 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }

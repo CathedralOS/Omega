@@ -1,20 +1,18 @@
-// A Fused entry receiver carrying a Binding field keeps
-// its Terminal attachment identity while it lends a fixed
-// array field to a checked-body callee on a borrowed
-// slice view — `&mut main.items` seeds `buf: &mut [u64]`
-// through the ordinary borrowed-view presentation.
+// A Fused entry receiver keeps its Terminal attachment
+// identity while it lends a fixed array field to a
+// checked-body callee on a borrowed slice view —
+// `&mut main.items` seeds `buf: &mut [u64]` through the
+// ordinary borrowed-view presentation.
 //
 //   * `boundary trait Ping` + `data PingProvider`
-//     satisfies — the Binding<Ping> field rides provider
-//     selection, not runtime calls.
+//     satisfies — the provider is a static slot selected by
+//     build.omg; there is no carrier field.
 //   * `Worker::drain(buf: &mut [u64], filter: &Filter,
 //     index: u64)` attached worker machine on an
 //     empty-carrier Worker.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
-
-use omega::language::core::binding;
 
 public boundary trait Ping {
     machine ping();
@@ -42,7 +40,6 @@ machine Worker::drain(buf: &mut [u64], filter: &Filter, index: u64) {
 }
 
 data Main {
-    console: Binding<Ping>;
     worker: Worker;
     items: [u64; 3];
     filter: Filter;

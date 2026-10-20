@@ -3230,6 +3230,7 @@ run/calls/table_report_call_survival built 6386ms exit:0 stdout:match @589aedee8
 run/contained_health_loop_command_branch checked 192ms
 run/domains/module_qualified_cast_domain built 12035ms exit:0 @2012446ad74a+wt
 run/domains/predicate_interval_premises built 12009ms exit:0 @2012446ad74a+wt
+run/domains/qualified_fixed_byte_array_plain_copy_exit built 6375ms exit:60 @90ec49c9ee84
 run/domains/qualified_record_transfer built 6237ms exit:0 @868a854ecd4d+wt
 run/domains/semantic_predicate_domain_admission built 11653ms exit:0 @896172b5d9d8+wt
 run/domains/structural_predicate_casts built 11962ms exit:0 @2012446ad74a+wt

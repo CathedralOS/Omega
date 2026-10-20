@@ -7,7 +7,8 @@
 // impls pick `ForeignBinding::Syscall` /
 // `VtableField` backing.
 //
-//   * `binding` import for `Binding<Scheduler>` field.
+//   * `Scheduler::notify` is the requirement application;
+//     there is no carrier field, and no `binding` import.
 //   * `domain ... satisfies ProgressProfile` — domain
 //     declared as a progress profile.
 //   * `Build::select_provider<Scheduler,
@@ -16,57 +17,54 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::binding;
-
-public data SchedulerHandle [copy] { }
+public data SchedulerHandle [copy] { identity: u64; }
 
 public domain SchedulerHandle::WeakFair
 satisfies ProgressProfile
 established by Scheduler::grant;
 
 public boundary trait Scheduler {
-    machine notify(value: i32)
+    machine notify(provider: &SchedulerProvider, value: i32)
     terminates;
 
-    machine grant(handle: SchedulerHandle) -> SchedulerHandle in WeakFair;
+    machine grant(provider: &SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair;
 }
 
-data SchedulerProvider { grant: addr; notify: addr; }
+public data SchedulerProvider { grant: addr; notify: addr; }
 
-linux_x86_64 machine SchedulerProvider::notify(value: i32)
+linux_x86_64 machine SchedulerProvider::notify(provider: &SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::Syscall(1);
 
-linux_arm64 machine SchedulerProvider::notify(value: i32)
+linux_arm64 machine SchedulerProvider::notify(provider: &SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-macos_arm64 machine SchedulerProvider::notify(value: i32)
+macos_arm64 machine SchedulerProvider::notify(provider: &SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-macos_x86_64 machine SchedulerProvider::notify(value: i32)
+macos_x86_64 machine SchedulerProvider::notify(provider: &SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-windows_x86_64 machine SchedulerProvider::notify(value: i32)
+windows_x86_64 machine SchedulerProvider::notify(provider: &SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-machine SchedulerProvider::grant(handle: SchedulerHandle) -> SchedulerHandle in WeakFair
+machine SchedulerProvider::grant(provider: &SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair
 satisfies Scheduler::grant
 via ForeignBinding::VtableField(grant);
 
 data Main {
-    scheduler: Binding<Scheduler>;
+    provider: SchedulerProvider;
     hits: i32 in Wrapping;
 }
 
 machine Main::main(main: &mut Main)
 reaches Scheduler
-requires main.scheduler in SchedulerHandle::WeakFair
 terminates
 {
     main.hits = 1;
-    main.scheduler.notify(65);
+    Scheduler::notify(&main.provider, 65);
 }
