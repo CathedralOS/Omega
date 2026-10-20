@@ -4,25 +4,29 @@ Fact: 16-bit unsigned bitwise XOR raw ^ 15u16 with bounded interval 40u16 <= xor
 
 The original root reproduction is preserved in [main.omg](main.omg) and [build.omg](build.omg).
 
+- **Claim ticket:** `d03c7cd70e424f6eb423a01e8afb35d6` (`antigravity/w37-2`)
+- **Obligation class:** Contract precondition (`requires xored >= 40 && xored <= 63` / `requires val >= 40 && val <= 63`) and return postcondition (`ensures result >= 40 && result <= 63`)
+- **Specification references:** [numeric values](wiki/spec/language/numeric_values.md), [integer certificates](wiki/spec/terminal-psi/integer_certificates.md), [storage](wiki/spec/resources/storage.md)
+
 ## Places
 
 The nine places carry the 16-bit unsigned bitwise XOR bound through each language construct,
 accompanied by `<place>/invalid/` reject twins:
 
-| Place | Positive Program | Invalid Reject Twin | Carrier / Transport |
-| --- | --- | --- | --- |
-| root | [main.omg](main.omg) | — | 16-bit unsigned bitwise XOR establishes bound and discharges subtractions directly |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | bitwise XOR result bound to local variable |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | bitwise XOR result stored in and projected from record field |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | bitwise XOR result passed as explicit machine parameter |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | bitwise XOR result returned across machine call boundary |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | bitwise XOR result converged across match join arms |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | raw input provided by named compile-time constant |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | bitwise XOR result forwarded across state machine transition |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | bitwise XOR result forwarded through intermediate machine |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | bitwise XOR result verified across target-scoped machine bodies |
+| Place | Positive Program | Invalid Reject Twin | Pinned Corpus Pass | Pinned Corpus Fail | Carrier / Transport |
+| --- | --- | --- | --- | --- | --- |
+| root | [main.omg](main.omg) | — | — | — | 16-bit unsigned bitwise XOR establishes bound and discharges subtractions directly |
+| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_bitwise_xor_bound_through_local_exit` | `tests/omega/fail/facts/unsigned_16bit_bitwise_xor_bound_through_local_rejected` | bitwise XOR result bound to local variable |
+| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_bitwise_xor_bound_through_field_exit` | `tests/omega/fail/facts/unsigned_16bit_bitwise_xor_bound_through_field_rejected` | bitwise XOR result stored in and projected from record field |
+| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_bitwise_xor_bound_through_parameter_exit` | `tests/omega/fail/facts/unsigned_16bit_bitwise_xor_bound_through_parameter_rejected` | bitwise XOR result passed as explicit machine parameter |
+| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_bitwise_xor_bound_through_call_result_exit` | `tests/omega/fail/facts/unsigned_16bit_bitwise_xor_bound_through_call_result_rejected` | bitwise XOR result returned across machine call boundary |
+| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_bitwise_xor_bound_through_match_join_exit` | `tests/omega/fail/facts/unsigned_16bit_bitwise_xor_bound_through_match_join_rejected` | bitwise XOR result converged across match join arms |
+| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_bitwise_xor_bound_through_const_name_exit` | `tests/omega/fail/facts/unsigned_16bit_bitwise_xor_bound_through_const_name_rejected` | raw input provided by named compile-time constant |
+| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_bitwise_xor_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_16bit_bitwise_xor_bound_through_other_state_rejected` | bitwise XOR result forwarded across state machine transition |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_bitwise_xor_bound_through_other_machine_exit` | `tests/omega/fail/facts/unsigned_16bit_bitwise_xor_bound_through_other_machine_rejected` | bitwise XOR result forwarded through intermediate machine |
+| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | `tests/omega/pass/facts/unsigned_16bit_bitwise_xor_bound_through_target_body_exit` | `tests/omega/fail/facts/unsigned_16bit_bitwise_xor_bound_through_target_body_rejected` | bitwise XOR result verified across target-scoped machine bodies |
 
-Run each place with `omega run <place>/main.omg`.
+Run each place with `omega run --both <place>/main.omg`. Perturbing the demanded oracle check in `main.omg` (`transition check == 0` -> `transition check == 1`) causes both engines to trap (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`), proving that the oracle discriminates.
 
 ## Requirements and Evidence
 

@@ -1755,6 +1755,15 @@ pass/facts/unsigned_16bit_bitwise_or_bound_through_other_machine_exit built 4282
 pass/facts/unsigned_16bit_bitwise_or_bound_through_other_state_exit built 44210ms exit:0 @171fd4d38890+wt
 pass/facts/unsigned_16bit_bitwise_or_bound_through_parameter_exit built 40145ms exit:0 @171fd4d38890+wt
 pass/facts/unsigned_16bit_bitwise_or_bound_through_target_body_exit built 43938ms exit:0 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_call_result_exit built 38419ms exit:0 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_const_name_exit built 37468ms exit:0 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_field_exit built 37733ms exit:0 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_local_exit built 37159ms exit:0 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_match_join_exit built 37802ms exit:0 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_other_machine_exit built 39701ms exit:0 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_other_state_exit built 39219ms exit:0 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_parameter_exit built 39048ms exit:0 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_target_body_exit built 37276ms exit:0 @171fd4d38890+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_call_result_exit built 41149ms exit:0 @411a6fa70643+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_const_name_exit built 43729ms exit:0 @411a6fa70643+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_field_exit built 37490ms exit:0 @411a6fa70643+wt

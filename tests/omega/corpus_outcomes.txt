@@ -4466,6 +4466,27 @@ fail/facts/unsigned_16bit_bitwise_or_bound_through_target_body_rejected rejected
 	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
 	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_16bit_bitwise_xor_bound_through_call_result_rejected rejected 15307ms expected @171fd4d38890+wt
+	cannot prove ensures contract for exit from produce_xored at statement 0: result >= 40 && result <= 63
+fail/facts/unsigned_16bit_bitwise_xor_bound_through_const_name_rejected rejected 14170ms expected @171fd4d38890+wt
+	cannot prove requires contract for call verify_xored from main: xored >= 40 && xored <= 63 (needs fact `xored >= 40 && xored <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_bitwise_xor_bound_through_field_rejected rejected 15355ms expected @171fd4d38890+wt
+	cannot prove requires contract for call verify_xored from main: carrier.xored >= 40 && carrier.xored <= 63 (needs fact `xored >= 40 && xored <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_bitwise_xor_bound_through_local_rejected rejected 14245ms expected @171fd4d38890+wt
+	cannot prove requires contract for call verify_xored from main: local_xored >= 40 && local_xored <= 63 (needs fact `xored >= 40 && xored <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_bitwise_xor_bound_through_match_join_rejected rejected 14313ms expected @171fd4d38890+wt
+	cannot prove requires contract for call verify_xored from main: joined >= 40 && joined <= 63 (needs fact `xored >= 40 && xored <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_bitwise_xor_bound_through_other_machine_rejected rejected 16319ms expected @171fd4d38890+wt
+	cannot prove requires contract for call runner from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_bitwise_xor_bound_through_other_state_rejected rejected 13821ms expected @171fd4d38890+wt
+	cannot prove requires contract for call verify_xored from main: forwarded >= 40 && forwarded <= 63 (needs fact `xored >= 40 && xored <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_16bit_bitwise_xor_bound_through_parameter_rejected rejected 14587ms expected @171fd4d38890+wt
+	cannot prove requires contract for call check_param from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_16bit_bitwise_xor_bound_through_target_body_rejected rejected 15298ms expected @171fd4d38890+wt
+	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_32bit_bitwise_and_mask_bound_through_call_result_rejected rejected 11388ms expected @411a6fa70643+wt
 	exact arithmetic in machine `mask_call_result` state `entry` local `check` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_32bit_bitwise_and_mask_bound_through_const_name_rejected rejected 11546ms expected @411a6fa70643+wt
@@ -9573,6 +9594,15 @@ pass/facts/unsigned_16bit_bitwise_or_bound_through_other_machine_exit checked 43
 pass/facts/unsigned_16bit_bitwise_or_bound_through_other_state_exit checked 39907ms check-target:macos_arm64 @171fd4d38890+wt
 pass/facts/unsigned_16bit_bitwise_or_bound_through_parameter_exit checked 41453ms check-target:macos_arm64 @171fd4d38890+wt
 pass/facts/unsigned_16bit_bitwise_or_bound_through_target_body_exit checked 40365ms check-target:macos_arm64 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_call_result_exit checked 38802ms check-target:macos_arm64 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_const_name_exit checked 36441ms check-target:macos_arm64 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_field_exit checked 36280ms check-target:macos_arm64 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_local_exit checked 36285ms check-target:macos_arm64 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_match_join_exit checked 36564ms check-target:macos_arm64 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_other_machine_exit checked 35696ms check-target:macos_arm64 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_other_state_exit checked 35676ms check-target:macos_arm64 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_parameter_exit checked 36172ms check-target:macos_arm64 @171fd4d38890+wt
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_target_body_exit checked 37725ms check-target:macos_arm64 @171fd4d38890+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_call_result_exit checked 38170ms check-target:macos_arm64 @411a6fa70643+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_const_name_exit checked 37178ms check-target:macos_arm64 @411a6fa70643+wt
 pass/facts/unsigned_32bit_bitwise_and_mask_bound_through_field_exit checked 38972ms check-target:macos_arm64 @411a6fa70643+wt
