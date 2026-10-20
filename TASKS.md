@@ -5762,9 +5762,10 @@ wait for Cathedral's instruction coverage. The interpreter is
   calls carry runtime realization; Terminal retains nominal adaptations rather
   than source correspondence schemas.
   - Closed literal arguments now use exact typed value identities alongside
-    public parameters. `samples/cli/facts/quotient_closed_literal` covers complete
-    automatic transport, selected transport and scalar-first argument order,
-    with wrong-value, wrong-type, altered-theorem and missing-legality controls.
+    public parameters. `samples/cli/facts/quotient_closed_literal` covers the
+    nine-place fact row plus automatic transport, selected transport and
+    scalar-first argument order, with wrong-value, wrong-type, altered-theorem
+    and missing-legality controls.
     The frozen baseline failed specification-call formation despite a prior
     integer premise; source arithmetic binding and pure contract-call terms
     now preserve that premise through checked ordinary-call lowering.

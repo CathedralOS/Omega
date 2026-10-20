@@ -1547,6 +1547,18 @@ pass/facts/nested_record_layout_geometry_through_other_machine_exit built 31215m
 pass/facts/nested_record_layout_geometry_through_other_state_exit built 31193ms exit:0 @18fb2e01bf2a
 pass/facts/nested_record_layout_geometry_through_parameter_exit built 31291ms exit:0 @18fb2e01bf2a
 pass/facts/nested_record_layout_geometry_through_target_body_exit built 31228ms exit:0 @18fb2e01bf2a
+pass/facts/quotient_closed_literal built 25987ms exit:0 terminal-inspections:match @7df3e6a600f1+wt
+pass/facts/quotient_closed_literal_scalar_first built 15897ms exit:0 @7df3e6a600f1+wt
+pass/facts/quotient_closed_literal_through_call_result_exit built 15313ms exit:0 @7df3e6a600f1+wt
+pass/facts/quotient_closed_literal_through_const_name_exit built 15014ms exit:0 @7df3e6a600f1+wt
+pass/facts/quotient_closed_literal_through_field_exit built 15246ms exit:0 @7df3e6a600f1+wt
+pass/facts/quotient_closed_literal_through_local_exit built 13447ms exit:0 @7df3e6a600f1+wt
+pass/facts/quotient_closed_literal_through_match_join_exit built 15098ms exit:0 @7df3e6a600f1+wt
+pass/facts/quotient_closed_literal_through_other_machine_exit built 15445ms exit:0 @7df3e6a600f1+wt
+pass/facts/quotient_closed_literal_through_other_state_exit built 14794ms exit:0 @7df3e6a600f1+wt
+pass/facts/quotient_closed_literal_through_parameter_exit built 15314ms exit:0 @7df3e6a600f1+wt
+pass/facts/quotient_closed_literal_through_target_body_exit built 15007ms exit:0 @7df3e6a600f1+wt
+pass/facts/quotient_closed_literal_transport built 15640ms exit:0 @7df3e6a600f1+wt
 pass/facts/range_fact_delivery_through_call_result_exit built 8041ms exit:0 @ec38c6dfcf45
 pass/facts/range_fact_delivery_through_const_name_exit built 8077ms exit:0 @ec38c6dfcf45
 pass/facts/range_fact_delivery_through_field_exit built 7748ms exit:0 @ec38c6dfcf45
