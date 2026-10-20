@@ -2448,6 +2448,24 @@ fail/facts/field_where_index_through_other_machine_rejected rejected 2834ms expe
 fail/facts/field_where_index_through_other_state_rejected rejected 3036ms expected @a1b70f5ad427+wt
 fail/facts/field_where_index_through_parameter_rejected rejected 2832ms expected @a1b70f5ad427+wt
 fail/facts/field_where_index_through_target_body_rejected rejected 2711ms expected @a1b70f5ad427+wt
+fail/facts/fixed_array_layout_geometry_through_call_result_rejected rejected 16911ms expected @a6b4f5c6d966+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/fixed_array_layout_geometry_through_const_name_rejected rejected 16680ms expected @a6b4f5c6d966+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/fixed_array_layout_geometry_through_field_rejected rejected 16617ms expected @a6b4f5c6d966+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/fixed_array_layout_geometry_through_local_rejected rejected 15170ms expected @a6b4f5c6d966+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/fixed_array_layout_geometry_through_match_join_rejected rejected 15228ms expected @a6b4f5c6d966+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/fixed_array_layout_geometry_through_other_machine_rejected rejected 15142ms expected @a6b4f5c6d966+wt
+	machine `query_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/fixed_array_layout_geometry_through_other_state_rejected rejected 13731ms expected @a6b4f5c6d966+wt
+	machine `main` state `compute` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/fixed_array_layout_geometry_through_parameter_rejected rejected 13247ms expected @a6b4f5c6d966+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/fixed_array_layout_geometry_through_target_body_rejected rejected 13500ms expected @a6b4f5c6d966+wt
+	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/fixed_array_value_through_call_result_rejected rejected 3591ms expected @45cbafd80d9c
 	cannot prove index `picked_index` is within length 2 in read_element::entry
 fail/facts/fixed_array_value_through_const_name_rejected rejected 3569ms expected @45cbafd80d9c
@@ -7585,6 +7603,15 @@ pass/facts/field_where_index_through_other_machine_compile checked 3560ms @a1b70
 pass/facts/field_where_index_through_other_state_compile checked 3540ms @a1b70f5ad427+wt
 pass/facts/field_where_index_through_parameter_compile checked 3703ms @a1b70f5ad427+wt
 pass/facts/field_where_index_through_target_body_compile checked 3658ms @a1b70f5ad427+wt
+pass/facts/fixed_array_layout_geometry_through_call_result_exit checked 32372ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/fixed_array_layout_geometry_through_const_name_exit checked 32619ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/fixed_array_layout_geometry_through_field_exit checked 32322ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/fixed_array_layout_geometry_through_local_exit checked 32380ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/fixed_array_layout_geometry_through_match_join_exit checked 32725ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/fixed_array_layout_geometry_through_other_machine_exit checked 32545ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/fixed_array_layout_geometry_through_other_state_exit checked 32703ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/fixed_array_layout_geometry_through_parameter_exit checked 32359ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/fixed_array_layout_geometry_through_target_body_exit checked 33682ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/fixed_array_value_through_call_result_exit checked 7852ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/fixed_array_value_through_const_name_exit checked 7913ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/fixed_array_value_through_field_exit checked 7902ms check-target:macos_arm64 @45cbafd80d9c
