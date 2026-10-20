@@ -3703,6 +3703,27 @@ fail/facts/unsigned_64bit_bitwise_or_bound_through_target_body_rejected rejected
 	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_combined from bitwise_or_target: combined >= 40 && combined <= 63 (needs fact `combined >= 40 && combined <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_shift_left_bound_through_call_result_rejected rejected 11600ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_shifted from compute_call_result: shifted >= 40 && shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_shift_left_bound_through_const_name_rejected rejected 11644ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_shifted from compute_const: shifted >= 40 && shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_shift_left_bound_through_field_rejected rejected 11676ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_shifted from compute_field: c.shifted >= 40 && c.shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_shift_left_bound_through_local_rejected rejected 11859ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_shifted from compute_local: transported >= 40 && transported <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_shift_left_bound_through_match_join_rejected rejected 11921ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_shifted from compute_match_join: joined >= 40 && joined <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_shift_left_bound_through_other_machine_rejected rejected 11860ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_shifted from compute_other_machine: shifted >= 40 && shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_shift_left_bound_through_other_state_rejected rejected 10331ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_shifted from compute_other_state: s >= 40 && s <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/unsigned_64bit_shift_left_bound_through_parameter_rejected rejected 10316ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_shifted from compute_parameter: transported >= 40 && transported <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/unsigned_64bit_shift_left_bound_through_target_body_rejected rejected 10320ms expected @a6b4f5c6d966+wt
+	cannot prove requires contract for call verify_shifted from compute_target_body: shifted >= 40 && shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_shifted from compute_target_body: shifted >= 40 && shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_shifted from compute_target_body: shifted >= 40 && shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_shifted from compute_target_body: shifted >= 40 && shifted <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/view_extent_after_write_through_call_result_unproved rejected 1061ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_const_name_unproved rejected 1057ms expected @86af356b96fb+wt
 fail/facts/view_extent_after_write_through_field_unproved rejected 1058ms expected @86af356b96fb+wt
@@ -8191,6 +8212,15 @@ pass/facts/unsigned_64bit_bitwise_or_bound_through_other_machine_exit checked 40
 pass/facts/unsigned_64bit_bitwise_or_bound_through_other_state_exit checked 46165ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_bitwise_or_bound_through_parameter_exit checked 42176ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/unsigned_64bit_bitwise_or_bound_through_target_body_exit checked 39303ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_shift_left_bound_through_call_result_exit checked 29593ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_shift_left_bound_through_const_name_exit checked 29544ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_shift_left_bound_through_field_exit checked 29761ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_shift_left_bound_through_local_exit checked 29470ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_shift_left_bound_through_match_join_exit checked 29471ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_shift_left_bound_through_other_machine_exit checked 29656ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_shift_left_bound_through_other_state_exit checked 29697ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_shift_left_bound_through_parameter_exit checked 29622ms check-target:macos_arm64 @a6b4f5c6d966+wt
+pass/facts/unsigned_64bit_shift_left_bound_through_target_body_exit checked 29672ms check-target:macos_arm64 @a6b4f5c6d966+wt
 pass/facts/view_extent_after_write_through_call_result_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_const_name_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
 pass/facts/view_extent_after_write_through_field_exit checked 3519ms check-target:macos_arm64 @86af356b96fb+wt
