@@ -469,6 +469,33 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             .is_some_and(|token| token.integer_literal_kind().is_some())
     }
 
+    /// True when the input leads with the complete same-stack demand clause
+    /// `stack <integer> bytes`. The bare contextual word `stack` also begins
+    /// ordinary contract propositions whose subject happens to be named
+    /// `stack` (`requires stack.count < 4 {`), so the clause is recognized only
+    /// by its full shape. The peek cannot shadow user code: `stack <integer>
+    /// bytes` is not otherwise a valid start of a proposition. Consumes nothing.
+    pub(crate) fn at_same_stack_demand(&self) -> bool {
+        let Some((first, rest)) = self.tokens.split_first() else {
+            return false;
+        };
+        if !(matches!(first.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+            && first.lexeme.as_str() == "stack")
+        {
+            return false;
+        }
+        let Some((integer, rest)) = skip_non_semantic_tokens(rest).split_first() else {
+            return false;
+        };
+        if integer.integer_literal_kind().is_none() {
+            return false;
+        }
+        skip_non_semantic_tokens(rest).first().is_some_and(|token| {
+            matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+                && token.lexeme.as_str() == "bytes"
+        })
+    }
+
     pub(crate) fn has_newline_before(self, later: Self) -> bool {
         let skipped_count = self.tokens.len().saturating_sub(later.tokens.len());
         let mut index = skipped_count;

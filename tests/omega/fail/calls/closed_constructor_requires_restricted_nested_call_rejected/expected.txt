@@ -1,1 +1,1 @@
-requires contract
+value call to `restricted` violates required fact `false`

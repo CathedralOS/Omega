@@ -747,7 +747,8 @@ fail/calling/call_plan_count_invalid_handback rejected 568ms expected @a14ec34a5
 fail/calling/native_field_path_empty rejected 574ms expected @a14ec34a59ab+wt
 fail/calls/affine_call_local_moved_twice rejected 942ms expected @0e7ef4cb2ac8+wt
 fail/calls/affine_constructor_result_reuse rejected 1183ms expected @a9ae30e1c334+wt
-fail/calls/ambiguous_returned_loan_drops_count rejected 965ms expected @d9b14477f4cf+wt
+fail/calls/ambiguous_returned_loan_drops_count rejected 1276ms expected @4a9ab33501da+wt
+	cannot prove requires contract for call push from Main::main: loan(main, false).count < 4 (needs fact `stack.count < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `stored`
 fail/calls/authored_numeric_name_requires rejected 1601ms expected @a9ae30e1c334+wt
 fail/calls/boundary_computed_selector_out_of_bounds rejected 1609ms expected @a9ae30e1c334+wt
 fail/calls/boundary_nested_argument_conflicting_loan rejected 1504ms expected @a9ae30e1c334+wt
@@ -762,7 +763,8 @@ fail/calls/closed_constructor_projection_reference_result_rejected rejected 1611
 fail/calls/closed_constructor_projection_runtime_receiver_rejected rejected 1628ms expected @197e7e7ec2b9
 fail/calls/closed_constructor_requires_alias_write_rejected rejected 2075ms expected @197e7e7ec2b9
 fail/calls/closed_constructor_requires_overwritten_store_rejected rejected 1955ms expected @197e7e7ec2b9
-fail/calls/closed_constructor_requires_restricted_nested_call_rejected rejected 2100ms expected @197e7e7ec2b9
+fail/calls/closed_constructor_requires_restricted_nested_call_rejected rejected 12573ms expected @4a9ab33501da+wt
+	machine `outer` state `entry` value call to `restricted` violates required fact `false`: the instantiated fact is structurally false
 fail/calls/closed_constructor_requires_stale_entry_rejected rejected 2661ms expected @197e7e7ec2b9
 fail/calls/closed_constructor_requires_stale_store_rejected rejected 2608ms expected @197e7e7ec2b9
 fail/calls/closed_constructor_requires_symbolic_unknown rejected 2564ms expected @197e7e7ec2b9
@@ -865,9 +867,11 @@ fail/calls/retired_core_binding_local rejected 274ms expected @f74c72195fbf
 	machine `invalid` state `entry` local data `slot` references unknown generic type `Binding`
 fail/calls/retired_core_binding_parameter rejected 254ms expected @f74c72195fbf
 	machine `invalid` state `entry` parameter `slot` references unknown generic type `Binding`
-fail/calls/selected_local_owner_reuse rejected 1632ms expected @a9ae30e1c334+wt
+fail/calls/selected_local_owner_reuse rejected 1452ms expected @4a9ab33501da+wt
+	cannot use `token` in machine `choose` state `entry` (statement 1) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/calls/selector_field_predicate_upper_bound rejected 178ms expected @12d4cf2df172+wt
-fail/calls/stale_returned_loan_drops_count rejected 974ms expected @d9b14477f4cf+wt
+fail/calls/stale_returned_loan_drops_count rejected 1891ms expected @4a9ab33501da+wt
+	cannot prove requires contract for call push from Main::main: main.values.count < 4 (needs fact `stack.count < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `stored`
 fail/calls/state_arrival_call_result_above_bound rejected 421ms expected @a0a35c7bbb43+wt
 fail/calls/statement_call_undeclared_callee_rejected rejected 829ms expected @a9ae30e1c334+wt
 fail/calls/static_boundary_extra_argument rejected 739ms expected @c48489ea6ad6
@@ -946,7 +950,8 @@ fail/collections/runtime_three_indexed_float_read_missing_bound rejected 1706ms 
 fail/collections/vec_duplicate_cleanup rejected 3136ms expected @8df1d091a810
 fail/collections/vec_invalidated_loan_after_growth rejected 5189ms expected @a9ae30e1c334+wt
 fail/collections/wrapping_loop_increment_bound rejected 1755ms expected @a9ae30e1c334+wt
-fail/collections/wrapping_member_decrement_index_unproven rejected 1554ms expected @a9ae30e1c334+wt
+fail/collections/wrapping_member_decrement_index_unproven rejected 2143ms expected @4a9ab33501da+wt
+	cannot prove index `stack.count` is within length 8 in take::entry
 fail/collections/wrapping_range_index_unproven rejected 3417ms expected @f334a04a60a7+wt
 fail/comptime/array_expression_fractional rejected 40ms expected @77cde1c51efd+wt
 fail/comptime/array_expression_negative rejected 36ms expected @77cde1c51efd+wt
@@ -997,7 +1002,8 @@ fail/constraints/multiple_policy_domain_chain rejected 887ms expected @a9ae30e1c
 fail/constraints/scalar_requires_unproven_literal rejected 1539ms expected @a9ae30e1c334+wt
 fail/contracts/address_field_false_result_guarantee rejected 1121ms expected @2a08673f9136
 fail/contracts/aggregate_result_false_guarantee rejected 1584ms expected @a9ae30e1c334+wt
-fail/contracts/call_write_retires_overlapping_guard rejected 612ms expected @a036414cf2c9
+fail/contracts/call_write_retires_overlapping_guard rejected 2326ms expected @4a9ab33501da+wt
+	cannot prove requires contract for call pop from Main::main: main.a.count >= 1 && main.a.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `twice`
 fail/contracts/captured_predicate_arithmetic_policies rejected 2884ms expected @c0ec033db8e0+wt
 	cannot prove requires contract for call wrapping_greater from wrapping_step: value + 1 > value (needs fact `actual > prior` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call saturating_greater from saturating_step: value + 1 > value (needs fact `actual > prior` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -1107,7 +1113,8 @@ fail/contracts/shift_result_negative_wrapping_count rejected 444ms expected @f70
 fail/contracts/shift_result_wrong_count rejected 445ms expected @f70cef10b430
 fail/contracts/slice_descriptor_does_not_preserve_mutated_contents rejected 658ms expected @6756ba1b9853
 fail/contracts/slice_index_requirement_retires_mutated_contents rejected 656ms expected @6756ba1b9853
-fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 613ms expected @a036414cf2c9
+fail/contracts/state_write_retires_overlapping_guard_conjunct rejected 2593ms expected @4a9ab33501da+wt
+	cannot prove requires contract for call pop from Main::main: main.b.count >= 1 && main.b.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `second`
 fail/contracts/target_family_recursive_guarantee rejected 9778ms expected @46f9e865d179+wt
 fail/contracts/target_family_unselected_write_retires_fact rejected 689ms expected @6756ba1b9853
 fail/contracts/target_family_unshared_result rejected 35723ms expected @46f9e865d179+wt
@@ -8737,7 +8744,7 @@ pass/constraints/scalar_requires_satisfied_by_literal checked 2414ms @a9ae30e1c3
 pass/constraints/selected_arithmetic_return_ensures checked 2397ms @a9ae30e1c334+wt
 pass/contracts/arith_ensures_selection checked 9585ms @5041ef1af684+wt
 pass/contracts/borrowed_field_ensures checked 9549ms @5041ef1af684+wt
-pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2820ms check-target:linux_x86_64 @fce0c29a3681+wt
+pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2175ms check-target:macos_arm64 @4a9ab33501da+wt
 pass/contracts/call_write_keeps_disjoint_guard_exit checked 5761ms check-target:macos_arm64 @a036414cf2c9
 pass/contracts/carry_contract_decl checked 9441ms @5041ef1af684+wt
 pass/contracts/case_requires_payload_field_read_exit checked 13093ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -8757,7 +8764,7 @@ pass/contracts/ensures_wrapping_field_arithmetic_exit checked 12892ms check-targ
 pass/contracts/entry_case_replaced_before_call checked 1805ms @6c0183cab07b
 pass/contracts/float_guard_disjoint_operand_write checked 6892ms check-target:macos_arm64 @9a1008d23dee+wt
 pass/contracts/folded_actual_requires checked 9704ms @5041ef1af684+wt
-pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 2927ms check-target:linux_x86_64 @fce0c29a3681+wt
+pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 2087ms check-target:macos_arm64 @4a9ab33501da+wt
 pass/contracts/guard_conjunct_survives_disjoint_state_write_exit checked 5761ms check-target:macos_arm64 @a036414cf2c9
 pass/contracts/indexed_crash_dense_scalar_namespace checked 7774ms check-target:macos_arm64 @97fca7a18f74+wt
 pass/contracts/indexed_crash_entry_subfield_arrival checked 7715ms check-target:macos_arm64 @97fca7a18f74+wt

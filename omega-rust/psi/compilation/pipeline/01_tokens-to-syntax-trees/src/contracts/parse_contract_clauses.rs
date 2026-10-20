@@ -181,7 +181,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             continue;
         }
 
-        if input.at_contextual("stack") {
+        if input.at_same_stack_demand() {
             if admitted_same_stack_bytes != 0 {
                 return Err(input.error_here("duplicate `stack N bytes` clause"));
             }
@@ -455,7 +455,7 @@ fn machine_contract_fact_boundary(input: Input<'_, '_>) -> bool {
         || input.at_contract_continuation_keyword()
         || input.at_contextual("where")
         || input.at_contextual("satisfies")
-        || input.at_contextual("stack")
+        || input.at_same_stack_demand()
         || input.tokens.is_empty()
 }
 
@@ -633,7 +633,7 @@ fn machine_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
         || input.at_contract_continuation_keyword()
         || input.at_contextual("where")
         || input.at_contextual("satisfies")
-        || input.at_contextual("stack")
+        || input.at_same_stack_demand()
 }
 
 fn parse_crash_header<'tokens, 'source>(
