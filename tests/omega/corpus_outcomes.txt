@@ -7489,6 +7489,8 @@ fail/traits/computed_static_overflow rejected 35ms expected @abff0035e791
 fail/traits/computed_static_runtime rejected 20ms expected @abff0035e791
 fail/traits/computed_static_type_category rejected 180ms expected @abff0035e791
 fail/traits/conformance_item_missing_member rejected 19ms expected @a9ae30e1c334+wt
+fail/traits/conformance_nested_signature_foreign_lifetime rejected 31ms expected @252f1432d9e9
+	applied trait operand has no exact supplying region
 fail/traits/conformance_phantom_foreign_captured_operand rejected 1067ms expected @f3014db3f225+wt
 fail/traits/conformance_reference_wrong_applied_result rejected 734ms expected @0acd49d4fea4+wt
 fail/traits/conformance_unused_lifetime_foreign_scope rejected 188ms expected @a9ae30e1c334+wt

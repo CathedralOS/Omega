@@ -10,6 +10,7 @@ trait Valid<'first_header, 'second_header>:
 data Phantom<Contract> {}
 trait Captured<'outer> {
     machine inspect<'invocation>(value: Phantom<Uses<ReadingMap<'invocation, 'outer>>>);
+    machine inspect_reversed<'invocation>(value: Phantom<Uses<ReadingMap<'outer, 'invocation>>>);
 }
 machine read_with<Reader satisfies Reading<i32>>(value: i32) -> i32 {
     Reader::read(value)

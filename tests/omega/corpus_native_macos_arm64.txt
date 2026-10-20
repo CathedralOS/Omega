@@ -3148,6 +3148,7 @@ pass/time/runtime_time_host_virtual_exit checked 413ms
 pass/time/static_duration_accessors built 2763ms exit:70 @48008365d839
 pass/traits/applied_callable_law_equality_exit built 17762ms exit:0 @589aedee8ebc+wt
 pass/traits/boundary_trait_effects_host_call built 1527ms exit:0 @b8c70eeec573
+pass/traits/conformance_unused_lifetime_scope_exit built 1290ms exit:0 @252f1432d9e9
 pass/traits/default_row_nested_captured_reference_exit built 3767ms exit:0 @619f89e4fed6+wt
 pass/traits/dyn_finite_family checked 9801ms @5041ef1af684+wt
 pass/traits/dyn_finite_family_dispatch checked 432ms @7f068b5c82b8

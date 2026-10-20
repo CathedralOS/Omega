@@ -212,7 +212,7 @@ struct CallableApplication {
     /// binders remain in `lifetimes` and mask same-spelled captured regions.
     trait_region_application: Option<(crate::trait_definition::TraitApplicationEnvironment, usize)>,
     lifetime_declaration: SymbolHandle,
-    lifetimes: Vec<(crate::name::Identifier, crate::name::Identifier)>,
+    lifetimes: Vec<CallableLifetimeBinding>,
     elided_lifetimes: Vec<crate::name::Identifier>,
     types: Vec<(SymbolHandle, types::TypeReferenceHandle)>,
     static_arguments: Vec<(SymbolHandle, crate::expression::StaticMachineArgument)>,
@@ -221,29 +221,54 @@ struct CallableApplication {
     source_binders: Vec<(crate::name::Identifier, SymbolHandle)>,
 }
 
+/// Invocation-local substitution storage. A rigid callable binder retains its
+/// exact declaration/ordinal; a supplied spelling without a resolved coordinate
+/// remains unresolved rather than acquiring the receiving trait's identity.
+struct CallableLifetimeBinding {
+    parameter: crate::name::Identifier,
+    argument: crate::name::Identifier,
+    region: crate::type_identity::LifetimeParameterIdentity,
+    origin: CallableLifetimeOrigin,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CallableLifetimeOrigin {
+    Lexical,
+    Rigid,
+    Captured,
+}
+
+struct ScopedCallableLifetime {
+    name: crate::name::Identifier,
+    region: crate::type_identity::LifetimeParameterIdentity,
+    origin: CallableLifetimeOrigin,
+}
+
 impl CallableApplication {
     fn scoped_lifetime(
         &self,
         program: &TypedTrees,
         reference: types::TypeReferenceHandle,
         original: &crate::name::Identifier,
-    ) -> Result<
-        (
-            crate::name::Identifier,
-            crate::type_identity::LifetimeParameterIdentity,
-            bool,
-        ),
-        &'static str,
-    > {
-        if self
+    ) -> Result<ScopedCallableLifetime, &'static str> {
+        if let Some(binding) = self
             .lifetimes
             .iter()
-            .any(|(parameter, _)| parameter == original)
+            .rev()
+            .find(|binding| binding.parameter == *original)
         {
-            return Ok((self.lifetime(original), Default::default(), false));
+            return Ok(ScopedCallableLifetime {
+                name: binding.argument.clone(),
+                region: binding.region,
+                origin: binding.origin,
+            });
         }
         let Some((environment, preceding_frames)) = &self.trait_region_application else {
-            return Ok((original.clone(), Default::default(), false));
+            return Ok(ScopedCallableLifetime {
+                name: original.clone(),
+                region: Default::default(),
+                origin: CallableLifetimeOrigin::Lexical,
+            });
         };
         let (region, substituted) = environment
             .lifetime_identity(
@@ -257,15 +282,23 @@ impl CallableApplication {
         let name = crate::type_identity::lifetime_parameter_name(program, region)
             .ok_or("applied trait operand lost its region declaration ordinal")?
             .clone();
-        Ok((name, region, substituted))
+        Ok(ScopedCallableLifetime {
+            name,
+            region,
+            origin: if substituted {
+                CallableLifetimeOrigin::Captured
+            } else {
+                CallableLifetimeOrigin::Lexical
+            },
+        })
     }
 
     fn lifetime(&self, original: &crate::name::Identifier) -> crate::name::Identifier {
         self.lifetimes
             .iter()
             .rev()
-            .find(|(parameter, _)| parameter == original)
-            .map_or_else(|| original.clone(), |(_, actual)| actual.clone())
+            .find(|binding| binding.parameter == *original)
+            .map_or_else(|| original.clone(), |binding| binding.argument.clone())
     }
 
     fn symbol(&self, original: SymbolHandle) -> SymbolHandle {
@@ -346,9 +379,12 @@ impl TypedTrees {
         };
         for (parameter, argument) in lifetimes {
             if let Some(argument) = argument {
-                application
-                    .lifetimes
-                    .push((parameter.clone(), argument.clone()));
+                application.lifetimes.push(CallableLifetimeBinding {
+                    parameter: parameter.clone(),
+                    argument: argument.clone(),
+                    region: Default::default(),
+                    origin: CallableLifetimeOrigin::Lexical,
+                });
             } else {
                 application.elided_lifetimes.push(parameter.clone());
             }
@@ -372,7 +408,15 @@ impl TypedTrees {
         CallableApplication {
             region_scope: declaration,
             types: substitutions.to_vec(),
-            lifetimes: lifetimes.to_vec(),
+            lifetimes: lifetimes
+                .iter()
+                .map(|(parameter, argument)| CallableLifetimeBinding {
+                    parameter: parameter.clone(),
+                    argument: argument.clone(),
+                    region: Default::default(),
+                    origin: CallableLifetimeOrigin::Lexical,
+                })
+                .collect(),
             ..CallableApplication::default()
         }
         .type_reference(self, original)
@@ -392,8 +436,21 @@ impl TypedTrees {
             trait_region_application: Some((environment.clone(), environment.frame_count())),
             lifetimes: local_lifetimes
                 .iter()
-                .map(|name| (name.clone(), name.clone()))
-                .collect(),
+                .map(|name| {
+                    let region = crate::type_identity::lifetime_parameter_identity(
+                        self,
+                        declaration,
+                        name.as_str(),
+                    )
+                    .ok_or("captured callable type lost a declared local region")?;
+                    Ok(CallableLifetimeBinding {
+                        parameter: name.clone(),
+                        argument: name.clone(),
+                        region,
+                        origin: CallableLifetimeOrigin::Rigid,
+                    })
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?,
             ..CallableApplication::default()
         }
         .type_reference(self, original)

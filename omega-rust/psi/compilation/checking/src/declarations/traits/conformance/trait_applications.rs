@@ -107,7 +107,14 @@ pub(crate) fn validate_trait_application_obligations(
         applied_trait,
         applied_arguments,
         applied_lifetime_arguments,
-        caller_scope.lexical_owner,
+        // An independently supplied enclosing Type owns its nested regions.
+        // Keep the receiving Type/Const telescope above; only region custody
+        // follows the nearest retained operand supplier here.
+        if caller_scope.operand_lifetime_owner.is_valid() {
+            caller_scope.operand_lifetime_owner
+        } else {
+            caller_scope.lexical_owner
+        },
         application_label,
         diagnostics,
     );

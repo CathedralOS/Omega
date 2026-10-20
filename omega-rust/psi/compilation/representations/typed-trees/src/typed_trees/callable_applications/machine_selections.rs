@@ -9,7 +9,8 @@
 mod queries;
 
 use super::{
-    AppliedCallableOwner, AppliedCallableSignature, CallableApplication, CallableSubstitution,
+    AppliedCallableOwner, AppliedCallableSignature, CallableApplication, CallableLifetimeBinding,
+    CallableLifetimeOrigin, CallableSubstitution,
 };
 use crate::{
     TypedTrees, signature,
@@ -137,7 +138,15 @@ impl TypedTrees {
         let signature = CallableApplication {
             region_scope: application.binding_declaration,
             lifetime_declaration: selected,
-            lifetimes,
+            lifetimes: lifetimes
+                .into_iter()
+                .map(|(parameter, argument)| CallableLifetimeBinding {
+                    parameter,
+                    argument,
+                    region: Default::default(),
+                    origin: CallableLifetimeOrigin::Lexical,
+                })
+                .collect(),
             types: substitutions,
             static_arguments,
             ..CallableApplication::default()
@@ -146,7 +155,12 @@ impl TypedTrees {
         let source_required = required.clone();
         let caller_lifetimes = caller_lifetime_bindings
             .iter()
-            .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
+            .map(|binding| CallableLifetimeBinding {
+                parameter: binding.parameter.clone(),
+                argument: binding.argument.clone(),
+                region: Default::default(),
+                origin: CallableLifetimeOrigin::Lexical,
+            })
             .collect::<Vec<_>>();
         let required = CallableApplication {
             lifetimes: caller_lifetimes,

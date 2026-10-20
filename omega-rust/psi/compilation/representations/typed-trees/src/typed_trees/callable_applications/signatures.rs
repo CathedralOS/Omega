@@ -1,6 +1,6 @@
 //! Lexical telescopes and proof clauses of a callable application.
 
-use super::CallableApplication;
+use super::{CallableApplication, CallableLifetimeBinding, CallableLifetimeOrigin};
 use crate::{TypedTrees, data, domain, signature};
 use arena::{Handle, HandleSpan};
 
@@ -78,118 +78,130 @@ impl CallableApplication {
         let previous_symbols = self.symbols.len();
         let previous_lifetimes = self.lifetimes.len();
         let previous_binders = self.source_binders.len();
-        self.source_binders.extend(
-            type_parameters
+        let previous_region_scope = self.region_scope;
+        self.region_scope = declared.symbol;
+        let result = (|| {
+            self.source_binders.extend(
+                type_parameters
+                    .iter()
+                    .map(|parameter| (parameter.name.clone(), parameter.symbol))
+                    .chain(
+                        parameters
+                            .iter()
+                            .map(|parameter| (parameter.name.clone(), parameter.symbol)),
+                    ),
+            );
+            let selected_lifetime_telescope = declared.symbol == self.lifetime_declaration;
+            if !selected_lifetime_telescope {
+                // A nested callable introduces its own fresh binders. The outer
+                // captured application must not rewrite a same-spelled local.
+                self.lifetimes
+                    .extend(declared.lifetime_parameters.iter().enumerate().map(
+                        |(ordinal, parameter)| CallableLifetimeBinding {
+                            parameter: parameter.clone(),
+                            argument: parameter.clone(),
+                            region: crate::type_identity::LifetimeParameterIdentity {
+                                declaration: declared.symbol,
+                                ordinal,
+                            },
+                            origin: CallableLifetimeOrigin::Rigid,
+                        },
+                    ));
+            }
+            // Mint the complete local scope before copying any payload: later
+            // binders and value subjects may occur in earlier bounds or predicates.
+            for (symbol, name) in type_parameters
                 .iter()
-                .map(|parameter| (parameter.name.clone(), parameter.symbol))
+                .map(|parameter| (parameter.symbol, parameter.name.as_str()))
                 .chain(
                     parameters
                         .iter()
-                        .map(|parameter| (parameter.name.clone(), parameter.symbol)),
-                ),
-        );
-        let selected_lifetime_telescope = declared.symbol == self.lifetime_declaration;
-        if !selected_lifetime_telescope {
-            // A nested callable introduces its own fresh binders. The outer
-            // captured application must not rewrite a same-spelled local.
-            self.lifetimes.extend(
-                declared
-                    .lifetime_parameters
-                    .iter()
-                    .map(|parameter| (parameter.clone(), parameter.clone())),
-            );
-        }
-        // Mint the complete local scope before copying any payload: later
-        // binders and value subjects may occur in earlier bounds or predicates.
-        for (symbol, name) in type_parameters
-            .iter()
-            .map(|parameter| (parameter.symbol, parameter.name.as_str()))
-            .chain(
-                parameters
-                    .iter()
-                    .map(|parameter| (parameter.symbol, parameter.name.as_str())),
-            )
-        {
-            if symbol.is_valid() {
-                // A supplied binder is replaced simultaneously by its caller
-                // operand. Freshening it first would disconnect expression
-                // payloads from that exact substitution.
-                if self.types.iter().any(|(parameter, _)| *parameter == symbol)
-                    || self
-                        .static_arguments
-                        .iter()
-                        .any(|(parameter, _)| *parameter == symbol)
-                {
-                    continue;
+                        .map(|parameter| (parameter.symbol, parameter.name.as_str())),
+                )
+            {
+                if symbol.is_valid() {
+                    // A supplied binder is replaced simultaneously by its caller
+                    // operand. Freshening it first would disconnect expression
+                    // payloads from that exact substitution.
+                    if self.types.iter().any(|(parameter, _)| *parameter == symbol)
+                        || self
+                            .static_arguments
+                            .iter()
+                            .any(|(parameter, _)| *parameter == symbol)
+                    {
+                        continue;
+                    }
+                    let kind = program.symbols.get(symbol).kind;
+                    let fresh = program
+                        .symbols
+                        .insert_generated_root_from(symbol, kind, name);
+                    self.symbols.push((symbol, fresh));
                 }
-                let kind = program.symbols.get(symbol).kind;
-                let fresh = program
-                    .symbols
-                    .insert_generated_root_from(symbol, kind, name);
-                self.symbols.push((symbol, fresh));
             }
-        }
-        let mut applied = declared.clone();
-        if selected_lifetime_telescope {
-            applied.lifetime_parameters.retain(|parameter| {
-                !self
-                    .lifetimes
-                    .iter()
-                    .any(|(supplied, _)| supplied == parameter)
-            });
-        }
-        applied.symbol = self.symbol(declared.symbol);
-        let mut applied_parameters = Vec::with_capacity(type_parameters.len());
-        for mut parameter in type_parameters {
-            parameter.symbol = self.symbol(parameter.symbol);
-            parameter.kind = self.parameter_kind(program, parameter.kind)?;
-            applied_parameters.push(parameter);
-        }
-        applied.type_parameters = program.data_type_parameters.insert_many(applied_parameters);
-        applied.parameters = self.parameters(program, &parameters)?;
-        applied.return_type = self.type_reference(program, declared.return_type)?;
-        applied.contracts = HandleSpan::empty();
-        for mut contract in program.state_signature_contracts(declared).to_vec() {
-            contract.facts = self.facts(program, contract.facts)?;
-            program
-                .signature_contracts
-                .append_to_span(&mut applied.contracts, contract);
-        }
-        applied.where_facts = self.facts(program, declared.where_facts)?;
-        applied.invokes = HandleSpan::empty();
-        for mut invocation in program.state_signature_invokes(declared).to_vec() {
-            invocation.target = match invocation.target {
-                signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
-                    signature::AuthoredInvocationTarget::Parameter {
-                        ordinal,
-                        symbol: self.symbol(symbol),
+            let mut applied = declared.clone();
+            if selected_lifetime_telescope {
+                applied.lifetime_parameters.retain(|parameter| {
+                    !self
+                        .lifetimes
+                        .iter()
+                        .any(|binding| binding.parameter == *parameter)
+                });
+            }
+            applied.symbol = self.symbol(declared.symbol);
+            let mut applied_parameters = Vec::with_capacity(type_parameters.len());
+            for mut parameter in type_parameters {
+                parameter.symbol = self.symbol(parameter.symbol);
+                parameter.kind = self.parameter_kind(program, parameter.kind)?;
+                applied_parameters.push(parameter);
+            }
+            applied.type_parameters = program.data_type_parameters.insert_many(applied_parameters);
+            applied.parameters = self.parameters(program, &parameters)?;
+            applied.return_type = self.type_reference(program, declared.return_type)?;
+            applied.contracts = HandleSpan::empty();
+            for mut contract in program.state_signature_contracts(declared).to_vec() {
+                contract.facts = self.facts(program, contract.facts)?;
+                program
+                    .signature_contracts
+                    .append_to_span(&mut applied.contracts, contract);
+            }
+            applied.where_facts = self.facts(program, declared.where_facts)?;
+            applied.invokes = HandleSpan::empty();
+            for mut invocation in program.state_signature_invokes(declared).to_vec() {
+                invocation.target = match invocation.target {
+                    signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
+                        signature::AuthoredInvocationTarget::Parameter {
+                            ordinal,
+                            symbol: self.symbol(symbol),
+                        }
+                    }
+                    signature::AuthoredInvocationTarget::Service(symbol) => {
+                        signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
+                    }
+                    signature::AuthoredInvocationTarget::Unresolved => {
+                        signature::AuthoredInvocationTarget::Unresolved
+                    }
+                };
+                program
+                    .signature_invokes
+                    .append_to_span(&mut applied.invokes, invocation);
+            }
+            if let language_semantics::TerminationGuarantee::Terminates { premises } =
+                &mut applied.termination_guarantee
+            {
+                for premise in premises {
+                    premise.subject.root = self.symbol(premise.subject.root);
+                    for projection in &mut premise.subject.projections {
+                        *projection = self.symbol(*projection);
                     }
                 }
-                signature::AuthoredInvocationTarget::Service(symbol) => {
-                    signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
-                }
-                signature::AuthoredInvocationTarget::Unresolved => {
-                    signature::AuthoredInvocationTarget::Unresolved
-                }
-            };
-            program
-                .signature_invokes
-                .append_to_span(&mut applied.invokes, invocation);
-        }
-        if let language_semantics::TerminationGuarantee::Terminates { premises } =
-            &mut applied.termination_guarantee
-        {
-            for premise in premises {
-                premise.subject.root = self.symbol(premise.subject.root);
-                for projection in &mut premise.subject.projections {
-                    *projection = self.symbol(*projection);
-                }
             }
-        }
+            Ok(applied)
+        })();
         self.symbols.truncate(previous_symbols);
         self.lifetimes.truncate(previous_lifetimes);
         self.source_binders.truncate(previous_binders);
-        Ok(applied)
+        self.region_scope = previous_region_scope;
+        result
     }
 
     pub(super) fn parameter_kind(

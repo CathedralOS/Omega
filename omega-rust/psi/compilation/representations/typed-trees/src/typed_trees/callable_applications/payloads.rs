@@ -2,7 +2,7 @@
 //! complete signature graph. Substitutions are simultaneous: selected arguments
 //! retain their caller scope instead of being rebound in the declaration scope.
 
-use super::CallableApplication;
+use super::{CallableApplication, CallableLifetimeOrigin};
 use crate::{TypedTrees, expression, static_applications, types};
 use arena::HandleSpan;
 
@@ -82,15 +82,15 @@ impl CallableApplication {
                     .filter(|lifetime| !self.elided_lifetimes.contains(lifetime))
                     .map(|lifetime| self.scoped_lifetime(program, original, lifetime))
                     .transpose()?;
-                if let Some((_, region, _)) = &lifetime
-                    && region.declaration.is_valid()
+                if let Some(lifetime) = &lifetime
+                    && lifetime.region.declaration.is_valid()
                 {
-                    applied_owner = region.declaration;
+                    applied_owner = lifetime.region.declaration;
                 }
                 types::TypeReferenceNode::Reference {
                     referee: self.type_reference(program, referee)?,
                     access,
-                    lifetime: lifetime.map(|(name, _, _)| name),
+                    lifetime: lifetime.map(|lifetime| lifetime.name),
                 }
             }
             types::TypeReferenceNode::Constrained {
@@ -211,12 +211,18 @@ impl CallableApplication {
                     .map(|lifetime| self.scoped_lifetime(program, original, lifetime))
                     .collect::<Result<Vec<_>, _>>()?;
                 if let Some((environment, _)) = &self.trait_region_application {
-                    let captured = lifetimes.iter().any(|(_, _, substituted)| *substituted);
+                    let captured = lifetimes
+                        .iter()
+                        .any(|lifetime| lifetime.origin == CallableLifetimeOrigin::Captured);
                     if captured
-                        && lifetimes
-                            .iter()
-                            .any(|(_, region, _)| !region.declaration.is_valid())
+                        && lifetimes.iter().any(|lifetime| {
+                            lifetime.origin == CallableLifetimeOrigin::Rigid
+                                || !lifetime.region.declaration.is_valid()
+                        })
                     {
+                        // A rigid binder coordinate is not a captured actual,
+                        // even when both name the same source declaration.
+                        // Their mixed application needs separate represented frames.
                         return Err(
                             "applied nominal regions have no complete represented supplying telescope",
                         );
@@ -229,16 +235,18 @@ impl CallableApplication {
                         environment.argument_owner()
                     } else if applied_owner.is_valid() {
                         applied_owner
+                    } else if self.region_scope.is_valid() {
+                        self.region_scope
                     } else {
                         environment.argument_owner()
                     };
-                    for (name, region, _) in &lifetimes {
-                        if region.declaration.is_valid()
+                    for lifetime in &lifetimes {
+                        if lifetime.region.declaration.is_valid()
                             && crate::type_identity::lifetime_parameter_identity(
                                 program,
                                 owner,
-                                name.as_str(),
-                            ) != Some(*region)
+                                lifetime.name.as_str(),
+                            ) != Some(lifetime.region)
                         {
                             return Err(
                                 "applied nominal regions have no complete represented supplying telescope",
@@ -247,7 +255,7 @@ impl CallableApplication {
                     }
                     if lifetimes
                         .iter()
-                        .any(|(_, region, _)| region.declaration.is_valid())
+                        .any(|lifetime| lifetime.region.declaration.is_valid())
                     {
                         applied_owner = owner;
                     }
@@ -255,7 +263,10 @@ impl CallableApplication {
                 types::TypeReferenceNode::Generic {
                     base_symbol: self.symbol(base_symbol),
                     base_name,
-                    lifetime_arguments: lifetimes.into_iter().map(|(name, _, _)| name).collect(),
+                    lifetime_arguments: lifetimes
+                        .into_iter()
+                        .map(|lifetime| lifetime.name)
+                        .collect(),
                     arguments: self.type_arguments(program, arguments)?,
                 }
             }
